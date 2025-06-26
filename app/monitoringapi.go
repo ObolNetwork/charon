@@ -128,17 +128,36 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 		readyErr           = errReadyUninitialised
 		notConnectedRounds = minNotConnected // Start as not connected.
 	)
+
 	go func() {
-		ticker := clock.NewTicker(10 * time.Second)
+		genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+		if err != nil {
+			log.Error(ctx, "Failed to fetch genesis time", err)
+			return
+		}
+		slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+		if err != nil {
+			log.Error(ctx, "Failed to fetch slots config", err)
+			return
+		}
+
+		currentEpochFunc := func() uint64 {
+			chainAge := clock.Since(genesisTime)
+			currentSlot := chainAge / slotDuration
+
+			return uint64(currentSlot) / slotsPerEpoch
+		}
+
+		currentEpoch := currentEpochFunc()
+		ticker := clock.NewTicker(slotDuration)
 		peerCountTicker := clock.NewTicker(1 * time.Minute)
-		epochTicker := clock.NewTicker(32 * 12 * time.Second) // 32 slots * 12 second slot time
-		var bnPeerCount *int                                  // Beacon node peer count value which is queried every minute
+		var bnPeerCount *int // Beacon node peer count value which is queried every minute
 		currVAPICount := 0
 		prevVAPICount := 1 // Assume connected.
-		currPKs := make(map[core.PubKey]bool)
-		prevPKs := make(map[core.PubKey]bool)
+		currPKs := make(map[core.PubKey]struct{})
+		prevPKs := make(map[core.PubKey]struct{})
 		for _, pubkey := range pubkeys { // Assume all validators seen.
-			prevPKs[pubkey] = true
+			prevPKs[pubkey] = struct{}{}
 		}
 
 		// beaconNodePeerCount queries beacon node peer count and sets the peer count gauge if err is nil.
@@ -159,10 +178,6 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 			select {
 			case <-ctx.Done():
 				return
-			case <-epochTicker.Chan():
-				// Copy current to previous and clear current.
-				prevPKs, currPKs = currPKs, make(map[core.PubKey]bool)
-				prevVAPICount, currVAPICount = currVAPICount, 0
 			case <-peerCountTicker.Chan():
 				beaconNodePeerCount()
 			case <-ticker.Chan():
@@ -170,6 +185,13 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 					notConnectedRounds = 0
 				} else {
 					notConnectedRounds++
+				}
+
+				evaluatedEpoch := currentEpochFunc()
+				if evaluatedEpoch != currentEpoch {
+					currentEpoch = evaluatedEpoch
+					prevPKs, currPKs = currPKs, make(map[core.PubKey]struct{})
+					prevVAPICount, currVAPICount = currVAPICount, 0
 				}
 
 				syncing, syncDistance, err := beaconNodeSyncing(ctx, eth2Cl)
@@ -192,7 +214,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				} else if prevVAPICount == 0 {
 					err = errReadyVCNotConnected
 					readyzGauge.Set(readyzVCNotConnected)
-				} else if len(prevPKs) < len(pubkeys) {
+				} else if len(prevPKs) < len(pubkeys) && len(currPKs) < len(pubkeys) {
 					err = errReadyVCMissingVals
 					readyzGauge.Set(readyzVCMissingValidators)
 				} else {
@@ -203,7 +225,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				readyErr = err
 				mu.Unlock()
 			case pubkey := <-seenPubkeys:
-				currPKs[pubkey] = true
+				currPKs[pubkey] = struct{}{}
 			case <-vapiCalls:
 				currVAPICount++
 			}

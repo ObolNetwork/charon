@@ -58,6 +58,7 @@ const (
 	executionPayloadBlindedHeader             = "Eth-Execution-Payload-Blinded"
 	executionPayloadValueHeader               = "Eth-Execution-Payload-Value"
 	consensusBlockValueHeader                 = "Eth-Consensus-Block-Value"
+	defaultRequestTimeout                     = 10 * time.Second
 )
 
 // Handler defines the request handler providing the business logic
@@ -346,12 +347,17 @@ type handlerFunc func(ctx context.Context, params map[string]string, header http
 // It does tracing, metrics and response and error writing.
 func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
-		defer observeAPILatency(endpoint)()
-
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
 		ctx = log.WithCtx(ctx, z.Str("vapi_endpoint", endpoint))
 		ctx = withCtxDuration(ctx)
+		ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
+		defer func() {
+			if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				observeAPILatency(endpoint)()
+			}
+			cancel()
+		}()
 
 		var typ contentType
 		contentHeader := r.Header.Get("Content-Type")
@@ -1442,6 +1448,9 @@ func proxyHandler(ctx context.Context, addrProvider addressProvider) http.Handle
 		// requests are cancelled when this context is cancelled (soft shutdown).
 		clonedReq := r.Clone(ctx)
 
+		log.Debug(ctx, "Proxying request to beacon node", z.Str("method", clonedReq.Method), z.Str("path", clonedReq.URL.Path))
+
+		defer observeProxyAPILatency(clonedReq.URL.Path)()
 		defer observeAPILatency("proxy")()
 		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
 	}
