@@ -97,10 +97,13 @@ func TestStartChecker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
-			bmock, err := beaconmock.New()
+			slotDuration := 12 * time.Second
+			slotsPerEpoch := 32
+
+			bmock, err := beaconmock.New(beaconmock.WithSlotDuration(slotDuration), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 			require.NoError(t, err)
 
 			bmock.NodeSyncingFunc = func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
@@ -156,16 +159,16 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			// Advance clock for first tick.
-			advanceClock(t, ctx, clock, 10*time.Second)
+			advanceClock(t, ctx, clock, slotDuration)
 
 			// Advance clock for first epoch tick.
-			advanceClock(t, ctx, clock, 32*12*time.Second)
+			advanceClock(t, ctx, clock, time.Duration(slotsPerEpoch)*slotDuration)
 
 			waitFor := 1 * time.Second
 			tickInterval := 1 * time.Millisecond
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
-					advanceClock(t, ctx, clock, 10*time.Second)
+					advanceClock(t, ctx, clock, slotDuration)
 					err = readyErrFunc()
 					if !errors.Is(err, tt.err) {
 						t.Logf("Ignoring unexpected error, got=%v, want=%v", err, tt.err)
@@ -176,7 +179,7 @@ func TestStartChecker(t *testing.T) {
 				}, waitFor, tickInterval)
 			} else {
 				require.Eventually(t, func() bool {
-					advanceClock(t, ctx, clock, 12*time.Second)
+					advanceClock(t, ctx, clock, slotDuration)
 					return readyErrFunc() == nil
 				}, waitFor, tickInterval)
 			}
