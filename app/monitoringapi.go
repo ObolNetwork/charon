@@ -136,7 +136,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 			return
 		}
 		slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-		if err != nil || slotDuration == 0 || slotsPerEpoch == 0 {
+		if err != nil {
 			log.Error(ctx, "Failed to fetch slots config", err)
 			return
 		}

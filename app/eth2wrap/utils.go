@@ -83,6 +83,10 @@ func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slot
 		return 0, 0, errors.New("missing SLOTS_PER_EPOCH in network spec")
 	}
 
+	if slotDuration == 0 || slotsPerEpoch == 0 {
+		return 0, 0, errors.New("zero slot duration or slots per epoch in network spec")
+	}
+
 	return slotDuration, slotsPerEpoch, nil
 }
 
