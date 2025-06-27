@@ -28,7 +28,7 @@ const (
 	Capella
 	Deneb
 	Electra
-	Fulu
+	// Fulu
 )
 
 func (f Fork) String() string {
@@ -41,7 +41,7 @@ var forkLabels = map[Fork]string{
 	Capella:   "CAPELLA",
 	Deneb:     "DENEB",
 	Electra:   "ELECTRA",
-	Fulu:      "FULU",
+	// Fulu:      "FULU",
 }
 
 var (
