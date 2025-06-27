@@ -42,8 +42,7 @@ const (
 	StopValidatorAPI
 	StopTracing // Low level services...
 	StopP2PPeerDB
-	StopP2PTCPNode
-	StopP2PUDPNode
+	StopP2PNode
 	StopDebugAPI
 	StopMonitoringAPI
 )
