@@ -196,8 +196,8 @@ func verifyBody(body string) error {
 				// URL is fine
 			} else if ticket == "none" {
 				// None is also fine
-			} else if strings.HasPrefix(ticket, "#") {
-				_, err := strconv.Atoi(strings.TrimPrefix(ticket, "#"))
+			} else if after, ok := strings.CutPrefix(ticket, "#"); ok {
+				_, err := strconv.Atoi(after)
 				if err != nil {
 					return errors.New("ticket tag not a valid github link, #123")
 				}
