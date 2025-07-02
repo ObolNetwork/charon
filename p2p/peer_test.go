@@ -44,14 +44,6 @@ func TestNewQUICHost(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestNewRelayHost(t *testing.T) {
-	privKey, err := k1.GeneratePrivateKey()
-	require.NoError(t, err)
-
-	_, err = p2p.NewNode(context.Background(), p2p.Config{}, privKey, p2p.NewOpenGater(), false, p2p.NodeTypeRelay)
-	require.NoError(t, err)
-}
-
 func TestVerifyP2PKey(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
