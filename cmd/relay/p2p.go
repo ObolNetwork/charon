@@ -42,7 +42,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 		}
 	}
 
-	p2pNode, err := p2p.NewNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs, p2p.NodeTypeRelay,
+	p2pNode, err := p2p.NewNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs, p2p.NodeTypeQUIC,
 		libp2p.ResourceManager(new(network.NullResourceManager)), libp2p.BandwidthReporter(reporter))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new relay node")

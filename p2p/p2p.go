@@ -39,7 +39,6 @@ type NodeType int
 const (
 	NodeTypeTCP NodeType = iota
 	NodeTypeQUIC
-	NodeTypeRelay
 )
 
 // NewP2PNode returns a started libp2p host.
@@ -80,22 +79,6 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 
 		transport = libp2p.Transport(tcp.NewTCPTransport, libP2POpts...)
 	case NodeTypeQUIC:
-		addrs, err = cfg.UDPMultiaddrs()
-		if err != nil {
-			return nil, err
-		}
-
-		if len(addrs) == 0 {
-			log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-udp-addresses is empty")
-		}
-
-		externalAddrs, err = externalUDPMultiAddrs(cfg)
-		if err != nil {
-			return nil, err
-		}
-
-		transport = libp2p.Transport(quic.NewTransport)
-	case NodeTypeRelay:
 		udpAddrs, err := cfg.UDPMultiaddrs()
 		if err != nil {
 			return nil, err
@@ -124,8 +107,8 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		externalAddrs = slices.Concat(externalUDPAddrs, externalTCPAddrs)
 
 		transport = libp2p.ChainOptions(
-			libp2p.Transport(quic.NewTransport),
 			libp2p.Transport(tcp.NewTCPTransport, libP2POpts...),
+			libp2p.Transport(quic.NewTransport),
 		)
 	default:
 		return nil, errors.New("unrecognized p2pNodeType")
@@ -271,8 +254,7 @@ func externalTCPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 // multiAddrsViaRelay returns multiaddrs to the peer via the relay.
 // See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
 func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
-	var resp []ma.Multiaddr
-
+	var quicAddrs, otherAddrs []ma.Multiaddr
 	for _, addr := range relayPeer.Addrs {
 		transportAddr, _ := peer.SplitAddr(addr)
 
@@ -283,10 +265,15 @@ func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) 
 			return nil, errors.Wrap(err, "new multiaddr")
 		}
 
-		resp = append(resp, transportAddr.Encapsulate(relayAddr))
+		encapAddr := transportAddr.Encapsulate(relayAddr)
+		if isQUICAddr(encapAddr) {
+			quicAddrs = append(quicAddrs, encapAddr)
+		} else {
+			otherAddrs = append(otherAddrs, encapAddr)
+		}
 	}
 
-	return resp, nil
+	return append(quicAddrs, otherAddrs...), nil
 }
 
 // NewEventCollector returns a lifecycle hook that instruments libp2p events.
@@ -346,6 +333,24 @@ func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 				continue
 			}
 
+			if isQUICEnabled(p2pNode) {
+				var quicAddrs []ma.Multiaddr
+				for _, addr := range p2pNode.Peerstore().Addrs(p) {
+					if isQUICAddr(addr) && !isRelayAddr(addr) {
+						quicAddrs = append(quicAddrs, addr)
+					}
+				}
+
+				if len(quicAddrs) > 0 {
+					err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p, Addrs: quicAddrs})
+					if err == nil {
+						log.Debug(ctx, "Forced direct QUIC connection to peer successful", z.Str("peer", PeerName(p)))
+						continue
+					}
+					log.Debug(ctx, "Failed to establish direct QUIC connection", z.Str("peer", PeerName(p)), z.Err(err))
+				}
+			}
+
 			// All existing connections are through relays, so we can try force dialing a direct connection.
 			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
 			if err == nil {
@@ -369,6 +374,22 @@ func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 	}
 }
 
+// IsQUICEnabled returns true if the host has an address or listenning address
+// on QUIC
+func isQUICEnabled(h host.Host) bool {
+	if slices.ContainsFunc(h.Network().ListenAddresses(), isQUICAddr) {
+		return true
+	}
+
+	if addrs := h.Addrs(); len(addrs) > 0 {
+		if slices.ContainsFunc(addrs, isQUICAddr) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // isDirectConnAvailable returns true if direct connection is available in the given set of connections.
 func isDirectConnAvailable(conns []network.Conn) bool {
 	for _, conn := range conns {
@@ -377,6 +398,103 @@ func isDirectConnAvailable(conns []network.Conn) bool {
 		}
 
 		return true
+	}
+
+	return false
+}
+
+// ForceQUICConnections tries to establish a QUIC connection to the peer
+// if there's already a connection via another transport (e.g. TCP or relay).
+// It uses known QUIC addresses from the peerstore.
+func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
+	forceQUICConn := func(ctx context.Context) {
+		if !isQUICEnabled(p2pNode) {
+			return // doesn't support QUIC
+		}
+		for _, p := range peerIDs {
+			if p2pNode.ID() == p {
+				continue // skip self
+			}
+
+			conns := p2pNode.Network().ConnsToPeer(p)
+			if hasQUICConn(conns) {
+				continue
+			}
+			if len(conns) == 0 {
+				continue // nothing to upgrade
+			}
+
+			// Try to get known QUIC addrs from peerstore
+			var quicAddrs []ma.Multiaddr
+			for _, addr := range p2pNode.Peerstore().Addrs(p) {
+				if isQUICAddr(addr) && !isRelayAddr(addr) {
+					quicAddrs = append(quicAddrs, addr)
+				}
+			}
+
+			if len(quicAddrs) == 0 {
+				continue // no known QUIC addresses
+			}
+
+			// Attempt to connect over QUIC explicitly
+			err := p2pNode.Connect(ctx, peer.AddrInfo{
+				ID:    p,
+				Addrs: quicAddrs,
+			})
+			if err != nil {
+				log.Debug(ctx, "Failed to establish QUIC connection to peer",
+					z.Str("peer", PeerName(p)), z.Err(err))
+
+				continue
+			}
+
+			log.Debug(ctx, "Upgraded connection to QUIC",
+				z.Str("peer", PeerName(p)))
+		}
+	}
+
+	return func(ctx context.Context) {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				forceQUICConn(ctx)
+			}
+		}
+	}
+}
+
+// hasQUICConn returns true if there's already a QUIC connection among the given conns.
+func hasQUICConn(conns []network.Conn) bool {
+	for _, conn := range conns {
+		if isQUICAddr(conn.RemoteMultiaddr()) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isQUICAddr returns true if the multiaddr contains /quic or /quic-v1
+func isQUICAddr(addr ma.Multiaddr) bool {
+	for _, proto := range addr.Protocols() {
+		if proto.Name == "quic" || proto.Name == "quic-v1" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isRelayAddr returns true if the multiaddr contains /p2p-circuit
+func isRelayAddr(addr ma.Multiaddr) bool {
+	for _, proto := range addr.Protocols() {
+		if proto.Name == "p2p-circuit" {
+			return true
+		}
 	}
 
 	return false
