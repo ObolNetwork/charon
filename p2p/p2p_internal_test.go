@@ -82,3 +82,57 @@ func TestFilterAdvertisedAddrs(t *testing.T) {
 		})
 	}
 }
+
+func TestAddrProtocol(t *testing.T) {
+	tests := []struct {
+		name     string
+		addr     string
+		expected string
+	}{
+		{
+			name:     "tcp address",
+			addr:     "/ip4/127.0.0.1/tcp/8080",
+			expected: "tcp",
+		},
+		{
+			name:     "quic address",
+			addr:     "/ip4/127.0.0.1/udp/8080/quic",
+			expected: "quic",
+		},
+		{
+			name:     "quic-v1 address",
+			addr:     "/ip4/127.0.0.1/udp/8080/quic-v1",
+			expected: "quic",
+		},
+		{
+			name:     "udp address",
+			addr:     "/ip4/127.0.0.1/udp/8080",
+			expected: "udp",
+		},
+		{
+			name:     "relay over tcp",
+			addr:     "/ip4/172.16.0.7/tcp/8080/p2p/16Uiu2HAm1bSDxrCubda6Esz3NkXamvzEjQh4jzMp1PdckJwwMcuw/p2p-circuit",
+			expected: "tcp",
+		},
+		{
+			name:     "relay over quic",
+			addr:     "/ip4/172.16.0.7/udp/8080/quic-v1/p2p/16Uiu2HAm1bSDxrCubda6Esz3NkXamvzEjQh4jzMp1PdckJwwMcuw/p2p-circuit",
+			expected: "quic",
+		},
+		{
+			name:     "unknown protocol",
+			addr:     "/ip4/127.0.0.1",
+			expected: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			addr, err := ma.NewMultiaddr(tt.addr)
+			require.NoError(t, err)
+
+			result := addrProtocol(addr)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}

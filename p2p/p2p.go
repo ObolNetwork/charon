@@ -417,11 +417,12 @@ func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFu
 			}
 
 			conns := p2pNode.Network().ConnsToPeer(p)
-			if hasQUICConn(conns) {
-				continue
-			}
 			if len(conns) == 0 {
 				continue // nothing to upgrade
+			}
+
+			if hasQUICConn(conns) {
+				continue // no need to upgrade
 			}
 
 			// Try to get known QUIC addrs from peerstore
@@ -509,6 +510,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 	type connKey struct {
 		PeerName string
 		Type     string
+		Protocol string
 	}
 
 	type streamKey struct {
@@ -551,6 +553,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 					cKey := connKey{
 						PeerName: p,
 						Type:     addrType(conn.RemoteMultiaddr()),
+						Protocol: addrProtocol(conn.RemoteMultiaddr()),
 					}
 					counts[cKey]++
 
@@ -566,10 +569,19 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 
 				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
 
+				existing := make(map[string]bool)
+				for cKey, count := range counts {
+					peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type, cKey.Protocol).Set(float64(count))
+					existing[cKey.PeerName+":"+cKey.Type] = true
+				}
+
+				// Ensure zero values for peer/type combinations that have no connections
 				for _, pID := range peerIDs {
+					peerName := PeerName(pID)
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
-						cKey := connKey{PeerName: PeerName(pID), Type: typ}
-						peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type).Set(float64(counts[cKey]))
+						if !existing[peerName+":"+typ] {
+							peerConnGauge.WithLabelValues(peerName, typ, protocolNone).Set(0)
+						}
 					}
 				}
 
@@ -668,6 +680,28 @@ var (
 	_ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion
 	_ network.Notifiee    = connLogger{}
 )
+
+// addrProtocol returns the transport protocol name from a multiaddr
+func addrProtocol(addr ma.Multiaddr) string {
+	// Check for QUIC variants first since they're more specific
+	for _, proto := range addr.Protocols() {
+		if proto.Name == "quic" || proto.Name == "quic-v1" {
+			return protocolQUIC
+		}
+	}
+
+	// If no QUIC, check for other protocols
+	for _, proto := range addr.Protocols() {
+		switch proto.Name {
+		case "tcp":
+			return protocolTCP
+		case "udp":
+			return protocolUDP
+		}
+	}
+
+	return protocolUnknown
+}
 
 // addrType returns 'direct' or 'relay' based on whether the address contains a relay.
 func addrType(a ma.Multiaddr) string {
