@@ -122,7 +122,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTi
 }
 
 // NewConsensus returns a new consensus QBFT component.
-func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
+func NewConsensus(p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
 	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance),
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
@@ -140,7 +140,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 	}
 
 	c := &Consensus{
-		tcpNode:     tcpNode,
+		p2pNode:     p2pNode,
 		sender:      sender,
 		peers:       peers,
 		peerLabels:  labels,
@@ -161,7 +161,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 // Consensus implements core.Consensus & priority.coreConsensus.
 type Consensus struct {
 	// Immutable state
-	tcpNode     host.Host
+	p2pNode     host.Host
 	sender      *p2p.Sender
 	peerLabels  []string
 	peers       []p2p.Peer
@@ -225,7 +225,7 @@ func (c *Consensus) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 
 // Start registers libp2p handler and runs internal routines until the context is cancelled.
 func (c *Consensus) Start(ctx context.Context) {
-	p2p.RegisterHandler("qbft", c.tcpNode, protocols.QBFTv2ProtocolID,
+	p2p.RegisterHandler("qbft", c.p2pNode, protocols.QBFTv2ProtocolID,
 		func() proto.Message { return new(pbv1.QBFTConsensusMsg) },
 		c.handle)
 
@@ -341,12 +341,12 @@ func (c *Consensus) Participate(ctx context.Context, duty core.Duty) error {
 // Broadcast implements Broadcaster interface.
 func (c *Consensus) Broadcast(ctx context.Context, msg *pbv1.QBFTConsensusMsg) error {
 	for _, peer := range c.peers {
-		if peer.ID == c.tcpNode.ID() {
+		if peer.ID == c.p2pNode.ID() {
 			// Do not broadcast to self
 			continue
 		}
 
-		if err := c.sender.SendAsync(ctx, c.tcpNode, protocols.QBFTv2ProtocolID, peer.ID, msg); err != nil {
+		if err := c.sender.SendAsync(ctx, c.p2pNode, protocols.QBFTv2ProtocolID, peer.ID, msg); err != nil {
 			return err
 		}
 	}
@@ -573,7 +573,7 @@ func (c *Consensus) deleteInstanceIO(duty core.Duty) {
 func (c *Consensus) getPeerIdx() (int64, error) {
 	peerIdx := int64(-1)
 	for i, p := range c.peers {
-		if c.tcpNode.ID() == p.ID {
+		if c.p2pNode.ID() == p.ID {
 			peerIdx = int64(i)
 		}
 	}
