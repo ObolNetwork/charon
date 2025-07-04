@@ -1924,7 +1924,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 	testRawRouterEx(t, handler, callback, true)
 }
 
-// testRawRouterEX is a helper function same as testRawRouter() but accepts GetBuilderAPIFlagFunc.
+// testRawRouterEx is a helper function same as testRawRouter() but accepts GetBuilderAPIFlagFunc.
 func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), builderEnabled bool) {
 	t.Helper()
 

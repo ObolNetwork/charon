@@ -1207,7 +1207,7 @@ type SyncCommitteeSelection struct {
 	eth2exp.SyncCommitteeSelection
 }
 
-// MessageRoots returns the signing roots for the provided SyncCommitteeSelection.
+// MessageRoot returns the signing roots for the provided SyncCommitteeSelection.
 // Refer https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#syncaggregatorselectiondata
 func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
 	data := altair.SyncAggregatorSelectionData{
@@ -1784,7 +1784,7 @@ type SyncContributionAndProof struct {
 	altair.ContributionAndProof
 }
 
-// MessageRoots returns the signing roots for the provided SyncContributionAndProof.
+// MessageRoot returns the signing roots for the provided SyncContributionAndProof.
 // Refer: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
 func (s SyncContributionAndProof) MessageRoot() ([32]byte, error) {
 	data := altair.SyncAggregatorSelectionData{
@@ -1876,7 +1876,7 @@ type SignedSyncContributionAndProof struct {
 	altair.SignedContributionAndProof
 }
 
-// MessageRoots returns the signing roots for the provided SignedSyncContributionAndProof.
+// MessageRoot returns the signing roots for the provided SignedSyncContributionAndProof.
 // Refer get_contribution_and_proof_signature from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#broadcast-sync-committee-contribution.
 func (s SignedSyncContributionAndProof) MessageRoot() ([32]byte, error) {
 	return s.Message.HashTreeRoot()
