@@ -408,7 +408,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 	return nil
 }
 
-// resolveProposerDuties resolves proposer duties for the given validators.
+// resolveProDuties resolves proposer duties for the given validators.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	opts := &eth2api.ProposerDutiesOpts{
 		Epoch:   eth2p0.Epoch(slot.Epoch()),
