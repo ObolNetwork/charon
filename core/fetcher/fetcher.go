@@ -314,7 +314,9 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 		if notSelectedCount > 0 {
 			log.Debug(ctx, "Sync committee member(s) not selected for contribution aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("not_selected", notSelectedCount))
 		}
-		log.Info(ctx, "Sync committee contribution duties resolved", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
+		if resolvedCount > 0 {
+			log.Info(ctx, "Sync committee contribution duties resolved", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
+		}
 	}()
 
 	resp := make(core.UnsignedDataSet)
@@ -371,7 +373,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
 		}
-		log.Info(ctx, "Resolved sync committee contribution duty", z.Any("pubkey", pubkey))
+		resolvedCount++
 
 		resp[pubkey] = core.SyncContribution{
 			SyncCommitteeContribution: *contribution,
