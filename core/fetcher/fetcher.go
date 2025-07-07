@@ -178,7 +178,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			log.Debug(ctx, "Attester(s) not selected for aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("not_selected", notSelectedCount))
 		}
 		if resolvedCount > 0 {
-			log.Debug(ctx, "Resolved attester aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
+			log.Info(ctx, "Resolved attester aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
 		}
 	}()
 
@@ -309,10 +309,12 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 // fetchContributionData fetches the sync committee contribution data.
 func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	notSelectedCount := 0
+	resolvedCount := 0
 	defer func() {
 		if notSelectedCount > 0 {
 			log.Debug(ctx, "Sync committee member(s) not selected for contribution aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("not_selected", notSelectedCount))
 		}
+		log.Info(ctx, "Sync committee contribution duties resolved", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
 	}()
 
 	resp := make(core.UnsignedDataSet)
