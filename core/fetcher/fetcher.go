@@ -172,15 +172,8 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 
 // fetchAggregatorData fetches the attestation aggregation data.
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
-	var notSelectedCount, resolvedCount int
-	defer func() {
-		if notSelectedCount > 0 {
-			log.Debug(ctx, "Attester(s) not selected for aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("not_selected", notSelectedCount))
-		}
-		if resolvedCount > 0 {
-			log.Info(ctx, "Resolved attester aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
-		}
-	}()
+	pt := newPubkeysTracker("attester aggregation")
+	defer pt.log(ctx)
 
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
@@ -207,10 +200,10 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
-			notSelectedCount++
+			pt.addNotSelected(pubkey.String())
 			continue
 		}
-		resolvedCount++
+		pt.addResolved(pubkey.String())
 
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
@@ -308,16 +301,8 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 // fetchContributionData fetches the sync committee contribution data.
 func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
-	notSelectedCount := 0
-	resolvedCount := 0
-	defer func() {
-		if notSelectedCount > 0 {
-			log.Debug(ctx, "Sync committee member(s) not selected for contribution aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("not_selected", notSelectedCount))
-		}
-		if resolvedCount > 0 {
-			log.Info(ctx, "Sync committee contribution duties resolved", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
-		}
-	}()
+	pt := newPubkeysTracker("sync committee contribution")
+	defer pt.log(ctx)
 
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
@@ -339,7 +324,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
-			notSelectedCount++
+			pt.addNotSelected(pubkey.String())
 			continue
 		}
 
@@ -373,7 +358,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
 		}
-		resolvedCount++
+		pt.addResolved(pubkey.String())
 
 		resp[pubkey] = core.SyncContribution{
 			SyncCommitteeContribution: *contribution,
@@ -420,5 +405,38 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
 		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
+	}
+}
+
+type pubkeysTracker struct {
+	title              string
+	notSelectedPubKeys []string
+	resolvedPubKeys    []string
+}
+
+func newPubkeysTracker(title string) *pubkeysTracker {
+	return &pubkeysTracker{
+		title:              title,
+		notSelectedPubKeys: make([]string, 0),
+		resolvedPubKeys:    make([]string, 0),
+	}
+}
+
+func (pt *pubkeysTracker) addNotSelected(pubkey string) {
+	pt.notSelectedPubKeys = append(pt.notSelectedPubKeys, pubkey)
+}
+
+func (pt *pubkeysTracker) addResolved(pubkey string) {
+	pt.resolvedPubKeys = append(pt.resolvedPubKeys, pubkey)
+}
+
+func (pt *pubkeysTracker) log(ctx context.Context) {
+	if len(pt.notSelectedPubKeys) > 0 {
+		s := strings.Join(pt.notSelectedPubKeys, ",")
+		log.Debug(ctx, pt.title+": not selected pubkeys", z.Str("pubkeys", s))
+	}
+	if len(pt.resolvedPubKeys) > 0 {
+		s := strings.Join(pt.resolvedPubKeys, ",")
+		log.Info(ctx, pt.title+": resolved pubkeys", z.Str("pubkeys", s))
 	}
 }
