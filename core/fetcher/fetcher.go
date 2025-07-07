@@ -172,6 +172,16 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 
 // fetchAggregatorData fetches the attestation aggregation data.
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	var notSelectedCount, resolvedCount int
+	defer func() {
+		if notSelectedCount > 0 {
+			log.Debug(ctx, "Attester(s) not selected for aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("not_selected", notSelectedCount))
+		}
+		if resolvedCount > 0 {
+			log.Debug(ctx, "Resolved attester aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("resolved", resolvedCount))
+		}
+	}()
+
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 
@@ -197,10 +207,10 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
-			log.Debug(ctx, "Attester not selected for aggregation duty", z.Any("pubkey", pubkey))
+			notSelectedCount++
 			continue
 		}
-		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
+		resolvedCount++
 
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
@@ -298,6 +308,13 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 // fetchContributionData fetches the sync committee contribution data.
 func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	notSelectedCount := 0
+	defer func() {
+		if notSelectedCount > 0 {
+			log.Debug(ctx, "Sync committee member(s) not selected for contribution aggregation duty", z.Int("total_pubkeys", len(defSet)), z.Int("not_selected", notSelectedCount))
+		}
+	}()
+
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		// Query AggSigDB for DutyPrepareSyncContribution to get sync committee selection.
@@ -318,7 +335,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
-			log.Debug(ctx, "Sync committee member not selected for contribution aggregation duty", z.Any("pubkey", pubkey))
+			notSelectedCount++
 			continue
 		}
 
