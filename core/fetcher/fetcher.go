@@ -172,6 +172,9 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 
 // fetchAggregatorData fetches the attestation aggregation data.
 func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	pt := newPubkeysTracker("attester aggregation")
+	defer pt.log(ctx)
+
 	// We may have multiple aggregators in the same committee, use the same aggregated attestation in that case.
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 
@@ -197,10 +200,10 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
-			log.Debug(ctx, "Attester not selected for aggregation duty", z.Any("pubkey", pubkey))
+			pt.addNotSelected(pubkey.String())
 			continue
 		}
-		log.Info(ctx, "Resolved attester aggregation duty", z.Any("pubkey", pubkey))
+		pt.addResolved(pubkey.String())
 
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
@@ -298,6 +301,9 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 // fetchContributionData fetches the sync committee contribution data.
 func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	pt := newPubkeysTracker("sync committee contribution")
+	defer pt.log(ctx)
+
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		// Query AggSigDB for DutyPrepareSyncContribution to get sync committee selection.
@@ -318,7 +324,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		} else if !ok {
-			log.Debug(ctx, "Sync committee member not selected for contribution aggregation duty", z.Any("pubkey", pubkey))
+			pt.addNotSelected(pubkey.String())
 			continue
 		}
 
@@ -352,7 +358,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
 		}
-		log.Info(ctx, "Resolved sync committee contribution duty", z.Any("pubkey", pubkey))
+		pt.addResolved(pubkey.String())
 
 		resp[pubkey] = core.SyncContribution{
 			SyncCommitteeContribution: *contribution,
@@ -399,5 +405,38 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
 		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
+	}
+}
+
+type pubkeysTracker struct {
+	title              string
+	notSelectedPubKeys []string
+	resolvedPubKeys    []string
+}
+
+func newPubkeysTracker(title string) *pubkeysTracker {
+	return &pubkeysTracker{
+		title:              title,
+		notSelectedPubKeys: make([]string, 0),
+		resolvedPubKeys:    make([]string, 0),
+	}
+}
+
+func (pt *pubkeysTracker) addNotSelected(pubkey string) {
+	pt.notSelectedPubKeys = append(pt.notSelectedPubKeys, pubkey)
+}
+
+func (pt *pubkeysTracker) addResolved(pubkey string) {
+	pt.resolvedPubKeys = append(pt.resolvedPubKeys, pubkey)
+}
+
+func (pt *pubkeysTracker) log(ctx context.Context) {
+	if len(pt.notSelectedPubKeys) > 0 {
+		s := strings.Join(pt.notSelectedPubKeys, ",")
+		log.Debug(ctx, pt.title+": not selected pubkeys", z.Str("pubkeys", s))
+	}
+	if len(pt.resolvedPubKeys) > 0 {
+		s := strings.Join(pt.resolvedPubKeys, ",")
+		log.Info(ctx, pt.title+": resolved pubkeys", z.Str("pubkeys", s))
 	}
 }
