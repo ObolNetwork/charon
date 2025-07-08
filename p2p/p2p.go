@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
+	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
@@ -32,9 +34,16 @@ import (
 
 var activationThreshOnce = sync.Once{}
 
-// NewTCPNode returns a started tcp-based libp2p host.
-func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
-	filterPrivateAddrs bool, opts ...libp2p.Option,
+type NodeType int
+
+const (
+	NodeTypeTCP NodeType = iota
+	NodeTypeQUIC
+)
+
+// NewP2PNode returns a started libp2p host.
+func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
+	filterPrivateAddrs bool, nodeType NodeType, opts ...libp2p.Option,
 ) (host.Host, error) {
 	activationThreshOnce.Do(func() {
 		// Use own observed addresses as soon as a single relay reports it.
@@ -42,30 +51,74 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		identify.ActivationThresh = 1
 	})
 
-	addrs, err := cfg.Multiaddrs()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(addrs) == 0 {
-		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses empty")
-	}
-
-	externalAddrs, err := externalMultiAddrs(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	var tcpOpts []any // libp2p.Transport requires empty interface options.
+	var libP2POpts []any // libp2p.Transport requires empty interface options.
 	if cfg.DisableReuseport {
-		tcpOpts = append(tcpOpts, tcp.DisableReuseport())
+		libP2POpts = append(libP2POpts, tcp.DisableReuseport())
+	}
+
+	var (
+		addrs         []ma.Multiaddr
+		externalAddrs []ma.Multiaddr
+		transport     libp2p.Option
+		err           error
+	)
+	switch nodeType {
+	case NodeTypeTCP:
+		addrs, err = cfg.TCPMultiaddrs()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(addrs) == 0 {
+			log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses is empty")
+		}
+		externalAddrs, err = externalTCPMultiAddrs(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		transport = libp2p.Transport(tcp.NewTCPTransport, libP2POpts...)
+	case NodeTypeQUIC:
+		udpAddrs, err := cfg.UDPMultiaddrs()
+		if err != nil {
+			return nil, err
+		}
+
+		tcpAddrs, err := cfg.TCPMultiaddrs()
+		if err != nil {
+			return nil, err
+		}
+
+		addrs = slices.Concat(udpAddrs, tcpAddrs)
+		if len(addrs) == 0 {
+			log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-udp-addresses and --p2p-tcp-addresses are empty")
+		}
+
+		externalUDPAddrs, err := externalUDPMultiAddrs(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		externalTCPAddrs, err := externalTCPMultiAddrs(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		externalAddrs = slices.Concat(externalUDPAddrs, externalTCPAddrs)
+
+		transport = libp2p.ChainOptions(
+			libp2p.Transport(tcp.NewTCPTransport, libP2POpts...),
+			libp2p.Transport(quic.NewTransport),
+		)
+	default:
+		return nil, errors.New("unrecognized p2pNodeType")
 	}
 
 	// Init options.
 	defaultOpts := []libp2p.Option{
 		// Set P2P identity key.
 		libp2p.Identity((*crypto.Secp256k1PrivateKey)(key)),
-		// Set TCP listen addresses.
+		// Set UDP listen addresses.
 		libp2p.ListenAddrs(addrs...),
 		// Set up user-agent.
 		libp2p.UserAgent("obolnetwork-charon/" + version.Version.String()),
@@ -76,18 +129,18 @@ func NewTCPNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater C
 		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
 			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
-		libp2p.Transport(tcp.NewTCPTransport, tcpOpts...),
+		transport,
 		libp2p.SwarmOpts(swarm.WithDialRanker(swarm.NoDelayDialRanker)),
 	}
 
 	defaultOpts = append(defaultOpts, opts...)
 
-	tcpNode, err := libp2p.New(defaultOpts...)
+	p2pNode, err := libp2p.New(defaultOpts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "new libp2p node")
 	}
 
-	return tcpNode, nil
+	return p2pNode, nil
 }
 
 // filterAdvertisedAddrs returns a unique set of external and internal addresses optionally excluding internal private addresses.
@@ -117,24 +170,62 @@ func filterAdvertisedAddrs(externalAddrs, internalAddrs []ma.Multiaddr, excludeI
 	return resp
 }
 
-// externalMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen TCP address ports.
-func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
-	tcpAddrs, err := cfg.ParseTCPAddrs()
+// externalUDPMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen UDP address ports.
+func externalUDPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
+	addrs, err := cfg.ParseUDPAddrs()
 	if err != nil {
 		return nil, err
 	}
 
 	var ports []int
-	for _, addr := range tcpAddrs {
+	for _, addr := range addrs {
 		ports = append(ports, addr.Port)
 	}
 
 	var resp []ma.Multiaddr
-
 	if cfg.ExternalIP != "" {
 		ip := net.ParseIP(cfg.ExternalIP)
 		for _, port := range ports {
-			maddr, err := multiAddrFromIPPort(ip, port)
+			maddr, err := multiAddrFromIPUDPPort(ip, port)
+			if err != nil {
+				return nil, err
+			}
+
+			resp = append(resp, maddr)
+		}
+	}
+
+	if cfg.ExternalHost != "" {
+		for _, port := range ports {
+			maddr, err := ma.NewMultiaddr(fmt.Sprintf("/dns/%s/udp/%d/quic-v1", cfg.ExternalHost, port))
+			if err != nil {
+				return nil, errors.Wrap(err, "invalid dns multiaddr")
+			}
+
+			resp = append(resp, maddr)
+		}
+	}
+
+	return resp, nil
+}
+
+// externalTCPMultiAddrs returns the external IP and Hostname fields as multiaddrs using the listen TCP address ports.
+func externalTCPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
+	addrs, err := cfg.ParseTCPAddrs()
+	if err != nil {
+		return nil, err
+	}
+
+	var ports []int
+	for _, addr := range addrs {
+		ports = append(ports, addr.Port)
+	}
+
+	var resp []ma.Multiaddr
+	if cfg.ExternalIP != "" {
+		ip := net.ParseIP(cfg.ExternalIP)
+		for _, port := range ports {
+			maddr, err := multiAddrFromIPTCPPort(ip, port)
 			if err != nil {
 				return nil, err
 			}
@@ -160,7 +251,7 @@ func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 // multiAddrsViaRelay returns multiaddrs to the peer via the relay.
 // See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
 func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
-	var resp []ma.Multiaddr
+	var quicAddrs, otherAddrs []ma.Multiaddr
 	for _, addr := range relayPeer.Addrs {
 		transportAddr, _ := peer.SplitAddr(addr)
 
@@ -170,16 +261,21 @@ func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) 
 			return nil, errors.Wrap(err, "new multiaddr")
 		}
 
-		resp = append(resp, transportAddr.Encapsulate(relayAddr))
+		encapAddr := transportAddr.Encapsulate(relayAddr)
+		if isQUICAddr(encapAddr) {
+			quicAddrs = append(quicAddrs, encapAddr)
+		} else {
+			otherAddrs = append(otherAddrs, encapAddr)
+		}
 	}
 
-	return resp, nil
+	return append(quicAddrs, otherAddrs...), nil
 }
 
 // NewEventCollector returns a lifecycle hook that instruments libp2p events.
-func NewEventCollector(tcpNode host.Host) lifecycle.HookFuncCtx {
+func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
-		sub, err := tcpNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
+		sub, err := p2pNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
 		if err != nil {
 			log.Error(ctx, "Subscribe libp2p events", err)
 			return
@@ -214,14 +310,14 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 
 // ForceDirectConnections attempts to establish a direct connection if there is an existing relay connection to the peer.
 // The idea is to enable switching to a direct connection as soon as the host has a connection to the peer.
-func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
+func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
 	forceDirectConn := func(ctx context.Context) {
 		for _, p := range peerIDs {
-			if tcpNode.ID() == p {
+			if p2pNode.ID() == p {
 				continue // Skip self
 			}
 
-			conns := tcpNode.Network().ConnsToPeer(p)
+			conns := p2pNode.Network().ConnsToPeer(p)
 			if len(conns) == 0 {
 				// Skip if there isn't any existing connection to peer. Note that we only force direct connection
 				// if there is already an existing relay connection between the host and peer.
@@ -232,8 +328,26 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 				continue
 			}
 
+			if isQUICEnabled(p2pNode) {
+				var quicAddrs []ma.Multiaddr
+				for _, addr := range p2pNode.Peerstore().Addrs(p) {
+					if isQUICAddr(addr) && !isRelayAddr(addr) {
+						quicAddrs = append(quicAddrs, addr)
+					}
+				}
+
+				if len(quicAddrs) > 0 {
+					err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p, Addrs: quicAddrs})
+					if err == nil {
+						log.Debug(ctx, "Forced direct QUIC connection to peer successful", z.Str("peer", PeerName(p)))
+						continue
+					}
+					log.Debug(ctx, "Failed to establish direct QUIC connection", z.Str("peer", PeerName(p)), z.Err(err))
+				}
+			}
+
 			// All existing connections are through relays, so we can try force dialing a direct connection.
-			err := tcpNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
+			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
 			if err == nil {
 				log.Debug(ctx, "Forced direct connection to peer successful", z.Str("peer", PeerName(p)))
 			}
@@ -254,6 +368,22 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 	}
 }
 
+// IsQUICEnabled returns true if the host has an address or listenning address
+// on QUIC
+func isQUICEnabled(h host.Host) bool {
+	if slices.ContainsFunc(h.Network().ListenAddresses(), isQUICAddr) {
+		return true
+	}
+
+	if addrs := h.Addrs(); len(addrs) > 0 {
+		if slices.ContainsFunc(addrs, isQUICAddr) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // isDirectConnAvailable returns true if direct connection is available in the given set of connections.
 func isDirectConnAvailable(conns []network.Conn) bool {
 	for _, conn := range conns {
@@ -267,15 +397,114 @@ func isDirectConnAvailable(conns []network.Conn) bool {
 	return false
 }
 
+// ForceQUICConnections tries to establish a QUIC connection to the peer
+// if there's already a connection via another transport (e.g. TCP or relay).
+// It uses known QUIC addresses from the peerstore.
+func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
+	forceQUICConn := func(ctx context.Context) {
+		if !isQUICEnabled(p2pNode) {
+			return // doesn't support QUIC
+		}
+		for _, p := range peerIDs {
+			if p2pNode.ID() == p {
+				continue // skip self
+			}
+
+			conns := p2pNode.Network().ConnsToPeer(p)
+			if len(conns) == 0 {
+				continue // nothing to upgrade
+			}
+
+			if hasQUICConn(conns) {
+				continue // no need to upgrade
+			}
+
+			// Try to get known QUIC addrs from peerstore
+			var quicAddrs []ma.Multiaddr
+			for _, addr := range p2pNode.Peerstore().Addrs(p) {
+				if isQUICAddr(addr) && !isRelayAddr(addr) {
+					quicAddrs = append(quicAddrs, addr)
+				}
+			}
+
+			if len(quicAddrs) == 0 {
+				continue // no known QUIC addresses
+			}
+
+			// Attempt to connect over QUIC explicitly
+			err := p2pNode.Connect(ctx, peer.AddrInfo{
+				ID:    p,
+				Addrs: quicAddrs,
+			})
+			if err != nil {
+				log.Debug(ctx, "Failed to establish QUIC connection to peer",
+					z.Str("peer", PeerName(p)), z.Err(err))
+
+				continue
+			}
+
+			log.Debug(ctx, "Upgraded connection to QUIC",
+				z.Str("peer", PeerName(p)))
+		}
+	}
+
+	return func(ctx context.Context) {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				forceQUICConn(ctx)
+			}
+		}
+	}
+}
+
+// hasQUICConn returns true if there's already a QUIC connection among the given conns.
+func hasQUICConn(conns []network.Conn) bool {
+	for _, conn := range conns {
+		if isQUICAddr(conn.RemoteMultiaddr()) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isQUICAddr returns true if the multiaddr contains /quic or /quic-v1
+func isQUICAddr(addr ma.Multiaddr) bool {
+	for _, proto := range addr.Protocols() {
+		if proto.Name == "quic" || proto.Name == "quic-v1" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isRelayAddr returns true if the multiaddr contains /p2p-circuit
+func isRelayAddr(addr ma.Multiaddr) bool {
+	for _, proto := range addr.Protocols() {
+		if proto.Name == "p2p-circuit" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // RegisterConnectionLogger registers a connection logger with the host.
 // This is pretty weird and hacky, but that is because libp2p uses the network.Notifiee interface as a map key,
 // so the implementation can only contain fields that are hashable. So we use a channel and do the logic externally. :(.
-func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []peer.ID) {
+func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []peer.ID) {
 	ctx = log.WithTopic(ctx, "p2p")
 
 	type connKey struct {
 		PeerName string
 		Type     string
+		Protocol string
 	}
 
 	type streamKey struct {
@@ -295,7 +524,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 		peers[p] = true
 	}
 
-	tcpNode.Network().Notify(connLogger{
+	p2pNode.Network().Notify(connLogger{
 		events: events,
 		quit:   quit,
 	})
@@ -312,11 +541,12 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				counts := make(map[connKey]int)
 				streams := make(map[streamKey]int)
 
-				for _, conn := range tcpNode.Network().Conns() {
+				for _, conn := range p2pNode.Network().Conns() {
 					p := PeerName(conn.RemotePeer())
 					cKey := connKey{
 						PeerName: p,
 						Type:     addrType(conn.RemoteMultiaddr()),
+						Protocol: addrProtocol(conn.RemoteMultiaddr()),
 					}
 					counts[cKey]++
 
@@ -331,10 +561,20 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				}
 
 				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
+
+				existing := make(map[string]bool)
+				for cKey, count := range counts {
+					peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type, cKey.Protocol).Set(float64(count))
+					existing[cKey.PeerName+":"+cKey.Type] = true
+				}
+
+				// Ensure zero values for peer/type combinations that have no connections
 				for _, pID := range peerIDs {
+					peerName := PeerName(pID)
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
-						cKey := connKey{PeerName: PeerName(pID), Type: typ}
-						peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type).Set(float64(counts[cKey]))
+						if !existing[peerName+":"+typ] {
+							peerConnGauge.WithLabelValues(peerName, typ, protocolNone).Set(0)
+						}
 					}
 				}
 				for sKey, amount := range streams {
@@ -432,6 +672,28 @@ var (
 	_ routing.PeerRouting = peerRoutingFunc(nil) // interface assertion
 	_ network.Notifiee    = connLogger{}
 )
+
+// addrProtocol returns the transport protocol name from a multiaddr
+func addrProtocol(addr ma.Multiaddr) string {
+	// Check for QUIC variants first since they're more specific
+	for _, proto := range addr.Protocols() {
+		if proto.Name == "quic" || proto.Name == "quic-v1" {
+			return protocolQUIC
+		}
+	}
+
+	// If no QUIC, check for other protocols
+	for _, proto := range addr.Protocols() {
+		switch proto.Name {
+		case "tcp":
+			return protocolTCP
+		case "udp":
+			return protocolUDP
+		}
+	}
+
+	return protocolUnknown
+}
 
 // addrType returns 'direct' or 'relay' based on whether the address contains a relay.
 func addrType(a ma.Multiaddr) string {

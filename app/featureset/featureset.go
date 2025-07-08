@@ -60,6 +60,9 @@ const (
 
 	// ProposalTimeout enables a longer first consensus round timeout of 1.5 seconds for proposal duty.
 	ProposalTimeout = "proposal_timeout"
+
+	// QUIC enables the QUIC transport protocol in libp2p.
+	QUIC = "quic"
 )
 
 var (
@@ -75,6 +78,7 @@ var (
 		SSEReorgDuties:       statusAlpha,
 		AttestationInclusion: statusAlpha,
 		ProposalTimeout:      statusAlpha,
+		QUIC:                 statusAlpha,
 		// Add all features and there status here.
 	}
 
