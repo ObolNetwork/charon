@@ -25,9 +25,10 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/instance"
 	"github.com/obolnetwork/charon/core/consensus/metrics"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
-	"github.com/obolnetwork/charon/core/consensus/utils"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/p2p"
@@ -36,7 +37,7 @@ import (
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
-func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTimer,
+func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
 ) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
@@ -117,7 +118,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTi
 		Nodes: nodes,
 
 		// FIFOLimit caps the max buffered messages per peer.
-		FIFOLimit: utils.RecvBufferSize,
+		FIFOLimit: instance.RecvBufferSize,
 	}
 }
 
@@ -151,10 +152,10 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		snifferFunc: snifferFunc,
 		gaterFunc:   gaterFunc,
 		dropFilter:  log.Filter(),
-		timerFunc:   utils.GetTimerFunc(),
+		timerFunc:   timer.GetRoundTimerFunc(),
 		metrics:     metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 	}
-	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+	c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 
 	return c, nil
 }
@@ -173,14 +174,14 @@ type Consensus struct {
 	snifferFunc func(*pbv1.SniffedConsensusInstance)
 	gaterFunc   core.DutyGaterFunc
 	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
-	timerFunc   utils.TimerFunc
+	timerFunc   timer.RoundTimerFunc
 	metrics     metrics.ConsensusMetrics
 
 	// Mutable state
 	mutable struct {
 		sync.Mutex
 
-		instances map[core.Duty]*utils.InstanceIO[Msg]
+		instances map[core.Duty]*instance.IO[Msg]
 	}
 }
 
@@ -547,7 +548,7 @@ func (c *Consensus) getRecvBuffer(duty core.Duty) chan Msg {
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok {
-		inst = utils.NewInstanceIO[Msg]()
+		inst = instance.NewIO[Msg]()
 		c.mutable.instances[duty] = inst
 	}
 
@@ -555,13 +556,13 @@ func (c *Consensus) getRecvBuffer(duty core.Duty) chan Msg {
 }
 
 // getInstanceIO returns the duty's instance if it were previously created.
-func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[Msg] {
+func (c *Consensus) getInstanceIO(duty core.Duty) *instance.IO[Msg] {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok { // Create new instanceIO.
-		inst = utils.NewInstanceIO[Msg]()
+		inst = instance.NewIO[Msg]()
 		c.mutable.instances[duty] = inst
 	}
 

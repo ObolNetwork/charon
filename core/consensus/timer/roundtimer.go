@@ -1,6 +1,6 @@
 // Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package utils
+package timer
 
 import (
 	"strings"
@@ -19,11 +19,11 @@ const (
 	LinearRoundInc   = time.Second
 )
 
-// TimerFunc is a function that returns a round timer.
-type TimerFunc func(core.Duty) RoundTimer
+// RoundTimerFunc is a function that returns a round timer.
+type RoundTimerFunc func(core.Duty) RoundTimer
 
-// GetTimerFunc returns a timer function based on the enabled features.
-func GetTimerFunc() TimerFunc {
+// GetRoundTimerFunc returns a timer function based on the enabled features.
+func GetRoundTimerFunc() RoundTimerFunc {
 	if featureset.Enabled(featureset.Linear) {
 		return func(duty core.Duty) RoundTimer {
 			// Linear timer only affects Proposer duty
@@ -45,18 +45,18 @@ func GetTimerFunc() TimerFunc {
 	return NewIncreasingRoundTimerWithDuty
 }
 
-// TimerType is the type of round timer.
-type TimerType string
+// Type is the type of round timer.
+type Type string
 
 // Eager returns true if the timer type requires an eager start (before proposal values are present).
-func (t TimerType) Eager() bool {
+func (t Type) Eager() bool {
 	return strings.Contains(string(t), "eager")
 }
 
 const (
-	TimerIncreasing        TimerType = "inc"
-	TimerEagerDoubleLinear TimerType = "eager_dlinear"
-	TimerLinear            TimerType = "linear"
+	TimerIncreasing        Type = "inc"
+	TimerEagerDoubleLinear Type = "eager_dlinear"
+	TimerLinear            Type = "linear"
 )
 
 // increasingRoundTimeout returns the duration for a round that starts at incRoundStart in round 1
@@ -75,7 +75,7 @@ type RoundTimer interface {
 	// Timer returns a channel that will be closed when the round expires and a stop function.
 	Timer(round int64) (<-chan time.Time, func())
 	// Type returns the type of the round timerType.
-	Type() TimerType
+	Type() Type
 }
 
 // proposalTimeoutOptimization returns true if ProposalTimeout feature is enabled, the duty is proposer and
@@ -118,7 +118,7 @@ type increasingRoundTimer struct {
 	duty  core.Duty
 }
 
-func (increasingRoundTimer) Type() TimerType {
+func (increasingRoundTimer) Type() Type {
 	return TimerIncreasing
 }
 
@@ -186,7 +186,7 @@ type doubleEagerLinearRoundTimer struct {
 	firstDeadlines map[int64]time.Time
 }
 
-func (*doubleEagerLinearRoundTimer) Type() TimerType {
+func (*doubleEagerLinearRoundTimer) Type() Type {
 	return TimerEagerDoubleLinear
 }
 
@@ -227,7 +227,7 @@ type linearRoundTimer struct {
 	duty  core.Duty
 }
 
-func (*linearRoundTimer) Type() TimerType {
+func (*linearRoundTimer) Type() Type {
 	return TimerLinear
 }
 

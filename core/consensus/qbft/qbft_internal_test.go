@@ -14,7 +14,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/utils"
+	"github.com/obolnetwork/charon/core/consensus/instance"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	coremocks "github.com/obolnetwork/charon/core/mocks"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -378,7 +379,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 			deadliner := coremocks.NewDeadliner(t)
 			deadliner.On("Add", mock.Anything).Maybe().Return(true)
 			tc.deadliner = deadliner
-			tc.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+			tc.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 			tc.gaterFunc = func(core.Duty) bool { return true }
 
 			msg := &pbv1.QBFTConsensusMsg{
@@ -468,7 +469,7 @@ func TestQBFTConsensusHandle(t *testing.T) {
 
 func TestInstanceIO_MaybeStart(t *testing.T) {
 	t.Run("MaybeStart for new instance", func(t *testing.T) {
-		inst1 := utils.NewInstanceIO[Msg]()
+		inst1 := instance.NewIO[Msg]()
 		require.True(t, inst1.MaybeStart())
 		require.False(t, inst1.MaybeStart())
 	})
@@ -480,7 +481,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		deadliner.On("Add", mock.Anything).Return(true)
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
-		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 
 		// Generate a p2p private key.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
@@ -512,8 +513,8 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		deadliner.On("Add", mock.Anything).Return(true)
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
-		c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
-		c.timerFunc = utils.GetTimerFunc()
+		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
+		c.timerFunc = timer.GetRoundTimerFunc()
 
 		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)

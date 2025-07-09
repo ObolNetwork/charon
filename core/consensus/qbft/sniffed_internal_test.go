@@ -19,7 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/utils"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 )
@@ -79,7 +79,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 			return nil
 		}}
-	}, utils.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte]) {})
+	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte]) {})
 
 	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte], len(instance.GetMsgs()))
 

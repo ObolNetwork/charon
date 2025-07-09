@@ -31,7 +31,8 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/utils"
+	"github.com/obolnetwork/charon/core/consensus/instance"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 )
@@ -54,7 +55,7 @@ const (
 	disabled = time.Hour * 999
 )
 
-type roundTimerFunc func(clock clockwork.Clock) utils.RoundTimer
+type roundTimerFunc func(clock clockwork.Clock) timer.RoundTimer
 
 func TestSimulatorOnce(t *testing.T) {
 	syncer, _, _ := zap.Open("stderr")
@@ -339,7 +340,7 @@ type ssConfig struct {
 	latencyStdDev  time.Duration
 	latencyPerPeer map[int64]time.Duration
 	startByPeer    map[int64]time.Duration
-	roundTimerFunc func(clockwork.Clock) utils.RoundTimer
+	roundTimerFunc func(clockwork.Clock) timer.RoundTimer
 	timeout        time.Duration
 }
 
@@ -481,7 +482,7 @@ func gosched() {
 	}
 }
 
-func newSimDefinition(nodes int, roundTimer utils.RoundTimer,
+func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
 ) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
@@ -523,7 +524,7 @@ func newSimDefinition(nodes int, roundTimer utils.RoundTimer,
 		Nodes: nodes,
 
 		// FIFOLimit caps the max buffered messages per peer.
-		FIFOLimit: utils.RecvBufferSize,
+		FIFOLimit: instance.RecvBufferSize,
 	}
 }
 
@@ -769,14 +770,14 @@ type incRoundTimer2 struct {
 	clock clockwork.Clock
 }
 
-func (t incRoundTimer2) Type() utils.TimerType {
+func (t incRoundTimer2) Type() timer.Type {
 	return "inc2"
 }
 
 func (t incRoundTimer2) Timer(round int64) (<-chan time.Time, func()) {
-	duration := utils.IncRoundStart
+	duration := timer.IncRoundStart
 	for i := 1; i < int(round); i++ {
-		duration += utils.IncRoundStart
+		duration += timer.IncRoundStart
 	}
 
 	timer := t.clock.NewTimer(duration)
@@ -784,7 +785,7 @@ func (t incRoundTimer2) Timer(round int64) (<-chan time.Time, func()) {
 	return timer.Chan(), func() {}
 }
 
-func randomConfigs(names []string, peers int, n int, timer func(clockwork.Clock) utils.RoundTimer,
+func randomConfigs(names []string, peers int, n int, timer func(clockwork.Clock) timer.RoundTimer,
 	stdDev []time.Duration, latencies []time.Duration,
 ) []ssConfig {
 	random := rand.New(rand.NewSource(0))
@@ -942,17 +943,17 @@ func (t *testTimer) Timer(round int64) (<-chan time.Time, func()) {
 	return timer.Chan(), func() {}
 }
 
-func (t *testTimer) Type() utils.TimerType {
+func (t *testTimer) Type() timer.Type {
 	name := t.name
 	if t.eager {
 		name += "_eager"
 	}
 
-	return utils.TimerType(name)
+	return timer.Type(name)
 }
 
 func newLinear(d time.Duration) roundTimerFunc {
-	return func(clock clockwork.Clock) utils.RoundTimer {
+	return func(clock clockwork.Clock) timer.RoundTimer {
 		return &testTimer{
 			clock: clock,
 			durationFunc: func(round int64) time.Duration {
@@ -966,7 +967,7 @@ func newLinear(d time.Duration) roundTimerFunc {
 }
 
 func newExpDouble(d time.Duration) roundTimerFunc {
-	return func(clock clockwork.Clock) utils.RoundTimer {
+	return func(clock clockwork.Clock) timer.RoundTimer {
 		return &testTimer{
 			clock: clock,
 			durationFunc: func(round int64) time.Duration {
@@ -981,7 +982,7 @@ func newExpDouble(d time.Duration) roundTimerFunc {
 }
 
 func newLinearDouble(d time.Duration) roundTimerFunc {
-	return func(clock clockwork.Clock) utils.RoundTimer {
+	return func(clock clockwork.Clock) timer.RoundTimer {
 		return &testTimer{
 			clock: clock,
 			durationFunc: func(round int64) time.Duration {
@@ -995,12 +996,12 @@ func newLinearDouble(d time.Duration) roundTimerFunc {
 	}
 }
 
-func newInc(clock clockwork.Clock) utils.RoundTimer {
-	return utils.NewIncreasingRoundTimerWithClock(clock)
+func newInc(clock clockwork.Clock) timer.RoundTimer {
+	return timer.NewIncreasingRoundTimerWithClock(clock)
 }
 
 func newExp(d time.Duration) roundTimerFunc {
-	return func(clock clockwork.Clock) utils.RoundTimer {
+	return func(clock clockwork.Clock) timer.RoundTimer {
 		return &testTimer{
 			clock: clock,
 			durationFunc: func(round int64) time.Duration {

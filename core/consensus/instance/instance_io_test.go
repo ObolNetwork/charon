@@ -1,18 +1,18 @@
 // Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package utils_test
+package instance_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/core/consensus/instance"
 	cqbft "github.com/obolnetwork/charon/core/consensus/qbft"
-	"github.com/obolnetwork/charon/core/consensus/utils"
 )
 
 func TestMarkParticipated(t *testing.T) {
-	io := utils.NewInstanceIO[cqbft.Msg]()
+	io := instance.NewIO[cqbft.Msg]()
 
 	// First call succeeds.
 	err := io.MarkParticipated()
@@ -24,7 +24,7 @@ func TestMarkParticipated(t *testing.T) {
 }
 
 func TestMarkProposed(t *testing.T) {
-	io := utils.NewInstanceIO[cqbft.Msg]()
+	io := instance.NewIO[cqbft.Msg]()
 
 	// First call succeeds.
 	err := io.MarkProposed()
@@ -36,7 +36,7 @@ func TestMarkProposed(t *testing.T) {
 }
 
 func TestMaybeStart(t *testing.T) {
-	io := utils.NewInstanceIO[cqbft.Msg]()
+	io := instance.NewIO[cqbft.Msg]()
 
 	// First call succeeds.
 	ok := io.MaybeStart()
