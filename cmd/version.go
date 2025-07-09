@@ -50,7 +50,7 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 
 	buildInfo, ok := debug.ReadBuildInfo()
 	if !ok {
-		_, _ = fmt.Fprintf(out, "\nFailed to gather build info")
+		_, _ = fmt.Fprint(out, "\nFailed to gather build info")
 		return
 	}
 

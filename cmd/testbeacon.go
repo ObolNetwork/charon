@@ -88,42 +88,48 @@ type SimulationValidators struct {
 }
 
 type SimulationSingleValidator struct {
+	SimulationValues
+
 	AttestationDuty     SimulationAttestation   `json:"attestation_duty"`
 	AggregationDuty     SimulationAggregation   `json:"aggregation_duty"`
 	ProposalDuty        SimulationProposal      `json:"proposal_duty"`
 	SyncCommitteeDuties SimulationSyncCommittee `json:"sync_committee_duties"`
-	SimulationValues
 }
 
 type SimulationAttestation struct {
+	SimulationValues
+
 	GetAttestationDataRequest SimulationValues `json:"get_attestation_data_request"`
 	PostAttestationsRequest   SimulationValues `json:"post_attestations_request"`
-	SimulationValues
 }
 
 type SimulationAggregation struct {
+	SimulationValues
+
 	GetAggregateAttestationRequest SimulationValues `json:"get_aggregate_attestation_request"`
 	PostAggregateAndProofsRequest  SimulationValues `json:"post_aggregate_and_proofs_request"`
-	SimulationValues
 }
 
 type SimulationProposal struct {
+	SimulationValues
+
 	ProduceBlockRequest        SimulationValues `json:"produce_block_request"`
 	PublishBlindedBlockRequest SimulationValues `json:"publish_blinded_block_request"`
-	SimulationValues
 }
 
 type SimulationSyncCommittee struct {
+	SimulationValues
+
 	MessageDuty                   SyncCommitteeMessageDuty      `json:"message_duty"`
 	ContributionDuty              SyncCommitteeContributionDuty `json:"contribution_duty"`
 	SubscribeSyncCommitteeRequest SimulationValues              `json:"subscribe_sync_committee_request"`
-	SimulationValues
 }
 
 type SyncCommitteeContributionDuty struct {
+	SimulationValues
+
 	ProduceSyncCommitteeContributionRequest SimulationValues `json:"produce_sync_committee_contribution_request"`
 	SubmitSyncCommitteeContributionRequest  SimulationValues `json:"submit_sync_committee_contribution_request"`
-	SimulationValues
 }
 
 type SyncCommitteeMessageDuty struct {
