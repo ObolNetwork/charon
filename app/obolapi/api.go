@@ -144,3 +144,30 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 
 	return res.Body, nil
 }
+
+func httpDelete(ctx context.Context, url *url.URL, headers map[string]string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url.String(), nil)
+	if err != nil {
+		return errors.Wrap(err, "new DELETE request with ctx")
+	}
+	req.Header.Add("Content-Type", "application/json")
+
+	for key, val := range headers {
+		req.Header.Set(key, val)
+	}
+
+	res, err := new(http.Client).Do(req)
+	if err != nil {
+		return errors.Wrap(err, "call DELETE endpoint")
+	}
+
+	if res.StatusCode/100 != 2 {
+		if res.StatusCode == http.StatusNotFound {
+			return ErrNoExit
+		}
+
+		return errors.New("http DELETE failed", z.Int("status", res.StatusCode))
+	}
+
+	return nil
+}
