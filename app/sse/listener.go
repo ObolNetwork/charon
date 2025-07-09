@@ -47,6 +47,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 	if err != nil {
 		return nil, err
 	}
+
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -63,6 +64,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 	if err != nil {
 		return nil, err
 	}
+
 	httpHeader := make(http.Header)
 	for k, v := range parsedHeaders {
 		httpHeader.Add(k, v)
@@ -105,17 +107,21 @@ func (p *listener) eventHandler(ctx context.Context, event *event, addr string) 
 
 func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr string) error {
 	var head headEventData
+
 	err := json.Unmarshal(event.Data, &head)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal SSE head event", z.Str("addr", addr))
 	}
+
 	slot, err := strconv.ParseUint(head.Slot, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
 	}
+
 	if slot > math.MaxInt64 {
 		return errors.New("slot value exceeds int64 range", z.Str("addr", addr), z.U64("slot", slot))
 	}
+
 	delay, ok := p.computeDelay(slot, event.Timestamp)
 	if !ok {
 		log.Debug(ctx, "Beacon node received head event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
@@ -137,18 +143,22 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 
 func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr string) error {
 	var chainReorg chainReorgData
+
 	err := json.Unmarshal(event.Data, &chainReorg)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal SSE chain_reorg event", z.Str("addr", addr))
 	}
+
 	slot, err := strconv.ParseUint(chainReorg.Slot, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
 	}
+
 	depth, err := strconv.ParseUint(chainReorg.Depth, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "parse depth to uint64", z.Str("addr", addr))
 	}
+
 	if slot < depth {
 		log.Warn(ctx, "Invalid chain reorg event: depth exceeds slot", nil, z.U64("slot", slot), z.U64("depth", depth))
 		return errors.New("invalid chain reorg event: depth exceeds slot")

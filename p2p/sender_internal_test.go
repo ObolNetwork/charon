@@ -30,11 +30,13 @@ func TestSenderAddResult(t *testing.T) {
 
 	assertFailing := func(t *testing.T, expect bool) {
 		t.Helper()
+
 		state := &peerState{}
 		if val, ok := sender.states.Load(peerID); ok {
 			state, ok = val.(*peerState)
 			require.True(t, ok)
 		}
+
 		require.Equal(t, expect, state.failing.Load())
 	}
 
@@ -70,7 +72,6 @@ func TestAddResult(t *testing.T) {
 	// It will never fail if:
 	//  - it's not executed with `-race`
 	//  - it's executed with `-race` and there's no race condition in Sender.addResult().
-
 	ctx := context.Background()
 
 	sender := new(Sender)
@@ -110,6 +111,7 @@ func TestSenderRetry(t *testing.T) {
 
 type testHost struct {
 	host.Host
+
 	mu    sync.Mutex
 	count int
 }
@@ -124,6 +126,7 @@ func (h *testHost) Count() int {
 func (h *testHost) NewStream(context.Context, peer.ID, ...protocol.ID) (network.Stream, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
 	h.count++
 
 	return nil, network.ErrReset

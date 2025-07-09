@@ -119,11 +119,13 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 	ctx := log.CopyFields(r.asyncCtx, parent)                       // Copy log fields to new context
 	ctx = trace.ContextWithSpan(ctx, trace.SpanFromContext(parent)) // Copy tracing span to new context
 	ctx = log.WithTopic(ctx, topic)
+
 	ctx, cancel := r.ctxTimeoutFunc(ctx, t)
 	defer cancel()
 
 	_, span := tracer.Start(r.asyncCtx, "app/retry.DoAsync")
 	span.SetAttributes(attribute.String("topic", topic))
+
 	span.SetAttributes(attribute.String("name", name))
 	defer span.End()
 
@@ -137,6 +139,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 		}
 
 		var nerr net.Error
+
 		isNetErr := errors.As(err, &nerr)
 		isTempErr := isTemporaryBeaconErr(err)
 		isCtxErr := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
@@ -152,6 +155,7 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 
 		if ctx.Err() == nil {
 			log.Warn(ctx, "Temporary failure (will retry) calling "+label, err)
+
 			select {
 			case <-backoffFunc(i):
 			case <-ctx.Done():

@@ -164,6 +164,7 @@ func InitLogger(config Config) error {
 	}
 
 	var registerError error
+
 	registerZapSink.Do(func() {
 		registerError = zap.RegisterSink("lumberjack", func(u *url.URL) (zap.Sink, error) {
 			return lumberjackSink{
@@ -222,6 +223,7 @@ func InitLogger(config Config) error {
 
 		// Create a multi logger
 		loggers := multiLogger{logger}
+
 		for _, address := range config.LokiAddresses {
 			lokiCl := loki.New(address, config.LokiService, logFunc, getLokiLabels)
 			// Direct-to-loki logger is opinionated: debug level, logfmt format, colored pretty field.
@@ -236,6 +238,7 @@ func InitLogger(config Config) error {
 
 			stopFuncs = append(stopFuncs, lokiCl.Stop)
 			loggers = append(loggers, lokiLogger)
+
 			go lokiCl.Run()
 		}
 
@@ -262,18 +265,22 @@ func NewConsoleForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.
 // InitConsoleForT initialises a global console logger for testing purposes.
 func InitConsoleForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
 	t.Helper()
+
 	initMu.Lock()
 	defer initMu.Unlock()
+
 	logger = NewConsoleForT(t, ws, opts...)
 }
 
 // InitJSONForT initialises a json logger for testing purposes.
 func InitJSONForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
 	t.Helper()
+
 	initMu.Lock()
 	defer initMu.Unlock()
 
 	var err error
+
 	logger, err = newStructuredLogger("json", zapcore.DebugLevel, true, ws, defaultCallerSkip, opts...)
 	require.NoError(t, err)
 }
@@ -281,10 +288,12 @@ func InitJSONForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.En
 // InitLogfmtForT initialises a logfmt logger for testing purposes.
 func InitLogfmtForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
 	t.Helper()
+
 	initMu.Lock()
 	defer initMu.Unlock()
 
 	var err error
+
 	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, false, ws, defaultCallerSkip, opts...)
 	require.NoError(t, err)
 }
@@ -311,6 +320,7 @@ func newStructuredLogger(format string, level zapcore.Level, color bool, ws zapc
 	}
 
 	var encoder zapcore.Encoder
+
 	switch format {
 	case "logfmt":
 		encoder = zaplogfmt.NewEncoder(encConfig)
@@ -342,12 +352,14 @@ func newDefaultLogger() *zap.Logger {
 func newConsoleEncoder(timestamp, color, stacktrace bool, opts ...func(*zapcore.EncoderConfig)) zapcore.Encoder {
 	encConfig := zap.NewDevelopmentEncoderConfig()
 	encConfig.ConsoleSeparator = " "
+
 	encConfig.EncodeLevel = newLevel4CharEncoder(color)
 	if !timestamp {
 		encConfig.EncodeTime = func(time.Time, zapcore.PrimitiveArrayEncoder) {}
 	} else {
 		encConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05.000")
 	}
+
 	for _, opt := range opts {
 		opt(&encConfig)
 	}
@@ -382,6 +394,7 @@ func newFileLogger(ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig))
 // - Formats concise "stacktrace" fields.
 type structuredEncoder struct {
 	zapcore.Encoder
+
 	consoleEncoder zapcore.Encoder
 }
 
@@ -390,6 +403,7 @@ func (e structuredEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*
 	if err != nil {
 		return nil, err
 	}
+
 	fields = append(fields, zap.String("pretty", pretty.String()))
 
 	for i, f := range fields {
@@ -410,6 +424,7 @@ func (e structuredEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*
 //   - pads the "message" so fields are aligned.
 type consoleEncoder struct {
 	zapcore.Encoder
+
 	color      bool
 	stacktrace bool
 }
@@ -439,6 +454,7 @@ func (e consoleEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buf
 
 	if e.color {
 		const green = uint8(32)
+
 		ent.LoggerName = fmt.Sprintf("\x1b[%dm%s\x1b[0m", green, ent.LoggerName)
 	}
 
@@ -461,6 +477,7 @@ func formatZapStack(zapStack string) string {
 	for _, line := range strings.Split(zapStack, "\n") {
 		if strings.HasPrefix(line, "\t") {
 			const sep = "charon/" // Note that this only works if source built in a folder named 'charon'.
+
 			i := strings.LastIndex(line, sep)
 			if i < 0 {
 				// Skip non-charon lines
@@ -508,6 +525,7 @@ func newLevel4CharEncoder(color bool) zapcore.LevelEncoder {
 			zapcore.CapitalLevelEncoder(l, wrappedEnc)
 			return
 		}
+
 		zapcore.CapitalColorLevelEncoder(l, wrappedEnc)
 	}
 }
@@ -515,6 +533,7 @@ func newLevel4CharEncoder(color bool) zapcore.LevelEncoder {
 // appendWrapper wraps zapcore.PrimitiveArrayEncoder's AppendString function with custom transformation function.
 type appendWrapper struct {
 	zapcore.PrimitiveArrayEncoder
+
 	appendWrapFunc func(string) string
 }
 

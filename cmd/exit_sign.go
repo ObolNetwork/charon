@@ -149,6 +149,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	if config.ValidatorIndexPresent {
 		ctx = log.WithCtx(ctx, z.U64("validator_index", config.ValidatorIndex))
 	}
+
 	if config.ValidatorPubkey != "" {
 		ctx = log.WithCtx(ctx, z.Str("validator_pubkey", config.ValidatorPubkey))
 	}
@@ -212,11 +213,13 @@ func signSingleValidatorExit(ctx context.Context, config exitConfig, eth2Cl eth2
 
 func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client, shares keystore.ValidatorShares) ([]obolapi.ExitBlob, error) {
 	var valsEth2 []eth2p0.BLSPubKey
+
 	for pk := range shares {
 		eth2PK, err := pk.ToETH2()
 		if err != nil {
 			return nil, errors.Wrap(err, "convert core pubkey to eth2 pubkey", z.Str("pub_key", eth2PK.String()))
 		}
+
 		valsEth2 = append(valsEth2, eth2PK)
 	}
 
@@ -230,6 +233,7 @@ func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2w
 		if !ok {
 			return nil, errors.New("validator public key not found in cluster lock", z.Str("validator_public_key", val.Validator.PublicKey.String()))
 		}
+
 		share.Index = int(val.Index)
 		shares[core.PubKeyFrom48Bytes(val.Validator.PublicKey)] = share
 	}
@@ -237,20 +241,24 @@ func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2w
 	log.Info(ctx, "Signing partial exit message for all active validators")
 
 	var exitBlobs []obolapi.ExitBlob
+
 	for pk, share := range shares {
 		exitMsg, err := signExit(ctx, eth2Cl, eth2p0.ValidatorIndex(share.Index), share.Share, eth2p0.Epoch(config.ExitEpoch))
 		if err != nil {
 			return nil, errors.Wrap(err, "sign partial exit message", z.Str("validator_public_key", pk.String()), z.Int("validator_index", share.Index), z.Int("exit_epoch", int(config.ExitEpoch)))
 		}
+
 		eth2PK, err := pk.ToETH2()
 		if err != nil {
 			return nil, errors.Wrap(err, "convert core pubkey to eth2 pubkey", z.Str("core_pubkey", pk.String()))
 		}
+
 		exitBlob := obolapi.ExitBlob{
 			PublicKey:         eth2PK.String(),
 			SignedExitMessage: exitMsg,
 		}
 		exitBlobs = append(exitBlobs, exitBlob)
+
 		log.Info(ctx, "Successfully signed exit message", z.Str("validator_public_key", pk.String()), z.Int("validator_index", share.Index))
 	}
 

@@ -27,6 +27,7 @@ var integration = flag.Bool("integration", false, "Enable this package's integra
 
 func skipIfDisabled(t *testing.T) {
 	t.Helper()
+
 	if !*integration {
 		t.Skip("Integration tests are disabled")
 	}
@@ -41,6 +42,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	addr := testutil.AvailableAddr(t).String()
 
 	errChan := make(chan error, 1)
+
 	go func() {
 		err := relay.Run(parentCtx, relay.Config{
 			DataDir:  dir,
@@ -57,6 +59,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 			MaxConns:      1024,
 		})
 		t.Logf("Relay stopped: err=%v", err)
+
 		errChan <- err
 	}()
 
@@ -67,6 +70,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	defer cancel()
 
 	isUp := make(chan struct{})
+
 	go func() {
 		for ctx.Err() == nil {
 			_, err := http.Get(endpoint)
@@ -74,6 +78,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 				time.Sleep(time.Millisecond * 100)
 				continue
 			}
+
 			close(isUp)
 
 			return
@@ -112,6 +117,7 @@ func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 		if ctx.Err() != nil {
 			return true
 		}
+
 		actual = make(map[any]bool)
 		a.callbacks.Range(func(k, v interface{}) bool {
 			actual[k] = true
@@ -145,11 +151,14 @@ func externalIP(t *testing.T) string {
 		if iface.Flags&net.FlagUp == 0 {
 			continue // interface down
 		}
+
 		if iface.Flags&net.FlagLoopback != 0 {
 			continue // loopback interface
 		}
+
 		addrs, err := iface.Addrs()
 		require.NoError(t, err)
+
 		for _, addr := range addrs {
 			var ip net.IP
 			switch v := addr.(type) {
@@ -158,9 +167,11 @@ func externalIP(t *testing.T) string {
 			case *net.IPAddr:
 				ip = v.IP
 			}
+
 			if ip == nil || ip.IsLoopback() {
 				continue
 			}
+
 			ip = ip.To4()
 			if ip == nil {
 				continue // not an ipv4 address

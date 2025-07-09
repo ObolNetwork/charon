@@ -53,6 +53,7 @@ type Checker struct {
 // Run runs the health checker until the context is canceled.
 func (c *Checker) Run(ctx context.Context) {
 	ctx = log.WithTopic(ctx, "health")
+
 	ticker := time.NewTicker(c.scrapePeriod)
 	defer ticker.Stop()
 
@@ -98,20 +99,24 @@ func (c *Checker) scrape() error {
 
 	// Checking metrics with high cardinality.
 	var gatherAgain bool
+
 	for _, fams := range metrics {
 		if fams.GetName() == "app_health_metrics_high_cardinality" {
 			continue
 		}
 
 		var maxLabelsCount int
+
 		for _, fam := range fams.GetMetric() {
 			labelsCount := len(fam.GetLabel())
 			if labelsCount > maxLabelsCount {
 				maxLabelsCount = labelsCount
 			}
 		}
+
 		if maxLabelsCount > labelsCardinalityThreshold*c.numValidators {
 			highCardinalityGauge.WithLabelValues(fams.GetName()).Set(float64(maxLabelsCount))
+
 			gatherAgain = true
 		}
 	}
@@ -136,6 +141,7 @@ func (c *Checker) scrape() error {
 func newQueryFunc(metrics [][]*pb.MetricFamily) func(string, labelSelector, seriesReducer) (float64, error) {
 	return func(name string, selector labelSelector, reducer seriesReducer) (float64, error) {
 		var selectedMetrics []*pb.Metric
+
 		for _, fams := range metrics {
 			for _, fam := range fams {
 				if fam.GetName() != name {
@@ -143,6 +149,7 @@ func newQueryFunc(metrics [][]*pb.MetricFamily) func(string, labelSelector, seri
 				} else if len(fam.GetMetric()) == 0 {
 					continue
 				}
+
 				selected, err := selector(fam)
 				if err != nil {
 					return 0, errors.Wrap(err, "label selector")

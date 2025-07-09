@@ -80,6 +80,7 @@ func TestPRFromLog(t *testing.T) {
 				require.False(t, ok)
 				return
 			}
+
 			require.True(t, ok)
 			require.Equal(t, test.out, actual)
 		})
@@ -87,8 +88,10 @@ func TestPRFromLog(t *testing.T) {
 }
 
 func TestSelectCategory(t *testing.T) {
-	const f = "feature"
-	const r = "refactor"
+	const (
+		f = "feature"
+		r = "refactor"
+	)
 
 	require.Equal(t, f, selectCategory(f, r))
 	require.Equal(t, f, selectCategory(r, f))

@@ -48,6 +48,7 @@ func New(prioritiser *priority.Component, versions []version.SemVer, protocols [
 
 	prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
 		res := result{slot: duty.Slot}
+
 		var fields []z.Field
 		for _, result := range results {
 			fields = append(fields, z.Any(result.Topic, result.Priorities))

@@ -98,6 +98,7 @@ func TestHeadProducer(t *testing.T) {
 				for ctx.Err() == nil {
 					bmock.headProducer.updateHead(eth2p0.Slot(i))
 					i++
+
 					time.Sleep(time.Millisecond)
 				}
 			}()
@@ -106,6 +107,7 @@ func TestHeadProducer(t *testing.T) {
 				require.ErrorIs(t, client.SubscribeWithContext(ctx, addr, func(msg *sse.Event) {}), unsupportedTopicErr)
 			} else {
 				actualTopics := make(map[string]bool)
+
 				require.NoError(t, client.SubscribeWithContext(ctx, addr, func(msg *sse.Event) {
 					require.True(t, requiredTopics[string(msg.Event)])
 

@@ -16,8 +16,11 @@ import (
 // NewTCPNodeCallback returns a callback that can be used to connect a TCP node to all other TCP nodes.
 func NewTCPNodeCallback(t *testing.T, protocols ...protocol.ID) func(host host.Host) {
 	t.Helper()
-	var tcpNodesLock sync.Mutex
-	var tcpNodes []host.Host
+
+	var (
+		tcpNodesLock sync.Mutex
+		tcpNodes     []host.Host
+	)
 
 	return func(tcpNode host.Host) {
 		tcpNodesLock.Lock()
@@ -40,11 +43,14 @@ func NewTCPNodeCallback(t *testing.T, protocols ...protocol.ID) func(host host.H
 // GetFreePort returns a free port on the machine on which the test is ran.
 func GetFreePort(t *testing.T) int {
 	t.Helper()
+
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	require.NoError(t, err)
 	l, err := net.ListenTCP("tcp", addr)
 	require.NoError(t, err)
+
 	defer l.Close()
+
 	port := l.Addr().(*net.TCPAddr).Port
 
 	return port

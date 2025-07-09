@@ -127,6 +127,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
+
 	var labels []string
 	for i, p := range peers {
 		labels = append(labels, fmt.Sprintf("%d:%s", p.Index, p.Name))
@@ -178,6 +179,7 @@ type Consensus struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
+
 		instances map[core.Duty]*utils.InstanceIO[Msg]
 	}
 }
@@ -295,6 +297,7 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	// Instrument consensus duration using decidedAt output.
 	proposedAt := time.Now()
+
 	defer func() {
 		select {
 		case decidedAt := <-inst.DecidedAtCh:
@@ -361,6 +364,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	roundTimer := c.timerFunc(duty)
 	ctx := log.WithTopic(parent, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -370,6 +374,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	)
 
 	inst := c.getInstanceIO(duty)
+
 	defer func() {
 		inst.ErrCh <- err // Send resulting error to errCh.
 	}()
@@ -400,12 +405,14 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		} else {
 			span.SetStatus(codes.Ok, "")
 		}
+
 		span.End()
 	}()
 
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		round := qcommit[0].Round()
 		decided = true
+
 		inst.DecidedAtCh <- time.Now()
 
 		leaderIndex := leader(duty, round, nodes)
@@ -572,11 +579,13 @@ func (c *Consensus) deleteInstanceIO(duty core.Duty) {
 // getPeerIdx returns the local peer index.
 func (c *Consensus) getPeerIdx() (int64, error) {
 	peerIdx := int64(-1)
+
 	for i, p := range c.peers {
 		if c.tcpNode.ID() == p.ID {
 			peerIdx = int64(i)
 		}
 	}
+
 	if peerIdx == -1 {
 		return 0, errors.New("local libp2p host not in peer list")
 	}
@@ -600,6 +609,7 @@ func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {
 	if msg.GetRound() <= 0 {
 		return errors.New("invalid consensus message round", z.I64("round", msg.GetRound()))
 	}
+
 	if msg.GetPreparedRound() < 0 {
 		return errors.New("invalid consensus message prepared round")
 	}
@@ -637,12 +647,14 @@ func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round i
 	checkPeers := func(typ qbft.MsgType) (present []int, missing []int) {
 		for i := range peers {
 			var included bool
+
 			for _, msg := range msgs {
 				if msg.Type() == typ && msg.Source() == int64(i) {
 					included = true
 					break
 				}
 			}
+
 			if included {
 				present = append(present, i)
 				continue
@@ -665,6 +677,7 @@ func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round i
 	}
 
 	var resp []roundStep
+
 	for _, typ := range []qbft.MsgType{qbft.MsgPrePrepare, qbft.MsgPrepare, qbft.MsgCommit, qbft.MsgRoundChange} {
 		present, missing := checkPeers(typ)
 		resp = append(resp, roundStep{
@@ -731,6 +744,7 @@ func leader(duty core.Duty, round int64, nodes int) int64 {
 // valuesByHash returns a map of values by hash.
 func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
 	resp := make(map[[32]byte]*anypb.Any)
+
 	for _, v := range values {
 		inner, err := v.UnmarshalNew()
 		if err != nil {

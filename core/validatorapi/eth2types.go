@@ -51,6 +51,7 @@ func (r *valIndexesJSON) UnmarshalJSON(bytes []byte) error {
 		if err != nil {
 			return errors.Wrap(err, "parse index")
 		}
+
 		*r = append(*r, eth2p0.ValidatorIndex(i))
 	}
 
@@ -118,6 +119,7 @@ type v1Validator eth2v1.Validator
 
 func (v v1Validator) MarshalJSON() ([]byte, error) {
 	cast := eth2v1.Validator(v)
+
 	b, err := json.Marshal(&cast)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapped validator")
@@ -161,12 +163,15 @@ func (s *signedValidatorRegistrations) UnmarshalSSZ(buf []byte) error {
 	if len(buf)%sszObjectSize != 0 {
 		return errors.New("invalid buffer size")
 	}
+
 	for offset := 0; offset < len(buf); offset += sszObjectSize {
 		registration := new(eth2v1.SignedValidatorRegistration)
+
 		err := registration.UnmarshalSSZ(buf[offset : offset+sszObjectSize])
 		if err != nil {
 			return errors.Wrap(err, "unmarshal wrapped signed validator registrations")
 		}
+
 		s.Registrations = append(s.Registrations, registration)
 	}
 

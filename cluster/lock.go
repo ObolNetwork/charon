@@ -82,6 +82,7 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 		lock Lock
 		err  error
 	)
+
 	switch {
 	case isAnyVersion(version.Definition.Version, v1_0, v1_1):
 		lock, err = unmarshalLockV1x0or1(data)
@@ -168,12 +169,14 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 	}
 
 	var pubkeys []tbls.PublicKey
+
 	for _, val := range l.Validators {
 		for _, share := range val.PubShares {
 			pubkey, err := tblsconv.PubkeyFromBytes(share)
 			if err != nil {
 				return err
 			}
+
 			pubkeys = append(pubkeys, pubkey)
 		}
 	}

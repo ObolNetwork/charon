@@ -42,6 +42,7 @@ func Clean(ctx context.Context, dir string) error {
 		configFound bool
 		goFound     bool
 	)
+
 	for _, file := range files {
 		if file == configFile {
 			configFound = true
@@ -49,6 +50,7 @@ func Clean(ctx context.Context, dir string) error {
 			goFound = true
 		}
 	}
+
 	if !configFound {
 		log.Info(ctx, "Not cleaning since config.json not found")
 		return nil
@@ -64,6 +66,7 @@ func Clean(ctx context.Context, dir string) error {
 			log.Info(ctx, "Not deleting *key* folder", z.Str("path", file))
 			continue
 		}
+
 		if err := os.RemoveAll(file); err != nil {
 			return errors.Wrap(err, "remove file")
 		}
@@ -100,6 +103,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	var data TmplData
+
 	if conf.KeyGen == KeyGenDKG {
 		log.Info(ctx, "Creating node*/charon-enr-private-key for ENRs required for charon create dkg")
 
@@ -110,6 +114,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		}
 
 		var enrs []string
+
 		for i, key := range p2pkeys {
 			// Best effort creation of folder, rather fail when saving p2pkey file next.
 			_ = os.MkdirAll(nodeFile(dir, i, ""), 0o755)
@@ -123,6 +128,7 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			if err != nil {
 				return TmplData{}, err
 			}
+
 			enrs = append(enrs, record.String())
 		}
 
@@ -147,7 +153,6 @@ func Define(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	} else {
 		// Other keygens only need a noop docker compose, since charon-compose.yml
 		// is used directly in their compose lock.
-
 		data = TmplData{
 			ComposeDir:       dir,
 			CharonImageTag:   conf.ImageTag,
@@ -200,6 +205,7 @@ func getRelSplitKeysDir(dir, splitKeysDir string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "abs dir")
 	}
+
 	splitKeysDir, err = filepath.Abs(splitKeysDir)
 	if err != nil {
 		return "", errors.Wrap(err, "abs dir")
@@ -238,6 +244,7 @@ func BuildLocal(ctx context.Context) error {
 	log.Info(ctx, "Building `obolnetwork/charon:local` docker container", z.Str("repo", repo))
 
 	var out bytes.Buffer // Only log output if there is an error.
+
 	cmd := exec.CommandContext(ctx, "docker", "build", "-t", "obolnetwork/charon:local", ".")
 	cmd.Stdout = &out
 	cmd.Stderr = &out
@@ -253,10 +260,12 @@ func BuildLocal(ctx context.Context) error {
 // copyStaticFolders copies the embedded static folders to the compose dir.
 func copyStaticFolders(dir string) error {
 	const staticRoot = "static"
+
 	dirs, err := static.ReadDir(staticRoot)
 	if err != nil {
 		return errors.Wrap(err, "read dirs")
 	}
+
 	for _, d := range dirs {
 		if !d.IsDir() {
 			return errors.New("static files not supported")
@@ -308,11 +317,13 @@ var keyGenFunc = func() (*k1.PrivateKey, error) {
 // newP2PKeys returns a slice of newly generated secp256k1 private keys.
 func newP2PKeys(n int) ([]*k1.PrivateKey, error) {
 	var resp []*k1.PrivateKey
+
 	for range n {
 		key, err := keyGenFunc()
 		if err != nil {
 			return nil, errors.Wrap(err, "new key")
 		}
+
 		resp = append(resp, key)
 	}
 

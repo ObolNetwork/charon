@@ -181,6 +181,7 @@ func TestFallback(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var calledMu sync.Mutex
+
 			primaryCalled := make([]bool, len(tt.primaryErrs))
 			fallbackCalled := make([]bool, len(tt.fallbackErrs))
 
@@ -192,12 +193,15 @@ func TestFallback(t *testing.T) {
 				if primaryErr == nil {
 					allPrimariesFail = false
 				}
+
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
 				cl.NodePeerCountFunc = func(context.Context) (int, error) {
 					calledMu.Lock()
+
 					primaryCalled[i] = true
+
 					calledMu.Unlock()
 
 					return returnValue, primaryErr
@@ -213,7 +217,9 @@ func TestFallback(t *testing.T) {
 
 				cl.NodePeerCountFunc = func(context.Context) (int, error) {
 					calledMu.Lock()
+
 					fallbackCalled[i] = true
+
 					calledMu.Unlock()
 
 					return returnValue, fallbackErr
@@ -247,6 +253,7 @@ func TestFallback(t *testing.T) {
 				for i, called := range primaryCalled {
 					require.True(t, called, "primary client %d was not called", i)
 				}
+
 				require.True(t, atLeastOneCalled(fallbackCalled), "at least one fallback client should have been called")
 			} else {
 				require.True(t, atLeastOneCalled(primaryCalled), "at least one primary client should have been called")
@@ -320,6 +327,7 @@ func TestErrors(t *testing.T) {
 	t.Run("zero net op error", func(t *testing.T) {
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
+
 		bmock.GenesisFunc = func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
 			return &eth2v1.Genesis{
 				GenesisTime: time.Time{},
@@ -337,6 +345,7 @@ func TestErrors(t *testing.T) {
 	t.Run("eth2api error", func(t *testing.T) {
 		bmock, err := beaconmock.New()
 		require.NoError(t, err)
+
 		bmock.SignedBeaconBlockFunc = func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return nil, &eth2api.Error{
 				Method:     http.MethodGet,
@@ -398,6 +407,7 @@ func TestBlockAttestations(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, http.MethodGet, r.Method)
 				require.Equal(t, "/eth/v2/beacon/blocks/head/attestations", r.URL.Path)
+
 				b, err := json.Marshal(test.serverJSONStruct)
 				require.NoError(t, err)
 
@@ -407,12 +417,14 @@ func TestBlockAttestations(t *testing.T) {
 			}))
 
 			cl := eth2wrap.NewHTTPAdapterForT(t, srv.URL, nil, time.Hour)
+
 			resp, err := cl.BlockAttestations(context.Background(), "head")
 			if test.expErr != "" {
 				require.ErrorContains(t, err, test.expErr)
 			} else {
 				require.NoError(t, err)
 			}
+
 			require.Equal(t, test.attestations, resp)
 
 			statusCode = http.StatusNotFound
@@ -508,6 +520,7 @@ func TestOnlyTimeout(t *testing.T) {
 		if ctx.Err() != nil {
 			return
 		}
+
 		require.Fail(t, "Expect this only to return after main ctx cancelled") //nolint:testifylint // TODO: find a way to do that outside of go routine
 	}()
 
@@ -517,22 +530,27 @@ func TestOnlyTimeout(t *testing.T) {
 	// testCtxCancel tests that no concurrent calls block if the user cancels the context.
 	testCtxCancel := func(t *testing.T, timeout time.Duration) {
 		t.Helper()
+
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
+
 		_, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
 		assert.Error(t, err)
 	}
 
 	// Start 10 concurrent goroutines that call the method.
 	const n = 10
+
 	var wg sync.WaitGroup
 	wg.Add(n)
+
 	for range n {
 		go func() {
 			testCtxCancel(t, time.Millisecond*10)
 			wg.Done()
 		}()
 	}
+
 	wg.Wait()
 }
 
@@ -546,11 +564,13 @@ func TestLazy(t *testing.T) {
 
 	// Start two proxys that we can enable/disable.
 	var enabled1, enabled2 atomic.Bool
+
 	srv1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !enabled1.Load() {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
+
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -558,6 +578,7 @@ func TestLazy(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
+
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 

@@ -26,6 +26,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 	t.Run("no mismatch", func(t *testing.T) {
@@ -62,6 +63,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 		require.NoError(t, err)
 		pk, err := tblsconv.PubkeyFromBytes(pkb)
 		require.NoError(t, err)
+
 		pubshare := eth2p0.BLSPubKey(pk)
 		allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}}
 

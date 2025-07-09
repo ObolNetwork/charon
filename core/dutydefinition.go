@@ -27,6 +27,7 @@ type AttesterDefinition struct {
 
 func (d AttesterDefinition) Clone() (DutyDefinition, error) {
 	duty := new(eth2v1.AttesterDuty)
+
 	err := cloneJSONMarshaler(&d.AttesterDuty, duty)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone attester definition")
@@ -52,6 +53,7 @@ type ProposerDefinition struct {
 
 func (d ProposerDefinition) Clone() (DutyDefinition, error) {
 	duty := new(eth2v1.ProposerDuty)
+
 	err := cloneJSONMarshaler(&d.ProposerDuty, duty)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone proposer definition")
@@ -77,6 +79,7 @@ type SyncCommitteeDefinition struct {
 
 func (s SyncCommitteeDefinition) Clone() (DutyDefinition, error) {
 	duty := new(eth2v1.SyncCommitteeDuty)
+
 	err := cloneJSONMarshaler(&s.SyncCommitteeDuty, duty)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone sync committee definition")

@@ -146,6 +146,7 @@ func TestFuzz(t *testing.T) {
 	}
 
 	fuzzer := fuzz.New().NilChance(0)
+
 	for _, msg := range tests {
 		t.Run(fmt.Sprintf("%T", msg), func(t *testing.T) {
 			fuzzer.Fuzz(msg)
@@ -156,11 +157,14 @@ func TestFuzz(t *testing.T) {
 
 func BenchmarkCheck(b *testing.B) {
 	fuzzer := fuzz.New()
+
 	for range b.N {
 		b.StopTimer()
+
 		m1 := new(v1.M1)
 		fuzzer.Fuzz(m1)
 		b.StartTimer()
+
 		_ = protonil.Check(m1)
 	}
 }

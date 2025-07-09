@@ -40,6 +40,7 @@ func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epo
 	if err != nil {
 		return eth2p0.Domain{}, err
 	}
+
 	spec := resp.Data
 
 	domainType, ok := spec[string(name)]

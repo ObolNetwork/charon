@@ -144,10 +144,12 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 		eth2AttData, ok := dataByCommIdx[commIdx]
 		if !ok {
 			var err error
+
 			opts := &eth2api.AttestationDataOpts{
 				Slot:           eth2p0.Slot(slot),
 				CommitteeIndex: commIdx,
 			}
+
 			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
 			if err != nil {
 				return nil, err
@@ -232,6 +234,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			AttestationDataRoot: dataRoot,
 			CommitteeIndex:      attDef.CommitteeIndex,
 		}
+
 		eth2Resp, err := f.eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
@@ -259,6 +262,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 	for pubkey := range defSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
 		dutyRandao := core.NewRandaoDuty(slot)
+
 		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
 		if err != nil {
 			return nil, err
@@ -279,10 +283,12 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			Graffiti:           f.graffitiBuilder.GetGraffiti(pubkey),
 			BuilderBoostFactor: &bbf,
 		}
+
 		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+
 		proposal := eth2Resp.Data
 
 		// Ensure fee recipient is correctly populated in proposal.
@@ -347,6 +353,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 			SubcommitteeIndex: subcommIdx,
 			BeaconBlockRoot:   blockRoot,
 		}
+
 		eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return core.UnsignedDataSet{}, err

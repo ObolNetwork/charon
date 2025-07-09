@@ -31,6 +31,7 @@ func Fields(err error) []Field {
 // ContainsField returns true if the error contains the given field.
 func ContainsField(err error, field Field) bool {
 	fields := Fields(err)
+
 	var targetField zap.Field
 	field(func(zapField zap.Field) {
 		targetField = zapField
@@ -62,6 +63,7 @@ func Err(err error) Field {
 		return func(add func(zap.Field)) {
 			add(zap.Error(err))
 			add(serr.Stack())
+
 			for _, field := range serr.Fields() {
 				field(add)
 			}

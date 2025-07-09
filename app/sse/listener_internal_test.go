@@ -95,7 +95,6 @@ func TestHandleEvents(t *testing.T) {
 			}
 
 			err := l.eventHandler(t.Context(), test.event, "test")
-
 			if test.err != nil {
 				require.ErrorContains(t, err, test.err.Error())
 			} else {
@@ -138,6 +137,7 @@ func TestComputeDelay(t *testing.T) {
 	genesisTimeString := "2020-12-01T12:00:23+00:00"
 	genesisTime, err := time.Parse(time.RFC3339, genesisTimeString)
 	require.NoError(t, err)
+
 	slotDuration := 12 * time.Second
 
 	tests := []struct {

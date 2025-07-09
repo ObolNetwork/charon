@@ -150,6 +150,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) error {
 			}
 
 			val := v.Get(name)
+
 			err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
 			if err != nil {
 				lastErr = err
@@ -188,6 +189,7 @@ func printLicense(ctx context.Context) {
 // flagsToLogFields converts the given flags to log fields.
 func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 	var fields []z.Field
+
 	flags.VisitAll(func(flag *pflag.Flag) {
 		val := redact(flag.Name, flag.Value.String())
 
@@ -196,6 +198,7 @@ func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 			for _, s := range sliceVal.GetSlice() {
 				vals = append(vals, redact(flag.Name, s))
 			}
+
 			val = "[" + strings.Join(vals, ",") + "]"
 		}
 

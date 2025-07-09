@@ -105,6 +105,7 @@ func WithBandwidthReporter(peers []peer.ID) libp2p.Option {
 
 type bandwithReporter struct {
 	metrics.Reporter
+
 	peerNames map[peer.ID]string
 }
 
@@ -117,6 +118,7 @@ func (r bandwithReporter) LogSentMessageStream(bytes int64, protoID protocol.ID,
 	if !ok {
 		return // Do not instrument relays
 	}
+
 	networkTXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
 }
 
@@ -125,5 +127,6 @@ func (r bandwithReporter) LogRecvMessageStream(bytes int64, protoID protocol.ID,
 	if !ok {
 		return // Do not instrument relays
 	}
+
 	networkRXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
 }

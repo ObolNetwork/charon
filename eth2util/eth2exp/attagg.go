@@ -62,21 +62,27 @@ func (b *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 	if err = json.Unmarshal(input, &beaconCommitteeSelectionJSON); err != nil {
 		return errors.Wrap(err, "invalid JSON")
 	}
+
 	if beaconCommitteeSelectionJSON.ValidatorIndex == "" {
 		return errors.New("validator index missing")
 	}
+
 	validatorIndex, err := strconv.ParseUint(beaconCommitteeSelectionJSON.ValidatorIndex, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "invalid value for validator index")
 	}
+
 	b.ValidatorIndex = eth2p0.ValidatorIndex(validatorIndex)
+
 	if beaconCommitteeSelectionJSON.Slot == "" {
 		return errors.New("slot missing")
 	}
+
 	slot, err := strconv.ParseUint(beaconCommitteeSelectionJSON.Slot, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "invalid value for slot")
 	}
+
 	b.Slot = eth2p0.Slot(slot)
 
 	if beaconCommitteeSelectionJSON.SelectionProof == "" {
@@ -87,9 +93,11 @@ func (b *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 	if err != nil {
 		return errors.Wrap(err, "invalid value for signature")
 	}
+
 	if len(signature) != eth2p0.SignatureLength {
 		return errors.New("incorrect length for signature")
 	}
+
 	copy(b.SelectionProof[:], signature)
 
 	return nil

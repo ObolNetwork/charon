@@ -146,6 +146,7 @@ func TestEncode(t *testing.T) {
 			testutil.RequireNoError(t, err)
 
 			var definition2 cluster.Definition
+
 			err = json.Unmarshal(b1, &definition2)
 			require.NoError(t, err)
 
@@ -191,6 +192,7 @@ func TestEncode(t *testing.T) {
 				for j := range lock.Validators[i].PartialDepositData {
 					lock.Validators[i].PartialDepositData[j].PubKey = lock.Validators[i].PubKey
 				}
+
 				lock.Validators[i].BuilderRegistration.Message.PubKey = lock.Validators[i].PubKey
 			}
 
@@ -228,6 +230,7 @@ func TestEncode(t *testing.T) {
 			require.NoError(t, err)
 
 			var lock2 cluster.Lock
+
 			err = json.Unmarshal(b1, &lock2)
 			require.NoError(t, err)
 
@@ -245,10 +248,12 @@ func TestEncode(t *testing.T) {
 
 func TestUnsupportedVersion(t *testing.T) {
 	var def cluster.Definition
+
 	err := json.Unmarshal([]byte(`{"version":"invalid"}`), &def)
 	require.ErrorContains(t, err, "unsupported definition version")
 
 	var lock cluster.Lock
+
 	err = json.Unmarshal([]byte(`{"cluster_definition":{"version":"invalid"}}`), &lock)
 	require.ErrorContains(t, err, "unsupported definition version")
 }
@@ -265,6 +270,7 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 
 			var lock cluster.Lock
+
 			err = json.Unmarshal(b, &lock)
 			require.NoError(t, err)
 
@@ -282,6 +288,7 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 
 			var def cluster.Definition
+
 			err = json.Unmarshal(b, &def)
 			require.NoError(t, err)
 			require.NoError(t, def.VerifyHashes())

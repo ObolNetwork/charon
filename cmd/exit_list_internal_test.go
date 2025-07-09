@@ -69,6 +69,7 @@ func Test_runListActiveVals(t *testing.T) {
 
 	beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -136,6 +137,7 @@ func Test_listActiveVals(t *testing.T) {
 
 		beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
 		require.NoError(t, err)
+
 		defer func() {
 			require.NoError(t, beaconMock.Close())
 		}()
@@ -164,6 +166,7 @@ func Test_listActiveVals(t *testing.T) {
 			if idx%2 == 0 {
 				state = eth2v1.ValidatorStateActiveExiting
 			}
+
 			validatorSet[eth2p0.ValidatorIndex(idx)] = &eth2v1.Validator{
 				Index:   eth2p0.ValidatorIndex(idx),
 				Balance: 42,
@@ -177,6 +180,7 @@ func Test_listActiveVals(t *testing.T) {
 
 		beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
 		require.NoError(t, err)
+
 		defer func() {
 			require.NoError(t, beaconMock.Close())
 		}()

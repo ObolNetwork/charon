@@ -36,6 +36,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 		if err := libp2plog.SetLogLevel("relay", config.LibP2PLogLevel); err != nil {
 			return nil, nil, errors.Wrap(err, "set relay log level")
 		}
+
 		if err := libp2plog.SetLogLevel("rcmgr", config.LibP2PLogLevel); err != nil {
 			return nil, nil, errors.Wrap(err, "set rcmgr log level")
 		}
@@ -51,6 +52,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 
 	labels := map[string]string{"relay_peer": p2p.PeerName(tcpNode.ID())}
 	log.SetLokiLabels(labels)
+
 	promRegistry, err := promauto.NewRegistry(labels)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "create prometheus registry")
@@ -66,6 +68,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 
 	// This enables relay metrics: https://github.com/libp2p/go-libp2p/blob/master/p2p/protocol/circuitv2/relay/metrics.go
 	mt := relay.NewMetricsTracer(relay.WithRegisterer(promRegistry))
+
 	relayService, err := relay.New(tcpNode, relay.WithResources(relayResources), relay.WithMetricsTracer(mt))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new relay service")
@@ -73,6 +76,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 
 	go func() {
 		<-ctx.Done()
+
 		_ = tcpNode.Close()
 		_ = relayService.Close()
 	}()
@@ -121,6 +125,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 			if !ok {
 				continue // Peer not connected anymore
 			}
+
 			if tuple.Sent {
 				networkTXCounter.WithLabelValues(state.Name, state.ClusterHash).Add(float64(tuple.Size))
 			} else {
@@ -132,6 +137,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 			if !ok {
 				continue // Peer not connected anymore
 			}
+
 			state.ClusterHash = info.ClusterHash
 
 			newConnsCounter.WithLabelValues(state.Name, state.ClusterHash).Add(float64(state.New))
@@ -143,6 +149,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 		case e := <-events:
 			// Update peer connection data on libp2p events.
 			state := peers[e.Peer]
+
 			state.Name = p2p.PeerName(e.Peer)
 			if e.Connected {
 				state.Active++
@@ -150,6 +157,7 @@ func monitorConnections(ctx context.Context, tcpNode host.Host, bwTuples <-chan 
 			} else {
 				state.Active--
 			}
+
 			peers[e.Peer] = state
 		case <-ticker.C:
 			// Periodically request peerinfo for all peers we have active connections to.

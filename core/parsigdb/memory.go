@@ -42,6 +42,7 @@ type MemDB struct {
 func (db *MemDB) SubscribeInternal(fn func(context.Context, core.Duty, core.ParSignedDataSet) error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
 	db.internalSubs = append(db.internalSubs, fn)
 }
 
@@ -50,6 +51,7 @@ func (db *MemDB) SubscribeInternal(fn func(context.Context, core.Duty, core.ParS
 func (db *MemDB) SubscribeThreshold(fn func(context.Context, core.Duty, map[core.PubKey][]core.ParSignedData) error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
 	db.threshSubs = append(db.threshSubs, fn)
 }
 
@@ -127,9 +129,11 @@ func (db *MemDB) Trim(ctx context.Context) {
 			return
 		case duty := <-db.deadliner.C(): // This buffered channel is small, so we need dedicated goroutine to service it.
 			db.mu.Lock()
+
 			for _, key := range db.keysByDuty[duty] {
 				delete(db.entries, key)
 			}
+
 			delete(db.keysByDuty, duty)
 			db.mu.Unlock()
 		}
@@ -177,13 +181,16 @@ func clone(output map[core.PubKey][]core.ParSignedData) map[core.PubKey][]core.P
 	clone := make(map[core.PubKey][]core.ParSignedData)
 	for pubkey, sigs := range output {
 		var clones []core.ParSignedData
+
 		for _, sig := range sigs {
 			clone, err := sig.Clone()
 			if err != nil {
 				panic(err)
 			}
+
 			clones = append(clones, clone)
 		}
+
 		clone[pubkey] = clones
 	}
 
@@ -195,12 +202,14 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 	if len(sigs) < threshold {
 		return nil, false, nil
 	}
+
 	if typ == core.DutySignature {
 		// Signatures do not support message roots.
 		return sigs, len(sigs) == threshold, nil
 	}
 
 	sigsByMsgRoot := make(map[[32]byte][]core.ParSignedData) // map[Root][]ParSignedData
+
 	for _, sig := range sigs {
 		root, err := sig.MessageRoot()
 		if err != nil {
@@ -225,6 +234,7 @@ func parSignedDataEqual(x, y core.ParSignedData) (bool, error) {
 	if err != nil {
 		return false, errors.Wrap(err, "marshal data")
 	}
+
 	yjson, err := json.Marshal(y)
 	if err != nil {
 		return false, errors.Wrap(err, "marshal data")

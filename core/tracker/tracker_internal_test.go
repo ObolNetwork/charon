@@ -31,6 +31,7 @@ func TestStepString(t *testing.T) {
 
 func TestTrackerFailedDuty(t *testing.T) {
 	const slot = 1
+
 	testData, pubkeys := setupData(t, []int{slot}, 3)
 
 	t.Run("FailAtConsensus", func(t *testing.T) {
@@ -46,6 +47,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			require.Equal(t, consensus, step)
 			require.Equal(t, reason, reasonNoConsensus)
 			require.ErrorIs(t, err, consensusErr)
+
 			count++
 
 			if count == len(testData) {
@@ -86,6 +88,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 			require.False(t, isFailed)
 			require.Equal(t, zero, step)
 			require.Empty(t, reason)
+
 			count++
 
 			if count == len(testData) {
@@ -106,9 +109,11 @@ func TestTrackerFailedDuty(t *testing.T) {
 				tr.DutyDBStored(td.duty, td.unsignedDataSet, nil)
 				tr.ParSigDBStoredInternal(td.duty, td.parSignedDataSet, nil)
 				tr.ParSigDBStoredExternal(td.duty, td.parSignedDataSet, nil)
+
 				for _, pubkey := range pubkeys {
 					tr.SigAggAggregated(td.duty, map[core.PubKey][]core.ParSignedData{pubkey: nil}, nil)
 					tr.BroadcasterBroadcast(td.duty, core.SignedDataSet{pubkey: nil}, nil)
+
 					if lastStep(td.duty.Type) == chainInclusion {
 						tr.InclusionChecked(td.duty, pubkey, nil, nil)
 					}
@@ -403,6 +408,7 @@ func TestTrackerParticipation(t *testing.T) {
 
 	// Assuming a DV with 4 nodes.
 	numPeers := 4
+
 	var peers []p2p.Peer
 	for i := range numPeers {
 		peers = append(peers, p2p.Peer{Index: i})
@@ -435,6 +441,7 @@ func TestTrackerParticipation(t *testing.T) {
 		var data []core.ParSignedDataSet
 		for _, p := range peers {
 			set := make(core.ParSignedDataSet)
+
 			for _, pk := range pubkeys {
 				if expectedParticipationPerDuty[td.duty][p.ShareIdx()] == 0 {
 					// This peer hasn't participated in this duty for this DV.
@@ -443,6 +450,7 @@ func TestTrackerParticipation(t *testing.T) {
 
 				parSigData, err := core.NewPartialVersionedAttestation(testutil.RandomDenebVersionedAttestation(), p.ShareIdx())
 				require.NoError(t, err)
+
 				set[pk] = parSigData
 			}
 
@@ -460,6 +468,7 @@ func TestTrackerParticipation(t *testing.T) {
 		count             int
 		lastParticipation map[int]int
 	)
+
 	tr.participationReporter = func(_ context.Context, actualDuty core.Duty, failed bool, actualParticipation map[int]int, _ map[int]int, _ int) {
 		require.Equal(t, testData[count].duty, actualDuty)
 		require.True(t, reflect.DeepEqual(actualParticipation, expectedParticipationPerDuty[testData[count].duty]))
@@ -471,6 +480,7 @@ func TestTrackerParticipation(t *testing.T) {
 		} else {
 			require.NotEqual(t, expectedParticipationPerDuty[testData[count].duty], lastParticipation)
 		}
+
 		count++
 
 		if count == len(testData) {
@@ -488,12 +498,15 @@ func TestTrackerParticipation(t *testing.T) {
 		for _, td := range testData {
 			tr.FetcherFetched(td.duty, td.defSet, nil)
 			tr.ParSigDBStoredInternal(td.duty, td.parSignedDataSet, nil)
+
 			for _, data := range psigDataPerDutyPerPeer[td.duty] {
 				tr.ParSigDBStoredExternal(td.duty, data, nil)
 			}
+
 			for _, pk := range pubkeys {
 				tr.SigAggAggregated(td.duty, map[core.PubKey][]core.ParSignedData{pk: nil}, nil)
 				tr.BroadcasterBroadcast(td.duty, core.SignedDataSet{pk: nil}, nil)
+
 				if lastStep(td.duty.Type) == chainInclusion {
 					tr.InclusionChecked(td.duty, pk, nil, nil)
 				}
@@ -517,6 +530,7 @@ func TestUnexpectedParticipation(t *testing.T) {
 	)
 
 	var peers []p2p.Peer
+
 	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
 	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 	data := core.NewPartialSignature(testutil.RandomCoreSignature(), unexpectedPeer)
@@ -544,7 +558,9 @@ func TestUnexpectedParticipation(t *testing.T) {
 
 			go func(duty core.Duty) {
 				tr.ParSigDBStoredExternal(duty, core.ParSignedDataSet{pubkey: data}, nil)
+
 				analyser.deadlineChan <- duty
+
 				deleter.deadlineChan <- duty
 			}(d)
 
@@ -563,6 +579,7 @@ func TestDutyRandaoUnexpected(t *testing.T) {
 	dutyProposer := core.NewProposerDuty(slot)
 
 	var peers []p2p.Peer
+
 	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
 	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
@@ -594,6 +611,7 @@ func TestDutyRandaoUnexpected(t *testing.T) {
 		analyser.deadlineChan <- dutyProposer
 		// Trim Proposer events before Randao deadline
 		deleter.deadlineChan <- dutyProposer
+
 		analyser.deadlineChan <- dutyRandao
 	}()
 
@@ -610,6 +628,7 @@ func TestDutyRandaoExpected(t *testing.T) {
 	dutyProposer := core.NewProposerDuty(slot)
 
 	var peers []p2p.Peer
+
 	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
 	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
@@ -640,6 +659,7 @@ func TestDutyRandaoExpected(t *testing.T) {
 		tr.ParSigDBStoredExternal(dutyRandao, core.ParSignedDataSet{pubkey: data}, nil)
 
 		analyser.deadlineChan <- dutyProposer
+
 		analyser.deadlineChan <- dutyRandao
 		// Trim Proposer events after Randao deadline
 		deleter.deadlineChan <- dutyProposer
@@ -676,7 +696,9 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 	const notZero = 99 // Validation require non-zero values
 
 	var pubkeys []core.PubKey
+
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
+
 	for i := range numVals {
 		pubkey := testutil.RandomCorePubKey(t)
 		pubkeysByIdx[eth2p0.ValidatorIndex(i)] = pubkey
@@ -684,11 +706,13 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 	}
 
 	var data []testDutyData
+
 	for _, slot := range slots {
 		duty := core.NewAttesterDuty(uint64(slot))
 
 		defset := make(core.DutyDefinitionSet)
 		unsignedset := make(core.UnsignedDataSet)
+
 		parsignedset := make(core.ParSignedDataSet)
 		for i := range numVals {
 			defset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = core.NewAttesterDefinition(&eth2v1.AttesterDuty{
@@ -702,6 +726,7 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 			unsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = testutil.RandomCoreAttestationData(t)
 			parSigAttestation, err := core.NewPartialVersionedAttestation(testutil.RandomDenebVersionedAttestation(), 1)
 			require.NoError(t, err)
+
 			parsignedset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = parSigAttestation
 		}
 
@@ -723,14 +748,20 @@ func TestFromSlot(t *testing.T) {
 	analyser := testDeadliner{deadlineChan: make(chan core.Duty)}
 	deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
-	const thisSlot = 1
-	const fromSlot = 2
+	const (
+		thisSlot = 1
+		fromSlot = 2
+	)
+
 	tr := New(analyser, deleter, nil, fromSlot)
 
 	errCh := make(chan error, 1)
+
 	go func() {
 		err := tr.Run(ctx)
+
 		close(done)
+
 		errCh <- err
 	}()
 
@@ -741,6 +772,7 @@ func TestFromSlot(t *testing.T) {
 	require.Empty(t, tr.events)
 	cancel()
 	<-done
+
 	err := <-errCh
 	require.ErrorIs(t, err, context.Canceled)
 }
@@ -748,6 +780,7 @@ func TestFromSlot(t *testing.T) {
 //nolint:maintidx
 func TestAnalyseFetcherFailed(t *testing.T) {
 	const slot = 123
+
 	dutyAgg := core.NewAggregatorDuty(slot)
 	dutyPrepAgg := core.NewPrepareAggregatorDuty(slot)
 	dutyAtt := core.NewAttesterDuty(slot)
@@ -1034,6 +1067,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 			} else {
 				require.ErrorContains(t, err, test.err)
 			}
+
 			require.Equal(t, test.failed, failed)
 			require.Equal(t, reason, test.reason)
 			require.Equal(t, fetcher, step)
@@ -1043,6 +1077,7 @@ func TestAnalyseFetcherFailed(t *testing.T) {
 
 func TestIsParSigEventExpected(t *testing.T) {
 	const slot = 123
+
 	pubkey := testutil.RandomCorePubKey(t)
 	tests := []struct {
 		name   string
@@ -1143,9 +1178,11 @@ func analyseParSigs(t *testing.T, dataGen func() core.SignedData) {
 
 	makeEvents := func(n int, pubkey string, data core.SignedData) {
 		offset := len(events)
+
 		for i := range n {
 			data, err := data.SetSignature(testutil.RandomCoreSignature())
 			require.NoError(t, err)
+
 			events = append(events, event{
 				pubkey: core.PubKey(pubkey),
 				parSig: &core.ParSignedData{
@@ -1169,6 +1206,7 @@ func analyseParSigs(t *testing.T, dataGen func() core.SignedData) {
 	allParSigMsgs := extractParSigs(context.Background(), events)
 
 	lengths := make(map[int]string)
+
 	for pubkey, parSigMsgs := range allParSigMsgs {
 		for _, indexes := range parSigMsgs {
 			lengths[len(indexes)] = string(pubkey)
@@ -1181,7 +1219,9 @@ func analyseParSigs(t *testing.T, dataGen func() core.SignedData) {
 func TestDutyFailedMultipleEvents(t *testing.T) {
 	duty := core.NewAttesterDuty(123)
 	testErr := errors.New("test error")
+
 	var events []event
+
 	for step := fetcher; step < chainInclusion; step++ {
 		for range 5 {
 			events = append(events, event{step: step, duty: duty, stepErr: testErr})
@@ -1198,6 +1238,7 @@ func TestDutyFailedMultipleEvents(t *testing.T) {
 	for step := fetcher; step < chainInclusion; step++ {
 		events = append(events, event{step: step, duty: duty})
 	}
+
 	failed, step, err = dutyFailedStep(events)
 	require.False(t, failed)
 	require.Equal(t, zero, step)
@@ -1243,6 +1284,7 @@ func TestUnexpectedFailures(t *testing.T) {
 		require.True(t, failed)
 		require.Equal(t, step, test.step)
 		require.Equal(t, reasonUnknown, reason)
+
 		if test.stepErr == "" {
 			require.NoError(t, err)
 		} else {
@@ -1320,6 +1362,7 @@ func TestIgnoreUnsupported(t *testing.T) {
 	}
 
 	ignorer := newUnsupportedIgnorer()
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.result, ignorer(context.Background(), test.duty, test.failed, test.step, test.reason))

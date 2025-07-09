@@ -64,6 +64,7 @@ func EpochFromSlot(ctx context.Context, eth2Cl eth2client.SpecProvider, slot eth
 	if err != nil {
 		return 0, errors.Wrap(err, "getting spec")
 	}
+
 	slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
 	if !ok {
 		return 0, errors.New("fetch slots per epoch")
@@ -77,6 +78,7 @@ func ChecksumAddress(address string) (string, error) {
 	if !strings.HasPrefix(address, "0x") || len(address) != 2+20*2 {
 		return "", errors.New("invalid ethereum address", z.Str("address", address))
 	}
+
 	b, err := hex.DecodeString(address[2:])
 	if err != nil {
 		return "", errors.New("invalid ethereum hex address", z.Str("address", address))
@@ -98,6 +100,7 @@ func checksumAddressBytes(addressBytes []byte) string {
 		if c > '9' && hexHash[i] > '7' {
 			c = unicode.ToUpper(c)
 		}
+
 		resp = append(resp, c)
 	}
 

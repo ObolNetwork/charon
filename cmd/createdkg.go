@@ -69,6 +69,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 			if config.Threshold < minThreshold {
 				return errors.New("threshold must be greater than 1", z.Int("threshold", config.Threshold), z.Int("min", minThreshold))
 			}
+
 			if config.Threshold > len(config.OperatorENRs) {
 				return errors.New("threshold cannot be greater than number of operators",
 					z.Int("threshold", config.Threshold), z.Int("operators", len(config.OperatorENRs)))
@@ -150,20 +151,24 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}
 
 	var operators []cluster.Operator
+
 	for i, opENR := range conf.OperatorENRs {
 		_, err := enr.Parse(opENR)
 		if err != nil {
 			return errors.Wrap(err, "invalid ENR", z.Int("operator", i))
 		}
+
 		operators = append(operators, cluster.Operator{
 			ENR: opENR,
 		})
 	}
+
 	for i, opAddr := range conf.OperatorsAddresses {
 		checksumAddr, err := eth2util.ChecksumAddress(opAddr)
 		if err != nil {
 			return errors.Wrap(err, "invalid operator address", z.Int("operator", i))
 		}
+
 		operators = append(operators, cluster.Operator{
 			Address: checksumAddr,
 		})
@@ -175,6 +180,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	} else {
 		safeThreshold = cluster.Threshold(len(conf.OperatorENRs))
 	}
+
 	if conf.Threshold == 0 {
 		conf.Threshold = safeThreshold
 	} else {
@@ -187,6 +193,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}
 
 	var privKey *k1.PrivateKey
+
 	creator := cluster.Creator{}
 
 	// Populate creator field
@@ -196,13 +203,16 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		if err != nil {
 			return errors.Wrap(err, "generate private key")
 		}
+
 		creator = cluster.Creator{
 			Address: eth2util.PublicKeyToAddress(privKey.PubKey()),
 		}
 	}
 
 	var opts []func(*cluster.Definition)
+
 	opts = append(opts, cluster.WithDKGAlgorithm(conf.DKGAlgo))
+
 	def, err := cluster.NewDefinition(
 		conf.Name, conf.NumValidators, conf.Threshold,
 		conf.FeeRecipientAddrs, conf.WithdrawalAddrs,
@@ -212,6 +222,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if err != nil {
 		return err
 	}
+
 	if err := def.VerifyHashes(); err != nil {
 		return err
 	}

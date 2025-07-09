@@ -31,6 +31,7 @@ import (
 
 type testBeaconConfig struct {
 	testConfig
+
 	Endpoints            []string
 	LoadTest             bool
 	LoadTestDuration     time.Duration
@@ -211,10 +212,12 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (res 
 	log.Info(ctx, "Starting beacon node test")
 
 	testCases := supportedBeaconTestCases()
+
 	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		return res, errors.New("test case not supported")
 	}
+
 	sortTests(queuedTests)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -235,6 +238,7 @@ func runTestBeacon(ctx context.Context, w io.Writer, cfg testBeaconConfig) (res 
 
 	// use highest score as score of all
 	var score categoryScore
+
 	for _, t := range testResults {
 		targetScore := calculateScore(t)
 		if score == "" || score > targetScore {
@@ -289,10 +293,12 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 	}
 
 	doneReading := make(chan bool)
+
 	go func() {
 		for singleBeaconRes := range singleBeaconResCh {
 			maps.Copy(allBeaconsRes, singleBeaconRes)
 		}
+
 		doneReading <- true
 	}()
 
@@ -300,6 +306,7 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 	if err != nil {
 		return
 	}
+
 	close(singleBeaconResCh)
 	<-doneReading
 
@@ -312,10 +319,13 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 
 	// run all beacon tests for a beacon node, pushing each completed test to the channel until all are complete or timeout occurs
 	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
+
 	testCounter := 0
+
 	finished := false
 	for !finished {
 		var testName string
+
 		select {
 		case <-ctx.Done():
 			testName = queuedTestCases[testCounter].name
@@ -326,7 +336,9 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 				finished = true
 				break
 			}
+
 			testCounter++
+
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -338,6 +350,7 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 
 func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, cfg testBeaconConfig, target string, ch chan testResult) {
 	defer close(ch)
+
 	for _, t := range queuedTestCases {
 		select {
 		case <-ctx.Done():
@@ -352,10 +365,12 @@ func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) tes
 	testRes := testResult{Name: "Ping"}
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -390,15 +405,18 @@ func beaconVersionTest(ctx context.Context, _ *testBeaconConfig, target string) 
 	type versionData struct {
 		Version string `json:"version"`
 	}
+
 	type versionResponse struct {
 		Data versionData `json:"data"`
 	}
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/version", target)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -415,6 +433,7 @@ func beaconVersionTest(ctx context.Context, _ *testBeaconConfig, target string) 
 	defer resp.Body.Close()
 
 	var versionResp versionResponse
+
 	err = json.Unmarshal(b, &versionResp)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -425,6 +444,7 @@ func beaconVersionTest(ctx context.Context, _ *testBeaconConfig, target string) 
 	if len(splitVersion) > 3 {
 		splitVersion = splitVersion[:3]
 	}
+
 	version := strings.Join(splitVersion, "/")
 
 	testRes.Measurement = version
@@ -439,22 +459,27 @@ func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target stri
 		testRes.Verdict = testVerdictSkipped
 		return testRes
 	}
+
 	log.Info(ctx, "Running ping load tests...",
 		z.Any("duration", conf.LoadTestDuration),
 		z.Any("target", target),
 	)
 
 	testResCh := make(chan time.Duration, math.MaxInt16)
+
 	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)
 	defer cancel()
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	var wg sync.WaitGroup
+
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
 			wg.Add(1)
+
 			go func() {
 				pingBeaconContinuously(pingCtx, target, testResCh)
 				wg.Done()
@@ -462,6 +487,7 @@ func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target stri
 		case <-pingCtx.Done():
 		}
 	}
+
 	wg.Wait()
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", target))
@@ -479,10 +505,12 @@ func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string)
 	}
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/syncing", target)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -499,6 +527,7 @@ func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string)
 	defer resp.Body.Close()
 
 	var respUnmarshaled isSyncedResponse
+
 	err = json.Unmarshal(b, &respUnmarshaled)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -526,10 +555,12 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 	}
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/peers?state=connected", target)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -546,6 +577,7 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 	defer resp.Body.Close()
 
 	var respUnmarshaled peerCountResponse
+
 	err = json.Unmarshal(b, &respUnmarshaled)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -576,6 +608,7 @@ func pingBeaconContinuously(ctx context.Context, target string, resCh chan<- tim
 		if err != nil {
 			return
 		}
+
 		select {
 		case <-ctx.Done():
 			return
@@ -719,17 +752,21 @@ func beaconSimulationCustomTest(ctx context.Context, conf *testBeaconConfig, tar
 		testRes.Verdict = testVerdictSkipped
 		return testRes
 	}
+
 	testRes.Name = fmt.Sprintf("Simulate%v", conf.SimulationCustom)
 
 	total := conf.SimulationCustom
+
 	syncCommittees := total / 100
 	if syncCommittees == 0 {
 		syncCommittees++
 	}
+
 	proposals := total / 15
 	if proposals == 0 && (total-syncCommittees != 0) {
 		proposals++
 	}
+
 	attestations := total - syncCommittees - proposals
 
 	params := simParams{
@@ -752,6 +789,7 @@ func beaconSimulationCustomTest(ctx context.Context, conf *testBeaconConfig, tar
 
 func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target string, testRes testResult, params simParams) testResult {
 	duration := time.Duration(conf.SimulationDuration)*slotTime + time.Second
+
 	var wg sync.WaitGroup
 
 	log.Info(ctx, "Running beacon node simulation...",
@@ -763,9 +801,12 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 
 	// start general cluster requests
 	simulationGeneralResCh := make(chan SimulationCluster, 1)
+
 	var simulationGeneralRes SimulationCluster
+
 	wg.Add(1)
 	log.Info(ctx, "Starting general cluster requests...")
+
 	go singleClusterSimulation(ctx, duration, target, simulationGeneralResCh, wg.Done)
 
 	// start validator requests
@@ -775,27 +816,36 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 	log.Info(ctx, "Starting validators performing duties attestation, aggregation, proposal, sync committee...",
 		z.Any("validators", params.SyncCommitteeValidatorsCount),
 	)
+
 	syncCommitteeValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: true, SyncCommittee: true}
+
 	for range params.SyncCommitteeValidatorsCount {
 		wg.Add(1)
+
 		go singleValidatorSimulation(ctx, duration, target, simulationResCh, params.RequestIntensity, syncCommitteeValidatorsDuties, &wg)
 	}
 
 	log.Info(ctx, "Starting validators performing duties attestation, aggregation, proposal...",
 		z.Any("validators", params.ProposalValidatorsCount),
 	)
+
 	proposalValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: true, SyncCommittee: false}
+
 	for range params.ProposalValidatorsCount {
 		wg.Add(1)
+
 		go singleValidatorSimulation(ctx, duration, target, simulationResCh, params.RequestIntensity, proposalValidatorsDuties, &wg)
 	}
 
 	log.Info(ctx, "Starting validators performing duties attestation, aggregation...",
 		z.Any("validators", params.AttestationValidatorsCount),
 	)
+
 	attesterValidatorsDuties := DutiesPerformed{Attestation: true, Aggregation: true, Proposal: false, SyncCommittee: false}
+
 	for range params.AttestationValidatorsCount {
 		wg.Add(1)
+
 		go singleValidatorSimulation(ctx, duration, target, simulationResCh, params.RequestIntensity, attesterValidatorsDuties, &wg)
 	}
 
@@ -805,7 +855,9 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 	close(simulationGeneralResCh)
 	close(simulationResCh)
 	log.Info(ctx, "Simulation finished, evaluating results...")
+
 	simulationGeneralRes = <-simulationGeneralResCh
+
 	for result := range simulationResCh {
 		simulationResAll = append(simulationResAll, result)
 	}
@@ -823,10 +875,12 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 	if !conf.SimulationVerbose {
 		finalSimulation = nonVerboseFinalSimulation(finalSimulation)
 	}
+
 	simulationResAllJSON, err := json.Marshal(finalSimulation)
 	if err != nil {
 		log.Error(ctx, "Failed to marshal simulation result", err)
 	}
+
 	err = os.WriteFile(filepath.Join(conf.SimulationFileDir, fmt.Sprintf("%v-validators.json", params.TotalValidatorsCount)), simulationResAllJSON, 0o644) //nolint:gosec
 	if err != nil {
 		log.Error(ctx, "Failed to write file", err)
@@ -838,6 +892,7 @@ func beaconSimulationTest(ctx context.Context, conf *testBeaconConfig, target st
 			highestRTT = sim.Max
 		}
 	}
+
 	testRes = evaluateRTT(highestRTT.Duration, testRes, thresholdBeaconSimulationAvg, thresholdBeaconSimulationPoor)
 
 	log.Info(ctx, "Validators simulation finished",
@@ -903,72 +958,84 @@ func singleClusterSimulation(ctx context.Context, simulationDuration time.Durati
 				finished = true
 				continue
 			}
+
 			attestationsForBlockAll = append(attestationsForBlockAll, result)
 		case result, ok := <-proposalDutiesForEpochCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			proposalDutiesForEpochAll = append(proposalDutiesForEpochAll, result)
 		case result, ok := <-syncingCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			syncingAll = append(syncingAll, result)
 		case result, ok := <-peerCountCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			peerCountAll = append(peerCountAll, result)
 		case result, ok := <-beaconCommitteeSubCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			beaconCommitteeSubAll = append(beaconCommitteeSubAll, result)
 		case result, ok := <-dutiesAttesterCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			dutiesAttesterAll = append(dutiesAttesterAll, result)
 		case result, ok := <-dutiesSyncCommitteeCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			dutiesSyncCommitteeAll = append(dutiesSyncCommitteeAll, result)
 		case result, ok := <-beaconHeadValidatorsCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			beaconHeadValidatorsAll = append(beaconHeadValidatorsAll, result)
 		case result, ok := <-beaconGenesisCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			beaconGenesisAll = append(beaconGenesisAll, result)
 		case result, ok := <-prepBeaconProposerCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			prepBeaconProposerAll = append(prepBeaconProposerAll, result)
 		case result, ok := <-configSpecCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			configSpecAll = append(configSpecAll, result)
 		case result, ok := <-nodeVersionCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			nodeVersionAll = append(nodeVersionAll, result)
 		}
 	}
@@ -1041,6 +1108,7 @@ func clusterGeneralRequests(
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
+
 		slot = 1
 	}
 
@@ -1058,11 +1126,14 @@ func clusterGeneralRequests(
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected getAttestationsForBlock failure", err)
 			}
+
 			attestationsForBlockCh <- attestationsResult
+
 			submitResult, err := getProposalDutiesForEpoch(ctx, target, epoch)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected getProposalDutiesForEpoch failure", err)
 			}
+
 			proposalDutiesForEpochCh <- submitResult
 
 			// requests executed at the first slot of the epoch
@@ -1071,42 +1142,49 @@ func clusterGeneralRequests(
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected getAttesterDutiesForEpoch failure", err)
 				}
+
 				dutiesAttesterCh <- dutiesAttesterResult
 
 				dutiesSyncCommitteeResult, err := getSyncCommitteeDutiesForEpoch(ctx, target, epoch)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected getSyncCommitteeDutiesForEpoch failure", err)
 				}
+
 				dutiesSyncCommitteeCh <- dutiesSyncCommitteeResult
 
 				beaconHeadValidatorsResult, err := beaconHeadValidators(ctx, target)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected beaconHeadValidators failure", err)
 				}
+
 				beaconHeadValidatorsCh <- beaconHeadValidatorsResult
 
 				beaconGenesisResult, err := beaconGenesis(ctx, target)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected beaconGenesis failure", err)
 				}
+
 				beaconGenesisCh <- beaconGenesisResult
 
 				prepBeaconProposerResult, err := prepBeaconProposer(ctx, target)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected prepBeaconProposer failure", err)
 				}
+
 				prepBeaconProposerCh <- prepBeaconProposerResult
 
 				configSpecResult, err := configSpec(ctx, target)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected configSpec failure", err)
 				}
+
 				configSpecCh <- configSpecResult
 
 				nodeVersionResult, err := nodeVersion(ctx, target)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected nodeVersion failure", err)
 				}
+
 				nodeVersionCh <- nodeVersionResult
 			}
 
@@ -1116,6 +1194,7 @@ func clusterGeneralRequests(
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected getAttesterDutiesForEpoch failure", err)
 				}
+
 				dutiesAttesterCh <- dutiesAttesterResult
 			}
 
@@ -1125,18 +1204,21 @@ func clusterGeneralRequests(
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected getAttesterDutiesForEpoch failure", err)
 				}
+
 				dutiesAttesterCh <- dutiesAttesterResult
 
 				dutiesSyncCommitteeResult, err := getSyncCommitteeDutiesForEpoch(ctx, target, epoch)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected getSyncCommitteeDutiesForEpoch failure", err)
 				}
+
 				dutiesSyncCommitteeCh <- dutiesSyncCommitteeResult
 
 				dutiesSyncCommitteeResultFuture, err := getSyncCommitteeDutiesForEpoch(ctx, target, epoch+256)
 				if err != nil && !errors.Is(err, context.Canceled) {
 					log.Error(ctx, "Unexpected getSyncCommitteeDutiesForEpoch for the future epoch failure", err)
 				}
+
 				dutiesSyncCommitteeCh <- dutiesSyncCommitteeResultFuture
 			}
 		case <-ticker12Slots.C:
@@ -1144,18 +1226,21 @@ func clusterGeneralRequests(
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected beaconCommitteeSub failure", err)
 			}
+
 			beaconCommitteeSubCh <- beaconCommitteeSubResult
 		case <-ticker10Sec.C:
 			getSyncingResult, err := getSyncing(ctx, target)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected getSyncing failure", err)
 			}
+
 			syncingCh <- getSyncingResult
 		case <-tickerMinute.C:
 			peerCountResult, err := getPeerCount(ctx, target)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				log.Error(ctx, "Unexpected getPeerCount failure", err)
 			}
+
 			peerCountCh <- peerCountResult
 		case <-pingCtx.Done():
 		}
@@ -1171,6 +1256,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	getAttestationDataAll := []time.Duration{}
 	submitAttestationObjectCh := make(chan time.Duration)
 	submitAttestationObjectAll := []time.Duration{}
+
 	if dutiesPerformed.Attestation {
 		go attestationDuty(ctx, target, simulationDuration, intensity.AttestationDuty, getAttestationDataCh, submitAttestationObjectCh)
 	}
@@ -1180,6 +1266,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	getAggregateAttestationsAll := []time.Duration{}
 	submitAggregateAndProofsCh := make(chan time.Duration)
 	submitAggregateAndProofsAll := []time.Duration{}
+
 	if dutiesPerformed.Aggregation {
 		go aggregationDuty(ctx, target, simulationDuration, intensity.AggregatorDuty, getAggregateAttestationsCh, submitAggregateAndProofsCh)
 	}
@@ -1189,6 +1276,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	produceBlockAll := []time.Duration{}
 	publishBlindedBlockCh := make(chan time.Duration)
 	publishBlindedBlockAll := []time.Duration{}
+
 	if dutiesPerformed.Proposal {
 		go proposalDuty(ctx, target, simulationDuration, intensity.ProposalDuty, produceBlockCh, publishBlindedBlockCh)
 	}
@@ -1202,6 +1290,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 	produceSyncCommitteeContributionAll := []time.Duration{}
 	submitSyncCommitteeContributionCh := make(chan time.Duration)
 	submitSyncCommitteeContributionAll := []time.Duration{}
+
 	if dutiesPerformed.SyncCommittee {
 		go syncCommitteeDuties(ctx, target,
 			simulationDuration, intensity.SyncCommitteeSubmit, intensity.SyncCommitteeSubscribe, intensity.SyncCommitteeContribution,
@@ -1220,12 +1309,14 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				finished = true
 				continue
 			}
+
 			getAttestationDataAll = append(getAttestationDataAll, result)
 		case result, ok := <-submitAttestationObjectCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			submitAttestationObjectAll = append(submitAttestationObjectAll, result)
 		// aggregations
 		case result, ok := <-getAggregateAttestationsCh:
@@ -1233,12 +1324,14 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				finished = true
 				continue
 			}
+
 			getAggregateAttestationsAll = append(getAggregateAttestationsAll, result)
 		case result, ok := <-submitAggregateAndProofsCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			submitAggregateAndProofsAll = append(submitAggregateAndProofsAll, result)
 		// proposals
 		case result, ok := <-produceBlockCh:
@@ -1246,12 +1339,14 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				finished = true
 				continue
 			}
+
 			produceBlockAll = append(produceBlockAll, result)
 		case result, ok := <-publishBlindedBlockCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			publishBlindedBlockAll = append(publishBlindedBlockAll, result)
 			// sync_committee
 		case result, ok := <-syncCommitteeSubscriptionCh:
@@ -1259,25 +1354,28 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 				finished = true
 				continue
 			}
+
 			syncCommitteeSubscriptionAll = append(syncCommitteeSubscriptionAll, result)
 		case result, ok := <-submitSyncCommitteeMessageCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			submitSyncCommitteeMessageAll = append(submitSyncCommitteeMessageAll, result)
 		case result, ok := <-produceSyncCommitteeContributionCh:
 			if !ok {
 				finished = true
 				continue
 			}
+
 			produceSyncCommitteeContributionAll = append(produceSyncCommitteeContributionAll, result)
 		case result, ok := <-submitSyncCommitteeContributionCh:
-
 			if !ok {
 				finished = true
 				continue
 			}
+
 			submitSyncCommitteeContributionAll = append(submitSyncCommitteeContributionAll, result)
 		}
 	}
@@ -1286,6 +1384,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 
 	// attestation results grouping
 	var attestationResult SimulationAttestation
+
 	if dutiesPerformed.Attestation {
 		getSimulationValues := generateSimulationValues(getAttestationDataAll, "GET /eth/v1/validator/attestation_data")
 		submitSimulationValues := generateSimulationValues(submitAttestationObjectAll, "POST /eth/v1/beacon/pool/attestations")
@@ -1294,6 +1393,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		for i := range min(len(getAttestationDataAll), len(submitAttestationObjectAll)) {
 			cumulativeAttestation = append(cumulativeAttestation, getAttestationDataAll[i]+submitAttestationObjectAll[i])
 		}
+
 		cumulativeSimulationValues := generateSimulationValues(cumulativeAttestation, "")
 		allRequests = append(allRequests, cumulativeAttestation...)
 
@@ -1306,6 +1406,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 
 	// aggregation results grouping
 	var aggregationResults SimulationAggregation
+
 	if dutiesPerformed.Aggregation {
 		getAggregateSimulationValues := generateSimulationValues(getAggregateAttestationsAll, "GET /eth/v1/validator/aggregate_attestation")
 		submitAggregateSimulationValues := generateSimulationValues(submitAggregateAndProofsAll, "POST /eth/v1/validator/aggregate_and_proofs")
@@ -1314,6 +1415,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		for i := range min(len(getAggregateAttestationsAll), len(submitAggregateAndProofsAll)) {
 			cumulativeAggregations = append(cumulativeAggregations, getAggregateAttestationsAll[i]+submitAggregateAndProofsAll[i])
 		}
+
 		cumulativeAggregationsSimulationValues := generateSimulationValues(cumulativeAggregations, "")
 		allRequests = append(allRequests, cumulativeAggregations...)
 
@@ -1326,6 +1428,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 
 	// proposal results grouping
 	var proposalResults SimulationProposal
+
 	if dutiesPerformed.Proposal {
 		produceBlockValues := generateSimulationValues(produceBlockAll, "GET /eth/v3/validator/blocks/{SLOT}")
 		publishBlindedBlockValues := generateSimulationValues(publishBlindedBlockAll, "POST /eth/v2/beacon/blinded")
@@ -1334,6 +1437,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		for i := range min(len(produceBlockAll), len(publishBlindedBlockAll)) {
 			cumulativeProposals = append(cumulativeProposals, produceBlockAll[i]+publishBlindedBlockAll[i])
 		}
+
 		cumulativeProposalsSimulationValues := generateSimulationValues(cumulativeProposals, "")
 		allRequests = append(allRequests, cumulativeProposals...)
 
@@ -1346,6 +1450,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 
 	// sync committee results grouping
 	var syncCommitteeResults SimulationSyncCommittee
+
 	if dutiesPerformed.SyncCommittee {
 		syncCommitteeAll := []time.Duration{}
 		syncCommitteeSubscriptionValues := generateSimulationValues(syncCommitteeSubscriptionAll, "POST /eth/v1/validator/sync_committee_subscriptions")
@@ -1363,6 +1468,7 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 		for i := range min(len(produceSyncCommitteeContributionAll), len(submitSyncCommitteeContributionAll)) {
 			syncCommitteeContributionAll = append(syncCommitteeContributionAll, produceSyncCommitteeContributionAll[i]+submitSyncCommitteeContributionAll[i])
 		}
+
 		syncCommitteeContributionValues := generateSimulationValues(syncCommitteeContributionAll, "")
 		syncCommitteeAll = append(syncCommitteeAll, syncCommitteeContributionAll...)
 		allRequests = append(allRequests, syncCommitteeContributionAll...)
@@ -1397,28 +1503,35 @@ func singleValidatorSimulation(ctx context.Context, simulationDuration time.Dura
 func attestationDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, getAttestationDataCh chan time.Duration, submitAttestationObjectCh chan time.Duration) {
 	defer close(getAttestationDataCh)
 	defer close(submitAttestationObjectCh)
+
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
 	time.Sleep(randomizeStart(tickTime))
+
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
+
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
+
 		slot = 1
 	}
+
 	for pingCtx.Err() == nil {
 		getResult, err := getAttestationData(ctx, target, slot, rand.Intn(committeeSizePerSlot)) //nolint:gosec // weak generator is not an issue here
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected getAttestationData failure", err)
 		}
+
 		getAttestationDataCh <- getResult
 
 		submitResult, err := submitAttestationObject(ctx, target)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected submitAttestationObject failure", err)
 		}
+
 		submitAttestationObjectCh <- submitResult
 
 		select {
@@ -1432,15 +1545,19 @@ func attestationDuty(ctx context.Context, target string, simulationDuration time
 func aggregationDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, getAggregateAttestationsCh chan time.Duration, submitAggregateAndProofsCh chan time.Duration) {
 	defer close(getAggregateAttestationsCh)
 	defer close(submitAggregateAndProofsCh)
+
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
+
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
+
 		slot = 1
 	}
 
 	time.Sleep(randomizeStart(tickTime))
+
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 
@@ -1449,12 +1566,16 @@ func aggregationDuty(ctx context.Context, target string, simulationDuration time
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected getAggregateAttestations failure", err)
 		}
+
 		submitResult, err := postAggregateAndProofs(ctx, target)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected aggregateAndProofs failure", err)
 		}
+
 		getAggregateAttestationsCh <- getResult
+
 		submitAggregateAndProofsCh <- submitResult
+
 		select {
 		case <-pingCtx.Done():
 		case <-ticker.C:
@@ -1466,28 +1587,37 @@ func aggregationDuty(ctx context.Context, target string, simulationDuration time
 func proposalDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, produceBlockCh chan time.Duration, publishBlindedBlockCh chan time.Duration) {
 	defer close(produceBlockCh)
 	defer close(publishBlindedBlockCh)
+
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
 	time.Sleep(randomizeStart(tickTime))
+
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
+
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
+
 		slot = 1
 	}
+
 	for pingCtx.Err() == nil {
 		produceResult, err := produceBlock(ctx, target, slot, "0x1fe79e4193450abda94aec753895cfb2aac2c2a930b6bab00fbb27ef6f4a69f4400ad67b5255b91837982b4c511ae1d94eae1cf169e20c11bd417c1fffdb1f99f4e13e2de68f3b5e73f1de677d73cd43e44bf9b133a79caf8e5fad06738e1b0c")
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected produceBlock failure", err)
 		}
+
 		publishResult, err := publishBlindedBlock(ctx, target)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected publishBlindedBlock failure", err)
 		}
+
 		produceBlockCh <- produceResult
+
 		publishBlindedBlockCh <- publishResult
+
 		select {
 		case <-pingCtx.Done():
 		case <-ticker.C:
@@ -1505,10 +1635,12 @@ func syncCommitteeDuties(
 	go syncCommitteeMessageDuty(ctx, target, simulationDuration, tickTimeSubmit, submitSyncCommitteesCh)
 
 	defer close(syncCommitteeSubscriptionCh)
+
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
 	time.Sleep(randomizeStart(tickTimeSubscribe))
+
 	ticker := time.NewTicker(tickTimeSubscribe)
 	defer ticker.Stop()
 
@@ -1517,6 +1649,7 @@ func syncCommitteeDuties(
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected syncCommitteeSubscription failure", err)
 		}
+
 		syncCommitteeSubscriptionCh <- subscribeResult
 
 		select {
@@ -1529,29 +1662,37 @@ func syncCommitteeDuties(
 func syncCommitteeContributionDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, produceSyncCommitteeContributionCh chan time.Duration, syncCommitteeContributionCh chan time.Duration) {
 	defer close(produceSyncCommitteeContributionCh)
 	defer close(syncCommitteeContributionCh)
+
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
 	time.Sleep(randomizeStart(tickTime))
+
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 
 	slot, err := getCurrentSlot(ctx, target)
 	if err != nil {
 		log.Error(ctx, "Failed to get current slot", err)
+
 		slot = 1
 	}
+
 	for pingCtx.Err() == nil {
 		produceResult, err := produceSyncCommitteeContribution(ctx, target, slot, rand.Intn(subCommitteeSize), "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2") //nolint:gosec // weak generator is not an issue here
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected produceSyncCommitteeContribution failure", err)
 		}
+
 		produceSyncCommitteeContributionCh <- produceResult
+
 		contributeResult, err := submitSyncCommitteeContribution(ctx, target)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected submitSyncCommitteeContribution failure", err)
 		}
+
 		syncCommitteeContributionCh <- contributeResult
+
 		select {
 		case <-pingCtx.Done():
 		case <-ticker.C:
@@ -1562,10 +1703,12 @@ func syncCommitteeContributionDuty(ctx context.Context, target string, simulatio
 
 func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDuration time.Duration, tickTime time.Duration, submitSyncCommitteesCh chan time.Duration) {
 	defer close(submitSyncCommitteesCh)
+
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
 	time.Sleep(randomizeStart(tickTime))
+
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
 
@@ -1574,7 +1717,9 @@ func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDura
 		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Error(ctx, "Unexpected submitSyncCommittee failure", err)
 		}
+
 		submitSyncCommitteesCh <- submitResult
+
 		select {
 		case <-pingCtx.Done():
 		case <-ticker.C:
@@ -1589,6 +1734,7 @@ func getCurrentSlot(ctx context.Context, target string) (int, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "create new http request")
 	}
+
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return 0, errors.Wrap(err, "call /eth/v1/node/syncing endpoint")
@@ -1602,9 +1748,11 @@ func getCurrentSlot(ctx context.Context, target string) (int, error) {
 	type syncingResponseData struct {
 		HeadSlot string `json:"head_slot"`
 	}
+
 	type syncingResponse struct {
 		Data syncingResponseData `json:"data"`
 	}
+
 	var sr syncingResponse
 	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
 		return 0, errors.Wrap(err, "json unmarshal error")
@@ -1684,12 +1832,16 @@ func generateSimulationValues(s []time.Duration, endpoint string) SimulationValu
 	minVal := sorted[0]
 	maxVal := sorted[len(s)-1]
 	medianVal := sorted[len(s)/2]
+
 	var sum time.Duration
+
 	all := []Duration{}
+
 	for _, t := range s {
 		sum += t
 		all = append(all, Duration{t})
 	}
+
 	avgVal := time.Duration(int(sum.Nanoseconds()) / len(s))
 
 	return SimulationValues{

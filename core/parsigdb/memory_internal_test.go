@@ -119,9 +119,11 @@ func TestMemDBThreshold(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	go db.Trim(ctx)
 
 	timesCalled := 0
+
 	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, _ map[core.PubKey][]core.ParSignedData) error {
 		timesCalled++
 
@@ -166,7 +168,9 @@ func (t *testDeadliner) Expire() bool {
 	for _, d := range t.added {
 		t.ch <- d
 	}
+
 	t.ch <- core.Duty{} // Dummy duty to ensure all piped duties above were processed.
+
 	t.added = nil
 
 	return true

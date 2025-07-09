@@ -18,6 +18,7 @@ func TestDutyExpirationV2(t *testing.T) {
 	defer cancel()
 
 	deadliner := newTestDeadliner()
+
 	db := NewMemDBV2(deadliner)
 	go db.Run(ctx)
 
@@ -65,6 +66,7 @@ func TestCancelledQueryV2(t *testing.T) {
 		go func() {
 			_, err := db.Await(qctx, duty, pubkey)
 			errStore[idx] = err
+
 			wg.Done()
 		}()
 	}

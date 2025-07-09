@@ -175,6 +175,7 @@ func BenchmarkRecoverVerify(b *testing.B) {
 
 func fromHex(t *testing.T, hexStr string) []byte {
 	t.Helper()
+
 	b, err := hex.DecodeString(hexStr)
 	require.NoError(t, err)
 

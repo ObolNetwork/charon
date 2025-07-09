@@ -63,29 +63,36 @@ func (b *StateCommittee) UnmarshalJSON(input []byte) error {
 	if stateCommitteeJSON.Index == "" {
 		return errors.New("index missing")
 	}
+
 	index, err := strconv.ParseUint(stateCommitteeJSON.Index, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "invalid value for index")
 	}
+
 	b.Index = eth2p0.CommitteeIndex(index)
 
 	if stateCommitteeJSON.Slot == "" {
 		return errors.New("slot missing")
 	}
+
 	slot, err := strconv.ParseUint(stateCommitteeJSON.Slot, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "invalid value for slot")
 	}
+
 	b.Slot = eth2p0.Slot(slot)
 
 	var validators []eth2p0.ValidatorIndex
+
 	for _, v := range stateCommitteeJSON.Validators {
 		validator, err := strconv.ParseUint(v, 10, 64)
 		if err != nil {
 			return errors.Wrap(err, "invalid value for validator")
 		}
+
 		validators = append(validators, eth2p0.ValidatorIndex(validator))
 	}
+
 	b.Validators = validators
 
 	return nil

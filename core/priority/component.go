@@ -90,6 +90,7 @@ func (c *Component) Start(ctx context.Context) {
 func (c *Component) Subscribe(fn func(context.Context, core.Duty, []TopicResult) error) {
 	c.prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
 		var results []TopicResult
+
 		for _, topic := range result.GetTopics() {
 			result, err := topicResultFromProto(topic)
 			if err != nil {
@@ -106,6 +107,7 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, []TopicResult)
 // Prioritise starts a new prioritisation instance for the provided duty and proposals or returns an error.
 func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ...TopicProposal) error {
 	var topics []*pbv1.PriorityTopicProposal
+
 	for _, proposal := range proposals {
 		proposalPB, err := topicProposalToProto(proposal)
 		if err != nil {
@@ -119,6 +121,7 @@ func (c *Component) Prioritise(ctx context.Context, duty core.Duty, proposals ..
 	if !ok {
 		return errors.New("duty already expired")
 	}
+
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
 
@@ -149,6 +152,7 @@ func signMsg(msg *pbv1.PriorityMsg, privkey *k1.PrivateKey) (*pbv1.PriorityMsg, 
 	if !ok {
 		return nil, errors.New("type assert priority msg")
 	}
+
 	clone.Signature = nil
 
 	hash, err := hashProto(clone)
@@ -174,7 +178,9 @@ func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *k1.PublicKey) (bool, error) {
 	if !ok {
 		return false, errors.New("type assert priority msg")
 	}
+
 	clone.Signature = nil
+
 	hash, err := hashProto(clone)
 	if err != nil {
 		return false, err
@@ -196,11 +202,13 @@ func verifyMsgSig(msg *pbv1.PriorityMsg, pubkey *k1.PublicKey) (bool, error) {
 func newMsgVerifier(peers []peer.ID) (func(msg *pbv1.PriorityMsg) error, error) {
 	// Extract peer pubkeys.
 	keys := make(map[string]*k1.PublicKey)
+
 	for _, p := range peers {
 		pk, err := p2p.PeerIDToKey(p)
 		if err != nil {
 			return nil, err
 		}
+
 		keys[p.String()] = pk
 	}
 
@@ -265,6 +273,7 @@ func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
 	}
 
 	var priorities []ScoredPriority
+
 	for _, scored := range p.GetPriorities() {
 		prioVal := new(structpb.Value)
 		if err := scored.GetPriority().UnmarshalTo(prioVal); err != nil {

@@ -123,6 +123,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 	clock clockwork.Clock, pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 ) func() error {
 	const minNotConnected = 6 // Require 6 rounds (1min) of too few connected
+
 	var (
 		mu                 sync.Mutex
 		readyErr           = errReadyUninitialised
@@ -135,6 +136,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 			log.Error(ctx, "Failed to fetch genesis time", err)
 			return
 		}
+
 		slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 		if err != nil {
 			log.Error(ctx, "Failed to fetch slots config", err)
@@ -151,10 +153,13 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 		currentEpoch := currentEpochFunc()
 		ticker := clock.NewTicker(slotDuration)
 		peerCountTicker := clock.NewTicker(1 * time.Minute)
+
 		var bnPeerCount *int // Beacon node peer count value which is queried every minute
+
 		currVAPICount := 0
 		prevVAPICount := 1 // Assume connected.
 		currPKs := make(map[core.PubKey]struct{})
+
 		prevPKs := make(map[core.PubKey]struct{})
 		for _, pubkey := range pubkeys { // Assume all validators seen.
 			prevPKs[pubkey] = struct{}{}
@@ -167,9 +172,11 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				log.Warn(ctx, "Failed to get beacon node peer count", err)
 				return
 			}
+
 			if bnPeerCount == nil {
 				bnPeerCount = new(int)
 			}
+
 			bnPeerCount = &peerCount
 			beaconNodePeerCountGauge.Set(float64(peerCount))
 		}
@@ -198,31 +205,40 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 				//nolint:revive // skip max-control-nesting for monitoring
 				if err != nil {
 					err = errReadyBeaconNodeDown
+
 					readyzGauge.Set(readyzBeaconNodeDown)
 				} else if syncing {
 					err = errReadyBeaconNodeSyncing
+
 					readyzGauge.Set(readyzBeaconNodeSyncing)
 				} else if bnPeerCount != nil && *bnPeerCount == 0 {
 					err = errReadyBeaconNodeZeroPeers
+
 					readyzGauge.Set(readyzBeaconNodeZeroPeers)
 				} else if syncDistance > bnFarBehindSlots {
 					err = errReadyBeaconNodeFarBehind
+
 					readyzGauge.Set(readyzBeaconNodeFarBehind)
 				} else if notConnectedRounds >= minNotConnected {
 					err = errReadyInsufficientPeers
+
 					readyzGauge.Set(readyzInsufficientPeers)
 				} else if prevVAPICount == 0 {
 					err = errReadyVCNotConnected
+
 					readyzGauge.Set(readyzVCNotConnected)
 				} else if len(prevPKs) < len(pubkeys) && len(currPKs) < len(pubkeys) {
 					err = errReadyVCMissingVals
+
 					readyzGauge.Set(readyzVCMissingValidators)
 				} else {
 					readyzGauge.Set(readyzReady)
 				}
 
 				mu.Lock()
+
 				readyErr = err
+
 				mu.Unlock()
 			case pubkey := <-seenPubkeys:
 				currPKs[pubkey] = struct{}{}
@@ -261,6 +277,7 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 			log.Error(ctx, "Failed to get beacon node version", err)
 			return
 		}
+
 		version := eth2Resp.Data
 
 		beaconNodeVersionGauge.Reset()
@@ -289,6 +306,7 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 // quorumPeersConnected returns true if quorum peers are currently connected.
 func quorumPeersConnected(peerIDs []peer.ID, tcpNode host.Host) bool {
 	var count int
+
 	for _, pID := range peerIDs {
 		if tcpNode.ID() == pID {
 			continue // Don't check self

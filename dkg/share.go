@@ -33,9 +33,11 @@ func msgFromShare(s share) shareMsg {
 	for id := range s.PublicShares {
 		pubSharesIDs = append(pubSharesIDs, id)
 	}
+
 	sort.Ints(pubSharesIDs)
 
 	var pubShares [][]byte
+
 	for _, id := range pubSharesIDs {
 		key := s.PublicShares[id]
 		pubShares = append(pubShares, key[:])

@@ -113,6 +113,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, version version.SemVer, loc
 	// Create log filters
 	lockHashFilters := make(map[peer.ID]z.Field)
 	versionFilters := make(map[peer.ID]z.Field)
+
 	for _, peerID := range peers {
 		lockHashFilters[peerID] = log.Filter()
 		versionFilters[peerID] = log.Filter()
@@ -189,11 +190,13 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 		go func(peerID peer.ID) {
 			var rtt time.Duration
+
 			rttCallback := func(d time.Duration) {
 				rtt = d
 			}
 
 			resp := new(pbv1.PeerInfo)
+
 			err := p.sendFunc(ctx, p.tcpNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback))
 			if err != nil {
 				return // Logging handled by send func.
@@ -206,10 +209,12 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			p.nicknamesMu.Lock()
 			prevNickname, ok := p.nicknames[name]
+
 			p.nicknames[name] = resp.GetNickname()
 			if !ok || prevNickname != resp.GetNickname() {
 				log.Info(ctx, "Peer name to nickname mappings", z.Any("nicknames", p.nicknames))
 			}
+
 			p.nicknamesMu.Unlock()
 
 			// Validator git hash with regex.
@@ -300,6 +305,7 @@ func newMetricsSubmitter() metricSubmitter {
 		} else if clockOffset > time.Hour {
 			clockOffset = time.Hour
 		}
+
 		peerClockOffset.WithLabelValues(peerName).Set(clockOffset.Seconds())
 
 		if !startTime.IsZero() {
@@ -310,6 +316,7 @@ func newMetricsSubmitter() metricSubmitter {
 		if version == "" {
 			version = "unknown"
 		}
+
 		if gitHash == "" {
 			gitHash = "unknown"
 		}

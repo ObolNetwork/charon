@@ -97,13 +97,16 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 ) error {
 	// Get all hashes
 	var hashes [][32]byte
+
 	hashes = append(hashes, valueHash)
 	hashes = append(hashes, pvHash)
+
 	for _, just := range justification {
 		msg, ok := just.(Msg)
 		if !ok {
 			return errors.New("invalid justification message")
 		}
+
 		hashes = append(hashes, msg.Value())
 		hashes = append(hashes, msg.PreparedValue())
 	}
@@ -195,11 +198,13 @@ func createMsg(typ qbft.MsgType, duty core.Duty,
 
 	// Transform justifications into protobufs
 	var justMsgs []*pbv1.QBFTMsg
+
 	for _, j := range justification {
 		impl, ok := j.(Msg)
 		if !ok {
 			return Msg{}, errors.New("invalid justification")
 		}
+
 		justMsgs = append(justMsgs, impl.Msg()) // Note nested justifications are ignored.
 	}
 

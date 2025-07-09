@@ -166,10 +166,12 @@ func run(gitRange string, output string, token string) error {
 func makeIssueFunc(token string) func(int) (issue string, status string, err error) {
 	return func(number int) (string, string, error) {
 		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/issues/%d", number)
+
 		req, err := http.NewRequest(http.MethodGet, u, nil) //nolint:noctx // Non-critical code
 		if err != nil {
 			return "", "", errors.Wrap(err, "new request")
 		}
+
 		if token != "" {
 			req.SetBasicAuth(token, "x-oauth-basic")
 		}
@@ -208,6 +210,7 @@ func makeIssueFunc(token string) func(int) (issue string, status string, err err
 			Title string `json:"title"`
 			State string `json:"state"`
 		}
+
 		err = json.Unmarshal(b, &issueResp)
 		if err != nil {
 			return "", "", errors.Wrap(err, "unmarshal issue", opts...)
@@ -225,6 +228,7 @@ func execTemplate(data tplData) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "parse template")
 	}
+
 	var buf bytes.Buffer
 	if err := templ.Execute(&buf, data); err != nil {
 		return nil, errors.Wrap(err, "execute template")
@@ -236,6 +240,7 @@ func execTemplate(data tplData) ([]byte, error) {
 // tplDataFromPRs builds the template data from the provides PRs, git range, issue title func.
 func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (string, string, error)) (tplData, error) {
 	var noIssuePRs []pullRequest
+
 	issues := make(map[int]tplIssue)
 
 	for _, pr := range prs {
@@ -265,6 +270,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 	})
 
 	cats := make(map[string]tplCategory)
+
 	for _, issue := range issues {
 		title, status, err := issueData(issue.Number)
 		if err != nil {
@@ -273,6 +279,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 			fmt.Printf("Skipping '%s' issue #%d: %s (PRs=%d)\n", status, issue.Number, title, len(issue.PRs))
 			continue
 		}
+
 		issue.Title = title
 
 		cat := cats[issue.Category]
@@ -283,10 +290,12 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 	}
 
 	var catSlice []tplCategory
+
 	for _, cat := range cats {
 		if cat.Name == "" {
 			continue
 		}
+
 		catSlice = append(catSlice, cat)
 	}
 
@@ -295,6 +304,7 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 	})
 
 	tag := "v0.0.0"
+
 	split := strings.Split(gitRange, "..")
 	if len(split) > 1 && strings.HasPrefix(split[1], "v") {
 		tag = split[1]
@@ -338,6 +348,7 @@ func parsePRs(gitRange string) ([]pullRequest, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "git log")
 	}
+
 	out := strings.TrimSuffix(string(b), "†")       // Trim last log separator
 	out = "[" + out + "]"                           // Wrap logs in json array
 	out = strings.ReplaceAll(out, "†\n", `,`)       // Replace log separator with comma
@@ -357,8 +368,10 @@ func parsePRs(gitRange string) ([]pullRequest, error) {
 	}
 
 	var resp []pullRequest
+
 	for _, l := range logs {
 		l.Commit = "https://github.com/ObolNetwork/charon/commit/" + l.Commit
+
 		pr, ok := prFromLog(l)
 		if !ok {
 			continue
@@ -459,6 +472,7 @@ func getLatestTags(n int) ([]string, error) {
 	}
 
 	rawTags := strings.Fields(string(out))
+
 	var tags []string
 
 	// filter out rc releases

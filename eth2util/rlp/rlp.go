@@ -25,6 +25,7 @@ func DecodeBytesList(input []byte) ([][]byte, error) {
 	}
 
 	var items [][]byte
+
 	for i := offset; i < offset+length; {
 		itemOffset, itemLength, err := decodeLength(input[i:])
 		if err != nil {

@@ -44,6 +44,7 @@ func TestSigsExchange(t *testing.T) {
 	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
+
 		secrets = append(secrets, secret)
 
 		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
@@ -56,6 +57,7 @@ func TestSigsExchange(t *testing.T) {
 
 		epeer, err := p2p.NewPeerFromENR(e, i)
 		require.NoError(t, err)
+
 		clusterPeers = append(clusterPeers, epeer)
 	}
 
@@ -99,6 +101,7 @@ func TestSigsExchange(t *testing.T) {
 
 	for _, result := range results {
 		require.Len(t, result, n)
+
 		for idx, sig := range result {
 			require.NotEmpty(t, sig, "index: %v", idx)
 		}
@@ -119,6 +122,7 @@ func TestSigsCallbacks(t *testing.T) {
 	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
+
 		secrets = append(secrets, secret)
 
 		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
@@ -131,6 +135,7 @@ func TestSigsCallbacks(t *testing.T) {
 
 		epeer, err := p2p.NewPeerFromENR(e, i)
 		require.NoError(t, err)
+
 		clusterPeers = append(clusterPeers, epeer)
 	}
 

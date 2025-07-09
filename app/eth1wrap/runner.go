@@ -50,6 +50,7 @@ func NewDefaultEthClientRunner(addr string) EthClientRunner {
 		},
 		func(contractAddress string, cl EthClient) (Erc1271, error) {
 			addr := common.HexToAddress(contractAddress)
+
 			erc1271, err := erc1271.NewErc1271(addr, cl)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
@@ -90,8 +91,10 @@ func (cl *client) Run(ctx context.Context) {
 				backoff()
 				continue
 			}
+
 			cl.setClient(eth1client)
 		}
+
 		select {
 		case <-ctx.Done():
 			return
@@ -102,6 +105,7 @@ func (cl *client) Run(ctx context.Context) {
 		if !needReconnect {
 			continue
 		}
+
 		cl.close()
 	}
 }
@@ -120,6 +124,7 @@ func (cl *client) VerifySmartContractBasedSignature(contractAddress string, hash
 		cl.maybeReconnect()
 		return false, err
 	}
+
 	result, err := erc1271.IsValidSignature(nil, hash, sig)
 	if err != nil {
 		cl.maybeReconnect()

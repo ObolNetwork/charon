@@ -25,11 +25,13 @@ func TestGenValidators(t *testing.T) {
 
 	b, err := os.ReadFile("testdata/lock.json")
 	require.NoError(t, err)
+
 	var lock cluster.Lock
 	require.NoError(t, json.Unmarshal(b, &lock))
 
 	// Convert validators into manifest.Validator
 	var vals []*manifestpb.Validator
+
 	for i, validator := range lock.Validators {
 		val, err := manifest.ValidatorToProto(validator, lock.ValidatorAddresses[i])
 		require.NoError(t, err)
@@ -45,6 +47,7 @@ func TestGenValidators(t *testing.T) {
 	t.Run("unmarshal", func(t *testing.T) {
 		b, err := json.Marshal(signed)
 		require.NoError(t, err)
+
 		var signed2 *manifestpb.SignedMutation
 		require.NoError(t, json.Unmarshal(b, &signed2))
 
@@ -74,18 +77,21 @@ func TestAddValidators(t *testing.T) {
 	lock, secrets, _ := cluster.NewForT(t, 3, 3, nodes, seed, random)
 	// Convert validators into manifest.Validator
 	var vals []*manifestpb.Validator
+
 	for i, validator := range lock.Validators {
 		val, err := manifest.ValidatorToProto(validator, lock.ValidatorAddresses[i])
 		require.NoError(t, err)
 
 		vals = append(vals, val)
 	}
+
 	genVals, err := manifest.NewGenValidators(testutil.RandomBytes32Seed(random), vals)
 	require.NoError(t, err)
 	genHash, err := manifest.Hash(genVals)
 	testutil.RequireNoError(t, err)
 
 	var approvals []*manifestpb.SignedMutation
+
 	for _, secret := range secrets {
 		approval, err := manifest.SignNodeApproval(genHash, secret)
 		require.NoError(t, err)

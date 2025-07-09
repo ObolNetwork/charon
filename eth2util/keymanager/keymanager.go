@@ -63,6 +63,7 @@ func (c Client) VerifyConnection(ctx context.Context) error {
 	}
 
 	var d net.Dialer
+
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -70,6 +71,7 @@ func (c Client) VerifyConnection(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "cannot ping address", z.Str("addr", c.baseURL))
 	}
+
 	_ = conn.Close()
 
 	return nil
@@ -96,6 +98,7 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 	if err != nil {
 		return errors.Wrap(err, "new post request", z.Str("url", addr))
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+authToken)
 
@@ -108,6 +111,7 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 	if err != nil {
 		return errors.Wrap(err, "read response")
 	}
+
 	_ = resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
@@ -119,7 +123,9 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 
 func newReq(keystores []keystore.Keystore, passwords []string) (keymanagerReq, error) {
 	var req keymanagerReq
+
 	req.Passwords = passwords
+
 	for _, ks := range keystores {
 		data, err := json.Marshal(ks)
 		if err != nil {

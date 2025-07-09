@@ -44,6 +44,7 @@ type Broadcaster struct {
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
 func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.SignedDataSet) (err error) {
 	ctx = log.WithTopic(ctx, "bcast")
+
 	defer func() {
 		if err == nil {
 			instrumentDuty(duty, b.delayFunc(duty.Slot, duty.Type))
@@ -58,11 +59,13 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		}
 
 		checkValIdxs := false
+
 		for _, att := range atts {
 			// Do not check for validator index pre-electra, as it is not expected.
 			if att.Version < eth2spec.DataVersionElectra {
 				break
 			}
+
 			if att.ValidatorIndex == nil {
 				checkValIdxs = true
 				break
@@ -83,10 +86,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			if len(atts) == 0 {
 				return errors.New("no attestations")
 			}
+
 			att0Data, err := atts[0].Data()
 			if err != nil {
 				return errors.Wrap(err, "attestation 0 data")
 			}
+
 			epoch := att0Data.Target.Epoch
 
 			valIdxs, err := resolveActiveValidatorsIndices(ctx, b.eth2Cl, epoch)
@@ -111,15 +116,18 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 				if attDuty.Slot != att0Data.Slot {
 					continue
 				}
+
 				for _, att := range atts {
 					attData, err := att.Data()
 					if err != nil {
 						return errors.Wrap(err, "attestation data")
 					}
+
 					attDataRoot, err := attData.HashTreeRoot()
 					if err != nil {
 						return errors.Wrap(err, "compute hash tree root of attestation")
 					}
+
 					attSig, err := att.Signature()
 					if err != nil {
 						return errors.Wrap(err, "aggregate signature of attestation")
@@ -147,6 +155,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			// See reference github.com/attestantio/go-eth2-client@v0.11.7/multi/submitattestations.go:38
 			err = nil
 		}
+
 		if err != nil {
 			return err
 		}
@@ -211,6 +220,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		// Use first slot in current epoch for accurate delay calculations while submitting builder registrations.
 		// This is because builder registrations are submitted in first slot of every epoch.
 		duty.Slot = slot
+
 		registrations, err := setToRegistrations(set)
 		if err != nil {
 			return err
@@ -227,6 +237,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 	case core.DutyExit:
 		var err error // Try submitting all exits and return last error.
+
 		for pubkey, aggData := range set {
 			exit, ok := aggData.(core.SignedVoluntaryExit)
 			if !ok {
@@ -304,6 +315,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 // setToSyncContributions converts a set of signed data into a list of sync committee contributions.
 func setToSyncContributions(set core.SignedDataSet) ([]*altair.SignedContributionAndProof, error) {
 	var resp []*altair.SignedContributionAndProof
+
 	for _, contribution := range set {
 		contribution, ok := contribution.(core.SignedSyncContributionAndProof)
 		if !ok {
@@ -319,6 +331,7 @@ func setToSyncContributions(set core.SignedDataSet) ([]*altair.SignedContributio
 // setToSyncMessages converts a set of signed data into a list of sync committee messages.
 func setToSyncMessages(set core.SignedDataSet) ([]*altair.SyncCommitteeMessage, error) {
 	var resp []*altair.SyncCommitteeMessage
+
 	for _, msg := range set {
 		msg, ok := msg.(core.SignedSyncMessage)
 		if !ok {
@@ -382,6 +395,7 @@ func setToAttestations(set core.SignedDataSet) ([]*eth2spec.VersionedAttestation
 		if !ok {
 			return nil, errors.New("invalid attestation")
 		}
+
 		resp = append(resp, &att.VersionedAttestation)
 	}
 
@@ -394,6 +408,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 	if err != nil {
 		return nil, err
 	}
+
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -401,10 +416,12 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 
 	return func(slot uint64, duty core.DutyType) time.Duration {
 		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
+
 		expectedSubmission := slotStart
 		if duty == core.DutyAttester {
 			expectedSubmission = slotStart.Add(slotDuration * 1 / 3)
 		}
+
 		if duty == core.DutyAggregator || duty == core.DutySyncContribution {
 			expectedSubmission = slotStart.Add(slotDuration * 2 / 3)
 		}
@@ -419,6 +436,7 @@ func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint6
 	if err != nil {
 		return 0, err
 	}
+
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return 0, err

@@ -65,6 +65,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 
 	for _, step := range steps {
 		run := NewRunnerFunc(step.Name, conf.Dir, false, step.RunFunc)
+
 		tmpl, err := run(ctx)
 		if err != nil {
 			return err
@@ -78,6 +79,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 
 		if step.TmplFunc != nil {
 			step.TmplFunc(&tmpl)
+
 			err := WriteDockerCompose(conf.Dir, tmpl)
 			if err != nil {
 				return err
@@ -113,6 +115,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 
 	if conf.AlertTimeout > 0 {
 		var cancel context.CancelFunc
+
 		ctx, cancel = context.WithTimeout(ctx, conf.AlertTimeout)
 		defer cancel()
 	}
@@ -133,6 +136,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 		alertMsgs    []string
 		alertSuccess bool
 	)
+
 	for alert := range alerts {
 		if alert == alertsPolled {
 			alertSuccess = true
@@ -140,6 +144,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 			alertMsgs = append(alertMsgs, alert)
 		}
 	}
+
 	if !alertSuccess {
 		return errors.New("alerts couldn't be polled")
 	} else if len(alertMsgs) > 0 {
@@ -200,6 +205,7 @@ func execDown(ctx context.Context, dir string) error {
 	)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
+
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return errors.Wrap(err, "run down")
@@ -213,6 +219,7 @@ func execUp(ctx context.Context, dir string, out io.Writer) error {
 	// Build first so containers start at the same time below.
 	log.Info(ctx, "Executing docker compose build")
 	cmd := exec.CommandContext(ctx, "docker", "compose", "build", "--parallel")
+
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.Wrap(err, "exec docker compose build", z.Str("output", string(out)))
@@ -243,6 +250,7 @@ func execUp(ctx context.Context, dir string, out io.Writer) error {
 func execBuildAndCreate(ctx context.Context, dir string) error {
 	log.Info(ctx, "Executing docker compose up --no-start --build")
 	cmd := exec.CommandContext(ctx, "docker", "compose", "up", "--no-start", "--build")
+
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.Wrap(err, "exec docker compose up --no-start --build", z.Str("output", string(out)))

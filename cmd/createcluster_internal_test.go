@@ -306,8 +306,10 @@ func TestCreateCluster(t *testing.T) {
 
 				test.Config.DefFile = srv.URL
 			}
+
 			test.Config.InsecureKeys = true
 			test.Config.WithdrawalAddrs = []string{zeroAddress}
+
 			test.Config.FeeRecipientAddrs = []string{zeroAddress}
 			if test.Config.TargetGasLimit == 0 && test.defFileProvider == nil {
 				test.Config.TargetGasLimit = 30000000
@@ -330,10 +332,12 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 	conf.Name = t.Name()
 
 	var buf bytes.Buffer
+
 	err := runCreateCluster(context.Background(), &buf, conf)
 	if err != nil {
 		log.Error(context.Background(), "", err)
 	}
+
 	if expectedErr != "" {
 		require.ErrorContains(t, err, expectedErr)
 		return
@@ -372,13 +376,16 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 		// check that there are lock.Definition.NumValidators different public keys in the validator slice
 		vals := make(map[string]struct{})
+
 		amounts := deposit.DedupAmounts(deposit.EthsToGweis(conf.DepositAmounts))
 		if len(amounts) == 0 {
 			amounts = deposit.DefaultDepositAmounts(conf.Compounding)
 		}
+
 		for _, val := range lock.Validators {
 			vals[val.PublicKeyHex()] = struct{}{}
 			require.Len(t, val.PartialDepositData, len(amounts))
+
 			for i, pdd := range val.PartialDepositData {
 				require.EqualValues(t, amounts[i], pdd.Amount)
 			}
@@ -399,6 +406,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 		previousVersions := []string{"v1.0.0", "v1.1.0", "v1.2.0", "v1.3.0", "v1.4.0", "v1.5.0"}
 		nowUTC := time.Now().UTC()
+
 		for _, val := range lock.Validators {
 			if isAnyVersion(lock.Version, previousVersions...) {
 				break
@@ -422,6 +430,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 		if isAnyVersion(lock.Version, "v1.7.0") {
 			require.NotEmpty(t, lock.NodeSignatures)
+
 			for _, ns := range lock.NodeSignatures {
 				require.NotEmpty(t, ns)
 			}
@@ -456,6 +465,7 @@ func TestValidateDef(t *testing.T) {
 		def := definition
 		gnosis, err := hex.DecodeString(strings.TrimPrefix(eth2util.Gnosis.GenesisForkVersionHex, "0x"))
 		require.NoError(t, err)
+
 		def.ForkVersion = gnosis
 
 		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, nil)
@@ -469,6 +479,7 @@ func TestValidateDef(t *testing.T) {
 
 		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.GenesisForkVersionHex, "0x"))
 		require.NoError(t, err)
+
 		def.ForkVersion = mainnet
 
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
@@ -587,6 +598,7 @@ func TestSplitKeys(t *testing.T) {
 			test.conf.TargetGasLimit = 30000000
 
 			var buf bytes.Buffer
+
 			err = runCreateCluster(context.Background(), &buf, test.conf)
 			if test.expectedErrMsg != "" {
 				require.ErrorContains(t, err, test.expectedErrMsg)
@@ -720,6 +732,7 @@ func TestTargetGasLimit(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
+
 			err := runCreateCluster(context.Background(), &buf, test.conf)
 			if test.expectedErrMsg != "" {
 				require.ErrorContains(t, err, test.expectedErrMsg)
@@ -762,8 +775,11 @@ func TestKeymanager(t *testing.T) {
 	results := make(chan result, minNodes) // Buffered channel
 	defer close(results)
 
-	var addrs, authTokens []string
-	var servers []*httptest.Server
+	var (
+		addrs, authTokens []string
+		servers           []*httptest.Server
+	)
+
 	for i := range minNodes {
 		srv := httptest.NewServer(newKeymanagerHandler(ctx, t, i, results))
 		servers = append(servers, srv)
@@ -800,10 +816,12 @@ func TestKeymanager(t *testing.T) {
 
 		// Run create cluster command
 		var buf bytes.Buffer
+
 		err = runCreateCluster(context.Background(), &buf, conf)
 		if err != nil {
 			log.Error(context.Background(), "", err)
 		}
+
 		require.NoError(t, err)
 
 		// Receive secret shares from all keymanager servers
@@ -828,10 +846,12 @@ func TestKeymanager(t *testing.T) {
 
 		// Run create cluster command
 		var buf bytes.Buffer
+
 		err = runCreateCluster(context.Background(), &buf, conf)
 		if err != nil {
 			log.Error(context.Background(), "", err)
 		}
+
 		require.ErrorContains(t, err, "cannot ping address")
 	})
 
@@ -881,6 +901,7 @@ func TestPublish(t *testing.T) {
 	t.Run("upload successful", func(t *testing.T) {
 		// Run create cluster command
 		var buf bytes.Buffer
+
 		err := runCreateCluster(context.Background(), &buf, conf)
 		if err != nil {
 			log.Error(context.Background(), "", err)
@@ -992,6 +1013,7 @@ func TestZipping(t *testing.T) {
 		// Get the corresponding file in the unzipped directory
 		relPath, err := filepath.Rel(conf.ClusterDir, path)
 		require.NoError(t, err, "failed to get relative path")
+
 		unzippedPath := filepath.Join(unzippedDir, relPath)
 
 		if info.IsDir() {
@@ -1014,10 +1036,12 @@ func unzipOutputT(t *testing.T, sourceDir, targetDir string) error {
 
 	zf, err := os.Open(filepath.Join(sourceDir, "cluster.tar.gz"))
 	require.NoError(t, err, "failed to open archive")
+
 	defer zf.Close()
 
 	gzr, err := gzip.NewReader(zf)
 	require.NoError(t, err, "failed to create gzip reader")
+
 	defer gzr.Close()
 
 	tr := tar.NewReader(gzr)
@@ -1027,6 +1051,7 @@ func unzipOutputT(t *testing.T, sourceDir, targetDir string) error {
 		if err == io.EOF {
 			return nil // End of archive
 		}
+
 		require.NoError(t, err, "tar read error")
 
 		target := filepath.Join(targetDir, header.Name)
@@ -1077,6 +1102,7 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
+
 		defer func() {
 			require.NoError(t, r.Body.Close())
 		}()
@@ -1114,6 +1140,7 @@ func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- struct{}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		data, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
+
 		defer r.Body.Close()
 
 		var req cluster.Lock

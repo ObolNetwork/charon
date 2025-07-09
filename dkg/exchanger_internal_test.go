@@ -40,16 +40,19 @@ func TestExchanger(t *testing.T) {
 		for j := range nodes {
 			set[j] = core.NewPartialSignature(testutil.RandomCoreSignature(), j+1)
 		}
+
 		expectedData[pubkeys[i]] = set
 	}
 
 	dataToBeSent := make(map[int]core.ParSignedDataSet)
+
 	for pk, psigs := range expectedData {
 		for _, psig := range psigs {
 			_, ok := dataToBeSent[psig.ShareIdx-1]
 			if !ok {
 				dataToBeSent[psig.ShareIdx-1] = make(core.ParSignedDataSet)
 			}
+
 			dataToBeSent[psig.ShareIdx-1][pk] = psig
 		}
 	}
@@ -85,6 +88,7 @@ func TestExchanger(t *testing.T) {
 			if i == j {
 				continue
 			}
+
 			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
 		}
 	}
@@ -101,12 +105,14 @@ func TestExchanger(t *testing.T) {
 	}
 
 	respChan := make(chan respStruct)
+
 	var wg sync.WaitGroup
 
 	// send multiple (supported) messages at the same time, showing that exchanger can exchange messages of various
 	// sigTypes concurrently
 	for i := range nodes {
 		wg.Add(2)
+
 		go func(node int) {
 			defer wg.Done()
 
@@ -133,6 +139,7 @@ func TestExchanger(t *testing.T) {
 
 	for i := range nodes {
 		wg.Add(1)
+
 		go func(node int) {
 			defer wg.Done()
 
@@ -152,6 +159,7 @@ func TestExchanger(t *testing.T) {
 	}()
 
 	actual := make(sigTypeStore)
+
 	for res := range respChan {
 		require.NoError(t, res.err)
 		actual[res.sigType] = res.data

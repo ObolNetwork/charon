@@ -91,6 +91,7 @@ func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, d
 		if i == shareIdx {
 			continue
 		}
+
 		otherIDs = append(otherIDs, i)
 	}
 
@@ -119,6 +120,7 @@ func round1(validators map[uint32]*frost.DkgParticipant) (map[msgKey]frost.Round
 		castResults = make(map[msgKey]frost.Round1Bcast)
 		p2pResults  = make(map[msgKey]sharing.ShamirShare)
 	)
+
 	for vIdx, v := range validators {
 		cast, p2p, err := v.Round1(nil)
 		if err != nil {
@@ -151,6 +153,7 @@ func round2(
 	p2pR1 map[msgKey]sharing.ShamirShare,
 ) (map[msgKey]frost.Round2Bcast, error) {
 	castResults := make(map[msgKey]frost.Round2Bcast)
+
 	for vIdx, v := range validators {
 		castR2, err := v.Round2(getRound2Inputs(castR1, p2pR1, vIdx))
 		if err != nil {
@@ -174,18 +177,22 @@ func getRound2Inputs(
 	vIdx uint32,
 ) (map[uint32]*frost.Round1Bcast, map[uint32]*sharing.ShamirShare) {
 	castMap := make(map[uint32]*frost.Round1Bcast)
+
 	for key, cast := range castR1 {
 		if key.ValIdx != vIdx {
 			continue
 		}
+
 		castMap[key.SourceID] = &cast
 	}
 
 	shareMap := make(map[uint32]*sharing.ShamirShare)
+
 	for key, share := range p2pR1 {
 		if key.ValIdx != vIdx {
 			continue
 		}
+
 		shareMap[key.SourceID] = &share
 	}
 
@@ -199,6 +206,7 @@ func makeShares(
 ) ([]share, error) {
 	// Get set of public shares for each validator.
 	pubShares := make(map[uint32]map[int]tbls.PublicKey) // map[ValIdx]map[SourceID]tbls.PublicKey
+
 	for key, result := range r2Result {
 		pubShare, err := pointToPubKey(result.VkShare)
 		if err != nil {
@@ -210,6 +218,7 @@ func makeShares(
 			m = make(map[int]tbls.PublicKey)
 			pubShares[key.ValIdx] = m
 		}
+
 		m[int(key.SourceID)] = pubShare
 	}
 
@@ -218,10 +227,12 @@ func makeShares(
 	for vIdx := range validators {
 		vIdxs = append(vIdxs, int(vIdx))
 	}
+
 	sort.Ints(vIdxs)
 
 	// Construct DKG result shares.
 	var shares []share
+
 	for _, vIdx := range vIdxs {
 		v := validators[uint32(vIdx)]
 

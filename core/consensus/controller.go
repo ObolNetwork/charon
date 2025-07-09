@@ -31,6 +31,7 @@ type consensusController struct {
 
 	mutable struct {
 		sync.Mutex
+
 		cancelWrappedCtx context.CancelFunc
 	}
 }
@@ -41,6 +42,7 @@ func NewConsensusController(ctx context.Context, tcpNode host.Host, sender *p2p.
 	gaterFunc core.DutyGaterFunc, debugger Debugger,
 ) (core.ConsensusController, error) {
 	qbftDeadliner := core.NewDeadliner(ctx, "consensus.qbft", deadlineFunc)
+
 	defaultConsensus, err := qbft.NewConsensus(tcpNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance)
 	if err != nil {
 		return nil, err

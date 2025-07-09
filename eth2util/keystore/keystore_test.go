@@ -61,6 +61,7 @@ func TestStoreLoadNonCharonNames(t *testing.T) {
 	sort.Strings(filenames)
 
 	expect := make(map[tbls.PrivateKey]bool)
+
 	var secrets []tbls.PrivateKey
 	for range len(filenames) {
 		secret, err := tbls.GenerateSecretKey()
@@ -263,7 +264,9 @@ func TestSequencedKeys(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
+
 			var expected []tbls.PrivateKey
+
 			for _, suffix := range test.suffixes {
 				target := filepath.Join(dir, fmt.Sprintf("keystore-%s.json", suffix))
 				secret := storeNewKeyForT(t, target)
@@ -278,6 +281,7 @@ func TestSequencedKeys(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, expected, actual)
 		})
@@ -289,6 +293,7 @@ func TestSequencedKeys(t *testing.T) {
 // It also returns the generated key.
 func storeNewKeyForT(t *testing.T, target string) tbls.PrivateKey {
 	t.Helper()
+
 	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
 
@@ -330,6 +335,7 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 		}
 
 		randomShareSelected := false
+
 		for range sharesAmt {
 			sharePriv, err := tbls.GenerateSecretKey()
 			require.NoError(t, err)

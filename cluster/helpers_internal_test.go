@@ -46,6 +46,7 @@ func TestVerifySig(t *testing.T) {
 
 	t.Run("invalid signature length", func(t *testing.T) {
 		var invalidSig [70]byte
+
 		ok, err := verifySig(addr, digest[:], invalidSig[:])
 		require.Error(t, err)
 		require.ErrorContains(t, err, "signature not 65 bytes")
@@ -127,6 +128,7 @@ func TestFetchDefinition(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
 		})

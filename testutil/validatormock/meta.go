@@ -19,6 +19,7 @@ func (m specMeta) SlotStartTime(slot uint64) time.Time {
 // EpochFromSlot calculates the epoch number from a given slot.
 func (m specMeta) EpochFromSlot(slot uint64) metaEpoch {
 	epoch := slot / m.SlotsPerEpoch
+
 	return metaEpoch{
 		Epoch: epoch,
 		meta:  m,
@@ -107,6 +108,7 @@ func (e metaEpoch) Slots() []metaSlot {
 // SlotsForLookAhead returns the slots in future epochs equal to totalEpochs including the current epoch.
 func (e metaEpoch) SlotsForLookAhead(totalEpochs uint64) []metaSlot {
 	slot := e.FirstSlot()
+
 	var resp []metaSlot
 	for range totalEpochs * e.meta.SlotsPerEpoch {
 		resp = append(resp, slot)

@@ -231,6 +231,7 @@ func TestSynthProposer(t *testing.T) {
 					FeeRecipient:   feeRecipient,
 				})
 			}
+
 			require.NoError(t, eth2Cl.SubmitProposalPreparations(ctx, preps))
 
 			// Get synthetic duties
@@ -240,6 +241,7 @@ func TestSynthProposer(t *testing.T) {
 			}
 			resp1, err := eth2Cl.ProposerDuties(ctx, opts)
 			require.NoError(t, err)
+
 			duties := resp1.Data
 			require.Len(t, duties, len(set))
 			require.Equal(t, 1, activeVals)
@@ -247,14 +249,18 @@ func TestSynthProposer(t *testing.T) {
 			// Get synthetic duties again
 			resp2, err := eth2Cl.ProposerDuties(ctx, opts)
 			require.NoError(t, err)
+
 			duties2 := resp2.Data
 			require.Equal(t, duties, duties2) // Identical
 			require.Equal(t, 1, activeVals)   // Cached
 
 			// Submit blocks
 			for _, duty := range duties {
-				var bbf uint64 = 100
-				var graff [32]byte
+				var (
+					bbf   uint64 = 100
+					graff [32]byte
+				)
+
 				copy(graff[:], "test")
 				opts1 := &eth2api.ProposalOpts{
 					Slot:               duty.Slot,
@@ -270,6 +276,7 @@ func TestSynthProposer(t *testing.T) {
 				require.NoError(t, err)
 				feeRecipientInBlock, err := block.FeeRecipient()
 				require.NoError(t, err)
+
 				if resp.Data.Blinded {
 					if duty.Slot == realBlockSlot {
 						require.NotContains(t, string(graffitiInBlock[:]), "DO NOT SUBMIT")
@@ -277,6 +284,7 @@ func TestSynthProposer(t *testing.T) {
 					} else {
 						require.Equal(t, feeRecipient, feeRecipientInBlock)
 					}
+
 					require.Equal(t, test.version, block.Version)
 
 					signed := test.populateBlockFunc(block)
@@ -294,6 +302,7 @@ func TestSynthProposer(t *testing.T) {
 
 						continue
 					}
+
 					require.Equal(t, test.version, block.Version)
 
 					signed := test.createVersionedSignedProposal(block)
@@ -301,6 +310,7 @@ func TestSynthProposer(t *testing.T) {
 						Proposal: signed,
 					})
 				}
+
 				require.NoError(t, err)
 			}
 
@@ -367,6 +377,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 			FeeRecipient:   feeRecipient,
 		})
 	}
+
 	require.NoError(t, eth2Cl.SubmitProposalPreparations(ctx, preps))
 
 	// Get synthetic duties
@@ -376,6 +387,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 	}
 	resp1, err := eth2Cl.ProposerDuties(ctx, opts)
 	require.NoError(t, err)
+
 	duties := resp1.Data
 	require.Len(t, duties, len(set))
 	require.Equal(t, 1, activeVals)
@@ -383,6 +395,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 	// Submit blocks
 	for _, duty := range duties {
 		timesCalled = 0
+
 		var graff [32]byte
 		copy(graff[:], "test")
 		opts1 := &eth2api.ProposalOpts{

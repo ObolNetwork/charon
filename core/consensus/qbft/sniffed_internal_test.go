@@ -72,7 +72,9 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	def := newDefinition(int(instance.GetNodes()), func() []subscriber {
 		return []subscriber{func(ctx context.Context, duty core.Duty, value proto.Message) error {
 			log.Info(ctx, "Consensus decided", z.Any("value", value))
+
 			expectDecided = true
+
 			cancel()
 
 			return nil
@@ -82,6 +84,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte], len(instance.GetMsgs()))
 
 	var duty core.Duty
+
 	for _, msg := range instance.GetMsgs() {
 		if qbft.MsgType(msg.GetMsg().GetMsg().GetType()) == qbft.MsgDecided {
 			expectDecided = true
@@ -94,6 +97,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 		m, err := newMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
 		require.NoError(t, err)
+
 		recvBuffer <- m
 	}
 

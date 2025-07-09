@@ -32,6 +32,7 @@ func TestParSigEx(t *testing.T) {
 		epoch    = 123
 		shareIdx = 0
 	)
+
 	duty := core.Duty{
 		Slot: 123,
 		Type: core.DutyRandao,
@@ -67,9 +68,11 @@ func TestParSigEx(t *testing.T) {
 			if i == k {
 				continue
 			}
+
 			hosts[i].Peerstore().AddAddrs(hostsInfo[k].ID, hostsInfo[k].Addrs, peerstore.PermanentAddrTTL)
 		}
 	}
+
 	verifyFunc := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
 		return nil
 	}
@@ -83,6 +86,7 @@ func TestParSigEx(t *testing.T) {
 	// create ParSigEx components for each host
 	for i := range n {
 		wg.Add(n - 1)
+
 		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, verifyFunc, gaterFunc)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			defer wg.Done()
@@ -98,6 +102,7 @@ func TestParSigEx(t *testing.T) {
 	errCh := make(chan error, n)
 	for i := range n {
 		wg.Add(1)
+
 		go func(node int) {
 			defer wg.Done()
 			// broadcast partially signed data
@@ -162,6 +167,7 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconAttester, attData.Target.Epoch, sigRoot)
 		require.NoError(t, err)
+
 		att.Deneb.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedAttestation(att, shareIdx)
 		require.NoError(t, err)
@@ -175,6 +181,7 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBeaconProposer, epoch, sigRoot)
 		require.NoError(t, err)
+
 		proposal.Deneb.SignedBlock.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedSignedProposal(proposal, shareIdx)
 		require.NoError(t, err)
@@ -219,8 +226,10 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainExit, epoch, sigRoot)
 		require.NoError(t, err)
+
 		exit.Signature = sign(sigData[:])
 		data := core.NewPartialSignedVoluntaryExit(exit, shareIdx)
+
 		require.NoError(t, err)
 
 		require.NoError(t, verifyFunc(ctx, core.NewVoluntaryExit(slot), pubkey, data))
@@ -235,6 +244,7 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainApplicationBuilder, epoch, sigRoot)
 		require.NoError(t, err)
+
 		reg.V1.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedSignedValidatorRegistration(&reg.VersionedSignedValidatorRegistration, shareIdx)
 		require.NoError(t, err)
@@ -249,6 +259,7 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSelectionProof, epoch, sigRoot)
 		require.NoError(t, err)
+
 		selection.SelectionProof = sign(sigData[:])
 		data := core.NewPartialSignedBeaconCommitteeSelection(selection, shareIdx)
 
@@ -271,6 +282,7 @@ func TestParSigExVerifier(t *testing.T) {
 		require.NoError(t, err)
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainAggregateAndProof, epoch, sigRoot)
 		require.NoError(t, err)
+
 		agg.Deneb.Signature = sign(sigData[:])
 		data := core.NewPartialVersionedSignedAggregateAndProof(agg, shareIdx)
 
@@ -283,6 +295,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSyncCommittee, epoch, msg.BeaconBlockRoot)
 		require.NoError(t, err)
+
 		msg.Signature = sign(sigData[:])
 
 		data := core.NewPartialSignedSyncMessage(msg, shareIdx)
@@ -308,6 +321,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainSyncCommitteeSelectionProof, epoch, sigRoot)
 		require.NoError(t, err)
+
 		selection.SelectionProof = sign(sigData[:])
 
 		parSigData := core.NewPartialSignedSyncCommitteeSelection(selection, shareIdx)
@@ -324,6 +338,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainContributionAndProof, epoch, sigRoot)
 		require.NoError(t, err)
+
 		proof.Signature = sign(sigData[:])
 
 		parSigData := core.NewPartialSignedSyncContributionAndProof(proof, shareIdx)

@@ -91,6 +91,7 @@ func (s ValidatorSet) Clone() (ValidatorSet, error) {
 	}
 
 	resp := make(ValidatorSet)
+
 	err = json.Unmarshal(b, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal set")
@@ -144,6 +145,7 @@ func WithValidatorSet(set ValidatorSet) Option {
 	return func(mock *Mock) {
 		mock.ValidatorsByPubKeyFunc = func(ctx context.Context, _ string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
 			if len(pubkeys) == 0 {
 				for idx, val := range set {
 					resp[idx] = cloneValidator(val)
@@ -166,6 +168,7 @@ func WithValidatorSet(set ValidatorSet) Option {
 
 		mock.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 			resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
 			if len(opts.Indices) == 0 {
 				for idx, val := range set {
 					resp[idx] = cloneValidator(val)
@@ -188,6 +191,7 @@ func WithValidatorSet(set ValidatorSet) Option {
 
 		activeVals := make(eth2wrap.ActiveValidators)
 		completeVals := make(eth2wrap.CompleteValidators)
+
 		for _, val := range set {
 			if val.Status.IsActive() {
 				activeVals[val.Index] = val.Validator.PublicKey
@@ -303,6 +307,7 @@ func WithDeterministicAttesterDuties(factor int) Option {
 	if commLength < 1 {
 		commLength = 1
 	}
+
 	valCommIndex := commLength - 1 // Validator always last index in committee.
 
 	return func(mock *Mock) {
@@ -311,10 +316,12 @@ func WithDeterministicAttesterDuties(factor int) Option {
 				State:   "",
 				Indices: indices,
 			}
+
 			eth2Resp, err := mock.Validators(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
+
 			vals := eth2Resp.Data
 
 			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
@@ -325,6 +332,7 @@ func WithDeterministicAttesterDuties(factor int) Option {
 			slices.Sort(indices)
 
 			var resp []*eth2v1.AttesterDuty
+
 			for i, index := range indices {
 				val, ok := vals[index]
 				if !ok {
@@ -373,6 +381,7 @@ func WithDeterministicProposerDuties(factor int) Option {
 			slotsAssigned := make(map[int]bool)
 
 			var resp []*eth2v1.ProposerDuty
+
 			for i, valIdx := range valIdxs {
 				offset := (i * factor) % int(slotsPerEpoch)
 				if slotsAssigned[offset] {
@@ -438,13 +447,16 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 				State:   "",
 				Indices: indices,
 			}
+
 			eth2Resp, err := mock.Validators(ctx, opts)
 			if err != nil {
 				return nil, err
 			}
+
 			vals := eth2Resp.Data
 
 			var resp []*eth2v1.SyncCommitteeDuty
+
 			for i, index := range indices {
 				val, ok := vals[index]
 				if !ok {
@@ -681,11 +693,14 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {
 	pubkeyHex = strings.TrimPrefix(pubkeyHex, "0x")
+
 	b, err := hex.DecodeString(pubkeyHex)
 	if err != nil {
 		panic(err)
 	}
+
 	var resp eth2p0.BLSPubKey
+
 	n := copy(resp[:], b)
 	if n != 48 {
 		panic("invalid pubkey hex")

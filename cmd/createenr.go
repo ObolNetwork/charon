@@ -63,6 +63,7 @@ func runCreateEnrCmd(w io.Writer, dataDir string) error {
 // writeEnrWarning writes backup key warning to the terminal.
 func writeEnrWarning(w io.Writer, keyPath string) {
 	var sb strings.Builder
+
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** WARNING: Backup key **********************\n")
 	_, _ = sb.WriteString(" PLEASE BACKUP YOUR KEY IMMEDIATELY! IF YOU LOSE YOUR KEY,\n")

@@ -122,6 +122,7 @@ func TestDefaultOverrides(t *testing.T) {
 
 	resp, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+
 	spec := resp.Data
 
 	require.Equal(t, "charon-simnet", spec["CONFIG_NAME"])
@@ -133,6 +134,7 @@ func TestDefaultOverrides(t *testing.T) {
 
 	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
 	genesisTime := genesis.Data.GenesisTime
+
 	require.NoError(t, err)
 	require.Equal(t, "2022-03-01 00:00:00 +0000 UTC", genesisTime.UTC().String())
 }

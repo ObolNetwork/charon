@@ -23,12 +23,15 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		nodes []TmplNode
 		vcs   []TmplVC
 	)
+
 	for i := range conf.NumNodes {
 		typ := conf.VCs[i%len(conf.VCs)]
+
 		vc, err := getVC(typ, i, conf.NumValidators, conf.InsecureKeys, conf.BuilderAPI)
 		if err != nil {
 			return TmplData{}, err
 		}
+
 		vcs = append(vcs, vc)
 
 		n := TmplNode{EnvVars: newNodeEnvs(i, conf, typ)}
@@ -38,10 +41,12 @@ func Run(ctx context.Context, dir string, conf Config) (TmplData, error) {
 				n.Ports = append(n.Ports, p)
 			}
 		}
+
 		nodes = append(nodes, n)
 	}
 
 	charonCmd := cmdRun
+
 	if conf.P2PFuzz {
 		nodes[0].EnvVars = append(nodes[0].EnvVars, kv{"p2p-fuzz", fmt.Sprintf(`"%v"`, conf.P2PFuzz)})
 		charonCmd = cmdUnsafeRun
@@ -101,6 +106,7 @@ func getVC(typ VCType, nodeIdx int, numVals int, insecure, builderAPI bool) (Tmp
 	resp := vcByType[typ]
 	if typ == VCTeku {
 		var keys []string
+
 		for i := range numVals {
 			if insecure {
 				keys = append(keys, fmt.Sprintf("/compose/node%d/validator_keys/keystore-insecure-%d.json:/compose/node%d/validator_keys/keystore-insecure-%d.txt", nodeIdx, i, nodeIdx, i))
@@ -108,6 +114,7 @@ func getVC(typ VCType, nodeIdx int, numVals int, insecure, builderAPI bool) (Tmp
 				keys = append(keys, fmt.Sprintf("/compose/node%d/validator_keys/keystore-%d.json:/compose/node%d/validator_keys/keystore-%d.txt", nodeIdx, i, nodeIdx, i))
 			}
 		}
+
 		data := struct {
 			TekuKeys   []string
 			NodeIdx    int
@@ -117,11 +124,14 @@ func getVC(typ VCType, nodeIdx int, numVals int, insecure, builderAPI bool) (Tmp
 			TekuKeys:   keys,
 			BuilderAPI: builderAPI,
 		}
+
 		var buf bytes.Buffer
+
 		err := template.Must(template.New("").Parse(resp.Command)).Execute(&buf, data)
 		if err != nil {
 			return TmplVC{}, errors.Wrap(err, "teku template")
 		}
+
 		resp.Command = buf.String()
 	}
 

@@ -26,8 +26,10 @@ import (
 )
 
 func TestConsensusController(t *testing.T) {
-	var hosts []host.Host
-	var peers []p2p.Peer
+	var (
+		hosts []host.Host
+		peers []p2p.Peer
+	)
 
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
@@ -65,6 +67,7 @@ func TestConsensusController(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	controller.Start(ctx)
+
 	defer cancel()
 
 	t.Run("default and current consensus", func(t *testing.T) {

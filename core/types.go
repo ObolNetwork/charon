@@ -339,6 +339,7 @@ func (s DutyDefinitionSet) Clone() (DutyDefinitionSet, error) {
 	resp := make(DutyDefinitionSet, len(s))
 	for key, data := range s {
 		var err error
+
 		resp[key], err = data.Clone()
 		if err != nil {
 			return nil, err
@@ -366,6 +367,7 @@ func (s UnsignedDataSet) Clone() (UnsignedDataSet, error) {
 	resp := make(UnsignedDataSet, len(s))
 	for key, data := range s {
 		var err error
+
 		resp[key], err = data.Clone()
 		if err != nil {
 			return nil, err
@@ -403,6 +405,7 @@ type Eth2SignedData interface {
 type ParSignedData struct {
 	// SignedData is a partially signed duty data.
 	SignedData
+
 	// ShareIdx returns the threshold BLS share index.
 	ShareIdx int
 }
@@ -430,6 +433,7 @@ func (s ParSignedDataSet) Clone() (ParSignedDataSet, error) {
 	resp := make(ParSignedDataSet, len(s))
 	for key, data := range s {
 		var err error
+
 		resp[key], err = data.Clone()
 		if err != nil {
 			return nil, err
@@ -448,6 +452,7 @@ func (s SignedDataSet) Clone() (SignedDataSet, error) {
 	resp := make(SignedDataSet, len(s))
 	for key, data := range s {
 		var err error
+
 		resp[key], err = data.Clone()
 		if err != nil {
 			return nil, err

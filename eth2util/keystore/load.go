@@ -34,7 +34,9 @@ func (k KeyFiles) Keys() []tbls.PrivateKey {
 // If the indexes are unknown or not sequential or there are duplicates, an error is returned.
 func (k KeyFiles) SequencedKeys() ([]tbls.PrivateKey, error) {
 	resp := make([]tbls.PrivateKey, len(k))
+
 	var zero tbls.PrivateKey
+
 	for _, ks := range k {
 		if !ks.HasIndex() {
 			return nil, errors.New("unknown keystore index, filename not 'keystore-%d.json'", z.Str("filename", ks.Filename))

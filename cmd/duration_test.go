@@ -56,6 +56,7 @@ func TestDurationMarshalJSON(t *testing.T) {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, test.expected, res)
 		})
@@ -145,11 +146,13 @@ func TestDurationUnmarshalJSON(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var res cmd.Duration
+
 			err := res.UnmarshalJSON(test.in)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, test.expected, res)
 		})
@@ -201,6 +204,7 @@ func TestDurationMarshalText(t *testing.T) {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, test.expected, res)
 		})
@@ -284,11 +288,13 @@ func TestDurationUnmarshalText(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var res cmd.Duration
+
 			err := res.UnmarshalText(test.in)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, test.expected, res)
 		})

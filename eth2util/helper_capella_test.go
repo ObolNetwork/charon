@@ -187,6 +187,7 @@ func TestCapellaDomain(t *testing.T) {
 			} else {
 				require.ErrorContains(t, err, tt.err)
 			}
+
 			tt.resFunc(t, res)
 		})
 	}

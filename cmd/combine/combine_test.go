@@ -242,6 +242,7 @@ func writeLock(
 	lock cluster.Lock,
 ) {
 	t.Helper()
+
 	lf, err := os.OpenFile(filepath.Join(path, "cluster-lock.json"), os.O_WRONLY|os.O_CREATE, 0o755)
 	require.NoError(t, err)
 
@@ -346,6 +347,7 @@ func combineTest(
 	require.NoError(t, err)
 
 	keysMap := make(map[string]string)
+
 	for _, keyFile := range keyFiles {
 		pk, err := tbls.SecretToPublicKey(keyFile.PrivateKey)
 		require.NoError(t, err)
@@ -371,6 +373,7 @@ func TestCombineTwiceWithForceSucceedes(t *testing.T) {
 
 func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 	t.Helper()
+
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
@@ -448,6 +451,7 @@ func runTwice(t *testing.T, force bool, processErr require.ErrorAssertionFunc) {
 	require.NoError(t, err)
 
 	keysMap := make(map[string]string)
+
 	for _, keyFile := range keyFiles {
 		pk, err := tbls.SecretToPublicKey(keyFile.PrivateKey)
 		require.NoError(t, err)

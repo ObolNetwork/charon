@@ -134,6 +134,7 @@ func encodeElements(kvs map[string][]byte) []byte {
 	const duplicateKey = "duplicate_key"
 
 	var elements [][]byte
+
 	elements = append(elements, []byte(keyID), kvs[keyID])
 
 	// Append duplicate key and value pairs to encoded bytes list

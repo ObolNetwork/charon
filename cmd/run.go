@@ -109,30 +109,38 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
 			return errors.New("either flag 'beacon-node-endpoints' or flag 'simnet-beacon-mock=true' must be specified")
 		}
+
 		if len(config.Nickname) > 32 {
 			return errors.New("flag 'nickname' can not exceed 32 characters")
 		}
+
 		if len(config.JaegerAddr) > 0 || len(config.JaegerService) > 0 {
 			log.Warn(cc.Context(), "Jaeger flags are disabled and will be removed in a future release", nil)
 		}
+
 		if err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders); err != nil {
 			return err
 		}
+
 		maxGraffitiBytes := 28
 		if config.GraffitiDisableClientAppend {
 			maxGraffitiBytes = 32
 		}
+
 		for _, g := range config.Graffiti {
 			if len(g) > maxGraffitiBytes {
 				return errors.New("graffiti string length is greater than maximum size")
 			}
 		}
+
 		if (config.VCTLSCertFile == "" && config.VCTLSKeyFile != "") || (config.VCTLSCertFile != "" && config.VCTLSKeyFile == "") {
 			return errors.New("both vc-tls-cert-file and vc-tls-key-file must be set or both must be empty")
 		}
+
 		if config.VCTLSCertFile != "" && !app.FileExists(config.VCTLSCertFile) {
 			return errors.New("file vc-tls-cert-file does not exist", z.Str("file", config.VCTLSCertFile))
 		}
+
 		if config.VCTLSKeyFile != "" && !app.FileExists(config.VCTLSKeyFile) {
 			return errors.New("file vc-tls-key-file does not exist", z.Str("file", config.VCTLSKeyFile))
 		}

@@ -41,6 +41,7 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 	}
 
 	var feeRecipientAddrs, withdrawalAddrs []string
+
 	for range dv {
 		rootSecret, err := tbls.GenerateInsecureKey(t, randomReader)
 		require.NoError(t, err)
@@ -51,8 +52,11 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 		shares, err := tbls.ThresholdSplitInsecure(t, rootSecret, uint(n), uint(k), randomReader)
 		require.NoError(t, err)
 
-		var pubshares [][]byte
-		var privshares []tbls.PrivateKey
+		var (
+			pubshares  [][]byte
+			privshares []tbls.PrivateKey
+		)
+
 		for i := range n {
 			sharePrivkey := shares[i+1] // Share indexes are 1-indexed.
 

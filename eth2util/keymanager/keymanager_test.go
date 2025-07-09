@@ -34,6 +34,7 @@ func TestImportKeystores(t *testing.T) {
 	for range numSecrets {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
+
 		secrets = append(secrets, secret)
 	}
 
@@ -41,6 +42,7 @@ func TestImportKeystores(t *testing.T) {
 		keystores []keystore.Keystore
 		passwords []string
 	)
+
 	for _, secret := range secrets {
 		password := randomHex32(t)
 
@@ -53,6 +55,7 @@ func TestImportKeystores(t *testing.T) {
 
 	t.Run("2xx response", func(t *testing.T) {
 		var receivedSecrets []string
+
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			require.Equal(t, r.URL.Path, "/eth/v1/keystores")
 
@@ -62,6 +65,7 @@ func TestImportKeystores(t *testing.T) {
 
 			data, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
+
 			defer func() {
 				require.NoError(t, r.Body.Close())
 			}()

@@ -46,7 +46,6 @@ type client struct {
 // Broadcast reliably-broadcasts the message to all peers (excluding self).
 func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message) error {
 	// Wrap proto in any and hash it.
-
 	anyMsg, err := anypb.New(msg)
 	if err != nil {
 		return errors.Wrap(err, "new any")
@@ -100,6 +99,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 		}
 
 		var found bool
+
 		for i, pID := range c.peers {
 			if resp.Input == pID {
 				sigs[i] = resp.Output.GetSignature()

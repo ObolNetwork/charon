@@ -96,17 +96,20 @@ func filterAdvertisedAddrs(externalAddrs, internalAddrs []ma.Multiaddr, excludeI
 		resp  []ma.Multiaddr
 		dedup = make(map[string]bool)
 	)
+
 	add := func(addrs []ma.Multiaddr, excludePrivate bool) {
 		for _, addr := range addrs {
 			addrStr := addr.String()
 			if dedup[addrStr] {
 				continue
 			}
+
 			dedup[addrStr] = true
 
 			if excludePrivate && manet.IsPrivateAddr(addr) {
 				continue
 			}
+
 			resp = append(resp, addr)
 		}
 	}
@@ -161,10 +164,12 @@ func externalMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 // See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
 func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
 	var resp []ma.Multiaddr
+
 	for _, addr := range relayPeer.Addrs {
 		transportAddr, _ := peer.SplitAddr(addr)
 
 		addr := fmt.Sprintf("/p2p/%s/p2p-circuit/p2p/%s", relayPeer.ID, peerID)
+
 		relayAddr, err := ma.NewMultiaddr(addr)
 		if err != nil {
 			return nil, errors.Wrap(err, "new multiaddr")
@@ -186,6 +191,7 @@ func NewEventCollector(tcpNode host.Host) lifecycle.HookFuncCtx {
 		}
 
 		ctx = log.WithTopic(ctx, "p2p")
+
 		reachableGauge.Set(float64(network.ReachabilityUnknown))
 
 		for {
@@ -243,6 +249,7 @@ func ForceDirectConnections(tcpNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 	return func(ctx context.Context) {
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -303,6 +310,7 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 	go func() {
 		defer close(quit)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -331,12 +339,14 @@ func RegisterConnectionLogger(ctx context.Context, tcpNode host.Host, peerIDs []
 				}
 
 				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
+
 				for _, pID := range peerIDs {
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
 						cKey := connKey{PeerName: PeerName(pID), Type: typ}
 						peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type).Set(float64(counts[cKey]))
 					}
 				}
+
 				for sKey, amount := range streams {
 					peerStreamGauge.WithLabelValues(sKey.PeerName, sKey.Direction, sKey.Protocol).Set(float64(amount))
 				}

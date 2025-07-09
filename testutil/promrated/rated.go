@@ -91,6 +91,7 @@ func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network 
 
 		req.Header.Add("Authorization", "Bearer "+ratedAuth)
 		req.Header.Add("X-Rated-Network", clusterNetwork)
+
 		res, err := client.Do(req)
 		if err != nil {
 			return nil, errors.Wrap(err, "requesting rated matrics")

@@ -23,6 +23,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 	}
 
 	var data TmplData
+
 	switch conf.KeyGen {
 	case KeyGenCreate:
 		splitKeysDir, err := getRelSplitKeysDir(dir, conf.SplitKeysDir)
@@ -54,7 +55,6 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 			Nodes:          []TmplNode{n},
 		}
 	case KeyGenDKG:
-
 		var nodes []TmplNode
 		for i := range conf.NumNodes {
 			n := TmplNode{
@@ -94,6 +94,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 // newNodeEnvs returns the default node environment variable to run a charon docker container.
 func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 	beaconMock := false
+
 	beaconNode := conf.BeaconNodes
 	if beaconNode == "mock" {
 		beaconMock = true

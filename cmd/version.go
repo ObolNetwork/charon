@@ -61,6 +61,7 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 		for dep.Replace != nil {
 			dep = dep.Replace
 		}
+
 		_, _ = fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
 	}
 

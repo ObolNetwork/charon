@@ -80,6 +80,7 @@ func New(opts ...Option) (Mock, error) {
 func defaultHTTPMock() Mock {
 	// Default to recent genesis for lower slot and epoch numbers.
 	genesis := time.Date(2022, 3, 1, 0, 0, 0, 0, time.UTC)
+
 	return Mock{
 		clock: clockwork.NewRealClock(),
 		overrides: []staticOverride{

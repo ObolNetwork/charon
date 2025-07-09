@@ -71,43 +71,52 @@ func (s *SyncCommitteeSelection) UnmarshalJSON(input []byte) error {
 	if syncCommitteeSelectionJSON.ValidatorIndex == "" {
 		return errors.New("validator index missing")
 	}
+
 	validatorIndex, err := strconv.ParseUint(syncCommitteeSelectionJSON.ValidatorIndex, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "invalid value for validator index", z.Str("vIdx", syncCommitteeSelectionJSON.ValidatorIndex))
 	}
+
 	s.ValidatorIndex = eth2p0.ValidatorIndex(validatorIndex)
 
 	// verify and unmarshal Slot.
 	if syncCommitteeSelectionJSON.Slot == "" {
 		return errors.New("slot missing")
 	}
+
 	slot, err := strconv.ParseUint(syncCommitteeSelectionJSON.Slot, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "invalid value for slot", z.Str("slot", syncCommitteeSelectionJSON.Slot))
 	}
+
 	s.Slot = eth2p0.Slot(slot)
 
 	// verify and unmarshal SubcommitteeIndex.
 	if syncCommitteeSelectionJSON.SubcommitteeIndex == "" {
 		return errors.New("subcommittee index missing")
 	}
+
 	subcommIdx, err := strconv.ParseUint(syncCommitteeSelectionJSON.SubcommitteeIndex, 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "invalid value for subcommittee index", z.Str("subcommIdx", syncCommitteeSelectionJSON.SubcommitteeIndex))
 	}
+
 	s.SubcommitteeIndex = eth2p0.CommitteeIndex(subcommIdx)
 
 	// verify and unmarshal SelectionProof.
 	if syncCommitteeSelectionJSON.SelectionProof == "" {
 		return errors.New("selection proof missing")
 	}
+
 	signature, err := hex.DecodeString(strings.TrimPrefix(syncCommitteeSelectionJSON.SelectionProof, "0x"))
 	if err != nil {
 		return errors.Wrap(err, "invalid value for signature", z.Str("sig", syncCommitteeSelectionJSON.SelectionProof))
 	}
+
 	if len(signature) != eth2p0.SignatureLength {
 		return errors.New("invalid signature length")
 	}
+
 	copy(s.SelectionProof[:], signature)
 
 	return nil

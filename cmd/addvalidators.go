@@ -148,6 +148,7 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 	}
 
 	var approvals []*manifestpb.SignedMutation
+
 	for _, p2pKey := range p2pKeys {
 		// Perform individual `node_approval/v0.0.1` mutation using each operator's enr private key.
 		approval, err := manifest.SignNodeApproval(genValsHash, p2pKey)
@@ -194,6 +195,7 @@ func runAddValidatorsSolo(ctx context.Context, conf addValidatorsConfig) (err er
 	if err != nil {
 		return err
 	}
+
 	log.Debug(ctx, "Saved cluster manifest file to disk")
 
 	printPubkeys(ctx, vals)
@@ -279,6 +281,7 @@ func writeDepositDatas(ctx context.Context, clusterDir string, numOps int, secre
 	}
 
 	currTime := time.Now().Format("20060102150405")
+
 	filename := fmt.Sprintf("deposit-data-%s.json", currTime) // Ex: "deposit-data-20060102150405.json"
 	for i := range numOps {
 		depositPath := filepath.Join(nodeDir(clusterDir, i), filename)
@@ -314,6 +317,7 @@ func writeNewKeystores(clusterDir string, numOps, firstKeystoreIdx int, shareSet
 		for idx, secret := range secrets {
 			keysDir := path.Join(nodeDir(clusterDir, i), "/validator_keys")
 			filename := path.Join(keysDir, fmt.Sprintf("keystore-%d.json", firstKeystoreIdx+idx))
+
 			password, err := randomHex32()
 			if err != nil {
 				return err
@@ -335,6 +339,7 @@ func writeNewKeystores(clusterDir string, numOps, firstKeystoreIdx int, shareSet
 			}
 
 			passwordFile := strings.Replace(filename, ".json", ".txt", 1)
+
 			err = os.WriteFile(passwordFile, []byte(password), 0o400)
 			if err != nil {
 				return errors.Wrap(err, "write password file")
@@ -403,6 +408,7 @@ func genNewVals(ctx context.Context, numOps, threshold int, forkVersion []byte, 
 		if err != nil {
 			return nil, nil, nil, errors.Wrap(err, "generate secret key")
 		}
+
 		secrets = append(secrets, secret)
 
 		pubkey, err := tbls.SecretToPublicKey(secret)
@@ -421,9 +427,11 @@ func genNewVals(ctx context.Context, numOps, threshold int, forkVersion []byte, 
 		for j := 1; j <= len(shares); j++ {
 			secretSet[j-1] = shares[j]
 		}
+
 		shareSets = append(shareSets, secretSet)
 
 		var pubshares [][]byte
+
 		for _, share := range shares {
 			pubshare, err := tbls.SecretToPublicKey(share)
 			if err != nil {
@@ -496,9 +504,11 @@ func getP2PKeys(clusterDir string, numOps int, testConfig addValidatorTestConfig
 	}
 
 	var p2pKeys []*k1.PrivateKey
+
 	for i := range numOps {
 		dir := path.Join(clusterDir, fmt.Sprintf("node%d", i))
 		enrKeyFile := path.Join(dir, "charon-enr-private-key")
+
 		p2pKey, err := k1util.Load(enrKeyFile)
 		if err != nil {
 			return nil, errors.Wrap(err, "load enr private key")
@@ -563,6 +573,7 @@ func printPubkeys(ctx context.Context, vals []*manifestpb.Validator) {
 			log.Error(ctx, "Cannot log validator public key", err)
 			continue
 		}
+
 		log.Debug(ctx, "Created new validator", z.Str("pubkey", pk))
 	}
 }
@@ -580,6 +591,7 @@ func shortPubkey(input []byte) (string, error) {
 // randomHex32 returns a random 32 character hex string. It uses crypto/rand.
 func randomHex32() (string, error) {
 	b := make([]byte, 16)
+
 	_, err := rand.Read(b)
 	if err != nil {
 		return "", errors.Wrap(err, "read random")

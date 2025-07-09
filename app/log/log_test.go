@@ -71,6 +71,7 @@ func TestErrorWrapOther(t *testing.T) {
 func TestCopyFields(t *testing.T) {
 	testLoggers(t, func(t *testing.T) {
 		t.Helper()
+
 		ctx1, cancel := context.WithCancel(context.Background())
 		ctx1 = log.WithCtx(ctx1, z.Str("source", "source"))
 		ctx2 := log.CopyFields(context.Background(), ctx1)

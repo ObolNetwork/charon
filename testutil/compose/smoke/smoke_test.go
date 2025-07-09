@@ -179,10 +179,12 @@ func TestSmoke(t *testing.T) {
 			conf.DisableMonitoringPorts = true
 			conf.BuildLocal = true
 			conf.ImageTag = "local"
+
 			conf.InsecureKeys = true
 			if test.ConfigFunc != nil {
 				test.ConfigFunc(&conf)
 			}
+
 			require.NoError(t, compose.WriteConfig(dir, conf))
 
 			os.Args = []string{"cobra.test"}

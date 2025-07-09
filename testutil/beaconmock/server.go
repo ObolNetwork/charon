@@ -119,16 +119,19 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 	for path, handler := range endpoints {
 		r.Handle(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := log.WithTopic(r.Context(), "bmock")
+
 			ctx = log.WithCtx(ctx, z.Str("path", path))
 			if debug {
 				log.Debug(ctx, "Serving mocked endpoint")
 			}
+
 			handler(w, r)
 		}))
 	}
 
 	// Configure static endpoints.
 	staticResponses := make(map[string]json.RawMessage)
+
 	err := json.Unmarshal(staticJSON, &staticResponses)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal static json")
@@ -140,6 +143,7 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 		if err != nil {
 			return nil, err
 		}
+
 		staticResponses[override.Endpoint] = response
 	}
 
@@ -154,9 +158,11 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 
 			return
 		}
+
 		if debug {
 			log.Debug(ctx, "Serving static endpoint")
 		}
+
 		_, _ = w.Write(resp)
 	}))
 
@@ -192,10 +198,12 @@ func newHTTPMock(optionalHandlers map[string]http.HandlerFunc, overrides ...stat
 	// Wait for server to be up
 	for {
 		resp, err := http.Get(addr + "/up") //nolint:noctx // Non-critical code
+
 		_ = resp.Body.Close()
 		if err == nil && resp.StatusCode == http.StatusOK {
 			break
 		}
+
 		time.Sleep(time.Millisecond * 100)
 	}
 

@@ -75,6 +75,7 @@ func TestRetryer(t *testing.T) {
 			}
 
 			var backoffCount int
+
 			backoffProvider := func() func(int) <-chan time.Time {
 				return func(int) <-chan time.Time {
 					backoffCount++
@@ -87,7 +88,9 @@ func TestRetryer(t *testing.T) {
 			}
 
 			retryer := retry.NewForT(t, ctxTimeoutFunc, backoffProvider)
+
 			var attempt int
+
 			retryer.DoAsync(ctx, core.NewAttesterDuty(999), "test", "test", func(ctx context.Context) error {
 				defer func() { attempt++ }()
 				return test.Func(ctx, attempt)
@@ -111,6 +114,7 @@ func TestShutdown(t *testing.T) {
 	retryer := retry.New[core.Duty](deadlineFunc)
 
 	const n = 3
+
 	waiting := make(chan struct{}, n)
 	stop := make(chan struct{})
 	done := make(chan struct{})
@@ -119,6 +123,7 @@ func TestShutdown(t *testing.T) {
 	for range 3 {
 		go retryer.DoAsync(ctx, core.NewProposerDuty(999999), "test", "test", func(ctx context.Context) error {
 			waiting <- struct{}{}
+
 			<-stop
 			<-ctx.Done()
 

@@ -33,6 +33,7 @@ type PR struct {
 // PRFromEnv returns the PR by parsing it from "GITHUB_PR" env var or an error.
 func PRFromEnv() (PR, error) {
 	const prEnv = "GITHUB_PR"
+
 	prJSON, ok := os.LookupEnv(prEnv)
 	if !ok || strings.TrimSpace(prJSON) == "" {
 		return PR{}, errors.New("env variable not set", z.Str("var", prEnv))
@@ -135,6 +136,7 @@ func verifyBody(body string) error {
 	if strings.TrimSpace(body) == "" {
 		return errors.New("body empty")
 	}
+
 	if strings.Contains(body, "<!--") {
 		return errors.New("instructions not deleted (markdown comments present)")
 	}
@@ -145,6 +147,7 @@ func verifyBody(body string) error {
 		foundTicket   bool
 		foundFeature  bool
 	)
+
 	for i, line := range strings.Split(body, "\n") {
 		if i == 0 && strings.TrimSpace(line) == "" {
 			return errors.New("first line empty")
@@ -155,6 +158,7 @@ func verifyBody(body string) error {
 			if foundCategory {
 				return errors.New("multiple category tag lines")
 			}
+
 			if !prevLineEmpty {
 				return errors.New("category tag not preceded by empty line")
 			}

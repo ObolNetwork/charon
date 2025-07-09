@@ -26,10 +26,12 @@ func TestStdOutTracer(t *testing.T) {
 	ctx := context.Background()
 
 	var buf bytes.Buffer
+
 	stop, err := tracer.Init(tracer.WithStdOut(&buf))
 	require.NoError(t, err)
 
 	var span trace.Span
+
 	ctx, span = tracer.Start(ctx, "root")
 	inner(ctx)
 	span.End()
@@ -37,6 +39,7 @@ func TestStdOutTracer(t *testing.T) {
 	require.NoError(t, stop(ctx))
 
 	var m map[string]any
+
 	d := json.NewDecoder(&buf)
 
 	err = d.Decode(&m)
@@ -50,6 +53,7 @@ func TestStdOutTracer(t *testing.T) {
 
 func inner(ctx context.Context) {
 	var span trace.Span
+
 	_, span = tracer.Start(ctx, "inner")
 	defer span.End()
 }

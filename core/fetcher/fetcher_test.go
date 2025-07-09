@@ -143,14 +143,18 @@ func TestFetchAggregator(t *testing.T) {
 	require.NoError(t, err)
 
 	var aggAttCallCount int
+
 	bmock.AggregateAttestationFunc = func(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root) (*eth2spec.VersionedAttestation, error) {
 		aggAttCallCount--
+
 		if nilAggregate {
 			return nil, nil //nolint:nilnil // This reproduces what go-eth2-client does
 		}
+
 		for _, att := range attByCommIdx {
 			dataRoot, err := att.Deneb.Data.HashTreeRoot()
 			require.NoError(t, err)
+
 			if dataRoot == root {
 				return att, nil
 			}
@@ -171,6 +175,7 @@ func TestFetchAggregator(t *testing.T) {
 	})
 
 	done := errors.New("done")
+
 	fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 		require.Equal(t, duty, resDuty)
 		require.Len(t, resDataSet, 2)
@@ -178,6 +183,7 @@ func TestFetchAggregator(t *testing.T) {
 		for _, aggAtt := range resDataSet {
 			aggregated, ok := aggAtt.(core.VersionedAggregatedAttestation)
 			require.True(t, ok)
+
 			aggData, err := aggregated.Data()
 			require.NoError(t, err)
 
@@ -233,6 +239,7 @@ func TestFetchAggregator(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			require.Equal(t, 0, aggAttCallCount)
 		})
 	}
@@ -308,11 +315,13 @@ func TestFetchBlocks(t *testing.T) {
 			slotA, err := dutyDataA.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotA)
+
 			if dutyDataA.Blinded {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient))
 			} else {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataA.Capella.Body.ExecutionPayload.FeeRecipient))
 			}
+
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxA]].Signature().ToETH2(), dutyDataA)
 			graffitiDutyA, err := dutyDataA.Graffiti()
 			require.NoError(t, err)
@@ -322,11 +331,13 @@ func TestFetchBlocks(t *testing.T) {
 			slotB, err := dutyDataB.Slot()
 			require.NoError(t, err)
 			require.EqualValues(t, slot, slotB)
+
 			if dutyDataB.Blinded {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient))
 			} else {
 				require.Equal(t, feeRecipientAddr, fmt.Sprintf("%#x", dutyDataB.Capella.Body.ExecutionPayload.FeeRecipient))
 			}
+
 			assertRandao(t, randaoByPubKey[pubkeysByIdx[vIdxB]].Signature().ToETH2(), dutyDataB)
 			graffitiDutyB, err := dutyDataB.Graffiti()
 			require.NoError(t, err)
@@ -416,19 +427,23 @@ func TestFetchSyncContribution(t *testing.T) {
 			for _, msg := range syncMsgsByPubkey {
 				m, ok := msg.(core.SignedSyncMessage)
 				require.True(t, ok)
+
 				if m.BeaconBlockRoot == beaconBlockRoot {
 					signedMsg = m
 				}
 			}
+
 			require.NotNil(t, signedMsg)
 
 			for _, selection := range commSelectionsByPubkey {
 				s, ok := selection.(core.SyncCommitteeSelection)
 				require.True(t, ok)
+
 				if s.SubcommitteeIndex == eth2p0.CommitteeIndex(subcommitteeIndex) {
 					signedSelection = s
 				}
 			}
+
 			require.NotNil(t, signedSelection)
 
 			return &altair.SyncCommitteeContribution{
@@ -472,6 +487,7 @@ func TestFetchSyncContribution(t *testing.T) {
 						require.Equal(t, selection.ValidatorIndex, vIdx)
 					}
 				}
+
 				require.Equal(t, eth2p0.Slot(slot), selection.Slot)
 				require.Equal(t, eth2p0.CommitteeIndex(contribution.SubcommitteeIndex), selection.SubcommitteeIndex)
 

@@ -30,6 +30,7 @@ func TestLockPublish(t *testing.T) {
 
 			data, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
+
 			defer r.Body.Close()
 
 			var req cluster.Lock
@@ -108,6 +109,7 @@ func TestSignTermsAndConditions(t *testing.T) {
 
 			data, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
+
 			defer r.Body.Close()
 
 			var req obolapi.RequestSignTermsAndConditions
@@ -162,6 +164,7 @@ func TestPublishDefinition(t *testing.T) {
 
 			data, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
+
 			defer r.Body.Close()
 
 			var req cluster.Definition
@@ -189,6 +192,7 @@ func TestPublishDefinition(t *testing.T) {
 
 		// Call the function with an invalid definition to force a marshal error
 		var def cluster.Definition
+
 		err = cl.PublishDefinition(t.Context(), def, nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "marshal definition")

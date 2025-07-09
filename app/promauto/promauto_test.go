@@ -32,22 +32,26 @@ func TestWrapRegisterer(t *testing.T) {
 	require.Greater(t, len(metrics), 1)
 
 	var foundTest bool
+
 	for _, metricFam := range metrics {
 		// All metrics contain own and registered labels.
 		for _, metric := range metricFam.GetMetric() {
 			notFound := make(prometheus.Labels)
 			maps.Copy(notFound, labels)
+
 			for _, label := range metric.GetLabel() {
 				v, ok := notFound[label.GetName()]
 				if !ok {
 					continue
 				}
+
 				require.Equal(t, v, label.GetValue())
 				delete(notFound, label.GetName())
 			}
 
 			require.Empty(t, notFound)
 		}
+
 		if metricFam.GetName() == "test" {
 			foundTest = true
 		}

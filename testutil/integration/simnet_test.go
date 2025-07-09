@@ -162,6 +162,7 @@ func TestSimnetDuties(t *testing.T) {
 				// Beaconmock enables attester duties by default.
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
 			}
+
 			if test.scheduledType != core.DutyProposer {
 				// Beaconmock enables proposer duties by default.
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
@@ -169,6 +170,7 @@ func TestSimnetDuties(t *testing.T) {
 				// Use synthetic duties instead of deterministic beaconmock duties.
 				args.SyntheticProposals = true
 			}
+
 			if test.scheduledType != core.DutySyncMessage {
 				// Beaconmock enables sync committee duties by default.
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoSyncCommitteeDuties())
@@ -206,6 +208,7 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 		n      = 3
 		numDVs = 1
 	)
+
 	seed := 99
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, p2pKeys, secretShares := cluster.NewForT(t, numDVs, n, n, seed, random, func(definition *cluster.Definition) {
@@ -239,12 +242,16 @@ type simnetExpect struct {
 // Assert tests whether the duty is expected for this peer and also updates internal counters.
 func (e *simnetExpect) Assert(t *testing.T, typ core.DutyType, peerIdx int) {
 	t.Helper()
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
 	if _, ok := e.actuals[typ]; !ok {
 		t.Logf("unexpected duty, type=%v", typ)
+
 		e.Errs <- errors.New("unexpected duty type", z.Any("type", typ))
 	}
+
 	e.actuals[typ][peerIdx] = true
 	t.Logf("asserted duty, type=%v, remaining=%d", typ, remaining(e.actuals[typ]))
 }
@@ -252,6 +259,7 @@ func (e *simnetExpect) Assert(t *testing.T, typ core.DutyType, peerIdx int) {
 // Done returns true if all duties have been asserted sufficient number of times.
 func (e *simnetExpect) Done(t *testing.T) bool {
 	t.Helper()
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -261,6 +269,7 @@ func (e *simnetExpect) Done(t *testing.T) bool {
 			return false
 		}
 	}
+
 	t.Logf("assertion done, no duties remaining")
 
 	return true
@@ -269,6 +278,7 @@ func (e *simnetExpect) Done(t *testing.T) bool {
 // remaining returns the number of falses in slice.
 func remaining(actuals []bool) int {
 	var remaining int
+
 	for _, actual := range actuals {
 		if !actual {
 			remaining++
@@ -295,11 +305,13 @@ func newSimnetExpect(peers int, duties ...core.DutyType) *simnetExpect {
 // It asserts successful end-2-end attestation broadcast from all nodes for 2 slots.
 func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	relayAddr := startRelay(ctx, t)
 	// NOTE: We can add support for in-memory transport to QBFT.
 	parSigExFunc := parsigex.NewMemExFunc(args.N)
+
 	type simResult struct {
 		PeerIdx int
 		Duty    core.Duty
@@ -311,6 +323,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 		eg      errgroup.Group
 		results = make(chan simResult)
 	)
+
 	for i := range args.N {
 		peerIdx := i
 		conf := app.Config{
@@ -366,14 +379,18 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 		expectPublicKey string
 		actualPublicKey core.PubKey
 	}
+
 	errCh := make(chan error)
 	routineResCh := make(chan routineResult)
+
 	go func() {
 		datas := make(map[core.Duty]core.SignedData)
+
 		defer func() {
 			close(routineResCh)
 			close(errCh)
 		}()
+
 		for {
 			var res simResult
 			select {
@@ -388,8 +405,10 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 			} else {
 				expect, err := datas[res.Duty].MarshalJSON()
 				errCh <- err
+
 				actual, err := res.Data.MarshalJSON()
 				errCh <- err
+
 				routineRes := routineResult{
 					expect:          expect,
 					actual:          actual,
@@ -476,6 +495,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	// Support specifying a custom base directory for docker mounts (required if running colima on macOS).
 	if dir, ok := os.LookupEnv("TEST_DOCKER_DIR"); ok {
 		var err error
+
 		tempDir, err = os.MkdirTemp(dir, "") //nolint: usetesting // support custom base directory
 		require.NoError(t, err)
 	}
@@ -490,6 +510,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 	args.VAPIAddrs[node] = strings.Replace(args.VAPIAddrs[node], "127.0.0.1", externalIP(t), 1)
 
 	var tekuArgs []string
+
 	tekuArgs = append(tekuArgs, cmd...)
 	tekuArgs = append(tekuArgs,
 		"--validator-keys=/keys:/keys",
@@ -502,6 +523,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 			fmt.Sprintf("--validators-proposer-config=http://%s/teku_proposer_config", args.VAPIAddrs[node]),
 		)
 	}
+
 	if args.BuilderAPI {
 		tekuArgs = append(tekuArgs,
 			"--validators-proposer-blinded-blocks-enabled=true",
@@ -523,6 +545,7 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 
 	// Start teku
 	ctx, cancel := context.WithCancel(context.Background())
+
 	go func() {
 		// wait for beaconmock to be available
 		tout := time.After(10 * time.Second)
@@ -541,7 +564,9 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 
 					continue
 				}
+
 				bnOnline = true
+
 				t.Logf("beaconmock online, starting up teku")
 			}
 		}
@@ -549,11 +574,13 @@ func startTeku(t *testing.T, args simnetArgs, node int) simnetArgs {
 		c := exec.CommandContext(ctx, "docker", dockerArgs...)
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
+
 		err = c.Run()
 		if err == nil || ctx.Err() != nil {
 			// Expected shutdown
 			return
 		}
+
 		args.ErrChan <- errors.Wrap(err, "docker command failed (see logging)")
 	}()
 

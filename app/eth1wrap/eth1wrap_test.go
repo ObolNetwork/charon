@@ -67,7 +67,9 @@ func TestClientRun(t *testing.T) {
 	// 6. Connection is closed
 	t.Run("connection failure", func(t *testing.T) {
 		connectionFailed := errors.New("connection failed")
+
 		var attemptsCounter atomic.Int32
+
 		doneCh := make(chan struct{})
 
 		mockEth1Client := mocks.NewEthClient(t)
@@ -77,6 +79,7 @@ func TestClientRun(t *testing.T) {
 			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				attemptsCounter.Add(1)
+
 				if attemptsCounter.Load() == 1 {
 					return nil, connectionFailed
 				}
@@ -134,6 +137,7 @@ func TestClientRun(t *testing.T) {
 			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
 				connectionAttempts.Add(1)
+
 				if connectionAttempts.Load() == 1 {
 					return createFaultyClient(), nil
 				}

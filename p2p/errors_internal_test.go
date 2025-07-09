@@ -47,6 +47,7 @@ func TestNamedAddr(t *testing.T) {
 	}
 
 	var resp []string
+
 	for _, addr := range addrs {
 		a, err := ma.NewMultiaddr(addr)
 		require.NoError(t, err)

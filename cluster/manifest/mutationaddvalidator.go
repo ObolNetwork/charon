@@ -46,6 +46,7 @@ func verifyGenValidators(vals []*manifestpb.Validator) error {
 		if _, err := from0xHex(validator.GetFeeRecipientAddress(), 20); err != nil {
 			return errors.Wrap(err, "validate fee recipient address")
 		}
+
 		if _, err := from0xHex(validator.GetWithdrawalAddress(), 20); err != nil {
 			return errors.Wrap(err, "validate withdrawal address")
 		}
@@ -122,6 +123,7 @@ func transformAddValidators(c *manifestpb.Cluster, signed *manifestpb.SignedMuta
 	if MutationType(genValidators.GetMutation().GetType()) != TypeGenValidators {
 		return c, errors.New("invalid gen validators mutation type")
 	}
+
 	if !bytes.Equal(signed.GetMutation().GetParent(), genValidators.GetMutation().GetParent()) {
 		return c, errors.New("invalid gen validators parent")
 	}
@@ -134,6 +136,7 @@ func transformAddValidators(c *manifestpb.Cluster, signed *manifestpb.SignedMuta
 	if err != nil {
 		return c, errors.Wrap(err, "hash gen validators")
 	}
+
 	if !bytes.Equal(genHash, nodeApprovals.GetMutation().GetParent()) {
 		return c, errors.New("invalid node approvals parent")
 	}

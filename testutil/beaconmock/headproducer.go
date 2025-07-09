@@ -55,6 +55,7 @@ func (p *headProducer) Start(httpMock HTTPMock) error {
 	if err != nil {
 		return err
 	}
+
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, httpMock)
 	if err != nil {
 		return err
@@ -124,6 +125,7 @@ func (p *headProducer) updateHead(slot eth2p0.Slot) {
 		PreviousDutyDependentRoot: fmt.Sprintf("%#x", currentHead.CurrentDutyDependentRoot),
 		ExecutionOptmistic:        false,
 	}
+
 	headData, err := json.Marshal(headJSON)
 	if err != nil {
 		panic(err) // This should never happen and this is test code sorry ;)
@@ -181,6 +183,7 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 
 	if head == nil {
 		w.WriteHeader(http.StatusInternalServerError)
+
 		resp, err := json.Marshal(errorMsgJSON{
 			Code:    500,
 			Message: "Head producer not ready",
@@ -188,6 +191,7 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			panic(err) // This should never happen and this is test code sorry ;)
 		}
+
 		_, _ = w.Write(resp)
 
 		return
@@ -196,6 +200,7 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 	blockID := mux.Vars(r)["block_id"]
 	if blockID != "head" && blockID != fmt.Sprint(head.Slot) {
 		w.WriteHeader(http.StatusBadRequest)
+
 		resp, err := json.Marshal(errorMsgJSON{
 			Code:    500,
 			Message: "Invalid block ID: " + blockID,
@@ -203,6 +208,7 @@ func (p *headProducer) handleGetBlockRoot(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			panic(err) // This should never happen and this is test code sorry ;)
 		}
+
 		_, _ = w.Write(resp)
 
 		return
@@ -235,6 +241,7 @@ func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
 		if topic != topicHead && topic != topicBlock {
 			log.Warn(context.Background(), "Unsupported topic requested", nil, z.Str("topic", topic))
 			w.WriteHeader(http.StatusInternalServerError)
+
 			resp, err := json.Marshal(errorMsgJSON{
 				Code:    500,
 				Message: "unknown topic",
@@ -242,6 +249,7 @@ func (p *headProducer) handleEvents(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				panic(err) // This should never happen and this is test code sorry ;)
 			}
+
 			_, _ = w.Write(resp)
 
 			return
@@ -288,6 +296,7 @@ func pseudoRandomHeadEvent(slot eth2p0.Slot) *eth2v1.HeadEvent {
 
 	root := func() eth2p0.Root {
 		var root eth2p0.Root
+
 		_, _ = r.Read(root[:])
 
 		return root

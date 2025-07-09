@@ -47,6 +47,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 
 	peerSlice := make([]peer.ID, len(peers))
 	peersByShareIdx := make(map[uint32]peer.ID)
+
 	for pID, nodeIdx := range peers {
 		peerSlice[nodeIdx.PeerIdx] = pID
 		peersByShareIdx[uint32(nodeIdx.ShareIdx)] = pID
@@ -82,6 +83,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 // newCheckMsg returns a bcast.CheckMessage function for round 1 and 2.
 func newCheckMsg(messageID string) (bcast.CheckMessage, error) {
 	found := false
+
 	for _, mID := range frostMessageIDs() {
 		if mID == messageID {
 			found = true
@@ -136,6 +138,7 @@ func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *p
 				log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", p2p.PeerName(pID)))
 				return nil
 			}
+
 			dedupRound1Casts[pID] = true
 
 			msg, ok := m.(*pb.FrostRound1Casts)
@@ -169,6 +172,7 @@ func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *p
 				log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
 				return nil
 			}
+
 			dedupRound2Casts[pID] = true
 
 			msg, ok := m.(*pb.FrostRound2Casts)
@@ -225,6 +229,7 @@ func newP2PCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1
 			log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
 			return nil, false, nil
 		}
+
 		dedupRound1P2P[pID] = true
 
 		round1P2PRecv <- msg
@@ -249,6 +254,7 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 ) (map[msgKey]frost.Round1Bcast, map[msgKey]sharing.ShamirShare, error) {
 	// Build broadcast message
 	casts := new(pb.FrostRound1Casts)
+
 	for key, cast := range castR1 {
 		cast := round1CastToProto(key, cast)
 		casts.Casts = append(casts.Casts, cast)
@@ -258,10 +264,12 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 	if err != nil {
 		return nil, nil, err
 	}
+
 	f.round1CastsRecv <- casts // Send to self
 
 	// Build P2P messages to send directly to peers.
 	p2pMsgs := make(map[peer.ID]*pb.FrostRound1P2P)
+
 	for key, share := range p2pR1 {
 		pID, ok := f.peers[key.TargetID]
 		if !ok {
@@ -272,6 +280,7 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 		if !ok {
 			p2pMsg = new(pb.FrostRound1P2P)
 		}
+
 		p2pMsg.Shares = append(p2pMsg.Shares, shamirShareToProto(key, share))
 		p2pMsgs[pID] = p2pMsg
 	}
@@ -293,6 +302,7 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 		castsRecvs []*pb.FrostRound1Casts
 		p2pRecvs   []*pb.FrostRound1P2P
 	)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -321,6 +331,7 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 func (f *frostP2P) Round2(ctx context.Context, castR2 map[msgKey]frost.Round2Bcast) (map[msgKey]frost.Round2Bcast, error) {
 	// Build broadcast message
 	casts := new(pb.FrostRound2Casts)
+
 	for key, cast := range castR2 {
 		cast := round2CastToProto(key, cast)
 		casts.Casts = append(casts.Casts, cast)
@@ -330,6 +341,7 @@ func (f *frostP2P) Round2(ctx context.Context, castR2 map[msgKey]frost.Round2Bca
 	if err != nil {
 		return nil, err
 	}
+
 	f.round2CastsRecv <- casts // Send to self
 
 	// Wait for all incoming messages
@@ -352,6 +364,7 @@ func makeRound1Response(casts []*pb.FrostRound1Casts, p2ps []*pb.FrostRound1P2P)
 		castMap = make(map[msgKey]frost.Round1Bcast)
 		p2pMap  = make(map[msgKey]sharing.ShamirShare)
 	)
+
 	for _, msg := range casts {
 		for _, castPB := range msg.GetCasts() {
 			key, cast, err := round1CastFromProto(castPB)
@@ -380,12 +393,14 @@ func makeRound1Response(casts []*pb.FrostRound1Casts, p2ps []*pb.FrostRound1P2P)
 // makeRound2Response returns the round 2 response from the list of received messages.
 func makeRound2Response(msgs []*pb.FrostRound2Casts) (map[msgKey]frost.Round2Bcast, error) {
 	castMap := make(map[msgKey]frost.Round2Bcast)
+
 	for _, msg := range msgs {
 		for _, castPB := range msg.GetCasts() {
 			key, cast, err := round2CastFromProto(castPB)
 			if err != nil {
 				return nil, err
 			}
+
 			castMap[key] = cast
 		}
 	}
@@ -440,6 +455,7 @@ func round1CastFromProto(cast *pb.FrostRound1Cast) (msgKey, frost.Round1Bcast, e
 	if err != nil {
 		return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode wi scalar")
 	}
+
 	ci, err := curve.Scalar.SetBytes(cast.GetCi())
 	if err != nil {
 		return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode c1 scalar")
@@ -484,6 +500,7 @@ func round2CastFromProto(cast *pb.FrostRound2Cast) (msgKey, frost.Round2Bcast, e
 	if err != nil {
 		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode verification key scalar")
 	}
+
 	vkShare, err := curve.Point.FromAffineCompressed(cast.GetVkShare())
 	if err != nil {
 		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode c1 scalar")

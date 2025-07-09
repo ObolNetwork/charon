@@ -108,6 +108,7 @@ func (r matrixResult) AvgRound() float64 {
 	if len(r.Rounds) == 0 {
 		return 0
 	}
+
 	var total float64
 	for _, r := range r.Rounds {
 		total += float64(r)
@@ -120,6 +121,7 @@ func (r matrixResult) AvgDuration() time.Duration {
 	if len(r.Durations) == 0 {
 		return 0
 	}
+
 	var total time.Duration
 	for _, d := range r.Durations {
 		total += d
@@ -169,6 +171,7 @@ func testRoundTimers(t *testing.T, timers []roundTimerFunc, itersPerConfig int) 
 	}
 
 	var allConfigs []ssConfig
+
 	for _, size := range sizes {
 		names := []string{size.Name, "", ""}
 		for _, dist := range distributions {
@@ -190,7 +193,9 @@ func testRoundTimers(t *testing.T, timers []roundTimerFunc, itersPerConfig int) 
 		context.Background(),
 		func(_ context.Context, config ssConfig) (Named[[]result], error) {
 			name := strings.Join(config.names, " ")
+
 			var buf zaptest.Buffer
+
 			results := testStrategySimulator(t, config, &buf)
 			// Uncomment this to see undecided config and logs
 			// if isUndecided(results) {
@@ -207,8 +212,10 @@ func testRoundTimers(t *testing.T, timers []roundTimerFunc, itersPerConfig int) 
 	defer cancel()
 
 	var results []Named[[]result]
+
 	for res := range fjResults {
 		require.NoError(t, res.Err)
+
 		results = append(results, res.Output)
 		if len(results)%100 == 0 {
 			fmt.Printf("Completed %d/%d\n", len(results), len(allConfigs))
@@ -216,26 +223,32 @@ func testRoundTimers(t *testing.T, timers []roundTimerFunc, itersPerConfig int) 
 	}
 
 	printFunc, flush := newPrintFunc()
+
 	for _, size := range sizes {
 		names := []string{size.Name, "", ""}
 		for _, dist := range distributions {
 			names[1] = dist.Name
+
 			printFunc(nil, matrixResult{}) // Empty line
+
 			for _, timer := range timers {
 				names[2] = timerName(timer)
 				printResults(printFunc, results, names)
 			}
 		}
 	}
+
 	flush()
 
 	fmt.Printf("\n\nTimer aggregate results\n\n")
 
 	printFunc, flush = newPrintFunc()
+
 	for _, timer := range timers {
 		names := []string{"", "", timerName(timer)}
 		printAggResults(printFunc, results, names)
 	}
+
 	flush()
 }
 
@@ -271,6 +284,7 @@ func printResults(printFunc func([]string, matrixResult), results []Named[[]resu
 	name := strings.Join(names, " ")
 
 	var res matrixResult
+
 	for _, result := range results {
 		if result.Name != name {
 			continue
@@ -293,6 +307,7 @@ func printAggResults(printFunc func([]string, matrixResult), results []Named[[]r
 	name := strings.TrimSpace(strings.Join(names, " "))
 
 	var res matrixResult
+
 	for _, result := range results {
 		if !strings.Contains(result.Name, name) {
 			continue
@@ -330,6 +345,7 @@ type ssConfig struct {
 
 func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSyncer) []result {
 	t.Helper()
+
 	random := rand.New(rand.NewSource(int64(conf.seed)))
 	clock := clockwork.NewFakeClockAt(time.Now().Truncate(time.Hour))
 
@@ -350,6 +366,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	done := cancelAfter(cancel, len(peerIDs))
 
 	work := func(ctx context.Context, p peerID) (result, error) {
@@ -364,6 +381,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 					Round:    qcommit[0].Round(),
 					Duration: clock.Since(t0),
 				}
+
 				done()
 			},
 		)
@@ -372,6 +390,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 		valCh := make(chan [32]byte, 1)
 		enqueueValue := func() {
 			var val [32]byte
+
 			val[0], val[1] = byte(0xFF), byte(p.Idx)
 			valCh <- val
 		}
@@ -386,6 +405,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 			return res, nil
 		} else if conf.roundTimerFunc(nil).Type().Eager() { // If timer is eager, delay value asynchronously
 			go after(ctx, clock, delay, enqueueValue)
+
 			log.Debug(ctx, "Delaying peer value", z.Any("value_delayed", delay))
 		} else {
 			log.Debug(ctx, "Delaying peer start", z.Any("start_delayed", delay))
@@ -417,6 +437,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 			clock.Advance(time.Millisecond * 10)
 			gosched()
 			txSimulator.processBuffer()
+
 			if clock.Since(t0) < conf.timeout {
 				continue
 			}
@@ -441,9 +462,11 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 // It is thread safe.
 func cancelAfter(cancel context.CancelFunc, n int) context.CancelFunc {
 	var mu sync.Mutex
+
 	return func() {
 		mu.Lock()
 		defer mu.Unlock()
+
 		n--
 		if n == 0 {
 			cancel()
@@ -462,6 +485,7 @@ func newSimDefinition(nodes int, roundTimer utils.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
 ) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
+
 	return qbft.Definition[core.Duty, [32]byte]{
 		IsLeader: func(duty core.Duty, round, process int64) bool {
 			return leader(duty, round, nodes) == process
@@ -561,11 +585,13 @@ func (s *transportSimulator) enqueue(msg qbft.Msg[core.Duty, [32]byte]) {
 func (s *transportSimulator) processBuffer() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if len(s.buffer) == 0 {
 		return
 	}
 
 	now := s.clock.Now()
+
 	var remaining []tuple
 	for _, tuple := range s.buffer {
 		if tuple.Arrive.After(now) {
@@ -605,6 +631,7 @@ func (s *transportSimulator) instance(peerIdx int64) qbft.Transport[core.Duty, [
 
 type transportInstance struct {
 	*transportSimulator
+
 	peerIdx int64
 	receive chan qbft.Msg[core.Duty, [32]byte]
 }
@@ -631,11 +658,13 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 
 	// Transform justifications into protobufs
 	var justMsgs []*pbv1.QBFTMsg
+
 	for _, j := range justification {
 		impl, ok := j.(Msg)
 		if !ok {
 			return errors.New("invalid justification")
 		}
+
 		justMsgs = append(justMsgs, impl.Msg()) // Note nested justifications are ignored.
 		values[impl.Value()] = dummy
 		values[impl.PreparedValue()] = dummy
@@ -693,7 +722,9 @@ func decidedRound(results []result) int {
 
 func isUndecided(results []result) bool {
 	q := cluster.Threshold(len(results))
+
 	var decided int
+
 	for _, res := range results {
 		if res.Decided {
 			decided++
@@ -705,11 +736,14 @@ func isUndecided(results []result) bool {
 
 func quorumDecidedDuration(results []result) time.Duration {
 	q := cluster.Threshold(len(results))
+
 	var durations []time.Duration
+
 	for _, res := range results {
 		if !res.Decided {
 			continue
 		}
+
 		durations = append(durations, res.Duration)
 	}
 
@@ -780,6 +814,7 @@ func randomPeerLatencies(peers int, n int, selectFrom []time.Duration, random *r
 		for i := range peers {
 			m[int64(i)] = selectFrom[random.Intn(len(selectFrom))]
 		}
+
 		resp = append(resp, m)
 	}
 
@@ -832,6 +867,7 @@ func estimateMeanStdDev(percentiles map[float64]float64) (float64, float64) {
 
 func disableRandomNodes(configs []ssConfig, n int) []ssConfig {
 	random := rand.New(rand.NewSource(0))
+
 	for _, config := range configs {
 		size := len(config.latencyPerPeer)
 		for range n {
@@ -881,6 +917,7 @@ func (t *testTimer) Timer(round int64) (<-chan time.Time, func()) {
 			return timer.Chan(), func() {}
 		}
 	}
+
 	if !t.reset {
 		// Fetch previously created timer.
 		if timer, ok := t.timers[round]; ok {
@@ -892,12 +929,14 @@ func (t *testTimer) Timer(round int64) (<-chan time.Time, func()) {
 	if t.deadlines == nil {
 		t.deadlines = make(map[int64]time.Time)
 	}
+
 	t.deadlines[round] = deadline
 
 	timer := t.clock.NewTimer(duration)
 	if t.timers == nil {
 		t.timers = make(map[int64]<-chan time.Time)
 	}
+
 	t.timers[round] = timer.Chan()
 
 	return timer.Chan(), func() {}
@@ -983,6 +1022,7 @@ func stddev[T comparable](values []T, toFloat func(T) float64) float64 {
 	mean := sum / float64(len(values))
 
 	var squaredSum float64
+
 	for _, value := range values {
 		difference := toFloat(value) - mean
 		squaredSum += difference * difference

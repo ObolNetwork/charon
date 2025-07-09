@@ -46,6 +46,7 @@ func NewDutyGater(ctx context.Context, eth2Cl eth2wrap.Client, opts ...func(*dut
 	if err != nil {
 		return nil, err
 	}
+
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err

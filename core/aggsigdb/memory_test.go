@@ -35,6 +35,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	t.Run("write read", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
 
@@ -54,6 +55,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	t.Run("write unblocks", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
 
@@ -96,6 +98,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 
 		errChan := make(chan error)
 		ctx2, cancel2 := context.WithCancel(context.Background())
+
 		go func() {
 			_, err := db.Await(ctx2, testDuty, testPubKey)
 			errChan <- err
@@ -142,6 +145,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		testSignedData := testutil.RandomCoreSignature()
 
 		errChan := make(chan error)
+
 		go func() {
 			_, err := db.Await(context.Background(), testDuty, testPubKey)
 			errChan <- err
@@ -164,6 +168,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	t.Run("cannot overwrite", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
 
@@ -182,6 +187,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	t.Run("write idempotent", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
+
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
 
@@ -202,6 +208,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 
 	t.Run("write read after stopped", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
+
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
 

@@ -152,6 +152,7 @@ func NewVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal) (Vers
 		if proposal.Bellatrix == nil && !proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no bellatrix proposal")
 		}
+
 		if proposal.BellatrixBlinded == nil && proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no bellatrix blinded proposal")
 		}
@@ -159,6 +160,7 @@ func NewVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal) (Vers
 		if proposal.Capella == nil && !proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no capella proposal")
 		}
+
 		if proposal.CapellaBlinded == nil && proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no capella blinded proposal")
 		}
@@ -166,6 +168,7 @@ func NewVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal) (Vers
 		if proposal.Deneb == nil && !proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no deneb proposal")
 		}
+
 		if proposal.DenebBlinded == nil && proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no deneb blinded proposal")
 		}
@@ -173,6 +176,7 @@ func NewVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal) (Vers
 		if proposal.Electra == nil && !proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no electra proposal")
 		}
+
 		if proposal.ElectraBlinded == nil && proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no electra blinded proposal")
 		}
@@ -378,6 +382,7 @@ func (p VersionedSignedProposal) Clone() (SignedData, error) {
 // It is similar to Clone that returns the SignedData interface.
 func (p VersionedSignedProposal) clone() (VersionedSignedProposal, error) {
 	var resp VersionedSignedProposal
+
 	err := cloneJSONMarshaler(p, &resp)
 	if err != nil {
 		return VersionedSignedProposal{}, errors.Wrap(err, "clone proposal")
@@ -388,6 +393,7 @@ func (p VersionedSignedProposal) clone() (VersionedSignedProposal, error) {
 
 func (p VersionedSignedProposal) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
+
 	switch p.Version {
 	// No proposal nil checks since `NewVersionedSignedProposal` assumed.
 	case eth2spec.DataVersionPhase0:
@@ -457,12 +463,14 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal phase0")
 		}
+
 		resp.Phase0 = block
 	case eth2spec.DataVersionAltair:
 		block := new(altair.SignedBeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal altair")
 		}
+
 		resp.Altair = block
 	case eth2spec.DataVersionBellatrix:
 		if raw.Blinded {
@@ -470,12 +478,14 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal bellatrix blinded")
 			}
+
 			resp.BellatrixBlinded = block
 		} else {
 			block := new(bellatrix.SignedBeaconBlock)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal bellatrix")
 			}
+
 			resp.Bellatrix = block
 		}
 	case eth2spec.DataVersionCapella:
@@ -484,12 +494,14 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal capella blinded")
 			}
+
 			resp.CapellaBlinded = block
 		} else {
 			block := new(capella.SignedBeaconBlock)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal capella")
 			}
+
 			resp.Capella = block
 		}
 	case eth2spec.DataVersionDeneb:
@@ -498,12 +510,14 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal deneb blinded")
 			}
+
 			resp.DenebBlinded = block
 		} else {
 			block := new(eth2deneb.SignedBlockContents)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal deneb")
 			}
+
 			resp.Deneb = block
 		}
 	case eth2spec.DataVersionElectra:
@@ -512,12 +526,14 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal electra blinded")
 			}
+
 			resp.ElectraBlinded = block
 		} else {
 			block := new(eth2electra.SignedBlockContents)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal electra")
 			}
+
 			resp.Electra = block
 		}
 	default:
@@ -569,6 +585,7 @@ func (a Attestation) Clone() (SignedData, error) {
 
 func (a Attestation) clone() (Attestation, error) {
 	var resp Attestation
+
 	err := cloneJSONMarshaler(a, &resp)
 	if err != nil {
 		return Attestation{}, errors.Wrap(err, "clone attestation")
@@ -686,6 +703,7 @@ func (a VersionedAttestation) Clone() (SignedData, error) {
 
 func (a VersionedAttestation) clone() (VersionedAttestation, error) {
 	var resp VersionedAttestation
+
 	err := cloneJSONMarshaler(a, &resp)
 	if err != nil {
 		return VersionedAttestation{}, errors.Wrap(err, "clone attestation")
@@ -750,6 +768,7 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 	}
 
 	var marshaller json.Marshaler
+
 	switch a.Version {
 	case eth2spec.DataVersionPhase0:
 		marshaller = a.Phase0
@@ -799,45 +818,57 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal phase0")
 		}
+
 		resp.Phase0 = att
 	case eth2spec.DataVersionAltair:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal altair")
 		}
+
 		resp.Altair = att
 	case eth2spec.DataVersionBellatrix:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal bellatrix")
 		}
+
 		resp.Bellatrix = att
 	case eth2spec.DataVersionCapella:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal capella")
 		}
+
 		resp.Capella = att
 	case eth2spec.DataVersionDeneb:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal deneb")
 		}
+
 		resp.Deneb = att
 	case eth2spec.DataVersionElectra:
 		att := new(eth2e.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal electra")
 		}
+
 		resp.Electra = att
 	default:
 		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
@@ -886,6 +917,7 @@ func (e SignedVoluntaryExit) Clone() (SignedData, error) {
 // It is similar to Clone that returns the SignedData interface.
 func (e SignedVoluntaryExit) clone() (SignedVoluntaryExit, error) {
 	var resp SignedVoluntaryExit
+
 	err := cloneJSONMarshaler(e, &resp)
 	if err != nil {
 		return SignedVoluntaryExit{}, errors.Wrap(err, "clone exit")
@@ -973,6 +1005,7 @@ func (r VersionedSignedValidatorRegistration) Clone() (SignedData, error) {
 
 func (r VersionedSignedValidatorRegistration) clone() (VersionedSignedValidatorRegistration, error) {
 	var resp VersionedSignedValidatorRegistration
+
 	err := cloneJSONMarshaler(r, &resp)
 	if err != nil {
 		return VersionedSignedValidatorRegistration{}, errors.Wrap(err, "clone registration")
@@ -1008,6 +1041,7 @@ func (r VersionedSignedValidatorRegistration) SetSignature(sig Signature) (Signe
 
 func (r VersionedSignedValidatorRegistration) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
+
 	switch r.Version {
 	case eth2spec.BuilderVersionV1:
 		marshaller = r.V1
@@ -1049,6 +1083,7 @@ func (r *VersionedSignedValidatorRegistration) UnmarshalJSON(input []byte) error
 		if err := json.Unmarshal(raw.Registration, &registration); err != nil {
 			return errors.Wrap(err, "unmarshal V1 registration")
 		}
+
 		resp.V1 = registration
 	default:
 		return errors.New("unknown version")
@@ -1118,6 +1153,7 @@ func (s *SignedRandao) UnmarshalJSON(input []byte) error {
 
 func (s SignedRandao) clone() (SignedRandao, error) {
 	var resp SignedRandao
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return SignedRandao{}, errors.Wrap(err, "clone randao")
@@ -1171,6 +1207,7 @@ func (s BeaconCommitteeSelection) Clone() (SignedData, error) {
 
 func (s BeaconCommitteeSelection) clone() (BeaconCommitteeSelection, error) {
 	var resp BeaconCommitteeSelection
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return BeaconCommitteeSelection{}, errors.Wrap(err, "clone BeaconCommitteeSubscription")
@@ -1239,6 +1276,7 @@ func (s SyncCommitteeSelection) Clone() (SignedData, error) {
 
 func (s SyncCommitteeSelection) clone() (SyncCommitteeSelection, error) {
 	var resp SyncCommitteeSelection
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return SyncCommitteeSelection{}, errors.Wrap(err, "clone SyncCommitteeSubscription")
@@ -1298,6 +1336,7 @@ func (s SignedAggregateAndProof) Clone() (SignedData, error) {
 
 func (s SignedAggregateAndProof) clone() (SignedAggregateAndProof, error) {
 	var resp SignedAggregateAndProof
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return SignedAggregateAndProof{}, errors.Wrap(err, "clone signed aggregate and proof")
@@ -1490,6 +1529,7 @@ func (ap VersionedSignedAggregateAndProof) Clone() (SignedData, error) {
 
 func (ap VersionedSignedAggregateAndProof) clone() (VersionedSignedAggregateAndProof, error) {
 	var resp VersionedSignedAggregateAndProof
+
 	err := cloneJSONMarshaler(ap, &resp)
 	if err != nil {
 		return VersionedSignedAggregateAndProof{}, errors.Wrap(err, "clone signed aggregate and proof")
@@ -1504,6 +1544,7 @@ func (ap VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
 	}
 
 	var marshaller json.Marshaler
+
 	switch ap.Version {
 	case eth2spec.DataVersionPhase0:
 		marshaller = ap.Phase0
@@ -1555,36 +1596,42 @@ func (ap *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
 			return errors.Wrap(err, "unmarshal phase0")
 		}
+
 		resp.Phase0 = aggregateAndProof
 	case eth2spec.DataVersionAltair:
 		aggregateAndProof := new(eth2p0.SignedAggregateAndProof)
 		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
 			return errors.Wrap(err, "unmarshal altair")
 		}
+
 		resp.Altair = aggregateAndProof
 	case eth2spec.DataVersionBellatrix:
 		aggregateAndProof := new(eth2p0.SignedAggregateAndProof)
 		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
 			return errors.Wrap(err, "unmarshal bellatrix")
 		}
+
 		resp.Bellatrix = aggregateAndProof
 	case eth2spec.DataVersionCapella:
 		aggregateAndProof := new(eth2p0.SignedAggregateAndProof)
 		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
 			return errors.Wrap(err, "unmarshal capella")
 		}
+
 		resp.Capella = aggregateAndProof
 	case eth2spec.DataVersionDeneb:
 		aggregateAndProof := new(eth2p0.SignedAggregateAndProof)
 		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
 			return errors.Wrap(err, "unmarshal deneb")
 		}
+
 		resp.Deneb = aggregateAndProof
 	case eth2spec.DataVersionElectra:
 		aggregateAndProof := new(eth2e.SignedAggregateAndProof)
 		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
 			return errors.Wrap(err, "unmarshal electra")
 		}
+
 		resp.Electra = aggregateAndProof
 	default:
 		return errors.New("unknown version")
@@ -1732,6 +1779,7 @@ func (s SignedSyncMessage) Clone() (SignedData, error) {
 
 func (s SignedSyncMessage) clone() (SignedSyncMessage, error) {
 	var resp SignedSyncMessage
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return SignedSyncMessage{}, errors.Wrap(err, "clone signed sync message")
@@ -1816,6 +1864,7 @@ func (s SyncContributionAndProof) Clone() (SignedData, error) {
 
 func (s SyncContributionAndProof) clone() (SyncContributionAndProof, error) {
 	var resp SyncContributionAndProof
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return SyncContributionAndProof{}, errors.Wrap(err, "clone sync contribution and proof")
@@ -1903,6 +1952,7 @@ func (s SignedSyncContributionAndProof) Clone() (SignedData, error) {
 
 func (s SignedSyncContributionAndProof) clone() (SignedSyncContributionAndProof, error) {
 	var resp SignedSyncContributionAndProof
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return SignedSyncContributionAndProof{}, errors.Wrap(err, "clone signed sync contribution")

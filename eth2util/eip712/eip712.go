@@ -79,10 +79,12 @@ func HashTypedData(data TypedData) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	dataHash, err := hashData(data.Type)
 	if err != nil {
 		return nil, err
 	}
+
 	rawData := fmt.Sprintf("\x19\x01%s%s", string(domainHash), string(dataHash))
 
 	return keccakHash([]byte(rawData)), nil
@@ -91,12 +93,14 @@ func HashTypedData(data TypedData) ([]byte, error) {
 // hashData returns the hash of the primary data type and value.
 func hashData(typ Type) ([]byte, error) {
 	var buf bytes.Buffer
+
 	_, _ = buf.Write(hashType(typ))
 	for _, field := range typ.Fields {
 		b, err := encodeField(field)
 		if err != nil {
 			return nil, errors.Wrap(err, "encode field")
 		}
+
 		_, _ = buf.Write(b)
 	}
 
@@ -138,16 +142,20 @@ func hashType(typ Type) []byte {
 // `{.Name}({.Fields[0].Type} {.Fields[0].Name},{.Fields[1].Type} {.Fields[1].Name},...)`.
 func encodeType(typ Type) []byte {
 	var buf bytes.Buffer
+
 	_, _ = buf.WriteString(typ.Name)
 	_, _ = buf.WriteString("(")
+
 	for i, field := range typ.Fields {
 		if i != 0 {
 			_, _ = buf.WriteString(",")
 		}
+
 		_, _ = buf.WriteString(string(field.Type))
 		_, _ = buf.WriteString(" ")
 		_, _ = buf.WriteString(field.Name)
 	}
+
 	_, _ = buf.WriteString(")")
 
 	return buf.Bytes()

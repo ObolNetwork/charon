@@ -87,6 +87,7 @@ func TestLoadManifest(t *testing.T) {
 				require.ErrorContains(t, err, tt.errorMsg)
 				return
 			}
+
 			require.NoError(t, err)
 
 			require.Len(t, dag.GetMutations(), 1) // The only mutation is the `legacy_lock` mutation
@@ -106,10 +107,12 @@ func TestLoadManifest(t *testing.T) {
 
 func testLoadLegacy(t *testing.T, version string) {
 	t.Helper()
+
 	n := 4 + rand.Intn(6)
 	k := cluster.Threshold(n)
 
 	var opts []func(*cluster.Definition)
+
 	opts = append(opts, cluster.WithVersion(version))
 	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4) {
 		opts = append(opts, cluster.WithLegacyVAddrs(testutil.RandomETHAddress(), testutil.RandomETHAddress()))
@@ -167,6 +170,7 @@ func testLoadLegacy(t *testing.T, version string) {
 func TestLoadModifiedLegacyLock(t *testing.T) {
 	cluster, err := manifest.LoadCluster("", "testdata/lock3.json", nil)
 	require.NoError(t, err)
+
 	hashHex := hex.EncodeToString(cluster.GetInitialMutationHash())
 	require.Equal(t, "4073fe542", hashHex[:9])
 }

@@ -34,6 +34,7 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 	if err != nil {
 		return err
 	}
+
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return err
@@ -51,6 +52,7 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 		cached eth2wrap.Client
 		mu     sync.Mutex
 	)
+
 	const timeout = time.Second * 10
 
 	return func() (eth2wrap.Client, error) {
@@ -63,8 +65,10 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 
 		// Try three times to reduce test startup issues.
 		var err error
+
 		for range 3 {
 			var eth2Svc eth2client.Service
+
 			eth2Svc, err = eth2http.New(context.Background(),
 				eth2http.WithLogLevel(1),
 				eth2http.WithAddress("http://"+conf.ValidatorAPIAddr),
@@ -74,6 +78,7 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 				time.Sleep(time.Millisecond * 100) // Test startup backoff
 				continue
 			}
+
 			eth2Http, ok := eth2Svc.(*eth2http.Service)
 			if !ok {
 				return nil, errors.New("invalid eth2 http service")
@@ -113,9 +118,11 @@ func newVMockSigner(conf Config, pubshares []eth2p0.BLSPubKey) (validatormock.Si
 	if len(secrets) == 0 && len(pubshares) != 0 {
 		return nil, errors.New("validator mock keys empty")
 	}
+
 	if len(secrets) < len(pubshares) {
 		return nil, errors.New("some validator mock keys missing", z.Int("expect", len(pubshares)), z.Int("found", len(secrets)))
 	}
+
 	for i, pubshare := range pubshares {
 		_, err := signer(pubshare, []byte("test signing"))
 		if err != nil {

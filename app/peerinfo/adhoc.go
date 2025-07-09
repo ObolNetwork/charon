@@ -18,12 +18,14 @@ import (
 // or an error.
 func DoOnce(ctx context.Context, tcpNode host.Host, peerID peer.ID) (*pbv1.PeerInfo, time.Duration, bool, error) {
 	var rtt time.Duration
+
 	rttCallback := func(d time.Duration) {
 		rtt = d
 	}
 
 	req := new(pbv1.PeerInfo)
 	resp := new(pbv1.PeerInfo)
+
 	err := p2p.SendReceive(ctx, tcpNode, peerID, req, resp, protocolID2,
 		p2p.WithSendReceiveRTT(rttCallback))
 	if err != nil {

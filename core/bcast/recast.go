@@ -107,6 +107,7 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	if !slot.FirstInEpoch() {
 		return nil
 	}
+
 	ctx = log.WithTopic(ctx, "bcast")
 
 	activeVals, err := r.activeValsFunc(ctx)
@@ -121,6 +122,7 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	)
 
 	r.mu.Lock()
+
 	clonedSubs = append(clonedSubs, r.subs...)
 	for pubkey, tuple := range r.tuples {
 		ethPk, err := pubkey.ToETH2()
@@ -138,8 +140,10 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 			set = make(core.SignedDataSet)
 			clonedSets[tuple.duty] = set
 		}
+
 		set[pubkey] = tuple.aggData
 	}
+
 	r.mu.Unlock()
 
 	for duty, set := range clonedSets {
@@ -151,6 +155,7 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 				log.Error(dutyCtx, "Rebroadcast duty error (will retry next epoch)", err)
 				incRegCounter(duty, recastErrors)
 			}
+
 			incRegCounter(duty, recastTotal)
 		}
 	}

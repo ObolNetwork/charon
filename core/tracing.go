@@ -36,6 +36,7 @@ func StartDutyTrace(ctx context.Context, duty Duty, spanName string, opts ...tra
 	copy(traceID[:], h.Sum(nil))
 
 	var outerSpan, innerSpan trace.Span
+
 	ctx, outerSpan = tracer.Start(tracer.RootedCtx(ctx, traceID), "core/duty."+duty.Type.String())
 	ctx, innerSpan = tracer.Start(ctx, spanName, opts...)
 
@@ -57,6 +58,7 @@ func SetClusterHash(hash []byte) {
 // withEndSpan wraps a trace span and calls endFunc when End is called.
 type withEndSpan struct {
 	trace.Span
+
 	endFunc func()
 }
 

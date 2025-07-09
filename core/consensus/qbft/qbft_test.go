@@ -68,6 +68,7 @@ func TestQBFTConsensus(t *testing.T) {
 // Note it only instantiates the minimum amount of peers, ie threshold.
 func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 	t.Helper()
+
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, p2pkeys, _ := cluster.NewForT(t, 1, threshold, nodes, seed, random)
@@ -112,6 +113,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 			if i == j {
 				continue
 			}
+
 			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
 		}
 
@@ -152,17 +154,20 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		count  int
 		result core.UnsignedDataSet
 	)
+
 	for {
 		select {
 		case err := <-runErrs:
 			testutil.RequireNoError(t, err)
 		case res := <-results:
 			t.Logf("Got result: %#v", res)
+
 			if count == 0 {
 				result = res
 			} else {
 				require.Equal(t, result, res)
 			}
+
 			count++
 		}
 

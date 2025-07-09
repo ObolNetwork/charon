@@ -206,22 +206,28 @@ func TestProposalTimeoutOptimizationIncreasingRoundTimer(t *testing.T) {
 
 	// First round for proposer should be 1.5s
 	timerC, stop := timer.Timer(1)
+
 	fakeClock.Advance(1500 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
 	}
+
 	stop()
 
 	// Second round should use original logic
 	timerC, stop = timer.Timer(2)
+
 	fakeClock.Advance(utils.IncRoundStart + 2*utils.IncRoundIncrease)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 2, proposer) did not fire at original duration")
 	}
+
 	stop()
 }
 
@@ -235,22 +241,28 @@ func TestProposalTimeoutOptimizationDoubleEagerLinearRoundTimer(t *testing.T) {
 
 	// First round for proposer should be 1.5s
 	timerC, stop := timer.Timer(1)
+
 	fakeClock.Advance(1500 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
 	}
+
 	stop()
 
 	// Second round should use original logic (2s)
 	timerC, stop = timer.Timer(2)
+
 	fakeClock.Advance(2 * time.Second)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 2, proposer) did not fire at 2s")
 	}
+
 	stop()
 }
 
@@ -264,21 +276,27 @@ func TestProposalTimeoutOptimizationLinearRoundTimer(t *testing.T) {
 
 	// First round for proposer should be 1.5s
 	timerC, stop := timer.Timer(1)
+
 	fakeClock.Advance(1500 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
 	}
+
 	stop()
 
 	// Third round should use original logic (600ms)
 	timerC, stop = timer.Timer(3)
+
 	fakeClock.Advance(600 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 3, proposer) did not fire at 600ms")
 	}
+
 	stop()
 }

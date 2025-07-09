@@ -48,6 +48,7 @@ func newClient(addr string, header http.Header) (*client, error) {
 	if !strings.HasPrefix(addr, "http") {
 		prefixedAddr = "http://" + addr
 	}
+
 	u, err := url.Parse(prefixedAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse bn addr", z.Str("addr", addr))
@@ -73,10 +74,12 @@ func newClientForT(addr, path string) (*client, error) {
 	if !strings.HasPrefix(addr, "http") {
 		prefixedAddr = "http://" + addr
 	}
+
 	u, err := url.Parse(prefixedAddr)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse bn addr", z.Str("addr", addr))
 	}
+
 	u.Path = path
 
 	// For testing purposes, we use a different retry duration.
@@ -184,6 +187,7 @@ func (c *client) parseEvent(r *bufio.Reader) (*event, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if len(parts) == 0 {
 			return event, nil
 		}

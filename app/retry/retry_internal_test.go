@@ -14,6 +14,7 @@ func TestDelayForIteration(t *testing.T) {
 	for i := 0; i < 13; i++ {
 		delay := delayForIteration(i)
 		t.Log(delay)
+
 		backoff := expbackoff.Backoff(backoffConfig, i)
 		deltaWithJitter := float64(backoff) * (1 + backoffConfig.Jitter)
 		require.InDelta(t, backoff, delay, deltaWithJitter)

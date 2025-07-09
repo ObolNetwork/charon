@@ -60,6 +60,7 @@ func Test_runBcastFullExitCmd(t *testing.T) {
 
 func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	valAmt := 100
@@ -113,6 +114,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 		beaconmock.WithEndpoint("/eth/v1/beacon/pool/voluntary_exits", ""),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -122,7 +124,9 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
 	srv := httptest.NewServer(handler)
+
 	addLockFiles(lock)
+
 	defer srv.Close()
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
@@ -182,6 +186,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 				exitPath := filepath.Join(baseDir, fmt.Sprintf("exit-%s.json", validatorPublicKey))
 				require.NoError(t, os.WriteFile(exitPath, exitBytes, 0o755))
 			}
+
 			config.ExitFromFileDir = baseDir
 		} else {
 			validatorPublicKey := lock.Validators[0].PublicKeyHex()
@@ -203,6 +208,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 
 func Test_runBcastFullExitCmd_Config(t *testing.T) {
 	t.Parallel()
+
 	type test struct {
 		name                   string
 		noIdentity             bool
@@ -306,9 +312,11 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 			if !test.badBeaconNodeEndpoints {
 				beaconMock, err := beaconmock.New()
 				require.NoError(t, err)
+
 				defer func() {
 					require.NoError(t, beaconMock.Close())
 				}()
+
 				bnURL = beaconMock.Address()
 			}
 
@@ -486,6 +494,7 @@ func TestExitBcastFullExitNotActivated(t *testing.T) {
 		beaconmock.WithEndpoint("/eth/v1/beacon/pool/voluntary_exits", ""),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -495,7 +504,9 @@ func TestExitBcastFullExitNotActivated(t *testing.T) {
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
 	srv := httptest.NewServer(handler)
+
 	addLockFiles(lock)
+
 	defer srv.Close()
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)

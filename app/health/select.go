@@ -20,6 +20,7 @@ func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This
 	)
 	for _, metric := range metricsFam.GetMetric() {
 		var val float64
+
 		switch metricsFam.GetType() {
 		case pb.MetricType_COUNTER:
 			val = metric.GetCounter().GetValue()
@@ -73,6 +74,7 @@ func countLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb
 			Gauge:       new(pb.Gauge),
 			TimestampMs: &timestamp,
 		}
+
 		for _, metric := range metricsFam.GetMetric() {
 			if labelsContain(metric.GetLabel(), labels) {
 				value := metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
@@ -97,6 +99,7 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 			Gauge:       new(pb.Gauge),
 			TimestampMs: &timestamp,
 		}
+
 		for _, metric := range metricsFam.GetMetric() {
 			if labelsContain(metric.GetLabel(), labels) {
 				value := metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
@@ -113,11 +116,13 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 func selectLabel(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) { //nolint: unused // This is used in the future.
 	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 		var found *pb.Metric
+
 		for _, metric := range metricsFam.GetMetric() {
 			if labelsContain(metric.GetLabel(), labels) {
 				if found != nil {
 					return nil, errors.New("multiple metrics matching label selector")
 				}
+
 				found = metric
 			}
 		}
@@ -130,16 +135,19 @@ func selectLabel(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb
 func labelsContain(labels, contain []*pb.LabelPair) bool {
 	for _, c := range contain {
 		found := false
+
 		for _, l := range labels {
 			if l.GetName() != c.GetName() {
 				continue
 			}
+
 			valueMatch, _ := regexp.MatchString(c.GetValue(), l.GetValue())
 			if valueMatch {
 				found = true
 				break
 			}
 		}
+
 		if !found {
 			return false
 		}

@@ -74,6 +74,7 @@ func (l *lazy) getOrCreateClient(ctx context.Context) (Client, error) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+
 		time.Sleep(time.Millisecond) // Don't spin.
 	}
 	defer l.providerMu.Unlock()

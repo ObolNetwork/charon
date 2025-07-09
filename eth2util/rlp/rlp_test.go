@@ -112,6 +112,7 @@ func TestBytesList(t *testing.T) {
 
 			decoded, err := rlp.DecodeBytesList(encoded)
 			testutil.RequireNoError(t, err)
+
 			if len(test.input) == 0 {
 				require.Empty(t, decoded)
 			} else {
@@ -172,6 +173,7 @@ func TestBytes(t *testing.T) {
 
 			decoded, err := rlp.DecodeBytes(encoded)
 			testutil.RequireNoError(t, err)
+
 			if len(test.input) == 0 {
 				require.Empty(t, decoded)
 			} else {

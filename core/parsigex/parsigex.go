@@ -90,6 +90,7 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 
 	if duty.Type == core.DutyProposer {
 		var span trace.Span
+
 		ctx, span = core.StartDutyTrace(ctx, duty, "core/parsigex.Handle")
 		defer span.End()
 	}

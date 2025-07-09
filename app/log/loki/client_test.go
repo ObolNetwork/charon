@@ -36,6 +36,7 @@ func TestLoki(t *testing.T) {
 		require.Len(t, req.GetStreams(), 1)
 		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`service="%s"`, serviceLabel))
 		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`%s="%s"`, otherLabelKey, otherLabelValue))
+
 		for _, entry := range req.GetStreams()[0].GetEntries() {
 			received <- entry.GetLine()
 		}
@@ -43,6 +44,7 @@ func TestLoki(t *testing.T) {
 
 	// Only return lazy labels after 3 attempts.
 	var count int
+
 	lazyLabels := func() (map[string]string, bool) {
 		count++
 		if count < 3 {
@@ -106,9 +108,11 @@ func TestLongLines(t *testing.T) {
 		req := decode(t, b)
 		require.Len(t, req.GetStreams(), 1)
 		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`service="%s"`, serviceLabel))
+
 		for _, entry := range req.GetStreams()[0].GetEntries() {
 			go func(entry string) {
 				entriesChan <- entry
+
 				close(entriesChan)
 			}(entry.GetLine())
 		}
@@ -132,6 +136,7 @@ func TestLongLines(t *testing.T) {
 	cl.Stop(ctx)
 
 	var entries []string
+
 	for entry := range entriesChan {
 		require.NotEqual(t, huge, entry)
 		entries = append(entries, entry)

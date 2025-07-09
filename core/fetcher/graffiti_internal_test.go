@@ -75,6 +75,7 @@ func TestDefaultGraffiti(t *testing.T) {
 	defaultGraffiti := defaultGraffiti()
 
 	var graffitiBytes [32]byte
+
 	commitSHA, _ := version.GitCommit()
 	copy(graffitiBytes[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 

@@ -53,6 +53,7 @@ type SlotAttester struct {
 	// Mutable fields
 	mutable struct {
 		sync.Mutex
+
 		vals       eth2wrap.ActiveValidators
 		duties     attDuties
 		selections attSelections
@@ -84,6 +85,7 @@ func (a *SlotAttester) Prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	a.setPrepareDuties(vals, duties)
 
 	log.Debug(ctx, "Set attester duties", z.Any("slot", a.slot))
@@ -92,6 +94,7 @@ func (a *SlotAttester) Prepare(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	a.setPrepareSelections(selections)
 
 	return nil
@@ -106,6 +109,7 @@ func (a *SlotAttester) Attest(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	a.setAttestDatas(datas)
 
 	return nil
@@ -200,13 +204,16 @@ func prepareAttesters(ctx context.Context, eth2Cl eth2wrap.Client, vals eth2wrap
 		Epoch:   epoch,
 		Indices: vals.Indices(),
 	}
+
 	eth2Resp, err := eth2Cl.AttesterDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+
 	epochDuties := eth2Resp.Data
 
 	var duties attDuties
+
 	for _, duty := range epochDuties {
 		if duty.Slot != slot {
 			continue
@@ -272,6 +279,7 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 	}
 
 	var selections attSelections
+
 	for _, selection := range aggregateSelections {
 		ok, err := eth2exp.IsAttAggregator(ctx, eth2Cl, commLengths[selection.ValidatorIndex], selection.SelectionProof)
 		if err != nil {
@@ -305,15 +313,18 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 		atts  []*eth2spec.VersionedAttestation
 		datas attDatas
 	)
+
 	for commIdx, duties := range dutyByComm {
 		opts := &eth2api.AttestationDataOpts{
 			Slot:           slot,
 			CommitteeIndex: commIdx,
 		}
+
 		eth2Resp, err := eth2Cl.AttestationData(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+
 		data := eth2Resp.Data
 		datas = append(datas, data)
 
@@ -332,8 +343,10 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 			if err != nil {
 				return nil, err
 			}
+
 			aggBits := bitfield.NewBitlist(duty.CommitteeLength)
 			aggBits.SetBitAt(duty.ValidatorCommitteeIndex, true)
+
 			commBits := bitfield.NewBitvector64()
 			commBits.SetBitAt(uint64(duty.CommitteeIndex), true)
 
@@ -381,6 +394,7 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		aggs       []*eth2spec.VersionedSignedAggregateAndProof
 		attsByComm = make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 	)
+
 	for _, selection := range selections {
 		commIdx, ok := committees[selection.ValidatorIndex]
 		if !ok {
@@ -390,10 +404,12 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		att, ok := attsByComm[commIdx]
 		if !ok {
 			var err error
+
 			att, err = getAggregateAttestation(ctx, eth2Cl, datas, commIdx)
 			if err != nil {
 				return false, err
 			}
+
 			attsByComm[commIdx] = att
 		}
 
@@ -461,6 +477,7 @@ func getAggregateAttestation(ctx context.Context, eth2Cl eth2wrap.Client, datas 
 			AttestationDataRoot: root,
 			CommitteeIndex:      commIdx,
 		}
+
 		eth2Resp, err := eth2Cl.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return nil, err

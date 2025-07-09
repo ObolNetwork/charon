@@ -24,6 +24,7 @@ import (
 
 func TestDuplicateAttData(t *testing.T) {
 	ctx := context.Background()
+
 	featureset.EnableForT(t, featureset.AttestationInclusion)
 
 	tests := []struct {
@@ -230,6 +231,7 @@ func TestInclusion(t *testing.T) {
 	featureset.EnableForT(t, featureset.AttestationInclusion)
 	// Setup inclusion with a mock missedFunc and attIncludedFunc
 	var missed, included []core.Duty
+
 	incl := &inclusionCore{
 		missedFunc: func(ctx context.Context, sub submission) {
 			missed = append(missed, sub.Duty)
@@ -310,6 +312,7 @@ func addRandomBits(list bitfield.Bitlist) {
 func TestBlockInclusion(t *testing.T) {
 	t.Run("block found", func(t *testing.T) {
 		var missed []core.Duty
+
 		incl := &inclusionCore{
 			missedFunc: func(ctx context.Context, sub submission) {
 				missed = append(missed, sub.Duty)
@@ -321,6 +324,7 @@ func TestBlockInclusion(t *testing.T) {
 		block := testutil.RandomElectraVersionedSignedProposal()
 		blockSlot, err := block.Slot()
 		require.NoError(t, err)
+
 		blockDuty := core.NewProposerDuty(uint64(blockSlot))
 		coreBlock, err := core.NewVersionedSignedProposal(block)
 		require.NoError(t, err)
@@ -333,6 +337,7 @@ func TestBlockInclusion(t *testing.T) {
 
 	t.Run("block not found", func(t *testing.T) {
 		var missed []core.Duty
+
 		incl := &inclusionCore{
 			missedFunc: func(ctx context.Context, sub submission) {
 				missed = append(missed, sub.Duty)
@@ -344,6 +349,7 @@ func TestBlockInclusion(t *testing.T) {
 		block := testutil.RandomElectraVersionedSignedProposal()
 		blockSlot, err := block.Slot()
 		require.NoError(t, err)
+
 		blockDuty := core.NewProposerDuty(uint64(blockSlot))
 		coreBlock, err := core.NewVersionedSignedProposal(block)
 		require.NoError(t, err)
@@ -356,6 +362,7 @@ func TestBlockInclusion(t *testing.T) {
 
 	t.Run("received block not found in submissions", func(t *testing.T) {
 		var missed []core.Duty
+
 		incl := &inclusionCore{
 			missedFunc: func(ctx context.Context, sub submission) {
 				missed = append(missed, sub.Duty)
@@ -367,6 +374,7 @@ func TestBlockInclusion(t *testing.T) {
 		block := testutil.RandomElectraVersionedSignedProposal()
 		blockSlot, err := block.Slot()
 		require.NoError(t, err)
+
 		blockDuty := core.NewProposerDuty(uint64(blockSlot))
 		coreBlock, err := core.NewVersionedSignedProposal(block)
 		require.NoError(t, err)
@@ -379,6 +387,7 @@ func TestBlockInclusion(t *testing.T) {
 
 	t.Run("received block is nil and not found in submissions", func(t *testing.T) {
 		var missed []core.Duty
+
 		incl := &inclusionCore{
 			missedFunc: func(ctx context.Context, sub submission) {
 				missed = append(missed, sub.Duty)
@@ -390,6 +399,7 @@ func TestBlockInclusion(t *testing.T) {
 		block := testutil.RandomElectraVersionedSignedProposal()
 		blockSlot, err := block.Slot()
 		require.NoError(t, err)
+
 		blockDuty := core.NewProposerDuty(uint64(blockSlot))
 		coreBlock, err := core.NewVersionedSignedProposal(block)
 		require.NoError(t, err)

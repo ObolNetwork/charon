@@ -55,6 +55,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core
 	}
 
 	output := make(core.SignedDataSet)
+
 	for pubkey, parSigs := range set {
 		signed, err := a.aggregate(ctx, pubkey, parSigs)
 		if err != nil {
@@ -95,6 +96,7 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		if err != nil {
 			return nil, errors.Wrap(err, "signature from core")
 		}
+
 		blsSigs[parSig.ShareIdx] = sig
 	}
 
@@ -121,11 +123,13 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		if !ok {
 			break
 		}
+
 		if attVidx.ValidatorIndex != nil {
 			fullSig = attVidx
 			break
 		}
 	}
+
 	if fullSig == nil {
 		fullSig = parSigs[0].SignedData
 	}

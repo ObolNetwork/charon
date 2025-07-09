@@ -52,6 +52,7 @@ func checkBeaconNodeVersionStatus(bnVersion string) (beaconNodeVersionStatus Bea
 	}
 
 	client := matches[1]
+
 	clientVersion, err := version.Parse("v" + matches[2])
 	if err != nil {
 		return VersionFormatError, "", ""

@@ -40,6 +40,7 @@ func RequireGoldenBytes(t *testing.T, data []byte, opts ...func(*string)) {
 	for _, opt := range opts {
 		opt(&filename)
 	}
+
 	filename = path.Join("testdata", filename)
 
 	if *update {

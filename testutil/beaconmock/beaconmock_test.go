@@ -60,6 +60,7 @@ func TestAttestationStore(t *testing.T) {
 	}
 	resp, err := bmock.AttestationData(ctx, opts)
 	require.NoError(t, err)
+
 	attData := resp.Data
 	testutil.RequireGoldenJSON(t, attData)
 
@@ -72,6 +73,7 @@ func TestAttestationStore(t *testing.T) {
 	}
 	bmockResp, err := bmock.AggregateAttestation(ctx, aggAttOpts) // Slot is ignored.
 	require.NoError(t, err)
+
 	att := bmockResp.Data.Electra
 	require.Equal(t, attData, att.Data)
 

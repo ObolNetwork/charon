@@ -22,11 +22,13 @@ func ClusterPeers(c *manifestpb.Cluster) ([]p2p.Peer, error) {
 	}
 
 	var resp []p2p.Peer
+
 	dedup := make(map[string]bool)
 	for i, operator := range c.GetOperators() {
 		if dedup[operator.GetEnr()] {
 			return nil, errors.New("cluster contains duplicate peer enrs", z.Str("enr", operator.GetEnr()))
 		}
+
 		dedup[operator.GetEnr()] = true
 
 		record, err := enr.Parse(operator.GetEnr())
@@ -51,6 +53,7 @@ func ClusterPeerIDs(c *manifestpb.Cluster) ([]peer.ID, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var resp []peer.ID
 	for _, p := range peers {
 		resp = append(resp, p.ID)

@@ -109,6 +109,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 		}
 
 		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", valIdx))
+
 		shares, err := shareIdxByPubkeys(cluster, pkSet, valIdx)
 		if err != nil {
 			return err
@@ -145,6 +146,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	}
 
 	ksPath := filepath.Join(outputDir, "keystore-0.json")
+
 	_, err = os.Stat(ksPath)
 	if err == nil && !force {
 		return errors.New("refusing to overwrite existing private key share", z.Str("path", ksPath))
@@ -252,6 +254,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wra
 
 		// does this directory contains a "validator_keys" directory? if yes continue and add it as a candidate
 		vcdPath := filepath.Join(dir, sd.Name(), "validator_keys")
+
 		_, err = os.ReadDir(vcdPath)
 		if err != nil {
 			continue

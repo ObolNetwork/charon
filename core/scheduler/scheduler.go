@@ -107,6 +107,7 @@ func (s *Scheduler) Stop() {
 // Run blocks and runs the scheduler until Stop is called.
 func (s *Scheduler) Run() error {
 	ctx := log.WithTopic(context.Background(), "sched")
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -185,6 +186,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		if ctx.Err() != nil {
 			return nil, errors.Wrap(ctx.Err(), "context cancelled while waiting for epoch to resolve")
 		}
+
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -192,6 +194,7 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 		return nil, errors.New("epoch not resolved yet",
 			z.Str("duty", duty.String()), z.U64("epoch", epoch))
 	}
+
 	if s.isEpochTrimmed(epoch) {
 		return nil, errors.New("epoch already trimmed",
 			z.Str("duty", duty.String()), z.U64("epoch", epoch))
@@ -240,9 +243,11 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			}
 
 			instrumentDuty(duty, defSet)
+
 			dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
 			if duty.Type == core.DutyProposer {
 				var span trace.Span
+
 				dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
 				defer span.End()
 			}
@@ -335,10 +340,12 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		Epoch:   eth2p0.Epoch(slot.Epoch()),
 		Indices: vals.Indexes(),
 	}
+
 	eth2Resp, err := s.eth2Cl.AttesterDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+
 	attDuties := eth2Resp.Data
 
 	// Check if any of the attester duties returned are nil.
@@ -414,10 +421,12 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 		Epoch:   eth2p0.Epoch(slot.Epoch()),
 		Indices: vals.Indexes(),
 	}
+
 	eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+
 	proDuties := eth2Resp.Data
 
 	// Check if any of the proposer duties returned are nil.
@@ -466,10 +475,12 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 		Epoch:   eth2p0.Epoch(slot.Epoch()),
 		Indices: vals.Indexes(),
 	}
+
 	eth2Resp, err := s.eth2Cl.SyncCommitteeDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+
 	duties := eth2Resp.Data
 
 	// Check if any of the sync committee duties returned are nil.
@@ -481,6 +492,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 
 	for _, syncCommDuty := range duties {
 		vIdx := syncCommDuty.ValidatorIndex
+
 		pubkey, ok := vals.PubKeyFromIndex(vIdx)
 		if !ok {
 			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(vIdx)), z.U64("slot", slot.Slot))
@@ -533,6 +545,7 @@ func (s *Scheduler) setDutyDefinition(duty core.Duty, epoch uint64, pubkey core.
 	if !ok {
 		defSet = make(core.DutyDefinitionSet)
 	}
+
 	if _, ok := defSet[pubkey]; ok {
 		return false
 	}
@@ -618,6 +631,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 	if err != nil {
 		return nil, err
 	}
+
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -641,8 +655,10 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 	}
 
 	resp := make(chan core.Slot)
+
 	go func() {
 		slot := currentSlot()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -682,6 +698,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client, submit
 	}
 
 	var resp []validator
+
 	for index, val := range eth2Resp {
 		if val == nil || val.Validator == nil {
 			return nil, errors.New("validator data cannot be nil")
@@ -719,6 +736,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 
 			continue
 		}
+
 		genesisTime := genesis.Data.GenesisTime
 
 		now := clock.Now()
@@ -744,6 +762,7 @@ func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 
 			continue
 		}
+
 		state := eth2Resp.Data
 
 		if state.IsSyncing {

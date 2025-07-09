@@ -14,6 +14,7 @@ import (
 // MemDBV2 is a basic memory implementation of core.AggSigDB.
 type MemDBV2 struct {
 	sync.RWMutex
+
 	data       map[memDBKey]core.SignedData
 	keysByDuty map[core.Duty][]memDBKey // Key index by duty for fast deletion.
 	deadliner  core.Deadliner

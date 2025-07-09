@@ -48,11 +48,13 @@ func Check(msg proto.Message) error {
 			// No field at this index, probably reserved.
 			continue
 		}
+
 		checked++
 
 		// Check the values of map fields.
 		if field.IsMap() {
 			var err error
+
 			rMsg.Get(field).Map().Range(func(_ protoreflect.MapKey, val protoreflect.Value) bool {
 				value, ok := valueToMsg(val)
 				if !ok {

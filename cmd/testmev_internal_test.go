@@ -238,7 +238,9 @@ func TestMEVTest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
+
 			ctx := context.Background()
+
 			_, err := runTestMEV(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
@@ -246,6 +248,7 @@ func TestMEVTest(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			defer func() {
 				if test.cleanup != nil {
 					test.cleanup(t, test.config.OutputJSON)
@@ -307,6 +310,7 @@ func TestMEVTestFlags(t *testing.T) {
 				return testCategoryResult{}, nil
 			}))
 			cmd.SetArgs(test.args)
+
 			err := cmd.Execute()
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)

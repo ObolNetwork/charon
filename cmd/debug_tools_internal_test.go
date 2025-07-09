@@ -66,6 +66,7 @@ func Test_bindDebugMonitoringFlags(t *testing.T) {
 			mAddr = "127.0.0.1:9999"
 			dAddr = ""
 		)
+
 		cmd.ResetCommands()
 
 		testCmd := genTestCmd(t, func(config app.Config) {

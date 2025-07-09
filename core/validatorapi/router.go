@@ -352,14 +352,17 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 		ctx = log.WithCtx(ctx, z.Str("vapi_endpoint", endpoint))
 		ctx = withCtxDuration(ctx)
 		ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
+
 		defer func() {
 			if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
 				observeAPILatency(endpoint)()
 			}
+
 			cancel()
 		}()
 
 		var typ contentType
+
 		contentHeader := r.Header.Get("Content-Type")
 		if contentHeader == "" || strings.Contains(contentHeader, string(contentTypeJSON)) {
 			typ = contentTypeJSON
@@ -373,6 +376,7 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 
 			return
 		}
+
 		vcContentType.WithLabelValues(endpoint, string(typ)).Inc()
 
 		if !slices.Contains(encodings, typ) {
@@ -500,10 +504,12 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 			Slot:           eth2p0.Slot(slot),
 			CommitteeIndex: eth2p0.CommitteeIndex(commIdx),
 		}
+
 		eth2Resp, err := p.AttestationData(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+
 		data := eth2Resp.Data
 
 		return struct {
@@ -520,6 +526,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 		versionedAtts := []*eth2spec.VersionedAttestation{}
 
 		var version eth2spec.DataVersion
+
 		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
 		if err != nil {
 			return nil, nil, errors.New("missing consensus version header", z.Hex("body", body))
@@ -528,10 +535,12 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 		switch version {
 		case eth2spec.DataVersionPhase0:
 			p0Atts := new([]eth2p0.Attestation)
+
 			err = unmarshal(typ, body, p0Atts)
 			if err != nil {
 				return nil, nil, errors.New("invalid phase0 attestations", z.Hex("body", body))
 			}
+
 			for _, p0Att := range *p0Atts {
 				versionedAtt := eth2spec.VersionedAttestation{
 					Version: eth2spec.DataVersionPhase0,
@@ -541,10 +550,12 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 			}
 		case eth2spec.DataVersionAltair:
 			p0Atts := new([]eth2p0.Attestation)
+
 			err = unmarshal(typ, body, p0Atts)
 			if err != nil {
 				return nil, nil, errors.New("invalid altair attestations", z.Hex("body", body))
 			}
+
 			for _, p0Att := range *p0Atts {
 				versionedAtt := eth2spec.VersionedAttestation{
 					Version: eth2spec.DataVersionAltair,
@@ -554,10 +565,12 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 			}
 		case eth2spec.DataVersionBellatrix:
 			p0Atts := new([]eth2p0.Attestation)
+
 			err = unmarshal(typ, body, p0Atts)
 			if err != nil {
 				return nil, nil, errors.New("invalid bellatrix attestations", z.Hex("body", body))
 			}
+
 			for _, p0Att := range *p0Atts {
 				versionedAtt := eth2spec.VersionedAttestation{
 					Version:   eth2spec.DataVersionBellatrix,
@@ -567,10 +580,12 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 			}
 		case eth2spec.DataVersionCapella:
 			p0Atts := new([]eth2p0.Attestation)
+
 			err = unmarshal(typ, body, p0Atts)
 			if err != nil {
 				return nil, nil, errors.New("invalid capella attestations", z.Hex("body", body))
 			}
+
 			for _, p0Att := range *p0Atts {
 				versionedAtt := eth2spec.VersionedAttestation{
 					Version: eth2spec.DataVersionCapella,
@@ -580,10 +595,12 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 			}
 		case eth2spec.DataVersionDeneb:
 			p0Atts := new([]eth2p0.Attestation)
+
 			err = unmarshal(typ, body, p0Atts)
 			if err != nil {
 				return nil, nil, errors.New("invalid deneb attestations", z.Hex("body", body))
 			}
+
 			for _, p0Att := range *p0Atts {
 				versionedAtt := eth2spec.VersionedAttestation{
 					Version: eth2spec.DataVersionDeneb,
@@ -593,10 +610,12 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 			}
 		case eth2spec.DataVersionElectra:
 			electraAtts := new([]electra.SingleAttestation)
+
 			err = unmarshal(typ, body, electraAtts)
 			if err != nil {
 				return nil, nil, errors.New("invalid attestations", z.Hex("body", body))
 			}
+
 			for _, electraAtt := range *electraAtts {
 				commBits := bitfield.NewBitvector64()
 				commBits.SetBitAt(uint64(electraAtt.CommitteeIndex), true)
@@ -636,6 +655,7 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 			Epoch:   eth2p0.Epoch(epoch),
 			Indices: nil,
 		}
+
 		eth2Resp, err := p.ProposerDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
@@ -681,6 +701,7 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 			Epoch:   eth2p0.Epoch(epoch),
 			Indices: req,
 		}
+
 		eth2Resp, err := p.AttesterDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
@@ -726,6 +747,7 @@ func syncCommitteeDuties(p eth2client.SyncCommitteeDutiesProvider) handlerFunc {
 			Epoch:   eth2p0.Epoch(epoch),
 			Indices: req,
 		}
+
 		eth2Resp, err := p.SyncCommitteeDuties(ctx, opts)
 		if err != nil {
 			return nil, nil, err
@@ -754,6 +776,7 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 		}
 
 		var beaconBlockRoot eth2p0.Root
+
 		err = hexQueryFixed(query, "beacon_block_root", beaconBlockRoot[:])
 		if err != nil {
 			return nil, nil, err
@@ -764,10 +787,12 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 			SubcommitteeIndex: subcommIdx,
 			BeaconBlockRoot:   beaconBlockRoot,
 		}
+
 		eth2Resp, err := s.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+
 		contribution := eth2Resp.Data
 
 		return syncCommitteeContributionResponse{Data: contribution}, nil, nil
@@ -778,6 +803,7 @@ func syncCommitteeContribution(s eth2client.SyncCommitteeContributionProvider) h
 func submitContributionAndProofs(s eth2client.SyncCommitteeContributionsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var contributionAndProofs []*altair.SignedContributionAndProof
+
 		err := unmarshal(typ, body, &contributionAndProofs)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal signed contribution and proofs")
@@ -878,6 +904,7 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 		if proposal.Blinded {
 			return nil, errors.New("invalid blinded block")
 		}
+
 		if proposal.Phase0 == nil {
 			return nil, errors.New("no phase0 block")
 		}
@@ -888,6 +915,7 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 		if proposal.Blinded {
 			return nil, errors.New("invalid blinded block")
 		}
+
 		if proposal.Altair == nil {
 			return nil, errors.New("no altair block")
 		}
@@ -896,54 +924,66 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 		blockData = proposal.Altair
 	case eth2spec.DataVersionBellatrix:
 		version = eth2spec.DataVersionBellatrix.String()
+
 		if proposal.Blinded {
 			if proposal.BellatrixBlinded == nil {
 				return nil, errors.New("no bellatrix blinded block")
 			}
+
 			blockData = proposal.BellatrixBlinded
 		} else {
 			if proposal.Bellatrix == nil {
 				return nil, errors.New("no bellatrix block")
 			}
+
 			blockData = proposal.Bellatrix
 		}
 	case eth2spec.DataVersionCapella:
 		version = eth2spec.DataVersionCapella.String()
+
 		if proposal.Blinded {
 			if proposal.CapellaBlinded == nil {
 				return nil, errors.New("no capella blinded block")
 			}
+
 			blockData = proposal.CapellaBlinded
 		} else {
 			if proposal.Capella == nil {
 				return nil, errors.New("no capella block")
 			}
+
 			blockData = proposal.Capella
 		}
 	case eth2spec.DataVersionDeneb:
 		version = eth2spec.DataVersionDeneb.String()
+
 		if proposal.Blinded {
 			if proposal.DenebBlinded == nil {
 				return nil, errors.New("no deneb blinded block")
 			}
+
 			blockData = proposal.DenebBlinded
 		} else {
 			if proposal.Deneb == nil {
 				return nil, errors.New("no deneb block")
 			}
+
 			blockData = proposal.Deneb
 		}
 	case eth2spec.DataVersionElectra:
 		version = eth2spec.DataVersionElectra.String()
+
 		if proposal.Blinded {
 			if proposal.ElectraBlinded == nil {
 				return nil, errors.New("no electra blinded block")
 			}
+
 			blockData = proposal.ElectraBlinded
 		} else {
 			if proposal.Electra == nil {
 				return nil, errors.New("no electra block")
 			}
+
 			blockData = proposal.Electra
 		}
 	default:
@@ -966,6 +1006,7 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		electraBlock := new(eth2electra.SignedBlockContents)
+
 		err := unmarshal(typ, body, electraBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -979,6 +1020,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 		}
 
 		denebBlock := new(eth2deneb.SignedBlockContents)
+
 		err = unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -992,6 +1034,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 		}
 
 		capellaBlock := new(capella.SignedBeaconBlock)
+
 		err = unmarshal(typ, body, capellaBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -1005,6 +1048,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 		}
 
 		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
+
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -1018,6 +1062,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 		}
 
 		altairBlock := new(altair.SignedBeaconBlock)
+
 		err = unmarshal(typ, body, altairBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -1031,6 +1076,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 		}
 
 		phase0Block := new(eth2p0.SignedBeaconBlock)
+
 		err = unmarshal(typ, body, phase0Block)
 		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
@@ -1051,6 +1097,7 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		// The blinded block maybe either bellatrix, capella, deneb or electra.
 		electraBlock := new(eth2electra.SignedBlindedBeaconBlock)
+
 		err := unmarshal(typ, body, electraBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
@@ -1064,6 +1111,7 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 		}
 
 		denebBlock := new(eth2deneb.SignedBlindedBeaconBlock)
+
 		err = unmarshal(typ, body, denebBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
@@ -1077,6 +1125,7 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 		}
 
 		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
+
 		err = unmarshal(typ, body, capellaBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
@@ -1090,6 +1139,7 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 		}
 
 		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
+
 		err = unmarshal(typ, body, bellatrixBlock)
 		if err == nil {
 			block := &eth2api.VersionedSignedBlindedProposal{
@@ -1205,10 +1255,12 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 			AttestationDataRoot: attDataRoot,
 			CommitteeIndex:      eth2p0.CommitteeIndex(committeeIndex),
 		}
+
 		eth2Resp, err := p.AggregateAttestation(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
+
 		data := eth2Resp.Data
 
 		resHeaders := make(http.Header)
@@ -1276,6 +1328,7 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
 
 		var version eth2spec.DataVersion
+
 		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
 		if err != nil {
 			return nil, nil, errors.New("missing consensus version header", z.Hex("body", body))
@@ -1284,10 +1337,12 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 		switch version {
 		case eth2spec.DataVersionPhase0:
 			var p0Aggs []*eth2p0.SignedAggregateAndProof
+
 			err := unmarshal(typ, body, &p0Aggs)
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "unmarshal phase0 signed aggregate and proofs", z.Hex("body", body))
 			}
+
 			for _, p0Agg := range p0Aggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionPhase0,
@@ -1297,10 +1352,12 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			}
 		case eth2spec.DataVersionAltair:
 			var p0Aggs []*eth2p0.SignedAggregateAndProof
+
 			err := unmarshal(typ, body, &p0Aggs)
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "unmarshal altair signed aggregate and proofs", z.Hex("body", body))
 			}
+
 			for _, p0Agg := range p0Aggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionAltair,
@@ -1310,10 +1367,12 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			}
 		case eth2spec.DataVersionBellatrix:
 			var p0Aggs []*eth2p0.SignedAggregateAndProof
+
 			err := unmarshal(typ, body, &p0Aggs)
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "unmarshal bellatrix signed aggregate and proofs", z.Hex("body", body))
 			}
+
 			for _, p0Agg := range p0Aggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version:   eth2spec.DataVersionBellatrix,
@@ -1323,10 +1382,12 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			}
 		case eth2spec.DataVersionCapella:
 			var p0Aggs []*eth2p0.SignedAggregateAndProof
+
 			err := unmarshal(typ, body, &p0Aggs)
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "unmarshal capella signed aggregate and proofs", z.Hex("body", body))
 			}
+
 			for _, p0Agg := range p0Aggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionCapella,
@@ -1336,10 +1397,12 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			}
 		case eth2spec.DataVersionDeneb:
 			var p0Aggs []*eth2p0.SignedAggregateAndProof
+
 			err := unmarshal(typ, body, &p0Aggs)
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "unmarshal deneb signed aggregate and proofs", z.Hex("body", body))
 			}
+
 			for _, p0Agg := range p0Aggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionDeneb,
@@ -1349,10 +1412,12 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			}
 		case eth2spec.DataVersionElectra:
 			var electraAggs []*electra.SignedAggregateAndProof
+
 			err := unmarshal(typ, body, &electraAggs)
 			if err != nil {
 				return nil, nil, errors.Wrap(err, "unmarshal electra signed aggregate and proofs", z.Hex("body", body))
 			}
+
 			for _, electraAgg := range electraAggs {
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionElectra,
@@ -1373,6 +1438,7 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var msgs []*altair.SyncCommitteeMessage
+
 		err := unmarshal(typ, body, &msgs)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal sync committee messages")
@@ -1402,6 +1468,7 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 		if err != nil {
 			return nil, nil, err
 		}
+
 		version := eth2Resp.Data
 
 		return nodeVersionResponse{
@@ -1439,6 +1506,7 @@ func proxyHandler(ctx context.Context, addrProvider addressProvider) http.Handle
 				password, _ := targetURL.User.Password()
 				req.SetBasicAuth(targetURL.User.Username(), password)
 			}
+
 			req.Host = targetURL.Host
 			defaultDirector(req)
 		}
@@ -1452,6 +1520,7 @@ func proxyHandler(ctx context.Context, addrProvider addressProvider) http.Handle
 
 		defer observeProxyAPILatency(clonedReq.URL.Path)()
 		defer observeAPILatency("proxy")()
+
 		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
 	}
 }
@@ -1459,6 +1528,7 @@ func proxyHandler(ctx context.Context, addrProvider addressProvider) http.Handle
 // getBeaconNodeAddress returns an active beacon node proxy target address.
 func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
 	addr := addrProvider.Address()
+
 	targetURL, err := url.ParseRequestURI(addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
@@ -1633,6 +1703,7 @@ func hexQueryFixed(query url.Values, name string, target []byte) error {
 			Message:    fmt.Sprintf("invalid length for 0x-hex query parameter %s, expect %d bytes", name, len(target)),
 		}
 	}
+
 	copy(target, resp)
 
 	return nil
@@ -1644,6 +1715,7 @@ func hexQuery(query url.Values, name string) ([]byte, bool, error) {
 	if !ok || len(valueA) != 1 {
 		return nil, false, nil
 	}
+
 	value := valueA[0]
 
 	resp, err := hex.DecodeString(strings.TrimPrefix(value, "0x"))
@@ -1688,6 +1760,7 @@ func getValidatorIDs(query url.Values) []string {
 // getQueryArrayParameter returns all array values passed as query parameter (supporting csv values).
 func getQueryArrayParameter(query url.Values, param string) []string {
 	var resp []string
+
 	for _, csv := range query[param] {
 		for _, id := range strings.Split(csv, ",") {
 			resp = append(resp, strings.TrimSpace(id))
@@ -1723,15 +1796,18 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 
 	if len(ids) > 0 && strings.HasPrefix(ids[0], "0x") {
 		var pubkeys []eth2p0.BLSPubKey
+
 		for _, id := range ids {
 			coreBytes, err := core.PubKey(id).Bytes()
 			if err != nil {
 				return nil, errors.Wrap(err, "fetch public key bytes")
 			}
+
 			pubkey, err := tblsconv.PubkeyFromBytes(coreBytes)
 			if err != nil {
 				return nil, errors.Wrap(err, "decode public key hex")
 			}
+
 			eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 			pubkeys = append(pubkeys, eth2Pubkey)
@@ -1741,21 +1817,25 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 			State:   stateID,
 			PubKeys: pubkeys,
 		}
+
 		eth2Resp, err := p.Validators(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+
 		vals := eth2Resp.Data
 
 		return flatten(vals), nil
 	}
 
 	var vIdxs []eth2p0.ValidatorIndex
+
 	for _, id := range ids {
 		vIdx, err := strconv.ParseUint(id, 10, 64)
 		if err != nil {
 			return nil, errors.Wrap(err, "parse validator index")
 		}
+
 		vIdxs = append(vIdxs, eth2p0.ValidatorIndex(vIdx))
 	}
 
@@ -1763,10 +1843,12 @@ func getValidatorsByID(ctx context.Context, p eth2client.ValidatorsProvider, sta
 		State:   stateID,
 		Indices: vIdxs,
 	}
+
 	eth2Resp, err := p.Validators(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
+
 	vals := eth2Resp.Data
 
 	return flatten(vals), nil
@@ -1786,6 +1868,7 @@ func getCtxDuration(ctx context.Context) z.Field {
 	if v == nil {
 		return z.Skip
 	}
+
 	t0, ok := v.(time.Time)
 	if !ok {
 		return z.Skip

@@ -113,6 +113,7 @@ func parseFile(astFile *ast.File) []Type {
 			}
 
 			var fields []Field
+
 			for i, field := range structType.Fields.List {
 				if field.Tag == nil {
 					continue
@@ -127,6 +128,7 @@ func parseFile(astFile *ast.File) []Type {
 				sszTagLen := strings.Index(tag[sszTagIndex:], `"`)
 
 				split := strings.Split(tag[sszTagIndex:sszTagIndex+sszTagLen], ",")
+
 				var transform string
 				if len(split) > 1 {
 					transform = "." + split[1] + "()"
@@ -143,6 +145,7 @@ func parseFile(astFile *ast.File) []Type {
 			if len(fields) == 0 {
 				continue
 			}
+
 			types = append(types, Type{
 				Name:   typeSpec.Name.Name,
 				Fields: fields,
@@ -160,6 +163,7 @@ func writeTemplate(types []Type, filename string, pkg string) error {
 	}
 
 	var b bytes.Buffer
+
 	err = t.Execute(&b, struct {
 		Package string
 		Types   []Type

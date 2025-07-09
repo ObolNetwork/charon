@@ -33,6 +33,7 @@ func (c Config) ParseTCPAddrs() ([]*net.TCPAddr, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		res = append(res, tcpAddr)
 	}
 

@@ -25,6 +25,7 @@ import (
 
 func TestDebugRoundChange(t *testing.T) {
 	const n = 4
+
 	tests := []struct {
 		name   string
 		msgs   []qbft.Msg[core.Duty, [32]byte]
@@ -373,6 +374,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var tc Consensus
+
 			deadliner := coremocks.NewDeadliner(t)
 			deadliner.On("Add", mock.Anything).Maybe().Return(true)
 			tc.deadliner = deadliner
@@ -473,6 +475,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 
 	t.Run("MaybeStart after handle", func(t *testing.T) {
 		var c Consensus
+
 		deadliner := coremocks.NewDeadliner(t)
 		deadliner.On("Add", mock.Anything).Return(true)
 		c.deadliner = deadliner
@@ -504,6 +507,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		ctx := context.Background()
 
 		var c Consensus
+
 		deadliner := coremocks.NewDeadliner(t)
 		deadliner.On("Add", mock.Anything).Return(true)
 		c.deadliner = deadliner
