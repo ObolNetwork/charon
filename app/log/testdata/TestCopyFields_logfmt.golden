@@ -1,2 +1,2 @@
-ts=00:00 level=info caller=log/log_test.go:82 msg="see source" source=source pretty="INFO            see source                               {\"source\": \"source\"}\n"
-ts=00:00 level=info caller=log/log_test.go:83 msg="also source" source=source pretty="INFO            also source                              {\"source\": \"source\"}\n"
+ts=00:00 level=info caller=log/log_test.go:83 msg="see source" source=source pretty="INFO            see source                               {\"source\": \"source\"}\n"
+ts=00:00 level=info caller=log/log_test.go:84 msg="also source" source=source pretty="INFO            also source                              {\"source\": \"source\"}\n"

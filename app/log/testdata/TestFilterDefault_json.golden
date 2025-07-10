@@ -1,1 +1,1 @@
-{"level":"info","ts":"00:00","caller":"log/log_test.go:92","msg":"expect","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect                                  \n"}
+{"level":"info","ts":"00:00","caller":"log/log_test.go:93","msg":"expect","pretty":"\u001b[34mINFO\u001b[0m \u001b[32m          \u001b[0m expect                                  \n"}
