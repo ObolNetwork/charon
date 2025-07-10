@@ -22,7 +22,9 @@ var sszMarshallingEnabled = true
 // DisableSSZMarshallingForT disables SSZ marshalling for the duration of the test.
 func DisableSSZMarshallingForT(t *testing.T) {
 	t.Helper()
+
 	sszMarshallingEnabled = false
+
 	t.Cleanup(func() {
 		sszMarshallingEnabled = true
 	})
@@ -60,18 +62,22 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 	}
 
 	var signedData SignedData
+
 	switch typ {
 	case DutyAttester:
 		var a Attestation
+
 		err := unmarshal(data.GetData(), &a)
 		if err == nil {
 			signedData = a
 		} else {
 			var av VersionedAttestation
+
 			err = unmarshal(data.GetData(), &av)
 			if err != nil {
 				return ParSignedData{}, errors.Wrap(err, "unmarshal attestation")
 			}
+
 			signedData = av
 		}
 	case DutyProposer:
@@ -79,6 +85,7 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		if err := unmarshal(data.GetData(), &b); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal proposal")
 		}
+
 		signedData = b
 	case DutyBuilderProposer:
 		return ParSignedData{}, ErrDeprecatedDutyBuilderProposer
@@ -87,42 +94,50 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		if err := unmarshal(data.GetData(), &r); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal validator (builder) registration")
 		}
+
 		signedData = r
 	case DutyExit:
 		var e SignedVoluntaryExit
 		if err := unmarshal(data.GetData(), &e); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal exit")
 		}
+
 		signedData = e
 	case DutyRandao:
 		var s SignedRandao
 		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed randao")
 		}
+
 		signedData = s
 	case DutySignature:
 		var s Signature
 		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signature")
 		}
+
 		signedData = s
 	case DutyPrepareAggregator:
 		var s BeaconCommitteeSelection
 		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal beacon committee subscription")
 		}
+
 		signedData = s
 	case DutyAggregator:
 		var s SignedAggregateAndProof
+
 		err := unmarshal(data.GetData(), &s)
 		if err == nil {
 			signedData = s
 		} else {
 			var sv VersionedSignedAggregateAndProof
+
 			err = unmarshal(data.GetData(), &sv)
 			if err != nil {
 				return ParSignedData{}, errors.Wrap(err, "unmarshal signed aggregate and proof")
 			}
+
 			signedData = sv
 		}
 	case DutySyncMessage:
@@ -130,18 +145,21 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal signed sync message")
 		}
+
 		signedData = s
 	case DutyPrepareSyncContribution:
 		var s SyncCommitteeSelection
 		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal sync committee selection")
 		}
+
 		signedData = s
 	case DutySyncContribution:
 		var s SignedSyncContributionAndProof
 		if err := unmarshal(data.GetData(), &s); err != nil {
 			return ParSignedData{}, errors.Wrap(err, "unmarshal sync contribution and proof")
 		}
+
 		signedData = s
 	default:
 		return ParSignedData{}, errors.New("unsupported duty type")
@@ -170,11 +188,13 @@ func ParSignedDataToProto(data ParSignedData) (*pbv1.ParSignedData, error) {
 // ParSignedDataSetToProto returns the set as a protobuf.
 func ParSignedDataSetToProto(set ParSignedDataSet) (*pbv1.ParSignedDataSet, error) {
 	inner := make(map[string]*pbv1.ParSignedData)
+
 	for pubkey, data := range set {
 		pb, err := ParSignedDataToProto(data)
 		if err != nil {
 			return nil, err
 		}
+
 		inner[string(pubkey)] = pb
 	}
 
@@ -206,8 +226,10 @@ func ParSignedDataSetFromProto(typ DutyType, set *pbv1.ParSignedDataSet) (ParSig
 // UnsignedDataSetToProto returns the set as a protobuf.
 func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) {
 	inner := make(map[string][]byte)
+
 	for pubkey, data := range set {
 		var err error
+
 		inner[string(pubkey)], err = marshal(data)
 		if err != nil {
 			return nil, err
@@ -226,8 +248,10 @@ func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (Unsigned
 	}
 
 	resp := make(UnsignedDataSet)
+
 	for pubkey, data := range set.GetSet() {
 		var err error
+
 		resp[PubKey(pubkey)], err = unmarshalUnsignedData(typ, data)
 		if err != nil {
 			return nil, err

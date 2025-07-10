@@ -158,6 +158,7 @@ func newAddrFactoryFilter(filterStr string) libp2p.Option {
 		cached := cfg.AddrsFactory
 		cfg.AddrsFactory = func(addrs []ma.Multiaddr) []ma.Multiaddr {
 			var match []ma.Multiaddr
+
 			for _, addr := range cached(addrs) {
 				if filterStr == "" || filter.MatchString(addr.String()) {
 					match = append(match, addr)
@@ -174,6 +175,7 @@ func newAddrFactoryFilter(filterStr string) libp2p.Option {
 // pingAsserter asserts that all nodes ping all other nodes.
 type pingAsserter struct {
 	asserter
+
 	N    int
 	Lock cluster.Lock
 }
@@ -183,6 +185,7 @@ func (a *pingAsserter) Await(ctx context.Context, t *testing.T) error {
 	t.Helper()
 
 	factorial := 1
+
 	n := a.N
 	for n > 1 {
 		factorial *= n
@@ -201,6 +204,7 @@ func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID, host.Host) {
 
 	return func(target peer.ID, tcpNode host.Host) {
 		var foundDirect bool
+
 		for _, conn := range tcpNode.Network().ConnsToPeer(target) {
 			directConn := !p2p.IsRelayAddr(conn.RemoteMultiaddr())
 			if !directConn {

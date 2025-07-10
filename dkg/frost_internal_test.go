@@ -33,6 +33,7 @@ func TestFrostDKG(t *testing.T) {
 				cancel()
 				return err
 			}
+
 			require.Len(t, shares, vals)
 			// TODO(corver): verify shares.
 			return nil
@@ -84,6 +85,7 @@ func (t *frostMemTransport) Round1(ctx context.Context, bcast map[msgKey]frost.R
 		if !ok {
 			shares = make(map[msgKey]sharing.ShamirShare)
 		}
+
 		shares[key] = share
 		t.round1Shares[key.TargetID] = shares
 	}
@@ -96,11 +98,14 @@ func (t *frostMemTransport) Round1(ctx context.Context, bcast map[msgKey]frost.R
 		if ctx.Err() != nil {
 			return nil, nil, ctx.Err()
 		}
+
 		t.mu.Lock()
+
 		if t.round1 == t.nodes {
 			t.mu.Unlock()
 			return t.round1Bcast, t.round1Shares[sourceID], nil
 		}
+
 		t.mu.Unlock()
 		time.Sleep(time.Millisecond)
 	}
@@ -132,11 +137,14 @@ func (t *frostMemTransport) Round2(ctx context.Context, bcast map[msgKey]frost.R
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+
 		t.mu.Lock()
+
 		if t.round2 == t.nodes {
 			t.mu.Unlock()
 			return t.round2Bcast, nil
 		}
+
 		t.mu.Unlock()
 		time.Sleep(time.Millisecond)
 	}

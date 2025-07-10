@@ -29,18 +29,21 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 
 	// Group all priority sets by topic
 	proposalsByTopic := make(map[[32]byte][]*pbv1.PriorityTopicProposal)
+
 	for _, msg := range sortInput(msgs) {
 		for _, topic := range msg.GetTopics() {
 			topicHash, err := hashProto(topic.GetTopic())
 			if err != nil {
 				return nil, err
 			}
+
 			proposalsByTopic[topicHash] = append(proposalsByTopic[topicHash], topic)
 		}
 	}
 
 	// Calculate cluster wide resulting priorities by topic.
 	var topicResults []*pbv1.PriorityTopicResult
+
 	for _, proposals := range proposalsByTopic {
 		// Calculate overall score for all priorities in the topic
 		// which effectively orders by count then by overall priority.
@@ -49,15 +52,18 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 			priorities    = make(map[[32]byte]*anypb.Any)
 			allPriorities [][32]byte
 		)
+
 		for _, proposal := range proposals {
 			for order, prio := range proposal.GetPriorities() {
 				priority, err := hashProto(prio)
 				if err != nil {
 					return nil, err
 				}
+
 				if _, ok := scores[priority]; !ok {
 					allPriorities = append(allPriorities, priority)
 				}
+
 				scores[priority] += countWeight - order // Equivalent to ordering by count then by priority
 				priorities[priority] = prio
 			}
@@ -71,11 +77,13 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 		// Extract scores with min required count.
 		minScore := (minRequired - 1) * countWeight
 		result := &pbv1.PriorityTopicResult{Topic: proposals[0].GetTopic()}
+
 		for _, priority := range allPriorities {
 			score := scores[priority]
 			if score <= minScore {
 				continue
 			}
+
 			result.Priorities = append(result.Priorities, &pbv1.PriorityScoredResult{
 				Priority: priorities[priority],
 				Score:    int64(score),
@@ -104,11 +112,13 @@ func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopi
 	}
 
 	var tuples []tuple
+
 	for _, value := range values {
 		hash, err := hashProto(value.GetTopic())
 		if err != nil {
 			return nil, err
 		}
+
 		tuples = append(tuples, tuple{
 			Hash:  hash[:],
 			Value: value,
@@ -159,15 +169,19 @@ func validateMsgs(msgs []*pbv1.PriorityMsg) error {
 		} else if !proto.Equal(duty, msg.GetDuty()) {
 			return errors.New("mismatching duties")
 		}
+
 		if dedupPeers(msg.GetPeerId()) {
 			return errors.New("duplicate peer")
 		}
+
 		dedupTopics := newDeduper[[32]byte]() // Peers may not provide duplicate topics.
+
 		for _, topic := range msg.GetTopics() {
 			topicHash, err := hashProto(topic.GetTopic())
 			if err != nil {
 				return err
 			}
+
 			if dedupTopics(topicHash) {
 				return errors.New("duplicate topic")
 			} else if len(topic.GetPriorities()) >= maxPriorities {
@@ -175,11 +189,13 @@ func validateMsgs(msgs []*pbv1.PriorityMsg) error {
 			}
 
 			dedupPriority := newDeduper[[32]byte]() // Topics may not include duplicates priority.
+
 			for _, priority := range topic.GetPriorities() {
 				prioHash, err := hashProto(priority)
 				if err != nil {
 					return err
 				}
+
 				if dedupPriority(prioHash) {
 					return errors.New("duplicate priority")
 				}
@@ -198,6 +214,7 @@ func newDeduper[T comparable]() func(t T) bool {
 		if duplicates[t] {
 			return true
 		}
+
 		duplicates[t] = true
 
 		return false

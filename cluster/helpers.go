@@ -64,17 +64,21 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 // is empty.
 func CreateValidatorKeysDir(parentDir string) (string, error) {
 	vkdir := path.Join(parentDir, "validator_keys")
+
 	err := os.Mkdir(vkdir, os.ModePerm)
 	if err == nil {
 		return vkdir, nil
 	}
+
 	if !os.IsExist(err) {
 		return "", errors.Wrap(err, "mkdir", z.Str("path", vkdir))
 	}
+
 	files, err := os.ReadDir(vkdir)
 	if err != nil {
 		return "", errors.Wrap(err, "readdir", z.Str("path", vkdir))
 	}
+
 	if len(files) == 0 {
 		return vkdir, nil
 	}
@@ -139,6 +143,7 @@ func signOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Ope
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
 func aggSign(secrets [][]tbls.PrivateKey, message []byte) ([]byte, error) {
 	var sigs []tbls.Signature
+
 	for _, shares := range secrets {
 		for _, share := range shares {
 			sig, err := tbls.Sign(share, message)
@@ -196,10 +201,12 @@ func Threshold(nodes int) int {
 // See reference: github.com/attestantio/go-eth2-client/spec/bellatrix/executionpayload_encoding.go:277-284.
 func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 	elemIndx := h.Index()
+
 	byteLen := len(b)
 	if byteLen > limit {
 		return errors.Wrap(ssz.ErrIncorrectListSize, "put byte list", z.Str("field", field))
 	}
+
 	h.AppendBytes32(b)
 	h.MerkleizeWithMixin(elemIndx, uint64(byteLen), uint64(limit+31)/32)
 

@@ -25,9 +25,10 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/instance"
 	"github.com/obolnetwork/charon/core/consensus/metrics"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
-	"github.com/obolnetwork/charon/core/consensus/utils"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 	"github.com/obolnetwork/charon/p2p"
@@ -36,7 +37,7 @@ import (
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
-func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTimer,
+func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
 ) qbft.Definition[core.Duty, [32]byte] {
 	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
@@ -117,7 +118,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer utils.RoundTi
 		Nodes: nodes,
 
 		// FIFOLimit caps the max buffered messages per peer.
-		FIFOLimit: utils.RecvBufferSize,
+		FIFOLimit: instance.RecvBufferSize,
 	}
 }
 
@@ -127,6 +128,7 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
+
 	var labels []string
 	for i, p := range peers {
 		labels = append(labels, fmt.Sprintf("%d:%s", p.Index, p.Name))
@@ -150,10 +152,10 @@ func NewConsensus(tcpNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		snifferFunc: snifferFunc,
 		gaterFunc:   gaterFunc,
 		dropFilter:  log.Filter(),
-		timerFunc:   utils.GetTimerFunc(),
+		timerFunc:   timer.GetRoundTimerFunc(),
 		metrics:     metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 	}
-	c.mutable.instances = make(map[core.Duty]*utils.InstanceIO[Msg])
+	c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 
 	return c, nil
 }
@@ -172,13 +174,14 @@ type Consensus struct {
 	snifferFunc func(*pbv1.SniffedConsensusInstance)
 	gaterFunc   core.DutyGaterFunc
 	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
-	timerFunc   utils.TimerFunc
+	timerFunc   timer.RoundTimerFunc
 	metrics     metrics.ConsensusMetrics
 
 	// Mutable state
 	mutable struct {
 		sync.Mutex
-		instances map[core.Duty]*utils.InstanceIO[Msg]
+
+		instances map[core.Duty]*instance.IO[Msg]
 	}
 }
 
@@ -295,6 +298,7 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	// Instrument consensus duration using decidedAt output.
 	proposedAt := time.Now()
+
 	defer func() {
 		select {
 		case decidedAt := <-inst.DecidedAtCh:
@@ -361,6 +365,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	roundTimer := c.timerFunc(duty)
 	ctx := log.WithTopic(parent, "qbft")
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -370,6 +375,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	)
 
 	inst := c.getInstanceIO(duty)
+
 	defer func() {
 		inst.ErrCh <- err // Send resulting error to errCh.
 	}()
@@ -400,12 +406,14 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		} else {
 			span.SetStatus(codes.Ok, "")
 		}
+
 		span.End()
 	}()
 
 	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
 		round := qcommit[0].Round()
 		decided = true
+
 		inst.DecidedAtCh <- time.Now()
 
 		leaderIndex := leader(duty, round, nodes)
@@ -540,7 +548,7 @@ func (c *Consensus) getRecvBuffer(duty core.Duty) chan Msg {
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok {
-		inst = utils.NewInstanceIO[Msg]()
+		inst = instance.NewIO[Msg]()
 		c.mutable.instances[duty] = inst
 	}
 
@@ -548,13 +556,13 @@ func (c *Consensus) getRecvBuffer(duty core.Duty) chan Msg {
 }
 
 // getInstanceIO returns the duty's instance if it were previously created.
-func (c *Consensus) getInstanceIO(duty core.Duty) *utils.InstanceIO[Msg] {
+func (c *Consensus) getInstanceIO(duty core.Duty) *instance.IO[Msg] {
 	c.mutable.Lock()
 	defer c.mutable.Unlock()
 
 	inst, ok := c.mutable.instances[duty]
 	if !ok { // Create new instanceIO.
-		inst = utils.NewInstanceIO[Msg]()
+		inst = instance.NewIO[Msg]()
 		c.mutable.instances[duty] = inst
 	}
 
@@ -572,11 +580,13 @@ func (c *Consensus) deleteInstanceIO(duty core.Duty) {
 // getPeerIdx returns the local peer index.
 func (c *Consensus) getPeerIdx() (int64, error) {
 	peerIdx := int64(-1)
+
 	for i, p := range c.peers {
 		if c.tcpNode.ID() == p.ID {
 			peerIdx = int64(i)
 		}
 	}
+
 	if peerIdx == -1 {
 		return 0, errors.New("local libp2p host not in peer list")
 	}
@@ -600,6 +610,7 @@ func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {
 	if msg.GetRound() <= 0 {
 		return errors.New("invalid consensus message round", z.I64("round", msg.GetRound()))
 	}
+
 	if msg.GetPreparedRound() < 0 {
 		return errors.New("invalid consensus message prepared round")
 	}
@@ -637,12 +648,14 @@ func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round i
 	checkPeers := func(typ qbft.MsgType) (present []int, missing []int) {
 		for i := range peers {
 			var included bool
+
 			for _, msg := range msgs {
 				if msg.Type() == typ && msg.Source() == int64(i) {
 					included = true
 					break
 				}
 			}
+
 			if included {
 				present = append(present, i)
 				continue
@@ -665,6 +678,7 @@ func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round i
 	}
 
 	var resp []roundStep
+
 	for _, typ := range []qbft.MsgType{qbft.MsgPrePrepare, qbft.MsgPrepare, qbft.MsgCommit, qbft.MsgRoundChange} {
 		present, missing := checkPeers(typ)
 		resp = append(resp, roundStep{
@@ -731,6 +745,7 @@ func leader(duty core.Duty, round int64, nodes int) int64 {
 // valuesByHash returns a map of values by hash.
 func valuesByHash(values []*anypb.Any) (map[[32]byte]*anypb.Any, error) {
 	resp := make(map[[32]byte]*anypb.Any)
+
 	for _, v := range values {
 		inner, err := v.UnmarshalNew()
 		if err != nil {

@@ -42,6 +42,7 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 	}
 
 	var justImpls []qbft.Msg[core.Duty, [32]byte]
+
 	for _, j := range justification {
 		impl, err := newMsg(j, nil, values)
 		if err != nil {
@@ -142,6 +143,7 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "marshal proto")
 	}
+
 	hh.PutBytes(b)
 
 	hh.Merkleize(index)
@@ -164,7 +166,9 @@ func verifyMsgSig(msg *pbv1.QBFTMsg, pubkey *k1.PublicKey) (bool, error) {
 	if !ok {
 		return false, errors.New("type assert qbft msg")
 	}
+
 	clone.Signature = nil
+
 	hash, err := hashProto(clone)
 	if err != nil {
 		return false, err
@@ -184,6 +188,7 @@ func signMsg(msg *pbv1.QBFTMsg, privkey *k1.PrivateKey) (*pbv1.QBFTMsg, error) {
 	if !ok {
 		return nil, errors.New("type assert qbft msg")
 	}
+
 	clone.Signature = nil
 
 	hash, err := hashProto(clone)

@@ -16,6 +16,7 @@ func TestWithCtxErr(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx = errors.WithCtxErr(ctx, msg)
+
 	cancel()
 	require.Contains(t, ctx.Err().Error(), msg)
 	require.ErrorIs(t, ctx.Err(), context.Canceled)

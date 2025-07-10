@@ -33,6 +33,7 @@ func TestInfoSync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	const n = 3
+
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, seed, random)
@@ -45,6 +46,7 @@ func TestInfoSync(t *testing.T) {
 	tcpNodeCallback := testutil.NewTCPNodeCallback(t, priority.Protocols()...)
 
 	var eg errgroup.Group
+
 	for i := range n {
 		conf := app.Config{
 			Log:              log.DefaultConfig(),
@@ -88,6 +90,7 @@ func TestInfoSync(t *testing.T) {
 // priorityAsserter asserts that all nodes resolved the same priorities.
 type priorityAsserter struct {
 	asserter
+
 	N int
 }
 

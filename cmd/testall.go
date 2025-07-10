@@ -13,6 +13,7 @@ import (
 
 type testAllConfig struct {
 	testConfig
+
 	Peers     testPeersConfig
 	Beacon    testBeaconConfig
 	Validator testValidatorConfig
@@ -64,43 +65,54 @@ func newTestAllCmd(runFunc func(context.Context, io.Writer, testAllConfig) error
 func runTestAll(ctx context.Context, w io.Writer, cfg testAllConfig) (err error) {
 	cfg.Beacon.testConfig = cfg.testConfig
 	cfg.Beacon.Quiet = true
+
 	var results []testCategoryResult
+
 	beaconRes, err := runTestBeacon(ctx, w, cfg.Beacon)
 	if err != nil {
 		return err
 	}
+
 	results = append(results, beaconRes)
 
 	cfg.Validator.testConfig = cfg.testConfig
 	cfg.Validator.Quiet = true
+
 	validatorRes, err := runTestValidator(ctx, w, cfg.Validator)
 	if err != nil {
 		return err
 	}
+
 	results = append(results, validatorRes)
 
 	cfg.MEV.testConfig = cfg.testConfig
 	cfg.MEV.Quiet = true
+
 	mevRes, err := runTestMEV(ctx, w, cfg.MEV)
 	if err != nil {
 		return err
 	}
+
 	results = append(results, mevRes)
 
 	cfg.Infra.testConfig = cfg.testConfig
 	cfg.Infra.Quiet = true
+
 	infraRes, err := runTestInfra(ctx, w, cfg.Infra)
 	if err != nil {
 		return err
 	}
+
 	results = append(results, infraRes)
 
 	cfg.Peers.testConfig = cfg.testConfig
 	cfg.Peers.Quiet = true
+
 	peersRes, err := runTestPeers(ctx, w, cfg.Peers)
 	if err != nil {
 		return err
 	}
+
 	results = append(results, peersRes)
 
 	if !cfg.Quiet {

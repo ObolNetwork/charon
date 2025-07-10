@@ -120,6 +120,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 			if conf.Threshold < minThreshold {
 				return errors.New("threshold must be greater than 1", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
 			}
+
 			if conf.Threshold > conf.NumNodes {
 				return errors.New("threshold cannot be greater than number of operators",
 					z.Int("threshold", conf.Threshold), z.Int("operators", conf.NumNodes))
@@ -195,6 +196,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// would've already errored.
 	if conf.SplitKeys {
 		useSequencedKeys := len(conf.WithdrawalAddrs) > 1
+
 		secrets, err = getKeys(conf.SplitKeysDir, useSequencedKeys)
 		if err != nil {
 			return err
@@ -221,6 +223,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err != nil {
 			return err
 		}
+
 		conf.Network = network
 		depositAmounts = def.DepositAmounts
 	} else { // Create new definition from cluster config
@@ -266,6 +269,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	if err != nil {
 		return err
 	}
+
 	def.Operators = ops
 
 	keysToDisk := len(conf.KeymanagerAddrs) == 0
@@ -308,6 +312,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		Definition: def,
 		Validators: vals,
 	}
+
 	lock, err = lock.SetLockHash()
 	if err != nil {
 		return err
@@ -374,6 +379,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	if err := validateNetworkConfig(conf); err != nil {
 		return errors.Wrap(err, "get network config")
 	}
+
 	if err := detectNodeDirs(conf.ClusterDir, conf.NumNodes); err != nil {
 		return err
 	}
@@ -445,6 +451,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
+
 	if len(depositAmounts) == 0 {
 		return nil, errors.New("empty deposit amounts")
 	}
@@ -452,6 +459,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 	var dd [][]eth2p0.DepositData
 	for _, depositAmount := range depositAmounts {
 		var datas []eth2p0.DepositData
+
 		for i, secret := range secrets {
 			withdrawalAddr, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
 			if err != nil {
@@ -499,6 +507,7 @@ func signValidatorRegistrations(secrets []tbls.PrivateKey, feeAddresses []string
 	}
 
 	var datas []core.VersionedSignedValidatorRegistration
+
 	for i, secret := range secrets {
 		feeAddress, err := eth2util.ChecksumAddress(feeAddresses[i])
 		if err != nil {
@@ -591,6 +600,7 @@ func getTSSShares(secrets []tbls.PrivateKey, threshold, numNodes int) ([]tbls.Pu
 
 func writeWarning(w io.Writer) {
 	var sb strings.Builder
+
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** WARNING: Splitting keys **********************\n")
 	_, _ = sb.WriteString(" Please make sure any existing validator has been shut down for\n")
@@ -640,9 +650,11 @@ func createDepositDatas(withdrawalAddresses []string, network string, secrets []
 	if len(secrets) != len(withdrawalAddresses) {
 		return nil, errors.New("insufficient withdrawal addresses")
 	}
+
 	if len(depositAmounts) == 0 {
 		return nil, errors.New("empty deposit amounts")
 	}
+
 	depositAmounts = deposit.DedupAmounts(depositAmounts)
 
 	return signDepositDatas(secrets, withdrawalAddresses, network, depositAmounts, compounding)
@@ -671,6 +683,7 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 
 	for i := range numNodes {
 		lockPath := path.Join(nodeDir(clusterDir, i), "cluster-lock.json")
+
 		err = os.WriteFile(lockPath, b, 0o400) // read-only
 		if err != nil {
 			return errors.Wrap(err, "write cluster lock")
@@ -689,6 +702,7 @@ func getValidators(
 	valRegs []core.VersionedSignedValidatorRegistration,
 ) ([]cluster.DistValidator, error) {
 	depositDatasMap := make(map[tbls.PublicKey][]eth2p0.DepositData, len(dvsPubkeys))
+
 	for amountIndex := range depositDatas {
 		for ddIndex := range depositDatas[amountIndex] {
 			dd := depositDatas[amountIndex][ddIndex]
@@ -698,9 +712,12 @@ func getValidators(
 	}
 
 	var vals []cluster.DistValidator
+
 	for idx, dv := range dvsPubkeys {
 		privShares := dvPrivShares[idx]
+
 		var pubshares [][]byte
+
 		for _, ps := range privShares {
 			pubk, err := tbls.SecretToPublicKey(ps)
 			if err != nil {
@@ -711,6 +728,7 @@ func getValidators(
 		}
 
 		regIdx := -1
+
 		for i, reg := range valRegs {
 			pubkey, err := reg.PubKey()
 			if err != nil {
@@ -771,6 +789,7 @@ func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int
 		if err := cl.VerifyConnection(ctx); err != nil {
 			return err
 		}
+
 		clients = append(clients, cl)
 	}
 
@@ -779,21 +798,25 @@ func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int
 			keystores []keystore.Keystore
 			passwords []string
 		)
+
 		for _, shares := range shareSets {
 			password, err := randomHex64()
 			if err != nil {
 				return err
 			}
+
 			passwords = append(passwords, password)
 
 			var opts []keystorev4.Option
 			if conf.InsecureKeys {
 				opts = append(opts, keystorev4.WithCost(new(testing.T), 4))
 			}
+
 			store, err := keystore.Encrypt(shares[i], password, rand.Reader, opts...)
 			if err != nil {
 				return err
 			}
+
 			keystores = append(keystores, store)
 		}
 
@@ -842,8 +865,10 @@ func writeKeysToDisk(numNodes int, clusterDir string, insecureKeys bool, shareSe
 // getOperators returns a list of `n` operators and their respective identity private keys.
 // It also creates a new directory corresponding to each node.
 func getOperators(n int, clusterDir string) ([]cluster.Operator, []*k1.PrivateKey, error) {
-	var ops []cluster.Operator
-	var keys []*k1.PrivateKey
+	var (
+		ops  []cluster.Operator
+		keys []*k1.PrivateKey
+	)
 
 	for i := range n {
 		record, identityKey, err := newPeer(clusterDir, i)
@@ -881,9 +906,11 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	for range conf.NumNodes {
 		ops = append(ops, cluster.Operator{})
 	}
+
 	threshold := safeThreshold(ctx, conf.NumNodes, conf.Threshold)
 
 	var opts []func(*cluster.Definition)
+
 	def, err := cluster.NewDefinition(conf.Name, conf.NumDVs, threshold, feeRecipientAddrs,
 		withdrawalAddrs, forkVersion, cluster.Creator{}, ops, conf.DepositAmounts,
 		conf.ConsensusProtocol, conf.TargetGasLimit, conf.Compounding, rand.Reader, opts...)
@@ -919,6 +946,7 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	}
 
 	var sb strings.Builder
+
 	_, _ = sb.WriteString("Created charon cluster:\n")
 	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", splitKeys))
 	_, _ = sb.WriteString("\n")
@@ -926,12 +954,14 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1))
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
+
 	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on the DV Launchpad\n")
 	if keysToDisk {
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.txt\t\tKeystore password files for keystore-*.json\n")
 	}
+
 	if zipped {
 		_, _ = sb.WriteString(fmt.Sprintf("\nFiles compressed and archived to:\n%s/cluster.tar.gz\n", absClusterDir))
 	}
@@ -1003,12 +1033,14 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
 func aggSign(secrets [][]tbls.PrivateKey, message []byte) ([]byte, error) {
 	var sigs []tbls.Signature
+
 	for _, shares := range secrets {
 		for _, share := range shares {
 			sig, err := tbls.Sign(share, message)
 			if err != nil {
 				return nil, err
 			}
+
 			sigs = append(sigs, sig)
 		}
 	}
@@ -1029,6 +1061,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 	// Fetch definition from network if URI is provided
 	if validURI(defFile) {
 		var err error
+
 		def, err = cluster.FetchDefinition(ctx, defFile)
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
@@ -1053,6 +1086,7 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 	if err := def.VerifySignatures(nil); err != nil {
 		return cluster.Definition{}, err
 	}
+
 	if err := def.VerifyHashes(); err != nil {
 		return cluster.Definition{}, err
 	}
@@ -1077,6 +1111,7 @@ func safeThreshold(ctx context.Context, numNodes, threshold int) int {
 	if threshold == 0 {
 		return safe
 	}
+
 	if threshold != safe {
 		log.Warn(ctx, "Non standard threshold provided, this will affect cluster safety", nil,
 			z.Int("num_nodes", numNodes), z.Int("threshold", threshold), z.Int("safe_threshold", safe))
@@ -1088,6 +1123,7 @@ func safeThreshold(ctx context.Context, numNodes, threshold int) int {
 // randomHex64 returns a random 64 character hex string. It uses crypto/rand.
 func randomHex64() (string, error) {
 	b := make([]byte, 32)
+
 	_, err := rand.Read(b)
 	if err != nil {
 		return "", errors.Wrap(err, "read random")
@@ -1218,26 +1254,32 @@ func bundleOutput(targetDir string, numNodes int) error {
 			if err != nil {
 				return errors.Wrap(err, "filepath walk")
 			}
+
 			if !info.Mode().IsRegular() {
 				return nil
 			}
+
 			relPath, err := filepath.Rel(targetDir, path)
 			if err != nil {
 				return errors.Wrap(err, "relative path")
 			}
+
 			header, err := tar.FileInfoHeader(info, info.Name())
 			if err != nil {
 				return errors.Wrap(err, "file info header")
 			}
+
 			header.Name = relPath
 			if err := tw.WriteHeader(header); err != nil {
 				return errors.Wrap(err, "write header")
 			}
+
 			f, err := os.Open(path)
 			if err != nil {
 				return errors.Wrap(err, "open file")
 			}
 			defer f.Close()
+
 			_, err = io.Copy(tw, f)
 			if err != nil {
 				return errors.Wrap(err, "copy file", z.Str("filename", path))

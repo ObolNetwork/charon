@@ -22,6 +22,7 @@ import (
 
 type testValidatorConfig struct {
 	testConfig
+
 	APIAddress       string
 	LoadTestDuration time.Duration
 }
@@ -73,11 +74,13 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 	log.Info(ctx, "Starting validator client test")
 
 	testCases := supportedValidatorTestCases()
+
 	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		err = errors.New("test case not supported")
 		return res, err
 	}
+
 	sortTests(queuedTests)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -98,6 +101,7 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 
 	// use highest score as score of all
 	var score categoryScore
+
 	for _, t := range testResults {
 		targetScore := calculateScore(t)
 		if score == "" || score > targetScore {
@@ -140,15 +144,18 @@ func runTestValidator(ctx context.Context, w io.Writer, cfg testValidatorConfig)
 
 func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
+
 	singleTestResCh := make(chan testResult)
 	allTestRes := []testResult{}
 	// run all validator tests for a validator client, pushing each completed test to the channel until all are complete or timeout occurs
 	go testValidator(ctx, queuedTestCases, allTestCases, cfg, singleTestResCh)
 
 	testCounter := 0
+
 	finished := false
 	for !finished {
 		var testName string
+
 		select {
 		case <-ctx.Done():
 			testName = queuedTestCases[testCounter].name
@@ -159,7 +166,9 @@ func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, al
 				finished = true
 				break
 			}
+
 			testCounter++
+
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -169,6 +178,7 @@ func testSingleValidator(ctx context.Context, queuedTestCases []testCaseName, al
 
 func testValidator(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testValidatorConfig) testResult, cfg testValidatorConfig, ch chan testResult) {
 	defer close(ch)
+
 	for _, t := range queuedTests {
 		select {
 		case <-ctx.Done():
@@ -183,6 +193,7 @@ func validatorPingTest(ctx context.Context, conf *testValidatorConfig) testResul
 	testRes := testResult{Name: "Ping"}
 
 	d := net.Dialer{Timeout: time.Second}
+
 	conn, err := d.DialContext(ctx, "tcp", conf.APIAddress)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -199,11 +210,13 @@ func validatorPingMeasureTest(ctx context.Context, conf *testValidatorConfig) te
 
 	d := net.Dialer{Timeout: time.Second}
 	before := time.Now()
+
 	conn, err := d.DialContext(ctx, "tcp", conf.APIAddress)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 	defer conn.Close()
+
 	rtt := time.Since(before)
 
 	testRes = evaluateRTT(rtt, testRes, thresholdValidatorMeasureAvg, thresholdValidatorMeasurePoor)
@@ -216,19 +229,24 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 		z.Any("duration", conf.LoadTestDuration),
 		z.Any("target", conf.APIAddress),
 	)
+
 	testRes := testResult{Name: "PingLoad"}
 
 	testResCh := make(chan time.Duration, math.MaxInt16)
+
 	pingCtx, cancel := context.WithTimeout(ctx, conf.LoadTestDuration)
 	defer cancel()
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	var wg sync.WaitGroup
+
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
 			wg.Add(1)
+
 			go func() {
 				pingValidatorContinuously(pingCtx, conf.APIAddress, testResCh)
 				wg.Done()
@@ -236,6 +254,7 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 		case <-pingCtx.Done():
 		}
 	}
+
 	wg.Wait()
 	close(testResCh)
 	log.Info(ctx, "Ping load tests finished", z.Any("target", conf.APIAddress))
@@ -251,15 +270,19 @@ func pingValidatorContinuously(ctx context.Context, address string, resCh chan<-
 	d := net.Dialer{Timeout: time.Second}
 	for {
 		before := time.Now()
+
 		conn, err := d.DialContext(ctx, "tcp", address)
 		if err != nil {
 			return
 		}
+
 		rtt := time.Since(before)
+
 		err = conn.Close()
 		if err != nil {
 			return
 		}
+
 		select {
 		case <-ctx.Done():
 			return

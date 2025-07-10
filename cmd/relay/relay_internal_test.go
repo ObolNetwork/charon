@@ -75,7 +75,9 @@ func TestServeAddrs(t *testing.T) {
 			"",
 			func(t *testing.T, data []byte) bool {
 				t.Helper()
+
 				var addrs []string
+
 				err := json.Unmarshal(data, &addrs)
 				if err != nil {
 					t.Logf("failed to unmarshal multiaddrs: %v [%s]", err, data)
@@ -106,6 +108,7 @@ func TestServeAddrs(t *testing.T) {
 			"enr",
 			func(t *testing.T, data []byte) bool {
 				t.Helper()
+
 				r, err := enr.Parse(string(data))
 				if err != nil {
 					t.Logf("failed to parse enr: %v [%s]", err, data)
@@ -130,6 +133,7 @@ func TestServeAddrs(t *testing.T) {
 			"enr",
 			func(t *testing.T, data []byte) bool {
 				t.Helper()
+
 				r, err := enr.Parse(string(data))
 				if err != nil {
 					t.Logf("failed to parse enr: %v [%s]", err, data)
@@ -154,6 +158,7 @@ func TestServeAddrs(t *testing.T) {
 			"enr",
 			func(t *testing.T, data []byte) bool {
 				t.Helper()
+
 				r, err := enr.Parse(string(data))
 				if err != nil {
 					t.Logf("failed to parse enr: %v [%s]", err, data)
@@ -162,6 +167,7 @@ func TestServeAddrs(t *testing.T) {
 
 				ip, ok := r.IP()
 				require.True(t, ok)
+
 				if ip.IsLoopback() {
 					t.Logf("ip is loopback")
 					return false
@@ -190,6 +196,7 @@ func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter fu
 	var eg errgroup.Group
 	eg.Go(func() error {
 		err := Run(ctx, config)
+
 		cancel()
 		testutil.SkipIfBindErr(t, err)
 
@@ -200,12 +207,14 @@ func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter fu
 			if ctx.Err() != nil {
 				return true
 			}
+
 			resp, err := http.Get(fmt.Sprintf("http://%s/%s", config.HTTPAddr, path))
 			if err != nil {
 				t.Logf("failed to get: %v", err)
 				return false
 			}
 			defer resp.Body.Close()
+
 			b, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Logf("failed to decode: %v", err)
@@ -214,6 +223,7 @@ func testServeAddrs(t *testing.T, p2pConfig p2p.Config, path string, asserter fu
 
 			return asserter(t, b)
 		}, 2*time.Second, 100*time.Millisecond)
+
 		cancel()
 
 		if !ok {

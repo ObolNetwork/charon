@@ -132,6 +132,7 @@ func newBeaconClient(timeout time.Duration, forkVersion [4]byte, headers map[str
 		if err != nil {
 			return nil, wrapError(ctx, err, "new eth2 client", z.Str("address", address))
 		}
+
 		eth2Http, ok := eth2Svc.(*eth2http.Service)
 		if !ok {
 			return nil, errors.New("invalid eth2 http service")
@@ -183,6 +184,7 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 			nokResp    forkjoin.Result[provideArgs, O]
 			hasNokResp bool
 		)
+
 		for res := range join() {
 			if ctx.Err() != nil {
 				return zero, ctx.Err()
@@ -237,11 +239,13 @@ func latency(ctx context.Context, endpoint string, enableLogs bool) func() {
 	if enableLogs {
 		log.Debug(ctx, "Calling beacon node endpoint...", z.Str("endpoint", endpoint))
 	}
+
 	t0 := time.Now()
 
 	return func() {
 		rtt := time.Since(t0)
 		latencyHist.WithLabelValues(endpoint).Observe(rtt.Seconds())
+
 		if enableLogs {
 			log.Debug(ctx, "Beacon node call finished", z.Str("endpoint", endpoint))
 		}
@@ -282,6 +286,7 @@ func wrapError(ctx context.Context, err error, label string, fields ...z.Field) 
 		} else if errors.Is(uerr.Err, context.DeadlineExceeded) || errors.Is(uerr.Err, context.Canceled) {
 			msg = "http request timeout"
 		}
+
 		err = errors.Wrap(uerr.Err, msg,
 			z.Str("url", uerr.URL),
 			z.Str("method", uerr.Op),
@@ -296,6 +301,7 @@ func wrapError(ctx context.Context, err error, label string, fields ...z.Field) 
 		} else if errors.Is(nerr.Err, context.DeadlineExceeded) || errors.Is(nerr.Err, context.Canceled) {
 			msg = "network operation timeout: " + nerr.Op
 		}
+
 		err = errors.Wrap(nerr.Err, msg, z.Any("address", nerr.Addr))
 	}
 

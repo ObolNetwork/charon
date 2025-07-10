@@ -72,6 +72,7 @@ type Implementation interface {
 func SetImplementation(newImpl Implementation) {
 	implLock.Lock()
 	defer implLock.Unlock()
+
 	impl = newImpl
 }
 

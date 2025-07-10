@@ -51,6 +51,7 @@ func (g *ResetGaugeVec) Reset(lvs ...string) {
 
 	for label := range g.labels {
 		match := true
+
 		for _, check := range lvs {
 			if !strings.Contains(label, check) {
 				match = false

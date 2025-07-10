@@ -75,6 +75,7 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 	if err != nil {
 		return nil, err
 	}
+
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -141,6 +142,7 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 
 	setCurrState := func() {
 		currTimer.Stop()
+
 		currDuty, currDeadline = getCurrDuty(duties, deadlineFunc)
 		currTimer = d.clock.NewTimer(currDeadline.Sub(d.clock.Now()))
 	}
@@ -158,6 +160,7 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 				input.success <- false
 				continue
 			}
+
 			expired := deadline.Before(d.clock.Now())
 
 			input.success <- !expired
@@ -217,6 +220,7 @@ func (d *deadliner) C() <-chan Duty {
 // getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the latest deadline.
 func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Time) {
 	var currDuty Duty
+
 	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	for duty := range duties {

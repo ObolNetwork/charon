@@ -36,6 +36,7 @@ func TestUnmarshallingSignedEpoch(t *testing.T) {
 	b := []byte(fmt.Sprintf(newTmpl, epoch, sig))
 
 	var e1 eth2util.SignedEpoch
+
 	err := e1.UnmarshalJSON(b)
 	testutil.RequireNoError(t, err)
 	require.Equal(t, sig, e1.Signature[:])
@@ -49,6 +50,7 @@ func TestUnmarshallingSignedEpoch(t *testing.T) {
 	require.Equal(t, string(b), string(b2))
 
 	var e2 eth2util.SignedEpoch
+
 	err = e2.UnmarshalJSON(b)
 	testutil.RequireNoError(t, err)
 	require.Equal(t, sig, e2.Signature[:])
@@ -139,6 +141,7 @@ func TestDataVersionFromETH2(t *testing.T) {
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 			}
+
 			require.Equal(t, test.expectedVersion, actual)
 		},
 		)

@@ -42,6 +42,7 @@ func TestWireVAPIRouterForTLS(t *testing.T) {
 	}).Return(&eth2api.Response[string]{
 		Data: testVersion,
 	}, nil)
+
 	vapiCalls := func() {}
 	certPath, keyPath := generateTestTLSCertAndKey(t)
 	conf := &Config{
@@ -72,6 +73,7 @@ func TestWireVAPIRouterForTLS(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			return false
 		}
+
 		b, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return false
@@ -81,6 +83,7 @@ func TestWireVAPIRouterForTLS(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 
 	cancel()
+
 	err = <-doneCh
 	require.NoError(t, err)
 }
@@ -109,6 +112,7 @@ func generateTestTLSCertAndKey(t *testing.T) (certPath, keyPath string) {
 	tempDir := t.TempDir()
 	certPath = path.Join(tempDir, "test_cert.pem")
 	keyPath = path.Join(tempDir, "test_key.pem")
+
 	t.Cleanup(func() {
 		os.Remove(certPath)
 		os.Remove(keyPath)
@@ -135,6 +139,7 @@ func generateTestTLSCertAndKey(t *testing.T) (certPath, keyPath string) {
 
 	certFile, err := os.Create(certPath)
 	require.NoError(t, err)
+
 	defer certFile.Close()
 
 	err = pem.Encode(certFile, &pem.Block{Type: "CERTIFICATE", Bytes: certDER})
@@ -142,6 +147,7 @@ func generateTestTLSCertAndKey(t *testing.T) (certPath, keyPath string) {
 
 	keyFile, err := os.Create(keyPath)
 	require.NoError(t, err)
+
 	defer keyFile.Close()
 
 	privBytes, err := x509.MarshalECPrivateKey(priv)

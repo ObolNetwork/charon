@@ -201,6 +201,7 @@ func send(ctx context.Context, client *http.Client, endpoint string, batch *batc
 	if err != nil {
 		return errors.Wrap(err, "new loki request")
 	}
+
 	req.Header.Set("Content-Type", contentType)
 
 	resp, err := client.Do(req)
@@ -211,6 +212,7 @@ func send(ctx context.Context, client *http.Client, endpoint string, batch *batc
 
 	if resp.StatusCode/100 != 2 {
 		scanner := bufio.NewScanner(io.LimitReader(resp.Body, maxErrMsgLen))
+
 		line := ""
 		if scanner.Scan() {
 			line = scanner.Text()

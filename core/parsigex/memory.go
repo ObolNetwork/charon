@@ -24,6 +24,7 @@ func NewMemExFunc(expectedPeers int) func() core.ParSigEx {
 	return func() core.ParSigEx {
 		mu.Lock()
 		defer mu.Unlock()
+
 		i := index
 		index++
 

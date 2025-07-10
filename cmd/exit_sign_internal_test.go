@@ -138,6 +138,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string, all bool) {
 	t.Helper()
 	t.Parallel()
+
 	ctx := context.Background()
 
 	ctx = log.WithCtx(ctx, z.Str("test_case", t.Name()))
@@ -185,6 +186,7 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCh
 
 	beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -194,7 +196,9 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCh
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
 	srv := httptest.NewServer(handler)
+
 	addLockFiles(lock)
+
 	defer srv.Close()
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
@@ -248,6 +252,7 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCh
 
 func Test_runSubmitPartialExit_Config(t *testing.T) {
 	t.Parallel()
+
 	type test struct {
 		name                   string
 		noIdentity             bool
@@ -352,9 +357,11 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 			if !test.badBeaconNodeEndpoints {
 				beaconMock, err := beaconmock.New()
 				require.NoError(t, err)
+
 				defer func() {
 					require.NoError(t, beaconMock.Close())
 				}()
+
 				bnURL = beaconMock.Address()
 			}
 

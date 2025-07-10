@@ -231,6 +231,7 @@ type Field struct {
 
 func main() {
 	ctx := context.Background()
+
 	err := run(ctx)
 	if err != nil {
 		log.Error(ctx, "Run error", err)
@@ -274,6 +275,7 @@ func parseImports(pkg *packages.Package) ([]string, error) {
 	for _, file := range pkg.Syntax {
 		for _, imprt := range file.Imports {
 			var b bytes.Buffer
+
 			err := printer.Fprint(&b, pkg.Fset, imprt)
 			if err != nil {
 				return nil, errors.Wrap(err, "printf")
@@ -301,6 +303,7 @@ func writeTemplate(methods []Method, providers []string, imprts []string) error 
 	sort.Strings(providers)
 
 	var b bytes.Buffer
+
 	err = t.Execute(&b, struct {
 		Providers []string
 		Methods   []Method
@@ -315,6 +318,7 @@ func writeTemplate(methods []Method, providers []string, imprts []string) error 
 	}
 
 	filename := "eth2wrap_gen.go"
+
 	out, err := imports.Process(filename, b.Bytes(), nil)
 	if err != nil {
 		return errors.Wrap(err, "format")
@@ -333,6 +337,7 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 		methods   []Method
 		providers []string
 	)
+
 	for _, file := range pkg.Syntax {
 		for _, decl := range file.Decls {
 			gendecl, ok := decl.(*ast.GenDecl)
@@ -371,8 +376,10 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					name := method.Names[0].Name
 
 					var params []Field
+
 					for _, param := range fnType.Params.List {
 						var b bytes.Buffer
+
 						err := printer.Fprint(&b, pkg.Fset, param.Type)
 						if err != nil {
 							return nil, nil, errors.Wrap(err, "printf")
@@ -392,8 +399,10 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					}
 
 					var results []Field
+
 					for i, result := range fnType.Results.List {
 						var b bytes.Buffer
+
 						err := printer.Fprint(&b, pkg.Fset, result.Type)
 						if err != nil {
 							return nil, nil, errors.Wrap(err, "printf")
@@ -413,6 +422,7 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					}
 
 					var doc string
+
 					if method.Doc != nil {
 						for _, line := range strings.Split(strings.TrimSpace(method.Doc.Text()), "\n") {
 							doc += "// " + line + "\n"

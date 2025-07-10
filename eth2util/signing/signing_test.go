@@ -88,8 +88,10 @@ func TestConstantApplicationBuilder(t *testing.T) {
 
 	getDomain := func(t *testing.T, i int) eth2p0.Domain {
 		t.Helper()
+
 		eth2Cl, err := beaconmock.New()
 		require.NoError(t, err)
+
 		eth2Cl.ForkScheduleFunc = func(ctx context.Context, opts *eth2api.ForkScheduleOpts) ([]*eth2p0.Fork, error) {
 			return forkSchedule[0:i], nil
 		}

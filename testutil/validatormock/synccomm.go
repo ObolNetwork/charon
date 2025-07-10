@@ -54,6 +54,7 @@ type SyncCommMember struct {
 	// Mutable state
 	mutable struct {
 		sync.Mutex
+
 		vals         eth2wrap.ActiveValidators      // Current set of active validators
 		duties       syncDuties                     // Sync committee duties
 		selections   map[eth2p0.Slot]syncSelections // Sync committee selections per slot
@@ -232,10 +233,12 @@ func (s *SyncCommMember) Message(ctx context.Context, slot eth2p0.Slot) error {
 	}
 
 	opts := &eth2api.BeaconBlockRootOpts{Block: "head"}
+
 	eth2Resp, err := s.eth2Cl.BeaconBlockRoot(ctx, opts)
 	if err != nil {
 		return err
 	}
+
 	blockRoot := eth2Resp.Data
 
 	err = submitSyncMessages(ctx, s.eth2Cl, slot, *blockRoot, s.signFunc, duties)
@@ -264,6 +267,7 @@ func prepareSyncCommDuties(ctx context.Context, eth2Cl eth2wrap.Client, vals eth
 		Epoch:   epoch,
 		Indices: vals.Indices(),
 	}
+
 	eth2Resp, err := eth2Cl.SyncCommitteeDuties(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -311,6 +315,7 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 	}
 
 	var partials []*eth2exp.SyncCommitteeSelection
+
 	for _, duty := range duties {
 		subcommIdxs, err := getSubcommittees(ctx, eth2Cl, duty)
 		if err != nil {
@@ -353,6 +358,7 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 	}
 
 	var selections syncSelections
+
 	for _, selection := range aggregateSelections {
 		// Check if the validator is an aggregator.
 		ok, err := eth2exp.IsSyncCommAggregator(ctx, eth2Cl, selection.SelectionProof)
@@ -376,6 +382,7 @@ func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty 
 	if err != nil {
 		return nil, err
 	}
+
 	spec := eth2Resp.Data
 
 	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
@@ -389,6 +396,7 @@ func getSubcommittees(ctx context.Context, eth2Cl eth2client.SpecProvider, duty 
 	}
 
 	var subcommittees []eth2p0.CommitteeIndex
+
 	for _, idx := range duty.ValidatorSyncCommitteeIndices {
 		subcommIdx := uint64(idx) / (commSize / subnetCount)
 		subcommittees = append(subcommittees, eth2p0.CommitteeIndex(subcommIdx))
@@ -414,6 +422,7 @@ func submitSyncMessages(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0
 	}
 
 	var msgs []*altair.SyncCommitteeMessage
+
 	for _, duty := range duties {
 		sig, err := signFunc(duty.PubKey, sigData[:])
 		if err != nil {
@@ -452,6 +461,7 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 	}
 
 	var signedContribAndProofs []*altair.SignedContributionAndProof
+
 	for _, selection := range selections {
 		// Query BN to get sync committee contribution.
 		opts := &eth2api.SyncCommitteeContributionOpts{
@@ -459,10 +469,12 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 			SubcommitteeIndex: uint64(selection.SubcommitteeIndex),
 			BeaconBlockRoot:   blockRoot,
 		}
+
 		eth2Resp, err := eth2Cl.SyncCommitteeContribution(ctx, opts)
 		if err != nil {
 			return false, err
 		}
+
 		contrib := eth2Resp.Data
 
 		vIdx := selection.ValidatorIndex

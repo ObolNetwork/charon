@@ -106,6 +106,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 	}
 
 	var err error
+
 	def.ForkVersion, err = from0xHex(forkVersionHex, forkVersionLen)
 	if err != nil {
 		return Definition{}, err
@@ -235,6 +236,7 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 	}
 
 	var noOpSigs int
+
 	for _, o := range d.Operators {
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
 		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
@@ -318,11 +320,13 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 // Peers returns the operators as a slice of p2p peers.
 func (d Definition) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
+
 	dedup := make(map[string]bool)
 	for i, operator := range d.Operators {
 		if dedup[operator.ENR] {
 			return nil, errors.New("definition contains duplicate peer enrs", z.Str("enr", operator.ENR))
 		}
+
 		dedup[operator.ENR] = true
 
 		record, err := enr.Parse(operator.ENR)
@@ -347,6 +351,7 @@ func (d Definition) PeerIDs() ([]peer.ID, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	var resp []peer.ID
 	for _, p := range peers {
 		resp = append(resp, p.ID)
@@ -456,6 +461,7 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		def Definition
 		err error
 	)
+
 	switch {
 	case isAnyVersion(version.Version, v1_0, v1_1):
 		def, err = unmarshalDefinitionV1x0or1(data)

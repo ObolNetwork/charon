@@ -183,6 +183,7 @@ func walkFunc(ctx context.Context, wb chan<- StackComponent) fs.WalkDirFunc {
 		cmdlineSplit := bytes.Split(cmdlineBytes, []byte{0})
 
 		var vcName string
+
 		for vc := range supportedVCs {
 			if strings.Contains(cmdlineString, vc) {
 				vcName = vc
@@ -201,6 +202,7 @@ func walkFunc(ctx context.Context, wb chan<- StackComponent) fs.WalkDirFunc {
 		cmdlineDedup[cmdlineString] = struct{}{}
 
 		var cmdLine []string
+
 		for _, cl := range cmdlineSplit {
 			if len(cl) == 0 {
 				continue

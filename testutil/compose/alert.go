@@ -26,15 +26,18 @@ func startAlertCollector(ctx context.Context, dir string) chan string {
 			success bool
 			dedup   = make(map[string]bool)
 		)
+
 		defer close(resp)
 
 		const iterSleep = time.Second * 2
 
 		// Time required to wait for prometheus container to start.
 		time.Sleep(time.Second * 10)
+
 		for ; ctx.Err() == nil; time.Sleep(iterSleep) { // Sleep for iterSleep before next iteration.
 			cmd := exec.CommandContext(ctx, "docker", "compose", "exec", "-T", "curl", "curl", "-s", "http://prometheus:9090/api/v1/rules?type=alert")
 			cmd.Dir = dir
+
 			out, err := cmd.CombinedOutput()
 			if ctx.Err() != nil {
 				return
@@ -56,6 +59,7 @@ func startAlertCollector(ctx context.Context, dir string) chan string {
 
 			if !success {
 				resp <- alertsPolled // Push initial "fake alert" so logic can fail is not alerts polled.
+
 				success = true
 			}
 
@@ -63,6 +67,7 @@ func startAlertCollector(ctx context.Context, dir string) chan string {
 				if dedup[active] {
 					continue
 				}
+
 				dedup[active] = true
 				log.Info(ctx, "Detected new alert", z.Str("alert", active))
 
@@ -76,6 +81,7 @@ func startAlertCollector(ctx context.Context, dir string) chan string {
 
 func getActiveAlerts(alerts promAlerts) []string {
 	var resp []string
+
 	for _, group := range alerts.Data.Groups {
 		for _, rule := range group.Rules {
 			for _, alert := range rule.Alerts {

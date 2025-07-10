@@ -39,6 +39,7 @@ func Run(ctx context.Context, config Config) error {
 	}
 
 	serverErr := make(chan error, 1)
+
 	go func() {
 		serverErr <- serveMonitoring(config.MonitoringAddr, promRegistry)
 	}()

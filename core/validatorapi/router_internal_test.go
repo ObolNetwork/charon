@@ -70,6 +70,7 @@ func TestProxyShutdown(t *testing.T) {
 
 	// Make a request to the proxy server, this will block until the proxy is shutdown.
 	errCh := make(chan error, 1)
+
 	go func() {
 		_, err := http.Get(proxy.URL)
 		errCh <- err
@@ -131,6 +132,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			var errRes errorResponse
+
 			err = json.NewDecoder(res.Body).Decode(&errRes)
 			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
@@ -150,6 +152,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			var errRes errorResponse
+
 			err = json.NewDecoder(res.Body).Decode(&errRes)
 			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
@@ -169,6 +172,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			var errRes errorResponse
+
 			err = json.NewDecoder(res.Body).Decode(&errRes)
 			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
@@ -184,6 +188,7 @@ func TestRawRouter(t *testing.T) {
 		handler := testHandler{}
 		handler.ProposalFunc = func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 			require.Empty(t, opts.Graffiti)
+
 			resp := testutil.RandomDenebVersionedProposal()
 
 			return wrapResponse(resp), nil
@@ -195,6 +200,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			var okResp struct{ Data json.RawMessage }
+
 			err = json.NewDecoder(res.Body).Decode(&okResp)
 			require.NoError(t, err)
 			require.NotEmpty(t, okResp.Data)
@@ -211,6 +217,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			var errRes errorResponse
+
 			err = json.NewDecoder(res.Body).Decode(&errRes)
 			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
@@ -230,6 +237,7 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, err)
 
 			var errRes errorResponse
+
 			err = json.NewDecoder(res.Body).Decode(&errRes)
 			require.NoError(t, err)
 			require.Equal(t, errRes, errorResponse{
@@ -260,6 +268,7 @@ func TestRawRouter(t *testing.T) {
 			res, err := http.Post(baseURL+"/eth/v1/validator/duties/attester/1", "", strings.NewReader("not json"))
 			require.NoError(t, err)
 			require.Equal(t, res.Header.Get("Content-Type"), "application/json")
+
 			var errRes errorResponse
 			require.NoError(t, json.NewDecoder(res.Body).Decode(&errRes))
 			require.Equal(t, errRes.Code, http.StatusBadRequest)
@@ -367,6 +376,7 @@ func TestRawRouter(t *testing.T) {
 
 		uintToStrArr := func(t *testing.T, data []uint64) []string {
 			t.Helper()
+
 			ret := make([]string, 0, len(data))
 
 			for _, d := range data {
@@ -455,6 +465,7 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit bellatrix ssz proposal", func(t *testing.T) {
 		var done atomic.Bool
+
 		coreBlock := testutil.RandomBellatrixCoreVersionedSignedProposal()
 		proposal := &coreBlock.VersionedSignedProposal
 
@@ -487,6 +498,7 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit capella ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
+
 		coreBlock := testutil.RandomCapellaCoreVersionedSignedProposal()
 		proposal := &coreBlock.VersionedSignedProposal
 
@@ -519,6 +531,7 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit deneb ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
+
 		coreBlock := testutil.RandomDenebCoreVersionedSignedProposal()
 		proposal := &coreBlock.VersionedSignedProposal
 
@@ -551,6 +564,7 @@ func TestRawRouter(t *testing.T) {
 
 	t.Run("submit electra ssz beacon block", func(t *testing.T) {
 		var done atomic.Bool
+
 		coreBlock := testutil.RandomElectraCoreVersionedSignedProposal()
 		proposal := &coreBlock.VersionedSignedProposal
 
@@ -590,6 +604,7 @@ func TestRawRouter(t *testing.T) {
 		}
 		expectedSlot, err := block.Slot()
 		require.NoError(t, err)
+
 		randao := block.Capella.Body.RANDAOReveal
 
 		handler := testHandler{
@@ -618,6 +633,7 @@ func TestRawRouter(t *testing.T) {
 			require.Equal(t, block.ConsensusValue.String(), res.Header.Get(consensusBlockValueHeader))
 
 			var blockRes proposeBlockV3Response
+
 			err = json.NewDecoder(res.Body).Decode(&blockRes)
 			require.NoError(t, err)
 			require.Equal(t, block.Blinded, blockRes.ExecutionPayloadBlinded)
@@ -633,6 +649,7 @@ func TestRawRouter(t *testing.T) {
 //nolint:maintidx // This function is a test of tests, so analysed as "complex".
 func TestRouter(t *testing.T) {
 	var dependentRoot eth2p0.Root
+
 	_, _ = rand.Read(dependentRoot[:])
 
 	metadata := map[string]any{
@@ -709,9 +726,12 @@ func TestRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			const slotEpoch = 1
-			const index0 = 2
-			const index1 = 3
+			const (
+				slotEpoch = 1
+				index0    = 2
+				index1    = 3
+			)
+
 			opts := &eth2api.AttesterDutiesOpts{
 				Epoch: eth2p0.Epoch(slotEpoch),
 				Indices: []eth2p0.ValidatorIndex{
@@ -721,6 +741,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.AttesterDuties(ctx, opts)
 			require.NoError(t, err)
+
 			res := resp.Data
 
 			require.Len(t, res, 2)
@@ -740,6 +761,7 @@ func TestRouter(t *testing.T) {
 
 	t.Run("proposerduty", func(t *testing.T) {
 		const total = 2
+
 		handler := testHandler{
 			ProposerDutiesFunc: func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 				// Returns ordered total number of duties for the epoch
@@ -756,8 +778,11 @@ func TestRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			const epoch = 4
-			const validator = 1
+			const (
+				epoch     = 4
+				validator = 1
+			)
+
 			opts := &eth2api.ProposerDutiesOpts{
 				Epoch: eth2p0.Epoch(epoch),
 				Indices: []eth2p0.ValidatorIndex{
@@ -766,6 +791,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.ProposerDuties(ctx, opts)
 			require.NoError(t, err)
+
 			res := resp.Data
 
 			require.Len(t, res, 1)
@@ -798,8 +824,11 @@ func TestRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
-			const epoch = 4
-			const validator = 1
+			const (
+				epoch     = 4
+				validator = 1
+			)
+
 			opts := &eth2api.SyncCommitteeDutiesOpts{
 				Epoch: eth2p0.Epoch(epoch),
 				Indices: []eth2p0.ValidatorIndex{
@@ -808,6 +837,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.SyncCommitteeDuties(ctx, opts)
 			require.NoError(t, err)
+
 			res := resp.Data
 
 			require.Len(t, res, 1)
@@ -842,6 +872,7 @@ func TestRouter(t *testing.T) {
 				val1 = 1
 				val2 = 2
 			)
+
 			opts := &eth2api.ValidatorsOpts{
 				State: "head",
 				Indices: []eth2p0.ValidatorIndex{
@@ -851,6 +882,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.Validators(ctx, opts)
 			require.NoError(t, err)
+
 			res := resp.Data
 
 			require.Len(t, res, 2)
@@ -863,6 +895,7 @@ func TestRouter(t *testing.T) {
 
 	t.Run("get validator pubkey", func(t *testing.T) {
 		var idx eth2p0.ValidatorIndex
+
 		handler := testHandler{
 			ValidatorsFunc: func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
 				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
@@ -892,6 +925,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.Validators(ctx, opts)
 			require.NoError(t, err)
+
 			res := resp.Data
 
 			require.Len(t, res, 2)
@@ -938,6 +972,7 @@ func TestRouter(t *testing.T) {
 			}
 			resp, err := cl.Validators(ctx, opts)
 			require.NoError(t, err)
+
 			res := resp.Data
 
 			// Two validators are expected as the testutil.RandomBeaconState(t) returns two validators.
@@ -1020,6 +1055,7 @@ func TestRouter(t *testing.T) {
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
 			const slot, commIdx = 12, 23
+
 			opts := &eth2api.AttestationDataOpts{
 				Slot:           slot,
 				CommitteeIndex: commIdx,
@@ -1390,6 +1426,7 @@ func TestRouter(t *testing.T) {
 		callback := func(ctx context.Context, cl *eth2http.Service) {
 			eth2Resp, err := cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 			require.NoError(t, err)
+
 			actualVersion := eth2Resp.Data
 			require.Equal(t, expectedVersion, actualVersion)
 		}
@@ -1425,6 +1462,7 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	defer server.Close()
 
 	var eth2Svc eth2client.Service
+
 	eth2Svc, err = eth2http.New(ctx,
 		eth2http.WithLogLevel(1),
 		eth2http.WithAddress(server.URL),
@@ -1515,6 +1553,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 			defer server.Close()
 
 			var eth2Svc eth2client.Service
+
 			eth2Svc, err = eth2http.New(ctx,
 				eth2http.WithLogLevel(1),
 				eth2http.WithAddress(server.URL),
@@ -1530,6 +1569,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 
 func TestSubmitAttestations(t *testing.T) {
 	vidx := testutil.RandomVIdx()
+
 	tests := []struct {
 		version              eth2spec.DataVersion
 		versionedAttestation *eth2spec.VersionedAttestation
@@ -1592,6 +1632,7 @@ func TestSubmitAttestations(t *testing.T) {
 			defer server.Close()
 
 			var eth2Svc eth2client.Service
+
 			eth2Svc, err = eth2http.New(ctx,
 				eth2http.WithLogLevel(1),
 				eth2http.WithAddress(server.URL),
@@ -1657,6 +1698,7 @@ func TestGetDependentRootFromMetadata(t *testing.T) {
 
 	t.Run("valid value", func(t *testing.T) {
 		var r eth2p0.Root
+
 		_, _ = rand.Read(r[:])
 
 		metadata := map[string]any{
@@ -1898,6 +1940,7 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 // provides the mocked test handler and a callback that does the client side test.
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
 	t.Helper()
+
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
@@ -1946,6 +1989,7 @@ func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Co
 type testHandler struct {
 	Handler
 	eth2client.BeaconStateProvider
+
 	ProxyHandler                           http.HandlerFunc
 	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
 	AttestationDataFunc                    func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
@@ -2052,6 +2096,7 @@ func (h testHandler) AggregateSyncCommitteeSelections(ctx context.Context, parti
 // eth2http service on startup, all other requests are routed to ProxyHandler if not nil.
 func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	t.Helper()
+
 	ctx := context.Background()
 	mock, err := eth2mock.New(ctx, eth2mock.WithLogLevel(infoLevel))
 	require.NoError(t, err)
@@ -2112,6 +2157,7 @@ func nest(data any, nests ...string) any {
 // testBeaconAddr implements eth2client.Service only returning an address.
 type testBeaconAddr struct {
 	eth2wrap.Client
+
 	addr string
 }
 

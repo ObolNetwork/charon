@@ -62,9 +62,11 @@ func TestSetFeeRecipient(t *testing.T) {
 
 		// Make i+1 validators inactive
 		inactive := i + 1
+
 		for index, validator := range clone {
 			validator.Status = eth2v1.ValidatorStatePendingQueued
 			clone[index] = validator
+
 			inactive--
 			if inactive == 0 {
 				break
@@ -76,6 +78,7 @@ func TestSetFeeRecipient(t *testing.T) {
 
 		// Only expect preparations for active validators.
 		var active int
+
 		bmock.SubmitProposalPreparationsFunc = func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
 			if len(preparations) == 0 {
 				return errors.New("empty slice")

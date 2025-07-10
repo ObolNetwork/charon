@@ -29,6 +29,7 @@ import (
 
 type testInfraConfig struct {
 	testConfig
+
 	DiskIOTestFileDir          string
 	DiskIOBlockSizeKb          int
 	InternetTestServersOnly    []string
@@ -135,16 +136,20 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res te
 	} else {
 		testFilePath = cfg.DiskIOTestFileDir
 	}
+
 	if !canWriteToDir(testFilePath) {
 		return res, errors.New("no write permissions to disk IO test file directory: " + testFilePath)
 	}
+
 	cfg.DiskIOTestFileDir = testFilePath
 
 	testCases := supportedInfraTestCases()
+
 	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		return res, errors.New("test case not supported")
 	}
+
 	sortTests(queuedTests)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -164,6 +169,7 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res te
 
 	// use highest score as score of all
 	var score categoryScore
+
 	for _, t := range testResults {
 		targetScore := calculateScore(t)
 		if score == "" || score > targetScore {
@@ -206,15 +212,18 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res te
 
 func testSingleInfra(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testInfraConfig) testResult, cfg testInfraConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
+
 	singleTestResCh := make(chan testResult)
 	allTestRes := []testResult{}
 	// run all infra tests for a client, pushing each completed test to the channel until all are complete or timeout occurs
 	go testInfra(ctx, queuedTestCases, allTestCases, cfg, singleTestResCh)
 
 	testCounter := 0
+
 	finished := false
 	for !finished {
 		var testName string
+
 		select {
 		case <-ctx.Done():
 			testName = queuedTestCases[testCounter].name
@@ -225,7 +234,9 @@ func testSingleInfra(ctx context.Context, queuedTestCases []testCaseName, allTes
 				finished = true
 				break
 			}
+
 			testCounter++
+
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -235,6 +246,7 @@ func testSingleInfra(ctx context.Context, queuedTestCases []testCaseName, allTes
 
 func testInfra(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testInfraConfig) testResult, cfg testInfraConfig, ch chan testResult) {
 	defer close(ch)
+
 	for _, t := range queuedTests {
 		select {
 		case <-ctx.Done():
@@ -269,6 +281,7 @@ func infraDiskWriteSpeedTest(ctx context.Context, conf *testInfraConfig) testRes
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.FormatFloat(diskWriteMBs, 'f', 2, 64) + "MB/s"
 
 	return testRes
@@ -298,6 +311,7 @@ func infraDiskWriteIOPSTest(ctx context.Context, conf *testInfraConfig) testResu
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.FormatFloat(diskWriteIOPS, 'f', 0, 64)
 
 	return testRes
@@ -327,6 +341,7 @@ func infraDiskReadSpeedTest(ctx context.Context, conf *testInfraConfig) testResu
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.FormatFloat(diskReadMBs, 'f', 2, 64) + "MB/s"
 
 	return testRes
@@ -335,8 +350,11 @@ func infraDiskReadSpeedTest(ctx context.Context, conf *testInfraConfig) testResu
 func infraDiskReadIOPSTest(ctx context.Context, conf *testInfraConfig) testResult {
 	testRes := testResult{Name: "DiskReadIOPS"}
 
-	var err error
-	var testFilePath string
+	var (
+		err          error
+		testFilePath string
+	)
+
 	if conf.DiskIOTestFileDir == "" {
 		testFilePath, err = os.UserHomeDir()
 		if err != nil {
@@ -368,6 +386,7 @@ func infraDiskReadIOPSTest(ctx context.Context, conf *testInfraConfig) testResul
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.FormatFloat(diskReadIOPS, 'f', 0, 64)
 
 	return testRes
@@ -376,8 +395,11 @@ func infraDiskReadIOPSTest(ctx context.Context, conf *testInfraConfig) testResul
 func infraAvailableMemoryTest(ctx context.Context, _ *testInfraConfig) testResult {
 	testRes := testResult{Name: "AvailableMemory"}
 
-	var availableMemory int64
-	var err error
+	var (
+		availableMemory int64
+		err             error
+	)
+
 	os := runtime.GOOS
 	switch os {
 	case "linux":
@@ -403,6 +425,7 @@ func infraAvailableMemoryTest(ctx context.Context, _ *testInfraConfig) testResul
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.Itoa(int(availableMemoryMB)) + "MB"
 
 	return testRes
@@ -411,8 +434,11 @@ func infraAvailableMemoryTest(ctx context.Context, _ *testInfraConfig) testResul
 func infraTotalMemoryTest(ctx context.Context, _ *testInfraConfig) testResult {
 	testRes := testResult{Name: "TotalMemory"}
 
-	var totalMemory int64
-	var err error
+	var (
+		totalMemory int64
+		err         error
+	)
+
 	os := runtime.GOOS
 	switch os {
 	case "linux":
@@ -438,6 +464,7 @@ func infraTotalMemoryTest(ctx context.Context, _ *testInfraConfig) testResult {
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.Itoa(int(totalMemoryMB)) + "MB"
 
 	return testRes
@@ -457,10 +484,12 @@ func infraInternetLatencyTest(ctx context.Context, conf *testInfraConfig) testRe
 		z.Any("server_distance_km", server.Distance),
 		z.Any("server_id", server.ID),
 	)
+
 	err = server.PingTestContext(ctx, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	testRes = evaluateRTT(server.Latency, testRes, internetLatencyAvg, internetLatencyPoor)
 
 	return testRes
@@ -480,10 +509,12 @@ func infraInternetDownloadSpeedTest(ctx context.Context, conf *testInfraConfig) 
 		z.Any("server_distance_km", server.Distance),
 		z.Any("server_id", server.ID),
 	)
+
 	err = server.DownloadTestContext(ctx)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	downloadSpeed := server.DLSpeed.Mbps()
 
 	if downloadSpeed < internetDownloadSpeedMbpsPoor {
@@ -493,6 +524,7 @@ func infraInternetDownloadSpeedTest(ctx context.Context, conf *testInfraConfig) 
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.FormatFloat(downloadSpeed, 'f', 2, 64) + "MB/s"
 
 	return testRes
@@ -512,10 +544,12 @@ func infraInternetUploadSpeedTest(ctx context.Context, conf *testInfraConfig) te
 		z.Any("server_distance_km", server.Distance),
 		z.Any("server_id", server.ID),
 	)
+
 	err = server.UploadTestContext(ctx)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	uploadSpeed := server.ULSpeed.Mbps()
 
 	if uploadSpeed < internetUploadSpeedMbpsPoor {
@@ -525,6 +559,7 @@ func infraInternetUploadSpeedTest(ctx context.Context, conf *testInfraConfig) te
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = strconv.FormatFloat(uploadSpeed, 'f', 2, 64) + "MB/s"
 
 	return testRes
@@ -560,6 +595,7 @@ func (FioTestTool) WriteSpeed(ctx context.Context, testFilePath string, blockSiz
 	defer os.Remove(testFilePath)
 
 	var fioRes fioResult
+
 	err = json.Unmarshal(out, &fioRes)
 	if err != nil {
 		return 0, errors.Wrap(err, "unmarshal fio result")
@@ -580,6 +616,7 @@ func (FioTestTool) WriteIOPS(ctx context.Context, testFilePath string, blockSize
 	defer os.Remove(testFilePath)
 
 	var fioRes fioResult
+
 	err = json.Unmarshal(out, &fioRes)
 	if err != nil {
 		return 0, errors.Wrap(err, "unmarshal fio result")
@@ -599,6 +636,7 @@ func (FioTestTool) ReadSpeed(ctx context.Context, testFilePath string, blockSize
 	defer os.Remove(testFilePath)
 
 	var fioRes fioResult
+
 	err = json.Unmarshal(out, &fioRes)
 	if err != nil {
 		return 0, errors.Wrap(err, "unmarshal fio result")
@@ -619,6 +657,7 @@ func (FioTestTool) ReadIOPS(ctx context.Context, testFilePath string, blockSize 
 	defer os.Remove(testFilePath)
 
 	var fioRes fioResult
+
 	err = json.Unmarshal(out, &fioRes)
 	if err != nil {
 		return 0, errors.Wrap(err, "unmarshal fio result")
@@ -661,6 +700,7 @@ func availableMemoryLinux(context.Context) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "open /proc/meminfo")
 	}
+
 	scanner := bufio.NewScanner(file)
 	if scanner.Err() != nil {
 		return 0, errors.Wrap(scanner.Err(), "new scanner")
@@ -671,8 +711,10 @@ func availableMemoryLinux(context.Context) (int64, error) {
 		if !strings.Contains(line, "MemAvailable") {
 			continue
 		}
+
 		splitText := strings.Split(line, ": ")
 		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
+
 		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
 		if err != nil {
 			return 0, errors.Wrap(err, "parse MemAvailable int")
@@ -689,6 +731,7 @@ func availableMemoryMacos(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "run pagesize")
 	}
+
 	memorySizePerPage, err := strconv.ParseInt(strings.TrimSuffix(string(pageSizeBytes), "\n"), 10, 64)
 	if err != nil {
 		return 0, errors.Wrap(err, "parse memorySizePerPage int")
@@ -698,37 +741,46 @@ func availableMemoryMacos(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "run vm_stat")
 	}
+
 	outBuf := bytes.NewBuffer(out)
+
 	scanner := bufio.NewScanner(outBuf)
 	if scanner.Err() != nil {
 		return 0, errors.Wrap(scanner.Err(), "new scanner")
 	}
 
 	var pagesFree, pagesInactive, pagesSpeculative int64
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		splitText := strings.Split(line, ": ")
 
-		var bytes int64
-		var err error
+		var (
+			bytes int64
+			err   error
+		)
+
 		switch {
 		case strings.Contains(splitText[0], "Pages free"):
 			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
 			if err != nil {
 				return 0, errors.Wrap(err, "parse Pages free int")
 			}
+
 			pagesFree = bytes
 		case strings.Contains(splitText[0], "Pages inactive"):
 			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
 			if err != nil {
 				return 0, errors.Wrap(err, "parse Pages inactive int")
 			}
+
 			pagesInactive = bytes
 		case strings.Contains(splitText[0], "Pages speculative"):
 			bytes, err = strconv.ParseInt(strings.Trim(strings.Split(splitText[1], ".")[0], " "), 10, 64)
 			if err != nil {
 				return 0, errors.Wrap(err, "parse Pages speculative int")
 			}
+
 			pagesSpeculative = bytes
 		}
 	}
@@ -741,6 +793,7 @@ func totalMemoryLinux(context.Context) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "open /proc/meminfo")
 	}
+
 	scanner := bufio.NewScanner(file)
 	if scanner.Err() != nil {
 		return 0, errors.Wrap(scanner.Err(), "new scanner")
@@ -751,8 +804,10 @@ func totalMemoryLinux(context.Context) (int64, error) {
 		if !strings.Contains(line, "MemTotal") {
 			continue
 		}
+
 		splitText := strings.Split(line, ": ")
 		kbs := strings.Trim(strings.Split(splitText[1], "kB")[0], " ")
+
 		kbsInt, err := strconv.ParseInt(kbs, 10, 64)
 		if err != nil {
 			return 0, errors.Wrap(err, "parse MemTotal int")
@@ -771,6 +826,7 @@ func totalMemoryMacos(ctx context.Context) (int64, error) {
 	}
 
 	memSize := strings.TrimSuffix(strings.Split(string(out), ": ")[1], "\n")
+
 	memSizeInt, err := strconv.ParseInt(memSize, 10, 64)
 	if err != nil {
 		return 0, errors.Wrap(err, "parse memSize int")
@@ -819,6 +875,7 @@ func fetchOoklaServer(_ context.Context, conf *testInfraConfig) (speedtest.Serve
 
 func canWriteToDir(dir string) bool {
 	testFile := filepath.Join(dir, ".perm_test_tmp")
+
 	f, err := os.Create(testFile)
 	if err != nil {
 		return false

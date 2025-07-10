@@ -24,11 +24,14 @@ import (
 func TestValidatorTest(t *testing.T) {
 	port := testutil.GetFreePort(t)
 	readyChan := make(chan bool)
+
 	go func() {
 		err := StartHealthyValidatorClient(t, port, readyChan)
 		assert.NoError(t, err)
 	}()
+
 	<-readyChan
+
 	validatorAPIAddress := fmt.Sprintf("127.0.0.1:%v", port)
 
 	tests := []struct {
@@ -176,7 +179,9 @@ func TestValidatorTest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
+
 			ctx := context.Background()
+
 			_, err := runTestValidator(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
@@ -184,6 +189,7 @@ func TestValidatorTest(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			defer func() {
 				if test.cleanup != nil {
 					test.cleanup(t, test.config.OutputJSON)
@@ -205,6 +211,7 @@ func TestValidatorTest(t *testing.T) {
 
 func StartHealthyValidatorClient(t *testing.T, port int, ready chan bool) error {
 	t.Helper()
+
 	defer close(ready)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%v", port))
@@ -214,6 +221,7 @@ func StartHealthyValidatorClient(t *testing.T, port int, ready chan bool) error 
 	defer listener.Close()
 
 	ready <- true
+
 	for {
 		_, err := listener.Accept()
 		if err != nil {
@@ -246,6 +254,7 @@ func TestValidatorTestFlags(t *testing.T) {
 				return testCategoryResult{}, nil
 			}))
 			cmd.SetArgs(test.args)
+
 			err := cmd.Execute()
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)

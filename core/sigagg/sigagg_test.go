@@ -58,6 +58,7 @@ func TestSigAgg(t *testing.T) {
 		for range peers {
 			parsig, err := core.NewPartialVersionedAttestation(att, 0) // All partial sig with the same shareIdx (0)
 			require.NoError(t, err)
+
 			parsigs = append(parsigs, parsig)
 		}
 
@@ -134,6 +135,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	// Create expected aggregated signature
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
+
 	expect := tblsconv.SigToCore(aggSig)
 
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
@@ -205,12 +207,14 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		parsig := core.NewPartialSignedRandao(epoch, eth2Sig, idx)
 
 		psigs[idx] = sig
+
 		parsigs = append(parsigs, parsig)
 	}
 
 	// Create expected aggregated signature
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
+
 	expect := tblsconv.SigToCore(aggSig)
 
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
@@ -287,11 +291,13 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		}, idx)
 
 		psigs[idx] = sig
+
 		parsigs = append(parsigs, parsig)
 	}
 
 	aggSig, err := tbls.ThresholdAggregate(psigs)
 	require.NoError(t, err)
+
 	expect := tblsconv.SigToCore(aggSig)
 
 	agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
@@ -428,10 +434,12 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
+
 			expect := tblsconv.SigToCore(aggSig)
 
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
 			require.NoError(t, err)
+
 			corePubkey := core.PubKeyFrom48Bytes(pubKey)
 
 			// Assert output
@@ -548,6 +556,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
+
 			expect := tblsconv.SigToCore(aggSig)
 
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))
@@ -657,6 +666,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 			// Create expected aggregated signature
 			aggSig, err := tbls.ThresholdAggregate(psigs)
 			require.NoError(t, err)
+
 			expect := tblsconv.SigToCore(aggSig)
 
 			agg, err := sigagg.New(threshold, sigagg.NewVerifier(bmock))

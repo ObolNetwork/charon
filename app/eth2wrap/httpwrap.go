@@ -85,6 +85,7 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, headers map[string
 //   - experimental interfaces
 type httpAdapter struct {
 	*eth2http.Service
+
 	address     string
 	headers     map[string]string
 	timeout     time.Duration
@@ -137,6 +138,7 @@ func (h *httpAdapter) Validators(ctx context.Context, opts *api.ValidatorsOpts) 
 	error,
 ) {
 	var cancel func()
+
 	reqCtx := ctx
 
 	maxValAmt := max(len(opts.PubKeys), len(opts.Indices))
@@ -199,6 +201,7 @@ func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, sele
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockAttestationsV2.
 func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
 	path := fmt.Sprintf("/eth/v2/beacon/blocks/%s/attestations", stateID)
+
 	ctx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
 
@@ -231,6 +234,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
 			return nil, errors.Wrap(err, "failed to parse block attestations response")
 		}
+
 		for _, a := range respAttestation.Data {
 			res = append(res, &spec.VersionedAttestation{Version: version, Phase0: a})
 		}
@@ -239,6 +243,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
 			return nil, errors.Wrap(err, "failed to parse block attestations response")
 		}
+
 		for _, a := range respAttestation.Data {
 			res = append(res, &spec.VersionedAttestation{Version: version, Altair: a})
 		}
@@ -247,6 +252,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
 			return nil, errors.Wrap(err, "failed to parse block attestations response")
 		}
+
 		for _, a := range respAttestation.Data {
 			res = append(res, &spec.VersionedAttestation{Version: version, Bellatrix: a})
 		}
@@ -255,6 +261,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
 			return nil, errors.Wrap(err, "failed to parse block attestations response")
 		}
+
 		for _, a := range respAttestation.Data {
 			res = append(res, &spec.VersionedAttestation{Version: version, Capella: a})
 		}
@@ -263,6 +270,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
 			return nil, errors.Wrap(err, "failed to parse block attestations response")
 		}
+
 		for _, a := range respAttestation.Data {
 			res = append(res, &spec.VersionedAttestation{Version: version, Deneb: a})
 		}
@@ -271,6 +279,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 		if err := json.Unmarshal(respBody, &respAttestation); err != nil {
 			return nil, errors.Wrap(err, "failed to parse block attestations response")
 		}
+
 		for _, a := range respAttestation.Data {
 			res = append(res, &spec.VersionedAttestation{Version: version, Electra: a})
 		}
@@ -285,6 +294,7 @@ func (h *httpAdapter) BlockAttestations(ctx context.Context, stateID string) ([]
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockV2.
 func (h *httpAdapter) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
 	path := "/eth/v2/beacon/blocks/" + stateID
+
 	ctx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
 
@@ -321,6 +331,7 @@ func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([
 	queryParams := map[string]string{
 		"slot": strconv.FormatUint(slot, 10),
 	}
+
 	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, queryParams, h.timeout)
 	if err != nil {
 		return nil, errors.Wrap(err, "request state committees for slot", z.Int("status", statusCode), z.U64("slot", slot))
@@ -331,6 +342,7 @@ func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([
 	}
 
 	var res statecomm.StateCommitteesResponse
+
 	err = json.Unmarshal(respBody, &res)
 	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal state committees", z.Int("status", statusCode), z.U64("slot", slot))
@@ -360,6 +372,7 @@ func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConf
 // See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
 func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
 	const path = "/eth/v1/node/peer_count"
+
 	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, nil, h.timeout)
 	if err != nil {
 		return 0, errors.Wrap(err, "request beacon node peer count")
@@ -435,6 +448,7 @@ func httpPost(ctx context.Context, base string, endpoint string, body io.Reader,
 	if err != nil {
 		return nil, errors.Wrap(err, "new POST request with ctx")
 	}
+
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}
@@ -473,6 +487,7 @@ func httpGetRaw(ctx context.Context, base string, endpoint string, headers map[s
 	if err != nil {
 		return nil, errors.Wrap(err, "new GET request with ctx")
 	}
+
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}
@@ -481,6 +496,7 @@ func httpGetRaw(ctx context.Context, base string, endpoint string, headers map[s
 	for key, val := range queryParams {
 		q.Add(key, val)
 	}
+
 	req.URL.RawQuery = q.Encode()
 
 	res, err := new(http.Client).Do(req)
@@ -516,20 +532,25 @@ func fetchConsensusVersion(resp *http.Response) (spec.DataVersion, error) {
 	if !exists {
 		// No consensus version supplied in response; obtain it from the body if possible.
 		var metadata responseMetadata
+
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return spec.DataVersionUnknown, errors.Wrap(err, "read resp body")
 		}
+
 		if err := json.Unmarshal(body, &metadata); err != nil {
 			return spec.DataVersionUnknown, errors.Wrap(err, "no consensus version header and failed to parse response")
 		}
 
 		return metadata.Version, nil
 	}
+
 	if len(respConsensusVersions) != 1 {
 		return spec.DataVersionUnknown, errors.New("malformed consensus version", z.Int("entries", len(respConsensusVersions)))
 	}
+
 	var dataVersion spec.DataVersion
+
 	err := dataVersion.UnmarshalJSON([]byte(fmt.Sprintf("%q", respConsensusVersions[0])))
 	if err != nil {
 		return spec.DataVersionUnknown, errors.Wrap(err, "unmarshal consensus version header to data version")

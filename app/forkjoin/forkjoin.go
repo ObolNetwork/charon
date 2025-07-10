@@ -62,6 +62,7 @@ func (r Results[I, O]) Flatten() ([]O, error) {
 		if errors.Is(result.Err, context.Canceled) && ctxErr == nil {
 			ctxErr = result.Err
 		}
+
 		if !errors.Is(result.Err, context.Canceled) && otherErr == nil {
 			otherErr = result.Err
 		}
@@ -180,6 +181,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 			case <-dropOutput:
 				// Dropping output.
 			}
+
 			wg.Done()
 		}()
 	}
@@ -205,6 +207,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 	// Fork enqueues inputs, keeping track of how many was enqueued.
 	fork := func(i I) {
 		var added bool
+
 		defer func() {
 			// Handle panic use-case as well as rootCtx done.
 			if !added {
@@ -213,6 +216,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 		}()
 
 		wg.Add(1)
+
 		select {
 		case input <- i:
 			added = true
@@ -240,6 +244,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 	cancel := func() {
 		close(dropOutput)
 		cancelWorkers()
+
 		if options.waitOnCancel {
 			<-done
 		}

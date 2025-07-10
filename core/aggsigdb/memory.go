@@ -86,6 +86,7 @@ func (db *MemDB) store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.SignedData, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
+
 	response := make(chan core.SignedData, 1)
 
 	query := readQuery{
@@ -131,6 +132,7 @@ func (db *MemDB) Run(ctx context.Context) {
 			for _, key := range db.keysByDuty[duty] {
 				delete(db.data, key)
 			}
+
 			delete(db.keysByDuty, duty)
 		case <-ctx.Done():
 			return
@@ -164,6 +166,7 @@ func dataEqual(x core.SignedData, y core.SignedData) (bool, error) {
 	if err != nil {
 		return false, errors.Wrap(err, "marshal data")
 	}
+
 	by, err := y.MarshalJSON()
 	if err != nil {
 		return false, errors.Wrap(err, "marshal data")
@@ -181,6 +184,7 @@ func (db *MemDB) execQuery(query readQuery) bool {
 	}
 
 	query.response <- data
+
 	close(query.response)
 
 	return true
@@ -197,6 +201,7 @@ func (db *MemDB) processBlockedQueries() {
 		if cancelled(query.cancel) {
 			continue
 		}
+
 		if !db.execQuery(query) {
 			db.blockedQueries = append(db.blockedQueries, query)
 		}
@@ -228,6 +233,7 @@ type memDBKey struct {
 // writeCommand holds the data to write into the database.
 type writeCommand struct {
 	memDBKey
+
 	data     core.SignedData
 	response chan<- error
 }
@@ -235,6 +241,7 @@ type writeCommand struct {
 // readQuery holds the query data and the response channel.
 type readQuery struct {
 	memDBKey
+
 	response chan<- core.SignedData
 	cancel   <-chan struct{}
 }

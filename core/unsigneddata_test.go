@@ -195,6 +195,7 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 func TestVersionedAggregatedAttestationUtilFunctions(t *testing.T) {
 	data := testutil.RandomAttestationDataPhase0()
 	aggregationBits := testutil.RandomBitList(64)
+
 	type testCase struct {
 		name                 string
 		versionedAttestation core.VersionedAggregatedAttestation

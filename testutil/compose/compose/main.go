@@ -164,6 +164,7 @@ func newNewCmd() *cobra.Command {
 		for _, vc := range *vcTypes {
 			vcs = append(vcs, compose.VCType(vc))
 		}
+
 		conf.VCs = vcs
 
 		ctx := log.WithTopic(cmd.Context(), "new")

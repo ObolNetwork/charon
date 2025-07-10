@@ -194,6 +194,7 @@ func stopAllHooks(stopCtx context.Context, stopHooks []hook, cancel context.Canc
 // See https://stackoverflow.com/questions/19094099/how-to-dump-goroutine-stacktraces.
 func getStackDump() string {
 	var buf bytes.Buffer
+
 	_ = pprof.Lookup("goroutine").WriteTo(&buf, 2)
 
 	return buf.String()

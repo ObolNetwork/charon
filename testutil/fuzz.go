@@ -60,6 +60,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// eth2p0.AttesterSlashings has max
 			func(e *[]*eth2p0.AttesterSlashing, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				if len(*e) > 2 {
 					*e = (*e)[:2]
 				}
@@ -67,6 +68,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// eth2p0.ProposerSlashings has max
 			func(e *[]*eth2p0.ProposerSlashing, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				if len(*e) > 16 {
 					*e = (*e)[:16]
 				}
@@ -76,6 +78,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				c.FuzzNoCustom(e)
 
 				var blockHash [32]byte
+
 				_, _ = c.Read(blockHash[:])
 				e.BlockHash = blockHash[:]
 			},
@@ -86,24 +89,29 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// SyncAggregate.SyncCommitteeBits must have 64 bits
 			func(e *altair.SyncAggregate, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				bits := bitfield.NewBitvector512()
 				for i := range 64 {
 					bits.SetBitAt(uint64(i), true)
 				}
+
 				e.SyncCommitteeBits = bits
 			},
 			// SyncCommitteeContribution.AggregationBits must have 16 bits
 			func(e *altair.SyncCommitteeContribution, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				bits := bitfield.NewBitvector128()
 				for i := range 16 {
 					bits.SetBitAt(uint64(i), true)
 				}
+
 				e.AggregationBits = bits
 			},
 			// []deneb.KzgCommitment has max.
 			func(e *[]deneb.KZGCommitment, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				if len(*e) > 4 {
 					*e = (*e)[:4]
 				}
@@ -111,10 +119,12 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// electra.ExecutionRequests has max.
 			func(e *electra.ExecutionRequests, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				bits := bitfield.NewBitvector256()
 				for i := range 32 {
 					bits.SetBitAt(uint64(i), true)
 				}
+
 				for idx := range e.Deposits {
 					e.Deposits[idx].WithdrawalCredentials = bits
 				}
@@ -158,6 +168,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 						}
 					}
 				}
+
 				if e.Version == eth2spec.DataVersionElectra {
 					if e.Electra != nil {
 						// Limit length of KZGProofs to 6
@@ -220,9 +231,11 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
 					maxKZGProofs := 6
 					maxBlobs := 6
+
 					if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.KZGProofs) > maxKZGProofs {
 						e.Deneb.KZGProofs = e.Deneb.KZGProofs[:maxKZGProofs]
 					}
+
 					if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.Blobs) > maxBlobs {
 						e.Deneb.Blobs = e.Deneb.Blobs[:maxBlobs]
 					}
@@ -232,6 +245,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					// Limit length of KZGProofs and Blobs to 6
 					// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
 					maxKZGProofs := 6
+
 					maxBlobs := 6
 					if len(e.Electra.Blobs) > maxBlobs {
 						e.Electra.Blobs = e.Electra.Blobs[:maxBlobs]
@@ -271,6 +285,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// electra.AttesterSlashing has max
 			func(e *[]*electra.AttesterSlashing, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				if len(*e) > 1 {
 					*e = (*e)[:1]
 				}
@@ -278,10 +293,12 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			// electra.Attestation must have 8 bits
 			func(e *electra.Attestation, c fuzz.Continue) {
 				c.FuzzNoCustom(e)
+
 				bits := bitfield.NewBitvector64()
 				for i := range 8 {
 					bits.SetBitAt(uint64(i), true)
 				}
+
 				e.CommitteeBits = bits
 			},
 			func(e *core.VersionedAggregatedAttestation, c fuzz.Continue) {

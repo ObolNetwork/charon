@@ -132,6 +132,7 @@ func TestDKG(t *testing.T) {
 			if test.version != "" {
 				opts = append(opts, cluster.WithVersion(test.version))
 			}
+
 			if isAnyVersion(test.version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9) {
 				opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 0 })
 			} else {
@@ -144,6 +145,7 @@ func TestDKG(t *testing.T) {
 			dir := t.TempDir()
 
 			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
+
 			if !test.keymanager {
 				verifyDKGResults(t, lock.Definition, dir)
 			}
@@ -182,8 +184,10 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
+
 	if keymanager {
 		const testAuthToken = "test-auth-token"
+
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			bearerAuthToken := strings.Split(r.Header.Get("Authorization"), " ")
 			require.Equal(t, bearerAuthToken[0], "Bearer")
@@ -200,6 +204,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	}
 
 	receivedLockfile := make(chan struct{}) // Receives string for lockfile intercepted by the obol-api server
+
 	if publish {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			go func() {
@@ -214,6 +219,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 
 	// Run dkg for each node
 	var eg errgroup.Group
+
 	for i := range len(def.Operators) {
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
@@ -231,6 +237,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 
 			return err
 		})
+
 		if i == 0 {
 			// Allow node0 some time to startup, this just mitigates startup races and backoffs but isn't required.
 			time.Sleep(time.Millisecond * 100)
@@ -255,6 +262,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		expectedReceives := len(def.Operators)
 		for expectedReceives > 0 {
 			<-allReceivedKeystores
+
 			expectedReceives--
 		}
 
@@ -265,6 +273,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		expectedReceives := 1
 		for expectedReceives > 0 {
 			<-receivedLockfile
+
 			expectedReceives--
 		}
 
@@ -281,6 +290,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	addr := testutil.AvailableAddr(t).String()
 
 	errChan := make(chan error, 1)
+
 	go func() {
 		err := relay.Run(parentCtx, relay.Config{
 			DataDir:  dir,
@@ -312,6 +322,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	defer cancel()
 
 	isUp := make(chan struct{})
+
 	go func() {
 		for ctx.Err() == nil {
 			_, err := http.Get(endpoint)
@@ -319,6 +330,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 				time.Sleep(time.Millisecond * 100)
 				continue
 			}
+
 			close(isUp)
 
 			return
@@ -375,6 +387,7 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 
 	// Ensure locks hashes are identical.
 	var hash []byte
+
 	for i, lock := range locks {
 		if i == 0 {
 			hash = lock.LockHash
@@ -386,10 +399,12 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 	// 	Ensure keystores can generate valid tbls aggregate signature.
 	for i := range def.NumValidators {
 		var sigs []tbls.Signature
+
 		for j := range len(def.Operators) {
 			msg := []byte("data")
 			sig, err := tbls.Sign(secretShares[i][j], msg)
 			require.NoError(t, err)
+
 			sigs = append(sigs, sig)
 
 			// Ensure all public shares can verify the partial signature
@@ -397,12 +412,14 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 				if len(lock.Validators[i].PubShares) == 0 {
 					continue
 				}
+
 				pk, err := tblsconv.PubkeyFromBytes(lock.Validators[i].PubShares[j])
 				require.NoError(t, err)
 				err = tbls.Verify(pk, msg, sig)
 				require.NoError(t, err)
 			}
 		}
+
 		_, err := tbls.Aggregate(sigs)
 		require.NoError(t, err)
 	}
@@ -421,10 +438,12 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 				depositAmounts = deposit.DefaultDepositAmounts(def.Compounding)
 			}
 		}
+
 		require.Len(t, val.PartialDepositData, len(depositAmounts))
 
 		// Assert Partial Deposit Data
 		uniqueSigs := make(map[string]struct{})
+
 		for i, amount := range depositAmounts {
 			pdd := val.PartialDepositData[i]
 			require.Equal(t, val.PubKey, pdd.PubKey)
@@ -442,6 +461,7 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 		// Assert Builder Registration
 		require.Equal(t, val.PubKey, val.BuilderRegistration.Message.PubKey)
 		require.Equal(t, registration.DefaultGasLimit, val.BuilderRegistration.Message.GasLimit)
+
 		timestamp, err := eth2util.ForkVersionToGenesisTime(lock.ForkVersion)
 		require.NoError(t, err)
 		require.Equal(t, timestamp, val.BuilderRegistration.Message.Timestamp)
@@ -569,11 +589,14 @@ func TestSyncFlow(t *testing.T) {
 
 			// Wait for all peer DKG processes to complete.
 			var disconnectedCount int
+
 			for err := range dkgErrChan {
 				testutil.SkipIfBindErr(t, err)
+
 				if !errors.Is(err, context.Canceled) {
 					require.NoError(t, err)
 				}
+
 				disconnectedCount++
 				if disconnectedCount == test.nodes {
 					break

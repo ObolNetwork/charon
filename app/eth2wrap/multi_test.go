@@ -36,6 +36,7 @@ func TestMulti_Address(t *testing.T) {
 func TestMulti_IsActive(t *testing.T) {
 	client1 := mocks.NewClient(t)
 	client1.On("IsActive").Return(false).Once()
+
 	client2 := mocks.NewClient(t)
 	client2.On("IsActive").Return(true).Once()
 
@@ -47,6 +48,7 @@ func TestMulti_IsActive(t *testing.T) {
 func TestMulti_IsSynced(t *testing.T) {
 	client1 := mocks.NewClient(t)
 	client1.On("IsSynced").Return(false).Once()
+
 	client2 := mocks.NewClient(t)
 	client2.On("IsSynced").Return(true).Once()
 
@@ -68,6 +70,7 @@ func TestMulti_NodePeerCount(t *testing.T) {
 
 	expectedErr := errors.New("boo")
 	client.On("NodePeerCount", mock.Anything).Return(0, expectedErr).Once()
+
 	_, err = m.NodePeerCount(context.Background())
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -88,6 +91,7 @@ func TestMulti_BlockAttestations(t *testing.T) {
 
 	expectedErr := errors.New("boo")
 	client.On("BlockAttestations", mock.Anything, "state").Return(nil, expectedErr).Once()
+
 	_, err = m.BlockAttestations(ctx, "state")
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -150,6 +154,7 @@ func TestMulti_ProposerConfig(t *testing.T) {
 
 	expectedErr := errors.New("boo")
 	client.On("ProposerConfig", mock.Anything).Return(nil, expectedErr).Once()
+
 	_, err = m.ProposerConfig(ctx)
 	require.ErrorIs(t, err, expectedErr)
 }
@@ -169,6 +174,7 @@ func TestMulti_ActiveValidators(t *testing.T) {
 
 	expectedErr := errors.New("boo")
 	client.On("ActiveValidators", mock.Anything).Return(nil, expectedErr).Once()
+
 	_, err = m.ActiveValidators(ctx)
 	require.ErrorIs(t, err, expectedErr)
 }

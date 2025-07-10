@@ -109,13 +109,16 @@ func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, Compl
 		State:   "head",
 		PubKeys: c.pubkeys,
 	}
+
 	eth2Resp, err := c.eth2Cl.Validators(ctx, opts)
 	if err != nil {
 		return nil, nil, err
 	}
+
 	vals := eth2Resp.Data
 
 	resp := make(ActiveValidators)
+
 	for _, val := range vals {
 		if val == nil || val.Validator == nil {
 			return nil, nil, errors.New("validator data cannot be nil")
@@ -152,6 +155,7 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 		// Failed to fetch by slot, fall back to head state
 		refreshedBySlot = false
 		opts.State = "head"
+
 		eth2Resp, err = c.eth2Cl.Validators(ctx, opts)
 		if err != nil {
 			return nil, nil, refreshedBySlot, err
@@ -161,6 +165,7 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 	complete := eth2Resp.Data
 
 	active := make(ActiveValidators)
+
 	for _, val := range complete {
 		if val == nil || val.Validator == nil {
 			return nil, nil, refreshedBySlot, errors.New("validator data cannot be nil")

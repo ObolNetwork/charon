@@ -20,6 +20,7 @@ func TestCalculateResults(t *testing.T) {
 		Q = 3 // Quorum (not accurate but good enough for this example).
 		F = 1 // Faulty
 	)
+
 	var (
 		// Define priority sets
 		v1 = []string{"v1"}       // v1 nodes only support v1
@@ -153,10 +154,12 @@ func TestCalculateResults(t *testing.T) {
 			topic := toAny("versions")
 
 			var msgs []*pbv1.PriorityMsg
+
 			for j, prioritySet := range test.Priorities {
 				if test.Slot == 0 {
 					test.Slot = uint64(i)
 				}
+
 				msgs = append(msgs, &pbv1.PriorityMsg{
 					Topics: []*pbv1.PriorityTopicProposal{
 						{
@@ -182,19 +185,26 @@ func TestCalculateResults(t *testing.T) {
 			require.Len(t, result.GetTopics(), 2)
 
 			var topicResult *pbv1.PriorityTopicResult
+
 			for _, result := range result.GetTopics() {
 				if proto.Equal(result.GetTopic(), topic) {
 					topicResult = result
 				}
 			}
+
 			if len(test.Result) > 0 {
-				var actualResult []string
-				var actualScores []int64
+				var (
+					actualResult []string
+					actualScores []int64
+				)
+
 				for _, prio := range topicResult.GetPriorities() {
 					actualResult = append(actualResult, fromAny(prio.GetPriority()))
 					actualScores = append(actualScores, prio.GetScore())
 				}
+
 				require.Equal(t, test.Result, actualResult)
+
 				if len(test.Scores) != 0 {
 					require.Equal(t, test.Scores, actualScores)
 				}

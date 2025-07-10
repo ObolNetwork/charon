@@ -58,6 +58,7 @@ func WithBeaconMockFuzzer() Option {
 	return func(mock *Mock) {
 		mock.AttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			var duties []*eth2v1.AttesterDuty
+
 			f := fuzz.New().Funcs(
 				func(duties *[]*eth2v1.AttesterDuty, c fuzz.Continue) {
 					if c.RandBool() {
@@ -71,6 +72,7 @@ func WithBeaconMockFuzzer() Option {
 					if vals == nil {
 						return
 					}
+
 					var resp []*eth2v1.AttesterDuty
 					for _, vIdx := range indices {
 						var duty eth2v1.AttesterDuty
@@ -152,6 +154,7 @@ func WithBeaconMockFuzzer() Option {
 
 					// Return validators with expected keys 50% of the time.
 					setValidators(pubkeys)
+
 					*vals = getValidators()
 				},
 			)

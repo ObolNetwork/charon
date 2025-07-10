@@ -41,6 +41,7 @@ func Init(ctx context.Context, config Config) error {
 	defer initMu.Unlock()
 
 	var ok bool
+
 	for s := statusAlpha; s < statusSentinel; s++ {
 		if strings.EqualFold(config.MinStatus, s.String()) {
 			minStatus = s
@@ -49,18 +50,21 @@ func Init(ctx context.Context, config Config) error {
 			break
 		}
 	}
+
 	if !ok {
 		return errors.New("unknown min status", z.Str("min_status", config.MinStatus))
 	}
 
 	for _, f := range config.Enabled {
 		var ok bool
+
 		for feature := range state {
 			if strings.EqualFold(string(feature), f) {
 				state[feature] = enable
 				ok = true
 			}
 		}
+
 		if !ok {
 			log.Warn(ctx, "Ignoring unknown enabled feature", nil, z.Str("feature", f))
 		}
@@ -75,6 +79,7 @@ func Init(ctx context.Context, config Config) error {
 				ok = true
 			}
 		}
+
 		if !ok {
 			log.Warn(ctx, "Ignoring unknown disabled feature", nil, z.Str("feature", f))
 		}
@@ -114,6 +119,7 @@ func EnableForT(t *testing.T, feature Feature) {
 	defer initMu.Unlock()
 
 	cache := state[feature]
+
 	t.Cleanup(func() {
 		state[feature] = cache
 	})
@@ -129,6 +135,7 @@ func DisableForT(t *testing.T, feature Feature) {
 	defer initMu.Unlock()
 
 	cache := state[feature]
+
 	t.Cleanup(func() {
 		state[feature] = cache
 	})

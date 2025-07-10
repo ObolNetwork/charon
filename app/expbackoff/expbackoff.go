@@ -129,6 +129,7 @@ func NewWithReset(ctx context.Context, opts ...func(*Config)) (backoff func(), r
 		case <-ctx.Done():
 		case <-after(Backoff(conf, retries)):
 		}
+
 		retries++
 	}
 
@@ -154,6 +155,7 @@ func Backoff(config Config, retries int) time.Duration {
 		backoff *= config.Multiplier
 		retries--
 	}
+
 	if backoff > maxVal {
 		backoff = maxVal
 	}
@@ -173,8 +175,10 @@ var after = time.After
 // SetAfterForT sets the after internal function for testing.
 func SetAfterForT(t *testing.T, fn func(d time.Duration) <-chan time.Time) {
 	t.Helper()
+
 	cached := after
 	after = fn
+
 	t.Cleanup(func() {
 		after = cached
 	})
@@ -186,8 +190,10 @@ var randFloat = rand.Float64
 // SetRandFloatForT sets the random float internal function for testing.
 func SetRandFloatForT(t *testing.T, fn func() float64) {
 	t.Helper()
+
 	cached := randFloat
 	randFloat = fn
+
 	t.Cleanup(func() {
 		randFloat = cached
 	})

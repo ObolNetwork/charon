@@ -87,6 +87,7 @@ func (ts *TestSuite) Test_ThresholdAggregate() {
 	for idx, key := range shares {
 		signature, err := tbls.Sign(key, data)
 		ts.Require().NoError(err)
+
 		signatures[idx] = signature
 	}
 
@@ -150,12 +151,15 @@ func (ts *TestSuite) Test_VerifyAggregate() {
 		})
 	}
 
-	var signs []tbls.Signature
-	var pshares []tbls.PublicKey
+	var (
+		signs   []tbls.Signature
+		pshares []tbls.PublicKey
+	)
 
 	for _, key := range keys {
 		s, err := tbls.Sign(key.priv, data)
 		ts.Require().NoError(err)
+
 		signs = append(signs, s)
 		pshares = append(pshares, key.pub)
 	}
@@ -168,6 +172,7 @@ func (ts *TestSuite) Test_VerifyAggregate() {
 
 func runSuite(t *testing.T, i tbls.Implementation) {
 	t.Helper()
+
 	ts := NewTestSuite(i)
 
 	suite.Run(t, &ts)
@@ -179,6 +184,7 @@ func TestHerumiImplementation(t *testing.T) {
 
 func runBenchmark(b *testing.B, impl tbls.Implementation) {
 	b.Helper()
+
 	s := NewTestSuite(impl)
 	t := &testing.T{}
 	s.SetT(t)
@@ -276,6 +282,7 @@ func (r randomizedImpl) ThresholdSplit(secret tbls.PrivateKey, total uint, thres
 
 func (r randomizedImpl) ThresholdSplitInsecure(t *testing.T, secret tbls.PrivateKey, total uint, threshold uint, random io.Reader) (map[int]tbls.PrivateKey, error) {
 	t.Helper()
+
 	impl, err := r.selectImpl()
 	if err != nil {
 		return nil, err

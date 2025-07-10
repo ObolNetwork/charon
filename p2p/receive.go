@@ -60,6 +60,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 			z.Str("peer", name),
 			z.Any("protocol", s.Protocol()),
 		)
+
 		defer cancel()
 		defer s.Close()
 
@@ -68,6 +69,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 			log.Error(ctx, "LibP2P no writer for protocol", nil)
 			return
 		}
+
 		readFunc, ok := o.readersByProtocol[s.Protocol()]
 		if !ok {
 			log.Error(ctx, "LibP2P no reader for protocol", nil)
@@ -75,6 +77,7 @@ func RegisterHandler(logTopic string, tcpNode host.Host, pID protocol.ID,
 		}
 
 		req := zeroReq()
+
 		err := readFunc(s).ReadMsg(req)
 		if IsRelayError(err) {
 			return // Ignore relay errors.

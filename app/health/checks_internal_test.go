@@ -437,9 +437,11 @@ func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics 
 	if len(metrics) > maxVal {
 		maxVal = len(metrics)
 	}
+
 	if len(randomFamFoo) > maxVal {
 		maxVal = len(randomFamFoo)
 	}
+
 	if len(randomFamBar) > maxVal {
 		maxVal = len(randomFamBar)
 	}
@@ -450,9 +452,11 @@ func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics 
 		if i < len(metrics) {
 			fam = append(fam, metrics[i])
 		}
+
 		if i < len(randomFamFoo) {
 			fam = append(fam, randomFamFoo[i])
 		}
+
 		if i < len(randomFamBar) {
 			fam = append(fam, randomFamBar[i])
 		}
@@ -489,6 +493,7 @@ func genFam(name string, metrics ...[]*pb.Metric) []*pb.MetricFamily {
 	}
 
 	resp := make([]*pb.MetricFamily, maxVal)
+
 	for _, series := range metrics {
 		for i, metric := range series {
 			if resp[i] == nil {
@@ -498,6 +503,7 @@ func genFam(name string, metrics ...[]*pb.Metric) []*pb.MetricFamily {
 					Metric: []*pb.Metric{},
 				}
 			}
+
 			resp[i].Metric = append(resp[i].Metric, metric)
 		}
 	}
@@ -523,6 +529,7 @@ func genLabels(nameVals ...string) []*pb.LabelPair {
 
 func genCounter(labels []*pb.LabelPair, values ...int) []*pb.Metric {
 	var resp []*pb.Metric
+
 	for i, value := range values {
 		ts := startTime.Add(time.Duration(i) * time.Second).UnixMilli()
 		val := float64(value)
@@ -540,6 +547,7 @@ func genCounter(labels []*pb.LabelPair, values ...int) []*pb.Metric {
 
 func genGauge(labels []*pb.LabelPair, values ...int) []*pb.Metric {
 	var resp []*pb.Metric
+
 	for i, value := range values {
 		ts := startTime.Add(time.Duration(i) * time.Second).UnixMilli()
 		val := float64(value)

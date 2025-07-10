@@ -70,6 +70,7 @@ func WithTracking(tracker Tracker, inclusion InclusionChecker) WireOption {
 
 			err := clone.BroadcasterBroadcast(ctx, duty, set)
 			tracker.BroadcasterBroadcast(duty, set, err)
+
 			if err != nil {
 				return err
 			}

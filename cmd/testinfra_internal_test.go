@@ -209,7 +209,9 @@ func TestInfraTest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
+
 			ctx := context.Background()
+
 			_, err := runTestInfra(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
@@ -217,6 +219,7 @@ func TestInfraTest(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			defer func() {
 				if test.cleanup != nil {
 					test.cleanup(t, test.config.OutputJSON)
@@ -238,6 +241,7 @@ func TestInfraTest(t *testing.T) {
 
 func StartHealthyInfraClient(t *testing.T, port int, ready chan bool) error {
 	t.Helper()
+
 	defer close(ready)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%v", port))
@@ -247,6 +251,7 @@ func StartHealthyInfraClient(t *testing.T, port int, ready chan bool) error {
 	defer listener.Close()
 
 	ready <- true
+
 	for {
 		_, err := listener.Accept()
 		if err != nil {
@@ -279,6 +284,7 @@ func TestInfraTestFlags(t *testing.T) {
 				return testCategoryResult{}, nil
 			}))
 			cmd.SetArgs(test.args)
+
 			err := cmd.Execute()
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)

@@ -19,6 +19,7 @@ func TestManager(t *testing.T) {
 		Type  lifecycle.HookStartType
 		Order int
 	}
+
 	tests := []struct {
 		Name         string
 		Hooks        []hook
@@ -83,6 +84,7 @@ func TestManager(t *testing.T) {
 					lifecycle.OrderStart(hook.Order),
 					proc.Start(hook.Order, async),
 				)
+
 				starts++
 			}
 
@@ -107,11 +109,13 @@ func TestManager(t *testing.T) {
 
 			// Wait for the hooks to be called.
 			var calls []string
+
 			for i := range len(test.Hooks) {
 				if i == starts {
 					// Cancel application context after the starts hooks.
 					cancel()
 				}
+
 				calls = append(calls, <-proc.Calls)
 			}
 
@@ -165,6 +169,7 @@ func (p *process) Start(order int, async bool) lifecycle.IHookFunc {
 func (p *process) Stop(order int) lifecycle.IHookFunc {
 	return lifecycle.HookFunc(func(context.Context) error {
 		p.Calls <- fmt.Sprintf("Stop[%d]", order)
+
 		p.Stops <- struct{}{}
 
 		return nil

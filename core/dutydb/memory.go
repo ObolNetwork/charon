@@ -83,12 +83,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		if len(unsignedSet) > 1 {
 			return errors.New("unexpected proposer data set length", z.Int("n", len(unsignedSet)))
 		}
+
 		for _, unsignedData := range unsignedSet {
 			err := db.storeProposalUnsafe(unsignedData)
 			if err != nil {
 				return err
 			}
 		}
+
 		db.resolveProQueriesUnsafe()
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
@@ -99,6 +101,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 				return err
 			}
 		}
+
 		db.resolveAttQueriesUnsafe()
 	case core.DutyAggregator:
 		var err error
@@ -108,6 +111,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 				return err
 			}
 		}
+
 		db.resolveAggQueriesUnsafe()
 	case core.DutySyncContribution:
 		for _, unsignedData := range unsignedSet {
@@ -116,6 +120,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 				return err
 			}
 		}
+
 		db.resolveContribQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
@@ -124,12 +129,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	// Delete all expired duties.
 	for {
 		var deleted bool
+
 		select {
 		case duty := <-db.deadliner.C():
 			err := db.deleteDutyUnsafe(duty)
 			if err != nil {
 				return err
 			}
+
 			deleted = true
 		default:
 		}
@@ -146,6 +153,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
+
 	response := make(chan *eth2api.VersionedProposal, 1)
 
 	db.mu.Lock()
@@ -171,6 +179,7 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
+
 	response := make(chan *eth2p0.AttestationData, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
@@ -201,6 +210,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 ) (*eth2spec.VersionedAttestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
+
 	response := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
@@ -226,6 +236,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 		if err != nil {
 			return nil, err
 		}
+
 		aggAtt, ok := clone.(core.VersionedAggregatedAttestation)
 		if !ok {
 			return nil, errors.New("invalid aggregated attestation")
@@ -240,6 +251,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 func (db *MemDB) AwaitSyncContribution(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
+
 	response := make(chan *altair.SyncCommitteeContribution, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
@@ -386,6 +398,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 	if err != nil {
 		return err
 	}
+
 	aggRoot, err := aggAttData.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash aggregated attestation root")
@@ -403,16 +416,19 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 		if err != nil {
 			return errors.Wrap(err, "existing data")
 		}
+
 		existingDataRoot, err := existingData.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "existing data root")
 		}
 
 		provided := aggAtt
+
 		providedData, err := provided.Data()
 		if err != nil {
 			return errors.Wrap(err, "provided data")
 		}
+
 		providedDataRoot, err := providedData.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "provided data root")
@@ -513,6 +529,7 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveAttQueriesUnsafe() {
 	var unresolved []attQuery
+
 	for _, query := range db.attQueries {
 		if cancelled(query.Cancel) {
 			continue // Drop cancelled queries.
@@ -534,6 +551,7 @@ func (db *MemDB) resolveAttQueriesUnsafe() {
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveProQueriesUnsafe() {
 	var unresolved []proQuery
+
 	for _, query := range db.proQueries {
 		if cancelled(query.Cancel) {
 			continue // Drop cancelled queries.
@@ -555,6 +573,7 @@ func (db *MemDB) resolveProQueriesUnsafe() {
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveAggQueriesUnsafe() {
 	var unresolved []aggQuery
+
 	for _, query := range db.aggQueries {
 		if cancelled(query.Cancel) {
 			continue // Drop cancelled queries.
@@ -576,6 +595,7 @@ func (db *MemDB) resolveAggQueriesUnsafe() {
 // It is unsafe since it assumes that the lock is held.
 func (db *MemDB) resolveContribQueriesUnsafe() {
 	var unresolved []contribQuery
+
 	for _, query := range db.contribQueries {
 		if cancelled(query.Cancel) {
 			continue // Drop cancelled queries.
@@ -605,16 +625,19 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 			delete(db.attPubKeys, key)
 			delete(db.attDuties, attKey{Slot: key.Slot, CommIdx: key.CommIdx})
 		}
+
 		delete(db.attKeysBySlot, duty.Slot)
 	case core.DutyAggregator:
 		for _, key := range db.aggKeysBySlot[duty.Slot] {
 			delete(db.aggDuties, key)
 		}
+
 		delete(db.aggKeysBySlot, duty.Slot)
 	case core.DutySyncContribution:
 		for _, key := range db.contribKeysBySlot[duty.Slot] {
 			delete(db.contribDuties, key)
 		}
+
 		delete(db.contribKeysBySlot, duty.Slot)
 	default:
 		return errors.New("unknown duty type")

@@ -39,6 +39,7 @@ func Test_runFetchExit(t *testing.T) {
 
 func testRunFetchExitFullFlow(t *testing.T, all bool) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	valAmt := 100
@@ -86,6 +87,7 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 		beaconmock.WithValidatorSet(validatorSet),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -95,7 +97,9 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
 	srv := httptest.NewServer(handler)
+
 	addLockFiles(lock)
+
 	defer srv.Close()
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
@@ -148,6 +152,7 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 
 func Test_runFetchExitBadOutDir(t *testing.T) {
 	t.Parallel()
+
 	config := exitConfig{
 		FetchedExitPath: "bad",
 	}
@@ -295,6 +300,7 @@ func TestFetchExitFullFlowNotActivated(t *testing.T) {
 		beaconmock.WithValidatorSet(validatorSet),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -304,7 +310,9 @@ func TestFetchExitFullFlowNotActivated(t *testing.T) {
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
 	srv := httptest.NewServer(handler)
+
 	addLockFiles(lock)
+
 	defer srv.Close()
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)

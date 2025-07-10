@@ -15,12 +15,14 @@ import (
 
 func TestDutyExpiration(t *testing.T) {
 	var wg sync.WaitGroup
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deadliner := newTestDeadliner()
 	db := NewMemDB(deadliner)
 
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
 
@@ -77,20 +79,27 @@ func TestCancelledQuery(t *testing.T) {
 	var wg sync.WaitGroup
 
 	wg.Add(1)
+
 	errCh := make(chan error, 2)
+
 	go func() {
 		_, err := db.Await(qctx, duty, pubkey)
 		errCh <- err
+
 		wg.Done()
 	}()
+
 	require.Equal(t, 1, <-queryCount)
 
 	wg.Add(1)
+
 	go func() {
 		_, err := db.Await(qctx, duty, pubkey)
 		errCh <- err
+
 		wg.Done()
 	}()
+
 	require.Equal(t, 2, <-queryCount)
 
 	// Cancel queries

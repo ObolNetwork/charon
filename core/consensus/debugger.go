@@ -98,6 +98,7 @@ func (d *debugger) getZippedProto() ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
+
 	zw, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
 	if err != nil {
 		return nil, errors.Wrap(err, "new gzip writer")

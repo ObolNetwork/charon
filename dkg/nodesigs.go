@@ -149,6 +149,7 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ strin
 // checkMessage is the default bcast.CheckMessage for nodeSigBcast.
 func (*nodeSigBcast) checkMessage(_ context.Context, peerID peer.ID, msgAny *anypb.Any) error {
 	var msg dkgpb.MsgNodeSig
+
 	err := msgAny.UnmarshalTo(&msg)
 	if err != nil {
 		return errors.Wrap(err, "node signature request malformed", z.Str("peer_id", peerID.String()))

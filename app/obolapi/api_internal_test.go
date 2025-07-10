@@ -92,6 +92,7 @@ func TestHttpPost(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			testServerURL, err := url.ParseRequestURI(test.server.URL)
 			require.NoError(t, err)
+
 			err = httpPost(context.Background(), testServerURL.JoinPath(test.endpoint), test.body, test.headers)
 			if test.expectedError != "" {
 				require.Error(t, err)
@@ -162,13 +163,16 @@ func TestHttpGet(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			testServerURL, err := url.ParseRequestURI(test.server.URL)
 			require.NoError(t, err)
+
 			respBody, err := httpGet(context.Background(), testServerURL.JoinPath(test.endpoint), test.headers)
 			if test.expectedError != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, test.expectedError)
 			} else {
 				require.NoError(t, err)
+
 				defer respBody.Close()
+
 				resp, err := io.ReadAll(respBody)
 				require.NoError(t, err)
 				require.Equal(t, string(resp), string(test.expectedResp))

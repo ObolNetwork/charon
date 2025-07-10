@@ -74,6 +74,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		clients  []*sync.Client
 		keys     []libp2pcrypto.PrivKey
 	)
+
 	for i := range n {
 		tcpNode, key := newTCPNode(t, int64(i))
 		tcpNodes = append(tcpNodes, tcpNode)
@@ -84,11 +85,13 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 	}
 
 	errCh := make(chan error, 1)
+
 	for i := range n {
 		for j := range n {
 			if i == j {
 				continue
 			}
+
 			err := tcpNodes[i].Connect(ctx, peer.AddrInfo{
 				ID:    tcpNodes[j].ID(),
 				Addrs: tcpNodes[j].Addrs(),
@@ -102,6 +105,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 			clients = append(clients, client)
 
 			ctx := log.WithTopic(ctx, fmt.Sprintf("client%d_%d", i, j))
+
 			go func() {
 				err := client.Run(ctx)
 				errCh <- err
@@ -116,6 +120,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 	}
 
 	t.Log("server.AwaitAllConnected")
+
 	for _, server := range servers {
 		err := server.AwaitAllConnected(ctx)
 		if expectErr != "" {
@@ -138,11 +143,13 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 	}
 
 	t.Log("client.IsConnected")
+
 	for _, client := range clients {
 		require.True(t, client.IsConnected())
 	}
 
 	t.Log("client.Shutdown")
+
 	for _, client := range clients {
 		err := client.Shutdown(ctx)
 		require.NoError(t, err)
@@ -153,9 +160,11 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 		require.ErrorContains(t, err, expectErr)
 		return
 	}
+
 	require.NoError(t, err)
 
 	t.Log("server.AwaitAllShutdown")
+
 	for _, server := range servers {
 		err := server.AwaitAllShutdown(ctx)
 		require.NoError(t, err)
@@ -164,6 +173,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 
 func assertAllAtStep(ctx context.Context, t *testing.T, servers []*sync.Server, step int) {
 	t.Helper()
+
 	for _, server := range servers {
 		err := server.AwaitAllAtStep(ctx, step)
 		require.NoError(t, err)

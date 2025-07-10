@@ -107,6 +107,7 @@ func newExchanger(tcpNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParSignedDataSet) (map[core.PubKey][]core.ParSignedData, error) {
 	// Start the process by storing current peer's ParSignedDataSet
 	duty := core.NewSignatureDuty(uint64(sigType))
+
 	err := e.sigdb.StoreInternal(ctx, duty, set)
 	if err != nil {
 		return nil, err
@@ -157,6 +158,7 @@ func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.
 	}
 
 	e.sigData.lock.Unlock()
+
 	select {
 	case e.sigDatasChan <- ret:
 	case <-ctx.Done():

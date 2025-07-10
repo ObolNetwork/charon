@@ -89,6 +89,7 @@ type Component struct {
 // the provided slot.
 func dutiesForSlot(slot metaSlot, types ...core.DutyType) map[scheduleTuple]struct{} {
 	resp := make(map[scheduleTuple]struct{})
+
 	for _, dutyType := range types {
 		dutyStartFuncs, ok := dutyStartTimeFuncsByDuty[dutyType]
 		if !ok {

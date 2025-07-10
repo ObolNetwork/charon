@@ -25,10 +25,12 @@ func (d Duration) MarshalJSON() ([]byte, error) {
 
 func (d *Duration) UnmarshalJSON(b []byte) error {
 	var v any
+
 	err := json.Unmarshal(b, &v)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal json duration")
 	}
+
 	switch value := v.(type) {
 	case float64:
 		d.Duration = time.Duration(value)
@@ -50,6 +52,7 @@ func (d Duration) MarshalText() ([]byte, error) {
 
 func (d *Duration) UnmarshalText(b []byte) error {
 	strTime := string(b)
+
 	intTime, err := strconv.ParseInt(strTime, 10, 64)
 	switch {
 	case err == nil:

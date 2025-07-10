@@ -62,6 +62,7 @@ func (p *ProposerConfigResponse) UnmarshalJSON(input []byte) error {
 		if err != nil {
 			return errors.Wrap(err, "decode proposer public key")
 		}
+
 		if len(pkBytes) != 48 {
 			return errors.New("invalid proposer public key")
 		}

@@ -22,6 +22,7 @@ import (
 func TestReconnect(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+
 	var wg sync.WaitGroup
 	// Start test server.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,10 +38,13 @@ func TestReconnect(t *testing.T) {
 	// Create SSE client and add to waitgroup.
 	cl, err := newClient(ts.URL, make(http.Header))
 	require.NoError(t, err)
+
 	eventHandler := func(ctx context.Context, event *event, url string) error { return nil }
 
 	wg.Add(1)
+
 	errCh := make(chan error)
+
 	go func() { errCh <- cl.start(ctx, eventHandler) }()
 
 	// Wait for waitgroup to be finished by the test server (= call from SSE client received).
@@ -229,6 +233,7 @@ data: multiline data
 				require.Equal(t, test.event.Data, event.Data)
 				require.Equal(t, test.event.ID, event.ID)
 			}
+
 			if test.err != nil {
 				require.ErrorContains(t, err, test.err.Error())
 			}
@@ -264,6 +269,7 @@ func TestClientReconnect(t *testing.T) {
 	// client should automatically reconnect until context deadline stops it.
 	client, err := newClientForT(server.URL, "single-event")
 	require.NoError(t, err)
+
 	client.retry = 0
 
 	counter := 0

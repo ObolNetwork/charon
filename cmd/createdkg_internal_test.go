@@ -157,6 +157,7 @@ func TestExistingClusterDefinition(t *testing.T) {
 	for range minNodes {
 		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
 	}
+
 	enrArg := "--operator-enrs=" + strings.Join(enrs, ",")
 	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
 	withdrawalArg := "--withdrawal-addresses=" + validEthAddr
@@ -223,6 +224,7 @@ func TestDKGCLI(t *testing.T) {
 	for range minNodes {
 		enrs = append(enrs, "enr:-JG4QG472ZVvl8ySSnUK9uNVDrP_hjkUrUqIxUC75aayzmDVQedXkjbqc7QKyOOS71VmlqnYzri_taV8ZesFYaoQSIOGAYHtv1WsgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKwwq_CAld6oVKOrixE-JzMtvvNgb9yyI-_rwq4NFtajIN0Y3CCDhqDdWRwgg4u")
 	}
+
 	enrArg := "--operator-enrs=" + strings.Join(enrs, ",")
 	feeRecipientArg := "--fee-recipient-addresses=" + validEthAddr
 	withdrawalArg := "--withdrawal-addresses=" + validEthAddr

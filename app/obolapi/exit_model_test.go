@@ -38,6 +38,7 @@ func Test_PartialExitRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	var other obolapi.PartialExitRequest
+
 	err = other.UnmarshalJSON(jbytes)
 	require.NoError(t, err)
 	require.Equal(t, other, pr)

@@ -109,6 +109,7 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 	// Field (9) 'addresses'
 	{
 		subIndx := hh.Index()
+
 		num := uint64(len(d.Operators))
 		for _, o := range d.Operators {
 			if configOnly {
@@ -138,6 +139,7 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 
 			hh.Merkleize(subIdx)
 		}
+
 		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
@@ -219,6 +221,7 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 	// Field (10) 'Operators' CompositeList[256]
 	{
 		operatorsIdx := hh.Index()
+
 		num := uint64(len(d.Operators))
 		for _, o := range d.Operators {
 			operatorIdx := hh.Index()
@@ -228,6 +231,7 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 			if err != nil {
 				return err
 			}
+
 			hh.PutBytes(addrBytes)
 
 			if !configOnly {
@@ -245,6 +249,7 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 
 			hh.Merkleize(operatorIdx)
 		}
+
 		hh.MerkleizeWithMixin(operatorsIdx, num, sszMaxOperators)
 	}
 
@@ -257,6 +262,7 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 		if err != nil {
 			return err
 		}
+
 		hh.PutBytes(addrBytes)
 
 		if !configOnly {
@@ -323,6 +329,7 @@ func hashDefinitionV1x5to9(d Definition, hh ssz.HashWalker, configOnly bool, ext
 	// Field (8) 'Operators' CompositeList[256]
 	{
 		operatorsIdx := hh.Index()
+
 		num := uint64(len(d.Operators))
 		for _, o := range d.Operators {
 			operatorIdx := hh.Index()
@@ -351,6 +358,7 @@ func hashDefinitionV1x5to9(d Definition, hh ssz.HashWalker, configOnly bool, ext
 
 			hh.Merkleize(operatorIdx)
 		}
+
 		hh.MerkleizeWithMixin(operatorsIdx, num, sszMaxOperators)
 	}
 
@@ -369,12 +377,14 @@ func hashDefinitionV1x5to9(d Definition, hh ssz.HashWalker, configOnly bool, ext
 				return err
 			}
 		}
+
 		hh.Merkleize(creatorIdx)
 	}
 
 	// Field (10) 'ValidatorAddresses' CompositeList[65536]
 	{
 		validatorsIdx := hh.Index()
+
 		num := uint64(len(d.ValidatorAddresses))
 		for _, v := range d.ValidatorAddresses {
 			validatorIdx := hh.Index()
@@ -391,6 +401,7 @@ func hashDefinitionV1x5to9(d Definition, hh ssz.HashWalker, configOnly bool, ext
 
 			hh.Merkleize(validatorIdx)
 		}
+
 		hh.MerkleizeWithMixin(validatorsIdx, num, sszMaxValidators)
 	}
 
@@ -427,10 +438,12 @@ func hashDefinitionV1x8to10(d Definition, hh ssz.HashWalker, configOnly bool, ex
 			if !ok {
 				return errors.New("invalid hasher type")
 			}
+
 			var amounts64 []uint64
 			for _, amount := range d.DepositAmounts {
 				amounts64 = append(amounts64, uint64(amount))
 			}
+
 			hasher.PutUint64Array(amounts64, sszMaxDepositAmounts)
 
 			for _, f := range extra {
@@ -526,12 +539,14 @@ func hashLockV1x3orLater(l Lock, hh ssz.HashWalker) error {
 	// Field (1) 'Validators' CompositeList[65536]
 	{
 		subIndx := hh.Index()
+
 		num := uint64(len(l.Validators))
 		for _, validator := range l.Validators {
 			if err := valHashFunc(validator, hh, l.Version); err != nil {
 				return err
 			}
 		}
+
 		hh.MerkleizeWithMixin(subIndx, num, sszMaxValidators)
 	}
 
@@ -659,14 +674,17 @@ func hashValidatorV1x8OrLater(v DistValidator, hh ssz.HashWalker, version string
 	// Field (2) 'PartialDepositData' Composite[256]
 	{
 		pddIndx := hh.Index()
+
 		num := uint64(len(v.PartialDepositData))
 		for _, dd := range v.PartialDepositData {
 			ddIndx := hh.Index()
 			if err := depositHashFunc(dd, hh); err != nil {
 				return err
 			}
+
 			hh.Merkleize(ddIndx)
 		}
+
 		hh.MerkleizeWithMixin(pddIndx, num, sszMaxDepositAmounts)
 	}
 
@@ -692,12 +710,14 @@ func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 	// Field (1) 'ValidatorAddresses'
 	{
 		subIndx := hh.Index()
+
 		num := uint64(len(l.Validators))
 		for _, validator := range l.Validators {
 			if err := hashValidatorLegacy(validator, hh); err != nil {
 				return err
 			}
 		}
+
 		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 
@@ -716,10 +736,12 @@ func hashValidatorLegacy(v DistValidator, hh ssz.HashWalker) error {
 	// Field (1) 'Pubshares'
 	{
 		subIndx := hh.Index()
+
 		num := uint64(len(v.PubShares))
 		for _, pubshare := range v.PubShares {
 			hh.PutBytes(pubshare)
 		}
+
 		hh.MerkleizeWithMixin(subIndx, num, num)
 	}
 

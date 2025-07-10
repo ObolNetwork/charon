@@ -162,6 +162,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	key := conf.TestConfig.P2PKey
 	if key == nil {
 		var err error
+
 		key, err = p2p.LoadPrivKey(conf.DataDir)
 		if err != nil {
 			return err
@@ -206,6 +207,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err != nil {
 			return err
 		}
+
 		peerMap[p.ID] = nodeIdx
 	}
 
@@ -233,6 +235,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
 
 	var shares []share
+
 	switch def.DKGAlgorithm {
 	case "default", "frost":
 		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
@@ -260,6 +263,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	} else {
 		depositAmounts = deposit.DedupAmounts(depositAmounts)
 	}
+
 	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts, def.Compounding)
 	if err != nil {
 		return err
@@ -332,11 +336,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken, shares); err != nil {
 			return err
 		}
+
 		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr))
 	} else { // Else save to disk
 		if err = writeKeysToDisk(conf, shares); err != nil {
 			return err
 		}
+
 		log.Debug(ctx, "Saved keyshares to disk")
 	}
 
@@ -354,6 +360,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err = writeLock(conf.DataDir, lock); err != nil {
 		return err
 	}
+
 	log.Debug(ctx, "Saved lock file to disk")
 
 	// The loop across partial amounts (shall be unique)
@@ -361,6 +368,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err := deposit.WriteDepositDataFile(dd, network, conf.DataDir); err != nil {
 			return err
 		}
+
 		log.Debug(ctx, "Saved deposit data file to disk", z.Str("filepath", deposit.GetDepositFilePath(conf.DataDir, dd[0].Amount)))
 	}
 
@@ -376,6 +384,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if conf.TestConfig.ShutdownCallback != nil {
 		conf.TestConfig.ShutdownCallback()
 	}
+
 	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))
 	time.Sleep(conf.ShutdownDelay)
 
@@ -443,7 +452,6 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 ) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, err error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
-
 	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "sign definition hash")
@@ -456,6 +464,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	server.Start(ctx)
 
 	var clients []*sync.Client
+
 	for _, pID := range peerIDs {
 		if tcpNode.ID() == pID {
 			continue
@@ -487,6 +496,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 		}
 
 		var connectedCount int
+
 		for _, client := range clients {
 			if client.IsConnected() {
 				connectedCount++
@@ -518,6 +528,7 @@ func startSyncProtocol(ctx context.Context, tcpNode host.Host, key *k1.PrivateKe
 	}
 
 	var step int
+
 	stepSyncFunc = func(ctx context.Context) error {
 		// Start next step ourselves by incrementing our step client side
 		step++
@@ -573,6 +584,7 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		Definition: def,
 		Validators: vals,
 	}
+
 	lock, err = lock.SetLockHash()
 	if err != nil {
 		return cluster.Lock{}, err
@@ -741,11 +753,13 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei, compounding bool) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
 	msgs := make(map[core.PubKey]eth2p0.DepositMessage)
 	set := make(core.ParSignedDataSet)
+
 	for i, share := range shares {
 		withdrawalHex, err := eth2util.ChecksumAddress(withdrawalAddresses[i])
 		if err != nil {
 			return nil, nil, err
 		}
+
 		pubkey, err := tblsconv.PubkeyToETH2(share.PubKey)
 		if err != nil {
 			return nil, nil, err
@@ -786,6 +800,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64, forkVersion []byte) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
 	msgs := make(map[core.PubKey]core.VersionedSignedValidatorRegistration)
 	set := make(core.ParSignedDataSet)
+
 	for idx, share := range shares {
 		pubkey, err := tblsconv.PubkeyToETH2(share.PubKey)
 		if err != nil {
@@ -853,6 +868,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 		if !ok {
 			return nil, errors.New("deposit message not found")
 		}
+
 		sigRoot, err := deposit.GetMessageSigningRoot(msg, network)
 		if err != nil {
 			return nil, err
@@ -937,6 +953,7 @@ func aggValidatorRegistrations(
 		if !ok {
 			return nil, errors.New("validator registration not found")
 		}
+
 		sigRoot, err := registration.GetMessageSigningRoot(msg.V1.Message, eth2p0.Version(forkVersion))
 		if err != nil {
 			return nil, err
@@ -1001,6 +1018,7 @@ func aggValidatorRegistrations(
 // shares and deposit datas.
 func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration) ([]cluster.DistValidator, error) {
 	depositDatasMap := make(map[tbls.PublicKey][]eth2p0.DepositData)
+
 	for amountIndex := range depositDatas {
 		for ddIndex := range depositDatas[amountIndex] {
 			dd := depositDatas[amountIndex][ddIndex]
@@ -1029,6 +1047,7 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 
 			break
 		}
+
 		if regIdx == -1 {
 			return nil, errors.New("validator registration not found")
 		}
@@ -1087,6 +1106,7 @@ func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error 
 	if addr != "" && authToken == "" {
 		return errors.New("--keymanager-address provided but --keymanager-auth-token absent. Please fix configuration flags")
 	}
+
 	if addr == "" && authToken != "" {
 		return errors.New("--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags")
 	}
@@ -1110,9 +1130,11 @@ func logPeerSummary(ctx context.Context, currentPeer peer.ID, peers []p2p.Peer, 
 		if operators[i].Address != "" {
 			opts = append(opts, z.Str("address", operators[i].Address))
 		}
+
 		if p.ID == currentPeer {
 			opts = append(opts, z.Str("you", "⭐️"))
 		}
+
 		log.Info(ctx, "Peer summary", opts...)
 	}
 }

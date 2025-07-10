@@ -163,6 +163,7 @@ type Prioritiser struct {
 func (p *Prioritiser) Start(ctx context.Context) {
 	go func() {
 		defer close(p.quit)
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -281,6 +282,7 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 		if dedupPeers[msg.GetPeerId()] {
 			return
 		}
+
 		dedupPeers[msg.GetPeerId()] = true
 		msgs = append(msgs, msg)
 	}
@@ -295,6 +297,7 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 			return ctx.Err()
 		case req := <-requests:
 			addMsg(req.Msg)
+
 			req.Response <- own
 		case msg := <-responses:
 			addMsg(msg)
@@ -304,7 +307,9 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 			}
 
 			log.Debug(ctx, "Priority protocol instance exchange timeout, starting consensus")
+
 			consStarted = true
+
 			err := startConsensus(ctx, duty, msgs, minRequired, consensus)
 			if err != nil {
 				return err
@@ -313,7 +318,9 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 
 		if !consStarted && len(msgs) == len(peers) {
 			log.Debug(ctx, "Priority protocol instance messages exchanged, starting consensus")
+
 			consStarted = true
+
 			err := startConsensus(ctx, duty, msgs, minRequired, consensus)
 			if err != nil {
 				return err
@@ -333,6 +340,7 @@ func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValida
 
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
+
 			err := sendFunc(ctx, tcpNode, pID, own, response, protocolID2)
 			if err != nil {
 				// No need to log, since transport will do it.
@@ -388,6 +396,7 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "marshal proto")
 	}
+
 	hh.PutBytes(b)
 
 	hh.Merkleize(index)

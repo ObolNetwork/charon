@@ -54,9 +54,11 @@ func NamedAddr(addr ma.Multiaddr) string {
 				return true
 			}
 		}
+
 		if c.Protocol().Name != "" {
 			resp = append(resp, c.Protocol().Name)
 		}
+
 		if c.Value() != "" {
 			resp = append(resp, strings.TrimPrefix(c.Value(), "/"))
 		}

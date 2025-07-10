@@ -34,6 +34,7 @@ func MostPreferredConsensusProtocol(protocols []string) string {
 func IsSupportedProtocolName(name string) bool {
 	for _, p := range Protocols() {
 		nameAndVersion := strings.TrimPrefix(string(p), protocolIDPrefix)
+
 		parts := strings.Split(nameAndVersion, "/")
 		if len(parts) > 0 && parts[0] == strings.ToLower(name) {
 			return true
@@ -49,6 +50,7 @@ func PrioritizeProtocolsByName(protocolName string, allProtocols []protocol.ID) 
 	targetPrefix := protocolIDPrefix + protocolName + "/"
 
 	var bumped, others []protocol.ID
+
 	for _, p := range allProtocols {
 		if strings.HasPrefix(string(p), targetPrefix) {
 			bumped = append(bumped, p)

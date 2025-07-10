@@ -98,6 +98,7 @@ func buildGraffiti(graffiti string, token string, disableClientAppend bool) [32]
 // defaultGraffiti returns the default graffiti
 func defaultGraffiti() [32]byte {
 	var graffitiBytes [32]byte
+
 	commitSHA, _ := version.GitCommit()
 	copy(graffitiBytes[:], fmt.Sprintf("charon/%v-%s", version.Version, commitSHA))
 
@@ -112,6 +113,7 @@ func fetchBeaconNodeToken(eth2Cl eth2wrap.Client) string {
 	}
 
 	productToken := strings.Split(eth2Resp.Data, "/")[0]
+
 	token, ok := ClientGraffitiMappings()[productToken]
 	if !ok {
 		return ""

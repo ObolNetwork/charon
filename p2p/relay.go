@@ -48,6 +48,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 
 				continue
 			}
+
 			resetBackoff()
 
 			// Note a single long-lived reservation (created by server-side) is mapped to
@@ -77,6 +78,7 @@ func NewRelayReserver(tcpNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 					if len(tcpNode.Network().ConnsToPeer(relayPeer.ID)) > 0 {
 						continue // Still connected, continue for loop
 					}
+
 					log.Debug(ctx, "No relay connection, reconnecting",
 						z.Str("relay_peer", name))
 					// Break out of for loop below to reconnect/re-reserve

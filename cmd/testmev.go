@@ -36,6 +36,7 @@ import (
 
 type testMEVConfig struct {
 	testConfig
+
 	Endpoints          []string
 	BeaconNodeEndpoint string
 	LoadTest           bool
@@ -111,10 +112,12 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (res testCa
 	log.Info(ctx, "Starting MEV relays test")
 
 	testCases := supportedMEVTestCases()
+
 	queuedTests := filterTests(slices.Collect(maps.Keys(testCases)), cfg.testConfig)
 	if len(queuedTests) == 0 {
 		return res, errors.New("test case not supported")
 	}
+
 	sortTests(queuedTests)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -135,6 +138,7 @@ func runTestMEV(ctx context.Context, w io.Writer, cfg testMEVConfig) (res testCa
 
 	// use highest score as score of all
 	var score categoryScore
+
 	for _, t := range testResults {
 		targetScore := calculateScore(t)
 		if score == "" || score > targetScore {
@@ -189,10 +193,12 @@ func testAllMEVs(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 	}
 
 	doneReading := make(chan bool)
+
 	go func() {
 		for singleMEVRes := range singleMEVResCh {
 			maps.Copy(allMEVsRes, singleMEVRes)
 		}
+
 		doneReading <- true
 	}()
 
@@ -200,6 +206,7 @@ func testAllMEVs(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 	if err != nil {
 		return
 	}
+
 	close(singleMEVResCh)
 	<-doneReading
 
@@ -212,10 +219,13 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 
 	// run all mev tests for a mev node, pushing each completed test to the channel until all are complete or timeout occurs
 	go runMEVTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
+
 	testCounter := 0
+
 	finished := false
 	for !finished {
 		var testName string
+
 		select {
 		case <-ctx.Done():
 			testName = queuedTestCases[testCounter].name
@@ -226,7 +236,9 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 				finished = true
 				break
 			}
+
 			testCounter++
+
 			allTestRes = append(allTestRes, result)
 		}
 	}
@@ -239,6 +251,7 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 
 func runMEVTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, cfg testMEVConfig, target string, ch chan testResult) {
 	defer close(ch)
+
 	for _, t := range queuedTestCases {
 		select {
 		case <-ctx.Done():
@@ -254,10 +267,12 @@ func mevPingTest(ctx context.Context, _ *testMEVConfig, target string) testResul
 
 	client := http.Client{}
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/builder/status", target)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return failedTestResult(testRes, err)
@@ -304,7 +319,9 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	latestBlockTS := time.Unix(latestBlockTSUnix, 0)
+
 	nextBlockTS := latestBlockTS.Add(slotTime)
 	for time.Now().Before(nextBlockTS) && ctx.Err() == nil {
 		sleepWithContext(ctx, time.Millisecond)
@@ -314,21 +331,27 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
 	nextSlot := latestSlot + 1
 	epoch := nextSlot / slotsInEpoch
+
 	proposerDuties, err := fetchProposersForEpoch(ctx, conf, epoch)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
 
 	allBlocksRTT := []time.Duration{}
+
 	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target), z.Any("blocks", conf.NumberOfPayloads))
+
 	for ctx.Err() == nil {
 		startIteration := time.Now()
+
 		rtt, err := createMEVBlock(ctx, conf, target, nextSlot, latestBlock, proposerDuties)
 		if err != nil {
 			return failedTestResult(testRes, err)
 		}
+
 		allBlocksRTT = append(allBlocksRTT, rtt)
 		if len(allBlocksRTT) == int(conf.NumberOfPayloads) {
 			break
@@ -341,10 +364,12 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 		if err != nil {
 			return failedTestResult(testRes, err)
 		}
+
 		latestSlot, err := strconv.ParseInt(latestBlock.Slot, 10, 64)
 		if err != nil {
 			return failedTestResult(testRes, err)
 		}
+
 		nextSlot = latestSlot + 1
 		// wait 1 second - the time it took to fetch the latest block
 		sleepWithContext(ctx, time.Second-time.Since(startBeaconBlockFetch))
@@ -354,6 +379,7 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 	for _, rtt := range allBlocksRTT {
 		totalRTT += rtt
 	}
+
 	averageRTT := totalRTT / time.Duration(len(allBlocksRTT))
 
 	testRes = evaluateRTT(averageRTT, testRes, thresholdMEVBlockAvg, thresholdMEVBlockPoor)
@@ -371,28 +397,35 @@ func formatMEVRelayName(urlString string) string {
 	if len(splitScheme) == 1 {
 		return urlString
 	}
+
 	hashSplit := strings.Split(splitScheme[1], "@")
 	if len(hashSplit) == 1 {
 		return urlString
 	}
+
 	hash := hashSplit[0]
 	if !strings.HasPrefix(hash, "0x") || len(hash) < 18 {
 		return urlString
 	}
+
 	hashShort := hash[:6] + "..." + hash[len(hash)-4:]
 
 	return splitScheme[0] + "://" + hashShort + "@" + hashSplit[1]
 }
 
 func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHash string, validatorPubKey string) (builderspec.VersionedSignedBuilderBid, time.Duration, error) {
-	var start time.Time
-	var firstByte time.Duration
+	var (
+		start     time.Time
+		firstByte time.Duration
+	)
+
 	trace := &httptrace.ClientTrace{
 		GotFirstResponseByte: func() {
 			firstByte = time.Since(start)
 		},
 	}
 	start = time.Now()
+
 	req, err := http.NewRequestWithContext(
 		httptrace.WithClientTrace(ctx, trace),
 		http.MethodGet,
@@ -412,13 +445,16 @@ func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHas
 	if resp.StatusCode != http.StatusOK {
 		return builderspec.VersionedSignedBuilderBid{}, 0, errStatusCodeNot200
 	}
+
 	rttGetHeader := firstByte
+
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http response body")
 	}
 
 	var builderBid builderspec.VersionedSignedBuilderBid
+
 	err = json.Unmarshal(bodyBytes, &builderBid)
 	if err != nil {
 		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http response json")
@@ -428,8 +464,11 @@ func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHas
 }
 
 func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nextSlot int64, latestBlock BeaconBlockMessage, proposerDuties []ProposerDutiesData) (time.Duration, error) {
-	var rttGetHeader time.Duration
-	var builderBid builderspec.VersionedSignedBuilderBid
+	var (
+		rttGetHeader time.Duration
+		builderBid   builderspec.VersionedSignedBuilderBid
+	)
+
 	for ctx.Err() == nil {
 		startIteration := time.Now()
 		epoch := nextSlot / slotsInEpoch
@@ -441,6 +480,7 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 			if err != nil {
 				return 0, err
 			}
+
 			validatorPubKey, err = getValidatorPKForSlot(proposerDuties, nextSlot)
 			if err != nil {
 				return 0, err
@@ -453,10 +493,12 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 			if errors.Is(err, errStatusCodeNot200) {
 				sleepWithContext(ctx, slotTime-time.Since(startIteration)-time.Second)
 				startBeaconBlockFetch := time.Now()
+
 				latestBlock, err = latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
 				if err != nil {
 					return 0, err
 				}
+
 				nextSlot++
 				// wait 1 second - the time it took to fetch the latest block
 				sleepWithContext(ctx, time.Second-time.Since(startBeaconBlockFetch))
@@ -466,6 +508,7 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 
 			return 0, err
 		}
+
 		log.Info(ctx, "Created block headers for slot", z.Any("slot", nextSlot), z.Any("target", target))
 
 		break
@@ -479,6 +522,7 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 	}
 
 	var payload any
+
 	switch builderBid.Version {
 	case eth2spec.DataVersionBellatrix:
 		payload = eth2bellatrix.SignedBlindedBeaconBlock{
@@ -571,10 +615,12 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 	default:
 		return 0, errors.New("not supported version", z.Str("version", builderBid.Version.String()))
 	}
+
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return 0, errors.Wrap(err, "signed blinded beacon block json payload marshal")
 	}
+
 	rttSubmitBlock, err := requestRTT(ctx, target+"/eth/v1/builder/blinded_blocks", http.MethodPost, bytes.NewReader(payloadJSON), 400)
 	if err != nil {
 		return 0, err
@@ -610,17 +656,20 @@ func latestBeaconBlock(ctx context.Context, endpoint string) (BeaconBlockMessage
 	if err != nil {
 		return BeaconBlockMessage{}, errors.Wrap(err, "http request")
 	}
+
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return BeaconBlockMessage{}, errors.Wrap(err, "http request do")
 	}
 	defer resp.Body.Close()
+
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return BeaconBlockMessage{}, errors.Wrap(err, "http response body")
 	}
 
 	var beaconBlock BeaconBlock
+
 	err = json.Unmarshal(bodyBytes, &beaconBlock)
 	if err != nil {
 		return BeaconBlockMessage{}, errors.Wrap(err, "http response json")
@@ -643,17 +692,20 @@ func fetchProposersForEpoch(ctx context.Context, conf *testMEVConfig, epoch int6
 	if err != nil {
 		return nil, errors.Wrap(err, "http request")
 	}
+
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "http request do")
 	}
 	defer resp.Body.Close()
+
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, errors.Wrap(err, "http response body")
 	}
 
 	var proposerDuties ProposerDuties
+
 	err = json.Unmarshal(bodyBytes, &proposerDuties)
 	if err != nil {
 		return nil, errors.Wrap(err, "http response json")

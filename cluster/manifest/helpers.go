@@ -29,7 +29,9 @@ var nowFunc = timestamppb.Now
 // SetNowFuncForT sets the time.Now function for the duration of the test.
 func SetNowFuncForT(t *testing.T, f func() *timestamppb.Timestamp) {
 	t.Helper()
+
 	cached := nowFunc
+
 	t.Cleanup(func() {
 		nowFunc = cached
 	})
@@ -180,6 +182,7 @@ func from0xHex(s string, length int) ([]byte, error) {
 // ValidatorToProto converts a legacy cluster validator to a protobuf validator.
 func ValidatorToProto(val cluster.DistValidator, addrs cluster.ValidatorAddresses) (*manifestpb.Validator, error) {
 	var regJSON []byte
+
 	if !val.ZeroRegistration() {
 		reg, err := val.Eth2Registration()
 		if err != nil {

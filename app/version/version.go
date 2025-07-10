@@ -51,6 +51,7 @@ func GitCommit() (hash string, timestamp string) {
 			if len(s.Value) < hashLen {
 				hashLen = len(s.Value)
 			}
+
 			hash = s.Value[:hashLen]
 		case "vcs.time":
 			timestamp = s.Value

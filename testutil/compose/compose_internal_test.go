@@ -65,6 +65,7 @@ func TestDockerCompose(t *testing.T) {
 	}
 
 	const seed = 0
+
 	keyGenFunc = func() (*k1.PrivateKey, error) {
 		return testutil.GenerateInsecureK1Key(t, seed), nil
 	}
@@ -78,12 +79,14 @@ func TestDockerCompose(t *testing.T) {
 			if test.ConfFunc != nil {
 				test.ConfFunc(&conf)
 			}
+
 			data, err := test.RunFunc(context.Background(), dir, conf)
 			require.NoError(t, err)
 
 			t.Run("yml", func(t *testing.T) {
 				b, err := os.ReadFile(path.Join(dir, "docker-compose.yml"))
 				require.NoError(t, err)
+
 				b = bytes.ReplaceAll(b, []byte(dir), []byte("testdir"))
 				testutil.RequireGoldenBytes(t, b)
 			})

@@ -91,12 +91,14 @@ func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]by
 	}
 
 	var ddList []depositDataJSON
+
 	for _, depositData := range depositDatas {
 		msg := eth2p0.DepositMessage{
 			PublicKey:             depositData.PublicKey,
 			WithdrawalCredentials: depositData.WithdrawalCredentials,
 			Amount:                depositData.Amount,
 		}
+
 		msgRoot, err := msg.HashTreeRoot()
 		if err != nil {
 			return nil, err
@@ -152,6 +154,7 @@ func getDepositDomain(forkVersion eth2p0.Version) (eth2p0.Domain, error) {
 		CurrentVersion:        forkVersion,
 		GenesisValidatorsRoot: eth2p0.Root{}, // GenesisValidatorsRoot is zero for deposit domain.
 	}
+
 	root, err := forkData.HashTreeRoot()
 	if err != nil {
 		return eth2p0.Domain{}, errors.Wrap(err, "hash fork data")
@@ -210,6 +213,7 @@ func withdrawalCredsFromAddr(addr string, compounding bool) ([32]byte, error) {
 	} else {
 		copy(creds[0:], eth1AddressWithdrawalPrefix)
 	}
+
 	copy(creds[12:], addrBytes) // Add 20 bytes of ethereum address suffix.
 
 	return creds, nil
@@ -238,6 +242,7 @@ func VerifyDepositAmounts(amounts []eth2p0.Gwei, compounding bool) error {
 	maxAmount := MaxDepositAmount(compounding)
 
 	var sum eth2p0.Gwei
+
 	for _, amount := range amounts {
 		if amount < MinDepositAmount {
 			return errors.New("each partial deposit amount must be greater than 1ETH", z.U64("amount", uint64(amount)))
@@ -276,12 +281,14 @@ func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
 // DedupAmounts returns duplicated amounts in ascending order.
 func DedupAmounts(amounts []eth2p0.Gwei) []eth2p0.Gwei {
 	var result []eth2p0.Gwei
+
 	used := make(map[eth2p0.Gwei]struct{})
 
 	for _, amount := range amounts {
 		if _, amountUsed := used[amount]; amountUsed {
 			continue
 		}
+
 		used[amount] = struct{}{}
 		result = append(result, amount)
 	}

@@ -155,6 +155,7 @@ func TestMarshalUnsignedProto(t *testing.T) {
 
 				b, err := proto.Marshal(pb)
 				require.NoError(t, err)
+
 				if disableSSZ {
 					jsonSizes[fmt.Sprintf("%T", unsignedPtr)] = len(b)
 				} else {
@@ -232,6 +233,7 @@ func TestMarshalParSignedProto(t *testing.T) {
 
 				b, err := proto.Marshal(pb)
 				require.NoError(t, err)
+
 				if disabledSSZ {
 					jsonSizes[fmt.Sprintf("%T", signedPtr)] = len(b)
 				} else {

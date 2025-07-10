@@ -40,6 +40,7 @@ func TestLoadDefinition(t *testing.T) {
 
 	// Invalid definition without definition_hash and config_hash
 	invalidFile2 := path.Join(tmp, "invalid-cluster-definition2.json")
+
 	var rawJSONString map[string]any
 	require.NoError(t, json.Unmarshal(b, &rawJSONString))
 
@@ -105,11 +106,13 @@ func TestLoadDefinition(t *testing.T) {
 			eth1Cl := mocks.NewEthClientRunner(t)
 			// Maybe is used because we're not testing this function however it may be called when first signature check fails therefore return false
 			eth1Cl.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Maybe()
+
 			got, err := loadDefinition(context.Background(), Config{DefFile: tt.defFile, NoVerify: tt.noVerify}, eth1Cl)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
+
 			require.NoError(t, err)
 
 			got, err = got.SetDefinitionHashes()

@@ -145,11 +145,13 @@ func distValidatorsToV1x1(distValidators []DistValidator) []distValidatorJSONv1x
 
 func distValidatorsFromV1x2to5(distValidators []distValidatorJSONv1x2to5) []DistValidator {
 	var resp []DistValidator
+
 	for _, dv := range distValidators {
 		var shares [][]byte
 		for _, share := range dv.PubShares {
 			shares = append(shares, share)
 		}
+
 		resp = append(resp, DistValidator{
 			PubKey:    dv.PubKey,
 			PubShares: shares,
@@ -161,6 +163,7 @@ func distValidatorsFromV1x2to5(distValidators []distValidatorJSONv1x2to5) []Dist
 
 func distValidatorsToV1x2to5(distValidators []DistValidator) []distValidatorJSONv1x2to5 {
 	var resp []distValidatorJSONv1x2to5
+
 	for _, dv := range distValidators {
 		var shares []ethHex
 		for _, share := range dv.PubShares {
@@ -178,11 +181,13 @@ func distValidatorsToV1x2to5(distValidators []DistValidator) []distValidatorJSON
 
 func distValidatorsFromV1x6(distValidators []distValidatorJSONv1x6) []DistValidator {
 	var resp []DistValidator
+
 	for _, dv := range distValidators {
 		var shares [][]byte
 		for _, share := range dv.PubShares {
 			shares = append(shares, share)
 		}
+
 		resp = append(resp, DistValidator{
 			PubKey:    dv.PubKey,
 			PubShares: shares,
@@ -197,6 +202,7 @@ func distValidatorsFromV1x6(distValidators []distValidatorJSONv1x6) []DistValida
 
 func distValidatorsToV1x6(distValidators []DistValidator) []distValidatorJSONv1x6 {
 	var resp []distValidatorJSONv1x6
+
 	for _, dv := range distValidators {
 		var shares []ethHex
 		for _, share := range dv.PubShares {
@@ -215,6 +221,7 @@ func distValidatorsToV1x6(distValidators []DistValidator) []distValidatorJSONv1x
 
 func distValidatorsToV1x7(distValidators []DistValidator) []distValidatorJSONv1x7 {
 	var resp []distValidatorJSONv1x7
+
 	for _, dv := range distValidators {
 		var shares []ethHex
 		for _, share := range dv.PubShares {
@@ -234,6 +241,7 @@ func distValidatorsToV1x7(distValidators []DistValidator) []distValidatorJSONv1x
 
 func distValidatorsToV1x8OrLater(distValidators []DistValidator) []distValidatorJSONv1x8 {
 	var resp []distValidatorJSONv1x8
+
 	for _, dv := range distValidators {
 		var shares []ethHex
 		for _, share := range dv.PubShares {
@@ -262,6 +270,7 @@ func byteSliceArrayToEthHex(data [][]byte) []ethHex {
 
 func distValidatorsFromV1x7(distValidators []distValidatorJSONv1x7) []DistValidator {
 	var resp []DistValidator
+
 	for _, dv := range distValidators {
 		var shares [][]byte
 		for _, share := range dv.PubShares {
@@ -283,6 +292,7 @@ func distValidatorsFromV1x7(distValidators []distValidatorJSONv1x7) []DistValida
 
 func distValidatorsFromV1x8OrLater(distValidators []distValidatorJSONv1x8) []DistValidator {
 	var resp []DistValidator
+
 	for _, dv := range distValidators {
 		var shares [][]byte
 		for _, share := range dv.PubShares {

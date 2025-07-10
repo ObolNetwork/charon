@@ -171,6 +171,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			if !strings.Contains(fmt.Sprint(r), "bug") {
 				panic(r) // Only catch internal sanity checks.
 			}
+
 			err = fmt.Errorf("qbft sanity check: %v", r) //nolint: forbidigo // Wrapping a panic, not error.
 		}
 	}()
@@ -227,10 +228,12 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// bufferMsg adds the message to each process' FIFO queue.
 	bufferMsg := func(msg Msg[I, V]) {
 		fifo := buffer[msg.Source()]
+
 		fifo = append(fifo, msg)
 		if len(fifo) > d.FIFOLimit {
 			fifo = fifo[len(fifo)-d.FIFOLimit:]
 		}
+
 		buffer[msg.Source()] = fifo
 	}
 
@@ -252,6 +255,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 		if round == newRound {
 			return
 		}
+
 		d.LogRoundChange(ctx, instance, process, round, newRound, rule, extractRoundMsgs(buffer, round))
 		round = newRound
 		dedupRules = make(map[dedupKey]bool)
@@ -274,15 +278,18 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// Handle events until cancelled.
 	for {
 		var err error
+
 		select {
 		case inputValue = <-inputValueCh:
 			if isZeroVal(inputValue) {
 				return errors.New("zero input value not supported")
 			}
+
 			if ppjCache != nil {
 				// Broadcast the pre-prepare now that we have a input value using the cached justification.
 				err = broadcastMsg(MsgPrePrepare, inputValue, ppjCache)
 			}
+
 			inputValueCh = nil // Don't read from this channel again.
 
 		case msg := <-t.Receive:
@@ -331,9 +338,11 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			case UponQuorumCommits, UponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
 				changeRound(msg.Round(), rule)
+
 				qCommit = justification
 
 				stopTimer()
+
 				timerChan = nil
 
 				d.Decide(ctx, instance, msg.Value(), justification)
@@ -384,6 +393,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 // extractRoundMsgs returns all messages from the provided round.
 func extractRoundMsgs[I any, V comparable](buffer map[int64][]Msg[I, V], round int64) []Msg[I, V] {
 	var resp []Msg[I, V]
+
 	for _, msgs := range buffer {
 		for _, msg := range msgs {
 			if msg.Round() == round {
@@ -402,7 +412,6 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		return UponJustifiedDecided, msg.Justification()
 
 	case MsgPrePrepare:
-
 		// Only ignore old rounds, since PRE-PREPARE is justified we may jump ahead.
 		if msg.Round() < round {
 			return UponNothing, nil
@@ -415,6 +424,7 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		if msg.Round() != round {
 			return UponNothing, nil
 		}
+
 		prepares := filterByRoundAndValue(flatten(buffer), MsgPrepare, msg.Round(), msg.Value())
 		if len(prepares) >= d.Quorum() {
 			return UponQuorumPrepares, prepares
@@ -425,6 +435,7 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 		if msg.Round() != round {
 			return UponNothing, nil
 		}
+
 		commits := filterByRoundAndValue(flatten(buffer), MsgCommit, msg.Round(), msg.Value())
 		if len(commits) >= d.Quorum() {
 			return UponQuorumCommits, commits
@@ -475,13 +486,13 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 // from received round change messages.
 func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], round int64) int64 {
 	// Get all RoundChange messages with round (rj) higher than current round (ri)
-
 	if len(frc) < d.Faulty()+1 {
 		panic("bug: Frc too short")
 	}
 
 	// Get the smallest round in the set.
 	rmin := int64(math.MaxInt64)
+
 	for _, msg := range frc {
 		if msg.Type() != MsgRoundChange {
 			panic("bug: Frc contain non-round change")
@@ -543,12 +554,15 @@ func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, 
 		if !uniq(prepare) {
 			return false
 		}
+
 		if prepare.Type() != MsgPrepare {
 			return false
 		}
+
 		if prepare.Round() != pr {
 			return false
 		}
+
 		if prepare.Value() != pv {
 			return false
 		}
@@ -609,12 +623,14 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 
 	// J1: If qrc contains quorum ROUND-CHANGEs with null pv and null pr.
 	allNull := true
+
 	for _, rc := range qrc {
 		if rc.PreparedRound() != 0 || !isZeroVal(rc.PreparedValue()) {
 			allNull = false
 			break
 		}
 	}
+
 	if allNull {
 		return zeroVal[V](), true
 	}
@@ -629,6 +645,7 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 	}
 
 	var found bool
+
 	for _, rc := range qrc {
 		// Ensure no ROUND-CHANGE with higher pr
 		if rc.PreparedRound() > pr {
@@ -652,19 +669,23 @@ func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[
 		count int
 		uniq  = uniqSource[I, V]()
 	)
+
 	for _, msg := range msgs {
 		if msg.Type() != MsgPrepare {
 			continue
 		}
+
 		if !uniq(msg) {
 			return 0, zeroVal[V](), false
 		}
+
 		if count == 0 {
 			pr = msg.Round()
 			pv = msg.Value()
 		} else if pr != msg.Round() || pv != msg.Value() {
 			return 0, zeroVal[V](), false
 		}
+
 		count++
 	}
 
@@ -693,14 +714,18 @@ func getJustifiedQrc[I any, V comparable](d Definition[I, V], all []Msg[I, V], r
 			if rc.PreparedRound() > pr {
 				continue
 			}
+
 			if !uniq(rc) {
 				continue
 			}
+
 			if rc.PreparedRound() == pr && rc.PreparedValue() == pv {
 				hasHighestPrepared = true
 			}
+
 			qrc = append(qrc, rc)
 		}
+
 		if len(qrc) >= d.Quorum() && hasHighestPrepared {
 			return append(qrc, prepares...), true
 		}
@@ -714,13 +739,16 @@ func getJustifiedQrc[I any, V comparable](d Definition[I, V], all []Msg[I, V], r
 // per process in order to jump furthest.
 func getFPlus1RoundChanges[I any, V comparable](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
 	highestBySource := make(map[int64]Msg[I, V])
+
 	for _, msg := range all {
 		if msg.Type() != MsgRoundChange {
 			continue
 		}
+
 		if msg.Round() <= round {
 			continue
 		}
+
 		if highest, ok := highestBySource[msg.Source()]; ok && highest.Round() > msg.Round() {
 			continue
 		}
@@ -754,30 +782,36 @@ type preparedKey[I any, V comparable] struct {
 // with identical rounds and values.
 func getPrepareQuorums[I any, V comparable](d Definition[I, V], all []Msg[I, V]) [][]Msg[I, V] {
 	sets := make(map[preparedKey[I, V]]map[int64]Msg[I, V]) // map[preparedKey]map[process]Msg
-	for _, msg := range all {                               // Flatten to get PREPARES included as ROUND-CHANGE justifications.
+
+	for _, msg := range all { // Flatten to get PREPARES included as ROUND-CHANGE justifications.
 		if msg.Type() != MsgPrepare {
 			continue
 		}
 
 		key := preparedKey[I, V]{round: msg.Round(), value: msg.Value()}
+
 		msgs, ok := sets[key]
 		if !ok {
 			msgs = make(map[int64]Msg[I, V])
 		}
+
 		msgs[msg.Source()] = msg
 		sets[key] = msgs
 	}
 
 	// Return all quorums
 	var quorums [][]Msg[I, V]
+
 	for _, msgs := range sets {
 		if len(msgs) < d.Quorum() {
 			continue
 		}
+
 		var quorum []Msg[I, V]
 		for _, msg := range msgs {
 			quorum = append(quorum, msg)
 		}
+
 		quorums = append(quorums, quorum)
 	}
 
@@ -791,6 +825,7 @@ func quorumNullPrepared[I any, V comparable](d Definition[I, V], all []Msg[I, V]
 		nullPr int64
 		nullPv V
 	)
+
 	justification := filterMsgs(all, MsgRoundChange, round, nil, &nullPr, &nullPv)
 
 	return justification, len(justification) >= d.Quorum()
@@ -813,6 +848,7 @@ func filterMsgs[I any, V comparable](msgs []Msg[I, V], typ MsgType, round int64,
 		resp []Msg[I, V]
 		uniq = uniqSource[I, V]()
 	)
+
 	for _, msg := range msgs {
 		if typ != msg.Type() {
 			continue
@@ -857,6 +893,7 @@ func isZeroVal[V comparable](v V) bool {
 // as well as all their justifications.
 func flatten[I any, V comparable](buffer map[int64][]Msg[I, V]) []Msg[I, V] {
 	var resp []Msg[I, V]
+
 	for _, msgs := range buffer {
 		for _, msg := range msgs {
 			resp = append(resp, msg)
@@ -879,6 +916,7 @@ func uniqSource[I any, V comparable](msgs ...Msg[I, V]) func(Msg[I, V]) bool {
 		if dedup[msg.Source()] {
 			panic("bug: seeding uniq with duplicates")
 		}
+
 		dedup[msg.Source()] = true
 	}
 
@@ -886,6 +924,7 @@ func uniqSource[I any, V comparable](msgs ...Msg[I, V]) func(Msg[I, V]) bool {
 		if dedup[msg.Source()] {
 			return false
 		}
+
 		dedup[msg.Source()] = true
 
 		return true

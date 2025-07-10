@@ -87,7 +87,9 @@ func httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string
 	if err != nil {
 		return errors.Wrap(err, "new POST request with ctx")
 	}
+
 	req.Header.Add("Content-Type", "application/json")
+
 	for key, val := range headers {
 		req.Header.Set(key, val)
 	}
@@ -115,6 +117,7 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 	if err != nil {
 		return nil, errors.Wrap(err, "new GET request with ctx")
 	}
+
 	req.Header.Add("Content-Type", "application/json")
 
 	for key, val := range headers {
@@ -130,6 +133,7 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 		if res.StatusCode == http.StatusNotFound {
 			return nil, ErrNoExit
 		}
+
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
 			return nil, errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))

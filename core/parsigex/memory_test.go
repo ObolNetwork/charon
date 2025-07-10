@@ -27,6 +27,7 @@ func TestMemEx(t *testing.T) {
 	var received []tuple
 
 	var exes []core.ParSigEx
+
 	for i := range n {
 		ex := memExFunc()
 		ex.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {

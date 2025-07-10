@@ -187,7 +187,9 @@ func TestBeaconTest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
+
 			ctx := context.Background()
+
 			_, err := runTestBeacon(ctx, &buf, test.config)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
@@ -195,6 +197,7 @@ func TestBeaconTest(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			defer func() {
 				if test.cleanup != nil {
 					test.cleanup(t, test.config.OutputJSON)
@@ -263,6 +266,7 @@ func startHealthyMockedBeaconNode(t *testing.T) *httptest.Server {
 			_, err := w.Write([]byte(`{"data":{"version":"BeaconNodeProvider/v1.0.0/linux_x86_64"}}`))
 			require.NoError(t, err)
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 }
@@ -296,6 +300,7 @@ func TestBeaconTestFlags(t *testing.T) {
 				return testCategoryResult{}, nil
 			}))
 			cmd.SetArgs(test.args)
+
 			err := cmd.Execute()
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)

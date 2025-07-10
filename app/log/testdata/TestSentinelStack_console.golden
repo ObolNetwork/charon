@@ -1,3 +1,3 @@
 00:00 [31mERRO[0m [32m          [0m test: wrap sentinel: test               
-	app/log/log_test.go:116 .func1
-	app/log/log_test.go:137 .func1
+	app/log/log_test.go:117 .func1
+	app/log/log_test.go:138 .func1

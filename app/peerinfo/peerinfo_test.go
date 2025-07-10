@@ -21,7 +21,9 @@ import (
 
 func TestPeerInfo(t *testing.T) {
 	now := time.Now()
+
 	const gitCommit = "1234567"
+
 	baseNickname := "john-"
 
 	// when a major release happens, charon will only be compatible with a single version
@@ -68,10 +70,12 @@ func TestPeerInfo(t *testing.T) {
 		for j, other := range tcpNodes {
 			tcpNode.Peerstore().AddAddrs(other.ID(), other.Addrs(), peerstore.PermanentAddrTTL)
 			other.Peerstore().AddAddrs(tcpNode.ID(), tcpNode.Addrs(), peerstore.PermanentAddrTTL)
+
 			if !nodes[i].Ignore {
 				err := tcpNode.Peerstore().SetProtocols(other.ID(), "/charon/peerinfo/1.0.0")
 				require.NoError(t, err)
 			}
+
 			if !nodes[j].Ignore {
 				err := other.Peerstore().SetProtocols(tcpNode.ID(), "/charon/peerinfo/1.0.0")
 				require.NoError(t, err)
@@ -106,13 +110,17 @@ func TestPeerInfo(t *testing.T) {
 				return ch, func() {}
 			}
 
-			var submittedMutex sync.Mutex
-			var submitted int
+			var (
+				submittedMutex sync.Mutex
+				submitted      int
+			)
+
 			metricSubmitter = func(peerID peer.ID, clockOffset time.Duration, version, gitHash string, startTime time.Time, builderEnabled bool, nickname string) {
 				for i, tcpNode := range tcpNodes {
 					if tcpNode.ID() != peerID {
 						continue
 					}
+
 					node := nodes[i]
 					require.Equal(t, node.Version.String(), version)
 					require.Equal(t, gitCommit, gitHash)
@@ -121,14 +129,17 @@ func TestPeerInfo(t *testing.T) {
 					require.Equal(t, baseNickname+p2p.PeerName(peerID), nickname)
 
 					submittedMutex.Lock()
+
 					submitted++
 					if submitted == n-2 { // Expect metrics from everyone but ourselves or the ignored node.
 						cancel()
 					}
+
 					submittedMutex.Unlock()
 
 					return
 				}
+
 				panic("unknown peer")
 			}
 		}
@@ -143,6 +154,7 @@ func TestPeerInfo(t *testing.T) {
 		if nodes[i].Ignore {
 			continue
 		}
+
 		go peerInfos[i].Run(ctx)
 	}
 

@@ -95,20 +95,25 @@ func TestLongWaitDKG(t *testing.T) {
 	}
 
 	windowTicker := time.NewTicker(window)
+
 	onStartup := make(chan struct{}, 1)
 	onStartup <- struct{}{}
+
 	newWindowStarted := make(chan struct{}, numNodes)
+
 	var currIdx int
 	for {
 		p2pKey := p2pKeys[currIdx]
 		nodeDir := path.Join(dir, fmt.Sprintf("node%d", currIdx))
 		require.NoError(t, os.Mkdir(nodeDir, 0o750))
+
 		conf := dkgConf
 		conf.DataDir = nodeDir
 		conf.TestConfig.P2PKey = p2pKey
 
 		runDKG := func() {
 			i := currIdx
+
 			eg.Go(func() error {
 				return mimicDKGNode(ctx, t, conf, window, nodeDownPeriod, i, allNodesStarted, newWindowStarted)
 			})
@@ -166,6 +171,7 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			// as it would find an existing private key lock file previously created by earlier DKGs.
 			conf := dkgConf
 			conf.DataDir = t.TempDir()
+
 			err := dkg.Run(ctx, conf)
 			if !strings.Contains(err.Error(), context.Canceled.Error()) {
 				panic("error is not of context canceled kind")
@@ -189,8 +195,10 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			if stopNode != nil {
 				stopNode()
 			}
+
 			stopNode = runDKG()
 			firstTime = false
+
 			if firstNode {
 				continue
 			}
@@ -198,6 +206,7 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			// Wait for some random duration before stopping the node
 			stopDelay := calcStopDelay(t, window, nodeDownPeriod)
 			log.Debug(parentCtx, "Stopping node after delay", z.Int("node", nodeIdx), z.Str("delay", stopDelay.String()))
+
 			select {
 			case <-time.After(stopDelay):
 			case <-allNodesStarted:
@@ -215,6 +224,7 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 
 			// Wait nodeDownPeriod before restarting the node
 			log.Debug(parentCtx, "Waiting before restarting node", z.Int("node", nodeIdx), z.Str("delay", nodeDownPeriod.String()))
+
 			select {
 			case <-time.After(nodeDownPeriod):
 				stopNode = runDKG()

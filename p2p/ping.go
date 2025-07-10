@@ -72,6 +72,7 @@ func pingPeer(ctx context.Context, svc *ping.PingService, p peer.ID, callback fu
 	maxBackoff time.Duration,
 ) {
 	backoff := expbackoff.New(ctx, expbackoff.WithMaxDelay(maxBackoff)) // Start quick, then slow down
+
 	logFunc := newPingLogger(svc.Host, p)
 	for ctx.Err() == nil {
 		pingPeerOnce(ctx, svc, p, logFunc, callback)
@@ -154,6 +155,7 @@ func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Resu
 		} else if result.Error == nil && !prevSuccess {
 			// Reconnected
 			log.Info(ctx, "Peer connected", z.Str("peer", PeerName(p)), z.Any("rtt", result.RTT))
+
 			prevSuccess = true
 
 			return
@@ -170,6 +172,7 @@ func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Resu
 			if prevSuccess {
 				log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", result.Error.Error()))
 			}
+
 			prevSuccess = false
 
 			return
@@ -191,6 +194,7 @@ func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Resu
 				// No more errors, or same messages, ok well...
 				return
 			}
+
 			prevResolvedMsgs = msgs
 		}
 
@@ -230,6 +234,7 @@ func resolveBackoffMsgs(ctx context.Context, tcpNode host.Host, p peer.ID) map[s
 // newPingDelayCallback returns a delaying ping callback for periodic 1s pings in production.
 func newPingDelayCallback() func(peer.ID, host.Host) {
 	const period = time.Second
+
 	timestamp := time.Now()
 
 	return func(peer.ID, host.Host) {
@@ -237,6 +242,7 @@ func newPingDelayCallback() func(peer.ID, host.Host) {
 		if delay > 0 {
 			time.Sleep(delay)
 		}
+
 		timestamp = time.Now()
 	}
 }

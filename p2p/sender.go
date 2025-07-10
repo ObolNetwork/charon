@@ -56,6 +56,7 @@ type errorBuffer struct {
 func (eb *errorBuffer) add(err error) {
 	eb.m.Lock()
 	defer eb.m.Unlock()
+
 	eb.store = append(eb.store, err)
 }
 
@@ -79,6 +80,7 @@ func (eb *errorBuffer) len() int {
 func (eb *errorBuffer) trim(by int) {
 	eb.m.Lock()
 	defer eb.m.Unlock()
+
 	eb.store = eb.store[len(eb.store)-by:]
 }
 
@@ -106,6 +108,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	}
 
 	state.buffer.add(err)
+
 	if state.buffer.len() > senderBuffer { // Trim buffer
 		state.buffer.trim(senderBuffer)
 	}
@@ -118,6 +121,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 		full := state.buffer.len() == senderBuffer
 		oldestFailure := state.buffer.get(0) != nil
 		othersSuccess := true
+
 		for i := 1; i < state.buffer.len(); i++ {
 			if state.buffer.get(i) != nil {
 				othersSuccess = false
@@ -131,7 +135,6 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 		}
 	} else if failure && (state.buffer.len() == 1 || !state.failing.Load()) {
 		// First attempt failed or state changed to failing
-
 		if _, ok := dialErrMsgs(err); !ok { // Only log non-dial errors
 			log.Warn(ctx, "P2P sending failing", err, z.Str("peer", PeerName(peerID)))
 		}
@@ -181,6 +184,7 @@ func withRelayRetry(fn func() error) error {
 	err := fn()
 	if IsRelayError(err) { // Retry once if relay error
 		time.Sleep(time.Millisecond * 100)
+
 		err = fn()
 	}
 
@@ -279,6 +283,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	if err != nil {
 		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
+
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
 		return errors.Wrap(err, "set deadline")
 	}
@@ -287,6 +292,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	if !ok {
 		return errors.New("no writer for protocol", z.Any("protocol", s.Protocol()))
 	}
+
 	readFunc, ok := o.readersByProtocol[s.Protocol()]
 	if !ok {
 		return errors.New("no reader for protocol", z.Any("protocol", s.Protocol()))
@@ -296,6 +302,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	reader := readFunc(s)
 
 	t0 := time.Now()
+
 	if err = writer.WriteMsg(req); err != nil {
 		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()))
 	}
@@ -330,6 +337,7 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 	if err != nil {
 		return errors.Wrap(err, "tcpNode stream")
 	}
+
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
 		return errors.Wrap(err, "set deadline")
 	}
@@ -355,6 +363,7 @@ func protocolPrefix(pIDs ...protocol.ID) protocol.ID {
 	if len(pIDs) == 0 {
 		return ""
 	}
+
 	if len(pIDs) == 1 {
 		return pIDs[0]
 	}

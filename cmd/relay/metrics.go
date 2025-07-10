@@ -68,6 +68,7 @@ type bwTuple struct {
 // bwCounter is a bandwidth counter implementing libp2p metrics.Reporter.
 type bwCounter struct {
 	metrics.Reporter
+
 	done <-chan struct{}
 	ch   chan<- bwTuple
 }

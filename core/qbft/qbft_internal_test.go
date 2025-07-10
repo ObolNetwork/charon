@@ -383,11 +383,14 @@ func testQBFT(t *testing.T, test test) {
 			// - or expect multiple rounds
 			// - or otherwise only the leader of round 1.
 			vChan := make(chan int64, 1)
+
 			if delay, ok := test.ValueDelay[i]; ok {
 				go func() {
 					ch, stop := clock.NewTimer(delay)
 					defer stop()
+
 					<-ch
+
 					vChan <- i
 				}()
 			} else if test.DecideRound != 1 {
@@ -418,13 +421,16 @@ func testQBFT(t *testing.T, test test) {
 				if target == msg.Source() {
 					continue // Do not broadcast to self, we sent to self already.
 				}
+
 				if p, ok := test.DropProb[msg.Source()]; ok {
 					if rand.Float64() < p {
 						t.Logf("%s %v => %v@%d => %d (dropped)", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), target)
 						continue // Drop
 					}
 				}
+
 				out <- msg
+
 				if rand.Float64() < 0.1 { // Send 10% messages twice
 					out <- msg
 				}
@@ -435,14 +441,17 @@ func testQBFT(t *testing.T, test test) {
 				for _, previous := range results {
 					require.Equal(t, previous.Value(), commit.Value(), "commit values")
 				}
+
 				if !test.RandomRound {
 					require.EqualValues(t, test.DecideRound, commit.Round(), "wrong decide round")
+
 					if test.PreparedVal != 0 { // Check prepared value if set
 						require.EqualValues(t, test.PreparedVal, commit.Value(), "wrong prepared value")
 					} else { // Otherwise check that leader value was used.
 						require.True(t, isLeader(test.Instance, commit.Round(), commit.Value()), "not leader")
 					}
 				}
+
 				results[commit.Source()] = commit
 			}
 
@@ -456,11 +465,13 @@ func testQBFT(t *testing.T, test test) {
 
 			// Trigger shutdown
 			decided = true
+
 			cancel()
 		case err := <-runChan:
 			if !decided {
 				require.Fail(t, "unexpected run error", err)
 			}
+
 			done++
 			if done == n {
 				return
@@ -482,6 +493,7 @@ func fuzz(ctx context.Context, clock *fakeClock, broadcast chan Msg[int64, int64
 		case <-timer:
 			broadcast <- randomMsg(instance, peerIdx)
 		}
+
 		stop()
 	}
 }
@@ -514,6 +526,7 @@ func bcast(t *testing.T, broadcast chan Msg[int64, int64], msg Msg[int64, int64]
 		t.Logf("%s %v => %v@%d (bcast delay %s)", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), delay)
 		ch, _ := clock.NewTimer(delay)
 		<-ch
+
 		broadcast <- msg
 	}()
 }
@@ -621,6 +634,7 @@ func TestFormulas(t *testing.T) {
 	// assert given N asserts Q and F.
 	assert := func(t *testing.T, n, q, f int) {
 		t.Helper()
+
 		d := Definition[any, int64]{Nodes: n}
 		require.Equalf(t, q, d.Quorum(), "Quorum given N=%d", n)
 		require.Equalf(t, f, d.Faulty(), "Faulty given N=%d", n)
@@ -683,18 +697,22 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 	def.LogUponRule = func(ctx context.Context, instance int64, process, round int64, msg Msg[int64, int64], uponRule UponRule) {
 		log.Info(ctx, "UponRule", z.Str("rule", uponRule.String()), z.I64("round", msg.Round()))
 		require.Equal(t, uponRule, UponJustifiedPrePrepare)
+
 		if msg.Round() == 1 {
 			return
 		}
+
 		if msg.Round() == 2 {
 			cancel()
 			return
 		}
+
 		require.Fail(t, "unexpected round", "round=%d", round)
 	}
 
 	rChan := make(chan Msg[int64, int64], 2)
 	rChan <- newPreprepare(1)
+
 	rChan <- newPreprepare(2)
 
 	transport := noopTransport

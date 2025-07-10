@@ -85,12 +85,14 @@ func ComputeDomain(forkHash string, domainType eth2p0.DomainType, genesisValidat
 	}
 
 	rawFdt := forkDataType{GenesisValidatorsRoot: genesisValidatorRoot, CurrentVersion: [4]byte(cforkHex)}
+
 	fdt, err := rawFdt.HashTreeRoot()
 	if err != nil {
 		return eth2p0.Domain{}, errors.Wrap(err, "fork data type hash tree root")
 	}
 
 	var domain []byte
+
 	domain = append(domain, domainType[:]...)
 	domain = append(domain, fdt[:28]...)
 

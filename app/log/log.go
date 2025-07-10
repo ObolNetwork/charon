@@ -84,6 +84,7 @@ func Debug(ctx context.Context, msg string, fields ...z.Field) {
 	if !ok {
 		return
 	}
+
 	trace.SpanFromContext(ctx).AddEvent("log.Debug: "+msg, toAttributes(zfl))
 	getLogger(ctx).Debug(msg, zfl...)
 }
@@ -95,6 +96,7 @@ func Info(ctx context.Context, msg string, fields ...z.Field) {
 	if !ok {
 		return
 	}
+
 	trace.SpanFromContext(ctx).AddEvent("log.Info: "+msg, toAttributes(zfl))
 	getLogger(ctx).Info(msg, zfl...)
 }
@@ -110,6 +112,7 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 		if !ok {
 			return
 		}
+
 		trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
 		getLogger(ctx).Warn(msg, zfl...)
 
@@ -117,10 +120,12 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 	}
 
 	err = errors.SkipWrap(err, msg, 2, fields...)
+
 	zfl, ok := unwrapDedup(ctx, errFields(err))
 	if !ok {
 		return
 	}
+
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
 	getLogger(ctx).Warn(err.Error(), zfl...)
 }
@@ -136,6 +141,7 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 		if !ok {
 			return
 		}
+
 		trace.SpanFromContext(ctx).AddEvent("log.Error: "+msg, toAttributes(zfl))
 		getLogger(ctx).Error(msg, zfl...)
 
@@ -143,10 +149,12 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 	}
 
 	err = errors.SkipWrap(err, msg, 2, fields...)
+
 	zfl, ok := unwrapDedup(ctx, errFields(err))
 	if !ok {
 		return
 	}
+
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
 	getLogger(ctx).Error(err.Error(), zfl...)
 }
@@ -165,9 +173,11 @@ func unwrapDedup(ctx context.Context, fields ...z.Field) ([]zap.Field, bool) {
 			filtered = true
 			return
 		}
+
 		if dups[f.Key] {
 			return
 		}
+
 		dups[f.Key] = true
 		resp = append(resp, f)
 	}
@@ -211,6 +221,7 @@ func errFields(err error) z.Field {
 // toAttributes returns the zap fields as tracing event attributes.
 func toAttributes(fields []zap.Field) trace.EventOption {
 	var kvs []attribute.KeyValue
+
 	for _, field := range fields {
 		if field.Interface != nil {
 			kvs = append(kvs, attribute.String(field.Key, fmt.Sprint(field.Interface)))

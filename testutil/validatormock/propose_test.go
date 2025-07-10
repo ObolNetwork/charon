@@ -59,8 +59,11 @@ func TestAttest(t *testing.T) {
 			require.NoError(t, err)
 
 			// Callback to collect attestations
-			var atts []*eth2spec.VersionedAttestation
-			var aggs *eth2api.SubmitAggregateAttestationsOpts
+			var (
+				atts []*eth2spec.VersionedAttestation
+				aggs *eth2api.SubmitAggregateAttestationsOpts
+			)
+
 			beaconMock.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
 				atts = attestations.Attestations
 				return nil
@@ -100,6 +103,7 @@ func TestAttest(t *testing.T) {
 				if err != nil {
 					return false
 				}
+
 				attsjData, err := atts[j].Data()
 				if err != nil {
 					return false
@@ -299,6 +303,7 @@ func TestProposeBlock(t *testing.T) {
 
 				testResponse = append(testResponse, blockJSON...)
 				testResponse = append(testResponse, []byte(`}`)...)
+
 				require.NoError(t, err)
 
 				_, _ = w.Write(testResponse)
@@ -349,6 +354,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 
 		testResponse = append(testResponse, blockJSON...)
 		testResponse = append(testResponse, []byte(`}`)...)
+
 		require.NoError(t, err)
 
 		w.Header().Set("Eth-Execution-Payload-Blinded", "true")
@@ -369,6 +375,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 
 type addrWrap struct {
 	eth2wrap.Client
+
 	addr string
 }
 

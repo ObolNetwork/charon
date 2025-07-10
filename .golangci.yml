@@ -27,6 +27,7 @@ linters:
     - mnd
     - musttag
     - nestif
+    - noinlineerr
     - nonamedreturns
     - paralleltest
     - prealloc

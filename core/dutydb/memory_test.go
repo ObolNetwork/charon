@@ -23,6 +23,7 @@ func TestShutdown(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	errChan := make(chan error, 1)
+
 	go func() {
 		_, err := db.AwaitProposal(context.Background(), 999)
 		errChan <- err
@@ -65,11 +66,13 @@ func TestMemDB(t *testing.T) {
 
 	// Kick of some queries, it should return when the data is populated.
 	awaitResponse := make(chan *eth2p0.AttestationData)
+
 	errCh := make(chan error, queries)
 	for range queries {
 		go func() {
 			data, err := db.AwaitAttestation(ctx, slot, commIdx)
 			errCh <- err
+
 			awaitResponse <- data
 		}()
 	}
@@ -164,11 +167,13 @@ func TestMemDBProposer(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const queries = 3
+
 	slots := [queries]uint64{123, 456, 789}
 
 	type response struct {
 		block *eth2api.VersionedProposal
 	}
+
 	var awaitResponse [queries]chan response
 
 	errCh := make(chan error, queries)
@@ -177,12 +182,14 @@ func TestMemDBProposer(t *testing.T) {
 		go func(slot int) {
 			block, err := db.AwaitProposal(ctx, slots[slot])
 			errCh <- err
+
 			awaitResponse[slot] <- response{block: block}
 		}(i)
 	}
 
 	proposals := make([]*eth2api.VersionedProposal, queries)
 	pubkeysByIdx := make(map[eth2p0.ValidatorIndex]core.PubKey)
+
 	for i := range queries {
 		proposals[i] = &eth2api.VersionedProposal{
 			Version:   eth2spec.DataVersionBellatrix,
@@ -231,6 +238,7 @@ func TestMemDBAggregator(t *testing.T) {
 		slot := uint64(agg.Deneb.Data.Slot)
 
 		errCh := make(chan error, 1)
+
 		go func() {
 			err := db.Store(ctx, core.NewAggregatorDuty(slot), set)
 			errCh <- err
@@ -266,6 +274,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 			)
 
 			errCh := make(chan error, 1)
+
 			go func() {
 				err := db.Store(ctx, core.NewSyncContributionDuty(slot), set)
 				errCh <- err
@@ -349,6 +358,7 @@ func TestMemDBClashingBlocks(t *testing.T) {
 	db := dutydb.NewMemDB(new(testDeadliner))
 
 	const slot = 123
+
 	block1 := &eth2api.VersionedProposal{
 		Version:   eth2spec.DataVersionBellatrix,
 		Bellatrix: testutil.RandomBellatrixBeaconBlock(),
@@ -428,6 +438,7 @@ func TestDutyExpiry(t *testing.T) {
 
 	// Add attestation data
 	const slot = uint64(123)
+
 	att1 := testutil.RandomCoreAttestationData(t)
 	att1.Duty.Slot = eth2p0.Slot(slot)
 	err := db.Store(ctx, core.NewAttesterDuty(slot), core.UnsignedDataSet{

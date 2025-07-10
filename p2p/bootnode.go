@@ -27,13 +27,16 @@ import (
 func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 ) ([]*MutablePeer, error) {
 	var resp []*MutablePeer
+
 	for _, relayAddr := range relayAddrs {
 		if strings.HasPrefix(relayAddr, "http") {
 			if !strings.HasPrefix(relayAddr, "https") {
 				log.Warn(ctx, "Relay URL does not use https protocol", nil, z.Str("addr", relayAddr))
 			}
+
 			mutable := new(MutablePeer)
 			go resolveRelay(ctx, relayAddr, lockHashHex, mutable.Set)
+
 			resp = append(resp, mutable)
 
 			continue
@@ -59,16 +62,20 @@ func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 	// Wait until at least one bootnode ENR is resolved
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
+
 	for ctx.Err() == nil {
 		var resolved bool
+
 		for _, node := range resp {
 			if _, ok := node.Peer(); ok {
 				resolved = true
 			}
 		}
+
 		if resolved {
 			return resp, nil
 		}
+
 		time.Sleep(time.Second * 1)
 	}
 
@@ -88,6 +95,7 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func
 			log.Error(ctx, "Failed resolving relay addresses from URL", err, z.Str("url", rawURL))
 			return
 		}
+
 		reset()
 
 		sort.Slice(addrs, func(i, j int) bool {
@@ -141,12 +149,14 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 		if doBackoff {
 			backoff()
 		}
+
 		doBackoff = true
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, relayURL, nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "new request")
 		}
+
 		req.Header.Set("Charon-Cluster", lockHashHex)
 
 		resp, err := client.Do(req)
@@ -160,6 +170,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 
 		b, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
+
 		if err != nil {
 			log.Warn(ctx, "Failure reading relay addresses (will try again)", err)
 			continue
@@ -188,6 +199,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 				log.Warn(ctx, "Failure parsing relay multiaddrs (will try again)", err, z.Str("addr", addr))
 				continue
 			}
+
 			maddrs = append(maddrs, maddr)
 		}
 

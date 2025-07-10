@@ -84,6 +84,7 @@ func (Herumi) SecretToPublicKey(secret PrivateKey) (PublicKey, error) {
 // cryptographically secure. This is useful for testing.
 func (Herumi) ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint, threshold uint, random io.Reader) (map[int]PrivateKey, error) {
 	t.Helper()
+
 	var p bls.SecretKey
 
 	if threshold <= 1 {
@@ -347,12 +348,14 @@ func (Herumi) VerifyAggregate(publicShares []PublicKey, signature Signature, dat
 // provided random number generator. This is useful for testing.
 func generateInsecureSecret(t *testing.T, random io.Reader) (bls.SecretKey, error) {
 	t.Helper()
+
 	for range 100 {
 		b := make([]byte, 32)
 		_, err := random.Read(b)
 		require.NoError(t, err)
 
 		var p bls.SecretKey
+
 		err = p.Deserialize(b)
 		if err != nil {
 			continue // Try again

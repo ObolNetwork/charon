@@ -19,7 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/utils"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 )
@@ -72,16 +72,19 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	def := newDefinition(int(instance.GetNodes()), func() []subscriber {
 		return []subscriber{func(ctx context.Context, duty core.Duty, value proto.Message) error {
 			log.Info(ctx, "Consensus decided", z.Any("value", value))
+
 			expectDecided = true
+
 			cancel()
 
 			return nil
 		}}
-	}, utils.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte]) {})
+	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte]) {})
 
 	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte], len(instance.GetMsgs()))
 
 	var duty core.Duty
+
 	for _, msg := range instance.GetMsgs() {
 		if qbft.MsgType(msg.GetMsg().GetMsg().GetType()) == qbft.MsgDecided {
 			expectDecided = true
@@ -94,6 +97,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 		m, err := newMsg(msg.GetMsg().GetMsg(), msg.GetMsg().GetJustification(), values)
 		require.NoError(t, err)
+
 		recvBuffer <- m
 	}
 

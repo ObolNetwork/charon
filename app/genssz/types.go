@@ -21,6 +21,7 @@ type Type struct {
 
 func (t Type) Abbr() string {
 	var lastUpper rune
+
 	for _, r := range t.Name {
 		if r >= 'A' && r <= 'Z' {
 			lastUpper = r
@@ -72,8 +73,10 @@ func (f Field) MustSize() int {
 
 func (f Field) Size() (int, error) {
 	var intStr string
+
 	if f.IsByteList() || f.IsCompositeList() {
 		openIdx := strings.Index(f.SSZTag, "[")
+
 		closeIdx := strings.Index(f.SSZTag, "]")
 		if openIdx == -1 || closeIdx == -1 {
 			return 0, errors.New("field has malformed size tag", z.Str("field_name", f.Name), z.Str("tag", f.SSZTag))

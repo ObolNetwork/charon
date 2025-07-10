@@ -73,6 +73,7 @@ func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slot
 	}
 
 	var ok bool
+
 	slotDuration, ok = spec.Data["SECONDS_PER_SLOT"].(time.Duration)
 	if !ok {
 		return 0, 0, errors.New("missing SECONDS_PER_SLOT in network spec")
@@ -101,11 +102,13 @@ func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork 
 	}
 
 	res := ForkForkSchedule{}
+
 	for k, v := range forkLabels {
 		fs, err := fetchFork(v, spec.Data)
 		if err != nil {
 			return nil, err
 		}
+
 		res[k] = fs
 	}
 
@@ -114,19 +117,24 @@ func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork 
 
 func fetchFork(forkName string, data map[string]any) (ForkSchedule, error) {
 	var ok bool
+
 	fs := ForkSchedule{}
 	forkVersion := forkName + "_FORK_VERSION"
+
 	version, ok := data[forkVersion].(eth2p0.Version)
 	if !ok {
 		return fs, errors.New("missing " + forkVersion + " in network spec")
 	}
+
 	fs.Version = version
 
 	forkEpoch := forkName + "_FORK_EPOCH"
+
 	epoch, ok := data[forkEpoch].(uint64)
 	if !ok {
 		return fs, errors.New("missing " + forkEpoch + " in network spec")
 	}
+
 	fs.Epoch = eth2p0.Epoch(epoch)
 
 	return fs, nil

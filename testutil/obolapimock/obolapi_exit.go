@@ -61,6 +61,7 @@ func writeErr(wr http.ResponseWriter, status int, msg string) {
 // exitBlob represents an Obol API ExitBlob with its share index.
 type exitBlob struct {
 	obolapi.ExitBlob
+
 	shareIdx uint64
 }
 
@@ -134,8 +135,10 @@ func (ts *testServer) HandlePartialExit(writer http.ResponseWriter, request *htt
 	}
 
 	for _, exit := range data.PartialExits {
-		var validatorFound bool
-		var partialPubkey []byte
+		var (
+			validatorFound bool
+			partialPubkey  []byte
+		)
 
 		for _, lockVal := range lock.Validators {
 			valHex := lockVal.PublicKeyHex()
@@ -197,6 +200,7 @@ func (ts *testServer) HandleFullExit(writer http.ResponseWriter, request *http.R
 	valPubkey := vars[cleanTmpl(valPubkeyPath)]
 	lockHash := vars[cleanTmpl(lockHashPath)]
 	shareIndexStr := vars[cleanTmpl(shareIndexPath)]
+
 	shareIndex, err := strconv.ParseUint(shareIndexStr, 10, 64)
 	if err != nil {
 		writeErr(writer, http.StatusBadRequest, "malformed share index")
@@ -339,6 +343,7 @@ func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lo
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer")
+
 		bearer = strings.TrimSpace(bearer)
 		if bearer == "" {
 			writeErr(w, http.StatusUnauthorized, "missing authorization header")

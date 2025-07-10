@@ -28,12 +28,14 @@ const (
 // Signature is the EC signature of PartialExits's hash tree root done with the Charon node identity key.
 type PartialExitRequest struct {
 	UnsignedPartialExitRequest
+
 	Signature []byte `json:"signature"`
 }
 
 // partialExitRequestDTO is PartialExitRequest, but for serialization on the wire.
 type partialExitRequestDTO struct {
 	UnsignedPartialExitRequest
+
 	Signature string `json:"signature"`
 }
 
@@ -180,9 +182,11 @@ func (f FullExitAuthBlob) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	hh.PutBytes(f.LockHash)
+
 	if err := putBytesN(hh, f.ValidatorPubkey, sszLenPubKey); err != nil {
 		return errors.Wrap(err, "validator pubkey ssz")
 	}
+
 	hh.PutUint64(f.ShareIndex)
 
 	hh.Merkleize(indx)

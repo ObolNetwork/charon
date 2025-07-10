@@ -195,6 +195,7 @@ func TestRunAddValidators(t *testing.T) {
 		for i := range n {
 			entries, err := os.ReadDir(nodeDir(tmp, i))
 			require.NoError(t, err)
+
 			for _, e := range entries {
 				if strings.Contains(e.Name(), "deposit-data") {
 					require.NoError(t, os.Remove(path.Join(nodeDir(tmp, i), e.Name())))

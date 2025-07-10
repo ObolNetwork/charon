@@ -58,6 +58,7 @@ func Parse(enrStr string) (Record, error) {
 	if len(elements) < 4 {
 		return Record{}, errors.New("invalid enr record, too few elements")
 	}
+
 	if len(elements)%2 != 0 {
 		return Record{}, errors.New("invalid enr record, odd number of elements")
 	}
@@ -185,6 +186,7 @@ func encodeElements(signature []byte, kvs map[string][]byte) []byte {
 	for k := range kvs {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	elements := [][]byte{toBigEndian(0)} // Sequence number=0

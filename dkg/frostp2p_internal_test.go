@@ -30,6 +30,7 @@ func TestBcastCallback(t *testing.T) {
 
 	// Create libp2p peers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
+
 	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
@@ -150,6 +151,7 @@ func TestBcastCallback(t *testing.T) {
 			callbackFunc := newBcastCallback(peerMap, round1CastsRecv, round2CastsRecv, threshold, numVals)
 
 			var err error
+
 			if tt.round1Cast != nil {
 				msg := pb.FrostRound1Casts{Casts: []*pb.FrostRound1Cast{tt.round1Cast}}
 				err = callbackFunc(ctx, peers[0], round1CastID, &msg)
@@ -163,9 +165,11 @@ func TestBcastCallback(t *testing.T) {
 			if tt.invalidRoundCast {
 				err = callbackFunc(ctx, peers[0], "invalid/round/id", nil)
 			}
+
 			if tt.invalidRound1CastMsg {
 				err = callbackFunc(ctx, peers[0], round1CastID, nil) // nil round 1 message
 			}
+
 			if tt.invalidRound2CastMsg {
 				err = callbackFunc(ctx, peers[0], round2CastID, nil) // nil round 2 message
 			}
@@ -189,6 +193,7 @@ func TestP2PCallback(t *testing.T) {
 
 	// Create libp2p peers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
+
 	for i := range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)

@@ -192,6 +192,7 @@ func TestCmdFlags(t *testing.T) {
 			})
 
 			root.SetArgs(test.Args)
+
 			if test.ErrorMsg != "" {
 				require.ErrorContains(t, root.Execute(), test.ErrorMsg)
 			} else {

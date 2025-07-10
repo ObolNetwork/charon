@@ -112,6 +112,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			if err != nil {
 				return errors.Wrap(err, "get attestation data")
 			}
+
 			attRoot, err = attData.HashTreeRoot()
 			if err != nil {
 				return errors.Wrap(err, "hash attestation")
@@ -121,6 +122,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			if !ok {
 				return errors.New("invalid attestation")
 			}
+
 			attRoot, err = att.Data.HashTreeRoot()
 			if err != nil {
 				return errors.Wrap(err, "hash attestation")
@@ -140,6 +142,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 			if !ok {
 				return errors.New("invalid aggregate and proof")
 			}
+
 			attRoot, err = agg.Message.Aggregate.Data.HashTreeRoot()
 			if err != nil {
 				return errors.Wrap(err, "hash aggregate")
@@ -249,10 +252,12 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, slot uint64, found bool)
 
 			if found {
 				var msg string
+
 				msg = "Broadcasted block included on-chain"
 				if proposal.Blinded {
 					msg = "Broadcasted blinded block included on-chain"
 				}
+
 				log.Info(ctx, msg,
 					z.U64("block_slot", slot),
 					z.Any("pubkey", sub.Pubkey),
@@ -348,12 +353,14 @@ func checkAggregationInclusion(sub submission, block block) (bool, error) {
 	if err != nil {
 		return false, errors.Wrap(err, "get attestation aggregation bits")
 	}
+
 	signedAggAndProof, ok := sub.Data.(core.VersionedSignedAggregateAndProof)
 	if !ok {
 		return false, errors.New("parse VersionedSignedAggregateAndProof")
 	}
 
 	subBits := signedAggAndProof.AggregationBits()
+
 	ok, err = attAggregationBits.Contains(subBits)
 	if err != nil {
 		return false, errors.Wrap(err, "check aggregation bits",
@@ -383,10 +390,12 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 		if err != nil {
 			return false, errors.Wrap(err, "fetch submission aggregation bits from phase0 attestation")
 		}
+
 		attAggBits, err := att.AggregationBits()
 		if err != nil {
 			return false, errors.Wrap(err, "fetch attestation aggregation bits from phase0 attestation")
 		}
+
 		ok, err := attAggBits.Contains(subBits)
 		if err != nil {
 			return false, errors.Wrap(err, "check phase0 aggregation bits",
@@ -402,6 +411,7 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 		}
 
 		var attesterDutyData *eth2v1.AttesterDuty
+
 		for _, ad := range block.AttDuties {
 			if *subData.ValidatorIndex == ad.ValidatorIndex {
 				attesterDutyData = ad
@@ -479,10 +489,12 @@ func reportAttInclusion(ctx context.Context, sub submission, block block) {
 	if !ok {
 		return
 	}
+
 	attData, err := att.Data()
 	if err != nil {
 		return
 	}
+
 	attSlot := uint64(attData.Slot)
 	blockSlot := block.Slot
 	inclDelay := block.Slot - attSlot
@@ -509,6 +521,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	if err != nil {
 		return nil, err
 	}
+
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch slots config")
@@ -567,8 +580,10 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 		return
 	}
 
-	var checkedSlot uint64
-	var attesterDuties []*eth2v1.AttesterDuty
+	var (
+		checkedSlot    uint64
+		attesterDuties []*eth2v1.AttesterDuty
+	)
 
 	for {
 		select {
@@ -579,19 +594,24 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			if checkedSlot == slot {
 				continue
 			}
+
 			epoch := eth2p0.Epoch(slot) / eth2p0.Epoch(slotsPerEpoch)
 			indices := []eth2p0.ValidatorIndex{}
+
 			a.core.mu.Lock()
 			subs := maps.Clone(a.core.submissions)
 			a.core.mu.Unlock()
+
 			for _, s := range subs {
 				att, ok := s.Data.(core.VersionedAttestation)
 				if !ok {
 					continue
 				}
+
 				if att.ValidatorIndex == nil {
 					continue
 				}
+
 				indices = append(indices, *att.ValidatorIndex)
 			}
 
@@ -604,9 +624,11 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 					Epoch:   epoch,
 					Indices: indices,
 				}
+
 				resp, err := a.eth2Cl.AttesterDuties(ctx, opts)
 				if err != nil {
 					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
+
 					attesterDuties = []*eth2v1.AttesterDuty{}
 				} else {
 					attesterDuties = resp.Data
@@ -633,6 +655,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 	if err != nil {
 		return err
 	}
+
 	var found bool
 	if block != nil {
 		found = true
@@ -653,8 +676,11 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 		return nil // No block for this slot
 	}
 
-	var committeesForState []*statecomm.StateCommittee
-	var checkedSlots []eth2p0.Slot
+	var (
+		committeesForState []*statecomm.StateCommittee
+		checkedSlots       []eth2p0.Slot
+	)
+
 	for _, att := range atts {
 		attestationData, err := att.Data()
 		if err != nil {
@@ -675,9 +701,11 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 			if err != nil {
 				return err
 			}
+
 			committeesForState = append(committeesForState, fetchedCommitteesForState...)
 			a.core.stateCommittees[attestationData.Slot] = fetchedCommitteesForState
 		}
+
 		checkedSlots = append(checkedSlots, attestationData.Slot)
 	}
 
@@ -687,6 +715,7 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 
 	// Map attestations by data root, merging duplicates' aggregation bits.
 	attsCommitteesMap := make(map[eth2p0.Root]*attCommittee)
+
 	for _, att := range atts {
 		if att == nil {
 			return errors.New("invalid attestation")
@@ -696,6 +725,7 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 		if err != nil {
 			return errors.Wrap(err, "invalid attestation data")
 		}
+
 		if attData.Target == nil || attData.Source == nil {
 			return errors.New("invalid attestation data checkpoint")
 		}
@@ -714,15 +744,18 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 		attCommittee := &attCommittee{
 			Attestation: att,
 		}
+
 		committeeAggregations, err := conjugateAggregationBits(attCommittee, attsCommitteesMap, root, committeesForState)
 		if err != nil {
 			return err
 		}
+
 		attCommittee.CommitteeAggregations = committeeAggregations
 		attsCommitteesMap[root] = attCommittee
 	}
 
 	attsMap := make(map[eth2p0.Root]*eth2spec.VersionedAttestation)
+
 	for root, att := range attsCommitteesMap {
 		unwrapedAtt := att.Attestation
 		if att.CommitteeAggregations != nil {
@@ -730,11 +763,13 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 			for _, commBits := range att.CommitteeAggregations {
 				aggBits = append(aggBits, commBits...)
 			}
+
 			err = setAttestationAggregationBits(*unwrapedAtt, aggBits)
 			if err != nil {
 				return err
 			}
 		}
+
 		attsMap[root] = unwrapedAtt
 	}
 
@@ -749,6 +784,7 @@ func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSi
 		if att.Phase0 == nil {
 			return errors.New("no Phase0 attestation")
 		}
+
 		att.Phase0.Signature = sig
 
 		return nil
@@ -756,6 +792,7 @@ func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSi
 		if att.Altair == nil {
 			return errors.New("no Altair attestation")
 		}
+
 		att.Altair.Signature = sig
 
 		return nil
@@ -763,6 +800,7 @@ func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSi
 		if att.Bellatrix == nil {
 			return errors.New("no Bellatrix attestation")
 		}
+
 		att.Bellatrix.Signature = sig
 
 		return nil
@@ -770,6 +808,7 @@ func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSi
 		if att.Capella == nil {
 			return errors.New("no Capella attestation")
 		}
+
 		att.Capella.Signature = sig
 
 		return nil
@@ -777,6 +816,7 @@ func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSi
 		if att.Deneb == nil {
 			return errors.New("no Deneb attestation")
 		}
+
 		att.Deneb.Signature = sig
 
 		return nil
@@ -784,6 +824,7 @@ func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSi
 		if att.Electra == nil {
 			return errors.New("no Electra attestation")
 		}
+
 		att.Electra.Signature = sig
 
 		return nil
@@ -798,6 +839,7 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		if att.Phase0 == nil {
 			return errors.New("no Phase0 attestation")
 		}
+
 		att.Phase0.AggregationBits = bits
 
 		return nil
@@ -805,6 +847,7 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		if att.Altair == nil {
 			return errors.New("no Altair attestation")
 		}
+
 		att.Altair.AggregationBits = bits
 
 		return nil
@@ -812,6 +855,7 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		if att.Bellatrix == nil {
 			return errors.New("no Bellatrix attestation")
 		}
+
 		att.Bellatrix.AggregationBits = bits
 
 		return nil
@@ -819,6 +863,7 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		if att.Capella == nil {
 			return errors.New("no Capella attestation")
 		}
+
 		att.Capella.AggregationBits = bits
 
 		return nil
@@ -826,6 +871,7 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		if att.Deneb == nil {
 			return errors.New("no Deneb attestation")
 		}
+
 		att.Deneb.AggregationBits = bits
 
 		return nil
@@ -833,6 +879,7 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		if att.Electra == nil {
 			return errors.New("no Electra attestation")
 		}
+
 		att.Electra.AggregationBits = bits
 
 		return nil
@@ -900,6 +947,7 @@ func conjugateAggregationBitsPhase0(att *attCommittee, attsMap map[eth2p0.Root]*
 		if err != nil {
 			return errors.Wrap(err, "merge attestation aggregation bits")
 		}
+
 		err = setAttestationAggregationBits(*att.Attestation, bits)
 		if err != nil {
 			return errors.Wrap(err, "set attestation aggregation bits")
@@ -914,6 +962,7 @@ func conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]
 	if err != nil {
 		return nil, err
 	}
+
 	committeeBits, err := att.Attestation.CommitteeBits()
 	if err != nil {
 		return nil, err
@@ -949,6 +998,7 @@ func updateAggregationBits(committeeBits bitfield.Bitvector64, committeeAggregat
 				committeeAggregation[commIdx].SetBitAt(idx, true)
 			}
 		}
+
 		offset += validatorsInCommittee
 	}
 

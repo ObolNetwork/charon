@@ -56,8 +56,10 @@ func TestInvalidAddrs(t *testing.T) {
 
 func TestPublicKeyToAddress(t *testing.T) {
 	// Test fixtures from geth/crypto package.
-	const testAddrHex = "0x970E8128AB834E8EAC17Ab8E3812F010678CF791"
-	const testPrivHex = "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
+	const (
+		testAddrHex = "0x970E8128AB834E8EAC17Ab8E3812F010678CF791"
+		testPrivHex = "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
+	)
 
 	b, err := hex.DecodeString(testPrivHex)
 	require.NoError(t, err)
@@ -182,6 +184,7 @@ func TestParseBeaconNodeHeaders(t *testing.T) {
 			if err != nil {
 				require.Fail(t, "Fail", "Header (%d) failed to parse", tt.headers)
 			}
+
 			if !reflect.DeepEqual(parsed, tt.want) {
 				require.Fail(t, "Fail", "Headers badly parsed, have %v, want %v", parsed, tt.want)
 			}

@@ -135,6 +135,7 @@ func transformLegacyLock(input *manifestpb.Cluster, signed *manifestpb.SignedMut
 	}
 
 	var vals []*manifestpb.Validator
+
 	for i, validator := range lock.Validators {
 		val, err := ValidatorToProto(validator, lock.ValidatorAddresses[i])
 		if err != nil {

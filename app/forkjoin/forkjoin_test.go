@@ -18,6 +18,7 @@ func TestForkJoin(t *testing.T) {
 	ctx := context.Background()
 
 	const n = 100
+
 	testErr := errors.New("test error")
 
 	tests := []struct {
@@ -84,6 +85,7 @@ func TestForkJoin(t *testing.T) {
 			defer cancel()
 
 			var allOutput []int
+
 			for i := range n {
 				fork(i)
 				allOutput = append(allOutput, i)
@@ -134,6 +136,7 @@ func TestLeak(t *testing.T) {
 	)
 	fork(1)
 	fork(2)
+
 	results := join()
 	<-results // Read 1 or 2
 	cancel()  // Fails if not called.

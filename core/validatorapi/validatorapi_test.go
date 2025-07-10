@@ -52,16 +52,19 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 		valCommIdxB = 5
 		commLen     = 8
 	)
+
 	valIdxAMut := eth2p0.ValidatorIndex(uint64(vIdxA))
 	valIdxBMut := eth2p0.ValidatorIndex(uint64(vIdxB))
 
 	aggBitsA := bitfield.NewBitlist(commLen)
 	aggBitsA.SetBitAt(valCommIdxA, true)
+
 	aggBitsB := bitfield.NewBitlist(commLen)
 	aggBitsB.SetBitAt(valCommIdxB, true)
 
 	commBitsA := bitfield.NewBitvector64()
 	commBitsA.SetBitAt(valCommIdxA, true)
+
 	commBitsB := bitfield.NewBitvector64()
 	commBitsB.SetBitAt(valCommIdxB, true)
 
@@ -273,11 +276,13 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 
 	validator := beaconmock.ValidatorSetA[vIdx]
 	validator.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
+
 	require.NoError(t, err)
 
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -355,8 +360,10 @@ func TestSignAndVerify(t *testing.T) {
 
 	// Define attestation data to sign
 	blockRoot := padTo([]byte("blockRoot"), 32)
+
 	var eth2Root eth2p0.Root
 	copy(eth2Root[:], blockRoot)
+
 	slot := eth2p0.Slot(999)
 	committeeIndex := eth2p0.CommitteeIndex(0)
 	validatorCommitteeIndex := uint64(0)
@@ -383,6 +390,7 @@ func TestSignAndVerify(t *testing.T) {
 	// Get pubkey
 	pubkey, err := tbls.SecretToPublicKey(secretKey)
 	require.NoError(t, err)
+
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 	signer, err := validatormock.NewSigner(secretKey)
@@ -400,6 +408,7 @@ func TestSignAndVerify(t *testing.T) {
 	shareIdx := 1
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Setup validatorapi component.
@@ -525,6 +534,7 @@ func TestComponent_Proposal(t *testing.T) {
 	}
 	eth2Resp2, err := component.Proposal(ctx, opts)
 	require.NoError(t, err)
+
 	block2 := eth2Resp2.Data
 
 	require.Equal(t, block1, block2)
@@ -550,6 +560,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -565,6 +576,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 			Version: eth2spec.DataVersionCapella,
 			Capella: testutil.RandomCapellaBeaconBlock(),
 		}
+
 		vapi.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
 			return core.DutyDefinitionSet{corePubKey: nil}, nil
 		})
@@ -765,6 +777,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 			// Convert pubkey
 			corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 			require.NoError(t, err)
+
 			allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 			// Configure beacon mock
@@ -943,6 +956,7 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -1011,7 +1025,9 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	tblsPubkey := *(*tbls.PublicKey)(pkb)
+
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{pubkey: {shareIdx: tblsPubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -1079,21 +1095,27 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 			if b.Phase0 != nil {
 				proposal.Phase0 = b.Phase0.Message
 			}
+
 			if b.Altair != nil {
 				proposal.Altair = b.Altair.Message
 			}
+
 			if b.Bellatrix != nil {
 				proposal.Bellatrix = b.Bellatrix.Message
 			}
+
 			if b.BellatrixBlinded != nil {
 				proposal.BellatrixBlinded = b.BellatrixBlinded.Message
 			}
+
 			if b.Capella != nil {
 				proposal.Capella = b.Capella.Message
 			}
+
 			if b.CapellaBlinded != nil {
 				proposal.CapellaBlinded = b.CapellaBlinded.Message
 			}
+
 			if b.Deneb != nil {
 				proposal.Deneb = &eth2deneb.BlockContents{
 					Block:     test.block.Deneb.SignedBlock.Message,
@@ -1101,6 +1123,7 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 					Blobs:     test.block.Deneb.Blobs,
 				}
 			}
+
 			if b.DenebBlinded != nil {
 				proposal.DenebBlinded = b.DenebBlinded.Message
 			}
@@ -1235,6 +1258,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			// Convert pubkey
 			corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 			require.NoError(t, err)
+
 			allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 			// Configure beacon mock
@@ -1312,6 +1336,7 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -1469,6 +1494,7 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 			if b.Bellatrix != nil {
 				proposal.BellatrixBlinded = b.Bellatrix.Message
 			}
+
 			if b.Capella != nil {
 				proposal.CapellaBlinded = b.Capella.Message
 			}
@@ -1509,11 +1535,13 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Prep beacon mock validators
 	validator := beaconmock.ValidatorSetA[vIdx]
 	validator.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
+
 	require.NoError(t, err)
 
 	// Configure beacon mock
@@ -1580,10 +1608,12 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	validator := beaconmock.ValidatorSetA[vIdx]
 	validator.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
+
 	require.NoError(t, err)
 
 	// Configure beacon mock
@@ -1656,6 +1686,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 		eth2Resp, err := vapi.ProposerDuties(ctx, opts)
 		require.NoError(t, err)
+
 		duties := eth2Resp.Data
 		require.Len(t, duties, 1)
 		require.Equal(t, duties[0].PubKey, eth2Share)
@@ -1682,6 +1713,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 		resp, err := vapi.AttesterDuties(ctx, opts)
 		require.NoError(t, err)
+
 		duties := resp.Data
 		require.Len(t, duties, 1)
 		require.Equal(t, duties[0].PubKey, eth2Share)
@@ -1708,6 +1740,7 @@ func TestComponent_Duties(t *testing.T) {
 		}
 		eth2Resp, err := vapi.SyncCommitteeDuties(ctx, opts)
 		require.NoError(t, err)
+
 		duties := eth2Resp.Data
 		require.Len(t, duties, 1)
 		require.Equal(t, duties[0].PubKey, eth2Share)
@@ -1728,6 +1761,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -1742,6 +1776,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	unsigned.Pubkey = eth2Pubkey
 	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
+
 	genesisTime := genesis.Data.GenesisTime
 	unsigned.Timestamp = genesisTime // Set timestamp to genesis which should result in epoch 0 and slot 0.
 
@@ -1789,6 +1824,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 
 	// Assert incorrect pubkey registration is swallowed
 	close(output) // Panic if registration is not swallowed
+
 	signed.V1.Message.Pubkey = testutil.RandomEth2PubKey(t)
 	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
 	require.NoError(t, err)
@@ -1808,6 +1844,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -1822,6 +1859,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	unsigned.Pubkey = eth2Pubkey
 	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
+
 	genesisTime := genesis.Data.GenesisTime
 	unsigned.Timestamp = genesisTime // Set timestamp to genesis which should result in epoch 0 and slot 0.
 
@@ -1848,6 +1886,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 
 func TestComponent_TekuProposerConfig(t *testing.T) {
 	ctx := context.Background()
+
 	const (
 		zeroAddr     = "0x0000000000000000000000000000000000000000"
 		feeRecipient = "0x123456"
@@ -1863,6 +1902,7 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 	// Convert pubkey
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
@@ -1883,9 +1923,11 @@ func TestComponent_TekuProposerConfig(t *testing.T) {
 
 	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
 	require.NoError(t, err)
+
 	genesisTime := genesis.Data.GenesisTime
 	respSpec, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
 	require.NoError(t, err)
+
 	slotDuration, ok := respSpec.Data["SECONDS_PER_SLOT"].(time.Duration)
 	require.True(t, ok)
 
@@ -1942,12 +1984,15 @@ func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 
 	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, pk core.PubKey) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
+
 		for _, val := range valSet {
 			pkEth2, err := pk.ToETH2()
 			require.NoError(t, err)
+
 			if pkEth2 != val.Validator.PublicKey {
 				continue
 			}
+
 			for _, selection := range selections {
 				if selection.ValidatorIndex == val.Index {
 					return core.NewBeaconCommitteeSelection(selection), nil
@@ -1987,6 +2032,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 
 	slot, err := agg.Slot()
 	require.NoError(t, err)
+
 	pubkey := beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
 
 	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
@@ -2038,6 +2084,7 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 		data, ok := set[pk]
 		require.True(t, ok)
 		require.Equal(t, core.NewPartialSignedSyncMessage(msg, 0), data)
+
 		count++
 
 		return nil
@@ -2075,6 +2122,7 @@ func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 		data, ok := set[pk]
 		require.True(t, ok)
 		require.Equal(t, core.NewPartialSignedSyncContributionAndProof(contrib, 0), data)
+
 		count++
 
 		return nil
@@ -2086,6 +2134,7 @@ func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 
 func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	const shareIdx = 1
+
 	var (
 		ctx        = context.Background()
 		val        = testutil.RandomValidator(t)
@@ -2102,6 +2151,7 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 
 	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
 	require.NoError(t, err)
+
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	val.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
@@ -2172,6 +2222,7 @@ func TestComponent_ValidatorCache(t *testing.T) {
 	}
 
 	var valEndpointInvocations int
+
 	bmock.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 		valEndpointInvocations += len(opts.PubKeys) + len(opts.Indices)
 
@@ -2256,6 +2307,7 @@ func TestComponent_GetAllValidators(t *testing.T) {
 		allPubSharesByKey = make(map[core.PubKey]map[int]tbls.PublicKey)
 		keyByPubshare     = make(map[tbls.PublicKey]core.PubKey)
 	)
+
 	i := numClusterVals
 	for _, val := range validatorSet {
 		i--
@@ -2286,6 +2338,7 @@ func TestComponent_GetAllValidators(t *testing.T) {
 	}
 	resp, err := vapi.Validators(context.Background(), opts)
 	require.NoError(t, err)
+
 	vals := resp.Data
 	require.Len(t, vals, totalVals)
 
@@ -2306,6 +2359,7 @@ func TestComponent_GetClusterValidatorsWithError(t *testing.T) {
 	)
 
 	validatorSet := testutil.RandomValidatorSet(t, numClusterVals)
+
 	var indices []eth2p0.ValidatorIndex
 	for vidx := range validatorSet {
 		indices = append(indices, vidx)
@@ -2397,9 +2451,11 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 
 	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
+
 		for _, val := range valSet {
 			pkEth2, err := pubkey.ToETH2()
 			require.NoError(t, err)
+
 			if pkEth2 != val.Validator.PublicKey {
 				continue
 			}
@@ -2475,6 +2531,7 @@ func signContributionAndProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.
 
 func sign(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, domain signing.DomainName, epoch eth2p0.Epoch, dataRoot eth2p0.Root) eth2p0.BLSSignature {
 	t.Helper()
+
 	ctx := context.Background()
 
 	signingRoot, err := signing.GetDataRoot(ctx, eth2Cl, domain, epoch, dataRoot)

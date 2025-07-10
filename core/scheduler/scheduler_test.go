@@ -65,6 +65,7 @@ func TestIntegration(t *testing.T) {
 		for idx, data := range set {
 			t.Logf("Duty triggered: vidx=%v slot=%v committee=%v\n", idx, duty.Slot, data.(core.AttesterDefinition).CommitteeIndex)
 		}
+
 		count--
 		if count == 0 {
 			s.Stop()
@@ -117,6 +118,7 @@ func TestSchedulerWait(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
 			var t0 time.Time
+
 			clock := newTestClock(t0)
 			eth2Cl, err := beaconmock.New()
 			require.NoError(t, err)
@@ -223,6 +225,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
+
 			eth2Resp, err := eth2Cl.Spec(t.Context(), &eth2api.SpecOpts{})
 			require.NoError(t, err)
 
@@ -239,16 +242,20 @@ func TestSchedulerDuties(t *testing.T) {
 				Duty       core.Duty `json:"-"`
 				DutyDefSet map[core.PubKey]string
 			}
+
 			var (
 				results []result
 				mu      sync.Mutex
 			)
+
 			sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
 				// Make result human-readable
 				resultSet := make(map[core.PubKey]string)
+
 				for pubkey, def := range set {
 					b, err := def.MarshalJSON()
 					require.NoError(t, err)
+
 					resultSet[pubkey] = string(b)
 				}
 
@@ -350,12 +357,14 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 		res, err = sched.GetDutyDefinition(ctx, core.NewAggregatorDuty(slot))
 		require.NoError(t, err)
+
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])
 		}
 
 		res, err = sched.GetDutyDefinition(ctx, core.NewSyncContributionDuty(slot))
 		require.NoError(t, err)
+
 		for _, pubKey := range pubKeys {
 			require.NotNil(t, res[pubKey])
 		}
@@ -363,6 +372,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Expire all duties
 	const trimEpochOffset = 3
+
 	expiry := time.Duration(trimEpochOffset*slotsPerEpoch) * slotDuration
 	clock.CallbackAfter(t0.Add(expiry).Add(time.Minute), func() {
 		_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
@@ -447,8 +457,10 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, schedSlotFunc)
 
 	doneCh := make(chan error, 1)
+
 	go func() {
 		doneCh <- sched.Run()
+
 		close(schedSlotCh)
 	}()
 
@@ -494,9 +506,11 @@ func (d *delayer) get() map[core.Duty]time.Time {
 func (d *delayer) delay(duty core.Duty, deadline time.Time) <-chan time.Time {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	if d.deadlines == nil {
 		d.deadlines = make(map[core.Duty]time.Time)
 	}
+
 	d.deadlines[duty] = deadline
 
 	resp := make(chan time.Time, 1)
@@ -554,6 +568,7 @@ func (c *testClock) Sleep(d time.Duration) {
 		if c.now.Before(after) {
 			continue
 		}
+
 		callback()
 		delete(c.callbacks, after)
 	}

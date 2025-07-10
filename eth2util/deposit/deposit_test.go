@@ -22,8 +22,11 @@ import (
 //go:generate go test . -run=TestMarshalDepositData -update -clean
 
 func TestNewMessage(t *testing.T) {
-	const privKey = "01477d4bfbbcebe1fef8d4d6f624ecbb6e3178558bb1b0d6286c816c66842a6d"
-	const addr = "0x321dcb529f3945bc94fecea9d3bc5caf35253b94"
+	const (
+		privKey = "01477d4bfbbcebe1fef8d4d6f624ecbb6e3178558bb1b0d6286c816c66842a6d"
+		addr    = "0x321dcb529f3945bc94fecea9d3bc5caf35253b94"
+	)
+
 	amount := deposit.DefaultDepositAmount
 	_, pubKey := GetKeys(t, privKey)
 
@@ -58,6 +61,7 @@ func TestNewMessage(t *testing.T) {
 			msg, err := deposit.NewMessage(pubKey, addr, test.max, test.compouding)
 
 			require.NoError(t, err)
+
 			if test.compouding {
 				require.Equal(t, []byte{0x02}, msg.WithdrawalCredentials[:1])
 			} else {
@@ -232,6 +236,7 @@ func TestWriteDepositDataFile(t *testing.T) {
 
 func TestWriteClusterDepositDataFiles(t *testing.T) {
 	const numNodes = 4
+
 	dir := t.TempDir()
 
 	for n := range numNodes {
@@ -240,6 +245,7 @@ func TestWriteClusterDepositDataFiles(t *testing.T) {
 	}
 
 	var depositDatas [][]eth2p0.DepositData
+
 	depositDatas = append(depositDatas, mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/2))
 	depositDatas = append(depositDatas, mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/4))
 

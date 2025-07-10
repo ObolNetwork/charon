@@ -50,7 +50,7 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 
 	buildInfo, ok := debug.ReadBuildInfo()
 	if !ok {
-		_, _ = fmt.Fprintf(out, "\nFailed to gather build info")
+		_, _ = fmt.Fprint(out, "\nFailed to gather build info")
 		return
 	}
 
@@ -61,6 +61,7 @@ func runVersionCmd(out io.Writer, config versionConfig) {
 		for dep.Replace != nil {
 			dep = dep.Replace
 		}
+
 		_, _ = fmt.Fprintf(out, "\t%v %v\n", dep.Path, dep.Version)
 	}
 

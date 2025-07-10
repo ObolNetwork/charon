@@ -32,9 +32,11 @@ func TestValidatorCache(t *testing.T) {
 		if rand.Intn(2) == 0 {
 			val.Status = eth2v1.ValidatorState(rand.Intn(10))
 		}
+
 		if val.Status.IsActive() {
 			expected[val.Index] = val.Validator.PublicKey
 		}
+
 		set[val.Index] = val
 		completeExpected[val.Index] = val
 		pubkeys = append(pubkeys, val.Validator.PublicKey)
@@ -46,8 +48,10 @@ func TestValidatorCache(t *testing.T) {
 
 	// Configure it to return the set of validators if queried.
 	var queried int
+
 	eth2Cl.ValidatorsFunc = func(ctx context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 		queried++
+
 		require.Equal(t, "head", opts.State)
 		require.Equal(t, pubkeys, opts.PubKeys)
 

@@ -31,6 +31,7 @@ func TestAPIFlow(t *testing.T) {
 
 	beaconMock, err := beaconmock.New()
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -122,6 +123,7 @@ func TestAPIFlowMissingSig(t *testing.T) {
 
 	beaconMock, err := beaconmock.New()
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()

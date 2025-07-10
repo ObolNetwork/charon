@@ -28,6 +28,7 @@ func TestDeadliner(t *testing.T) {
 
 	deadlineFuncProvider := func() func(duty core.Duty) (time.Time, bool) {
 		startTime := clock.Now()
+
 		return func(duty core.Duty) (time.Time, bool) {
 			if duty.Type == core.DutyExit {
 				return startTime.Add(time.Hour), true
@@ -48,6 +49,7 @@ func TestDeadliner(t *testing.T) {
 	// Add our duties to the deadliner.
 	expectedFalseCh := make(chan bool, len(expiredDuties))
 	expectedTrueCh := make(chan bool, len(nonExpiredDuties)+len(voluntaryExits))
+
 	addDuties(t, wg, expiredDuties, expectedFalseCh, deadliner)
 	addDuties(t, wg, nonExpiredDuties, expectedTrueCh, deadliner)
 	addDuties(t, wg, voluntaryExits, expectedTrueCh, deadliner)
@@ -58,6 +60,7 @@ func TestDeadliner(t *testing.T) {
 	for range len(expiredDuties) {
 		require.False(t, <-expectedFalseCh)
 	}
+
 	for range len(nonExpiredDuties) + len(voluntaryExits) {
 		require.True(t, <-expectedTrueCh)
 	}
@@ -173,8 +176,10 @@ func addDuties(t *testing.T, wg *sync.WaitGroup, duties []core.Duty, expCh chan 
 	t.Helper()
 
 	wg.Add(1)
+
 	go func(duties []core.Duty, expCh chan bool) {
 		defer wg.Done()
+
 		for _, duty := range duties {
 			res := deadliner.Add(duty)
 			expCh <- res

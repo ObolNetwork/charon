@@ -319,17 +319,21 @@ func TestPeersTest(t *testing.T) {
 			temp := t.TempDir()
 			_, err := p2p.NewSavedPrivKey(temp)
 			require.NoError(t, err)
+
 			conf.PrivateKeyFile = p2p.KeyPath(temp)
 			if conf.Publish {
 				var server *httptest.Server
+
 				server, conf = testPublishToObolAPI(t, test.expected, conf, temp)
 				defer server.Close()
 			}
+
 			if test.prepare != nil {
 				conf = test.prepare(t, conf)
 			}
 
 			var buf bytes.Buffer
+
 			_, err = runTestPeers(ctx, &buf, conf)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
@@ -337,6 +341,7 @@ func TestPeersTest(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			defer func() {
 				if test.cleanup != nil {
 					test.cleanup(t, conf.OutputJSON)
@@ -385,6 +390,7 @@ func TestPeersTestFlags(t *testing.T) {
 				return testCategoryResult{}, nil
 			}))
 			cmd.SetArgs(test.args)
+
 			err := cmd.Execute()
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
@@ -397,6 +403,7 @@ func TestPeersTestFlags(t *testing.T) {
 
 func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer) {
 	t.Helper()
+
 	bufTests := strings.Split(buf.String(), "\n")
 	bufTests = slices.Delete(bufTests, 0, 8)
 	bufTests = slices.Delete(bufTests, len(bufTests)-4, len(bufTests))
@@ -407,6 +414,7 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 	for range nTargets {
 		bufTests = bufTests[1:]
 		target := strings.Trim(bufTests[0], " ")
+
 		bufTests = bufTests[1:]
 		for _, test := range expectedRes.Targets[target] {
 			name, res, exist := strings.Cut(bufTests[0], " ")
@@ -416,10 +424,13 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 			if test.Verdict == testVerdictOk || test.Verdict == testVerdictFail {
 				require.Contains(t, res, test.Verdict)
 			}
+
 			require.Contains(t, res, test.Suggestion)
+
 			if test.Error.error != nil {
 				require.Contains(t, res, test.Error.Error())
 			}
+
 			bufTests = bufTests[1:]
 		}
 	}
@@ -429,13 +440,17 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 
 func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 	t.Helper()
+
 	file, err := os.ReadFile(path)
 	require.NoError(t, err)
+
 	var res allCategoriesResult
+
 	err = json.Unmarshal(file, &res)
 	require.NoError(t, err)
 
 	var actualRes testCategoryResult
+
 	switch expectedRes.CategoryName {
 	case peersTestCategory:
 		actualRes = res.Peers
@@ -453,7 +468,9 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 
 	require.Equal(t, expectedRes.CategoryName, actualRes.CategoryName)
 	require.Len(t, actualRes.Targets, len(expectedRes.Targets))
+
 	checkFinalScore := true
+
 	for targetName, testResults := range actualRes.Targets {
 		for idx, testRes := range testResults {
 			// do not test verdicts based on measurements
@@ -462,12 +479,15 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 			} else {
 				checkFinalScore = false
 			}
+
 			require.Equal(t, expectedRes.Targets[targetName][idx].IsAcceptable, testRes.IsAcceptable)
+
 			if expectedRes.Targets[targetName][idx].Error.error != nil {
 				require.ErrorContains(t, testRes.Error.error, expectedRes.Targets[targetName][idx].Error.Error())
 			} else {
 				require.NoError(t, testRes.Error.error)
 			}
+
 			require.Equal(t, expectedRes.Targets[targetName][idx].Name, testRes.Name)
 			require.Equal(t, expectedRes.Targets[targetName][idx].Suggestion, testRes.Suggestion)
 		}
@@ -480,15 +500,19 @@ func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
 
 func testPublishToObolAPI(t *testing.T, expectedRes testCategoryResult, conf testPeersConfig, keyPath string) (*httptest.Server, testPeersConfig) {
 	t.Helper()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.URL.Path, "/test")
 		require.Equal(t, r.Method, http.MethodPost)
 		require.Equal(t, r.Header.Get("Content-Type"), "application/json")
 
 		w.WriteHeader(http.StatusOK)
+
 		b, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
+
 		var res obolAPIResult
+
 		err = json.Unmarshal(b, &res)
 		require.NoError(t, err)
 		require.Equal(t, expectedRes.CategoryName, res.Data.Peers.CategoryName)
@@ -503,6 +527,7 @@ func testPublishToObolAPI(t *testing.T, expectedRes testCategoryResult, conf tes
 
 func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) enr.Record {
 	t.Helper()
+
 	ctx := context.Background()
 	peerConf := conf
 	freeTCPAddr := testutil.AvailableAddr(t)
@@ -538,6 +563,7 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 
 func base64ToPrivKey(t *testing.T, base64Key string) k1.PrivateKey {
 	t.Helper()
+
 	peer1PrivKeyBytes, err := base64.StdEncoding.DecodeString(base64Key)
 	require.NoError(t, err)
 
@@ -552,6 +578,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	addr := testutil.AvailableAddr(t).String()
 
 	errChan := make(chan error, 1)
+
 	go func() {
 		err := relay.Run(parentCtx, relay.Config{
 			DataDir:  dir,
@@ -565,6 +592,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 			MaxConns:      1024,
 		})
 		t.Logf("Relay stopped: err=%v", err)
+
 		errChan <- err
 	}()
 
@@ -575,6 +603,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 	defer cancel()
 
 	isUp := make(chan struct{})
+
 	go func() {
 		for ctx.Err() == nil {
 			_, err := http.Get(endpoint)
@@ -582,6 +611,7 @@ func startRelay(parentCtx context.Context, t *testing.T) string {
 				time.Sleep(time.Millisecond * 100)
 				continue
 			}
+
 			close(isUp)
 
 			return

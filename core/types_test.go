@@ -54,6 +54,7 @@ func TestWithDutySpanCtx(t *testing.T) {
 	ctx := context.Background()
 	stop, err := tracer.Init(tracer.WithStdOut(io.Discard))
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, stop(ctx))
 	}()
@@ -77,6 +78,7 @@ func TestAllDutyTypes(t *testing.T) {
 	adt := core.AllDutyTypes()
 
 	require.Len(t, adt, 13)
+
 	for i, dt := range adt {
 		require.Equal(t, i, slices.Index(adt, dt))
 	}

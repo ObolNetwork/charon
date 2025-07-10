@@ -127,6 +127,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 // It also analyses and reports the duties whose deadline gets crossed.
 func (t *Tracker) Run(ctx context.Context) error {
 	ctx = log.WithTopic(ctx, "tracker")
+
 	defer close(t.quit)
 
 	ignoreUnsupported := newUnsupportedIgnorer()
@@ -139,6 +140,7 @@ func (t *Tracker) Run(ctx context.Context) error {
 			if e.duty.Slot < t.fromSlot {
 				continue // Ignore events before from slot.
 			}
+
 			if !t.deleter.Add(e.duty) || !t.analyser.Add(e.duty) {
 				continue // Ignore expired or never expiring duties
 			}
@@ -185,6 +187,7 @@ func dutyFailedStep(es []event) (bool, step, error) {
 
 	// Find last failed/successful step.
 	var lastEvent event
+
 	for step := sentinel - 1; step > zero; step-- {
 		if len(eventsByStep[step]) == 0 {
 			continue
@@ -229,6 +232,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 	}
 
 	reason := reasonUnknown
+
 	switch failedStep {
 	case fetcher:
 		return analyseFetcherFailed(duty, allEvents, failedErr)
@@ -425,6 +429,7 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 		Pubkey   core.PubKey
 		ShareIdx int
 	}
+
 	var (
 		dedup = make(map[dedupKey]bool)
 		resp  = make(parsigsByMsg)
@@ -434,10 +439,12 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 		if e.parSig == nil {
 			continue // Ignore events without parsigs.
 		}
+
 		key := dedupKey{Pubkey: e.pubkey, ShareIdx: e.parSig.ShareIdx}
 		if dedup[key] {
 			continue
 		}
+
 		dedup[key] = true
 
 		root, err := e.parSig.MessageRoot()
@@ -450,6 +457,7 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 		if !ok {
 			inner = make(map[[32]byte][]core.ParSignedData)
 		}
+
 		inner[root] = append(inner[root], *e.parSig)
 		resp[e.pubkey] = inner
 	}
@@ -505,6 +513,7 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 			if duty.Type == core.DutyAggregator {
 				aggregationSupported = true
 			}
+
 			if duty.Type == core.DutySyncContribution {
 				contributionSupported = true
 			}
@@ -516,6 +525,7 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 			if !loggedNoAggregator {
 				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
 			}
+
 			loggedNoAggregator = true
 
 			return true
@@ -525,6 +535,7 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 			if !loggedNoContribution {
 				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
 			}
+
 			loggedNoContribution = true
 
 			return true
@@ -546,6 +557,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (resp
 		shareIdx int
 		pubkey   core.PubKey
 	}
+
 	dedup := make(map[dedupKey]bool)
 
 	// Set of validator keys which had the given duty scheduled.
@@ -568,6 +580,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (resp
 			}
 		}
 	}
+
 	pubkeyMapLen = len(pubkeyMap)
 
 	return resp, unexpectedShares, pubkeyMapLen
@@ -635,6 +648,7 @@ func newParticipationReporter(peers []p2p.Peer) func(context.Context, core.Duty,
 		}
 
 		var absentPeers []string
+
 		for _, peer := range peers {
 			participationSuccess.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(participatedShares[peer.ShareIdx()]))
 			participationSuccessLegacy.WithLabelValues(duty.Type.String(), peer.Name).Add(float64(participatedShares[peer.ShareIdx()]))
@@ -849,8 +863,10 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 					if err != nil {
 						continue // Ignore error, just skip it.
 					}
+
 					key = string(bytes)
 				}
+
 				indexesByJSON[key] = append(indexesByJSON[key], parsig.ShareIdx)
 			}
 		}

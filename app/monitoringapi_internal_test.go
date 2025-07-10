@@ -154,6 +154,7 @@ func TestStartChecker(t *testing.T) {
 			for _, pubkey := range tt.seenPubkeys {
 				seenPubkeys <- pubkey
 			}
+
 			if !tt.noVAPICalls {
 				vapiCalls <- struct{}{}
 			}
@@ -165,10 +166,12 @@ func TestStartChecker(t *testing.T) {
 			advanceClock(t, ctx, clock, time.Duration(slotsPerEpoch)*slotDuration)
 
 			waitFor := 1 * time.Second
+
 			tickInterval := 1 * time.Millisecond
 			if tt.err != nil {
 				require.Eventually(t, func() bool {
 					advanceClock(t, ctx, clock, slotDuration)
+
 					err = readyErrFunc()
 					if !errors.Is(err, tt.err) {
 						t.Logf("Ignoring unexpected error, got=%v, want=%v", err, tt.err)
@@ -189,6 +192,7 @@ func TestStartChecker(t *testing.T) {
 
 func advanceClock(t *testing.T, ctx context.Context, clock *clockwork.FakeClock, duration time.Duration) {
 	t.Helper()
+
 	numTickers := 2
 
 	// We wrap the Advance() calls with blockers to make sure that the ticker

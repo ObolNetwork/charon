@@ -1,2 +1,2 @@
-ts=00:00 level=error caller=log/log_test.go:66 msg="err1: EOF" stacktrace="\tapp/log/log_test.go:66 .func1\n\tapp/log/log_test.go:137 .func1" pretty="ERRO            err1: EOF                               \n"
-ts=00:00 level=error caller=log/log_test.go:67 msg="err2: wrap: EOF" stacktrace="\tapp/log/log_test.go:63 .func1\n\tapp/log/log_test.go:137 .func1" pretty="ERRO            err2: wrap: EOF                         \n"
+ts=00:00 level=error caller=log/log_test.go:66 msg="err1: EOF" stacktrace="\tapp/log/log_test.go:66 .func1\n\tapp/log/log_test.go:138 .func1" pretty="ERRO            err1: EOF                               \n"
+ts=00:00 level=error caller=log/log_test.go:67 msg="err2: wrap: EOF" stacktrace="\tapp/log/log_test.go:63 .func1\n\tapp/log/log_test.go:138 .func1" pretty="ERRO            err2: wrap: EOF                         \n"

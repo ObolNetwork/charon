@@ -54,6 +54,7 @@ type AttestationData struct {
 
 func (a AttestationData) Clone() (UnsignedData, error) {
 	var resp AttestationData
+
 	err := cloneJSONMarshaler(a, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone attestation")
@@ -103,6 +104,7 @@ type AggregatedAttestation struct {
 
 func (a AggregatedAttestation) Clone() (UnsignedData, error) {
 	var resp AggregatedAttestation
+
 	err := cloneJSONMarshaler(a, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone aggregated attestation")
@@ -183,6 +185,7 @@ type VersionedAggregatedAttestation struct {
 
 func (a VersionedAggregatedAttestation) Clone() (UnsignedData, error) {
 	var resp VersionedAggregatedAttestation
+
 	err := cloneJSONMarshaler(a, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone aggregated attestation")
@@ -193,6 +196,7 @@ func (a VersionedAggregatedAttestation) Clone() (UnsignedData, error) {
 
 func (a VersionedAggregatedAttestation) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
+
 	switch a.Version {
 	// No aggregatedAttestation nil checks since `NewVersionedProposal` assumed.
 	case eth2spec.DataVersionPhase0:
@@ -263,49 +267,62 @@ func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal phase0")
 		}
+
 		resp.Phase0 = att
 	case eth2spec.DataVersionAltair:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal altair")
 		}
+
 		resp.Altair = att
 	case eth2spec.DataVersionBellatrix:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal bellatrix")
 		}
+
 		resp.Bellatrix = att
 	case eth2spec.DataVersionCapella:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal capella")
 		}
+
 		resp.Capella = att
 	case eth2spec.DataVersionDeneb:
 		att := new(eth2p0.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal deneb")
 		}
+
 		resp.Deneb = att
 	case eth2spec.DataVersionElectra:
 		att := new(eth2e.Attestation)
+
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal electra")
 		}
+
 		resp.Electra = att
 	default:
 		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
+
 	resp.ValidatorIndex = raw.ValidatorIndex
 
 	a.VersionedAttestation = resp
@@ -328,6 +345,7 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 		if proposal.Bellatrix == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no bellatrix block")
 		}
+
 		if proposal.BellatrixBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no bellatrix blinded block")
 		}
@@ -335,6 +353,7 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 		if proposal.Capella == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no capella block")
 		}
+
 		if proposal.CapellaBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no capella blinded block")
 		}
@@ -342,6 +361,7 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 		if proposal.Deneb == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no deneb block")
 		}
+
 		if proposal.DenebBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no deneb blinded block")
 		}
@@ -349,6 +369,7 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 		if proposal.Electra == nil && !proposal.Blinded {
 			return VersionedProposal{}, errors.New("no electra block")
 		}
+
 		if proposal.ElectraBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no electra blinded block")
 		}
@@ -366,6 +387,7 @@ type VersionedProposal struct {
 
 func (p VersionedProposal) Clone() (UnsignedData, error) {
 	var resp VersionedProposal
+
 	err := cloneJSONMarshaler(p, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone block")
@@ -376,6 +398,7 @@ func (p VersionedProposal) Clone() (UnsignedData, error) {
 
 func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	var marshaller json.Marshaler
+
 	switch p.Version {
 	// No block nil checks since `NewVersionedProposal` assumed.
 	case eth2spec.DataVersionPhase0:
@@ -448,19 +471,23 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		if raw.Blinded {
 			return errors.New("phase0 block cannot be blinded")
 		}
+
 		block := new(eth2p0.BeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal phase0")
 		}
+
 		resp.Phase0 = block
 	case eth2spec.DataVersionAltair:
 		if raw.Blinded {
 			return errors.New("altair block cannot be blinded")
 		}
+
 		block := new(altair.BeaconBlock)
 		if err := json.Unmarshal(raw.Block, &block); err != nil {
 			return errors.Wrap(err, "unmarshal altair")
 		}
+
 		resp.Altair = block
 	case eth2spec.DataVersionBellatrix:
 		if raw.Blinded {
@@ -468,12 +495,14 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal bellatrix blinded")
 			}
+
 			resp.BellatrixBlinded = block
 		} else {
 			block := new(bellatrix.BeaconBlock)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal bellatrix")
 			}
+
 			resp.Bellatrix = block
 		}
 	case eth2spec.DataVersionCapella:
@@ -482,12 +511,14 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal capella blinded")
 			}
+
 			resp.CapellaBlinded = block
 		} else {
 			block := new(capella.BeaconBlock)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal capella")
 			}
+
 			resp.Capella = block
 		}
 	case eth2spec.DataVersionDeneb:
@@ -496,12 +527,14 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal deneb blinded")
 			}
+
 			resp.DenebBlinded = block
 		} else {
 			block := new(eth2deneb.BlockContents)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal deneb")
 			}
+
 			resp.Deneb = block
 		}
 	case eth2spec.DataVersionElectra:
@@ -510,12 +543,14 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal electra blinded")
 			}
+
 			resp.ElectraBlinded = block
 		} else {
 			block := new(eth2electra.BlockContents)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal electra")
 			}
+
 			resp.Electra = block
 		}
 	default:
@@ -538,6 +573,7 @@ type SyncContribution struct {
 
 func (s SyncContribution) Clone() (UnsignedData, error) {
 	var resp SyncContribution
+
 	err := cloneJSONMarshaler(s, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone sync contribution")

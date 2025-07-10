@@ -39,6 +39,7 @@ func TestBCast(t *testing.T) {
 	for range n {
 		secret, err := k1.GeneratePrivateKey()
 		require.NoError(t, err)
+
 		secrets = append(secrets, secret)
 
 		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
@@ -62,6 +63,7 @@ func TestBCast(t *testing.T) {
 		MsgID  string
 		Msg    proto.Message
 	}
+
 	results := make(chan result, 1024)
 
 	// Create broadcasters
@@ -73,6 +75,7 @@ func TestBCast(t *testing.T) {
 
 		checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
 			var ts timestamppb.Timestamp
+
 			err := msgAny.UnmarshalTo(&ts)
 			if err != nil {
 				return errors.Wrap(err, "anypb error")
@@ -93,6 +96,7 @@ func TestBCast(t *testing.T) {
 		t.Helper()
 
 		targets := make(map[peer.ID]struct{})
+
 		for range n - 1 {
 			actual := <-results
 			require.Equal(t, expected.Source, actual.Source)
@@ -106,6 +110,7 @@ func TestBCast(t *testing.T) {
 			if peerID == source {
 				continue
 			}
+
 			_, ok := targets[peerID]
 			require.True(t, ok)
 		}

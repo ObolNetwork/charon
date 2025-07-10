@@ -1,6 +1,6 @@
 // Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package utils_test
+package timer_test
 
 import (
 	"testing"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/core/consensus/utils"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 )
 
 func TestIncreasingRoundTimer(t *testing.T) {
@@ -39,7 +39,7 @@ func TestIncreasingRoundTimer(t *testing.T) {
 
 	for _, tt := range tests {
 		fakeClock := clockwork.NewFakeClock()
-		timer := utils.NewIncreasingRoundTimerWithClock(fakeClock)
+		timer := timer.NewIncreasingRoundTimerWithClock(fakeClock)
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Start the timerType
@@ -63,7 +63,7 @@ func TestIncreasingRoundTimer(t *testing.T) {
 
 func TestDoubleEagerLinearRoundTimer(t *testing.T) {
 	fakeClock := clockwork.NewFakeClock()
-	timer := utils.NewDoubleEagerLinearRoundTimerWithClock(fakeClock)
+	timer := timer.NewDoubleEagerLinearRoundTimerWithClock(fakeClock)
 
 	require.True(t, timer.Type().Eager())
 
@@ -141,7 +141,7 @@ func TestLinearRoundTimer(t *testing.T) {
 
 	for _, tt := range tests {
 		fakeClock := clockwork.NewFakeClock()
-		timer := utils.NewLinearRoundTimerWithClock(fakeClock)
+		timer := timer.NewLinearRoundTimerWithClock(fakeClock)
 
 		t.Run(tt.name, func(t *testing.T) {
 			// Start the timerType
@@ -164,36 +164,36 @@ func TestLinearRoundTimer(t *testing.T) {
 }
 
 func TestGetTimerFunc(t *testing.T) {
-	timerFunc := utils.GetTimerFunc()
-	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
+	timerFunc := timer.GetRoundTimerFunc()
+	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
 
-	timerFunc = utils.GetTimerFunc()
-	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
+	timerFunc = timer.GetRoundTimerFunc()
+	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.EnableForT(t, featureset.Linear)
 
-	timerFunc = utils.GetTimerFunc()
+	timerFunc = timer.GetRoundTimerFunc()
 	// non proposer duty, defaults to increasing
-	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, utils.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
+	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.EnableForT(t, featureset.EagerDoubleLinear)
 	// non proposer duty, defaults to eager
-	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
-	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
-	require.Equal(t, utils.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
+	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
+	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
+	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	// proposer duty, uses linear
-	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(0)).Type())
-	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(1)).Type())
-	require.Equal(t, utils.TimerLinear, timerFunc(core.NewProposerDuty(2)).Type())
+	require.Equal(t, timer.TimerLinear, timerFunc(core.NewProposerDuty(0)).Type())
+	require.Equal(t, timer.TimerLinear, timerFunc(core.NewProposerDuty(1)).Type())
+	require.Equal(t, timer.TimerLinear, timerFunc(core.NewProposerDuty(2)).Type())
 }
 
 func TestProposalTimeoutOptimizationIncreasingRoundTimer(t *testing.T) {
@@ -202,26 +202,32 @@ func TestProposalTimeoutOptimizationIncreasingRoundTimer(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClock()
 	duty := core.NewProposerDuty(0)
-	timer := utils.NewIncreasingRoundTimerWithDutyAndClock(duty, fakeClock)
+	timerDutyClock := timer.NewIncreasingRoundTimerWithDutyAndClock(duty, fakeClock)
 
 	// First round for proposer should be 1.5s
-	timerC, stop := timer.Timer(1)
+	timerC, stop := timerDutyClock.Timer(1)
+
 	fakeClock.Advance(1500 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
 	}
+
 	stop()
 
 	// Second round should use original logic
-	timerC, stop = timer.Timer(2)
-	fakeClock.Advance(utils.IncRoundStart + 2*utils.IncRoundIncrease)
+	timerC, stop = timerDutyClock.Timer(2)
+
+	fakeClock.Advance(timer.IncRoundStart + 2*timer.IncRoundIncrease)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 2, proposer) did not fire at original duration")
 	}
+
 	stop()
 }
 
@@ -231,26 +237,32 @@ func TestProposalTimeoutOptimizationDoubleEagerLinearRoundTimer(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClock()
 	duty := core.NewProposerDuty(0)
-	timer := utils.NewDoubleEagerLinearRoundTimerWithDutyAndClock(duty, fakeClock)
+	timer := timer.NewDoubleEagerLinearRoundTimerWithDutyAndClock(duty, fakeClock)
 
 	// First round for proposer should be 1.5s
 	timerC, stop := timer.Timer(1)
+
 	fakeClock.Advance(1500 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
 	}
+
 	stop()
 
 	// Second round should use original logic (2s)
 	timerC, stop = timer.Timer(2)
+
 	fakeClock.Advance(2 * time.Second)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 2, proposer) did not fire at 2s")
 	}
+
 	stop()
 }
 
@@ -260,25 +272,31 @@ func TestProposalTimeoutOptimizationLinearRoundTimer(t *testing.T) {
 
 	fakeClock := clockwork.NewFakeClock()
 	duty := core.NewProposerDuty(0)
-	timer := utils.NewLinearRoundTimerWithDutyAndClock(duty, fakeClock)
+	timer := timer.NewLinearRoundTimerWithDutyAndClock(duty, fakeClock)
 
 	// First round for proposer should be 1.5s
 	timerC, stop := timer.Timer(1)
+
 	fakeClock.Advance(1500 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 1, proposer) did not fire at 1.5s")
 	}
+
 	stop()
 
 	// Third round should use original logic (600ms)
 	timerC, stop = timer.Timer(3)
+
 	fakeClock.Advance(600 * time.Millisecond)
+
 	select {
 	case <-timerC:
 	default:
 		require.Fail(t, "Timer(round 3, proposer) did not fire at 600ms")
 	}
+
 	stop()
 }

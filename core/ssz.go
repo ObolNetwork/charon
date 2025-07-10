@@ -100,6 +100,7 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		if p.Bellatrix == nil && !blinded {
 			p.Bellatrix = new(bellatrix.SignedBeaconBlock)
 		}
+
 		if p.BellatrixBlinded == nil && blinded {
 			p.BellatrixBlinded = new(eth2bellatrix.SignedBlindedBeaconBlock)
 		}
@@ -113,6 +114,7 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		if p.Capella == nil && !blinded {
 			p.Capella = new(capella.SignedBeaconBlock)
 		}
+
 		if p.CapellaBlinded == nil && blinded {
 			p.CapellaBlinded = new(eth2capella.SignedBlindedBeaconBlock)
 		}
@@ -126,6 +128,7 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		if p.Deneb == nil && !blinded {
 			p.Deneb = new(eth2deneb.SignedBlockContents)
 		}
+
 		if p.DenebBlinded == nil && blinded {
 			p.DenebBlinded = new(eth2deneb.SignedBlindedBeaconBlock)
 		}
@@ -139,6 +142,7 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		if p.Electra == nil && !blinded {
 			p.Electra = new(eth2electra.SignedBlockContents)
 		}
+
 		if p.ElectraBlinded == nil && blinded {
 			p.ElectraBlinded = new(eth2electra.SignedBlindedBeaconBlock)
 		}
@@ -224,6 +228,7 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		if p.Bellatrix == nil && !blinded {
 			p.Bellatrix = new(bellatrix.BeaconBlock)
 		}
+
 		if p.BellatrixBlinded == nil && blinded {
 			p.BellatrixBlinded = new(eth2bellatrix.BlindedBeaconBlock)
 		}
@@ -237,6 +242,7 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		if p.Capella == nil && !blinded {
 			p.Capella = new(capella.BeaconBlock)
 		}
+
 		if p.CapellaBlinded == nil && blinded {
 			p.CapellaBlinded = new(eth2capella.BlindedBeaconBlock)
 		}
@@ -250,6 +256,7 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		if p.Deneb == nil && !blinded {
 			p.Deneb = new(eth2deneb.BlockContents)
 		}
+
 		if p.DenebBlinded == nil && blinded {
 			p.DenebBlinded = new(eth2deneb.BlindedBeaconBlock)
 		}
@@ -263,6 +270,7 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		if p.Electra == nil && !blinded {
 			p.Electra = new(eth2electra.BlockContents)
 		}
+
 		if p.ElectraBlinded == nil && blinded {
 			p.ElectraBlinded = new(eth2electra.BlindedBeaconBlock)
 		}
@@ -314,11 +322,13 @@ func (a *VersionedAttestation) UnmarshalSSZ(b []byte) error {
 		if !errors.Is(err, ssz.ErrOffset) {
 			return errors.Wrap(err, "unmarshal VersionedAttestation")
 		}
+
 		version, err = unmarshalSSZVersioned(b, a.sszValFromVersion)
 		if err != nil {
 			return errors.Wrap(err, "unmarshal VersionedAttestation without validator index")
 		}
 	}
+
 	a.Version = version.ToETH2()
 	a.ValidatorIndex = valIdx
 
@@ -841,6 +851,7 @@ func (a AttestationData) SizeSSZ() int {
 
 func (a *AttestationData) UnmarshalSSZ(buf []byte) error {
 	minSize := uint64(4 + 4)
+
 	size := uint64(len(buf))
 	if size < minSize {
 		return errors.Wrap(ssz.ErrSize, "attestation data too short")

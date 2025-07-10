@@ -89,6 +89,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 		relayBroke, connBroke, err := c.sendMsgs(ctx, stream)
 		c.clearConnected()
+
 		if relayBroke {
 			log.Debug(ctx, "Relay connection dropped, reconnecting")
 			continue // Always reconnect on relay circuit recycling.

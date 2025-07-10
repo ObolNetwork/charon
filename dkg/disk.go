@@ -37,12 +37,14 @@ func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientR
 	parsedURL, err := url.ParseRequestURI(conf.DefFile)
 
 	var def cluster.Definition
+
 	if err == nil && parsedURL.Host != "" {
 		if !strings.HasPrefix(parsedURL.Scheme, "https") {
 			log.Warn(ctx, "Definition file URL does not use https protocol", nil, z.Str("addr", conf.DefFile))
 		}
 
 		var err error
+
 		def, err = cluster.FetchDefinition(ctx, conf.DefFile)
 		if err != nil {
 			return cluster.Definition{}, errors.Wrap(err, "read definition")
@@ -80,6 +82,7 @@ func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientR
 	// Ensure we have a definition hash in case of no-verify.
 	if len(def.DefinitionHash) == 0 {
 		var err error
+
 		def, err = def.SetDefinitionHashes()
 		if err != nil {
 			return cluster.Definition{}, err
@@ -105,16 +108,19 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 		if err != nil {
 			return err
 		}
+
 		passwords = append(passwords, password)
 
 		store, err := keystore.Encrypt(s.SecretShare, password, rand.Reader)
 		if err != nil {
 			return err
 		}
+
 		keystores = append(keystores, store)
 	}
 
 	cl := keymanager.New(keymanagerURL, authToken)
+
 	err := cl.ImportKeystores(ctx, keystores, passwords)
 	if err != nil {
 		return err
@@ -209,6 +215,7 @@ func checkClearDataDir(dataDir string) error {
 // checkWrites writes sample files to check disk writes and removes sample files after verification.
 func checkWrites(dataDir string) error {
 	const checkBody = "delete me: dummy file used to check write permissions"
+
 	for _, file := range []string{"cluster-lock.json", "deposit-data.json", "validator_keys/keystore-0.json"} {
 		if filepath.Dir(file) != "" {
 			if err := os.MkdirAll(filepath.Join(dataDir, filepath.Dir(file)), 0o777); err != nil {
@@ -238,6 +245,7 @@ func checkWrites(dataDir string) error {
 // randomHex64 returns a random 64 character hex string. It uses crypto/rand.
 func randomHex64() (string, error) {
 	b := make([]byte, 32)
+
 	_, err := rand.Read(b)
 	if err != nil {
 		return "", errors.Wrap(err, "read random")

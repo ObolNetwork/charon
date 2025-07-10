@@ -46,9 +46,11 @@ import (
 
 func deterministicPubkeySeed(t *testing.T, r *rand.Rand) tbls.PublicKey {
 	t.Helper()
+
 	random := rand.New(rand.NewSource(r.Int63()))
 
 	var key tbls.PublicKey
+
 	_, err := random.Read(key[:])
 	require.NoError(t, err)
 
@@ -111,6 +113,7 @@ func RandomValidatorSet(t *testing.T, vals int) map[eth2p0.ValidatorIndex]*eth2v
 	t.Helper()
 
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
 	for range vals {
 		val := RandomValidator(t)
 		resp[val.Index] = val
@@ -138,6 +141,7 @@ func RandomElectraAttestation() *electra.Attestation {
 
 func RandomDenebCoreVersionedAttestation() core.VersionedAttestation {
 	vIdx := eth2p0.ValidatorIndex(0)
+
 	return core.VersionedAttestation{
 		VersionedAttestation: eth2spec.VersionedAttestation{
 			Version:        eth2spec.DataVersionDeneb,
@@ -149,6 +153,7 @@ func RandomDenebCoreVersionedAttestation() core.VersionedAttestation {
 
 func RandomElectraCoreVersionedAttestation() core.VersionedAttestation {
 	vIdx := RandomVIdx()
+
 	return core.VersionedAttestation{
 		VersionedAttestation: eth2spec.VersionedAttestation{
 			Version:        eth2spec.DataVersionElectra,
@@ -960,8 +965,10 @@ func RandomSyncCommitteeDuty(t *testing.T) *eth2v1.SyncCommitteeDuty {
 
 func RandomSyncAggregate() *altair.SyncAggregate {
 	var syncSSZ [160]byte
+
 	_, _ = crand.Read(syncSSZ[:])
 	sync := new(altair.SyncAggregate)
+
 	err := sync.UnmarshalSSZ(syncSSZ[:])
 	if err != nil {
 		panic(err) // Should never happen, and this is test code.
@@ -1064,6 +1071,7 @@ func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 
 func RandomAttestationDutySeed(t *testing.T, r *rand.Rand) *eth2v1.AttesterDuty {
 	t.Helper()
+
 	return &eth2v1.AttesterDuty{
 		PubKey:                  RandomEth2PubKeySeed(t, r),
 		Slot:                    RandomSlotSeed(r),
@@ -1077,6 +1085,7 @@ func RandomAttestationDutySeed(t *testing.T, r *rand.Rand) *eth2v1.AttesterDuty 
 
 func RandomProposerDuty(t *testing.T) *eth2v1.ProposerDuty {
 	t.Helper()
+
 	return &eth2v1.ProposerDuty{
 		PubKey:         RandomEth2PubKey(t),
 		Slot:           RandomSlot(),
@@ -1146,6 +1155,7 @@ func RandomRoot() eth2p0.Root {
 
 func RandomRootSeed(r *rand.Rand) eth2p0.Root {
 	var resp eth2p0.Root
+
 	_, _ = r.Read(resp[:])
 
 	return resp
@@ -1153,6 +1163,7 @@ func RandomRootSeed(r *rand.Rand) eth2p0.Root {
 
 func RandomEth2Signature() eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
+
 	_, _ = crand.Read(resp[:])
 
 	return resp
@@ -1160,6 +1171,7 @@ func RandomEth2Signature() eth2p0.BLSSignature {
 
 func RandomEth2SignatureWithSeed(seed int64) eth2p0.BLSSignature {
 	var resp eth2p0.BLSSignature
+
 	_, _ = rand.New(rand.NewSource(seed)).Read(resp[:])
 
 	return resp
@@ -1178,6 +1190,7 @@ func RandomCheckpoint() *eth2p0.Checkpoint {
 
 func RandomCheckpointSeed(r *rand.Rand) *eth2p0.Checkpoint {
 	var resp eth2p0.Root
+
 	_, _ = r.Read(resp[:])
 
 	return &eth2p0.Checkpoint{
@@ -1260,6 +1273,7 @@ func RandomBytes96() []byte {
 
 func RandomBytes96Seed(r *rand.Rand) []byte {
 	var resp [96]byte
+
 	_, _ = r.Read(resp[:])
 
 	return resp[:]
@@ -1271,6 +1285,7 @@ func RandomBytes48() []byte {
 
 func RandomBytes48Seed(r *rand.Rand) []byte {
 	var resp [48]byte
+
 	_, _ = r.Read(resp[:])
 
 	return resp[:]
@@ -1282,6 +1297,7 @@ func RandomBytes32() []byte {
 
 func RandomBytes32Seed(r *rand.Rand) []byte {
 	var resp [32]byte
+
 	_, _ = r.Read(resp[:])
 
 	return resp[:]
@@ -1293,6 +1309,7 @@ func RandomArray32() [32]byte {
 
 func RandomArray32Seed(r *rand.Rand) [32]byte {
 	var resp [32]byte
+
 	_, _ = r.Read(resp[:])
 
 	return resp
@@ -1300,6 +1317,7 @@ func RandomArray32Seed(r *rand.Rand) [32]byte {
 
 func RandomBitList(length int) bitfield.Bitlist {
 	size := 256
+
 	resp := bitfield.NewBitlist(uint64(size))
 	for range length {
 		resp.SetBitAt(uint64(rand.Intn(size)), true)
@@ -1342,6 +1360,7 @@ func RandomSecp256k1Signature() []byte {
 
 func RandomSecp256k1SignatureSeed(r *rand.Rand) []byte {
 	var resp [65]byte
+
 	_, _ = r.Read(resp[:])
 
 	r1 := resp[0] % 2        // 0 or 1
@@ -1354,6 +1373,7 @@ func RandomSecp256k1SignatureSeed(r *rand.Rand) []byte {
 
 func RandomExecutionAddress() bellatrix.ExecutionAddress {
 	var resp [20]byte
+
 	_, _ = crand.Read(resp[:])
 
 	return resp
@@ -1379,6 +1399,7 @@ func AvailableAddr(t *testing.T) *net.TCPAddr {
 
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
+
 	defer l.Close()
 
 	addr, err := net.ResolveTCPAddr(l.Addr().Network(), l.Addr().String())
@@ -1397,6 +1418,7 @@ func AvailableMultiAddr(t *testing.T) multiaddr.Multiaddr {
 
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
+
 	defer l.Close()
 
 	h, p, err := net.SplitHostPort(l.Addr().String())
@@ -1410,6 +1432,7 @@ func AvailableMultiAddr(t *testing.T) multiaddr.Multiaddr {
 
 func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Host {
 	t.Helper()
+
 	pkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 

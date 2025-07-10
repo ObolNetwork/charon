@@ -72,10 +72,12 @@ func TestFilterAdvertisedAddrs(t *testing.T) {
 			}
 
 			res := filterAdvertisedAddrs(cast(test.external), cast(test.internal), test.excludePrivate)
+
 			var resStr []string
 			for _, mAddr := range res {
 				resStr = append(resStr, mAddr.String())
 			}
+
 			require.Equal(t, test.result, resStr)
 		})
 	}

@@ -94,6 +94,7 @@ func bindTestLogFlags(flags *pflag.FlagSet, config *log.Config) {
 
 func listTestCases(cmd *cobra.Command) []string {
 	var testCaseNames []testCaseName
+
 	switch cmd.Name() {
 	case peersTestCategory:
 		testCaseNames = slices.Collect(maps.Keys(supportedPeerTestCases()))
@@ -316,6 +317,7 @@ func writeResultToFile(res testCategoryResult, path string) error {
 		return errors.Wrap(err, "create/open file")
 	}
 	defer existingFile.Close()
+
 	stat, err := existingFile.Stat()
 	if err != nil {
 		return errors.Wrap(err, "get file stat")
@@ -350,6 +352,7 @@ func writeResultToFile(res testCategoryResult, path string) error {
 		return errors.Wrap(err, "create temp file")
 	}
 	defer tmpFile.Close()
+
 	err = tmpFile.Chmod(0o644)
 	if err != nil {
 		return errors.Wrap(err, "chmod temp file")
@@ -405,18 +408,22 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 	suggestions := []string{}
 	targets := slices.Collect(maps.Keys(res.Targets))
 	slices.Sort(targets)
+
 	for _, target := range targets {
 		if target != "" && len(res.Targets[target]) > 0 {
 			lines = append(lines, "")
 			lines = append(lines, target)
 		}
+
 		for _, singleTestRes := range res.Targets[target] {
 			testOutput := ""
+
 			testOutput += fmt.Sprintf("%-64s", singleTestRes.Name)
 			if singleTestRes.Measurement != "" {
 				testOutput = strings.TrimSuffix(testOutput, strings.Repeat(" ", utf8.RuneCountInString(singleTestRes.Measurement)+1))
 				testOutput = testOutput + singleTestRes.Measurement + " "
 			}
+
 			testOutput += string(singleTestRes.Verdict)
 
 			if singleTestRes.Suggestion != "" {
@@ -426,9 +433,11 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 			if singleTestRes.Error.error != nil {
 				testOutput += " - " + singleTestRes.Error.Error()
 			}
+
 			lines = append(lines, testOutput)
 		}
 	}
+
 	if len(suggestions) != 0 {
 		lines = append(lines, "")
 		lines = append(lines, "SUGGESTED IMPROVEMENTS")
@@ -468,6 +477,7 @@ func evaluateRTT(rtt time.Duration, testRes testResult, avg time.Duration, poor 
 	} else {
 		testRes.Verdict = testVerdictGood
 	}
+
 	testRes.Measurement = RoundDuration(Duration{rtt}).String()
 
 	return testRes
@@ -476,6 +486,7 @@ func evaluateRTT(rtt time.Duration, testRes testResult, avg time.Duration, poor 
 func calculateScore(results []testResult) categoryScore {
 	// TODO(kalo): calculate score more elaborately (potentially use weights)
 	avg := 0
+
 	for _, t := range results {
 		switch t.Verdict {
 		case testVerdictPoor:
@@ -506,7 +517,9 @@ func filterTests(supportedTestCases []testCaseName, cfg testConfig) []testCaseNa
 	if cfg.TestCases == nil {
 		return supportedTestCases
 	}
+
 	var filteredTests []testCaseName
+
 	for _, tc := range cfg.TestCases {
 		for _, stc := range supportedTestCases {
 			if stc.name == tc {
@@ -528,8 +541,10 @@ func sortTests(tests []testCaseName) {
 func blockAndWait(ctx context.Context, awaitTime time.Duration) {
 	notifyCtx, cancelNotifyCtx := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancelNotifyCtx()
+
 	keepAliveCtx, cancelKeepAliveCtx := context.WithTimeout(ctx, awaitTime)
 	defer cancelKeepAliveCtx()
+
 	select {
 	case <-keepAliveCtx.Done():
 		log.Info(ctx, "Await time reached or interrupted")
@@ -550,8 +565,10 @@ func sleepWithContext(ctx context.Context, d time.Duration) {
 }
 
 func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
-	var start time.Time
-	var firstByte time.Duration
+	var (
+		start     time.Time
+		firstByte time.Duration
+	)
 
 	trace := &httptrace.ClientTrace{
 		GotFirstResponseByte: func() {
@@ -560,10 +577,12 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 	}
 
 	start = time.Now()
+
 	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, url, body)
 	if err != nil {
 		return 0, errors.Wrap(err, "create new request with trace and context")
 	}
+
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

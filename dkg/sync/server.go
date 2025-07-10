@@ -227,6 +227,7 @@ func (s *Server) isAllAtStep(step int) (bool, error) {
 		if actual >= step+2 {
 			return false, errors.New("peer step is too far ahead", z.Int("peer_step", actual), z.Int("local_step", step))
 		}
+
 		if actual != step && actual != step+1 {
 			return false, nil
 		}
@@ -321,6 +322,7 @@ func (s *Server) validReq(pubkey crypto.PubKey, msg *pb.MsgSync) error {
 func (s *Server) Start(ctx context.Context) {
 	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
+
 		err := s.handleStream(ctx, stream)
 		if isRelayError(err) { // Relay errors are expected
 			log.Debug(ctx, "Relay error serving sync protocol", z.Str("err", err.Error()))
@@ -338,6 +340,7 @@ func writeSizedProto(writer io.Writer, msg proto.Message) error {
 	}
 
 	size := int64(len(buf))
+
 	err = binary.Write(writer, binary.LittleEndian, size)
 	if err != nil {
 		return errors.Wrap(err, "read size")
@@ -356,12 +359,14 @@ func writeSizedProto(writer io.Writer, msg proto.Message) error {
 // readSizedProto reads a size prefixed proto message.
 func readSizedProto(reader io.Reader, msg proto.Message) error {
 	var size int64
+
 	err := binary.Read(reader, binary.LittleEndian, &size)
 	if err != nil {
 		return errors.Wrap(err, "read size")
 	}
 
 	buf := make([]byte, size)
+
 	n, err := reader.Read(buf)
 	if err != nil {
 		return errors.Wrap(err, "read buffer")

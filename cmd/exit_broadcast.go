@@ -139,17 +139,21 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 	}
 
 	fullExits := make(map[core.PubKey]eth2p0.SignedVoluntaryExit)
+
 	if config.All {
 		if config.ExitFromFileDir != "" {
 			entries, err := os.ReadDir(config.ExitFromFileDir)
 			if err != nil {
 				return errors.Wrap(err, "read exits directory", z.Str("exit_file_dir", config.ExitFromFileDir))
 			}
+
 			for _, entry := range entries {
 				if !strings.HasPrefix(entry.Name(), "exit-") {
 					continue
 				}
+
 				valCtx := log.WithCtx(ctx, z.Str("validator_exit_file", entry.Name()))
+
 				exit, err := fetchFullExit(valCtx, filepath.Join(config.ExitFromFileDir, entry.Name()), config, cl, identityKey, "")
 				if err != nil {
 					return err
@@ -167,6 +171,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 				validatorPubKeyHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
 
 				valCtx := log.WithCtx(ctx, z.Str("validator_public_key", validatorPubKeyHex))
+
 				exit, err := fetchFullExit(valCtx, "", config, cl, identityKey, validatorPubKeyHex)
 				if err != nil {
 					if errors.Is(err, obolapi.ErrNoExit) {
@@ -176,19 +181,23 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 
 					return errors.Wrap(err, "fetch full exit for all validators from public key")
 				}
+
 				validatorPubKey, err := core.PubKeyFromBytes(validator.GetPublicKey())
 				if err != nil {
 					return errors.Wrap(err, "convert public key for validator")
 				}
+
 				fullExits[validatorPubKey] = exit
 			}
 		}
 	} else {
 		valCtx := log.WithCtx(ctx, z.Str("validator_public_key", config.ValidatorPubkey), z.Str("validator_exit_file", config.ExitFromFilePath))
+
 		exit, err := fetchFullExit(valCtx, strings.TrimSpace(config.ExitFromFilePath), config, cl, identityKey, config.ValidatorPubkey)
 		if err != nil {
 			return errors.Wrap(err, "fetch full exit for validator", z.Str("validator_public_key", config.ValidatorPubkey), z.Str("validator_exit_file", config.ExitFromFilePath))
 		}
+
 		var validatorPubKey core.PubKey
 		if len(strings.TrimSpace(config.ExitFromFilePath)) != 0 {
 			validatorPubKey, err = validatorPubKeyFromFileName(config.ExitFromFilePath)
@@ -198,6 +207,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		} else {
 			validatorPubKey = core.PubKey(config.ValidatorPubkey)
 		}
+
 		fullExits[validatorPubKey] = exit
 	}
 
@@ -208,10 +218,12 @@ func validatorPubKeyFromFileName(fileName string) (core.PubKey, error) {
 	fileNameChecked := filepath.Base(fileName)
 	fileExtension := filepath.Ext(fileNameChecked)
 	validatorPubKeyHex := strings.TrimPrefix(strings.TrimSuffix(fileNameChecked, fileExtension), "exit-0x")
+
 	validatorPubKeyBytes, err := hex.DecodeString(validatorPubKeyHex)
 	if err != nil {
 		return "", errors.Wrap(err, "decode public key hex from file name", z.Str("public_key", validatorPubKeyHex))
 	}
+
 	validatorPubKey, err := core.PubKeyFromBytes(validatorPubKeyBytes)
 	if err != nil {
 		return "", errors.Wrap(err, "decode core public key from hex")
@@ -221,11 +233,14 @@ func validatorPubKeyFromFileName(fileName string) (core.PubKey, error) {
 }
 
 func fetchFullExit(ctx context.Context, exitFilePath string, config exitConfig, cl *manifestpb.Cluster, identityKey *k1.PrivateKey, validatorPubKey string) (eth2p0.SignedVoluntaryExit, error) {
-	var fullExit eth2p0.SignedVoluntaryExit
-	var err error
+	var (
+		fullExit eth2p0.SignedVoluntaryExit
+		err      error
+	)
 
 	if len(exitFilePath) != 0 {
 		log.Info(ctx, "Retrieving full exit message from path")
+
 		fullExit, err = exitFromPath(exitFilePath)
 	} else {
 		log.Info(ctx, "Retrieving full exit message from publish address")
@@ -275,6 +290,7 @@ func broadcastExitsToBeacon(ctx context.Context, eth2Cl eth2wrap.Client, exits m
 		if err := eth2Cl.SubmitVoluntaryExit(valCtx, &fullExit); err != nil {
 			return errors.Wrap(err, "submit voluntary exit")
 		}
+
 		log.Info(valCtx, "Successfully submitted voluntary exit for validator")
 	}
 

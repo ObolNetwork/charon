@@ -15,6 +15,7 @@ import (
 
 func TestHashBuilderRegistration(t *testing.T) {
 	const network = "goerli"
+
 	clusterReg := RandomRegistration(t, network)
 
 	var feeRecipient bellatrix.ExecutionAddress

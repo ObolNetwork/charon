@@ -44,6 +44,7 @@ func TestDebugger(t *testing.T) {
 
 	res, err := http.Get(srv.URL)
 	require.NoError(t, err)
+
 	defer res.Body.Close()
 
 	r, err := gzip.NewReader(res.Body)

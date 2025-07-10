@@ -80,6 +80,7 @@ func Run(ctx context.Context, config Config) error {
 
 	// Start serving HTTP: ENR and monitoring.
 	serverErr := make(chan error, 3) // Buffer for 3 servers.
+
 	go func() {
 		if config.HTTPAddr == "" {
 			return
@@ -88,6 +89,7 @@ func Run(ctx context.Context, config Config) error {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", wrapHandler(newMultiaddrHandler(tcpNode)))
 		mux.HandleFunc("/enr", wrapHandler(newENRHandler(ctx, tcpNode, key, config.P2PConfig)))
+
 		server := http.Server{Addr: config.HTTPAddr, Handler: mux, ReadHeaderTimeout: time.Second}
 		serverErr <- server.ListenAndServe()
 	}()
@@ -101,6 +103,7 @@ func Run(ctx context.Context, config Config) error {
 			))
 
 			log.Info(ctx, "Monitoring server started", z.Str("address", config.MonitoringAddr))
+
 			server := http.Server{Addr: config.MonitoringAddr, Handler: mux, ReadHeaderTimeout: time.Second}
 			serverErr <- server.ListenAndServe()
 		}()
@@ -128,6 +131,7 @@ func Run(ctx context.Context, config Config) error {
 		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
 		z.Any("p2p_tcp_addr", config.P2PConfig.TCPAddrs),
 	)
+
 	if config.HTTPAddr != "" {
 		log.Info(ctx, "Runtime multiaddrs available via http",
 			z.Str("url", "http://"+config.HTTPAddr),
@@ -154,6 +158,7 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 		extHostMu sync.Mutex
 		extHostIP net.IP
 	)
+
 	go func() {
 		if config.ExternalHost == "" {
 			return
@@ -165,8 +170,11 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 				log.Warn(ctx, "Failed to resolve external host", err, z.Str("host", config.ExternalHost))
 				return
 			}
+
 			extHostMu.Lock()
+
 			extHostIP = ip[0]
+
 			extHostMu.Unlock()
 		}
 
@@ -215,6 +223,7 @@ func newENRHandler(ctx context.Context, tcpNode host.Host, p2pKey *k1.PrivateKey
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert multiaddr to net addr")
 		}
+
 		tcpAddr, ok := addr.(*net.TCPAddr)
 		if !ok {
 			return nil, errors.New("invalid TCP address")

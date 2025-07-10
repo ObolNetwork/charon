@@ -47,6 +47,7 @@ var _ Client = &synthWrapper{}
 // synthWrapper wraps an eth2 client and provides synthetic proposer duties.
 type synthWrapper struct {
 	Client
+
 	synthProposerCache *synthProposerCache
 
 	mu            sync.RWMutex
@@ -119,6 +120,7 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		opts := &eth2api.SignedBeaconBlockOpts{
 			Block: fmt.Sprint(prev),
 		}
+
 		signed, err := h.SignedBeaconBlock(ctx, opts)
 		if err != nil {
 			if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
@@ -227,6 +229,7 @@ func GetSyntheticGraffiti() [32]byte {
 // IsSyntheticBlindedBlock returns true if the blinded block is a synthetic block.
 func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool {
 	var graffiti [32]byte
+
 	switch block.Version {
 	case eth2spec.DataVersionBellatrix:
 		graffiti = block.Bellatrix.Message.Body.Graffiti
@@ -246,6 +249,7 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 // IsSyntheticProposal returns true if the block is a synthetic block proposal.
 func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 	var graffiti [32]byte
+
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
 		graffiti = block.Phase0.Message.Body.Graffiti
@@ -295,6 +299,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 	c.mu.RLock()
 	duties, ok := c.duties[epoch]
 	c.mu.RUnlock()
+
 	if ok {
 		return duties, nil
 	}
@@ -309,6 +314,7 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 		Epoch:   epoch,
 		Indices: vals.Indices(),
 	}
+
 	resp, err := eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -331,12 +337,14 @@ func (c *synthProposerCache) Duties(ctx context.Context, eth2Cl synthProposerEth
 
 	// Deterministic synthetic duties for the rest.
 	synthSlots := make(map[eth2p0.Slot]eth2p0.ValidatorIndex)
+
 	for _, valIdx := range c.shuffleFunc(epoch, vals.Indices()) {
 		if noSynth[valIdx] {
 			continue
 		}
 
 		offset := eth2p0.Slot(valIdx) % eth2p0.Slot(slotsPerEpoch)
+
 		synthSlot := epochSlot + offset
 		if _, ok := synthSlots[synthSlot]; ok {
 			// We already have a synth proposer for this slot.

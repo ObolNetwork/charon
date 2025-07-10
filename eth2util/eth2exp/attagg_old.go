@@ -21,6 +21,7 @@ func IsAttAggregator(ctx context.Context, specProvider eth2client.SpecProvider, 
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")
 	}
+
 	spec := resp.Data
 
 	aggsPerComm, ok := spec["TARGET_AGGREGATORS_PER_COMMITTEE"].(uint64)
@@ -43,6 +44,7 @@ func IsSyncCommAggregator(ctx context.Context, specProvider eth2client.SpecProvi
 	if err != nil {
 		return false, errors.Wrap(err, "get eth2 spec")
 	}
+
 	spec := resp.Data
 
 	commSize, ok := spec["SYNC_COMMITTEE_SIZE"].(uint64)
@@ -71,6 +73,7 @@ func IsSyncCommAggregator(ctx context.Context, specProvider eth2client.SpecProvi
 // hashModulo returns true if the first 8 bytes of the sha256 hashModulo of the input signature is divisible by the provided modulo.
 func hashModulo(sig eth2p0.BLSSignature, modulo uint64) (bool, error) {
 	h := sha256.New()
+
 	_, err := h.Write(sig[:])
 	if err != nil {
 		return false, errors.Wrap(err, "calculate sha256")

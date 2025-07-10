@@ -203,6 +203,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	p2pKey := conf.TestConfig.P2PKey
 	if p2pKey == nil {
 		var err error
+
 		p2pKey, err = k1util.Load(conf.PrivKeyFile)
 		if err != nil {
 			return errors.Wrap(err, "load priv key")
@@ -219,6 +220,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	lockHashHex := hex7(cluster.GetInitialMutationHash())
+
 	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -254,6 +256,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		"charon_version":  version.Version.String(),
 	}
 	log.SetLokiLabels(labels)
+
 	promRegistry, err := promauto.NewRegistry(labels)
 	if err != nil {
 		return err
@@ -286,6 +289,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if len(conf.Nickname) > 32 {
 		return errors.New("nickname can not exceed 32 characters")
 	}
+
 	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
@@ -399,6 +403,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		allPubSharesByKey            = make(map[core.PubKey]map[int]tbls.PublicKey) // map[pubkey]map[shareIdx]pubshare
 		feeRecipientAddrByCorePubkey = make(map[core.PubKey]string)
 	)
+
 	for _, val := range cluster.GetValidators() {
 		pubkey, err := manifest.ValidatorPublicKey(val)
 		if err != nil {
@@ -411,6 +416,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		allPubShares := make(map[int]tbls.PublicKey)
+
 		for i, b := range val.GetPubShares() {
 			pubshare, err := tblsconv.PubkeyFromBytes(b)
 			if err != nil {
@@ -455,6 +461,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if err != nil {
 		return err
 	}
+
 	sseListener.SubscribeChainReorgEvent(sched.HandleChainReorgEvent)
 
 	feeRecipientFunc := func(pubkey core.PubKey) string {
@@ -468,6 +475,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	firstValCacheRefresh := true
 	refreshedBySlot := true
+
 	var fvcrLock sync.RWMutex
 
 	shouldUpdateCache := func(slot core.Slot, lock *sync.RWMutex) bool {
@@ -502,6 +510,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		valCache.Trim()
+
 		_, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
 		if err != nil {
 			log.Error(ctx, "Cannot refresh validator cache", err)
@@ -579,6 +588,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
+
 	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
 	if err != nil {
 		return err
@@ -682,6 +692,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	if clusterPreferredProtocol != "" {
 		allProtocols = protocols.PrioritizeProtocolsByName(clusterPreferredProtocol, allProtocols)
 	}
+
 	if conf.ConsensusProtocol != "" {
 		allProtocols = protocols.PrioritizeProtocolsByName(conf.ConsensusProtocol, allProtocols)
 	}
@@ -836,12 +847,14 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 // startup due to downstream VC startup delays.
 func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Time) (uint64, error) {
 	const maxDelayTime = time.Second * 10 // We want to delay at most 10 seconds
-	const minDelaySlots = 2               // But we do not want to delay less than 2 slots
+
+	const minDelaySlots = 2 // But we do not want to delay less than 2 slots
 
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, cl)
 	if err != nil {
 		return 0, err
 	}
+
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, cl)
 	if err != nil {
 		return 0, err
@@ -891,6 +904,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 
 	if conf.SimnetBMockFuzz {
 		log.Info(ctx, "Beaconmock fuzz configured!")
+
 		bmock, err := beaconmock.New(beaconmock.WithBeaconMockFuzzer(), beaconmock.WithForkVersion([4]byte(forkVersion)))
 		if err != nil {
 			return nil, nil, err
@@ -900,7 +914,9 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		if err != nil {
 			return nil, nil, err
 		}
+
 		fb := eth2wrap.NewSimnetFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
+
 		wrap, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, fb)
 		if err != nil {
 			return nil, nil, err
@@ -918,6 +934,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		}
 
 		const dutyFactor = 100 // Duty factor spreads duties deterministically in an epoch.
+
 		opts := []beaconmock.Option{
 			beaconmock.WithSlotDuration(conf.SimnetSlotDuration),
 			beaconmock.WithGenesisTime(genesisTime),
@@ -928,7 +945,9 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		if !conf.SyntheticBlockProposals { // Only add deterministic proposals if synthetic duties are disabled.
 			opts = append(opts, beaconmock.WithDeterministicProposerDuties(dutyFactor))
 		}
+
 		opts = append(opts, conf.TestConfig.SimnetBMockOpts...)
+
 		bmock, err := beaconmock.New(opts...)
 		if err != nil {
 			return nil, nil, err
@@ -938,7 +957,9 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		if err != nil {
 			return nil, nil, err
 		}
+
 		fb := eth2wrap.NewSimnetFallbacks(bnTimeout, [4]byte(forkVersion), beaconNodeHeaders, conf.FallbackBeaconNodeAddrs)
+
 		wrap, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, fb)
 		if err != nil {
 			return nil, nil, err
@@ -946,6 +967,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 
 		if conf.SyntheticBlockProposals {
 			log.Info(ctx, "Synthetic block proposals enabled")
+
 			wrap = eth2wrap.WithSyntheticDuties(wrap)
 		}
 
@@ -996,15 +1018,18 @@ func configureEth2Client(ctx context.Context, forkVersion []byte, fallbackAddrs 
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch fork schedule")
 	}
+
 	schedule := eth2Resp.Data
 
 	var ok bool
+
 	for _, fork := range schedule {
 		if bytes.Equal(fork.CurrentVersion[:], forkVersion) {
 			ok = true
 			break
 		}
 	}
+
 	if !ok {
 		lockNetwork, err := eth2util.ForkVersionToNetwork(forkVersion)
 		if err != nil {
@@ -1029,6 +1054,7 @@ func configureEth2Client(ctx context.Context, forkVersion []byte, fallbackAddrs 
 // createMockValidators creates mock validators identified by their public shares.
 func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 	resp := make(beaconmock.ValidatorSet)
+
 	for i, pubkey := range pubkeys {
 		vIdx := eth2p0.ValidatorIndex(i)
 
@@ -1105,6 +1131,7 @@ func wireTracing(life *lifecycle.Manager, conf Config, clusterHash []byte) error
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
 func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
+
 	var osMutex sync.Mutex
 
 	return func(ctx context.Context, slot core.Slot) error {
@@ -1114,7 +1141,9 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) 
 			osMutex.Unlock()
 			return nil
 		}
+
 		onStartup = false
+
 		osMutex.Unlock()
 
 		vals, err := eth2Cl.ActiveValidators(ctx)
@@ -1127,14 +1156,17 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) 
 		}
 
 		var preps []*eth2v1.ProposalPreparation
+
 		for vIdx, pubkey := range vals {
 			feeRecipient := feeRecipientFunc(core.PubKeyFrom48Bytes(pubkey))
 
 			var addr bellatrix.ExecutionAddress
+
 			b, err := hex.DecodeString(strings.TrimPrefix(feeRecipient, "0x"))
 			if err != nil {
 				return errors.Wrap(err, "hex decode fee recipient address")
 			}
+
 			copy(addr[:], b)
 
 			preps = append(preps, &eth2v1.ProposalPreparation{
@@ -1150,6 +1182,7 @@ func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) 
 // getDVPubkeys returns DV public keys from given cluster.Lock.
 func getDVPubkeys(cluster *manifestpb.Cluster) ([]core.PubKey, error) {
 	var pubkeys []core.PubKey
+
 	for _, val := range cluster.GetValidators() {
 		pk, err := manifest.ValidatorPublicKey(val)
 		if err != nil {
@@ -1160,6 +1193,7 @@ func getDVPubkeys(cluster *manifestpb.Cluster) ([]core.PubKey, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		pubkeys = append(pubkeys, pubkey)
 	}
 
@@ -1183,6 +1217,7 @@ func (h httpServeHook) Call(context.Context) error {
 // Protocols returns the list of supported Protocols in order of precedence.
 func Protocols() []protocol.ID {
 	var resp []protocol.ID
+
 	resp = append(resp, protocols.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
@@ -1197,9 +1232,11 @@ func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
 	if builder {
 		resp = append(resp, core.ProposalTypeBuilder)
 	}
+
 	if synthetic {
 		resp = append(resp, core.ProposalTypeSynthetic)
 	}
+
 	resp = append(resp, core.ProposalTypeFull) // Always support full as fallback.
 
 	return resp

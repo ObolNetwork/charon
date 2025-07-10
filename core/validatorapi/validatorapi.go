@@ -44,6 +44,7 @@ func SlotFromTimestamp(ctx context.Context, client eth2wrap.Client, timestamp ti
 	if err != nil {
 		return 0, err
 	}
+
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, client)
 	if err != nil {
 		return 0, err
@@ -90,8 +91,10 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		sharesByCoreKey = make(map[core.PubKey]tbls.PublicKey)
 		coreSharesByKey = make(map[core.PubKey]core.PubKey)
 	)
+
 	for corePubkey, shares := range allPubSharesByKey {
 		pubshare := shares[shareIdx]
+
 		coreShare, err := core.PubKeyFromBytes(pubshare[:])
 		if err != nil {
 			return nil, err
@@ -101,10 +104,12 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		if err != nil {
 			return nil, err
 		}
+
 		pubkey, err := tblsconv.PubkeyFromBytes(cpBytes)
 		if err != nil {
 			return nil, err
 		}
+
 		eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 		eth2Share := eth2p0.BLSPubKey(pubshare)
@@ -268,11 +273,13 @@ func (c Component) AttestationData(ctx context.Context, opts *eth2api.Attestatio
 func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2api.SubmitAttestationsOpts) error {
 	attestations := attestationOpts.Attestations
 	setsBySlot := make(map[uint64]core.ParSignedDataSet)
+
 	for _, att := range attestations {
 		attData, err := att.Data()
 		if err != nil {
 			return errors.Wrap(err, "get attestation data")
 		}
+
 		slot := uint64(attData.Slot)
 
 		attCommitteeIndex, err := att.CommitteeIndex()
@@ -281,6 +288,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 		}
 
 		var valIdx eth2p0.ValidatorIndex
+
 		switch att.Version {
 		// In pre-electra attestations ValidatorIndex is not part of the VersionedAttestation structure.
 		// Try to fetch it by matching the aggregation bits and validator's committee index from the payload to an attester duty from the scheduler.
@@ -295,18 +303,22 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 				if !ok {
 					return errors.New("parse duty definition to attester definition")
 				}
+
 				if attDef.CommitteeIndex != attData.Index {
 					continue
 				}
+
 				aggBits, err := att.AggregationBits()
 				if err != nil {
 					return errors.Wrap(err, "get attestation aggregation bits")
 				}
+
 				indices := aggBits.BitIndices()
 				if len(indices) != 1 {
 					return errors.New("unexpected number of aggregation bits",
 						z.Str("aggbits", fmt.Sprintf("%#x", []byte(aggBits))))
 				}
+
 				if attDef.ValidatorCommitteeIndex == uint64(indices[0]) {
 					valIdx = attDef.ValidatorIndex
 					break
@@ -316,12 +328,14 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 			if att.ValidatorIndex == nil {
 				return errors.New("missing attestation validator index from electra attestation")
 			}
+
 			valIdx = *att.ValidatorIndex
 		default:
 			return errors.New("invalid attestations version", z.Str("version", att.Version.String()))
 		}
 
 		var pubkey core.PubKey
+
 		pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(valIdx))
 		if err != nil {
 			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
@@ -397,6 +411,7 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 		parsigSet := core.ParSignedDataSet{
 			pubkey: parSig,
 		}
+
 		err := sub(ctx, duty, parsigSet)
 		if err != nil {
 			return nil, err
@@ -531,6 +546,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 	duty := core.NewProposerDuty(uint64(slot))
 
 	var span trace.Span
+
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitProposal")
 	defer span.End()
 
@@ -583,7 +599,9 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 	}
 
 	duty := core.NewProposerDuty(uint64(slot))
+
 	var span trace.Span
+
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitBlindedProposal")
 	defer span.End()
 
@@ -664,6 +682,7 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	if err != nil {
 		return err
 	}
+
 	slot, err := SlotFromTimestamp(ctx, c.eth2Cl, timestamp)
 	if err != nil {
 		return err
@@ -771,6 +790,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+
 	for _, selection := range selections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
@@ -827,6 +847,7 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
 func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error {
 	aggsAndProofs := opts.SignedAggregateAndProofs
+
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
@@ -911,6 +932,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, msg := range messages {
 		slot := msg.Slot
+
 		eth2Pubkey, ok := vals[msg.ValidatorIndex]
 		if !ok {
 			return errors.New("validator not found")
@@ -922,6 +944,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 		}
 
 		parSigData := core.NewPartialSignedSyncMessage(msg, c.shareIdx)
+
 		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
@@ -963,6 +986,7 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 			slot = contrib.Message.Contribution.Slot
 			vIdx = contrib.Message.AggregatorIndex
 		)
+
 		eth2Pubkey, ok := vals[vIdx]
 		if !ok {
 			return errors.New("validator not found")
@@ -976,6 +1000,7 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 		// Verify inner selection proof.
 		if !c.insecureTest {
 			msg := core.NewSyncContributionAndProof(contrib.Message)
+
 			err = core.VerifyEth2SignedData(ctx, c.eth2Cl, msg, tbls.PublicKey(eth2Pubkey))
 			if err != nil {
 				return err
@@ -984,6 +1009,7 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 
 		// Verify outer partial signature.
 		parSigData := core.NewPartialSignedSyncContributionAndProof(contrib, c.shareIdx)
+
 		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
@@ -1018,6 +1044,7 @@ func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partial
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+
 	for _, selection := range partialSelections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
@@ -1064,6 +1091,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	if err != nil {
 		return nil, err
 	}
+
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares
@@ -1077,6 +1105,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
 			continue
 		}
+
 		duties[i].PubKey = pubshare
 	}
 
@@ -1088,6 +1117,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	if err != nil {
 		return nil, err
 	}
+
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
@@ -1100,6 +1130,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		if !ok {
 			return nil, errors.New("pubshare not found")
 		}
+
 		duties[i].PubKey = pubshare
 	}
 
@@ -1112,6 +1143,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 	if err != nil {
 		return nil, err
 	}
+
 	duties := eth2Resp.Data
 
 	// Replace root public keys with public shares.
@@ -1124,6 +1156,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 		if !ok {
 			return nil, errors.New("pubshare not found")
 		}
+
 		duties[i].PubKey = pubshare
 	}
 
@@ -1153,6 +1186,7 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 
 	// Match pubshares to the associated full validator public key
 	var pubkeys []eth2p0.BLSPubKey
+
 	for _, pubshare := range opts.PubKeys {
 		pubkey, err := c.getPubKeyFunc(pubshare)
 		if err != nil {
@@ -1193,6 +1227,7 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 		if err != nil {
 			return nil, errors.Wrap(err, "fetching non-cached validators from BN")
 		}
+
 		for idx, val := range eth2Resp.Data {
 			ret[idx] = val
 		}
@@ -1234,6 +1269,7 @@ func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Vali
 		}
 
 		var val eth2v1.Validator
+
 		val.Index = rawVal.Index
 		val.Status = rawVal.Status
 		val.Balance = rawVal.Balance
@@ -1283,6 +1319,7 @@ func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedDa
 
 func (c Component) getAggregateBeaconCommSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {
 	var resp []*eth2exp.BeaconCommitteeSelection
+
 	for slot, data := range psigsBySlot {
 		duty := core.NewPrepareAggregatorDuty(uint64(slot))
 		for pk := range data {
@@ -1306,6 +1343,7 @@ func (c Component) getAggregateBeaconCommSelection(ctx context.Context, psigsByS
 
 func (c Component) getAggregateSyncCommSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.SyncCommitteeSelection, error) {
 	var resp []*eth2exp.SyncCommitteeSelection
+
 	for slot, data := range psigsBySlot {
 		duty := core.NewPrepareSyncContributionDuty(uint64(slot))
 		for pk := range data {
@@ -1336,6 +1374,7 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 	} else {
 		targetGasLimit = c.targetGasLimit
 	}
+
 	resp := eth2exp.ProposerConfigResponse{
 		Proposers: make(map[eth2p0.BLSPubKey]eth2exp.ProposerConfig),
 		Default: eth2exp.ProposerConfig{ // Default doesn't make sense, disable for now.
@@ -1351,6 +1390,7 @@ func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigR
 	if err != nil {
 		return nil, err
 	}
+
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, c.eth2Cl)
 	if err != nil {
 		return nil, err

@@ -387,6 +387,7 @@ func TestMarshalSubscription(t *testing.T) {
 	require.NoError(t, err)
 
 	var selection2 core.BeaconCommitteeSelection
+
 	err = json.Unmarshal(b, &selection2)
 	require.NoError(t, err)
 	require.Equal(t, selection2, selection)
@@ -749,6 +750,7 @@ func TestVersionedSignedProposal(t *testing.T) {
 func TestVersionedSignedAggregateAndProofUtilFunctions(t *testing.T) {
 	data := testutil.RandomAttestationDataPhase0()
 	aggregationBits := testutil.RandomBitList(64)
+
 	type testCase struct {
 		name              string
 		aggregateAndProof core.VersionedSignedAggregateAndProof

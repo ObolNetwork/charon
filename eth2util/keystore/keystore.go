@@ -154,6 +154,7 @@ func Encrypt(secret tbls.PrivateKey, password string, random io.Reader,
 	}
 
 	encryptor := keystorev4.New(opts...)
+
 	fields, err := encryptor.Encrypt(secret[:], password)
 	if err != nil {
 		return Keystore{}, errors.Wrap(err, "encrypt keystore")
@@ -172,6 +173,7 @@ func Encrypt(secret tbls.PrivateKey, password string, random io.Reader,
 // decrypt returns the secret from the encrypted (empty password) Keystore.
 func decrypt(store Keystore, password string) (tbls.PrivateKey, error) {
 	decryptor := keystorev4.New()
+
 	secretBytes, err := decryptor.Decrypt(store.Crypto, password)
 	if err != nil {
 		return tbls.PrivateKey{}, errors.Wrap(err, "decrypt keystore")
@@ -195,6 +197,7 @@ func loadPassword(keyFile string) (string, error) {
 	}
 
 	passwordFile := strings.Replace(keyFile, ".json", ".txt", 1)
+
 	b, err := os.ReadFile(passwordFile)
 	if err != nil {
 		return "", errors.Wrap(err, "read password file")
@@ -218,6 +221,7 @@ func storePassword(keyFile string, password string) error {
 // randomHex32 returns a random 32 character hex string. It uses crypto/rand.
 func randomHex32() (string, error) {
 	b := make([]byte, 16)
+
 	_, err := rand.Read(b)
 	if err != nil {
 		return "", errors.Wrap(err, "read random")
@@ -266,6 +270,7 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 		}
 
 		found := false
+
 		for shareIdx, share := range pubShares {
 			if _, ok := valPubShares[share]; !ok {
 				continue
@@ -302,6 +307,7 @@ func ShareIdxForCluster(cl *manifestpb.Cluster, identityKey k1.PublicKey) (uint6
 	k := crypto.Secp256k1PublicKey(identityKey)
 
 	shareIdx := -1
+
 	for _, pid := range pids {
 		if !pid.MatchesPublicKey(&k) {
 			continue

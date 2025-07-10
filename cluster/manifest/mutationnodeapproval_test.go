@@ -25,6 +25,7 @@ func setIncrementingTime(t *testing.T) {
 	t.Helper()
 
 	ts := time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)
+
 	manifest.SetNowFuncForT(t, func() *timestamppb.Timestamp {
 		defer func() {
 			ts = ts.Add(time.Minute)
@@ -44,6 +45,7 @@ func TestNodeApprovals(t *testing.T) {
 	parent := testutil.RandomBytes32Seed(random)
 
 	var approvals []*manifestpb.SignedMutation
+
 	for _, secret := range secrets {
 		approval, err := manifest.SignNodeApproval(parent, secret)
 		require.NoError(t, err)
@@ -61,6 +63,7 @@ func TestNodeApprovals(t *testing.T) {
 	t.Run("unmarshal", func(t *testing.T) {
 		b, err := proto.Marshal(composite)
 		require.NoError(t, err)
+
 		composite2 := new(manifestpb.SignedMutation)
 		testutil.RequireNoError(t, proto.Unmarshal(b, composite2))
 		testutil.RequireProtoEqual(t, composite, composite2)

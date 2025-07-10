@@ -58,13 +58,16 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		Epoch:   epoch,
 		Indices: indexes,
 	}
+
 	eth2Resp, err := eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return err
 	}
+
 	duties := eth2Resp.Data
 
 	var slotProposer *eth2v1.ProposerDuty
+
 	for _, duty := range duties {
 		if duty.Slot == slot {
 			slotProposer = duty
@@ -80,6 +83,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		pubkey eth2p0.BLSPubKey
 		block  *eth2api.VersionedProposal
 	)
+
 	pubkey = slotProposer.PubKey
 
 	// Create randao reveal to propose block
@@ -103,10 +107,12 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 		Slot:         slot,
 		RandaoReveal: randao,
 	}
+
 	eth2ProposalResp, err := eth2Cl.Proposal(ctx, proposalOpts)
 	if err != nil {
 		return errors.Wrap(err, "vmock beacon block proposal")
 	}
+
 	block = eth2ProposalResp.Data
 
 	if block == nil {
@@ -131,6 +137,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 
 	if block.Blinded {
 		signedBlock := new(eth2api.VersionedSignedBlindedProposal)
+
 		signedBlock.Version = block.Version
 		switch block.Version {
 		case eth2spec.DataVersionBellatrix:
@@ -164,6 +171,7 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 
 	// Full block
 	signedBlock := new(eth2api.VersionedSignedProposal)
+
 	signedBlock.Version = block.Version
 	switch block.Version {
 	case eth2spec.DataVersionPhase0:
@@ -219,6 +227,7 @@ func RegistrationsFromProposerConfig(ctx context.Context, eth2Cl eth2wrap.Client
 	}
 
 	resp := make(map[eth2p0.BLSPubKey]*eth2api.VersionedValidatorRegistration)
+
 	for pubshare, conf := range confs.Proposers {
 		if !conf.Builder.Enabled {
 			continue

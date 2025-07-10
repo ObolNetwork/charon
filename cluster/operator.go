@@ -46,6 +46,7 @@ type operatorJSONv1x2orLater struct {
 
 func operatorsFromV1x1(operators []operatorJSONv1x1) ([]Operator, error) {
 	var resp []Operator
+
 	for _, o := range operators {
 		if o.Nonce != 0 {
 			return nil, errors.New("non-zero operator nonce not supported")

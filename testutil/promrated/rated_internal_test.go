@@ -21,6 +21,7 @@ func TestGetNetworkStatistics(t *testing.T) {
 
 		require.Equal(t, "Bearer auth", r.Header.Get("Authorization"))
 		require.Equal(t, "prater", r.Header.Get("X-Rated-Network"))
+
 		_, _ = w.Write([]byte(ratedNetworkFixture))
 	}))
 	defer ts.Close()
@@ -36,6 +37,7 @@ func TestGetNodeOperatorStatistics(t *testing.T) {
 
 		require.Equal(t, "Bearer auth", r.Header.Get("Authorization"))
 		require.Equal(t, "prater", r.Header.Get("X-Rated-Network"))
+
 		_, _ = w.Write([]byte(ratedNodeOperatorFixture))
 	}))
 	defer ts.Close()

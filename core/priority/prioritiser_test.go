@@ -51,6 +51,7 @@ func TestPrioritiser(t *testing.T) {
 			require.NoError(t, tcpNode.Peerstore().AddProtocols(other.ID(), priority.Protocols()...))
 			require.NoError(t, other.Peerstore().AddProtocols(tcpNode.ID(), priority.Protocols()...))
 		}
+
 		tcpNodes = append(tcpNodes, tcpNode)
 		peers = append(peers, tcpNode.ID())
 	}
@@ -76,6 +77,7 @@ func TestPrioritiser(t *testing.T) {
 
 			requireAnyDuty(t, duties, duty)
 			requireProtoEqual(t, topic, resTopic)
+
 			results <- result.GetTopics()[0].GetPriorities()
 
 			return nil
@@ -87,6 +89,7 @@ func TestPrioritiser(t *testing.T) {
 				Duty:   core.DutyToProto(duty),
 				PeerId: tcpNode.ID().String(),
 			}
+
 			go func() {
 				err := prio.Prioritise(ctx, msg)
 				errCh <- err
@@ -140,6 +143,7 @@ func (t *testConsensus) ProposePriority(ctx context.Context, duty core.Duty, res
 	if t.proposed == nil {
 		t.proposed = make(map[uint64]*pbv1.PriorityResult)
 	}
+
 	t.proposed[duty.Slot] = result
 
 	return nil
@@ -164,9 +168,11 @@ func prioToAny(prio int) *anypb.Any {
 
 func requireAnyDuty(t *testing.T, anyOf []core.Duty, actual core.Duty) {
 	t.Helper()
+
 	if slices.Contains(anyOf, actual) {
 		return
 	}
+
 	require.Fail(t, "slice does not contain duty", "not anyOf: %#v\nactual: %#v\n", anyOf, actual)
 }
 
