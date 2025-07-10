@@ -301,6 +301,7 @@ func (ts *testServer) HandleDeletePartialExit(writer http.ResponseWriter, reques
 	valPubkey := vars[cleanTmpl(valPubkeyPath)]
 	lockHash := vars[cleanTmpl(lockHashPath)]
 	shareIndexStr := vars[cleanTmpl(shareIndexPath)]
+
 	shareIndex, err := strconv.ParseUint(shareIndexStr, 10, 64)
 	if err != nil {
 		writeErr(writer, http.StatusBadRequest, "malformed share index")
@@ -355,10 +356,12 @@ func (ts *testServer) HandleDeletePartialExit(writer http.ResponseWriter, reques
 	}
 
 	found := false
+
 	for idx, pExit := range partialExits {
 		if pExit.shareIdx == shareIndex {
 			partialExits = slices.Delete(partialExits, idx, idx+1)
 			found = true
+
 			break
 		}
 	}

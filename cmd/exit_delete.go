@@ -118,7 +118,6 @@ func runDeleteExit(ctx context.Context, config exitConfig) error {
 
 				return errors.Wrap(err, "delete partial exits for all validators from public key")
 			}
-
 		}
 	} else {
 		validator := core.PubKey(config.ValidatorPubkey)

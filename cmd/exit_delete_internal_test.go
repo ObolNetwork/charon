@@ -37,6 +37,7 @@ func Test_runDeleteExit(t *testing.T) {
 
 func testRunDeleteExitFullFlow(t *testing.T, all bool) {
 	t.Helper()
+
 	ctx := context.Background()
 
 	valAmt := 100
@@ -84,6 +85,7 @@ func testRunDeleteExitFullFlow(t *testing.T, all bool) {
 		beaconmock.WithValidatorSet(validatorSet),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		require.NoError(t, beaconMock.Close())
 	}()
@@ -93,7 +95,9 @@ func testRunDeleteExitFullFlow(t *testing.T, all bool) {
 
 	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
 	srv := httptest.NewServer(handler)
+
 	addLockFiles(lock)
+
 	defer srv.Close()
 
 	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)

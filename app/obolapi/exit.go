@@ -231,8 +231,6 @@ func (c Client) DeletePartialExit(ctx context.Context, valPubkey string, lockHas
 
 	path := deletePartialExitURL(valPubkey, "0x"+hex.EncodeToString(lockHash), shareIndex)
 
-	fmt.Println("path")
-	fmt.Println(path)
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
 		return errors.Wrap(err, "bad Obol API url")
