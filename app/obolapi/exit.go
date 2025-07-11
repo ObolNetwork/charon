@@ -28,7 +28,7 @@ const (
 	shareIndexPath = "{share_index}"
 
 	submitPartialExitTmpl = "/exp/partial_exits/" + lockHashPath
-	deletePartialExitTmpl = "/exp/partial_exits/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
+	deletePartialExitTmpl = "/exp/exit/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
 	fetchFullExitTmpl     = "/exp/exit/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
 )
 

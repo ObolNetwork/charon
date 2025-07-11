@@ -427,7 +427,7 @@ func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lo
 	getFull.Use(authMiddleware)
 	getFull.HandleFunc(fetchFullExitTmpl, ts.HandleGetFullExit).Methods(http.MethodGet)
 
-	deletePartial := router.PathPrefix(expPartialExits).Subrouter()
+	deletePartial := router.PathPrefix(expExit).Subrouter()
 	deletePartial.Use(authMiddleware)
 	deletePartial.HandleFunc(deletePartialExitTmpl, ts.HandleDeletePartialExit).Methods(http.MethodDelete)
 
