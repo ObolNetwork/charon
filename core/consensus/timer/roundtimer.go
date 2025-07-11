@@ -65,7 +65,7 @@ func increasingRoundTimeout(round int64) time.Duration {
 	return IncRoundStart + (time.Duration(round) * IncRoundIncrease)
 }
 
-// increasingRoundTimeout returns linearRoundInc*round duration for a round.
+// linearRoundTimeout returns linearRoundInc*round duration for a round.
 func linearRoundTimeout(round int64) time.Duration {
 	return time.Duration(round) * LinearRoundInc
 }
@@ -84,7 +84,7 @@ func proposalTimeoutOptimization(duty core.Duty, round int64) bool {
 	return featureset.Enabled(featureset.ProposalTimeout) && duty.Type == core.DutyProposer && round == 1
 }
 
-// NewTimeoutRoundTimer returns a new increasing round timer type.
+// NewIncreasingRoundTimer returns a new increasing round timer type.
 func NewIncreasingRoundTimer() RoundTimer {
 	return NewIncreasingRoundTimerWithClock(clockwork.NewRealClock())
 }

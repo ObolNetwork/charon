@@ -171,7 +171,7 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 	}
 }
 
-// sendDuties runs a goroutine which adds the duties to the deadliner channel.
+// addDuties runs a goroutine which adds the duties to the deadliner channel.
 func addDuties(t *testing.T, wg *sync.WaitGroup, duties []core.Duty, expCh chan bool, deadliner core.Deadliner) {
 	t.Helper()
 
