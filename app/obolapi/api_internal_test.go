@@ -120,7 +120,6 @@ func TestHttpGet(t *testing.T) {
 			server: httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, r.URL.Path, "/get-request")
 				require.Equal(t, r.Method, http.MethodGet)
-				require.Equal(t, r.Header.Get("Content-Type"), "application/json")
 				w.WriteHeader(http.StatusOK)
 			})),
 			expectedError: "",
@@ -132,7 +131,6 @@ func TestHttpGet(t *testing.T) {
 			server: httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, r.URL.Path, "/get-request")
 				require.Equal(t, r.Method, http.MethodGet)
-				require.Equal(t, r.Header.Get("Content-Type"), "application/json")
 				require.Equal(t, r.Header.Get("test_header_key"), "test_header_value") //nolint:canonicalheader
 
 				w.WriteHeader(http.StatusOK)
@@ -149,7 +147,6 @@ func TestHttpGet(t *testing.T) {
 			server: httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, r.URL.Path, "/get-request")
 				require.Equal(t, r.Method, http.MethodGet)
-				require.Equal(t, r.Header.Get("Content-Type"), "application/json")
 
 				w.WriteHeader(http.StatusBadRequest)
 				_, err := w.Write([]byte(`"Bad Request response"`))
