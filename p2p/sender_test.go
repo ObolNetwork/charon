@@ -187,15 +187,7 @@ func testSend(t *testing.T, clientBasicProtoID, serverBasicProtoID, delimitedID 
 			func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
 				log.Info(ctx, "See protocol logging field")
 
-<<<<<<< HEAD
-			var err error
-
-			defer func() {
-				serverErrChan <- err
-			}()
-=======
 				require.Equal(t, client.ID(), peerID)
->>>>>>> 15c9e59c (add quic/udp tests)
 
 				var err error
 				defer func() {
