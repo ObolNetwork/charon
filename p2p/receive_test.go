@@ -42,6 +42,7 @@ func TestSendReceive(t *testing.T) {
 				log.Info(ctx, "See protocol logging field")
 
 				require.Equal(t, client.ID(), peerID)
+
 				duty, ok := req.(*pbv1.Duty)
 				require.True(t, ok)
 

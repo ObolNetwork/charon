@@ -66,6 +66,7 @@ func TestConfig_Multiaddrs(t *testing.T) {
 	for i, ma := range tcpMaddrs {
 		maddrStrs[i] = ma.String()
 	}
+
 	for i, ma := range udpMaddrs {
 		maddrStrs[i+len(tcpMaddrs)] = ma.String()
 	}

@@ -89,6 +89,7 @@ func Run(ctx context.Context, config Config) error {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", wrapHandler(newMultiaddrHandler(p2pNode)))
 		mux.HandleFunc("/enr", wrapHandler(newENRHandler(ctx, p2pNode, key, config.P2PConfig)))
+
 		server := http.Server{Addr: config.HTTPAddr, Handler: mux, ReadHeaderTimeout: time.Second}
 		serverErr <- server.ListenAndServe()
 	}()
@@ -224,45 +225,56 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 			ip               net.IP
 			tcpPort, udpPort int
 		)
+
 		for _, addr := range addrs {
 			// Sanity check
 			if len(addr.Protocols()) == 0 {
 				continue
 			}
+
 			if tcpNetAddr == nil && addr.Protocols()[1].Name == "tcp" {
 				netAddr, err := manet.ToNetAddr(addr)
 				if err != nil {
 					return nil, errors.Wrap(err, "failed to convert tcp multiaddr to net addr")
 				}
+
 				tcpAddr, ok := netAddr.(*net.TCPAddr)
 				if !ok {
 					return nil, errors.New("invalid tcp address")
 				}
+
 				if config.ExternalIP != "" {
 					tcpAddr.IP = net.ParseIP(config.ExternalIP)
 				} else if extHostIP, ok := getExtHostIP(); ok {
 					tcpAddr.IP = extHostIP
 				}
+
 				tcpNetAddr = tcpAddr
 			}
+
 			if udpNetAddr == nil && addr.Protocols()[1].Name == "udp" {
 				// Must strip quic protocol because ToNetAddr only accepts ThinWaist
 				stripped := addr.Decapsulate(ma.StringCast("/quic-v1"))
+
 				netAddr, err := manet.ToNetAddr(stripped)
 				if err != nil {
 					return nil, errors.Wrap(err, "failed to convert udp multiaddr to net addr")
 				}
+
 				udpAddr, ok := netAddr.(*net.UDPAddr)
 				if !ok {
 					return nil, errors.New("invalid udp address")
 				}
+
 				if config.ExternalIP != "" {
 					udpAddr.IP = net.ParseIP(config.ExternalIP)
 				} else if extHostIP, ok := getExtHostIP(); ok {
 					udpAddr.IP = extHostIP
 				}
+
 				udpNetAddr = udpAddr
 			}
+
 			if tcpNetAddr != nil && udpNetAddr != nil {
 				break
 			}
@@ -272,6 +284,7 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 			if !tcpNetAddr.IP.Equal(udpNetAddr.IP) {
 				return nil, errors.New("conflicting IP addresses", z.Any("udp IP", udpNetAddr.IP), z.Any("tcp IP", tcpNetAddr.IP))
 			}
+
 			ip = tcpNetAddr.IP
 			tcpPort = tcpNetAddr.Port
 			udpPort = udpNetAddr.Port

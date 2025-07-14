@@ -19,7 +19,7 @@ func NewP2PNodeCallback(t *testing.T, protocols ...protocol.ID) func(host host.H
 
 	var (
 		p2pNodesLock sync.Mutex
-		p2pNodes []host.Host
+		p2pNodes     []host.Host
 	)
 
 	return func(p2pNode host.Host) {

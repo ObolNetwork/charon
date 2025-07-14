@@ -326,6 +326,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 
 	// run all peers tests for a peer, pushing each completed test to the channel until all are complete or timeout occurs
 	go runPeerTest(ctx, queuedTestCases, allTestCases, conf, p2pNode, peerTarget, singleTestResCh)
+
 	testCounter := 0
 
 	finished := false
@@ -383,6 +384,7 @@ func peerPingTest(ctx context.Context, _ *testPeersConfig, p2pNode host.Host, pe
 			return failedTestResult(testRes, errTimeoutInterrupted)
 		default:
 			ticker.Reset(3 * time.Second)
+
 			result, err := pingPeerOnce(ctx, p2pNode, peer)
 			if err != nil {
 				return failedTestResult(testRes, err)
@@ -867,6 +869,7 @@ func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peer
 
 func pingPeerOnce(ctx context.Context, p2pNode host.Host, peer p2p.Peer) (ping.Result, error) {
 	pingSvc := ping.NewPingService(p2pNode)
+
 	pingCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

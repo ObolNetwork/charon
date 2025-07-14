@@ -204,6 +204,7 @@ func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID, host.Host) {
 
 	return func(target peer.ID, p2pNode host.Host) {
 		var foundDirect bool
+
 		for _, conn := range p2pNode.Network().ConnsToPeer(target) {
 			directConn := !p2p.IsRelayAddr(conn.RemoteMultiaddr())
 			if !directConn {

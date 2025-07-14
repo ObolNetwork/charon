@@ -42,6 +42,7 @@ func NewConsensusController(ctx context.Context, p2pNode host.Host, sender *p2p.
 	gaterFunc core.DutyGaterFunc, debugger Debugger,
 ) (core.ConsensusController, error) {
 	qbftDeadliner := core.NewDeadliner(ctx, "consensus.qbft", deadlineFunc)
+
 	defaultConsensus, err := qbft.NewConsensus(p2pNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance)
 	if err != nil {
 		return nil, err

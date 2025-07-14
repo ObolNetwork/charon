@@ -220,6 +220,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	lockHashHex := hex7(cluster.GetInitialMutationHash())
+
 	p2pNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
 	if err != nil {
 		return err
@@ -288,6 +289,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if len(conf.Nickname) > 32 {
 		return errors.New("nickname can not exceed 32 characters")
 	}
+
 	wirePeerInfo(life, p2pNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
@@ -366,6 +368,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	} else {
 		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeTCP, opts...)
 	}
+
 	if err != nil {
 		return nil, err
 	}

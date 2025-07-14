@@ -81,7 +81,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_validatorapi_request_total` | Counter | The total number of requests per content-type and endpoint | `endpoint, content_type` |
 | `core_validatorapi_vc_user_agent` | Gauge | Gauge with label set to user agent string of requests made by VC | `user_agent` |
 | `p2p_peer_connection_total` | Counter | Total number of libp2p connections per peer. | `peer` |
-| `p2p_peer_connection_types` | Gauge | Current number of libp2p connections by peer and type (`direct` or `relay`). Note that peers may have multiple connections. | `peer, type` |
+| `p2p_peer_connection_types` | Gauge | Current number of libp2p connections by peer, type (`direct` or `relay`), and protocol (`tcp`, `quic`, etc.). Note that peers may have multiple connections. | `peer, type, protocol` |
 | `p2p_peer_network_receive_bytes_total` | Counter | Total number of network bytes received from the peer by protocol. | `peer, protocol` |
 | `p2p_peer_network_sent_bytes_total` | Counter | Total number of network bytes sent to the peer by protocol. | `peer, protocol` |
 | `p2p_peer_streams` | Gauge | Current number of libp2p streams by peer, direction (`inbound` or `outbound` or `unknown`) and protocol. | `peer, direction, protocol` |

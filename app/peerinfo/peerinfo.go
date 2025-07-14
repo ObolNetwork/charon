@@ -196,6 +196,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			}
 
 			resp := new(pbv1.PeerInfo)
+
 			err := p.sendFunc(ctx, p.p2pNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback))
 			if err != nil {
 				return // Logging handled by send func.

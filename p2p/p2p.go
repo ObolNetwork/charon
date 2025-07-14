@@ -61,6 +61,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		transport     libp2p.Option
 		err           error
 	)
+
 	switch nodeType {
 	case NodeTypeTCP:
 		addrs, err = cfg.TCPMultiaddrs()
@@ -71,6 +72,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		if len(addrs) == 0 {
 			log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses is empty")
 		}
+
 		externalAddrs, err = externalTCPMultiAddrs(cfg)
 		if err != nil {
 			return nil, err
@@ -82,6 +84,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		if err != nil {
 			return nil, err
 		}
+
 		if len(udpAddrs) == 0 {
 			log.Warn(ctx, "LibP2P QUIC enabled but --p2p-udp-addresses is empty", nil)
 		}
@@ -187,6 +190,7 @@ func externalUDPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 	}
 
 	var resp []ma.Multiaddr
+
 	if cfg.ExternalIP != "" {
 		ip := net.ParseIP(cfg.ExternalIP)
 		for _, port := range ports {
@@ -226,6 +230,7 @@ func externalTCPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 	}
 
 	var resp []ma.Multiaddr
+
 	if cfg.ExternalIP != "" {
 		ip := net.ParseIP(cfg.ExternalIP)
 		for _, port := range ports {
@@ -256,6 +261,7 @@ func externalTCPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 // See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
 func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
 	var quicAddrs, otherAddrs []ma.Multiaddr
+
 	for _, addr := range relayPeer.Addrs {
 		transportAddr, _ := peer.SplitAddr(addr)
 
@@ -336,6 +342,7 @@ func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 
 			if isQUICEnabled(p2pNode) {
 				var quicAddrs []ma.Multiaddr
+
 				for _, addr := range p2pNode.Peerstore().Addrs(p) {
 					if isQUICAddr(addr) && !isRelayAddr(addr) {
 						quicAddrs = append(quicAddrs, addr)
@@ -348,6 +355,7 @@ func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 						log.Debug(ctx, "Forced direct QUIC connection to peer successful", z.Str("peer", PeerName(p)))
 						continue
 					}
+
 					log.Debug(ctx, "Failed to establish direct QUIC connection", z.Str("peer", PeerName(p)), z.Err(err))
 				}
 			}
@@ -411,6 +419,7 @@ func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFu
 		if !isQUICEnabled(p2pNode) {
 			return // doesn't support QUIC
 		}
+
 		for _, p := range peerIDs {
 			if p2pNode.ID() == p {
 				continue // skip self
@@ -427,6 +436,7 @@ func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFu
 
 			// Get known QUIC addrs from peerstore
 			var quicAddrs []ma.Multiaddr
+
 			for _, addr := range p2pNode.Peerstore().Addrs(p) {
 				if isQUICAddr(addr) && !isRelayAddr(addr) {
 					quicAddrs = append(quicAddrs, addr)
@@ -462,6 +472,7 @@ func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFu
 	return func(ctx context.Context) {
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -486,6 +497,7 @@ func hasQUICConn(conns []network.Conn) bool {
 
 func isProtocolAddr(a ma.Multiaddr, p int) bool {
 	found := false
+
 	ma.ForEach(a, func(c ma.Component) bool {
 		if c.Protocol().Code == p {
 			found = true
@@ -577,6 +589,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
 
 				existing := make(map[string]bool)
+
 				for cKey, count := range counts {
 					peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type, cKey.Protocol).Set(float64(count))
 					existing[cKey.PeerName+":"+cKey.Type] = true

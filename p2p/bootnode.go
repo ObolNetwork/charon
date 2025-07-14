@@ -234,6 +234,7 @@ func multiAddrFromENRStr(enrStr string) ([]ma.Multiaddr, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "create multiaddr")
 		}
+
 		addrs = append(addrs, addr)
 	}
 
@@ -243,6 +244,7 @@ func multiAddrFromENRStr(enrStr string) ([]ma.Multiaddr, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "create multiaddr")
 		}
+
 		addrs = append(addrs, addr)
 	}
 

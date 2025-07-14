@@ -1419,6 +1419,7 @@ func AvailableUDPAddr(t *testing.T) *net.UDPAddr {
 
 	l, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
 	require.NoError(t, err)
+
 	defer l.Close()
 
 	addr, err := net.ResolveUDPAddr("udp", l.LocalAddr().String())
@@ -1481,6 +1482,7 @@ func CreateHostWithIdentity(t *testing.T, addr *net.TCPAddr, secret *k1.PrivateK
 
 func CreateQUICHost(t *testing.T, addr *net.UDPAddr, opts ...libp2p.Option) host.Host {
 	t.Helper()
+
 	pkey, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
 

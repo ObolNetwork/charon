@@ -51,6 +51,7 @@ func (c Config) ParseUDPAddrs() ([]*net.UDPAddr, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		res = append(res, udpAddr)
 	}
 

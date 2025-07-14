@@ -68,6 +68,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 
 	// This enables relay metrics: https://github.com/libp2p/go-libp2p/blob/master/p2p/protocol/circuitv2/relay/metrics.go
 	mt := relay.NewMetricsTracer(relay.WithRegisterer(promRegistry))
+
 	relayService, err := relay.New(p2pNode, relay.WithResources(relayResources), relay.WithMetricsTracer(mt))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "new relay service")
@@ -75,6 +76,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 
 	go func() {
 		<-ctx.Done()
+
 		_ = p2pNode.Close()
 		_ = relayService.Close()
 	}()
