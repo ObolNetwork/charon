@@ -54,7 +54,7 @@ echo ""
 # Using find with -maxdepth 1 to only look in the immediate subdirectories
 # and regex to match 'node' followed by one or more digits.
 # Sorting numerically to ensure consistent processing order (node0, node1, node2, ..., node10)
-NODE_FOLDERS=$(find "$SRC_CLUSTER_ROOT" -maxdepth 1 -type d -regex '.*/node[0-9]+' | sort -V)
+NODE_FOLDERS=$(find "$SRC_CLUSTER_ROOT" -maxdepth 1 -type d -name 'node[0-9]*' | sort -V)
 
 if [ -z "$NODE_FOLDERS" ]; then
     echo "No 'nodeX' subfolders found in the source cluster '$SRC_CLUSTER_ROOT'."
