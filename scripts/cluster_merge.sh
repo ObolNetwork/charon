@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 #
 # This script merges cluster-lock and key files from a source cluster (node)
 # into a destination cluster (node).
@@ -63,7 +65,7 @@ if [ ! -w "$DST_CLUSTER_LOCK_FILE" ]; then
 fi
 
 # Check if jq is installed
-if ! command -v jq &> /dev/null; then
+if ! command -v jq &>/dev/null; then
     echo "Error: 'jq' is not installed. Please install it to use this script."
     echo "  On Debian/Ubuntu: sudo apt-get install jq"
     echo "  On macOS (Homebrew): brew install jq"
@@ -79,8 +81,8 @@ echo "Merging '$CLUSTER_LOCK_FILENAME' from '$SRC_CLUSTER_LOCK_FILE' into '$DST_
 # of the $src_data variable.
 MERGED_JSON=$(
     jq \
-    --slurpfile src_data "$SRC_CLUSTER_LOCK_FILE" \
-    '
+        --slurpfile src_data "$SRC_CLUSTER_LOCK_FILE" \
+        '
     .cluster_definition.num_validators = (.cluster_definition.num_validators + ($src_data[0].cluster_definition.num_validators)) |
     .cluster_definition.validators = (.cluster_definition.validators + $src_data[0].cluster_definition.validators) |
     .distributed_validators = (.distributed_validators + $src_data[0].distributed_validators)
@@ -96,8 +98,8 @@ fi
 # Write the merged JSON back to the destination file
 # It's safer to write to a temporary file first and then move it,
 # to prevent data loss if the write operation is interrupted.
-TEMP_DST_JSON_FILE="${DST_CLUSTER_LOCK_FILE}.tmp.$RANDOM"
-echo "$MERGED_JSON" > "$TEMP_DST_JSON_FILE"
+TEMP_DST_JSON_FILE=$(mktemp "${DST_CLUSTER_LOCK_FILE}.tmp.XXXXXX")
+echo "$MERGED_JSON" >"$TEMP_DST_JSON_FILE"
 
 # Check if the temporary file was written successfully
 if [ $? -ne 0 ]; then
