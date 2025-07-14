@@ -34,7 +34,7 @@ DST_CLUSTER_ROOT="$1"
 SRC_CLUSTER_ROOT="$2"
 
 # Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 NODE_MERGE_SCRIPT="$SCRIPT_DIR/node_merge.sh"
 
 # Check if node_merge.sh exists and is executable
@@ -73,7 +73,7 @@ for SRC_NODE_FOLDER_PATH in $NODE_FOLDERS; do
 
     # Check if the corresponding destination node folder exists
     if [ ! -d "$DST_NODE_FOLDER_PATH" ]; then
-        echo "Error: Destination node folder '$DST_NODE_FOLDER_PATH' not found. Skipping merge for this node."
+        echo "Error: Destination node folder '$DST_NODE_FOLDER_PATH' not found. Script will be terminated."
         exit 1
     fi
 

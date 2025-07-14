@@ -90,12 +90,6 @@ MERGED_JSON=$(
     ' "$DST_CLUSTER_LOCK_FILE"
 )
 
-# Check if jq command was successful
-if [ $? -ne 0 ]; then
-    echo "Error: jq failed to process JSON files for cluster-lock. This might be due to incorrect JSON format or other jq issues."
-    exit 1
-fi
-
 # Write the merged JSON back to the destination file
 # It's safer to write to a temporary file first and then move it,
 # to prevent data loss if the write operation is interrupted.
