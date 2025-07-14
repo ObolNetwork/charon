@@ -23,7 +23,7 @@ The script will:
 
 ## `cluster_merge.sh`
 
-This script merges cluster-level definition (`cluster-lock.json`) and validator key files from a source cluster folder into a destination cluster folder.
+This script merges two clusters by running `node_merge.sh` for each `nodeX` subfolder found in the source cluster.
 It helps expand an existing cluster with new validators, given the same operators set and cluster configuration.
 
 ### Usage
