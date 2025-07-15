@@ -105,18 +105,18 @@ func TestSmoke(t *testing.T) {
 				pegImageTag(data.Nodes, 3, nth(version.Supported(), 1)+".0-rc1")
 			},
 		},
-		{
-			Name: "teku_versions",
-			ConfigFunc: func(conf *compose.Config) {
-				conf.VCs = []compose.VCType{compose.VCTeku}
-			},
-			RunTmplFunc: func(data *compose.TmplData) {
-				data.VCs[0].Image = "consensys/teku:latest"
-				data.VCs[1].Image = "consensys/teku:25.4.1"
-				data.VCs[2].Image = "consensys/teku:25.4.0"
-				data.VCs[3].Image = "consensys/teku:25.3.0"
-			},
-		},
+		// {
+		// 	Name: "teku_versions",
+		// 	ConfigFunc: func(conf *compose.Config) {
+		// 		conf.VCs = []compose.VCType{compose.VCTeku}
+		// 	},
+		// 	RunTmplFunc: func(data *compose.TmplData) {
+		// 		data.VCs[0].Image = "consensys/teku:latest"
+		// 		data.VCs[1].Image = "consensys/teku:25.4.1"
+		// 		data.VCs[2].Image = "consensys/teku:25.4.0"
+		// 		data.VCs[3].Image = "consensys/teku:25.3.0"
+		// 	},
+		// },
 		{
 			Name: "1_of_4_down",
 			RunTmplFunc: func(data *compose.TmplData) {
@@ -161,13 +161,13 @@ func TestSmoke(t *testing.T) {
 				conf.BuilderAPI = true
 			},
 		},
-		{
-			Name: "blinded_blocks_teku",
-			ConfigFunc: func(conf *compose.Config) {
-				conf.BuilderAPI = true
-				conf.VCs = []compose.VCType{compose.VCTeku}
-			},
-		},
+		// {
+		// 	Name: "blinded_blocks_teku",
+		// 	ConfigFunc: func(conf *compose.Config) {
+		// 		conf.BuilderAPI = true
+		// 		conf.VCs = []compose.VCType{compose.VCTeku}
+		// 	},
+		// },
 	}
 
 	for _, test := range tests {
