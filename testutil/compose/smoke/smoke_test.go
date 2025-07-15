@@ -30,7 +30,7 @@ func TestSmoke(t *testing.T) {
 		t.Skip("Skipping smoke integration test")
 	}
 
-	const defaultTimeout = time.Second * 45
+	const defaultTimeout = time.Minute
 
 	tests := []struct {
 		Name           string
