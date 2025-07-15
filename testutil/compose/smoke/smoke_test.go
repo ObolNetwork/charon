@@ -3,6 +3,7 @@
 package smoke_test
 
 import (
+	"context"
 	"flag"
 	"os"
 	"path"
@@ -205,7 +206,7 @@ func TestSmoke(t *testing.T) {
 				autoConfig.LogFile = path.Join(*logDir, test.Name+".log")
 			}
 
-			err := compose.Auto(t.Context(), autoConfig)
+			err := compose.Auto(context.Background(), autoConfig)
 			testutil.RequireNoError(t, err)
 		})
 	}

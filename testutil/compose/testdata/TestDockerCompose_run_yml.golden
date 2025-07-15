@@ -170,17 +170,9 @@ services:
       CHARON_P2P_ADVERTISE_PRIVATE_ADDRESSES: "true"
       CHARON_LOKI_ADDRESS: http://loki:3100/loki/api/v1/push
   
-  vc0-teku:
-    container_name: vc0-teku
-    image: consensys/teku:latest
-    command: |
-      validator-client
-      --network=auto
-      --beacon-node-api-endpoint="http://node0:3600"
-      --validator-keys="/compose/node0/validator_keys/keystore-0.json:/compose/node0/validator_keys/keystore-0.txt"
-      --validator-keys="/compose/node0/validator_keys/keystore-1.json:/compose/node0/validator_keys/keystore-1.txt"
-      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
-      --validators-proposer-blinded-blocks-enabled=false
+  vc0-lighthouse:
+    container_name: vc0-lighthouse
+    build: lighthouse
     networks: [compose]
     depends_on: [node0]
     environment:
@@ -198,17 +190,9 @@ services:
     volumes:
       - .:/compose
   
-  vc3-teku:
-    container_name: vc3-teku
-    image: consensys/teku:latest
-    command: |
-      validator-client
-      --network=auto
-      --beacon-node-api-endpoint="http://node3:3600"
-      --validator-keys="/compose/node3/validator_keys/keystore-0.json:/compose/node3/validator_keys/keystore-0.txt"
-      --validator-keys="/compose/node3/validator_keys/keystore-1.json:/compose/node3/validator_keys/keystore-1.txt"
-      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
-      --validators-proposer-blinded-blocks-enabled=false
+  vc3-lighthouse:
+    container_name: vc3-lighthouse
+    build: lighthouse
     networks: [compose]
     depends_on: [node3]
     environment:

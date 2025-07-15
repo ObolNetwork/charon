@@ -459,10 +459,10 @@
  ],
  "VCs": [
   {
-   "Label": "teku",
-   "Image": "consensys/teku:latest",
-   "Build": "",
-   "Command": "|\n      validator-client\n      --network=auto\n      --beacon-node-api-endpoint=\"http://node0:3600\"\n      --validator-keys=\"/compose/node0/validator_keys/keystore-0.json:/compose/node0/validator_keys/keystore-0.txt\"\n      --validator-keys=\"/compose/node0/validator_keys/keystore-1.json:/compose/node0/validator_keys/keystore-1.txt\"\n      --validators-proposer-default-fee-recipient=\"0x0000000000000000000000000000000000000000\"\n      --validators-proposer-blinded-blocks-enabled=false",
+   "Label": "lighthouse",
+   "Image": "",
+   "Build": "lighthouse",
+   "Command": "",
    "Ports": null
   },
   {
@@ -480,10 +480,10 @@
    "Ports": null
   },
   {
-   "Label": "teku",
-   "Image": "consensys/teku:latest",
-   "Build": "",
-   "Command": "|\n      validator-client\n      --network=auto\n      --beacon-node-api-endpoint=\"http://node3:3600\"\n      --validator-keys=\"/compose/node3/validator_keys/keystore-0.json:/compose/node3/validator_keys/keystore-0.txt\"\n      --validator-keys=\"/compose/node3/validator_keys/keystore-1.json:/compose/node3/validator_keys/keystore-1.txt\"\n      --validators-proposer-default-fee-recipient=\"0x0000000000000000000000000000000000000000\"\n      --validators-proposer-blinded-blocks-enabled=false",
+   "Label": "lighthouse",
+   "Image": "",
+   "Build": "lighthouse",
+   "Command": "",
    "Ports": null
   }
  ],
