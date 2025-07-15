@@ -9,6 +9,7 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    container_name: node0
     
 
   
