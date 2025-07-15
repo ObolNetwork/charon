@@ -1,4 +1,4 @@
-FROM sigp/lighthouse:v7.1.0
+FROM sigp/lighthouse:v7.0.1
 
 ENV YQ_VERSION=v4.42.1
 
