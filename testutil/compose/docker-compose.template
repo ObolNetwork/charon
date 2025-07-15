@@ -11,6 +11,7 @@ services:
   {{- range $i, $node := .Nodes}}
   node{{$i}}:
     <<: *node-base
+    container_name: node{{$i}}
     {{if .ImageTag}}image: obolnetwork/charon:{{.ImageTag}}
     {{end -}}
     {{if .Entrypoint}}entrypoint: {{.Entrypoint}}
@@ -34,6 +35,7 @@ services:
   {{- if .Relay }}
   relay:
     <<: *node-base
+    container_name: relay
     command: relay
     depends_on: []
     environment:
@@ -51,6 +53,7 @@ services:
   {{- range $i, $vc := .VCs}}
   {{- if $vc.Label}}
   vc{{$i}}-{{$vc.Label}}:
+    container_name: vc{{$i}}-{{$vc.Label}}
     {{if $vc.Build}}build: {{$vc.Build}}
     {{end -}}
     {{if $vc.Image}}image: {{$vc.Image}}
@@ -68,12 +71,14 @@ services:
 
   {{if .Alerting}}
   curl:
+    container_name: curl
     # Can be used to curl services; e.g. docker compose exec curl curl http://prometheus:9090/api/v1/rules\?type\=alert
     image: curlimages/curl:latest
     command: sleep 1d
     networks: [compose]
 
   prometheus:
+    container_name: prometheus
     image: prom/prometheus:${PROMETHEUS_VERSION:-v2.50.1}
     {{if .MonitoringPorts}}ports:
       - "9090:9090"
@@ -86,6 +91,7 @@ services:
 
   {{if .Monitoring}}
   grafana:
+    container_name: grafana
     image: grafana/grafana:${GRAFANA_VERSION:-10.4.2}
     {{if .MonitoringPorts}}ports:
       - "3000:3000"
@@ -101,6 +107,7 @@ services:
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   tempo:
+    container_name: tempo
     image: grafana/tempo:${TEMPO_VERSION:-2.7.1}
     networks: [compose]
     user: ":"
@@ -109,6 +116,7 @@ services:
       - ./tempo:/opt/tempo
 
   loki:
+    container_name: loki
     image: grafana/loki:${LOKI_VERSION:-2.8.2}
     networks: [compose]
     user: ":"
