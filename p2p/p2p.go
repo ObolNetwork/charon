@@ -411,10 +411,9 @@ func isDirectConnAvailable(conns []network.Conn) bool {
 	return false
 }
 
-// ForceQUICConnections tries to establish a QUIC connection to the peer
-// if there's already a connection via another transport (e.g. TCP or relay).
-// It uses known QUIC addresses from the peerstore.
-func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
+// UpgradeToQUICConnections tries to upgrade a direct TCP connection to a direct QUIC connection
+// if there is known QUIC addresses from the peerstore.
+func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
 	forceQUICConn := func(ctx context.Context) {
 		if !isQUICEnabled(p2pNode) {
 			return // doesn't support QUIC
@@ -432,6 +431,10 @@ func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFu
 
 			if hasQUICConn(conns) {
 				continue // no need to upgrade
+			}
+
+			if !hasDirectTCPConn(conns) {
+				continue // no direct TPC connection to upgrade to QUIC
 			}
 
 			// Get known QUIC addrs from peerstore
@@ -461,11 +464,11 @@ func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFu
 				Addrs: quicAddrs,
 			})
 			if err != nil {
-				log.Debug(ctx, "Failed to establish QUIC connection to peer", z.Str("peer", PeerName(p)), z.Err(err))
+				log.Debug(ctx, "Failed to establish QUIC connection to peer", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs), z.Err(err))
 				continue
 			}
 
-			log.Debug(ctx, "Upgraded connection to QUIC", z.Str("peer", PeerName(p)))
+			log.Debug(ctx, "Upgraded connection to QUIC", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs))
 		}
 	}
 
@@ -482,6 +485,17 @@ func ForceQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFu
 			}
 		}
 	}
+}
+
+// hasDirectTCPConn returns true if there's already a direct TCP connection among the given conns.
+func hasDirectTCPConn(conns []network.Conn) bool {
+	for _, conn := range conns {
+		if isTCPAddr(conn.RemoteMultiaddr()) && !isRelayAddr(conn.RemoteMultiaddr()) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // hasQUICConn returns true if there's already a direct QUIC connection among the given conns.
@@ -508,6 +522,11 @@ func isProtocolAddr(a ma.Multiaddr, p int) bool {
 	})
 
 	return found
+}
+
+// isTCPAddr returns true if the multiaddr is TCP
+func isTCPAddr(a ma.Multiaddr) bool {
+	return isProtocolAddr(a, ma.P_TCP)
 }
 
 // isQUICAddr returns true if the multiaddr is QUIC
