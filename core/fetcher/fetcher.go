@@ -205,6 +205,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			pt.addNotSelected(pubkey.String())
 			continue
 		}
+
 		pt.addResolved(pubkey.String())
 
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
@@ -365,6 +366,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
 		}
+
 		pt.addResolved(pubkey.String())
 
 		resp[pubkey] = core.SyncContribution{
@@ -442,6 +444,7 @@ func (pt *pubkeysTracker) log(ctx context.Context) {
 		s := strings.Join(pt.notSelectedPubKeys, ",")
 		log.Debug(ctx, pt.title+": not selected pubkeys", z.Str("pubkeys", s))
 	}
+
 	if len(pt.resolvedPubKeys) > 0 {
 		s := strings.Join(pt.resolvedPubKeys, ",")
 		log.Info(ctx, pt.title+": resolved pubkeys", z.Str("pubkeys", s))
