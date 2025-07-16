@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,13 +30,16 @@ import (
 )
 
 const (
-	lockHashPath     = "{lock_hash}"
-	valPubkeyPath    = "{validator_pubkey}"
-	shareIndexPath   = "{share_index}"
-	fullExitBaseTmpl = "/exp/exit"
-	fullExitEndTmp   = "/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
+	lockHashPath   = "{lock_hash}"
+	valPubkeyPath  = "{validator_pubkey}"
+	shareIndexPath = "{share_index}"
 
-	partialExitTmpl = "/exp/partial_exits/" + lockHashPath
+	expPartialExits = "/exp/partial_exits"
+	expExit         = "/exp/exit"
+
+	submitPartialExitTmpl = "/" + lockHashPath
+	deletePartialExitTmpl = "/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
+	fetchFullExitTmpl     = "/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
 )
 
 type contextKey string
@@ -92,7 +96,7 @@ func (ts *testServer) addLockFiles(lock cluster.Lock) {
 	ts.lockFiles["0x"+hex.EncodeToString(lock.LockHash)] = lock
 }
 
-func (ts *testServer) HandlePartialExit(writer http.ResponseWriter, request *http.Request) {
+func (ts *testServer) HandleSubmitPartialExit(writer http.ResponseWriter, request *http.Request) {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 
@@ -185,7 +189,7 @@ func (ts *testServer) HandlePartialExit(writer http.ResponseWriter, request *htt
 	writer.WriteHeader(http.StatusCreated)
 }
 
-func (ts *testServer) HandleFullExit(writer http.ResponseWriter, request *http.Request) {
+func (ts *testServer) HandleGetFullExit(writer http.ResponseWriter, request *http.Request) {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 
@@ -282,6 +286,94 @@ func (ts *testServer) HandleFullExit(writer http.ResponseWriter, request *http.R
 	}
 }
 
+func (ts *testServer) HandleDeletePartialExit(writer http.ResponseWriter, request *http.Request) {
+	ts.lock.Lock()
+	defer ts.lock.Unlock()
+
+	authToken, ok := request.Context().Value(tokenContextKey).([]byte)
+	if !ok {
+		log.Error(request.Context(), "received context without token, that's impossible!", nil)
+		return
+	}
+
+	vars := mux.Vars(request)
+
+	valPubkey := vars[cleanTmpl(valPubkeyPath)]
+	lockHash := vars[cleanTmpl(lockHashPath)]
+	shareIndexStr := vars[cleanTmpl(shareIndexPath)]
+
+	shareIndex, err := strconv.ParseUint(shareIndexStr, 10, 64)
+	if err != nil {
+		writeErr(writer, http.StatusBadRequest, "malformed share index")
+		return
+	}
+
+	valPubkeyBytes, err := from0x(valPubkey, 48)
+	if err != nil {
+		writeErr(writer, http.StatusBadRequest, "invalid public key")
+		return
+	}
+
+	lockHashBytes, err := from0x(lockHash, 32)
+	if err != nil {
+		writeErr(writer, http.StatusBadRequest, "invalid lock hash")
+		return
+	}
+
+	lock, ok := ts.lockFiles[lockHash]
+	if !ok {
+		writeErr(writer, http.StatusNotFound, "lock not found")
+		return
+	}
+
+	partialExits, ok := ts.partialExits[valPubkey]
+	if !ok {
+		writeErr(writer, http.StatusNotFound, "validator not found")
+		return
+	}
+
+	// check that data has been signed with ShareIdx-th identity key
+	if shareIndex == 0 || shareIndex > uint64(len(lock.Operators)) {
+		writeErr(writer, http.StatusBadRequest, "invalid share index")
+		return
+	}
+
+	exitAuthData := obolapi.FullExitAuthBlob{
+		LockHash:        lockHashBytes,
+		ValidatorPubkey: valPubkeyBytes,
+		ShareIndex:      shareIndex,
+	}
+
+	exitAuthDataRoot, err := exitAuthData.HashTreeRoot()
+	if err != nil {
+		writeErr(writer, http.StatusInternalServerError, "cannot calculate exit auth data root")
+		return
+	}
+
+	if err := verifyIdentitySignature(lock.Operators[shareIndex-1], authToken, exitAuthDataRoot[:]); err != nil {
+		writeErr(writer, http.StatusBadRequest, "cannot verify signature: "+err.Error())
+		return
+	}
+
+	found := false
+
+	for idx, pExit := range partialExits {
+		if pExit.shareIdx == shareIndex {
+			partialExits = slices.Delete(partialExits, idx, idx+1)
+			found = true
+
+			break
+		}
+	}
+
+	if !found {
+		writeErr(writer, http.StatusNotFound, "share index not found for validator")
+		return
+	}
+
+	ts.partialExits[valPubkey] = partialExits
+}
+
 func (ts *testServer) partialExitsMatch(newOne obolapi.ExitBlob) bool {
 	// get the last one
 	exitsLen := len(ts.partialExits[newOne.PublicKey])
@@ -331,11 +423,15 @@ func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lo
 
 	router := mux.NewRouter()
 
-	full := router.PathPrefix(fullExitBaseTmpl).Subrouter()
-	full.Use(authMiddleware)
-	full.HandleFunc(fullExitEndTmp, ts.HandleFullExit).Methods(http.MethodGet)
+	getFull := router.PathPrefix(expExit).Subrouter()
+	getFull.Use(authMiddleware)
+	getFull.HandleFunc(fetchFullExitTmpl, ts.HandleGetFullExit).Methods(http.MethodGet)
 
-	router.HandleFunc(partialExitTmpl, ts.HandlePartialExit).Methods(http.MethodPost)
+	deletePartial := router.PathPrefix(expPartialExits).Subrouter()
+	deletePartial.Use(authMiddleware)
+	deletePartial.HandleFunc(deletePartialExitTmpl, ts.HandleDeletePartialExit).Methods(http.MethodDelete)
+
+	router.HandleFunc(expPartialExits+submitPartialExitTmpl, ts.HandleSubmitPartialExit).Methods(http.MethodPost)
 
 	return router, ts.addLockFiles
 }

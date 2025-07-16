@@ -23,33 +23,32 @@ import (
 )
 
 const (
-	lockHashPath     = "{lock_hash}"
-	valPubkeyPath    = "{validator_pubkey}"
-	shareIndexPath   = "{share_index}"
-	fullExitBaseTmpl = "/exp/exit"
-	fullExitEndTmp   = "/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
+	lockHashPath   = "{lock_hash}"
+	valPubkeyPath  = "{validator_pubkey}"
+	shareIndexPath = "{share_index}"
 
-	partialExitTmpl = "/exp/partial_exits/" + lockHashPath
-	fullExitTmpl    = fullExitBaseTmpl + fullExitEndTmp
+	submitPartialExitTmpl = "/exp/partial_exits/" + lockHashPath
+	deletePartialExitTmpl = "/exp/partial_exits/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
+	fetchFullExitTmpl     = "/exp/exit/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
 )
 
 var ErrNoExit = errors.New("no exit for the given validator public key")
-
-// partialExitURL returns the partial exit Obol API URL for a given lock hash.
-func partialExitURL(lockHash string) string {
-	return strings.NewReplacer(
-		lockHashPath,
-		lockHash,
-	).Replace(partialExitTmpl)
-}
 
 // bearerString returns the bearer token authentication string given a token.
 func bearerString(data []byte) string {
 	return fmt.Sprintf("Bearer %#x", data)
 }
 
-// fullExitURL returns the full exit Obol API URL for a given validator public key.
-func fullExitURL(valPubkey, lockHash string, shareIndex uint64) string {
+// submitPartialExitURL returns the partial exit Obol API URL for a given lock hash.
+func submitPartialExitURL(lockHash string) string {
+	return strings.NewReplacer(
+		lockHashPath,
+		lockHash,
+	).Replace(submitPartialExitTmpl)
+}
+
+// deletePartialExitURL returns the full exit Obol API URL for a given validator public key.
+func deletePartialExitURL(valPubkey, lockHash string, shareIndex uint64) string {
 	return strings.NewReplacer(
 		valPubkeyPath,
 		valPubkey,
@@ -57,7 +56,19 @@ func fullExitURL(valPubkey, lockHash string, shareIndex uint64) string {
 		lockHash,
 		shareIndexPath,
 		strconv.FormatUint(shareIndex, 10),
-	).Replace(fullExitTmpl)
+	).Replace(deletePartialExitTmpl)
+}
+
+// fetchFullExitURL returns the full exit Obol API URL for a given validator public key.
+func fetchFullExitURL(valPubkey, lockHash string, shareIndex uint64) string {
+	return strings.NewReplacer(
+		valPubkeyPath,
+		valPubkey,
+		lockHashPath,
+		lockHash,
+		shareIndexPath,
+		strconv.FormatUint(shareIndex, 10),
+	).Replace(fetchFullExitTmpl)
 }
 
 // PostPartialExits POSTs the set of msg's to the Obol API, for a given lock hash.
@@ -65,7 +76,7 @@ func fullExitURL(valPubkey, lockHash string, shareIndex uint64) string {
 func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey, exitBlobs ...ExitBlob) error {
 	lockHashStr := "0x" + hex.EncodeToString(lockHash)
 
-	path := partialExitURL(lockHashStr)
+	path := submitPartialExitURL(lockHashStr)
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
@@ -121,7 +132,7 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 		return ExitBlob{}, errors.Wrap(err, "validator pubkey to bytes")
 	}
 
-	path := fullExitURL(valPubkey, "0x"+hex.EncodeToString(lockHash), shareIndex)
+	path := fetchFullExitURL(valPubkey, "0x"+hex.EncodeToString(lockHash), shareIndex)
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
@@ -208,4 +219,49 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 			Signature: eth2p0.BLSSignature(fullSig),
 		},
 	}, nil
+}
+
+// DeletePartialExit deletes the partial exit message for a given validator public key, lock hash and share index.
+// It respects the timeout specified in the Client instance.
+func (c Client) DeletePartialExit(ctx context.Context, valPubkey string, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey) error {
+	valPubkeyBytes, err := from0x(valPubkey, 48) // public key is 48 bytes long
+	if err != nil {
+		return errors.Wrap(err, "validator pubkey to bytes")
+	}
+
+	path := deletePartialExitURL(valPubkey, "0x"+hex.EncodeToString(lockHash), shareIndex)
+
+	u, err := url.ParseRequestURI(c.baseURL)
+	if err != nil {
+		return errors.Wrap(err, "bad Obol API url")
+	}
+
+	u.Path = path
+
+	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
+	defer cancel()
+
+	exitAuthData := FullExitAuthBlob{
+		LockHash:        lockHash,
+		ValidatorPubkey: valPubkeyBytes,
+		ShareIndex:      shareIndex,
+	}
+
+	exitAuthDataRoot, err := exitAuthData.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "exit auth data root")
+	}
+
+	// sign the lockHash *bytes* with identity key
+	lockHashSignature, err := k1util.Sign(identityKey, exitAuthDataRoot[:])
+	if err != nil {
+		return errors.Wrap(err, "k1 sign")
+	}
+
+	err = httpDelete(ctx, u, map[string]string{"Authorization": bearerString(lockHashSignature)})
+	if err != nil {
+		return errors.Wrap(err, "http Obol API DELETE request")
+	}
+
+	return nil
 }
