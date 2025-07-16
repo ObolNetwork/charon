@@ -35,6 +35,10 @@ import (
 
 //go:generate go test . -run=TestCreateCluster -update
 
+const (
+	feeRecipientAddr = "0x0000000000000000000000000000000000000000"
+)
+
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-006.json"
 	def, err := loadDefinition(context.Background(), defPath)
