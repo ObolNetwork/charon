@@ -75,7 +75,7 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 			_, _ = w.Write([]byte(`{"data": {"version": "charon/static_beacon_mock"}}`))
 		},
 		"/eth/v1/node/syncing": func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte(`{"data": {"head_slot": "1","sync_distance": "0","is_syncing": false}}`))
+			_, _ = w.Write([]byte(`{"data": {"head_slot": "1","sync_distance": "0","is_syncing": false,"is_optimistic": false,"el_offline": false}}`))
 		},
 		"/eth/v1/beacon/headers/head": func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte(`{"data": {"header": {"message": {"slot": "1"}}}}`))

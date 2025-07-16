@@ -8,6 +8,7 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    container_name: node0
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node0/charon-enr-private-key
@@ -44,6 +45,7 @@ services:
       
   node1:
     <<: *node-base
+    container_name: node1
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node1/charon-enr-private-key
@@ -80,6 +82,7 @@ services:
       
   node2:
     <<: *node-base
+    container_name: node2
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node2/charon-enr-private-key
@@ -116,6 +119,7 @@ services:
       
   node3:
     <<: *node-base
+    container_name: node3
     
     environment:
       CHARON_PRIVATE_KEY_FILE: /compose/node3/charon-enr-private-key
@@ -152,6 +156,7 @@ services:
       
   relay:
     <<: *node-base
+    container_name: relay
     command: relay
     depends_on: []
     environment:
@@ -165,16 +170,9 @@ services:
       CHARON_P2P_ADVERTISE_PRIVATE_ADDRESSES: "true"
       CHARON_LOKI_ADDRESS: http://loki:3100/loki/api/v1/push
   
-  vc0-teku:
-    image: consensys/teku:latest
-    command: |
-      validator-client
-      --network=auto
-      --beacon-node-api-endpoint="http://node0:3600"
-      --validator-keys="/compose/node0/validator_keys/keystore-0.json:/compose/node0/validator_keys/keystore-0.txt"
-      --validator-keys="/compose/node0/validator_keys/keystore-1.json:/compose/node0/validator_keys/keystore-1.txt"
-      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
-      --validators-proposer-blinded-blocks-enabled=false
+  vc0-lighthouse:
+    container_name: vc0-lighthouse
+    build: lighthouse
     networks: [compose]
     depends_on: [node0]
     environment:
@@ -183,6 +181,7 @@ services:
       - .:/compose
   
   vc1-lighthouse:
+    container_name: vc1-lighthouse
     build: lighthouse
     networks: [compose]
     depends_on: [node1]
@@ -191,16 +190,9 @@ services:
     volumes:
       - .:/compose
   
-  vc3-teku:
-    image: consensys/teku:latest
-    command: |
-      validator-client
-      --network=auto
-      --beacon-node-api-endpoint="http://node3:3600"
-      --validator-keys="/compose/node3/validator_keys/keystore-0.json:/compose/node3/validator_keys/keystore-0.txt"
-      --validator-keys="/compose/node3/validator_keys/keystore-1.json:/compose/node3/validator_keys/keystore-1.txt"
-      --validators-proposer-default-fee-recipient="0x0000000000000000000000000000000000000000"
-      --validators-proposer-blinded-blocks-enabled=false
+  vc3-lighthouse:
+    container_name: vc3-lighthouse
+    build: lighthouse
     networks: [compose]
     depends_on: [node3]
     environment:
@@ -209,12 +201,14 @@ services:
       - .:/compose
   
   curl:
+    container_name: curl
     # Can be used to curl services; e.g. docker compose exec curl curl http://prometheus:9090/api/v1/rules\?type\=alert
     image: curlimages/curl:latest
     command: sleep 1d
     networks: [compose]
 
   prometheus:
+    container_name: prometheus
     image: prom/prometheus:${PROMETHEUS_VERSION:-v2.50.1}
     ports:
       - "9090:9090"
@@ -226,6 +220,7 @@ services:
 
   
   grafana:
+    container_name: grafana
     image: grafana/grafana:${GRAFANA_VERSION:-10.4.2}
     ports:
       - "3000:3000"
@@ -240,6 +235,7 @@ services:
       - ./grafana/dash_alerts.json:/etc/dashboards/dash_alerts.json
 
   tempo:
+    container_name: tempo
     image: grafana/tempo:${TEMPO_VERSION:-2.7.1}
     networks: [compose]
     user: ":"
@@ -248,6 +244,7 @@ services:
       - ./tempo:/opt/tempo
 
   loki:
+    container_name: loki
     image: grafana/loki:${LOKI_VERSION:-2.8.2}
     networks: [compose]
     user: ":"

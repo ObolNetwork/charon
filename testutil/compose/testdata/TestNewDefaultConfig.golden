@@ -11,7 +11,7 @@
  "beacon_nodes": "mock",
  "external_relay": "",
  "validator_clients": [
-  "teku",
+  "lighthouse",
   "lighthouse",
   "mock"
  ],

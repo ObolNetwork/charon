@@ -8,6 +8,7 @@ x-node-base: &node-base
 services:
   node0:
     <<: *node-base
+    container_name: node0
     entrypoint: sh
     command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
@@ -26,6 +27,7 @@ services:
     
   node1:
     <<: *node-base
+    container_name: node1
     entrypoint: sh
     command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
@@ -44,6 +46,7 @@ services:
     
   node2:
     <<: *node-base
+    container_name: node2
     entrypoint: sh
     command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
@@ -62,6 +65,7 @@ services:
     
   node3:
     <<: *node-base
+    container_name: node3
     entrypoint: sh
     command: [-c,'/usr/local/bin/charon dkg && sleep 2']
     
@@ -80,6 +84,7 @@ services:
     
   relay:
     <<: *node-base
+    container_name: relay
     command: relay
     depends_on: []
     environment:
