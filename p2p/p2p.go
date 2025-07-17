@@ -352,11 +352,11 @@ func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 				if len(quicAddrs) > 0 {
 					err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p, Addrs: quicAddrs})
 					if err == nil {
-						log.Debug(ctx, "Forced direct QUIC connection to peer successful", z.Str("peer", PeerName(p)))
+						log.Debug(ctx, "Forced direct QUIC connection to peer successful", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs))
 						continue
 					}
 
-					log.Debug(ctx, "Failed to establish direct QUIC connection", z.Str("peer", PeerName(p)), z.Err(err))
+					log.Debug(ctx, "Failed to establish direct QUIC connection", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs), z.Err(err))
 				}
 			}
 
@@ -450,11 +450,14 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 				continue // no known QUIC addresses
 			}
 
-			// Close previous connections to ensure that we can establish a QUIC connection
+			// Close previous direct connections to ensure that we can establish a QUIC connection
 			for _, conn := range conns {
-				err := conn.Close()
-				if err != nil {
-					log.Debug(ctx, "Failed to close connections before upgrading to QUIC", z.Err(err), z.Any("connection", conn))
+				addr := conn.RemoteMultiaddr()
+				if !isRelayAddr(addr) {
+					err := conn.Close()
+					if err != nil {
+						log.Debug(ctx, "Failed to close connections before upgrading to QUIC", z.Err(err), z.Any("addr", addr), z.Any("connection", conn))
+					}
 				}
 			}
 
