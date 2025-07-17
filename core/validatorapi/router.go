@@ -132,7 +132,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 			Path:      "/eth/v1/beacon/pool/attestations",
 			Handler:   respond404("/eth/v1/beacon/pool/attestations"),
 			Methods:   []string{http.MethodPost},
-			Encodings: []contentType{},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
 			Name:      "submit_attestations_v2",
@@ -160,14 +160,14 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 			Path:      "/eth/v2/validator/blocks/{slot}",
 			Handler:   respond404("/eth/v2/validator/blocks/{slot}"),
 			Methods:   []string{http.MethodGet},
-			Encodings: []contentType{},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
 			Name:      "propose_blinded_block",
 			Path:      "/eth/v1/validator/blinded_blocks/{slot}",
 			Handler:   respond404("/eth/v1/validator/blinded_blocks/{slot}"),
 			Methods:   []string{http.MethodGet},
-			Encodings: []contentType{},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
 			Name:      "propose_block_v3",
@@ -244,7 +244,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 			Path:      "/eth/v1/validator/aggregate_attestation",
 			Handler:   respond404("/eth/v1/validator/aggregate_attestation"),
 			Methods:   []string{http.MethodGet},
-			Encodings: []contentType{},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
 			Name:      "aggregate_attestation_v2",
@@ -258,7 +258,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 			Path:      "/eth/v1/validator/aggregate_and_proofs",
 			Handler:   respond404("/eth/v1/validator/aggregate_and_proofs"),
 			Methods:   []string{http.MethodPost},
-			Encodings: []contentType{},
+			Encodings: []contentType{contentTypeJSON},
 		},
 		{
 			Name:      "submit_aggregate_and_proofs_v2",
