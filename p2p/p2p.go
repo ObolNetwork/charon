@@ -17,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
@@ -340,26 +341,6 @@ func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 				continue
 			}
 
-			if isQUICEnabled(p2pNode) {
-				var quicAddrs []ma.Multiaddr
-
-				for _, addr := range p2pNode.Peerstore().Addrs(p) {
-					if isQUICAddr(addr) && !isRelayAddr(addr) {
-						quicAddrs = append(quicAddrs, addr)
-					}
-				}
-
-				if len(quicAddrs) > 0 {
-					err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p, Addrs: quicAddrs})
-					if err == nil {
-						log.Debug(ctx, "Forced direct QUIC connection to peer successful", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs))
-						continue
-					}
-
-					log.Debug(ctx, "Failed to establish direct QUIC connection", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs), z.Err(err))
-				}
-			}
-
 			// All existing connections are through relays, so we can try force dialing a direct connection.
 			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
 			if err == nil {
@@ -450,6 +431,13 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 				continue // no known QUIC addresses
 			}
 
+			log.Debug(ctx, "Trying to upgrade to QUIC connection with peer", z.Str("peer", PeerName(p)))
+
+			// To maximize change of connectia via QUIC clear peerstore of TCP addresses
+			originalPeerstore := slices.Clone(p2pNode.Peerstore().Addrs(p))
+			p2pNode.Peerstore().ClearAddrs(p)
+			p2pNode.Peerstore().AddAddrs(p, quicAddrs, peerstore.PermanentAddrTTL)
+
 			// Close previous direct connections to ensure that we can establish a QUIC connection
 			for _, conn := range conns {
 				addr := conn.RemoteMultiaddr()
@@ -461,17 +449,35 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 				}
 			}
 
-			// Attempt to connect over QUIC explicitly
-			err := p2pNode.Connect(ctx, peer.AddrInfo{
-				ID:    p,
-				Addrs: quicAddrs,
-			})
+			// Attempt to connect over QUIC
+			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "tcp_to_quic"), peer.AddrInfo{ID: p})
 			if err != nil {
-				log.Debug(ctx, "Failed to establish QUIC connection to peer", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs), z.Err(err))
+				log.Debug(ctx, "Failed to establish connection to peer during QUIC upgrade", z.Str("peer", PeerName(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)), z.Err(err))
 				continue
 			}
 
-			log.Debug(ctx, "Upgraded connection to QUIC", z.Str("peer", PeerName(p)), z.Any("quicAddrs", quicAddrs))
+			// Restore original peerstore
+			p2pNode.Peerstore().AddAddrs(p, originalPeerstore, peerstore.PermanentAddrTTL)
+
+			// Confirm connection
+			connectedViaQUIC := false
+
+			for _, conn := range p2pNode.Network().ConnsToPeer(p) {
+				addr := conn.RemoteMultiaddr()
+				if !isRelayAddr(addr) {
+					if isQUICAddr(addr) {
+						connectedViaQUIC = true
+
+						log.Debug(ctx, "Upgraded connection to QUIC", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+					} else if isTCPAddr(addr) {
+						log.Debug(ctx, "Connected via TCP after upgrade to QUIC connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+					}
+				}
+			}
+
+			if !connectedViaQUIC {
+				log.Debug(ctx, "Failed to establish direct connection via QUIC to peer", z.Str("peer", PeerName(p)), z.Any("conns", p2pNode.Network().ConnsToPeer(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)))
+			}
 		}
 	}
 
