@@ -93,7 +93,7 @@ MERGED_JSON=$(
 # Write the merged JSON back to the destination file
 # It's safer to write to a temporary file first and then move it,
 # to prevent data loss if the write operation is interrupted.
-TEMP_DST_JSON_FILE=$(mktemp "${DST_CLUSTER_LOCK_FILE}.tmp.XXXXXX")
+TEMP_DST_JSON_FILE=$(mktemp "${DST_CLUSTER_LOCK_FILE}.${date +%s%N}.tmp")
 echo "$MERGED_JSON" >"$TEMP_DST_JSON_FILE"
 
 # Check if the temporary file was written successfully
