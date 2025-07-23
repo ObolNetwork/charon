@@ -5,6 +5,7 @@ package p2p
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"slices"
 	"sync"
@@ -395,8 +396,58 @@ func isDirectConnAvailable(conns []network.Conn) bool {
 // UpgradeToQUICConnections tries to upgrade a direct TCP connection to a direct QUIC connection
 // if there is known QUIC addresses from the peerstore.
 func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
+	type quicUpgradeBackoff struct {
+		tickersRemaining int
+		backoffDuration  int // in minutes/tickers
+	}
+
+	failedUpgradeAttempts := make(map[peer.ID]*quicUpgradeBackoff)
+
+	var backoffMutex sync.Mutex
+
+	recordUpgradeFailure := func(peerID peer.ID) {
+		backoffMutex.Lock()
+		defer backoffMutex.Unlock()
+
+		if currentBackoff, exists := failedUpgradeAttempts[peerID]; exists {
+			currentBackoff.backoffDuration = int(math.Min(float64(currentBackoff.backoffDuration*2), 512)) // max 8 hours
+			currentBackoff.tickersRemaining = currentBackoff.backoffDuration
+		} else {
+			failedUpgradeAttempts[peerID] = &quicUpgradeBackoff{
+				tickersRemaining: 2,
+				backoffDuration:  2,
+			}
+		}
+	}
+
+	shouldSkipUpgradeAttempt := func(ctx context.Context, peerID peer.ID) bool {
+		backoffMutex.Lock()
+		defer backoffMutex.Unlock()
+
+		if currentBackoff, exists := failedUpgradeAttempts[peerID]; exists {
+			if currentBackoff.tickersRemaining > 0 {
+				currentBackoff.tickersRemaining--
+				log.Debug(ctx, "Skipping QUIC upgrade due to backoff", z.Str("peer", PeerName(peerID)), z.Int("tickers_remaining", currentBackoff.tickersRemaining), z.Int("backoff_duration_minutes", currentBackoff.backoffDuration))
+
+				return true
+			}
+
+			return false
+		}
+
+		return false
+	}
+
+	clearUpgradeBackoff := func(peerID peer.ID) {
+		backoffMutex.Lock()
+		defer backoffMutex.Unlock()
+
+		delete(failedUpgradeAttempts, peerID)
+	}
+
 	forceQUICConn := func(ctx context.Context) {
 		if !isQUICEnabled(p2pNode) {
+			log.Debug(ctx, "Node doesn't have feature QUIC enabled")
 			return // doesn't support QUIC
 		}
 
@@ -405,17 +456,38 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 				continue // skip self
 			}
 
+			if shouldSkipUpgradeAttempt(ctx, p) {
+				continue // skip this peer due to active backoff
+			}
+
 			conns := p2pNode.Network().ConnsToPeer(p)
 			if len(conns) == 0 {
+				log.Debug(ctx, "No connection to peer", z.Str("peer", PeerName(p)))
 				continue // nothing to upgrade
 			}
 
-			if hasQUICConn(conns) {
+			if hasDirectQUICConn(conns) {
+				log.Debug(ctx, "Already has direct QUIC connection to peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
+
+				// Remove unwanted TCP connections
+				for _, conn := range conns {
+					addr := conn.RemoteMultiaddr()
+					if isTCPAddr(addr) {
+						err := conn.Close()
+						if err != nil {
+							log.Debug(ctx, "Failed to closed redundant TCP connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+						} else {
+							log.Debug(ctx, "Closed redundant TCP connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+						}
+					}
+				}
+
 				continue // no need to upgrade
 			}
 
 			if !hasDirectTCPConn(conns) {
-				continue // no direct TPC connection to upgrade to QUIC
+				log.Debug(ctx, "No direct connection via TCP to peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
+				continue // no direct TPC connection to upgrade to QUIC, ForceDirectConnections shall upgrade to direct
 			}
 
 			// Get known QUIC addrs from peerstore
@@ -428,6 +500,7 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 			}
 
 			if len(quicAddrs) == 0 {
+				log.Debug(ctx, "No knonw QUIC addresses to peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
 				continue // no known QUIC addresses
 			}
 
@@ -442,6 +515,8 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 			for _, conn := range conns {
 				addr := conn.RemoteMultiaddr()
 				if !isRelayAddr(addr) {
+					log.Debug(ctx, "Closing connection during QUIC upgrade", z.Str("peer", PeerName(p)), z.Any("conn", conn))
+
 					err := conn.Close()
 					if err != nil {
 						log.Debug(ctx, "Failed to close connections before upgrading to QUIC", z.Err(err), z.Any("addr", addr), z.Any("connection", conn))
@@ -450,9 +525,24 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 			}
 
 			// Attempt to connect over QUIC
-			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "tcp_to_quic"), peer.AddrInfo{ID: p})
+			// In case of QUIC failure due to infrastructure error (e.g. UDP port closed) the Connect call
+			// may fail or succeed. It can succeed if another peer calls Connect to this peer with a working
+			// TCP address which is misleading to us
+			// If it fails, we try to reconnect via any available address
+			// If it succeeds, we check whether we are actually connected via QUIC
+			err := p2pNode.Connect(network.WithForceDirectDial(ctx, ""), peer.AddrInfo{ID: p})
 			if err != nil {
-				log.Debug(ctx, "Failed to establish connection to peer during QUIC upgrade", z.Str("peer", PeerName(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)), z.Err(err))
+				recordUpgradeFailure(p)
+				log.Debug(ctx, "Failed to connect to peer during QUIC upgrade. Reconnecting via any address", z.Str("peer", PeerName(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)), z.Err(err))
+
+				// Restore original peerstore
+				p2pNode.Peerstore().AddAddrs(p, originalPeerstore, peerstore.PermanentAddrTTL)
+				// Reconnect (probably through TCP)
+				err := p2pNode.Connect(network.WithForceDirectDial(ctx, ""), peer.AddrInfo{ID: p})
+				if err != nil {
+					log.Debug(ctx, "Failed to establish connection after failed QUIC upgrade", z.Str("peer", PeerName(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)))
+				}
+
 				continue
 			}
 
@@ -468,15 +558,18 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 					if isQUICAddr(addr) {
 						connectedViaQUIC = true
 
-						log.Debug(ctx, "Upgraded connection to QUIC", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+						log.Debug(ctx, "Upgraded connection to QUIC", z.Str("peer", PeerName(p)), z.Any("addr", addr), z.Any("direction", conn.Stat().Direction))
 					} else if isTCPAddr(addr) {
-						log.Debug(ctx, "Connected via TCP after upgrade to QUIC connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+						log.Debug(ctx, "Connected via TCP after upgrade to QUIC connection", z.Str("peer", PeerName(p)), z.Any("addr", addr), z.Any("direction", conn.Stat().Direction))
 					}
 				}
 			}
 
 			if !connectedViaQUIC {
 				log.Debug(ctx, "Failed to establish direct connection via QUIC to peer", z.Str("peer", PeerName(p)), z.Any("conns", p2pNode.Network().ConnsToPeer(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)))
+				recordUpgradeFailure(p)
+			} else {
+				clearUpgradeBackoff(p)
 			}
 		}
 	}
@@ -507,8 +600,8 @@ func hasDirectTCPConn(conns []network.Conn) bool {
 	return false
 }
 
-// hasQUICConn returns true if there's already a direct QUIC connection among the given conns.
-func hasQUICConn(conns []network.Conn) bool {
+// hasDirectQUICConn returns true if there's already a direct QUIC connection among the given conns.
+func hasDirectQUICConn(conns []network.Conn) bool {
 	for _, conn := range conns {
 		if isQUICAddr(conn.RemoteMultiaddr()) && !isRelayAddr(conn.RemoteMultiaddr()) {
 			return true
