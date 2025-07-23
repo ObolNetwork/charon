@@ -6,6 +6,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -109,9 +110,7 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 		},
 	}
 
-	for path, handler := range optionalHandlers {
-		endpoints[path] = handler
-	}
+	maps.Copy(endpoints, optionalHandlers)
 
 	r := mux.NewRouter()
 

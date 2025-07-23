@@ -4,6 +4,7 @@ package qbft
 
 import (
 	"context"
+	"maps"
 	"sync"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -54,9 +55,7 @@ func (t *transport) setValues(msg Msg) {
 	t.valueMu.Lock()
 	defer t.valueMu.Unlock()
 
-	for k, v := range msg.Values() {
-		t.values[k] = v
-	}
+	maps.Copy(t.values, msg.Values())
 }
 
 // getValue returns the value by its hash.
