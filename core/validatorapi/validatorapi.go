@@ -5,6 +5,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/big"
 	"runtime"
 	"strconv"
@@ -1228,9 +1229,7 @@ func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts)
 			return nil, errors.Wrap(err, "fetching non-cached validators from BN")
 		}
 
-		for idx, val := range eth2Resp.Data {
-			ret[idx] = val
-		}
+		maps.Copy(ret, eth2Resp.Data)
 	} else {
 		log.Debug(ctx, "All validators requested were cached", z.Int("amount_requested", len(opts.PubKeys)))
 	}

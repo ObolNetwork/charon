@@ -4,6 +4,7 @@ package dkg
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -153,9 +154,7 @@ func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.
 	}
 
 	ret := make(map[core.PubKey][]core.ParSignedData)
-	for k, v := range data {
-		ret[k] = v
-	}
+	maps.Copy(ret, data)
 
 	e.sigData.lock.Unlock()
 
