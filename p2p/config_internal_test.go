@@ -18,7 +18,7 @@ func TestResolveListenAddr(t *testing.T) {
 	}{
 		{
 			input: ":1234",
-			err:   `p2p bind IP not specified`,
+			err:   `p2p bind TCP IP not specified`,
 		},
 		{
 			input: "10.4.3.3:1234",

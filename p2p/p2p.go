@@ -57,31 +57,24 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		libP2POpts = append(libP2POpts, tcp.DisableReuseport())
 	}
 
-	var (
-		addrs         []ma.Multiaddr
-		externalAddrs []ma.Multiaddr
-		transport     libp2p.Option
-		err           error
-	)
+	addrs, err := cfg.TCPMultiaddrs()
+	if err != nil {
+		return nil, err
+	}
 
-	switch nodeType {
-	case NodeTypeTCP:
-		addrs, err = cfg.TCPMultiaddrs()
-		if err != nil {
-			return nil, err
-		}
+	if len(addrs) == 0 {
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses is empty")
+	}
 
-		if len(addrs) == 0 {
-			log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses is empty")
-		}
+	externalAddrs, err := externalTCPMultiAddrs(cfg)
+	if err != nil {
+		return nil, err
+	}
 
-		externalAddrs, err = externalTCPMultiAddrs(cfg)
-		if err != nil {
-			return nil, err
-		}
+	transport := libp2p.Transport(tcp.NewTCPTransport, libP2POpts...)
 
-		transport = libp2p.Transport(tcp.NewTCPTransport, libP2POpts...)
-	case NodeTypeQUIC:
+	// Use both QUIC and TCP transport when QUIC is enabled, as we are accommodating both connections in the cases where QUIC is enabled.
+	if nodeType == NodeTypeQUIC {
 		udpAddrs, err := cfg.UDPMultiaddrs()
 		if err != nil {
 			return nil, err
@@ -91,14 +84,9 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 			log.Warn(ctx, "LibP2P QUIC enabled but --p2p-udp-addresses is empty", nil)
 		}
 
-		tcpAddrs, err := cfg.TCPMultiaddrs()
-		if err != nil {
-			return nil, err
-		}
-
-		addrs = slices.Concat(udpAddrs, tcpAddrs)
+		addrs = append(addrs, udpAddrs...)
 		if len(addrs) == 0 {
-			log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-udp-addresses and --p2p-tcp-addresses are empty")
+			log.Warn(ctx, "LibP2P not accepting incoming connections since --p2p-udp-addresses and --p2p-tcp-addresses are empty", nil)
 		}
 
 		externalUDPAddrs, err := externalUDPMultiAddrs(cfg)
@@ -106,19 +94,12 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 			return nil, err
 		}
 
-		externalTCPAddrs, err := externalTCPMultiAddrs(cfg)
-		if err != nil {
-			return nil, err
-		}
-
-		externalAddrs = slices.Concat(externalUDPAddrs, externalTCPAddrs)
+		externalAddrs = append(externalAddrs, externalUDPAddrs...)
 
 		transport = libp2p.ChainOptions(
-			libp2p.Transport(tcp.NewTCPTransport, libP2POpts...),
+			transport,
 			libp2p.Transport(quic.NewTransport),
 		)
-	default:
-		return nil, errors.New("unrecognized p2pNodeType")
 	}
 
 	// Init options.
@@ -209,7 +190,7 @@ func externalUDPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 		for _, port := range ports {
 			maddr, err := ma.NewMultiaddr(fmt.Sprintf("/dns/%s/udp/%d/quic-v1", cfg.ExternalHost, port))
 			if err != nil {
-				return nil, errors.Wrap(err, "invalid dns multiaddr")
+				return nil, errors.Wrap(err, "invalid dns quic-v1 multiaddr")
 			}
 
 			resp = append(resp, maddr)
@@ -249,7 +230,7 @@ func externalTCPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 		for _, port := range ports {
 			maddr, err := ma.NewMultiaddr(fmt.Sprintf("/dns/%s/tcp/%d", cfg.ExternalHost, port))
 			if err != nil {
-				return nil, errors.Wrap(err, "invalid dns multiaddr")
+				return nil, errors.Wrap(err, "invalid dns tcp multiaddr")
 			}
 
 			resp = append(resp, maddr)
@@ -262,7 +243,7 @@ func externalTCPMultiAddrs(cfg Config) ([]ma.Multiaddr, error) {
 // multiAddrsViaRelay returns multiaddrs to the peer via the relay.
 // See https://github.com/libp2p/go-libp2p/blob/master/examples/relay/main.go.
 func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) {
-	var quicAddrs, otherAddrs []ma.Multiaddr
+	var addrs []ma.Multiaddr
 
 	for _, addr := range relayPeer.Addrs {
 		transportAddr, _ := peer.SplitAddr(addr)
@@ -274,15 +255,10 @@ func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) 
 			return nil, errors.Wrap(err, "new multiaddr")
 		}
 
-		encapAddr := transportAddr.Encapsulate(relayAddr)
-		if isQUICAddr(encapAddr) {
-			quicAddrs = append(quicAddrs, encapAddr)
-		} else {
-			otherAddrs = append(otherAddrs, encapAddr)
-		}
+		addrs = append(addrs, transportAddr.Encapsulate(relayAddr))
 	}
 
-	return append(quicAddrs, otherAddrs...), nil
+	return addrs, nil
 }
 
 // NewEventCollector returns a lifecycle hook that instruments libp2p events.
@@ -611,6 +587,7 @@ func hasDirectQUICConn(conns []network.Conn) bool {
 	return false
 }
 
+// isProtocolAddr return true if the multiaddr has protocol code p
 func isProtocolAddr(a ma.Multiaddr, p int) bool {
 	found := false
 
@@ -824,21 +801,12 @@ var (
 
 // addrProtocol returns the transport protocol name from a multiaddr
 func addrProtocol(addr ma.Multiaddr) string {
-	// Check for QUIC variants first since they're more specific
-	for _, proto := range addr.Protocols() {
-		if proto.Name == "quic" || proto.Name == "quic-v1" {
-			return protocolQUIC
-		}
+	if isQUICAddr(addr) {
+		return protocolQUIC
 	}
 
-	// If no QUIC, check for other protocols
-	for _, proto := range addr.Protocols() {
-		switch proto.Name {
-		case "tcp":
-			return protocolTCP
-		case "udp":
-			return protocolUDP
-		}
+	if isTCPAddr(addr) {
+		return protocolTCP
 	}
 
 	return protocolUnknown

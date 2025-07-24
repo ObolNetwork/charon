@@ -227,12 +227,7 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 		)
 
 		for _, addr := range addrs {
-			// Sanity check
-			if len(addr.Protocols()) == 0 {
-				continue
-			}
-
-			if tcpNetAddr == nil && addr.Protocols()[1].Name == "tcp" {
+			if tcpNetAddr == nil && isTCPAddr(addr) {
 				netAddr, err := manet.ToNetAddr(addr)
 				if err != nil {
 					return nil, errors.Wrap(err, "failed to convert tcp multiaddr to net addr")
@@ -252,7 +247,7 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 				tcpNetAddr = tcpAddr
 			}
 
-			if udpNetAddr == nil && addr.Protocols()[1].Name == "udp" {
+			if udpNetAddr == nil && isQUICAddr(addr) {
 				// Must strip quic protocol because ToNetAddr only accepts ThinWaist
 				stripped := addr.Decapsulate(ma.StringCast("/quic-v1"))
 
@@ -291,10 +286,10 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 		} else if tcpNetAddr != nil {
 			ip = tcpNetAddr.IP
 			tcpPort = tcpNetAddr.Port
-			udpPort = tcpNetAddr.Port
+			udpPort = 9999 // Dummy value
 		} else if udpNetAddr != nil {
 			ip = udpNetAddr.IP
-			tcpPort = udpNetAddr.Port
+			tcpPort = 9999 // Dummy value
 			udpPort = udpNetAddr.Port
 		} else {
 			return nil, errors.New("no udp or tcp addresses provided")
@@ -307,6 +302,32 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 
 		return []byte(r.String()), nil
 	}
+}
+
+// isProtocolAddr return true if the multiaddr has protocol code p
+func isProtocolAddr(a ma.Multiaddr, p int) bool {
+	found := false
+
+	ma.ForEach(a, func(c ma.Component) bool {
+		if c.Protocol().Code == p {
+			found = true
+			return false
+		}
+
+		return true
+	})
+
+	return found
+}
+
+// isTCPAddr returns true if the multiaddr is TCP
+func isTCPAddr(a ma.Multiaddr) bool {
+	return isProtocolAddr(a, ma.P_TCP)
+}
+
+// isQUICAddr returns true if the multiaddr is QUIC
+func isQUICAddr(a ma.Multiaddr) bool {
+	return isProtocolAddr(a, ma.P_QUIC) || isProtocolAddr(a, ma.P_QUIC_V1)
 }
 
 // newMultiaddrHandler returns a handler that returns the nodes multiaddrs (as json array).

@@ -232,7 +232,7 @@ func multiAddrFromENRStr(enrStr string) ([]ma.Multiaddr, error) {
 	if ok {
 		addr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d/quic-v1/p2p/%s", ip.String(), port, id))
 		if err != nil {
-			return nil, errors.Wrap(err, "create multiaddr")
+			return nil, errors.Wrap(err, "create quic-v1 multiaddr")
 		}
 
 		addrs = append(addrs, addr)
@@ -242,7 +242,7 @@ func multiAddrFromENRStr(enrStr string) ([]ma.Multiaddr, error) {
 	if ok {
 		addr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, id))
 		if err != nil {
-			return nil, errors.Wrap(err, "create multiaddr")
+			return nil, errors.Wrap(err, "create tcp multiaddr")
 		}
 
 		addrs = append(addrs, addr)

@@ -336,7 +336,7 @@ func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, l
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
-// wireP2P constructs the p2p tcp or udp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
+// wireP2P constructs the p2p tcp or udp (libp2p) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, p2pKey *k1.PrivateKey, lockHashHex string,
 ) (host.Host, error) {

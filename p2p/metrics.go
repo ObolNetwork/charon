@@ -20,7 +20,6 @@ const (
 
 	protocolTCP     = "tcp"
 	protocolQUIC    = "quic"
-	protocolUDP     = "udp"
 	protocolUnknown = "unknown"
 	protocolNone    = "none"
 )
@@ -59,7 +58,7 @@ var (
 	peerConnGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "p2p",
 		Name:      "peer_connection_types",
-		Help:      "Current number of libp2p connections by peer, type ('direct' or 'relay'), and protocol ('tcp', 'quic', etc.). Note that peers may have multiple connections.",
+		Help:      "Current number of libp2p connections by peer, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections.",
 	}, []string{"peer", "type", "protocol"})
 
 	peerStreamGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{

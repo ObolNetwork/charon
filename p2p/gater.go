@@ -3,16 +3,11 @@
 package p2p
 
 import (
-	"context"
-
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/control"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
-
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 var _ connmgr.ConnectionGater = ConnGater{}
@@ -46,13 +41,11 @@ type ConnGater struct {
 }
 
 // InterceptPeerDial does nothing.
-func (ConnGater) InterceptPeerDial(p peer.ID) (allow bool) {
-	log.Debug(log.WithTopic(context.Background(), "p2p"), "Dialing peer", z.Str("peer", PeerName(p)))
+func (ConnGater) InterceptPeerDial(_ peer.ID) (allow bool) {
 	return true // don't filter peer dials
 }
 
-func (ConnGater) InterceptAddrDial(p peer.ID, addr multiaddr.Multiaddr) (allow bool) {
-	log.Debug(log.WithTopic(context.Background(), "p2p"), "Dialing peer via addr", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+func (ConnGater) InterceptAddrDial(_ peer.ID, _ multiaddr.Multiaddr) (allow bool) {
 	return true // don't filter address dials
 }
 
@@ -81,7 +74,6 @@ func (c ConnGater) InterceptSecured(_ network.Direction, id peer.ID, _ network.C
 }
 
 // InterceptUpgraded does nothing.
-func (ConnGater) InterceptUpgraded(conn network.Conn) (bool, control.DisconnectReason) {
-	log.Debug(log.WithTopic(context.Background(), "p2p"), "Upgraded connection to peer", z.Str("peer", PeerName((conn.RemotePeer()))), z.Any("conn", conn.RemoteMultiaddr()))
+func (ConnGater) InterceptUpgraded(_ network.Conn) (bool, control.DisconnectReason) {
 	return true, 0
 }

@@ -105,11 +105,6 @@ func TestAddrProtocol(t *testing.T) {
 			expected: "quic",
 		},
 		{
-			name:     "udp address",
-			addr:     "/ip4/127.0.0.1/udp/8080",
-			expected: "udp",
-		},
-		{
 			name:     "relay over tcp",
 			addr:     "/ip4/172.16.0.7/tcp/8080/p2p/16Uiu2HAm1bSDxrCubda6Esz3NkXamvzEjQh4jzMp1PdckJwwMcuw/p2p-circuit",
 			expected: "tcp",
