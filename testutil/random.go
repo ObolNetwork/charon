@@ -1263,7 +1263,7 @@ func RandomChecksummedETHAddress(t *testing.T, seed int) string {
 
 func RandomBytesAsString(length int) string {
 	b := make([]byte, length)
-	_, _ = NewSeedRand().Read(b)
+	_, _ = crand.Read(b)
 
 	return string(b)
 }
