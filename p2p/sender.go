@@ -38,7 +38,7 @@ type SendFunc func(context.Context, host.Host, protocol.ID, peer.ID, proto.Messa
 
 // SendReceiveFunc is an abstract function responsible for sending a libp2p request and returning
 // (populating) a libp2p response.
-type SendReceiveFunc func(ctx context.Context, tcpNode host.Host, peerID peer.ID,
+type SendReceiveFunc func(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	req, resp proto.Message, protocol protocol.ID, opts ...SendRecvOption) error
 
 var (
@@ -148,7 +148,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 // SendAsync returns nil and sends a libp2p message asynchronously.
 // It logs results on state change (success to/from failure).
 // It implements SendFunc.
-func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID,
+func (s *Sender) SendAsync(parent context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID,
 	msg proto.Message, opts ...SendRecvOption,
 ) error {
 	go func() {
@@ -156,7 +156,7 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 		ctx := log.CopyFields(context.Background(), parent)
 
 		err := withRelayRetry(func() error {
-			return Send(ctx, tcpNode, protoID, peerID, msg, opts...)
+			return Send(ctx, p2pNode, protoID, peerID, msg, opts...)
 		})
 		s.addResult(ctx, peerID, err)
 	}()
@@ -168,11 +168,11 @@ func (s *Sender) SendAsync(parent context.Context, tcpNode host.Host, protoID pr
 // The provided response proto will be populated if err is nil.
 // It logs results on state change (success to/from failure).
 // It implements SendReceiveFunc.
-func (s *Sender) SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID, req, resp proto.Message,
+func (s *Sender) SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID, req, resp proto.Message,
 	protocol protocol.ID, opts ...SendRecvOption,
 ) error {
 	err := withRelayRetry(func() error {
-		return SendReceive(ctx, tcpNode, peerID, req, resp, protocol, opts...)
+		return SendReceive(ctx, p2pNode, peerID, req, resp, protocol, opts...)
 	})
 	s.addResult(ctx, peerID, err)
 
@@ -266,7 +266,7 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 // pair synchronously and then closes the stream.
 // The provided response proto will be populated if err is nil.
 // It implements SendReceiveFunc.
-func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
+func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	req, resp proto.Message, pID protocol.ID, opts ...SendRecvOption,
 ) error {
 	if !isZeroProto(resp) {
@@ -279,7 +279,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 	}
 
 	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
+	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
@@ -325,7 +325,7 @@ func SendReceive(ctx context.Context, tcpNode host.Host, peerID peer.ID,
 }
 
 // Send sends a libp2p message synchronously. It implements SendFunc.
-func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
+func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
 	opts ...SendRecvOption,
 ) error {
 	o := defaultSendRecvOpts(protoID)
@@ -333,9 +333,9 @@ func Send(ctx context.Context, tcpNode host.Host, protoID protocol.ID, peerID pe
 		opt(&o)
 	}
 	// Circuit relay connections are transient
-	s, err := tcpNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
+	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
-		return errors.Wrap(err, "tcpNode stream")
+		return errors.Wrap(err, "p2pNode stream")
 	}
 
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {

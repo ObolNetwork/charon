@@ -35,10 +35,10 @@ func Protocols() []protocol.ID {
 }
 
 // NewServer returns a new Server instance.
-func NewServer(tcpNode host.Host, allCount int, defHash []byte, version version.SemVer) *Server {
+func NewServer(p2pNode host.Host, allCount int, defHash []byte, version version.SemVer) *Server {
 	return &Server{
 		defHash:   defHash,
-		tcpNode:   tcpNode,
+		p2pNode:   p2pNode,
 		allCount:  allCount,
 		shutdown:  make(map[peer.ID]struct{}),
 		connected: make(map[peer.ID]struct{}),
@@ -51,7 +51,7 @@ func NewServer(tcpNode host.Host, allCount int, defHash []byte, version version.
 // definition hash signatures, and supports waiting for shutdown by all clients.
 type Server struct {
 	// Immutable state
-	tcpNode  host.Host
+	p2pNode  host.Host
 	defHash  []byte
 	version  version.SemVer
 	allCount int // Excluding self
@@ -320,7 +320,7 @@ func (s *Server) validReq(pubkey crypto.PubKey, msg *pb.MsgSync) error {
 
 // Start registers sync protocol with the libp2p host.
 func (s *Server) Start(ctx context.Context) {
-	s.tcpNode.SetStreamHandler(protocolID, func(stream network.Stream) {
+	s.p2pNode.SetStreamHandler(protocolID, func(stream network.Stream) {
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(stream.Conn().RemotePeer())))
 
 		err := s.handleStream(ctx, stream)

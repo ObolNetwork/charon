@@ -67,17 +67,17 @@ type request struct {
 }
 
 // NewForT exports newInternal for testing and returns a new prioritiser.
-func NewForT(_ *testing.T, tcpNode host.Host, peers []peer.ID, minRequired int,
+func NewForT(_ *testing.T, p2pNode host.Host, peers []peer.ID, minRequired int,
 	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator, exchangeTimeout time.Duration,
 	deadliner core.Deadliner,
 ) *Prioritiser {
-	return newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
+	return newInternal(p2pNode, peers, minRequired, sendFunc, registerHandlerFunc,
 		consensus, msgValidator, exchangeTimeout, deadliner)
 }
 
 // newInternal returns a new prioritiser, it is the constructor.
-func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
+func newInternal(p2pNode host.Host, peers []peer.ID, minRequired int,
 	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator,
 	exchangeTimeout time.Duration, deadliner core.Deadliner,
@@ -89,7 +89,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 	}
 
 	p := &Prioritiser{
-		tcpNode:          tcpNode,
+		p2pNode:          p2pNode,
 		sendFunc:         sendFunc,
 		minRequired:      minRequired,
 		peers:            peers,
@@ -115,7 +115,7 @@ func newInternal(tcpNode host.Host, peers []peer.ID, minRequired int,
 	})
 
 	// Register prioritiser protocol handler.
-	registerHandlerFunc("priority", tcpNode, protocolID2,
+	registerHandlerFunc("priority", p2pNode, protocolID2,
 		func() proto.Message { return new(pbv1.PriorityMsg) },
 		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
 			prioMsg, ok := msg.(*pbv1.PriorityMsg)
@@ -143,7 +143,7 @@ type Prioritiser struct {
 	deadliner        core.Deadliner
 	minRequired      int
 	exchangeTimeout  time.Duration
-	tcpNode          host.Host
+	p2pNode          host.Host
 	sendFunc         p2p.SendReceiveFunc
 	peers            []peer.ID
 	consensus        Consensus
@@ -192,7 +192,7 @@ func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) err
 	}
 
 	return runInstance(ctx, duty, msg, p.getReqBuffer(duty), p.minRequired,
-		p.exchangeTimeout, p.tcpNode, p.sendFunc, p.peers, p.consensus, p.msgValidator)
+		p.exchangeTimeout, p.p2pNode, p.sendFunc, p.peers, p.consensus, p.msgValidator)
 }
 
 // handleRequest handles a priority message exchange initiated by a peer.
@@ -265,7 +265,7 @@ func (p *Prioritiser) deleteRecvBuffer(duty core.Duty) {
 // responds to peer requests, and starts consensus.
 func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 	requests <-chan request, minRequired int, exchangeTimeout time.Duration,
-	tcpNode host.Host, sendFunc p2p.SendReceiveFunc, peers []peer.ID,
+	p2pNode host.Host, sendFunc p2p.SendReceiveFunc, peers []peer.ID,
 	consensus Consensus, msgValidator msgValidator,
 ) error {
 	log.Debug(ctx, "Priority protocol instance started")
@@ -289,7 +289,7 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 
 	exTimeout := time.After(exchangeTimeout)
 
-	exchange(ctx, tcpNode, peers, msgValidator, sendFunc, responses, own)
+	exchange(ctx, p2pNode, peers, msgValidator, sendFunc, responses, own)
 
 	for {
 		select {
@@ -330,18 +330,18 @@ func runInstance(ctx context.Context, duty core.Duty, own *pbv1.PriorityMsg,
 }
 
 // exchange initiates a priority message exchange with all peers.
-func exchange(ctx context.Context, tcpNode host.Host, peers []peer.ID, msgValidator msgValidator,
+func exchange(ctx context.Context, p2pNode host.Host, peers []peer.ID, msgValidator msgValidator,
 	sendFunc p2p.SendReceiveFunc, responses chan<- *pbv1.PriorityMsg, own *pbv1.PriorityMsg,
 ) {
 	for _, pID := range peers {
-		if pID == tcpNode.ID() {
+		if pID == p2pNode.ID() {
 			continue // Do not send to self
 		}
 
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
 
-			err := sendFunc(ctx, tcpNode, pID, own, response, protocolID2)
+			err := sendFunc(ctx, p2pNode, pID, own, response, protocolID2)
 			if err != nil {
 				// No need to log, since transport will do it.
 				return

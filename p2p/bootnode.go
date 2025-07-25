@@ -177,13 +177,13 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 		}
 
 		if strings.HasPrefix(string(b), "enr:") {
-			addr, err := multiAddrFromENRStr(string(b))
+			addrs, err := multiAddrFromENRStr(string(b))
 			if err != nil {
 				log.Warn(ctx, "Failure parsing relay address from ENR (will try again)", err)
 				continue
 			}
 
-			return []ma.Multiaddr{addr}, nil
+			return addrs, nil
 		}
 
 		var addrs []string
@@ -210,7 +210,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 }
 
 // multiAddrFromENRStr returns the multiaddr from the ENR string.
-func multiAddrFromENRStr(enrStr string) (ma.Multiaddr, error) {
+func multiAddrFromENRStr(enrStr string) ([]ma.Multiaddr, error) {
 	r, err := enr.Parse(enrStr)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse ENR")
@@ -221,20 +221,36 @@ func multiAddrFromENRStr(enrStr string) (ma.Multiaddr, error) {
 		return nil, errors.New("enr does not have an IP")
 	}
 
-	port, ok := r.TCP()
-	if !ok {
-		return nil, errors.New("enr does not have a TCP port")
-	}
-
 	id, err := PeerIDFromKey(r.PubKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "get peer ID from ENR key")
 	}
 
-	addr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, id))
-	if err != nil {
-		return nil, errors.Wrap(err, "create multiaddr")
+	var addrs []ma.Multiaddr
+
+	port, ok := r.UDP()
+	if ok {
+		addr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d/quic-v1/p2p/%s", ip.String(), port, id))
+		if err != nil {
+			return nil, errors.Wrap(err, "create quic-v1 multiaddr")
+		}
+
+		addrs = append(addrs, addr)
 	}
 
-	return addr, nil
+	port, ok = r.TCP()
+	if ok {
+		addr, err := ma.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d/p2p/%s", ip.String(), port, id))
+		if err != nil {
+			return nil, errors.Wrap(err, "create tcp multiaddr")
+		}
+
+		addrs = append(addrs, addr)
+	}
+
+	if len(addrs) == 0 {
+		return nil, errors.New("enr does not have TCP nor UDP port")
+	}
+
+	return addrs, nil
 }

@@ -674,7 +674,7 @@ func peerCtx(ctx context.Context, idx int) context.Context {
 
 func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir, bootnode string) []dkg.Config {
 	t.Helper()
-	tcpNodeCallback := testutil.NewTCPNodeCallback(t, dkgsync.Protocols()...)
+	p2pNodeCallback := testutil.NewP2PNodeCallback(t, dkgsync.Protocols()...)
 
 	var configs []dkg.Config
 	for i := range len(def.Operators) {
@@ -690,7 +690,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 				StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
 					return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 				},
-				TCPNodeCallback: tcpNodeCallback,
+				P2PNodeCallback: p2pNodeCallback,
 			},
 			Timeout: 8 * time.Second,
 		}

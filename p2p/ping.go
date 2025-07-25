@@ -135,7 +135,7 @@ func IsRelayError(err error) bool {
 
 // newPingLogger returns stateful logging function that logs "real" dial errors when they change or every 10min.
 // This is the main logger of "why are we not connected to peer X".
-func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Result) {
+func newPingLogger(p2pNode host.Host, p peer.ID) func(context.Context, ping.Result) {
 	var (
 		prevMsgs         = make(map[string]string)
 		prevResolvedMsgs = make(map[string]string)
@@ -189,7 +189,7 @@ func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Resu
 		// Log when failing after success or failing for different reasons
 
 		if hasErrDialBackoff(result.Error) {
-			msgs = resolveBackoffMsgs(ctx, tcpNode, p) // Best effort resolving of dial backoff errors.
+			msgs = resolveBackoffMsgs(ctx, p2pNode, p) // Best effort resolving of dial backoff errors.
 			if len(msgs) == 0 || sameMsgs(msgs) {
 				// No more errors, or same messages, ok well...
 				return
@@ -207,8 +207,8 @@ func newPingLogger(tcpNode host.Host, p peer.ID) func(context.Context, ping.Resu
 	}
 }
 
-func resolveBackoffMsgs(ctx context.Context, tcpNode host.Host, p peer.ID) map[string]string {
-	net, ok := tcpNode.Network().(*swarm.Swarm)
+func resolveBackoffMsgs(ctx context.Context, p2pNode host.Host, p peer.ID) map[string]string {
+	net, ok := p2pNode.Network().(*swarm.Swarm)
 	if !ok {
 		log.Error(ctx, "Not a swarm network", nil)
 		return nil

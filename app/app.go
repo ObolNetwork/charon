@@ -129,8 +129,8 @@ type TestConfig struct {
 	BroadcastCallback func(context.Context, core.Duty, core.SignedDataSet) error
 	// PrioritiseCallback is called with priority protocol results.
 	PrioritiseCallback func(context.Context, core.Duty, []priority.TopicResult) error
-	// TCPNodeCallback provides test logic access to the libp2p host.
-	TCPNodeCallback func(host.Host)
+	// P2PNodeCallback provides test logic access to the libp2p host.
+	P2PNodeCallback func(host.Host)
 	// LibP2POpts provide test specific libp2p options.
 	LibP2POpts []libp2p.Option
 	// P2PFuzz enables peer to peer fuzzing of charon nodes in a cluster.
@@ -221,12 +221,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	lockHashHex := hex7(cluster.GetInitialMutationHash())
 
-	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
+	p2pNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
 	if err != nil {
 		return err
 	}
 
-	nodeIdx, err := manifest.ClusterNodeIdx(cluster, tcpNode.ID())
+	nodeIdx, err := manifest.ClusterNodeIdx(cluster, p2pNode.ID())
 	if err != nil {
 		return errors.Wrap(err, "private key not matching cluster manifest file")
 	}
@@ -237,7 +237,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Info(ctx, "Lock file loaded",
-		z.Str("peer_name", p2p.PeerName(tcpNode.ID())),
+		z.Str("peer_name", p2p.PeerName(p2pNode.ID())),
 		z.Str("nickname", conf.Nickname),
 		z.Int("peer_index", nodeIdx.PeerIdx),
 		z.Str("cluster_name", cluster.GetName()),
@@ -250,7 +250,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	labels := map[string]string{
 		"cluster_hash":    lockHashHex,
 		"cluster_name":    cluster.GetName(),
-		"cluster_peer":    p2p.PeerName(tcpNode.ID()),
+		"cluster_peer":    p2p.PeerName(p2pNode.ID()),
 		"nickname":        conf.Nickname,
 		"cluster_network": network,
 		"charon_version":  version.Version.String(),
@@ -262,7 +262,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	initStartupMetrics(p2p.PeerName(tcpNode.ID()), int(cluster.GetThreshold()), len(cluster.GetOperators()), len(cluster.GetValidators()), network)
+	initStartupMetrics(p2p.PeerName(p2pNode.ID()), int(cluster.GetThreshold()), len(cluster.GetOperators()), len(cluster.GetValidators()), network)
 
 	eth2Cl, subEth2Cl, err := newETH2Client(ctx, conf, life, cluster, cluster.GetForkVersion(), conf.BeaconNodeTimeout, conf.BeaconNodeSubmitTimeout)
 	if err != nil {
@@ -290,7 +290,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("nickname can not exceed 32 characters")
 	}
 
-	wirePeerInfo(life, tcpNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)
+	wirePeerInfo(life, p2pNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)
 
 	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
 	seenPubkeys := make(chan core.PubKey)
@@ -316,10 +316,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	consensusDebugger := consensus.NewDebugger()
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, tcpNode, eth2Cl, peerIDs,
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, p2pNode, eth2Cl, peerIDs,
 		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(cluster.GetValidators()))
 
-	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, tcpNode, p2pKey, eth2Cl, subEth2Cl,
+	err = wireCoreWorkflow(ctx, life, conf, cluster, nodeIdx, p2pNode, p2pKey, eth2Cl, subEth2Cl,
 		peerIDs, sender, consensusDebugger, pubkeys, seenPubkeysFunc, sseListener, vapiCallsFunc)
 	if err != nil {
 		return err
@@ -330,13 +330,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wirePeerInfo wires the peerinfo protocol.
-func wirePeerInfo(life *lifecycle.Manager, tcpNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string) {
+func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string) {
 	gitHash, _ := version.GitCommit()
-	peerInfo := peerinfo.New(tcpNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname)
+	peerInfo := peerinfo.New(p2pNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
-// wireP2P constructs the p2p tcp (libp2p) and udp (discv5) nodes and registers it with the life cycle manager.
+// wireP2P constructs the p2p tcp or udp (libp2p) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	cluster *manifestpb.Cluster, p2pKey *k1.PrivateKey, lockHashHex string,
 ) (host.Host, error) {
@@ -355,42 +355,48 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return nil, err
 	}
 
-	// Start libp2p TCP node.
+	// Start libp2p node.
 	opts := []libp2p.Option{
 		p2p.WithBandwidthReporter(peerIDs),
 		libp2p.ResourceManager(new(network.NullResourceManager)),
 	}
 	opts = append(opts, conf.TestConfig.LibP2POpts...)
 
-	tcpNode, err := p2p.NewTCPNode(ctx, conf.P2P, p2pKey, connGater,
-		false, opts...)
+	var p2pNode host.Host
+	if featureset.Enabled(featureset.QUIC) {
+		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeQUIC, opts...)
+	} else {
+		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeTCP, opts...)
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	if conf.TestConfig.TCPNodeCallback != nil {
-		conf.TestConfig.TCPNodeCallback(tcpNode)
+	if conf.TestConfig.P2PNodeCallback != nil {
+		conf.TestConfig.P2PNodeCallback(p2pNode)
 	}
 
-	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
+	p2p.RegisterConnectionLogger(ctx, p2pNode, peerIDs)
 
-	life.RegisterStop(lifecycle.StopP2PTCPNode, lifecycle.HookFuncErr(tcpNode.Close))
+	life.RegisterStop(lifecycle.StopP2PNode, lifecycle.HookFuncErr(p2pNode.Close))
 
 	for _, relay := range relays {
-		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(tcpNode, relay))
+		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartRelay, p2p.NewRelayReserver(p2pNode, relay))
 	}
 
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(tcpNode, peerIDs, conf.TestConfig.TestPingConfig))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(tcpNode))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(tcpNode, peerIDs, relays))
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartForceDirectConns, p2p.ForceDirectConnections(tcpNode, peerIDs))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PPing, p2p.NewPingService(p2pNode, peerIDs, conf.TestConfig.TestPingConfig))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PEventCollector, p2p.NewEventCollector(p2pNode))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartP2PRouters, p2p.NewRelayRouter(p2pNode, peerIDs, relays))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartForceDirectConns, p2p.ForceDirectConnections(p2pNode, peerIDs))
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartForceQUICConns, p2p.UpgradeToQUICConnections(p2pNode, peerIDs))
 
-	return tcpNode, nil
+	return p2pNode, nil
 }
 
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
-	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, tcpNode host.Host, p2pKey *k1.PrivateKey,
+	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, p2pNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	consensusDebugger consensus.Debugger, pubkeys []core.PubKey, seenPubkeys func(core.PubKey),
 	sseListener sse.Listener, vapiCalls func(),
@@ -572,7 +578,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		parSigEx = parsigex.NewParSigEx(tcpNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc, gaterFunc)
+		parSigEx = parsigex.NewParSigEx(p2pNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc, gaterFunc)
 	}
 
 	sigAgg, err := sigagg.New(int(cluster.GetThreshold()), sigagg.NewVerifier(eth2Cl))
@@ -598,7 +604,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Consensus
 	consensusController, err := consensus.NewConsensusController(
-		ctx, tcpNode, sender, peers, p2pKey,
+		ctx, p2pNode, sender, peers, p2pKey,
 		deadlineFunc, gaterFunc, consensusDebugger)
 	if err != nil {
 		return err
@@ -610,7 +616,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	coreConsensus := consensusController.CurrentConsensus() // initially points to DefaultConsensus()
 
 	// Priority protocol always uses QBFTv2.
-	err = wirePrioritise(ctx, conf, life, tcpNode, peerIDs, int(cluster.GetThreshold()),
+	err = wirePrioritise(ctx, conf, life, p2pNode, peerIDs, int(cluster.GetThreshold()),
 		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc,
 		consensusController, cluster.GetConsensusProtocol())
 	if err != nil {
@@ -662,7 +668,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 }
 
 // wirePrioritise wires the priority protocol which determines cluster wide priorities for the next epoch.
-func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, tcpNode host.Host,
+func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p2pNode host.Host,
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	consensusController core.ConsensusController, clusterPreferredProtocol string,
@@ -677,7 +683,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, t
 	// It is long enough for all peers to exchange proposals both in prod and in testing.
 	const exchangeTimeout = time.Second * 6
 
-	prio, err := priority.NewComponent(ctx, tcpNode, peers, threshold,
+	prio, err := priority.NewComponent(ctx, p2pNode, peers, threshold,
 		sendFunc, p2p.RegisterHandler, cons, exchangeTimeout, p2pKey, deadlineFunc)
 	if err != nil {
 		return err

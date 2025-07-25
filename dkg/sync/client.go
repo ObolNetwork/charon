@@ -29,9 +29,9 @@ func WithPeriod(period time.Duration) func(*Client) {
 }
 
 // NewClient returns a new Client instance.
-func NewClient(tcpNode host.Host, peer peer.ID, hashSig []byte, version version.SemVer, opts ...func(*Client)) *Client {
+func NewClient(p2pNode host.Host, peer peer.ID, hashSig []byte, version version.SemVer, opts ...func(*Client)) *Client {
 	c := &Client{
-		tcpNode:   tcpNode,
+		p2pNode:   p2pNode,
 		peer:      peer,
 		hashSig:   hashSig,
 		shutdown:  make(chan struct{}),
@@ -63,7 +63,7 @@ type Client struct {
 	// Immutable state
 	hashSig []byte
 	version version.SemVer
-	tcpNode host.Host
+	p2pNode host.Host
 	peer    peer.ID
 	period  time.Duration
 }
@@ -189,7 +189,7 @@ func (c *Client) sendMsgs(ctx context.Context, stream network.Stream) (relayBrok
 		}
 
 		rtt := time.Since(resp.GetSyncTimestamp().AsTime())
-		c.tcpNode.Peerstore().RecordLatency(c.peer, rtt)
+		c.p2pNode.Peerstore().RecordLatency(c.peer, rtt)
 	}
 }
 
@@ -224,7 +224,7 @@ func (c *Client) connect(ctx context.Context) (network.Stream, error) {
 	)
 
 	for {
-		s, err := c.tcpNode.NewStream(network.WithAllowLimitedConn(ctx, "sync"), c.peer, protocolID)
+		s, err := c.p2pNode.NewStream(network.WithAllowLimitedConn(ctx, "sync"), c.peer, protocolID)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		} else if err != nil {

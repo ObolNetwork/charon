@@ -18,11 +18,11 @@ import (
 )
 
 // newClient creates a new reliable-broadcast client.
-func newClient(tcpNode host.Host, peers []peer.ID, sendRecvFunc p2p.SendReceiveFunc,
+func newClient(p2pNode host.Host, peers []peer.ID, sendRecvFunc p2p.SendReceiveFunc,
 	sendFunc p2p.SendFunc, hashFunc hashFunc, signFunc signFunc, verifyFunc verifyFunc,
 ) *client {
 	return &client{
-		tcpNode:      tcpNode,
+		p2pNode:      p2pNode,
 		peers:        peers,
 		sendRecvFunc: sendRecvFunc,
 		sendFunc:     sendFunc,
@@ -34,7 +34,7 @@ func newClient(tcpNode host.Host, peers []peer.ID, sendRecvFunc p2p.SendReceiveF
 
 // client is a reliable-broadcast client.
 type client struct {
-	tcpNode      host.Host
+	p2pNode      host.Host
 	peers        []peer.ID
 	sendRecvFunc p2p.SendReceiveFunc
 	sendFunc     p2p.SendFunc
@@ -65,7 +65,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 
 	fork, join, cancel := forkjoin.New(ctx, func(ctx context.Context, pID peer.ID) (*pb.BCastSigResponse, error) {
 		sigResp := new(pb.BCastSigResponse)
-		err := c.sendRecvFunc(ctx, c.tcpNode, pID, sigReq, sigResp, protocolIDSig)
+		err := c.sendRecvFunc(ctx, c.p2pNode, pID, sigReq, sigResp, protocolIDSig)
 
 		return sigResp, err
 	})
@@ -76,7 +76,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 	// Fork
 
 	for i, pID := range c.peers {
-		if c.tcpNode.ID() == pID {
+		if c.p2pNode.ID() == pID {
 			// Sign self locally.
 			sig, err := c.signFunc(msgID, hash)
 			if err != nil {
@@ -129,11 +129,11 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 	}
 
 	for _, pID := range c.peers {
-		if c.tcpNode.ID() == pID {
+		if c.p2pNode.ID() == pID {
 			continue // Skip self.
 		}
 
-		err := c.sendFunc(ctx, c.tcpNode, protocolIDMsg, pID, bcastMsg, p2p.WithSendTimeout(sendTimeout))
+		err := c.sendFunc(ctx, c.p2pNode, protocolIDMsg, pID, bcastMsg, p2p.WithSendTimeout(sendTimeout))
 		if err != nil {
 			return errors.Wrap(err, "send message")
 		}

@@ -170,6 +170,7 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
 	cmd.Flags().StringSliceVar(&config.TCPAddrs, "p2p-tcp-address", nil, "Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.")
+	cmd.Flags().StringSliceVar(&config.UDPAddrs, "p2p-udp-address", nil, "Comma-separated list of listening UDP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.")
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity

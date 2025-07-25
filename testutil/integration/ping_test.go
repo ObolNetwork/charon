@@ -202,10 +202,10 @@ func (a *pingAsserter) Callback(t *testing.T, i int) func(peer.ID, host.Host) {
 	peerIDs, err := a.Lock.PeerIDs()
 	require.NoError(t, err)
 
-	return func(target peer.ID, tcpNode host.Host) {
+	return func(target peer.ID, p2pNode host.Host) {
 		var foundDirect bool
 
-		for _, conn := range tcpNode.Network().ConnsToPeer(target) {
+		for _, conn := range p2pNode.Network().ConnsToPeer(target) {
 			directConn := !p2p.IsRelayAddr(conn.RemoteMultiaddr())
 			if !directConn {
 				require.NoError(t, conn.Close()) // Close relay connections so direct connections are established.

@@ -38,7 +38,7 @@ func frostMessageIDs() []string {
 
 // newFrostP2P returns a p2p frost transport implementation.
 // It registers bcast handlers on bcastComp.
-func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp *bcast.Component, threshold, numVals int) (*frostP2P, error) {
+func newFrostP2P(p2pNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp *bcast.Component, threshold, numVals int) (*frostP2P, error) {
 	var (
 		round1CastsRecv = make(chan *pb.FrostRound1Casts, len(peers))
 		round1P2PRecv   = make(chan *pb.FrostRound1P2P, len(peers))
@@ -54,9 +54,9 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 	}
 
 	// Register round 1 p2p protocol handlers.
-	p2p.RegisterHandler("frost", tcpNode, round1P2PID,
+	p2p.RegisterHandler("frost", p2pNode, round1P2PID,
 		func() proto.Message { return new(pb.FrostRound1P2P) },
-		newP2PCallback(tcpNode, peers, round1P2PRecv, numVals),
+		newP2PCallback(p2pNode, peers, round1P2PRecv, numVals),
 	)
 
 	bcastCallback := newBcastCallback(peers, round1CastsRecv, round2CastsRecv, threshold, numVals)
@@ -71,7 +71,7 @@ func newFrostP2P(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 	}
 
 	return &frostP2P{
-		tcpNode:         tcpNode,
+		p2pNode:         p2pNode,
 		peers:           peersByShareIdx,
 		bcastFunc:       bcastComp.Broadcast,
 		round1CastsRecv: round1CastsRecv,
@@ -200,7 +200,7 @@ func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *p
 }
 
 // newP2PCallback returns a callback for P2P messages in round 1 of frost protocol.
-func newP2PCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1P2PRecv chan *pb.FrostRound1P2P, numVals int) p2p.HandlerFunc {
+func newP2PCallback(p2pNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1P2PRecv chan *pb.FrostRound1P2P, numVals int) p2p.HandlerFunc {
 	var (
 		mu             sync.Mutex
 		dedupRound1P2P = make(map[peer.ID]bool)
@@ -218,7 +218,7 @@ func newP2PCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1
 		for _, share := range msg.GetShares() {
 			if int(share.GetKey().GetSourceId()) != peers[pID].ShareIdx {
 				return nil, false, errors.New("invalid round 1 p2p source ID")
-			} else if int(share.GetKey().GetTargetId()) != peers[tcpNode.ID()].ShareIdx {
+			} else if int(share.GetKey().GetTargetId()) != peers[p2pNode.ID()].ShareIdx {
 				return nil, false, errors.New("invalid round 1 p2p target ID")
 			} else if int(share.GetKey().GetValIdx()) < 0 || int(share.GetKey().GetValIdx()) >= numVals {
 				return nil, false, errors.New("invalid round 1 p2p validator index")
@@ -240,7 +240,7 @@ func newP2PCallback(tcpNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1
 
 // frostP2P implements frost transport.
 type frostP2P struct {
-	tcpNode         host.Host
+	p2pNode         host.Host
 	peers           map[uint32]peer.ID // map[shareIdx)peerID
 	bcastFunc       bcast.BroadcastFunc
 	round1CastsRecv chan *pb.FrostRound1Casts
@@ -287,11 +287,11 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 
 	// Send messages to all peers
 	for pID, p2pMsg := range p2pMsgs {
-		if pID == f.tcpNode.ID() {
+		if pID == f.p2pNode.ID() {
 			return nil, nil, errors.New("bug: unexpected p2p message to self")
 		}
 
-		err := p2p.Send(ctx, f.tcpNode, round1P2PID, pID, p2pMsg)
+		err := p2p.Send(ctx, f.p2pNode, round1P2PID, pID, p2pMsg)
 		if err != nil {
 			return nil, nil, err
 		}

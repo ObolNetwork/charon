@@ -30,7 +30,7 @@ func TestRunBootnode(t *testing.T) {
 	config := Config{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
-		P2PConfig: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
+		P2PConfig: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}, UDPAddrs: []string{testutil.AvailableUDPAddr(t).String()}},
 		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 
@@ -51,7 +51,7 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 	config := Config{
 		DataDir:   temp,
 		LogConfig: log.DefaultConfig(),
-		P2PConfig: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
+		P2PConfig: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}, UDPAddrs: []string{testutil.AvailableUDPAddr(t).String()}},
 		HTTPAddr:  testutil.AvailableAddr(t).String(),
 	}
 
@@ -71,7 +71,7 @@ func TestRunBootnodeAutoP2P(t *testing.T) {
 func TestServeAddrs(t *testing.T) {
 	t.Run("multiaddrs", func(t *testing.T) {
 		testServeAddrs(t,
-			p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
+			p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}, UDPAddrs: []string{testutil.AvailableUDPAddr(t).String()}},
 			"",
 			func(t *testing.T, data []byte) bool {
 				t.Helper()
@@ -104,7 +104,7 @@ func TestServeAddrs(t *testing.T) {
 
 	t.Run("enr", func(t *testing.T) {
 		testServeAddrs(t,
-			p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
+			p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}, UDPAddrs: []string{testutil.AvailableUDPAddr(t).String()}},
 			"enr",
 			func(t *testing.T, data []byte) bool {
 				t.Helper()
@@ -128,6 +128,7 @@ func TestServeAddrs(t *testing.T) {
 		testServeAddrs(t,
 			p2p.Config{
 				TCPAddrs:   []string{testutil.AvailableAddr(t).String()},
+				UDPAddrs:   []string{testutil.AvailableUDPAddr(t).String()},
 				ExternalIP: "222.222.222.222",
 			},
 			"enr",
@@ -153,6 +154,7 @@ func TestServeAddrs(t *testing.T) {
 		testServeAddrs(t,
 			p2p.Config{
 				TCPAddrs:     []string{testutil.AvailableAddr(t).String()},
+				UDPAddrs:     []string{testutil.AvailableUDPAddr(t).String()},
 				ExternalHost: "www.google.com",
 			},
 			"enr",
@@ -242,7 +244,7 @@ func TestRelayMetricsExported(t *testing.T) {
 	config := Config{
 		DataDir:        temp,
 		LogConfig:      log.DefaultConfig(),
-		P2PConfig:      p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
+		P2PConfig:      p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}, UDPAddrs: []string{testutil.AvailableUDPAddr(t).String()}},
 		HTTPAddr:       testutil.AvailableAddr(t).String(),
 		MonitoringAddr: testutil.AvailableAddr(t).String(),
 	}

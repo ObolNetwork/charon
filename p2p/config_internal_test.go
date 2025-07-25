@@ -18,7 +18,7 @@ func TestResolveListenAddr(t *testing.T) {
 	}{
 		{
 			input: ":1234",
-			err:   `p2p bind IP not specified`,
+			err:   `p2p bind TCP IP not specified`,
 		},
 		{
 			input: "10.4.3.3:1234",
@@ -28,7 +28,7 @@ func TestResolveListenAddr(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			addr, err := resolveListenAddr(test.input)
+			addr, err := resolveListenTCPAddr(test.input)
 			if test.err != "" {
 				if err != nil {
 					require.Error(t, err)
@@ -50,18 +50,31 @@ func TestConfig_Multiaddrs(t *testing.T) {
 			"10.0.0.2:0",
 			"[" + net.IPv6linklocalallnodes.String() + "]:0",
 		},
+		UDPAddrs: []string{
+			"10.0.0.2:0",
+			"[" + net.IPv6linklocalallnodes.String() + "]:0",
+		},
 	}
 
-	maddrs, err := c.Multiaddrs()
+	tcpMaddrs, err := c.TCPMultiaddrs()
 	require.NoError(t, err)
 
-	maddrStrs := make([]string, len(maddrs))
-	for i, ma := range maddrs {
+	udpMaddrs, err := c.UDPMultiaddrs()
+	require.NoError(t, err)
+
+	maddrStrs := make([]string, (len(tcpMaddrs) + len(udpMaddrs)))
+	for i, ma := range tcpMaddrs {
 		maddrStrs[i] = ma.String()
+	}
+
+	for i, ma := range udpMaddrs {
+		maddrStrs[i+len(tcpMaddrs)] = ma.String()
 	}
 
 	require.Equal(t, []string{
 		"/ip4/10.0.0.2/tcp/0",
 		"/ip6/ff02::1/tcp/0",
+		"/ip4/10.0.0.2/udp/0/quic-v1",
+		"/ip6/ff02::1/udp/0/quic-v1",
 	}, maddrStrs)
 }
