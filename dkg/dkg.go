@@ -59,6 +59,8 @@ type Config struct {
 	ExecutionEngineAddr string
 
 	TestConfig TestConfig
+
+	AppendConfig *AppendConfig
 }
 
 // TestConfig defines additional test-only config for DKG.
@@ -77,6 +79,18 @@ type TestConfig struct {
 // HasTestConfig returns true if any of the test config fields are set.
 func (c Config) HasTestConfig() bool {
 	return c.TestConfig.StoreKeysFunc != nil || c.TestConfig.SyncCallback != nil || c.TestConfig.Def != nil || c.TestConfig.P2PNodeCallback != nil
+}
+
+// AppendConfig is used to merge outcome of two DKG ceremonies.
+type AppendConfig struct {
+	// The cluster lock of the existing cluster.
+	ClusterLock *cluster.Lock
+	// The private key shares of the existing cluster.
+	SecretShares []tbls.PrivateKey
+	// The number of validators to add to the existing cluster.
+	AddValidators int
+	// ValidatorAddresses' length must match AddValidators.
+	ValidatorAddresses []cluster.ValidatorAddresses
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -111,9 +125,14 @@ func Run(ctx context.Context, conf Config) (err error) {
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
 	go eth1Cl.Run(ctx)
 
-	def, err := loadDefinition(ctx, conf, eth1Cl)
-	if err != nil {
-		return err
+	var def cluster.Definition
+	if conf.AppendConfig != nil {
+		def = conf.AppendConfig.ClusterLock.Definition
+		def.NumValidators = conf.AppendConfig.AddValidators
+	} else {
+		if def, err = loadDefinition(ctx, conf, eth1Cl); err != nil {
+			return err
+		}
 	}
 
 	// This DKG only supports a few specific config versions.
@@ -178,7 +197,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
 
-	p2pNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash)
+	p2pNode, shutdown, err := p2p.SetupP2P(ctx, key, conf.P2P, peers, def.DefinitionHash)
 	if err != nil {
 		return err
 	}
@@ -189,12 +208,22 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "private key not matching definition file")
 	}
 
+	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
+	gitHash, _ := version.GitCommit()
+
 	peerIDs, err := def.PeerIDs()
 	if err != nil {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, def.NumValidators, []sigType{
+	_ = peerinfo.New(p2pNode, peerIDs, version.Version, def.DefinitionHash, gitHash, nil, false, "")
+
+	totalValidators := def.NumValidators
+	if conf.AppendConfig != nil {
+		totalValidators += conf.AppendConfig.ClusterLock.NumValidators
+	}
+
+	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, totalValidators, []sigType{
 		sigLock,
 		sigDepositData,
 		sigValidatorRegistration,
@@ -219,7 +248,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "frost error")
 	}
 
-	// register bcast callbacks for lock hash k1 signature handler
+	// register bcast callbacks: node signatures and public shares
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
@@ -234,6 +263,32 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
 
+	var pubShares []share
+
+	// In case of add-validators ceremony, we need to exchange public shares of existing cluster.
+	// This is because cluster lock gets signed using all key shares.
+	if conf.AppendConfig != nil {
+		for i, secretShare := range conf.AppendConfig.SecretShares {
+			distPubKey, err := conf.AppendConfig.ClusterLock.Validators[i].PublicKey()
+			if err != nil {
+				return errors.Wrap(err, "get distributed public key")
+			}
+
+			peerShares := make(map[int]tbls.PublicKey)
+			for idx, ps := range conf.AppendConfig.ClusterLock.Validators[i].PubShares {
+				var tblsPublicKey tbls.PublicKey
+				copy(tblsPublicKey[:], ps)
+				peerShares[idx+1] = tblsPublicKey
+			}
+
+			pubShares = append(pubShares, share{
+				PubKey:       distPubKey,
+				SecretShare:  secretShare,
+				PublicShares: peerShares,
+			})
+		}
+	}
+
 	var shares []share
 
 	switch def.DKGAlgorithm {
@@ -245,6 +300,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		}
 	default:
 		return errors.New("unsupported dkg algorithm")
+	}
+
+	if len(pubShares) > 0 {
+		shares = append(pubShares, shares...)
+		def.NumValidators = totalValidators
+		def.ValidatorAddresses = append(def.ValidatorAddresses, conf.AppendConfig.ValidatorAddresses...)
+
+		log.Debug(ctx, "Combined validators", z.Int("total", def.NumValidators), z.Int("added", len(pubShares)))
+
+		for i, share := range shares {
+			log.Debug(ctx, "-- pubkey", z.Int("index", i), z.Int("pubShares", len(share.PublicShares)), z.Str("pubKey", hex.EncodeToString(share.PubKey[:])))
+		}
 	}
 
 	// DKG was step 1, advance to step 2
@@ -269,7 +336,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	log.Debug(ctx, "Aggregated deposit data signatures")
 	// Deposit data was step 2, advance to step 3
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -289,7 +355,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "builder validator registrations pre-generation")
 	}
 
-	log.Debug(ctx, "Aggregated builder validator registration signatures")
+	log.Debug(ctx, "Aggregated builder validator registration signatures", z.Int("size", len(valRegs)))
+
 	// Pre-regs was step 3, advance to step 4
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -395,54 +462,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	return nil
-}
-
-// setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
-	var peerIDs []peer.ID
-	for _, p := range peers {
-		peerIDs = append(peerIDs, p.ID)
-	}
-
-	if err := p2p.VerifyP2PKey(peers, key); err != nil {
-		return nil, nil, err
-	}
-
-	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	connGater, err := p2p.NewConnGater(peerIDs, relays)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	p2pNode, err := p2p.NewNode(ctx, conf.P2P, key, connGater, false, p2p.NodeTypeTCP)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if conf.TestConfig.P2PNodeCallback != nil {
-		conf.TestConfig.P2PNodeCallback(p2pNode)
-	}
-
-	p2p.RegisterConnectionLogger(ctx, p2pNode, peerIDs)
-
-	for _, relay := range relays {
-		go p2p.NewRelayReserver(p2pNode, relay)(ctx)
-	}
-
-	go p2p.NewRelayRouter(p2pNode, peerIDs, relays)(ctx)
-
-	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
-	gitHash, _ := version.GitCommit()
-
-	_ = peerinfo.New(p2pNode, peerIDs, version.Version, defHash, gitHash, nil, false, "")
-
-	return p2pNode, func() {
-		_ = p2pNode.Close()
-	}, nil
 }
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a step sync and shutdown functions
@@ -1026,6 +1045,11 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 			depositDatasMap[pk] = append(depositDatasMap[pk], dd)
 		}
 	}
+
+	log.Debug(context.TODO(), "createDistValidators()",
+		z.Int("numShares", len(shares)),
+		z.Int("numDepositDatas", len(depositDatasMap)),
+		z.Int("numValRegs", len(valRegs)))
 
 	var dvs []cluster.DistValidator
 

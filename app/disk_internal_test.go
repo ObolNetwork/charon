@@ -110,3 +110,35 @@ func TestFileExists(t *testing.T) {
 	exists := FileExists(tmpFile.Name())
 	require.False(t, exists)
 }
+
+func TestCheckDirectoryWritePermission(t *testing.T) {
+	tempDir := t.TempDir()
+
+	canWrite, err := CheckDirectoryWritePermission(tempDir)
+	require.NoError(t, err)
+	require.True(t, canWrite)
+
+	// Remove write permission and check again
+	require.NoError(t, os.Chmod(tempDir, 0o555))
+	canWrite, err = CheckDirectoryWritePermission(tempDir)
+	require.NoError(t, err)
+	require.False(t, canWrite)
+}
+
+func TestCanRewriteFile(t *testing.T) {
+	tempDir := t.TempDir()
+	tmpFile, err := os.CreateTemp(tempDir, "testfile")
+	require.NoError(t, err)
+
+	defer os.Remove(tmpFile.Name())
+
+	canRewrite, err := CanRewriteFile(tmpFile.Name())
+	require.NoError(t, err)
+	require.True(t, canRewrite)
+
+	// Remove write permission and check again
+	require.NoError(t, os.Chmod(tmpFile.Name(), 0o444))
+	canRewrite, err = CanRewriteFile(tmpFile.Name())
+	require.NoError(t, err)
+	require.False(t, canRewrite)
+}
