@@ -555,7 +555,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
-		BlockAttestationsFunc: func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+		BeaconBlockAttestationsFunc: func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
 			return []*eth2spec.VersionedAttestation{}, nil
 		},
 		BlockFunc: func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {

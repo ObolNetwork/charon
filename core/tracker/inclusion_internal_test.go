@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -175,7 +176,7 @@ func TestDuplicateAttData(t *testing.T) {
 			aggBits2 := testutil.RandomBitList(8)
 			aggBits3 := testutil.RandomBitList(8)
 
-			bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+			bmock.BeaconBlockAttestationsFunc = func(_ context.Context, _ *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
 				return test.attestationsFunc(attData, aggBits1, aggBits2, aggBits3), nil
 			}
 

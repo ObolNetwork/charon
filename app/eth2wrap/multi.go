@@ -183,25 +183,6 @@ func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections 
 	return res, err
 }
 
-func (m multi) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
-	const label = "block_attestations_v2"
-	defer latency(ctx, label, false)()
-	defer incRequest(label)
-
-	res, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) ([]*spec.VersionedAttestation, error) {
-			return args.client.BlockAttestations(ctx, stateID)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res, err
-}
-
 func (m multi) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
 	const label = "block_v2"
 	defer latency(ctx, label, false)()

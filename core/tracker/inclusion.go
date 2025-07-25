@@ -669,12 +669,14 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 }
 
 func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, attDuties []*eth2v1.AttesterDuty) error {
-	atts, err := a.eth2Cl.BlockAttestations(ctx, strconv.FormatUint(slot, 10))
+	attsResp, err := a.eth2Cl.BeaconBlockAttestations(ctx, &eth2api.BeaconBlockAttestationsOpts{Block: strconv.FormatUint(slot, 10)})
 	if err != nil {
 		return err
-	} else if len(atts) == 0 {
+	} else if len(attsResp.Data) == 0 {
 		return nil // No block for this slot
 	}
+
+	atts := attsResp.Data
 
 	var (
 		committeesForState []*statecomm.StateCommittee

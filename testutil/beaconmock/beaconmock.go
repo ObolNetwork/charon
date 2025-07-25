@@ -193,8 +193,8 @@ type Mock struct {
 	CachedValidatorsFunc                   func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error)
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
-	BlockAttestationsFunc                  func(ctx context.Context, stateID string) ([]*eth2spec.VersionedAttestation, error)
 	BlockFunc                              func(ctx context.Context, stateID string) (*eth2spec.VersionedSignedBeaconBlock, error)
+	BeaconBlockAttestationsFunc            func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error)
 	BeaconStateCommitteesFunc              func(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
 	NodePeerCountFunc                      func(ctx context.Context) (int, error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
@@ -356,8 +356,13 @@ func (m Mock) Genesis(ctx context.Context, opts *eth2api.GenesisOpts) (*eth2api.
 	return wrapResponse(genesis), nil
 }
 
-func (m Mock) BlockAttestations(ctx context.Context, stateID string) ([]*eth2spec.VersionedAttestation, error) {
-	return m.BlockAttestationsFunc(ctx, stateID)
+func (m Mock) BeaconBlockAttestations(ctx context.Context, opts *eth2api.BeaconBlockAttestationsOpts) (*eth2api.Response[[]*eth2spec.VersionedAttestation], error) {
+	atts, err := m.BeaconBlockAttestationsFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(atts), nil
 }
 
 func (m Mock) Block(ctx context.Context, stateID string) (*eth2spec.VersionedSignedBeaconBlock, error) {

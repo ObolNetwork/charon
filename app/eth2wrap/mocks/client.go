@@ -230,6 +230,36 @@ func (_m *Client) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOp
 	return r0, r1
 }
 
+// BeaconBlockAttestations provides a mock function with given fields: ctx, opts
+func (_m *Client) BeaconBlockAttestations(ctx context.Context, opts *api.BeaconBlockAttestationsOpts) (*api.Response[[]*spec.VersionedAttestation], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BeaconBlockAttestations")
+	}
+
+	var r0 *api.Response[[]*spec.VersionedAttestation]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconBlockAttestationsOpts) (*api.Response[[]*spec.VersionedAttestation], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconBlockAttestationsOpts) *api.Response[[]*spec.VersionedAttestation]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*spec.VersionedAttestation])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconBlockAttestationsOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // BeaconBlockRoot provides a mock function with given fields: ctx, opts
 func (_m *Client) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (*api.Response[*phase0.Root], error) {
 	ret := _m.Called(ctx, opts)
@@ -308,36 +338,6 @@ func (_m *Client) Block(ctx context.Context, stateID string) (*spec.VersionedSig
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*spec.VersionedSignedBeaconBlock)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, stateID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// BlockAttestations provides a mock function with given fields: ctx, stateID
-func (_m *Client) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
-	ret := _m.Called(ctx, stateID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for BlockAttestations")
-	}
-
-	var r0 []*spec.VersionedAttestation
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*spec.VersionedAttestation, error)); ok {
-		return rf(ctx, stateID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*spec.VersionedAttestation); ok {
-		r0 = rf(ctx, stateID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*spec.VersionedAttestation)
 		}
 	}
 

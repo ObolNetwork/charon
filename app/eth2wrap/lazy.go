@@ -194,15 +194,6 @@ func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSele
 	return cl.AggregateSyncCommitteeSelections(ctx, partialSelections)
 }
 
-func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.BlockAttestations(ctx, stateID)
-}
-
 func (l *lazy) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

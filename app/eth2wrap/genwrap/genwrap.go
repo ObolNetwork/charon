@@ -50,7 +50,6 @@ type Client interface {
     eth2exp.BeaconCommitteeSelectionAggregator
     eth2exp.SyncCommitteeSelectionAggregator
     eth2exp.ProposerConfigProvider
-    BlockAttestationsProvider
 		BlockProvider
     BeaconStateCommitteesProvider
     NodePeerCountProvider
@@ -113,6 +112,7 @@ type Client interface {
 		"BeaconBlockRootProvider":               {Latency: false, Log: false},
 		"ProposalSubmitter":                     {Latency: true, Log: false},
 		"BeaconCommitteeSubscriptionsSubmitter": {Latency: true, Log: false},
+		"BeaconBlockAttestationsProvider":       {Latency: true, Log: false},
 		"BlindedProposalProvider":               {Latency: true, Log: false},
 		"BlindedProposalSubmitter":              {Latency: true, Log: false},
 		"DepositContractProvider":               {Latency: false, Log: false},

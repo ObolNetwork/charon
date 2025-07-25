@@ -23,7 +23,6 @@ type Client interface {
 	eth2exp.BeaconCommitteeSelectionAggregator
 	eth2exp.SyncCommitteeSelectionAggregator
 	eth2exp.ProposerConfigProvider
-	BlockAttestationsProvider
 	BlockProvider
 	BeaconStateCommitteesProvider
 	NodePeerCountProvider
@@ -38,6 +37,7 @@ type Client interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
+	eth2client.BeaconBlockAttestationsProvider
 	eth2client.BeaconBlockRootProvider
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BlindedProposalSubmitter
@@ -399,6 +399,27 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Root], error) {
 			return args.client.BeaconBlockRoot(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// BeaconBlockAttestations fetches a block's attestations given a set of options.
+func (m multi) BeaconBlockAttestations(ctx context.Context, opts *api.BeaconBlockAttestationsOpts) (*api.Response[[]*spec.VersionedAttestation], error) {
+	const label = "beacon_block_attestations"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*spec.VersionedAttestation], error) {
+			return args.client.BeaconBlockAttestations(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -919,6 +940,16 @@ func (l *lazy) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 	}
 
 	return cl.BeaconBlockRoot(ctx, opts)
+}
+
+// BeaconBlockAttestations fetches a block's attestations given a set of options.
+func (l *lazy) BeaconBlockAttestations(ctx context.Context, opts *api.BeaconBlockAttestationsOpts) (res0 *api.Response[[]*spec.VersionedAttestation], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.BeaconBlockAttestations(ctx, opts)
 }
 
 // SubmitProposal submits a proposal.

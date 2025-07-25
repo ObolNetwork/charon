@@ -179,7 +179,7 @@ func WithBeaconMockFuzzer() Option {
 			return contribution, nil
 		}
 
-		mock.BlockAttestationsFunc = func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+		mock.BeaconBlockAttestationsFunc = func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
 			var atts []*eth2spec.VersionedAttestation
 			fuzz.New().Fuzz(&atts)
 
