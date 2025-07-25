@@ -4,11 +4,15 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
@@ -60,4 +64,78 @@ func FileExists(path string) bool {
 	}
 
 	return err == nil
+}
+
+// CanRewriteFile checks if the file can be rewritten.
+func CanRewriteFile(path string) (bool, error) {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		if os.IsPermission(err) {
+			return false, nil
+		}
+
+		return false, errors.Wrap(err, "check file rewrite permission", z.Str("file", path))
+	}
+
+	file.Close()
+
+	return true, nil
+}
+
+// CheckDirectoryWritePermission checks if the current user has write permission on a directory.
+func CheckDirectoryWritePermission(dirPath string) (bool, error) {
+	tempFile := filepath.Join(dirPath, fmt.Sprintf(".go_perm_test_%d", os.Getpid()))
+
+	f, err := os.OpenFile(tempFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		if os.IsPermission(err) {
+			return false, nil
+		}
+
+		return false, errors.Wrap(err, "check directory write permission", z.Str("dir", dirPath))
+	}
+
+	f.Close()
+	os.Remove(tempFile)
+
+	return true, nil
+}
+
+// CopyFile copies a file from src to dst. If dst already exists, it will be overwritten.
+func CopyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return errors.Wrap(err, "failed to open source file", z.Str("file", src))
+	}
+	defer sourceFile.Close()
+
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return errors.Wrap(err, "failed to create destination file", z.Str("file", dst))
+	}
+	defer destinationFile.Close()
+
+	_, err = io.Copy(destinationFile, sourceFile)
+	if err != nil {
+		return errors.Wrap(err, "failed to copy file content", z.Str("src", src), z.Str("dst", dst))
+	}
+
+	// Sync the destination file to ensure data is flushed to disk.
+	// This can be important for data integrity, especially on systems with caching.
+	err = destinationFile.Sync()
+	if err != nil {
+		return errors.Wrap(err, "failed to sync destination file", z.Str("file", dst))
+	}
+
+	sourceInfo, err := os.Stat(src)
+	if err != nil {
+		return errors.Wrap(err, "failed to get source file info", z.Str("file", src))
+	}
+
+	err = os.Chmod(dst, sourceInfo.Mode().Perm())
+	if err != nil {
+		return errors.Wrap(err, "failed to set destination file permissions", z.Str("file", dst))
+	}
+
+	return nil
 }
