@@ -144,7 +144,7 @@ func TestDKG(t *testing.T) {
 			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, seed, random, opts...)
 			dir := t.TempDir()
 
-			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
+			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish, nil)
 
 			if !test.keymanager {
 				verifyDKGResults(t, lock.Definition, dir)
@@ -153,7 +153,91 @@ func TestDKG(t *testing.T) {
 	}
 }
 
-func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool) {
+func TestAppendDKG(t *testing.T) {
+	const (
+		nodes = 3
+		vals  = 2
+	)
+
+	withAlgo := func(algo string) func(*cluster.Definition) {
+		return func(d *cluster.Definition) {
+			d.DKGAlgorithm = algo
+		}
+	}
+
+	opts := []func(*cluster.Definition){
+		withAlgo("default"),
+	}
+
+	opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 30000000 })
+
+	seed := 1
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, keys, pkShares := cluster.NewForT(t, vals, nodes, nodes, seed, random, opts...)
+	srcDir := t.TempDir()
+
+	testDKG(t, lock.Definition, srcDir, keys, false, false, nil)
+	verifyDKGResults(t, lock.Definition, srcDir)
+
+	dstDir := t.TempDir()
+
+	appendConfigs := make([]dkg.AppendConfig, nodes)
+	for i := range nodes {
+		secretShares := make([]tbls.PrivateKey, vals)
+		for j := range vals {
+			secretShares[j] = pkShares[j][i]
+		}
+
+		appendConfigs[i] = dkg.AppendConfig{
+			AddValidators: 3,
+			ValidatorAddresses: []cluster.ValidatorAddresses{
+				{
+					FeeRecipientAddress: "0x0000000000000000000000000000000000000001",
+					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
+				},
+				{
+					FeeRecipientAddress: "0x0000000000000000000000000000000000000001",
+					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
+				},
+				{
+					FeeRecipientAddress: "0x0000000000000000000000000000000000000001",
+					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
+				},
+			},
+			ClusterLock:  &lock,
+			SecretShares: secretShares,
+		}
+	}
+
+	testDKG(t, lock.Definition, dstDir, keys, false, false, appendConfigs)
+
+	totalVals := vals + 3
+	secretShares := make([][]tbls.PrivateKey, totalVals)
+
+	for i := range nodes {
+		dataDir := path.Join(dstDir, fmt.Sprintf("node%d", i))
+		keyFiles, err := keystore.LoadFilesUnordered(path.Join(dataDir, "/validator_keys"))
+		require.NoError(t, err)
+		require.Len(t, keyFiles, totalVals)
+
+		secrets, err := keyFiles.SequencedKeys()
+		require.NoError(t, err)
+
+		for j, secret := range secrets {
+			secretShares[j] = append(secretShares[j], secret)
+		}
+
+		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))
+		require.NoError(t, err)
+
+		var lock cluster.Lock
+		require.NoError(t, json.Unmarshal(lockFile, &lock))
+		require.Equal(t, lock.NumValidators, totalVals)
+		require.Len(t, lock.Validators, totalVals)
+	}
+}
+
+func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool, addConfig []dkg.AppendConfig) {
 	t.Helper()
 
 	require.NoError(t, def.VerifySignatures(nil))
@@ -223,7 +307,11 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	for i := range len(def.Operators) {
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
+
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
+		if len(addConfig) > 0 {
+			conf.AppendConfig = &addConfig[i]
+		}
 
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 		err := k1util.Save(p2pKeys[i], p2p.KeyPath(conf.DataDir))
