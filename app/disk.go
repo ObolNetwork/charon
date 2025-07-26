@@ -4,10 +4,8 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
@@ -64,41 +62,6 @@ func FileExists(path string) bool {
 	}
 
 	return err == nil
-}
-
-// CanRewriteFile checks if the file can be rewritten.
-func CanRewriteFile(path string) (bool, error) {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
-	if err != nil {
-		if os.IsPermission(err) {
-			return false, nil
-		}
-
-		return false, errors.Wrap(err, "check file rewrite permission", z.Str("file", path))
-	}
-
-	file.Close()
-
-	return true, nil
-}
-
-// CheckDirectoryWritePermission checks if the current user has write permission on a directory.
-func CheckDirectoryWritePermission(dirPath string) (bool, error) {
-	tempFile := filepath.Join(dirPath, fmt.Sprintf(".go_perm_test_%d", os.Getpid()))
-
-	f, err := os.OpenFile(tempFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if err != nil {
-		if os.IsPermission(err) {
-			return false, nil
-		}
-
-		return false, errors.Wrap(err, "check directory write permission", z.Str("dir", dirPath))
-	}
-
-	f.Close()
-	os.Remove(tempFile)
-
-	return true, nil
 }
 
 // CopyFile copies a file from src to dst. If dst already exists, it will be overwritten.
