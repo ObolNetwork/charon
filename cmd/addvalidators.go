@@ -24,7 +24,6 @@ import (
 const (
 	enrPrivateKeyFile   = "charon-enr-private-key"
 	clusterLockFile     = "cluster-lock.json"
-	depositDataFileMask = "deposit_data*.json"
 	validatorKeysSubDir = "validator_keys"
 )
 
