@@ -219,7 +219,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	lockHashHex := hex7(cluster.GetInitialMutationHash())
+	lockHashHex := Hex7(cluster.GetInitialMutationHash())
 
 	tcpNode, err := wireP2P(ctx, life, conf, cluster, p2pKey, lockHashHex)
 	if err != nil {
@@ -1117,7 +1117,7 @@ func wireTracing(life *lifecycle.Manager, conf Config, clusterHash []byte) error
 	stopTracer, err := tracer.Init(
 		tracer.WithOTLPTracer(conf.OTLPAddress),
 		tracer.WithServiceName(conf.OTLPServiceName),
-		tracer.WithNamespaceName(hex7(clusterHash)),
+		tracer.WithNamespaceName(Hex7(clusterHash)),
 	)
 	if err != nil {
 		return errors.Wrap(err, "init tracing")
@@ -1240,14 +1240,4 @@ func ProposalTypes(builder bool, synthetic bool) []core.ProposalType {
 	resp = append(resp, core.ProposalTypeFull) // Always support full as fallback.
 
 	return resp
-}
-
-// hex7 returns the first 7 (or less) hex chars of the provided bytes.
-func hex7(input []byte) string {
-	resp := hex.EncodeToString(input)
-	if len(resp) <= 7 {
-		return resp
-	}
-
-	return resp[:7]
 }
