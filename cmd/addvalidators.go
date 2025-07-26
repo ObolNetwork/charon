@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -25,13 +24,15 @@ import (
 const (
 	enrPrivateKeyFile   = "charon-enr-private-key"
 	clusterLockFile     = "cluster-lock.json"
+	depositDataFileMask = "deposit_data*.json"
 	validatorKeysSubDir = "validator_keys"
 )
 
 // addValidatorsConfig is config for the `add-validators` command.
 type addValidatorsConfig struct {
 	NumValidators     int
-	DataDir           string
+	SrcDir            string
+	DstDir            string
 	DKG               dkg.Config
 	WithdrawalAddrs   []string
 	FeeRecipientAddrs []string
@@ -42,8 +43,8 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 
 	cmd := &cobra.Command{
 		Use:   "add-validators",
-		Short: "Creates and adds new validators to a distributed validator cluster",
-		Long:  `Creates and adds new validators to a distributed validator cluster. It generates keys for new validators and appends them to the existing cluster.`,
+		Short: "Add new validators to an existing distributed validator cluster",
+		Long:  `Generates and appends new validator keys to an existing distributed validator cluster.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.DKG.Log); err != nil {
@@ -54,9 +55,12 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 		},
 	}
 
-	bindAddValidatorsFlags(cmd, &config)
+	// Bind `add-validator` flags.
+	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of new validators to add to the existing cluster.")
+	cmd.Flags().StringVar(&config.SrcDir, "src-dir", ".charon", "The source charon folder with existing cluster data (lock, validator_keys, etc.).")
+	cmd.Flags().StringVar(&config.DstDir, "dst-dir", ".charon-add-validators", "Destination (empty) charon folder for combined cluster data. The new cluster data files will be stored here.")
 
-	// Bind DKG flags.
+	// Bind `dkg` flags.
 	bindKeymanagerFlags(cmd.Flags(), &config.DKG.KeymanagerAddr, &config.DKG.KeymanagerAuthToken)
 	bindNoVerifyFlag(cmd.Flags(), &config.DKG.NoVerify)
 	bindP2PFlags(cmd, &config.DKG.P2P)
@@ -66,17 +70,13 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	bindEth1Flag(cmd.Flags(), &config.DKG.ExecutionEngineAddr)
 	cmd.Flags().DurationVar(&config.DKG.Timeout, "timeout", 1*time.Minute, "Timeout for the command, should be increased if the command times out.")
 
-	// Create DKG flags.
-	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
-	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
+	// Bind `create dkg` flags.
+	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil,
+		"Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
+	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil,
+		"Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 
 	return cmd
-}
-
-// bindAddValidatorsFlags binds command line flags for the `add-validators` command.
-func bindAddValidatorsFlags(cmd *cobra.Command, config *addValidatorsConfig) {
-	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of new validators to add to the existing cluster.")
-	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The existing charon data folder with cluster-lock.json, validator_keys, etc.")
 }
 
 func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
@@ -86,12 +86,10 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 		return err
 	}
 
-	if err := validatePermissions(ctx, conf.DataDir); err != nil {
-		return err
-	}
+	log.Info(ctx, "Running add-validators", z.Int("numValidators", conf.NumValidators), z.Str("srcDir", conf.SrcDir), z.Str("dstDir", conf.DstDir))
 
 	// Loading the existing cluster lock file.
-	lockFilePath := filepath.Join(conf.DataDir, clusterLockFile)
+	lockFilePath := filepath.Join(conf.SrcDir, clusterLockFile)
 
 	b, err := os.ReadFile(lockFilePath)
 	if err != nil {
@@ -108,7 +106,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	}
 
 	// Loading the existing cluster keystore.
-	keyStorePath := filepath.Join(conf.DataDir, validatorKeysSubDir)
+	keyStorePath := filepath.Join(conf.SrcDir, validatorKeysSubDir)
 	log.Info(ctx, "Loading keystore", z.Str("path", keyStorePath))
 
 	privateKeyFiles, err := keystore.LoadFilesUnordered(keyStorePath)
@@ -123,24 +121,16 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	log.Info(ctx, "Loaded private key shares", z.Int("numKeys", len(secrets)))
 
-	log.Info(ctx, "Starting add-validators ceremony", z.Int("numValidators", conf.NumValidators), z.Str("lockHash", app.Hex7(lock.LockHash)))
-
-	// DKG will be run in a temporary directory to avoid conflicts with existing data.
-	dkgDir := filepath.Join(os.TempDir(), fmt.Sprintf("charon-merge-%d", os.Getpid()))
-	if err := os.MkdirAll(dkgDir, 0o700); err != nil {
-		return errors.Wrap(err, "create temp dir", z.Str("path", dkgDir))
-	}
-	// defer os.RemoveAll(dkgDir) // Clean up the temporary directory after DKG is done.
-
 	// Copying ENR private key file to the temporary directory for DKG.
-	srcKeyPath := filepath.Join(conf.DataDir, enrPrivateKeyFile)
-
-	dstKeyPath := filepath.Join(dkgDir, enrPrivateKeyFile)
-	if err := app.CopyFile(srcKeyPath, dstKeyPath); err != nil {
+	if err := createDstClusterDir(conf.DstDir); err != nil {
 		return err
 	}
 
-	log.Info(ctx, "Using temporary directory for DKG", z.Str("dir", dkgDir))
+	if err := app.CopyFile(filepath.Join(conf.SrcDir, enrPrivateKeyFile), filepath.Join(conf.DstDir, enrPrivateKeyFile)); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Starting add-validators ceremony", z.Int("numValidators", conf.NumValidators), z.Str("lockHash", app.Hex7(lock.LockHash)))
 
 	valAddresses := make([]cluster.ValidatorAddresses, conf.NumValidators)
 	for i := range conf.NumValidators {
@@ -151,7 +141,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	}
 
 	dkgConfig := conf.DKG
-	dkgConfig.DataDir = dkgDir
+	dkgConfig.DataDir = conf.DstDir
 	dkgConfig.AppendConfig = &dkg.AppendConfig{
 		ClusterLock:        &lock,
 		SecretShares:       secrets,
@@ -160,11 +150,13 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	}
 
 	if err := dkg.Run(ctx, dkgConfig); err != nil {
-		return errors.Wrap(err, "running dkg+append")
+		return errors.Wrap(err, "running dkg with add-validators")
 	}
 
 	log.Info(ctx, "Successfully completed add-validators ceremony 🎉")
-	log.Info(ctx, "You must restart your node (charon and VC) to apply the changes!")
+
+	log.Info(ctx, "IMPORTANT:")
+	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+conf.DstDir)
 
 	return nil
 }
@@ -196,13 +188,17 @@ func validateConfig(config *addValidatorsConfig) (err error) {
 		return errors.New("num-validators must be greater than 0")
 	}
 
-	if !app.FileExists(config.DataDir) {
-		return errors.New("data-dir is required")
+	if config.DstDir == "" {
+		return errors.New("dst-dir is required")
 	}
 
-	lockFile := filepath.Join(config.DataDir, clusterLockFile)
+	if !app.FileExists(config.SrcDir) {
+		return errors.New("src-dir is required")
+	}
+
+	lockFile := filepath.Join(config.SrcDir, clusterLockFile)
 	if !app.FileExists(lockFile) {
-		return errors.New("data-dir must contain a cluster-lock.json file")
+		return errors.New("src-dir must contain a cluster-lock.json file")
 	}
 
 	if config.DKG.Publish {
@@ -214,30 +210,24 @@ func validateConfig(config *addValidatorsConfig) (err error) {
 	return err
 }
 
-func validatePermissions(ctx context.Context, dataDir string) error {
-	canWriteToDir, err := app.CheckDirectoryWritePermission(dataDir)
+func createDstClusterDir(dir string) error {
+	err := os.Mkdir(dir, os.ModePerm)
+	if err == nil {
+		return nil
+	}
+
+	if !os.IsExist(err) {
+		return errors.Wrap(err, "mkdir", z.Str("path", dir))
+	}
+
+	files, err := os.ReadDir(dir)
 	if err != nil {
-		return errors.Wrap(err, "checking data-dir permissions")
+		return errors.Wrap(err, "readdir", z.Str("path", dir))
 	}
 
-	if !canWriteToDir {
-		log.Info(ctx, "Add write permissions to data-dir: chmod u+wx "+dataDir)
-
-		return errors.New("data-dir must be writable")
+	if len(files) == 0 {
+		return nil
 	}
 
-	lockFile := filepath.Join(dataDir, clusterLockFile)
-
-	canRewrite, err := app.CanRewriteFile(lockFile)
-	if err != nil {
-		return errors.Wrap(err, "checking cluster-lock.json permissions")
-	}
-
-	if !canRewrite {
-		log.Info(ctx, "Add write permissions to cluster-lock.json: chmod u+w "+lockFile)
-
-		return errors.New("cluster-lock.json must be writable")
-	}
-
-	return nil
+	return errors.New("directory not empty", z.Str("path", dir))
 }

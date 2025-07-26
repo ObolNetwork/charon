@@ -263,28 +263,27 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
 
-	var pubShares []share
+	var existingShares []share
 
-	// In case of add-validators ceremony, we need to exchange public shares of existing cluster.
-	// This is because cluster lock gets signed using all key shares.
+	// In case of add-validators ceremony, we need to read the existing cluster public key shares.
 	if conf.AppendConfig != nil {
 		for i, secretShare := range conf.AppendConfig.SecretShares {
-			distPubKey, err := conf.AppendConfig.ClusterLock.Validators[i].PublicKey()
+			dvPubKey, err := conf.AppendConfig.ClusterLock.Validators[i].PublicKey()
 			if err != nil {
-				return errors.Wrap(err, "get distributed public key")
+				return errors.Wrap(err, "decode distributed validator public key")
 			}
 
-			peerShares := make(map[int]tbls.PublicKey)
+			publicShares := make(map[int]tbls.PublicKey)
 			for idx, ps := range conf.AppendConfig.ClusterLock.Validators[i].PubShares {
 				var tblsPublicKey tbls.PublicKey
 				copy(tblsPublicKey[:], ps)
-				peerShares[idx+1] = tblsPublicKey
+				publicShares[idx+1] = tblsPublicKey
 			}
 
-			pubShares = append(pubShares, share{
-				PubKey:       distPubKey,
+			existingShares = append(existingShares, share{
+				PubKey:       dvPubKey,
 				SecretShare:  secretShare,
-				PublicShares: peerShares,
+				PublicShares: publicShares,
 			})
 		}
 	}
@@ -302,16 +301,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
-	if len(pubShares) > 0 {
-		shares = append(pubShares, shares...)
+	if len(existingShares) > 0 {
+		shares = append(existingShares, shares...)
 		def.NumValidators = totalValidators
 		def.ValidatorAddresses = append(def.ValidatorAddresses, conf.AppendConfig.ValidatorAddresses...)
 
-		log.Debug(ctx, "Combined validators", z.Int("total", def.NumValidators), z.Int("added", len(pubShares)))
-
-		for i, share := range shares {
-			log.Debug(ctx, "-- pubkey", z.Int("index", i), z.Int("pubShares", len(share.PublicShares)), z.Str("pubKey", hex.EncodeToString(share.PubKey[:])))
-		}
+		log.Debug(ctx, "Combined validator keys", z.Int("total", def.NumValidators), z.Int("added", len(existingShares)))
 	}
 
 	// DKG was step 1, advance to step 2
@@ -355,8 +350,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "builder validator registrations pre-generation")
 	}
 
-	log.Debug(ctx, "Aggregated builder validator registration signatures", z.Int("size", len(valRegs)))
-
 	// Pre-regs was step 3, advance to step 4
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -368,7 +361,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	log.Debug(ctx, "Aggregated lock hash signatures")
 	// Lock hash aggregate was step 4, advance to step 5
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -384,7 +376,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		lock.NodeSignatures = nil
 	}
 
-	log.Debug(ctx, "Exchanged node signatures")
 	// Node signatures was step 5, advance to step 6
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -1045,11 +1036,6 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 			depositDatasMap[pk] = append(depositDatasMap[pk], dd)
 		}
 	}
-
-	log.Debug(context.TODO(), "createDistValidators()",
-		z.Int("numShares", len(shares)),
-		z.Int("numDepositDatas", len(depositDatasMap)),
-		z.Int("numValRegs", len(valRegs)))
 
 	var dvs []cluster.DistValidator
 
