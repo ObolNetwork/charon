@@ -24,10 +24,10 @@ import (
 
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/relay"
 )
 
 //go:generate go test . -run=TestPeersTest -update
@@ -38,7 +38,7 @@ func TestPeersTest(t *testing.T) {
 	peer3PrivKey := base64ToPrivKey(t, "GpicOFPB/c/ZKIy1/fOt/4BmEekhFuyxa/SGcjrNe9o=")
 	freeTCPAddr := testutil.AvailableAddr(t)
 	// start local relay
-	relayAddr := startRelay(context.Background(), t)
+	relayAddr := relay.StartRelay(context.Background(), t)
 
 	tests := []struct {
 		name        string
@@ -568,68 +568,4 @@ func base64ToPrivKey(t *testing.T, base64Key string) k1.PrivateKey {
 	require.NoError(t, err)
 
 	return *k1.PrivKeyFromBytes(peer1PrivKeyBytes)
-}
-
-func startRelay(parentCtx context.Context, t *testing.T) string {
-	t.Helper()
-
-	dir := t.TempDir()
-
-	addr := testutil.AvailableAddr(t).String()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		err := relay.Run(parentCtx, relay.Config{
-			DataDir:  dir,
-			HTTPAddr: addr,
-			P2PConfig: p2p.Config{
-				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-			},
-			LogConfig:     log.DefaultConfig(),
-			AutoP2PKey:    true,
-			MaxResPerPeer: 8,
-			MaxConns:      1024,
-		})
-		t.Logf("Relay stopped: err=%v", err)
-
-		errChan <- err
-	}()
-
-	endpoint := "http://" + addr
-
-	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-	defer cancel()
-
-	isUp := make(chan struct{})
-
-	go func() {
-		for ctx.Err() == nil {
-			_, err := http.Get(endpoint)
-			if err != nil {
-				time.Sleep(time.Millisecond * 100)
-				continue
-			}
-
-			close(isUp)
-
-			return
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			require.Fail(t, "Relay context canceled before startup")
-			return ""
-		case err := <-errChan:
-			testutil.SkipIfBindErr(t, err)
-			require.Fail(t, "Relay exitted before startup", "err=%v", err)
-
-			return ""
-		case <-isUp:
-			return endpoint
-		}
-	}
 }

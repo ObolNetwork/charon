@@ -29,7 +29,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/dkg"
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
@@ -40,6 +39,7 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/relay"
 )
 
 const (
@@ -246,7 +246,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	defer cancel()
 
 	// Start relay.
-	relayAddr := startRelay(ctx, t)
+	relayAddr := relay.StartRelay(ctx, t)
 
 	// Setup config
 	conf := dkg.Config{
@@ -366,78 +366,6 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		}
 
 		t.Log("Lockfile published to obol-api 🎉")
-	}
-}
-
-// startRelay starts a charon relay and returns its http multiaddr endpoint.
-func startRelay(parentCtx context.Context, t *testing.T) string {
-	t.Helper()
-
-	dir := t.TempDir()
-
-	addr := testutil.AvailableAddr(t).String()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		err := relay.Run(parentCtx, relay.Config{
-			DataDir:  dir,
-			HTTPAddr: addr,
-			P2PConfig: p2p.Config{
-				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-			},
-			LogConfig: log.Config{
-				Level:  "error",
-				Format: "console",
-			},
-			AutoP2PKey:    true,
-			MaxResPerPeer: 8,
-			MaxConns:      1024,
-		})
-		if err != nil {
-			log.Warn(parentCtx, "Relay stopped with error", err)
-		} else {
-			log.Info(parentCtx, "Relay stopped without error")
-		}
-
-		errChan <- err
-	}()
-
-	endpoint := "http://" + addr
-
-	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
-	defer cancel()
-
-	isUp := make(chan struct{})
-
-	go func() {
-		for ctx.Err() == nil {
-			_, err := http.Get(endpoint)
-			if err != nil {
-				time.Sleep(time.Millisecond * 100)
-				continue
-			}
-
-			close(isUp)
-
-			return
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			require.Fail(t, "Relay context canceled before startup")
-			return ""
-		case err := <-errChan:
-			testutil.SkipIfBindErr(t, err)
-			require.Fail(t, "Relay exitted before startup", "err=%v", err)
-
-			return ""
-		case <-isUp:
-			return endpoint
-		}
 	}
 }
 
@@ -619,7 +547,7 @@ func TestSyncFlow(t *testing.T) {
 			defer cancel()
 
 			ctx = log.WithTopic(ctx, "test")
-			relayAddr := startRelay(ctx, t)
+			relayAddr := relay.StartRelay(ctx, t)
 			dir := t.TempDir()
 			configs := getConfigs(t, lock.Definition, keys, dir, relayAddr)
 
