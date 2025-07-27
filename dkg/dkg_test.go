@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -176,6 +177,11 @@ func TestAppendDKG(t *testing.T) {
 	lock, keys, pkShares := cluster.NewForT(t, vals, nodes, nodes, seed, random, opts...)
 	srcDir := t.TempDir()
 
+	eth1 := eth1wrap.NewDefaultEthClientRunner("")
+
+	require.NoError(t, lock.Definition.VerifyHashes())
+	require.NoError(t, lock.Definition.VerifySignatures(eth1))
+
 	testDKG(t, lock.Definition, srcDir, keys, false, false, nil)
 	verifyDKGResults(t, lock.Definition, srcDir)
 
@@ -234,6 +240,9 @@ func TestAppendDKG(t *testing.T) {
 		require.NoError(t, json.Unmarshal(lockFile, &lock))
 		require.Equal(t, lock.NumValidators, totalVals)
 		require.Len(t, lock.Validators, totalVals)
+
+		require.NoError(t, lock.VerifyHashes())
+		require.NoError(t, lock.VerifySignatures(eth1wrap.NewDefaultEthClientRunner("")))
 	}
 }
 

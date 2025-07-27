@@ -73,6 +73,7 @@ func TestRunAddValidators(t *testing.T) {
 				ShutdownDelay:  1 * time.Second,
 				PublishTimeout: 30 * time.Second,
 				Timeout:        8 * time.Second,
+				NoVerify:       true,
 			},
 		}
 
@@ -115,12 +116,8 @@ func TestRunAddValidators(t *testing.T) {
 		require.Equal(t, 5, lock.NumValidators)
 		require.Len(t, lock.Validators, 5)
 
-		// TODO: failing checks
-		// err = lock.VerifyHashes()
-		// require.NoError(t, err)
-		// eth1 := eth1wrap.NewDefaultEthClientRunner("")
-		// err = lock.VerifySignatures(eth1)
-		// require.NoError(t, err)
+		err = lock.VerifyHashes()
+		require.NoError(t, err)
 	}
 }
 

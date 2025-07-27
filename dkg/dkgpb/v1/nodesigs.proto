@@ -8,3 +8,10 @@ message MsgNodeSig {
   bytes signature = 1;
   uint32 peer_index = 2;
 }
+
+message MsgOperatorSig {
+  bytes creator_signature = 1;
+  bytes config_signature = 2;
+  bytes enr_signature = 3;
+  uint32 peer_index = 4;
+}

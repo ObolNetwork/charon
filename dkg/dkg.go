@@ -250,6 +250,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// register bcast callbacks: node signatures and public shares
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
+	operatorSigCaster := newOperatorSigBcast(peers, nodeIdx, caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -301,17 +302,63 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("unsupported dkg algorithm")
 	}
 
-	if len(existingShares) > 0 {
-		shares = append(existingShares, shares...)
-		def.NumValidators = totalValidators
-		def.ValidatorAddresses = append(def.ValidatorAddresses, conf.AppendConfig.ValidatorAddresses...)
-
-		log.Debug(ctx, "Combined validator keys", z.Int("total", def.NumValidators), z.Int("added", len(existingShares)))
-	}
-
 	// DKG was step 1, advance to step 2
 	if err := nextStepSync(ctx); err != nil {
 		return err
+	}
+
+	if len(existingShares) > 0 {
+		shares = append(existingShares, shares...)
+
+		def.NumValidators = totalValidators
+		def.ValidatorAddresses = append(def.ValidatorAddresses, conf.AppendConfig.ValidatorAddresses...)
+
+		def, err = def.SetDefinitionHashes()
+		if err != nil {
+			return errors.Wrap(err, "set definition hashes")
+		}
+
+		log.Debug(ctx, "Combined validator keys", z.Int("total", def.NumValidators), z.Int("added", len(existingShares)))
+
+		signedOperator, err := cluster.SignOperator(key, def, def.Operators[nodeIdx.PeerIdx])
+		if err != nil {
+			return errors.Wrap(err, "sign operator")
+		}
+
+		if nodeIdx.PeerIdx == 0 {
+			def, err = cluster.SignCreator(key, def)
+			if err != nil {
+				return errors.Wrap(err, "sign creator")
+			}
+		} else {
+			def.Creator.ConfigSignature = []byte{}
+		}
+
+		opSignatures, err := operatorSigCaster.exchange(ctx, def.Creator.ConfigSignature, signedOperator.ConfigSignature, signedOperator.ENRSignature)
+		if err != nil {
+			return errors.Wrap(err, "operator signatures exchange")
+		}
+
+		def.Creator.ConfigSignature = opSignatures[0].creatorSig
+		for i := range opSignatures {
+			if len(opSignatures[i].creatorSig) > 0 {
+				def.Creator.ConfigSignature = opSignatures[i].creatorSig
+			}
+
+			def.Operators[i].ConfigSignature = make([]byte, len(opSignatures[i].configHashSig))
+			copy(def.Operators[i].ConfigSignature, opSignatures[i].configHashSig)
+			def.Operators[i].ENRSignature = make([]byte, len(opSignatures[i].enrSig))
+			copy(def.Operators[i].ENRSignature, opSignatures[i].enrSig)
+		}
+
+		if err := nextStepSync(ctx); err != nil {
+			return err
+		}
+
+		def, err = def.SetDefinitionHashes()
+		if err != nil {
+			return errors.Wrap(err, "set definition hashes after operator signatures exchange")
+		}
 	}
 
 	// Sign, exchange and aggregate Deposit Data
