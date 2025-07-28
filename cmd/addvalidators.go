@@ -157,6 +157,8 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	log.Info(ctx, "IMPORTANT:")
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+conf.DstDir)
+	log.Info(ctx, "Note that the new cluster definition has empty creator and operators config signatures.")
+	log.Info(ctx, "However, this does not affect the cluster/DV functionality.")
 
 	return nil
 }
