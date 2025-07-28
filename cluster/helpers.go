@@ -111,8 +111,8 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 	return expectedAddr == actualAddr, nil
 }
 
-// SignCreator returns the definition with signed creator config hash.
-func SignCreator(secret *k1.PrivateKey, def Definition) (Definition, error) {
+// signCreator returns the definition with signed creator config hash.
+func signCreator(secret *k1.PrivateKey, def Definition) (Definition, error) {
 	var err error
 
 	def.Creator.ConfigSignature, err = signEIP712(secret, eip712CreatorConfigHash, def, Operator{})
@@ -123,8 +123,8 @@ func SignCreator(secret *k1.PrivateKey, def Definition) (Definition, error) {
 	return def, nil
 }
 
-// SignOperator returns the operator with signed config hash and enr.
-func SignOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Operator, error) {
+// signOperator returns the operator with signed config hash and enr.
+func signOperator(secret *k1.PrivateKey, def Definition, operator Operator) (Operator, error) {
 	var err error
 
 	operator.ConfigSignature, err = signEIP712(secret, getOperatorEIP712Type(def.Version), def, operator)

@@ -127,11 +127,11 @@ func NewForT(t *testing.T, dv, k, n, seed int, random *rand.Rand, opts ...func(*
 	// Definition version prior to v1.3.0 don't support EIP712 signatures.
 	if supportEIP712Sigs(def.Version) {
 		for i := range n {
-			def.Operators[i], err = SignOperator(p2pKeys[i], def, def.Operators[i])
+			def.Operators[i], err = signOperator(p2pKeys[i], def, def.Operators[i])
 			require.NoError(t, err)
 		}
 
-		def, err = SignCreator(p2pKeys[0], def)
+		def, err = signCreator(p2pKeys[0], def)
 		require.NoError(t, err)
 
 		// Recalculate definition hash after adding signatures.
