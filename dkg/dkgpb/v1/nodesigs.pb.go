@@ -73,74 +73,6 @@ func (x *MsgNodeSig) GetPeerIndex() uint32 {
 	return 0
 }
 
-type MsgOperatorSig struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	CreatorSignature []byte                 `protobuf:"bytes,1,opt,name=creator_signature,json=creatorSignature,proto3" json:"creator_signature,omitempty"`
-	ConfigSignature  []byte                 `protobuf:"bytes,2,opt,name=config_signature,json=configSignature,proto3" json:"config_signature,omitempty"`
-	EnrSignature     []byte                 `protobuf:"bytes,3,opt,name=enr_signature,json=enrSignature,proto3" json:"enr_signature,omitempty"`
-	PeerIndex        uint32                 `protobuf:"varint,4,opt,name=peer_index,json=peerIndex,proto3" json:"peer_index,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *MsgOperatorSig) Reset() {
-	*x = MsgOperatorSig{}
-	mi := &file_dkg_dkgpb_v1_nodesigs_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MsgOperatorSig) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MsgOperatorSig) ProtoMessage() {}
-
-func (x *MsgOperatorSig) ProtoReflect() protoreflect.Message {
-	mi := &file_dkg_dkgpb_v1_nodesigs_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MsgOperatorSig.ProtoReflect.Descriptor instead.
-func (*MsgOperatorSig) Descriptor() ([]byte, []int) {
-	return file_dkg_dkgpb_v1_nodesigs_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *MsgOperatorSig) GetCreatorSignature() []byte {
-	if x != nil {
-		return x.CreatorSignature
-	}
-	return nil
-}
-
-func (x *MsgOperatorSig) GetConfigSignature() []byte {
-	if x != nil {
-		return x.ConfigSignature
-	}
-	return nil
-}
-
-func (x *MsgOperatorSig) GetEnrSignature() []byte {
-	if x != nil {
-		return x.EnrSignature
-	}
-	return nil
-}
-
-func (x *MsgOperatorSig) GetPeerIndex() uint32 {
-	if x != nil {
-		return x.PeerIndex
-	}
-	return 0
-}
-
 var File_dkg_dkgpb_v1_nodesigs_proto protoreflect.FileDescriptor
 
 const file_dkg_dkgpb_v1_nodesigs_proto_rawDesc = "" +
@@ -150,13 +82,7 @@ const file_dkg_dkgpb_v1_nodesigs_proto_rawDesc = "" +
 	"MsgNodeSig\x12\x1c\n" +
 	"\tsignature\x18\x01 \x01(\fR\tsignature\x12\x1d\n" +
 	"\n" +
-	"peer_index\x18\x02 \x01(\rR\tpeerIndex\"\xac\x01\n" +
-	"\x0eMsgOperatorSig\x12+\n" +
-	"\x11creator_signature\x18\x01 \x01(\fR\x10creatorSignature\x12)\n" +
-	"\x10config_signature\x18\x02 \x01(\fR\x0fconfigSignature\x12#\n" +
-	"\renr_signature\x18\x03 \x01(\fR\fenrSignature\x12\x1d\n" +
-	"\n" +
-	"peer_index\x18\x04 \x01(\rR\tpeerIndexB,Z*github.com/obolnetwork/charon/dkg/dkgpb/v1b\x06proto3"
+	"peer_index\x18\x02 \x01(\rR\tpeerIndexB,Z*github.com/obolnetwork/charon/dkg/dkgpb/v1b\x06proto3"
 
 var (
 	file_dkg_dkgpb_v1_nodesigs_proto_rawDescOnce sync.Once
@@ -170,10 +96,9 @@ func file_dkg_dkgpb_v1_nodesigs_proto_rawDescGZIP() []byte {
 	return file_dkg_dkgpb_v1_nodesigs_proto_rawDescData
 }
 
-var file_dkg_dkgpb_v1_nodesigs_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_dkg_dkgpb_v1_nodesigs_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_dkg_dkgpb_v1_nodesigs_proto_goTypes = []any{
-	(*MsgNodeSig)(nil),     // 0: dkg.dkgpb.v1.MsgNodeSig
-	(*MsgOperatorSig)(nil), // 1: dkg.dkgpb.v1.MsgOperatorSig
+	(*MsgNodeSig)(nil), // 0: dkg.dkgpb.v1.MsgNodeSig
 }
 var file_dkg_dkgpb_v1_nodesigs_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -194,7 +119,7 @@ func file_dkg_dkgpb_v1_nodesigs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dkg_dkgpb_v1_nodesigs_proto_rawDesc), len(file_dkg_dkgpb_v1_nodesigs_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

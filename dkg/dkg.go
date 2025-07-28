@@ -250,7 +250,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// register bcast callbacks: node signatures and public shares
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
-	operatorSigCaster := newOperatorSigBcast(peers, nodeIdx, caster)
+	configSigCaster := newConfigSigBcast(peers, nodeIdx, caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
@@ -334,25 +334,22 @@ func Run(ctx context.Context, conf Config) (err error) {
 			def.Creator.ConfigSignature = []byte{}
 		}
 
-		opSignatures, err := operatorSigCaster.exchange(ctx, def.Creator.ConfigSignature, signedOperator.ConfigSignature, signedOperator.ENRSignature)
+		configSigs, err := configSigCaster.exchange(ctx, def.Creator.ConfigSignature, signedOperator.ConfigSignature, signedOperator.ENRSignature)
 		if err != nil {
-			return errors.Wrap(err, "operator signatures exchange")
-		}
-
-		def.Creator.ConfigSignature = opSignatures[0].creatorSig
-		for i := range opSignatures {
-			if len(opSignatures[i].creatorSig) > 0 {
-				def.Creator.ConfigSignature = opSignatures[i].creatorSig
-			}
-
-			def.Operators[i].ConfigSignature = make([]byte, len(opSignatures[i].configHashSig))
-			copy(def.Operators[i].ConfigSignature, opSignatures[i].configHashSig)
-			def.Operators[i].ENRSignature = make([]byte, len(opSignatures[i].enrSig))
-			copy(def.Operators[i].ENRSignature, opSignatures[i].enrSig)
+			return errors.Wrap(err, "config signatures exchange")
 		}
 
 		if err := nextStepSync(ctx); err != nil {
 			return err
+		}
+
+		for i := range configSigs {
+			if len(configSigs[i].creatorConfigSig) > 0 {
+				def.Creator.ConfigSignature = configSigs[i].creatorConfigSig
+			}
+
+			def.Operators[i].ConfigSignature = configSigs[i].operatorConfigSig
+			def.Operators[i].ENRSignature = configSigs[i].operatorEnrSig
 		}
 
 		def, err = def.SetDefinitionHashes()

@@ -194,6 +194,8 @@ func TestAppendDKG(t *testing.T) {
 			secretShares[j] = pkShares[j][i]
 		}
 
+		lockCopy := cloneLock(t, lock)
+
 		appendConfigs[i] = dkg.AppendConfig{
 			AddValidators: 3,
 			ValidatorAddresses: []cluster.ValidatorAddresses{
@@ -210,7 +212,7 @@ func TestAppendDKG(t *testing.T) {
 					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
 				},
 			},
-			ClusterLock:  &lock,
+			ClusterLock:  &lockCopy,
 			SecretShares: secretShares,
 		}
 	}
@@ -749,4 +751,16 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	}()
 
 	return cancel
+}
+
+func cloneLock(t *testing.T, l cluster.Lock) cluster.Lock {
+	t.Helper()
+
+	b, err := l.MarshalJSON()
+	require.NoError(t, err)
+
+	err = json.Unmarshal(b, &l)
+	require.NoError(t, err)
+
+	return l
 }
