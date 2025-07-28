@@ -320,41 +320,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 		log.Debug(ctx, "Combined validator keys", z.Int("total", def.NumValidators), z.Int("added", len(existingShares)))
 
-		signedOperator, err := cluster.SignOperator(key, def, def.Operators[nodeIdx.PeerIdx])
-		if err != nil {
-			return errors.Wrap(err, "sign operator")
-		}
-
-		if nodeIdx.PeerIdx == 0 {
-			def, err = cluster.SignCreator(key, def)
+		// If config or operator signatures were set, we need to resign and exchange
+		if len(def.Creator.ConfigSignature) > 0 || len(def.Operators[0].ConfigSignature) > 0 {
+			def, err = signAndExchangeConfigSigs(ctx, def, nodeIdx, key, configSigCaster)
 			if err != nil {
-				return errors.Wrap(err, "sign creator")
-			}
-		} else {
-			def.Creator.ConfigSignature = []byte{}
-		}
-
-		configSigs, err := configSigCaster.exchange(ctx, def.Creator.ConfigSignature, signedOperator.ConfigSignature, signedOperator.ENRSignature)
-		if err != nil {
-			return errors.Wrap(err, "config signatures exchange")
-		}
-
-		if err := nextStepSync(ctx); err != nil {
-			return err
-		}
-
-		for i := range configSigs {
-			if len(configSigs[i].creatorConfigSig) > 0 {
-				def.Creator.ConfigSignature = configSigs[i].creatorConfigSig
+				return errors.Wrap(err, "sign and exchange config signatures")
 			}
 
-			def.Operators[i].ConfigSignature = configSigs[i].operatorConfigSig
-			def.Operators[i].ENRSignature = configSigs[i].operatorEnrSig
-		}
-
-		def, err = def.SetDefinitionHashes()
-		if err != nil {
-			return errors.Wrap(err, "set definition hashes after operator signatures exchange")
+			if err := nextStepSync(ctx); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1234,4 +1209,43 @@ func setRegistrationSignature(reg core.VersionedSignedValidatorRegistration, sig
 	}
 
 	return reg, nil
+}
+
+func signAndExchangeConfigSigs(ctx context.Context, def cluster.Definition, nodeIdx cluster.NodeIdx,
+	key *k1.PrivateKey, configSigCaster *configSigBcast,
+) (cluster.Definition, error) {
+	signedOperator, err := cluster.SignOperator(key, def, def.Operators[nodeIdx.PeerIdx])
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "sign operator")
+	}
+
+	if nodeIdx.PeerIdx == 0 {
+		def, err = cluster.SignCreator(key, def)
+		if err != nil {
+			return cluster.Definition{}, errors.Wrap(err, "sign creator")
+		}
+	} else {
+		def.Creator.ConfigSignature = []byte{}
+	}
+
+	configSigs, err := configSigCaster.exchange(ctx, def.Creator.ConfigSignature, signedOperator.ConfigSignature, signedOperator.ENRSignature)
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "config signatures exchange")
+	}
+
+	for i := range configSigs {
+		if len(configSigs[i].creatorConfigSig) > 0 {
+			def.Creator.ConfigSignature = configSigs[i].creatorConfigSig
+		}
+
+		def.Operators[i].ConfigSignature = configSigs[i].operatorConfigSig
+		def.Operators[i].ENRSignature = configSigs[i].operatorEnrSig
+	}
+
+	def, err = def.SetDefinitionHashes()
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "set definition hashes after operator signatures exchange")
+	}
+
+	return def, nil
 }

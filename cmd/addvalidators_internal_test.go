@@ -15,6 +15,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -117,6 +118,8 @@ func TestRunAddValidators(t *testing.T) {
 		require.Len(t, lock.Validators, 5)
 
 		err = lock.VerifyHashes()
+		require.NoError(t, err)
+		err = lock.VerifySignatures(eth1wrap.NewDefaultEthClientRunner(""))
 		require.NoError(t, err)
 	}
 }
