@@ -194,7 +194,7 @@ func TestAppendDKG(t *testing.T) {
 			secretShares[j] = pkShares[j][i]
 		}
 
-		lockCopy := cloneLock(t, lock)
+		lockCopy := clone(t, lock)
 
 		appendConfigs[i] = dkg.AppendConfig{
 			AddValidators: 3,
@@ -259,6 +259,8 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	// Start relay.
 	relayAddr := relay.StartRelay(ctx, t)
 
+	defClone := clone(t, def)
+
 	// Setup config
 	conf := dkg.Config{
 		DataDir: dir,
@@ -267,7 +269,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		},
 		Log: log.DefaultConfig(),
 		TestConfig: dkg.TestConfig{
-			Def: &def,
+			Def: &defClone,
 			StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
@@ -753,14 +755,16 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	return cancel
 }
 
-func cloneLock(t *testing.T, l cluster.Lock) cluster.Lock {
+func clone[T any](t *testing.T, v T) T {
 	t.Helper()
 
-	b, err := l.MarshalJSON()
+	b, err := json.Marshal(v)
 	require.NoError(t, err)
 
-	err = json.Unmarshal(b, &l)
+	var clone T
+
+	err = json.Unmarshal(b, &clone)
 	require.NoError(t, err)
 
-	return l
+	return clone
 }
