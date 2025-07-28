@@ -4,6 +4,7 @@ package app
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -38,10 +39,27 @@ func TestFileExists(t *testing.T) {
 	require.False(t, exists)
 }
 
+func TestCreateNewEmptyDir(t *testing.T) {
+	tempDir := t.TempDir()
+	newDir := filepath.Join(tempDir, "new-cluster")
+
+	err := CreateNewEmptyDir(newDir)
+	require.NoError(t, err)
+
+	_, err = os.Stat(newDir)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(newDir, "testfile.txt"), []byte("test"), 0o644)
+	require.NoError(t, err)
+
+	err = CreateNewEmptyDir(newDir)
+	require.ErrorContains(t, err, "directory not empty")
+}
+
 func TestCopyFile(t *testing.T) {
 	tempDir := t.TempDir()
-	srcFile := tempDir + "/src.txt"
-	destFile := tempDir + "/dest.txt"
+	srcFile := filepath.Join(tempDir, "src.txt")
+	destFile := filepath.Join(tempDir, "dest.txt")
 
 	// Create a source file with some content
 	err := os.WriteFile(srcFile, []byte("Hello, World!"), 0o644)

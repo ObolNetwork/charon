@@ -64,6 +64,30 @@ func FileExists(path string) bool {
 	return err == nil
 }
 
+// CreateNewEmptyDir creates a new directory that must be empty.
+// If the directory already exists and is not empty, it returns an error.
+func CreateNewEmptyDir(dir string) error {
+	err := os.Mkdir(dir, os.ModePerm)
+	if err == nil {
+		return nil
+	}
+
+	if !os.IsExist(err) {
+		return errors.Wrap(err, "mkdir", z.Str("path", dir))
+	}
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return errors.Wrap(err, "readdir", z.Str("path", dir))
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	return errors.New("directory not empty", z.Str("path", dir))
+}
+
 // CopyFile copies a file from src to dst. If dst already exists, it will be overwritten.
 func CopyFile(src, dst string) error {
 	sourceFile, err := os.Open(src)

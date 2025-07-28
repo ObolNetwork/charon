@@ -120,8 +120,9 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	log.Info(ctx, "Loaded private key shares", z.Int("numKeys", len(secrets)))
 
-	// Copying ENR private key file to the temporary directory for DKG.
-	if err := createDstClusterDir(conf.DstDir); err != nil {
+	// Creating dst directory for the new cluster data and
+	// copying ENR private key file to the temporary directory for DKG.
+	if err := app.CreateNewEmptyDir(conf.DstDir); err != nil {
 		return err
 	}
 
@@ -207,26 +208,4 @@ func validateConfig(config *addValidatorsConfig) (err error) {
 	config.FeeRecipientAddrs, config.WithdrawalAddrs, err = validateAddresses(config.NumValidators, config.FeeRecipientAddrs, config.WithdrawalAddrs)
 
 	return err
-}
-
-func createDstClusterDir(dir string) error {
-	err := os.Mkdir(dir, os.ModePerm)
-	if err == nil {
-		return nil
-	}
-
-	if !os.IsExist(err) {
-		return errors.Wrap(err, "mkdir", z.Str("path", dir))
-	}
-
-	files, err := os.ReadDir(dir)
-	if err != nil {
-		return errors.Wrap(err, "readdir", z.Str("path", dir))
-	}
-
-	if len(files) == 0 {
-		return nil
-	}
-
-	return errors.New("directory not empty", z.Str("path", dir))
 }

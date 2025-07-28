@@ -224,19 +224,6 @@ func TestValidateConfigAddValidators(t *testing.T) {
 	}
 }
 
-func TestCreateDstClusterDir(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	err := createDstClusterDir(tmpDir)
-	require.NoError(t, err)
-
-	err = os.WriteFile(filepath.Join(tmpDir, clusterLockFile), []byte("{}"), 0o444)
-	require.NoError(t, err)
-
-	err = createDstClusterDir(tmpDir)
-	require.ErrorContains(t, err, "directory not empty")
-}
-
 func TestVerifyLock(t *testing.T) {
 	b, err := os.ReadFile("testdata/test_cluster_lock.json")
 	require.NoError(t, err)
