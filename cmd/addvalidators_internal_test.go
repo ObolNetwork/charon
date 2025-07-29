@@ -129,6 +129,12 @@ func TestValidateConfigAddValidators(t *testing.T) {
 	err := os.WriteFile(filepath.Join(realDir, clusterLockFile), []byte("{}"), 0o444)
 	require.NoError(t, err)
 
+	validatorKeysDir := filepath.Join(realDir, validatorKeysSubDir)
+	err = app.CreateNewEmptyDir(validatorKeysDir)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(validatorKeysDir, "keystore-0.json"), []byte("{}"), 0o444)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name   string
 		conf   addValidatorsConfig
@@ -214,7 +220,7 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateConfig(&tt.conf)
+			err := validateConfig(t.Context(), &tt.conf)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -222,6 +228,30 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("empty validator_keys dir", func(t *testing.T) {
+		srcDir := t.TempDir()
+		err := os.WriteFile(filepath.Join(srcDir, clusterLockFile), []byte("{}"), 0o444)
+		require.NoError(t, err)
+
+		cfg := addValidatorsConfig{
+			SrcDir:            srcDir,
+			DstDir:            ".",
+			NumValidators:     2,
+			WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
+			FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
+		}
+
+		err = validateConfig(t.Context(), &cfg)
+		require.Equal(t, "src-dir must contain a validator_keys directory with all key share files", err.Error())
+
+		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
+		err = app.CreateNewEmptyDir(validatorKeysDir)
+		require.NoError(t, err)
+
+		err = validateConfig(t.Context(), &cfg)
+		require.Equal(t, "src-dir must contain a validator_keys directory with all key share files", err.Error())
+	})
 }
 
 func TestVerifyLock(t *testing.T) {

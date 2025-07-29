@@ -64,7 +64,6 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	bindNoVerifyFlag(cmd.Flags(), &config.DKG.NoVerify)
 	bindP2PFlags(cmd, &config.DKG.P2P)
 	bindLogFlags(cmd.Flags(), &config.DKG.Log)
-	bindPublishFlags(cmd.Flags(), &config.DKG)
 	bindShutdownDelayFlag(cmd.Flags(), &config.DKG.ShutdownDelay)
 	bindEth1Flag(cmd.Flags(), &config.DKG.ExecutionEngineAddr)
 	cmd.Flags().DurationVar(&config.DKG.Timeout, "timeout", 1*time.Minute, "Timeout for the command, should be increased if the command times out.")
@@ -81,7 +80,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	ctx = log.WithTopic(ctx, "add-validators")
 
-	if err := validateConfig(&conf); err != nil {
+	if err := validateConfig(ctx, &conf); err != nil {
 		return err
 	}
 
@@ -185,7 +184,7 @@ func verifyLock(ctx context.Context, lock cluster.Lock, conf dkg.Config) error {
 	return nil
 }
 
-func validateConfig(config *addValidatorsConfig) (err error) {
+func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error) {
 	if config.NumValidators <= 0 {
 		return errors.New("num-validators must be greater than 0")
 	}
@@ -203,8 +202,13 @@ func validateConfig(config *addValidatorsConfig) (err error) {
 		return errors.New("src-dir must contain a cluster-lock.json file")
 	}
 
-	if config.DKG.Publish {
-		return errors.New("add-validators does not support --publish flag yet")
+	validatorKeysDir := filepath.Join(config.SrcDir, validatorKeysSubDir)
+
+	keyFiles, err := os.ReadDir(validatorKeysDir)
+	if err != nil || len(keyFiles) == 0 {
+		log.Error(ctx, "The validator_keys directory is empty. This typically means a KeyManager was used during cluster creation.", nil)
+
+		return errors.New("src-dir must contain a validator_keys directory with all key share files")
 	}
 
 	config.FeeRecipientAddrs, config.WithdrawalAddrs, err = validateAddresses(config.NumValidators, config.FeeRecipientAddrs, config.WithdrawalAddrs)
