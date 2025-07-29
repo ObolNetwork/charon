@@ -20,8 +20,6 @@ import (
 // Client defines all go-eth2-client interfaces used in charon.
 type Client interface {
 	eth2client.Service
-	eth2exp.BeaconCommitteeSelectionAggregator
-	eth2exp.SyncCommitteeSelectionAggregator
 	eth2exp.ProposerConfigProvider
 	BlockProvider
 	BeaconStateCommitteesProvider
@@ -39,6 +37,7 @@ type Client interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.BeaconBlockAttestationsProvider
 	eth2client.BeaconBlockRootProvider
+	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
@@ -60,6 +59,7 @@ type Client interface {
 	eth2client.SyncCommitteeContributionsSubmitter
 	eth2client.SyncCommitteeDutiesProvider
 	eth2client.SyncCommitteeMessagesSubmitter
+	eth2client.SyncCommitteeSelectionsProvider
 	eth2client.SyncCommitteeSubscriptionsSubmitter
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.ValidatorsProvider
@@ -368,6 +368,27 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return err
 }
 
+// SyncCommitteeSelections submits sync committee selections.
+func (m multi) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCommitteeSelectionsOpts) (*api.Response[[]*apiv1.SyncCommitteeSelection], error) {
+	const label = "sync_committee_selections"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.SyncCommitteeSelection], error) {
+			return args.client.SyncCommitteeSelections(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // Proposal fetches a proposal for signing.
 func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
 	const label = "proposal"
@@ -472,6 +493,27 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	}
 
 	return err
+}
+
+// BeaconCommitteeSelections submits beacon committee selections.
+func (m multi) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (*api.Response[[]*apiv1.BeaconCommitteeSelection], error) {
+	const label = "beacon_committee_selections"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.BeaconCommitteeSelection], error) {
+			return args.client.BeaconCommitteeSelections(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
 }
 
 // SubmitBlindedProposal submits a beacon block.
@@ -922,6 +964,16 @@ func (l *lazy) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 }
 
+// SyncCommitteeSelections submits sync committee selections.
+func (l *lazy) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCommitteeSelectionsOpts) (res0 *api.Response[[]*apiv1.SyncCommitteeSelection], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.SyncCommitteeSelections(ctx, opts)
+}
+
 // Proposal fetches a proposal for signing.
 func (l *lazy) Proposal(ctx context.Context, opts *api.ProposalOpts) (res0 *api.Response[*api.VersionedProposal], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -970,6 +1022,16 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	}
 
 	return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
+}
+
+// BeaconCommitteeSelections submits beacon committee selections.
+func (l *lazy) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (res0 *api.Response[[]*apiv1.BeaconCommitteeSelection], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.BeaconCommitteeSelections(ctx, opts)
 }
 
 // SubmitBlindedProposal submits a beacon block.

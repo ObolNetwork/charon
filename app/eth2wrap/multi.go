@@ -144,45 +144,6 @@ func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 	return res0, err
 }
 
-func (m multi) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	const label = "aggregate_beacon_committee_selections"
-	defer latency(ctx, label, false)()
-	defer incRequest(label)
-
-	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) ([]*eth2exp.BeaconCommitteeSelection, error) {
-			return args.client.AggregateBeaconCommitteeSelections(ctx, selections)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
-func (m multi) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	const label = "aggregate_sync_committee_selections"
-	defer latency(ctx, label, false)()
-	defer incRequest(label)
-
-	res, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) ([]*eth2exp.SyncCommitteeSelection, error) {
-			return args.client.AggregateSyncCommitteeSelections(ctx, selections)
-		},
-
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res, err
-}
-
 func (m multi) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
 	const label = "block_v2"
 	defer latency(ctx, label, false)()

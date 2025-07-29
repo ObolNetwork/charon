@@ -61,36 +61,6 @@ func TestLazy_NodePeerCount(t *testing.T) {
 	require.Equal(t, 5, c)
 }
 
-func TestLazy_AggregateSyncCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.SyncCommitteeSelection, 1)
-	selections := make([]*eth2exp.SyncCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("AggregateSyncCommitteeSelections", ctx, partsel).Return(selections, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	selections2, err := l.AggregateSyncCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-}
-
-func TestLazy_AggregateBeaconCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.BeaconCommitteeSelection, 1)
-	selections := make([]*eth2exp.BeaconCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("AggregateBeaconCommitteeSelections", ctx, partsel).Return(selections, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	selections2, err := l.AggregateBeaconCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-}
-
 func TestLazy_ProposerConfig(t *testing.T) {
 	ctx := context.Background()
 	resp := &eth2exp.ProposerConfigResponse{}

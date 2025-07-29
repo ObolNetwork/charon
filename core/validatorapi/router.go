@@ -71,7 +71,7 @@ type Handler interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
-	eth2exp.BeaconCommitteeSelectionAggregator
+	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
 	eth2client.ProposerDutiesProvider
@@ -79,7 +79,7 @@ type Handler interface {
 	eth2client.SyncCommitteeContributionsSubmitter
 	eth2client.SyncCommitteeDutiesProvider
 	eth2client.SyncCommitteeMessagesSubmitter
-	eth2exp.SyncCommitteeSelectionAggregator
+	eth2client.SyncCommitteeSelectionsProvider
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
@@ -235,7 +235,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 		{
 			Name:      "aggregate_beacon_committee_selections",
 			Path:      "/eth/v1/validator/beacon_committee_selections",
-			Handler:   aggregateBeaconCommitteeSelections(h),
+			Handler:   beaconCommitteeSelections(h),
 			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON},
 		},
@@ -298,7 +298,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 		{
 			Name:      "aggregate_sync_committee_selections",
 			Path:      "/eth/v1/validator/sync_committee_selections",
-			Handler:   aggregateSyncCommitteeSelections(h),
+			Handler:   syncCommitteeSelections(h),
 			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON},
 		},
@@ -1176,37 +1176,37 @@ func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) 
 	}
 }
 
-// aggregateBeaconCommitteeSelections receives partial beacon committee selections and returns aggregated selections.
-func aggregateBeaconCommitteeSelections(a eth2exp.BeaconCommitteeSelectionAggregator) handlerFunc {
+// beaconCommitteeSelections receives partial beacon committee selections and returns aggregated selections.
+func beaconCommitteeSelections(a eth2client.BeaconCommitteeSelectionsProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
-		var selections []*eth2exp.BeaconCommitteeSelection
+		var selections []*eth2v1.BeaconCommitteeSelection
 		if err := unmarshal(typ, body, &selections); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal beacon committee selections")
 		}
 
-		resp, err := a.AggregateBeaconCommitteeSelections(ctx, selections)
+		eth2Resp, err := a.BeaconCommitteeSelections(ctx, &eth2api.BeaconCommitteeSelectionsOpts{Selections: selections})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Wrap(err, "beacon committee selections")
 		}
 
-		return aggregateBeaconCommitteeSelectionsJSON{Data: resp}, nil, nil
+		return beaconCommitteeSelectionsJSON{Data: eth2Resp.Data}, nil, nil
 	}
 }
 
-// aggregateSyncCommitteeSelections receives partial sync committee selections and returns aggregated selections.
-func aggregateSyncCommitteeSelections(a eth2exp.SyncCommitteeSelectionAggregator) handlerFunc {
+// syncCommitteeSelections receives partial sync committee selections and returns aggregated selections.
+func syncCommitteeSelections(a eth2client.SyncCommitteeSelectionsProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (res any, headers http.Header, err error) {
-		var selections []*eth2exp.SyncCommitteeSelection
+		var selections []*eth2v1.SyncCommitteeSelection
 		if err := unmarshal(typ, body, &selections); err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal sync committee selections")
 		}
 
-		resp, err := a.AggregateSyncCommitteeSelections(ctx, selections)
+		eth2Resp, err := a.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: selections})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Wrap(err, "sync committee selections")
 		}
 
-		return aggregateSyncCommitteeSelectionsJSON{Data: resp}, nil, nil
+		return syncCommitteeSelectionsJSON{Data: eth2Resp.Data}, nil, nil
 	}
 }
 

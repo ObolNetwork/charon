@@ -176,24 +176,6 @@ func (l *lazy) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 	return cl.ProposerConfig(ctx)
 }
 
-func (l *lazy) AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.AggregateBeaconCommitteeSelections(ctx, partialSelections)
-}
-
-func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.AggregateSyncCommitteeSelections(ctx, partialSelections)
-}
-
 func (l *lazy) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

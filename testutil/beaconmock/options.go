@@ -626,8 +626,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
 		},
-		AggregateBeaconCommitteeSelectionsFunc: func(_ context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-			return selections, nil
+		BeaconCommitteeSelectionsFunc: func(_ context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) ([]*eth2v1.BeaconCommitteeSelection, error) {
+			return opts.Selections, nil
 		},
 		SubmitAggregateAttestationsFunc: func(context.Context, *eth2api.SubmitAggregateAttestationsOpts) error {
 			return nil
@@ -650,8 +650,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			return []*eth2v1.SyncCommitteeDuty{}, nil
 		},
-		AggregateSyncCommitteeSelectionsFunc: func(_ context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-			return selections, nil
+		SyncCommitteeSelectionsFunc: func(_ context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) ([]*eth2v1.SyncCommitteeSelection, error) {
+			return opts.Selections, nil
 		},
 		SubmitSyncCommitteeMessagesFunc: func(context.Context, []*altair.SyncCommitteeMessage) error {
 			return nil

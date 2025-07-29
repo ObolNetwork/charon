@@ -74,48 +74,6 @@ func TestMulti_NodePeerCount(t *testing.T) {
 	require.ErrorIs(t, err, expectedErr)
 }
 
-func TestMulti_AggregateSyncCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.SyncCommitteeSelection, 1)
-	selections := make([]*eth2exp.SyncCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("AggregateSyncCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	selections2, err := m.AggregateSyncCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-
-	expectedErr := errors.New("boo")
-	client.On("AggregateSyncCommitteeSelections", mock.Anything, partsel).Return(nil, expectedErr).Once()
-	_, err = m.AggregateSyncCommitteeSelections(ctx, partsel)
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestMulti_AggregateBeaconCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.BeaconCommitteeSelection, 1)
-	selections := make([]*eth2exp.BeaconCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("AggregateBeaconCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	selections2, err := m.AggregateBeaconCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-
-	expectedErr := errors.New("boo")
-	client.On("AggregateBeaconCommitteeSelections", mock.Anything, partsel).Return(nil, expectedErr).Once()
-	_, err = m.AggregateBeaconCommitteeSelections(ctx, partsel)
-	require.ErrorIs(t, err, expectedErr)
-}
-
 func TestMulti_ProposerConfig(t *testing.T) {
 	ctx := context.Background()
 	resp := &eth2exp.ProposerConfigResponse{}

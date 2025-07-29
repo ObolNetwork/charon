@@ -3,7 +3,6 @@
 package eth2wrap
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -149,46 +148,6 @@ func (h *httpAdapter) Validators(ctx context.Context, opts *api.ValidatorsOpts) 
 	return h.Service.Validators(reqCtx, opts)
 }
 
-// AggregateBeaconCommitteeSelections implements eth2exp.BeaconCommitteeSelectionAggregator.
-func (h *httpAdapter) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	reqBody, err := json.Marshal(selections)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal submit beacon committee selections")
-	}
-
-	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/beacon_committee_selections", bytes.NewReader(reqBody), h.headers, h.timeout)
-	if err != nil {
-		return nil, errors.Wrap(err, "submit beacon committee selections")
-	}
-
-	var resp submitBeaconCommitteeSelectionsJSON
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse beacon committee selections response")
-	}
-
-	return resp.Data, nil
-}
-
-// AggregateSyncCommitteeSelections implements eth2exp.SyncCommitteeSelectionAggregator.
-func (h *httpAdapter) AggregateSyncCommitteeSelections(ctx context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	reqBody, err := json.Marshal(selections)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshal sync committee selections")
-	}
-
-	respBody, err := httpPost(ctx, h.address, "/eth/v1/validator/sync_committee_selections", bytes.NewReader(reqBody), h.headers, h.timeout)
-	if err != nil {
-		return nil, errors.Wrap(err, "submit sync committee selections")
-	}
-
-	var resp submitSyncCommitteeSelectionsJSON
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse sync committee selections response")
-	}
-
-	return resp.Data, nil
-}
-
 // Block returns the block details.
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockV2.
 func (h *httpAdapter) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
@@ -303,59 +262,10 @@ func (h *httpAdapter) Domain(ctx context.Context, domainType eth2p0.DomainType, 
 	return h.Service.Domain(ctx, domainType, epoch)
 }
 
-type submitBeaconCommitteeSelectionsJSON struct {
-	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
-}
-
-type submitSyncCommitteeSelectionsJSON struct {
-	Data []*eth2exp.SyncCommitteeSelection `json:"data"`
-}
-
 type peerCountJSON struct {
 	Data struct {
 		Connected int `json:"connected,string"`
 	} `json:"data"`
-}
-
-func httpPost(ctx context.Context, base string, endpoint string, body io.Reader, headers map[string]string, timeout time.Duration) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	addr, err := url.JoinPath(base, endpoint)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid address")
-	}
-
-	url, err := url.ParseRequestURI(addr)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid endpoint")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), body)
-	if err != nil {
-		return nil, errors.Wrap(err, "new POST request with ctx")
-	}
-
-	for k, v := range headers {
-		req.Header.Add(k, v)
-	}
-
-	res, err := new(http.Client).Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to call POST endpoint")
-	}
-	defer res.Body.Close()
-
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read POST response")
-	}
-
-	if res.StatusCode/100 != 2 {
-		return nil, errors.New("post failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
-	}
-
-	return data, nil
 }
 
 // httpGetRaw performs a GET request and returns the raw http response or an error.
