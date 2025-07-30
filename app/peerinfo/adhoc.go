@@ -16,7 +16,7 @@ import (
 // DoOnce returns the peer info and RTT and true of the given peer,
 // or false if the peer doesn't support the protocol,
 // or an error.
-func DoOnce(ctx context.Context, tcpNode host.Host, peerID peer.ID) (*pbv1.PeerInfo, time.Duration, bool, error) {
+func DoOnce(ctx context.Context, p2pNode host.Host, peerID peer.ID) (*pbv1.PeerInfo, time.Duration, bool, error) {
 	var rtt time.Duration
 
 	rttCallback := func(d time.Duration) {
@@ -26,7 +26,7 @@ func DoOnce(ctx context.Context, tcpNode host.Host, peerID peer.ID) (*pbv1.PeerI
 	req := new(pbv1.PeerInfo)
 	resp := new(pbv1.PeerInfo)
 
-	err := p2p.SendReceive(ctx, tcpNode, peerID, req, resp, protocolID2,
+	err := p2p.SendReceive(ctx, p2pNode, peerID, req, resp, protocolID2,
 		p2p.WithSendReceiveRTT(rttCallback))
 	if err != nil {
 		return nil, 0, false, err

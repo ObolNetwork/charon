@@ -55,7 +55,7 @@ func (c *Component) Broadcast(ctx context.Context, msgID string, msg proto.Messa
 }
 
 // New registers a new reliable-broadcast server and returns a reliable-broadcast client function.
-func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
+func New(p2pNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
 	c := Component{
 		allowedMsgIDs: map[string]struct{}{},
 		secret:        secret,
@@ -65,10 +65,10 @@ func New(tcpNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
 	signFunc := c.newK1Signer()
 	verifyFunc := c.newPeerK1Verifier()
 
-	cl := newClient(tcpNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
+	cl := newClient(p2pNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
 
 	c.broadcastFunc = cl.Broadcast
-	c.srv = newServer(tcpNode, signFunc, hashAny, verifyFunc)
+	c.srv = newServer(p2pNode, signFunc, hashAny, verifyFunc)
 
 	return &c
 }

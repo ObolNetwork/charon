@@ -50,7 +50,7 @@ type ScoredPriority struct {
 }
 
 // NewComponent returns a new priority component.
-func NewComponent(ctx context.Context, tcpNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
+func NewComponent(ctx context.Context, p2pNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
 	registerHandlerFunc p2p.RegisterHandlerFunc, consensus Consensus,
 	exchangeTimeout time.Duration, privkey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 ) (*Component, error) {
@@ -61,11 +61,11 @@ func NewComponent(ctx context.Context, tcpNode host.Host, peers []peer.ID, minRe
 
 	deadliner := core.NewDeadliner(ctx, "priority", deadlineFunc)
 
-	prioritiser := newInternal(tcpNode, peers, minRequired, sendFunc, registerHandlerFunc,
+	prioritiser := newInternal(p2pNode, peers, minRequired, sendFunc, registerHandlerFunc,
 		consensus, verifier, exchangeTimeout, deadliner)
 
 	return &Component{
-		peerID:       tcpNode.ID(),
+		peerID:       p2pNode.ID(),
 		prioritiser:  prioritiser,
 		privkey:      privkey,
 		deadlineFunc: deadlineFunc,

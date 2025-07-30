@@ -32,6 +32,7 @@ import (
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/prysmaticlabs/go-bitfield"
@@ -1262,7 +1263,7 @@ func RandomChecksummedETHAddress(t *testing.T, seed int) string {
 
 func RandomBytesAsString(length int) string {
 	b := make([]byte, length)
-	_, _ = NewSeedRand().Read(b)
+	_, _ = crand.Read(b)
 
 	return string(b)
 }
@@ -1408,6 +1409,25 @@ func AvailableAddr(t *testing.T) *net.TCPAddr {
 	return addr
 }
 
+// AvailableUDPAddr returns an available local udp address.
+//
+// Note that this is unfortunately only best-effort. Since the port is not
+// "locked" or "reserved", other processes sometimes grab the port.
+// Remember to call SkipIfBindErr as workaround for this issue.
+func AvailableUDPAddr(t *testing.T) *net.UDPAddr {
+	t.Helper()
+
+	l, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0})
+	require.NoError(t, err)
+
+	defer l.Close()
+
+	addr, err := net.ResolveUDPAddr("udp", l.LocalAddr().String())
+	require.NoError(t, err)
+
+	return addr
+}
+
 // AvailableMultiAddr returns an available local tcp address as a multiaddr.
 //
 // Note that this is unfortunately only best-effort. Since the port is not
@@ -1449,6 +1469,36 @@ func CreateHostWithIdentity(t *testing.T, addr *net.TCPAddr, secret *k1.PrivateK
 		libp2p.Identity((*p2pcrypto.Secp256k1PrivateKey)(secret)),
 		libp2p.ListenAddrs(addrs),
 		libp2p.Transport(tcp.NewTCPTransport, tcp.DisableReuseport()),
+	}
+	opts2 = append(opts2, opts...)
+
+	h, err := libp2p.New(opts2...)
+
+	SkipIfBindErr(t, err)
+	require.NoError(t, err)
+
+	return h
+}
+
+func CreateQUICHost(t *testing.T, addr *net.UDPAddr, opts ...libp2p.Option) host.Host {
+	t.Helper()
+
+	pkey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	return CreateQUICHostWithIdentity(t, addr, pkey, opts...)
+}
+
+func CreateQUICHostWithIdentity(t *testing.T, addr *net.UDPAddr, secret *k1.PrivateKey, opts ...libp2p.Option) host.Host {
+	t.Helper()
+
+	addrs, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/udp/%d/quic-v1", addr.IP, addr.Port))
+	require.NoError(t, err)
+
+	opts2 := []libp2p.Option{
+		libp2p.Identity((*p2pcrypto.Secp256k1PrivateKey)(secret)),
+		libp2p.ListenAddrs(addrs),
+		libp2p.Transport(quic.NewTransport),
 	}
 	opts2 = append(opts2, opts...)
 
