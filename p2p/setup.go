@@ -32,20 +32,20 @@ func SetupP2P(ctx context.Context, key *k1.PrivateKey, config Config, peers []Pe
 		return nil, nil, err
 	}
 
-	tcpNode, err := NewTCPNode(ctx, config, key, connGater, false)
+	p2pNode, err := NewNode(ctx, config, key, connGater, false, NodeTypeTCP)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	RegisterConnectionLogger(ctx, tcpNode, peerIDs)
+	RegisterConnectionLogger(ctx, p2pNode, peerIDs)
 
 	for _, relay := range relays {
-		go NewRelayReserver(tcpNode, relay)(ctx)
+		go NewRelayReserver(p2pNode, relay)(ctx)
 	}
 
-	go NewRelayRouter(tcpNode, peerIDs, relays)(ctx)
+	go NewRelayRouter(p2pNode, peerIDs, relays)(ctx)
 
-	return tcpNode, func() {
-		_ = tcpNode.Close()
+	return p2pNode, func() {
+		_ = p2pNode.Close()
 	}, nil
 }
