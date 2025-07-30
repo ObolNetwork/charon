@@ -154,7 +154,7 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 		ticker := clock.NewTicker(slotDuration)
 		peerCountTicker := clock.NewTicker(1 * time.Minute)
 
-		var bnPeerCount *int // Beacon node peer count value which is queried every minute
+		var bnPeerCount *uint64 // Beacon node peer count value which is queried every minute
 
 		currVAPICount := 0
 		prevVAPICount := 1 // Assume connected.
@@ -167,18 +167,18 @@ func startReadyChecker(ctx context.Context, tcpNode host.Host, eth2Cl eth2wrap.C
 
 		// beaconNodePeerCount queries beacon node peer count and sets the peer count gauge if err is nil.
 		beaconNodePeerCount := func() {
-			peerCount, err := eth2Cl.NodePeerCount(ctx)
+			peerCount, err := eth2Cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
 			if err != nil {
 				log.Warn(ctx, "Failed to get beacon node peer count", err)
 				return
 			}
 
 			if bnPeerCount == nil {
-				bnPeerCount = new(int)
+				bnPeerCount = new(uint64)
 			}
 
-			bnPeerCount = &peerCount
-			beaconNodePeerCountGauge.Set(float64(peerCount))
+			bnPeerCount = &peerCount.Data.Connected
+			beaconNodePeerCountGauge.Set(float64(peerCount.Data.Connected))
 		}
 
 		for {

@@ -56,24 +56,6 @@ func TestMulti_IsSynced(t *testing.T) {
 	require.True(t, m.IsSynced())
 }
 
-func TestMulti_NodePeerCount(t *testing.T) {
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("NodePeerCount", mock.Anything).Return(5, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	c, err := m.NodePeerCount(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, 5, c)
-
-	expectedErr := errors.New("boo")
-	client.On("NodePeerCount", mock.Anything).Return(0, expectedErr).Once()
-
-	_, err = m.NodePeerCount(context.Background())
-	require.ErrorIs(t, err, expectedErr)
-}
-
 func TestMulti_ProposerConfig(t *testing.T) {
 	ctx := context.Background()
 	resp := &eth2exp.ProposerConfigResponse{}

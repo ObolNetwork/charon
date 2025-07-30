@@ -181,22 +181,3 @@ func (m multi) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*state
 
 	return res, err
 }
-
-func (m multi) NodePeerCount(ctx context.Context) (int, error) {
-	const label = "node_peer_count"
-	defer latency(ctx, label, false)()
-	defer incRequest(label)
-
-	res, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (int, error) {
-			return args.client.NodePeerCount(ctx)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res, err
-}

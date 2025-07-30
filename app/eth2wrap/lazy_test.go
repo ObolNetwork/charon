@@ -50,17 +50,6 @@ func TestLazy_IsSynced(t *testing.T) {
 	require.True(t, l.IsSynced())
 }
 
-func TestLazy_NodePeerCount(t *testing.T) {
-	client := mocks.NewClient(t)
-	client.On("NodePeerCount", mock.Anything).Return(5, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	c, err := l.NodePeerCount(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, 5, c)
-}
-
 func TestLazy_ProposerConfig(t *testing.T) {
 	ctx := context.Background()
 	resp := &eth2exp.ProposerConfigResponse{}

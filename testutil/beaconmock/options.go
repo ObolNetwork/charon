@@ -561,8 +561,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		BlockFunc: func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return &eth2spec.VersionedSignedBeaconBlock{}, nil
 		},
-		NodePeerCountFunc: func(context.Context) (int, error) {
-			return 80, nil
+		NodePeerCountFunc: func(context.Context, *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
+			return &eth2v1.PeerCount{Connected: 80}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return attStore.NewAttestationData(ctx, slot, index)

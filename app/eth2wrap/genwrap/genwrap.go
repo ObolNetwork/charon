@@ -50,7 +50,6 @@ type Client interface {
     eth2exp.ProposerConfigProvider
 		BlockProvider
     BeaconStateCommitteesProvider
-    NodePeerCountProvider
 
     CachedValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
@@ -119,6 +118,7 @@ type Client interface {
 		"ForkProvider":                          {Latency: true, Log: false},
 		"ForkScheduleProvider":                  {Latency: true, Log: false},
 		"GenesisProvider":                       {Latency: false, Log: false},
+		"NodePeerCountProvider":                 {Latency: false, Log: false},
 		"NodeSyncingProvider":                   {Latency: true, Log: false},
 		"NodeVersionProvider":                   {Latency: false, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},

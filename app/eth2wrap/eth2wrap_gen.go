@@ -23,7 +23,6 @@ type Client interface {
 	eth2exp.ProposerConfigProvider
 	BlockProvider
 	BeaconStateCommitteesProvider
-	NodePeerCountProvider
 
 	CachedValidatorsProvider
 	SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
@@ -45,6 +44,7 @@ type Client interface {
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
+	eth2client.NodePeerCountProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.ProposalPreparationsSubmitter
@@ -622,6 +622,28 @@ func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Respons
 	return res0, err
 }
 
+// NodePeerCount provides the peer count of the node.
+// Note this endpoint is cached in go-eth2-client.
+func (m multi) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (*api.Response[*apiv1.PeerCount], error) {
+	const label = "node_peer_count"
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.PeerCount], error) {
+			return args.client.NodePeerCount(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // NodeSyncing provides the state of the node's synchronization with the chain.
 func (m multi) NodeSyncing(ctx context.Context, opts *api.NodeSyncingOpts) (*api.Response[*apiv1.SyncState], error) {
 	const label = "node_syncing"
@@ -1082,6 +1104,16 @@ func (l *lazy) Genesis(ctx context.Context, opts *api.GenesisOpts) (res0 *api.Re
 	}
 
 	return cl.Genesis(ctx, opts)
+}
+
+// NodePeerCount provides the peer count of the node.
+func (l *lazy) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (res0 *api.Response[*apiv1.PeerCount], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.NodePeerCount(ctx, opts)
 }
 
 // NodeSyncing provides the state of the node's synchronization with the chain.

@@ -196,7 +196,7 @@ type Mock struct {
 	BlockFunc                              func(ctx context.Context, stateID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	BeaconBlockAttestationsFunc            func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error)
 	BeaconStateCommitteesFunc              func(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
-	NodePeerCountFunc                      func(ctx context.Context) (int, error)
+	NodePeerCountFunc                      func(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
@@ -391,8 +391,13 @@ func (m Mock) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statec
 	return m.BeaconStateCommitteesFunc(ctx, slot)
 }
 
-func (m Mock) NodePeerCount(ctx context.Context) (int, error) {
-	return m.NodePeerCountFunc(ctx)
+func (m Mock) NodePeerCount(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2api.Response[*eth2v1.PeerCount], error) {
+	peerCount, err := m.NodePeerCountFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(peerCount), nil
 }
 
 func (m Mock) SubmitAttestations(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error {

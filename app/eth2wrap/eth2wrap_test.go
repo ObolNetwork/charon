@@ -35,42 +35,42 @@ func TestMulti(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		handle func(cl1Resp, cl2Resp chan int, ctxCancel context.CancelFunc)
+		handle func(cl1Resp, cl2Resp chan *eth2v1.PeerCount, ctxCancel context.CancelFunc)
 		expErr error
-		expRes int
+		expRes *eth2api.Response[*eth2v1.PeerCount]
 	}{
 		{
 			name: "cl1 only",
-			handle: func(cl1Resp, _ chan int, _ context.CancelFunc) {
-				cl1Resp <- 99
+			handle: func(cl1Resp, _ chan *eth2v1.PeerCount, _ context.CancelFunc) {
+				cl1Resp <- &eth2v1.PeerCount{Connected: 99}
 			},
-			expRes: 99,
+			expRes: &eth2api.Response[*eth2v1.PeerCount]{Data: &eth2v1.PeerCount{Connected: 99}},
 		},
 		{
 			name: "cl2 only",
-			handle: func(_, cl2Resp chan int, _ context.CancelFunc) {
-				cl2Resp <- 99
+			handle: func(_, cl2Resp chan *eth2v1.PeerCount, _ context.CancelFunc) {
+				cl2Resp <- &eth2v1.PeerCount{Connected: 99}
 			},
-			expRes: 99,
+			expRes: &eth2api.Response[*eth2v1.PeerCount]{Data: &eth2v1.PeerCount{Connected: 99}},
 		},
 		{
 			name: "ctx cancel",
-			handle: func(_, _ chan int, ctxCancel context.CancelFunc) {
+			handle: func(_, _ chan *eth2v1.PeerCount, ctxCancel context.CancelFunc) {
 				ctxCancel()
 			},
 			expErr: context.Canceled,
 		},
 		{
 			name: "cl1 error, cl2 ok",
-			handle: func(cl1, cl2 chan int, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan *eth2v1.PeerCount, _ context.CancelFunc) {
 				close(cl1)
-				cl2 <- 99
+				cl2 <- &eth2v1.PeerCount{Connected: 99}
 			},
-			expRes: 99,
+			expRes: &eth2api.Response[*eth2v1.PeerCount]{Data: &eth2v1.PeerCount{Connected: 99}},
 		},
 		{
 			name: "all error",
-			handle: func(cl1, cl2 chan int, _ context.CancelFunc) {
+			handle: func(cl1, cl2 chan *eth2v1.PeerCount, _ context.CancelFunc) {
 				close(cl1)
 				close(cl2)
 			},
@@ -78,7 +78,7 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl1 error, ctx cancel",
-			handle: func(cl1, _ chan int, cancel context.CancelFunc) {
+			handle: func(cl1, _ chan *eth2v1.PeerCount, cancel context.CancelFunc) {
 				close(cl1)
 				cancel()
 			},
@@ -86,13 +86,13 @@ func TestMulti(t *testing.T) {
 		},
 		{
 			name: "cl2 before cl1",
-			handle: func(cl1, cl2 chan int, cancel context.CancelFunc) {
-				cl2 <- 99
+			handle: func(cl1, cl2 chan *eth2v1.PeerCount, cancel context.CancelFunc) {
+				cl2 <- &eth2v1.PeerCount{Connected: 99}
 
 				time.Sleep(time.Millisecond)
-				cl1 <- 98 // This might flap?
+				cl1 <- &eth2v1.PeerCount{Connected: 98} // This might flap?
 			},
-			expRes: 99,
+			expRes: &eth2api.Response[*eth2v1.PeerCount]{Data: &eth2v1.PeerCount{Connected: 99}},
 		},
 	}
 	for _, test := range tests {
@@ -105,28 +105,28 @@ func TestMulti(t *testing.T) {
 			cl2, err := beaconmock.New()
 			require.NoError(t, err)
 
-			cl1Resp := make(chan int)
-			cl2Resp := make(chan int)
+			cl1Resp := make(chan *eth2v1.PeerCount)
+			cl2Resp := make(chan *eth2v1.PeerCount)
 
-			cl1.NodePeerCountFunc = func(ctx context.Context) (int, error) {
+			cl1.NodePeerCountFunc = func(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
 				select {
 				case <-ctx.Done():
-					return 0, ctx.Err()
+					return &eth2v1.PeerCount{Connected: 0}, ctx.Err()
 				case resp, ok := <-cl1Resp:
 					if !ok {
-						return 0, closedErr
+						return &eth2v1.PeerCount{Connected: 0}, closedErr
 					}
 
 					return resp, nil
 				}
 			}
-			cl2.NodePeerCountFunc = func(ctx context.Context) (int, error) {
+			cl2.NodePeerCountFunc = func(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
 				select {
 				case <-ctx.Done():
-					return 0, ctx.Err()
+					return &eth2v1.PeerCount{Connected: 0}, ctx.Err()
 				case resp, ok := <-cl2Resp:
 					if !ok {
-						return 0, closedErr
+						return &eth2v1.PeerCount{Connected: 0}, closedErr
 					}
 
 					return resp, nil
@@ -138,7 +138,7 @@ func TestMulti(t *testing.T) {
 
 			go test.handle(cl1Resp, cl2Resp, cancel)
 
-			resp, err := eth2Cl.NodePeerCount(ctx)
+			resp, err := eth2Cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
 			require.ErrorIs(t, err, test.expErr)
 			require.Equal(t, test.expRes, resp)
 		})
@@ -146,7 +146,7 @@ func TestMulti(t *testing.T) {
 }
 
 func TestFallback(t *testing.T) {
-	returnValue := 42
+	returnValue := &eth2v1.PeerCount{Connected: 42}
 	closedErr := errors.New("error")
 
 	tests := []struct {
@@ -195,7 +195,7 @@ func TestFallback(t *testing.T) {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
-				cl.NodePeerCountFunc = func(context.Context) (int, error) {
+				cl.NodePeerCountFunc = func(context.Context, *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
 					calledMu.Lock()
 
 					primaryCalled[i] = true
@@ -213,7 +213,7 @@ func TestFallback(t *testing.T) {
 				cl, err := beaconmock.New()
 				require.NoError(t, err)
 
-				cl.NodePeerCountFunc = func(context.Context) (int, error) {
+				cl.NodePeerCountFunc = func(context.Context, *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
 					calledMu.Lock()
 
 					fallbackCalled[i] = true
@@ -227,9 +227,9 @@ func TestFallback(t *testing.T) {
 
 			eth2Cl, err := eth2wrap.Instrument(primaryClients, fallbackClients)
 			require.NoError(t, err)
-			res, err := eth2Cl.NodePeerCount(t.Context())
+			res, err := eth2Cl.NodePeerCount(t.Context(), &eth2api.NodePeerCountOpts{})
 			require.NoError(t, err)
-			require.Equal(t, returnValue, res)
+			require.Equal(t, returnValue, res.Data)
 
 			calledMu.Lock()
 			defer calledMu.Unlock()
@@ -288,10 +288,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, nil, []string{"localhost:22222"}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.NodePeerCount(ctx)
+		_, err = cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api node_peer_count: network operation error")
+		require.ErrorContains(t, err, "beacon api node_peer_count: client is not active")
 	})
 
 	// Test http server that just hangs until request cancelled
@@ -303,10 +303,10 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.NodePeerCount(ctx)
+		_, err = cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "beacon api node_peer_count: http request timeout")
+		require.ErrorContains(t, err, "beacon api node_peer_count: client is not active")
 	})
 
 	t.Run("caller cancelled", func(t *testing.T) {
@@ -316,7 +316,7 @@ func TestErrors(t *testing.T) {
 		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
-		_, err = cl.NodePeerCount(ctx)
+		_, err = cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
 		log.Error(ctx, "See this error log for fields", err)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "beacon api node_peer_count: context canceled")

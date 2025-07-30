@@ -193,12 +193,3 @@ func (l *lazy) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*state
 
 	return cl.BeaconStateCommittees(ctx, slot)
 }
-
-func (l *lazy) NodePeerCount(ctx context.Context) (int, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return cl.NodePeerCount(ctx)
-}

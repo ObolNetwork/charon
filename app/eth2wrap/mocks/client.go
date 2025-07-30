@@ -584,27 +584,29 @@ func (_m *Client) Name() string {
 	return r0
 }
 
-// NodePeerCount provides a mock function with given fields: ctx
-func (_m *Client) NodePeerCount(ctx context.Context) (int, error) {
-	ret := _m.Called(ctx)
+// NodePeerCount provides a mock function with given fields: ctx, opts
+func (_m *Client) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (*api.Response[*v1.PeerCount], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for NodePeerCount")
 	}
 
-	var r0 int
+	var r0 *api.Response[*v1.PeerCount]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (int, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodePeerCountOpts) (*api.Response[*v1.PeerCount], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) int); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodePeerCountOpts) *api.Response[*v1.PeerCount]); ok {
+		r0 = rf(ctx, opts)
 	} else {
-		r0 = ret.Get(0).(int)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*v1.PeerCount])
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.NodePeerCountOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}

@@ -42,14 +42,6 @@ type BeaconStateCommitteesProvider interface {
 	BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
 }
 
-// NodePeerCountProvider is the interface for providing node peer count.
-// It is a standard beacon API endpoint not implemented by eth2client.
-// See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
-type NodePeerCountProvider interface {
-	// NodePeerCount provides peer count of the beacon node.
-	NodePeerCount(ctx context.Context) (int, error)
-}
-
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
 func NewHTTPAdapterForT(_ *testing.T, address string, headers map[string]string, timeout time.Duration) Client {
 	return newHTTPAdapter(nil, address, headers, timeout)
@@ -226,26 +218,6 @@ func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConf
 	return &resp, nil
 }
 
-// NodePeerCount provides the peer count of the beacon node.
-// See https://ethereum.github.io/beacon-APIs/#/Node/getPeerCount.
-func (h *httpAdapter) NodePeerCount(ctx context.Context) (int, error) {
-	const path = "/eth/v1/node/peer_count"
-
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, nil, h.timeout)
-	if err != nil {
-		return 0, errors.Wrap(err, "request beacon node peer count")
-	} else if statusCode != http.StatusOK {
-		return 0, errors.New("request beacon node peer count failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
-	}
-
-	var resp peerCountJSON
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return 0, errors.Wrap(err, "failed to parse beacon node peer count response")
-	}
-
-	return resp.Data.Connected, nil
-}
-
 // Domain returns the signing domain for a given domain type.
 // After EIP-7044, the VOLUNTARY_EXIT domain must always return a domain relative to the Capella hardfork.
 // This method returns just that for that domain type, otherwise follows the standard go-eth2-client flow.
@@ -260,12 +232,6 @@ func (h *httpAdapter) Domain(ctx context.Context, domainType eth2p0.DomainType, 
 	}
 
 	return h.Service.Domain(ctx, domainType, epoch)
-}
-
-type peerCountJSON struct {
-	Data struct {
-		Connected int `json:"connected,string"`
-	} `json:"data"`
 }
 
 // httpGetRaw performs a GET request and returns the raw http response or an error.
