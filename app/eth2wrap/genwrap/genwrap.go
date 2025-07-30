@@ -49,7 +49,6 @@ type Client interface {
     eth2client.Service
     eth2exp.ProposerConfigProvider
 		BlockProvider
-    BeaconStateCommitteesProvider
 
     CachedValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
@@ -111,6 +110,7 @@ type Client interface {
 		"BeaconCommitteeSubscriptionsSubmitter": {Latency: true, Log: false},
 		"BeaconBlockAttestationsProvider":       {Latency: true, Log: false},
 		"BeaconCommitteeSelectionsProvider":     {Latency: true, Log: false},
+		"BeaconCommitteesProvider":              {Latency: true, Log: false},
 		"BlindedProposalProvider":               {Latency: true, Log: false},
 		"BlindedProposalSubmitter":              {Latency: true, Log: false},
 		"DepositContractProvider":               {Latency: false, Log: false},

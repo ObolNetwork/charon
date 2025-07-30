@@ -39,7 +39,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 // Interface assertions.
@@ -195,7 +194,7 @@ type Mock struct {
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockFunc                              func(ctx context.Context, stateID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	BeaconBlockAttestationsFunc            func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error)
-	BeaconStateCommitteesFunc              func(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
+	BeaconCommitteesFunc                   func(ctx context.Context, opts *eth2api.BeaconCommitteesOpts) ([]*eth2v1.BeaconCommittee, error)
 	NodePeerCountFunc                      func(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
@@ -374,6 +373,15 @@ func (m Mock) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.Beaco
 	return wrapResponse(selections), nil
 }
 
+func (m Mock) BeaconCommittees(ctx context.Context, opts *eth2api.BeaconCommitteesOpts) (*eth2api.Response[[]*eth2v1.BeaconCommittee], error) {
+	beaconCommittees, err := m.BeaconCommitteesFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(beaconCommittees), nil
+}
+
 func (m Mock) SyncCommitteeSelections(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error) {
 	selections, err := m.SyncCommitteeSelectionsFunc(ctx, opts)
 	if err != nil {
@@ -385,10 +393,6 @@ func (m Mock) SyncCommitteeSelections(ctx context.Context, opts *eth2api.SyncCom
 
 func (m Mock) Block(ctx context.Context, stateID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 	return m.BlockFunc(ctx, stateID)
-}
-
-func (m Mock) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-	return m.BeaconStateCommitteesFunc(ctx, slot)
 }
 
 func (m Mock) NodePeerCount(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2api.Response[*eth2v1.PeerCount], error) {

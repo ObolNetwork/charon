@@ -23,7 +23,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 const (
@@ -59,7 +58,7 @@ type block struct {
 	Slot                   uint64
 	AttDuties              []*eth2v1.AttesterDuty
 	AttestationsByDataRoot map[eth2p0.Root]*eth2spec.VersionedAttestation
-	BeaconCommitees        []*statecomm.StateCommittee
+	BeaconCommitees        []*eth2v1.BeaconCommittee
 }
 
 // attCommittee is a versioned attestation with its aggregation bits mapped to the respective beacon committee
@@ -74,9 +73,9 @@ type trackerInclFunc func(core.Duty, core.PubKey, core.SignedData, error)
 // inclusionCore tracks the inclusion of submitted duties.
 // It has a simplified API to allow for easy testing.
 type inclusionCore struct {
-	mu              sync.Mutex
-	submissions     map[subkey]submission
-	stateCommittees map[eth2p0.Slot][]*statecomm.StateCommittee
+	mu               sync.Mutex
+	submissions      map[subkey]submission
+	beaconCommittees map[eth2p0.Slot][]*eth2v1.BeaconCommittee
 
 	trackerInclFunc trackerInclFunc
 	missedFunc      func(context.Context, submission)
@@ -338,7 +337,7 @@ func (i *inclusionCore) CheckBlockAndAtts(ctx context.Context, block block) {
 
 	// Delete
 	if block.Slot >= InclMissedLag {
-		delete(i.stateCommittees, eth2p0.Slot(block.Slot-InclMissedLag))
+		delete(i.beaconCommittees, eth2p0.Slot(block.Slot-InclMissedLag))
 	}
 }
 
@@ -528,11 +527,11 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 	}
 
 	inclCore := &inclusionCore{
-		attIncludedFunc: reportAttInclusion,
-		missedFunc:      reportMissed,
-		trackerInclFunc: trackerInclFunc,
-		submissions:     make(map[subkey]submission),
-		stateCommittees: make(map[eth2p0.Slot][]*statecomm.StateCommittee),
+		attIncludedFunc:  reportAttInclusion,
+		missedFunc:       reportMissed,
+		trackerInclFunc:  trackerInclFunc,
+		submissions:      make(map[subkey]submission),
+		beaconCommittees: make(map[eth2p0.Slot][]*eth2v1.BeaconCommittee),
 	}
 
 	return &InclusionChecker{
@@ -679,7 +678,7 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 	atts := attsResp.Data
 
 	var (
-		committeesForState []*statecomm.StateCommittee
+		committeesForState []*eth2v1.BeaconCommittee
 		checkedSlots       []eth2p0.Slot
 	)
 
@@ -694,18 +693,20 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 			continue
 		}
 
-		stateComms, ok := a.core.stateCommittees[attestationData.Slot]
+		beaconComms, ok := a.core.beaconCommittees[attestationData.Slot]
 		if ok {
-			committeesForState = append(committeesForState, stateComms...)
+			committeesForState = append(committeesForState, beaconComms...)
 		} else {
 			// Get the beacon committee for the above mentioned slot.
-			fetchedCommitteesForState, err := a.eth2Cl.BeaconStateCommittees(ctx, uint64(attestationData.Slot))
+			eth2Resp, err := a.eth2Cl.BeaconCommittees(ctx, &eth2api.BeaconCommitteesOpts{State: fmt.Sprintf("%v", attestationData.Slot)})
 			if err != nil {
 				return err
 			}
 
+			fetchedCommitteesForState := eth2Resp.Data
+
 			committeesForState = append(committeesForState, fetchedCommitteesForState...)
-			a.core.stateCommittees[attestationData.Slot] = fetchedCommitteesForState
+			a.core.beaconCommittees[attestationData.Slot] = fetchedCommitteesForState
 		}
 
 		checkedSlots = append(checkedSlots, attestationData.Slot)
@@ -890,7 +891,7 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 	}
 }
 
-func conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) (map[eth2p0.CommitteeIndex]bitfield.Bitlist, error) {
+func conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*eth2v1.BeaconCommittee) (map[eth2p0.CommitteeIndex]bitfield.Bitlist, error) {
 	switch att.Attestation.Version {
 	case eth2spec.DataVersionPhase0:
 		if att.Attestation.Phase0 == nil {
@@ -959,7 +960,7 @@ func conjugateAggregationBitsPhase0(att *attCommittee, attsMap map[eth2p0.Root]*
 	return nil
 }
 
-func conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*statecomm.StateCommittee) (map[eth2p0.CommitteeIndex]bitfield.Bitlist, error) {
+func conjugateAggregationBitsElectra(att *attCommittee, attsMap map[eth2p0.Root]*attCommittee, root eth2p0.Root, committeesForState []*eth2v1.BeaconCommittee) (map[eth2p0.CommitteeIndex]bitfield.Bitlist, error) {
 	fullAttestationAggregationBits, err := att.Attestation.AggregationBits()
 	if err != nil {
 		return nil, err

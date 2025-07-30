@@ -10,7 +10,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 //go:generate mockery --name=Client --output=mocks --outpkg=mocks --case=underscore
@@ -183,13 +182,4 @@ func (l *lazy) Block(ctx context.Context, stateID string) (*spec.VersionedSigned
 	}
 
 	return cl.Block(ctx, stateID)
-}
-
-func (l *lazy) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.BeaconStateCommittees(ctx, slot)
 }

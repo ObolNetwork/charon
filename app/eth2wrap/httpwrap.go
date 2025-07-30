@@ -6,11 +6,9 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -25,7 +23,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 // BlockProvider is the interface for providing block details.
@@ -33,13 +30,6 @@ import (
 // See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockV2.
 type BlockProvider interface {
 	Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error)
-}
-
-// BeaconStateCommitteesProvider is the interface for providing committees for given slot.
-// It is a standard beacon API endpoint not implemented by eth2client.
-// See https://ethereum.github.io/beacon-APIs/#/Beacon/getEpochCommittees.
-type BeaconStateCommitteesProvider interface {
-	BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error)
 }
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
@@ -171,34 +161,6 @@ func (h *httpAdapter) Block(ctx context.Context, stateID string) (*spec.Versione
 	}
 
 	return &res, nil
-}
-
-// BeaconStateCommittees returns the attestations included in the requested block.
-// See https://ethereum.github.io/beacon-APIs/#/Beacon/getStateValidators.
-func (h *httpAdapter) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-	r := strconv.FormatUint(slot, 10)
-	path := fmt.Sprintf("/eth/v1/beacon/states/%v/committees", r)
-	queryParams := map[string]string{
-		"slot": strconv.FormatUint(slot, 10),
-	}
-
-	respBody, statusCode, err := httpGet(ctx, h.address, path, h.headers, queryParams, h.timeout)
-	if err != nil {
-		return nil, errors.Wrap(err, "request state committees for slot", z.Int("status", statusCode), z.U64("slot", slot))
-	}
-
-	if statusCode != http.StatusOK {
-		return nil, errors.New("request state committees for slot failed", z.Int("status", statusCode), z.U64("slot", slot))
-	}
-
-	var res statecomm.StateCommitteesResponse
-
-	err = json.Unmarshal(respBody, &res)
-	if err != nil {
-		return nil, errors.Wrap(err, "unmarshal state committees", z.Int("status", statusCode), z.U64("slot", slot))
-	}
-
-	return res.Data, nil
 }
 
 // ProposerConfig implements eth2exp.ProposerConfigProvider.

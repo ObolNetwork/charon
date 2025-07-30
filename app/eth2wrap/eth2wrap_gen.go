@@ -22,7 +22,6 @@ type Client interface {
 	eth2client.Service
 	eth2exp.ProposerConfigProvider
 	BlockProvider
-	BeaconStateCommitteesProvider
 
 	CachedValidatorsProvider
 	SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
@@ -38,6 +37,7 @@ type Client interface {
 	eth2client.BeaconBlockRootProvider
 	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
+	eth2client.BeaconCommitteesProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
@@ -123,6 +123,27 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
 			return args.client.SignedBeaconBlock(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// BeaconCommittees fetches all beacon committees for the given options.
+func (m multi) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitteesOpts) (*api.Response[[]*apiv1.BeaconCommittee], error) {
+	const label = "beacon_committees"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.BeaconCommittee], error) {
+			return args.client.BeaconCommittees(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -873,6 +894,16 @@ func (l *lazy) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	}
 
 	return cl.SignedBeaconBlock(ctx, opts)
+}
+
+// BeaconCommittees fetches all beacon committees for the given options.
+func (l *lazy) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitteesOpts) (res0 *api.Response[[]*apiv1.BeaconCommittee], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.BeaconCommittees(ctx, opts)
 }
 
 // AggregateAttestation fetches the aggregate attestation for the given options.

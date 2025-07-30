@@ -20,8 +20,6 @@ import (
 
 	spec "github.com/attestantio/go-eth2-client/spec"
 
-	statecomm "github.com/obolnetwork/charon/eth2util/statecomm"
-
 	time "time"
 
 	v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -260,29 +258,29 @@ func (_m *Client) BeaconCommitteeSelections(ctx context.Context, opts *api.Beaco
 	return r0, r1
 }
 
-// BeaconStateCommittees provides a mock function with given fields: ctx, slot
-func (_m *Client) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-	ret := _m.Called(ctx, slot)
+// BeaconCommittees provides a mock function with given fields: ctx, opts
+func (_m *Client) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitteesOpts) (*api.Response[[]*v1.BeaconCommittee], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
-		panic("no return value specified for BeaconStateCommittees")
+		panic("no return value specified for BeaconCommittees")
 	}
 
-	var r0 []*statecomm.StateCommittee
+	var r0 *api.Response[[]*v1.BeaconCommittee]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) ([]*statecomm.StateCommittee, error)); ok {
-		return rf(ctx, slot)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconCommitteesOpts) (*api.Response[[]*v1.BeaconCommittee], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) []*statecomm.StateCommittee); ok {
-		r0 = rf(ctx, slot)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconCommitteesOpts) *api.Response[[]*v1.BeaconCommittee]); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*statecomm.StateCommittee)
+			r0 = ret.Get(0).(*api.Response[[]*v1.BeaconCommittee])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uint64) error); ok {
-		r1 = rf(ctx, slot)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconCommitteesOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
