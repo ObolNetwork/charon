@@ -234,6 +234,69 @@ func TestWriteDepositDataFile(t *testing.T) {
 	})
 }
 
+func TestReadDepositDataFiles(t *testing.T) {
+	dir := t.TempDir()
+	depositDatas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+
+	err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
+	require.NoError(t, err)
+
+	t.Run("read single file", func(t *testing.T) {
+		readDepositDatas, err := deposit.ReadDepositDataFiles(dir)
+		require.NoError(t, err)
+		require.Len(t, readDepositDatas, 1)
+
+		m := make(map[eth2p0.BLSPubKey]eth2p0.DepositData)
+		for _, d := range readDepositDatas[0] {
+			m[d.PublicKey] = d
+		}
+
+		for _, d := range depositDatas {
+			require.Contains(t, m, d.PublicKey)
+			require.Equal(t, d.WithdrawalCredentials, m[d.PublicKey].WithdrawalCredentials)
+			require.Equal(t, d.Amount, m[d.PublicKey].Amount)
+			require.Equal(t, d.Signature, m[d.PublicKey].Signature)
+		}
+	})
+
+	t.Run("read multiple files", func(t *testing.T) {
+		depositDatas2 := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/2)
+		depositDatas4 := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/4)
+
+		err := deposit.WriteDepositDataFile(depositDatas2, eth2util.Goerli.Name, dir)
+		require.NoError(t, err)
+		err = deposit.WriteDepositDataFile(depositDatas4, eth2util.Goerli.Name, dir)
+		require.NoError(t, err)
+
+		readDepositDatas, err := deposit.ReadDepositDataFiles(dir)
+		require.NoError(t, err)
+		require.Len(t, readDepositDatas, 3)
+	})
+}
+
+func TestMergeDepositDataSets(t *testing.T) {
+	// This generates 4 fixed vals per amount
+	depositDatas1 := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+	depositDatas2 := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/2)
+
+	var set1, set2 [][]eth2p0.DepositData
+
+	set1 = append(set1, depositDatas1[0:2], depositDatas2[0:2])
+	set2 = append(set2, depositDatas1[2:4], depositDatas2[2:4])
+
+	merged := deposit.MergeDepositDataSets(set1, set2)
+	require.Len(t, merged, 2) // two distinct amounts
+
+	for _, dd := range merged {
+		require.Len(t, dd, 4) // four deposit datas for each amount
+		require.Equal(t, dd[0].Amount, dd[1].Amount)
+		require.Equal(t, dd[0].Amount, dd[2].Amount)
+		require.Equal(t, dd[0].Amount, dd[3].Amount)
+	}
+
+	require.NotEqual(t, merged[0][0].Amount, merged[1][0].Amount)
+}
+
 func TestWriteClusterDepositDataFiles(t *testing.T) {
 	const numNodes = 4
 

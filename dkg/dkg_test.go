@@ -156,8 +156,9 @@ func TestDKG(t *testing.T) {
 
 func TestAppendDKG(t *testing.T) {
 	const (
-		nodes = 3
-		vals  = 2
+		nodes   = 3
+		vals    = 2
+		addVals = 3
 	)
 
 	withAlgo := func(algo string) func(*cluster.Definition) {
@@ -196,8 +197,12 @@ func TestAppendDKG(t *testing.T) {
 
 		lockCopy := clone(t, lock)
 
+		dataDir := path.Join(srcDir, fmt.Sprintf("node%d", i))
+		depositData, err := deposit.ReadDepositDataFiles(dataDir)
+		require.NoError(t, err)
+
 		appendConfigs[i] = dkg.AppendConfig{
-			AddValidators: 3,
+			AddValidators: addVals,
 			ValidatorAddresses: []cluster.ValidatorAddresses{
 				{
 					FeeRecipientAddress: "0x0000000000000000000000000000000000000001",
@@ -214,12 +219,13 @@ func TestAppendDKG(t *testing.T) {
 			},
 			ClusterLock:  &lockCopy,
 			SecretShares: secretShares,
+			DepositData:  depositData,
 		}
 	}
 
 	testDKG(t, lock.Definition, dstDir, keys, false, false, appendConfigs)
 
-	totalVals := vals + 3
+	totalVals := vals + addVals
 	secretShares := make([][]tbls.PrivateKey, totalVals)
 
 	for i := range nodes {
@@ -244,7 +250,16 @@ func TestAppendDKG(t *testing.T) {
 		require.Len(t, lock.Validators, totalVals)
 
 		require.NoError(t, lock.VerifyHashes())
-		require.NoError(t, lock.VerifySignatures(eth1wrap.NewDefaultEthClientRunner("")))
+
+		if !appendConfigs[i].Unverified {
+			require.NoError(t, lock.VerifySignatures(eth1wrap.NewDefaultEthClientRunner("")))
+		}
+
+		dd, err := deposit.ReadDepositDataFiles(dataDir)
+		require.NoError(t, err)
+		require.Len(t, dd, 2) // two default amounts: 1eth and 32eth
+		require.Len(t, dd[0], totalVals)
+		require.Len(t, dd[1], totalVals)
 	}
 }
 

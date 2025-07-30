@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/relay"
@@ -29,6 +30,7 @@ import (
 func TestRunAddValidators(t *testing.T) {
 	// This test creates a solo cluster with all charon data for all nodes.
 	// Then it runs add-validators on each node in parallel to add 2 validators per node.
+	// Two sub-tests are run: with the `--unverified` flag and without.
 	conf := clusterConfig{
 		ClusterDir:        t.TempDir(),
 		Name:              "test_cluster",
@@ -50,78 +52,113 @@ func TestRunAddValidators(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 4)
 
-	dstClusterDir := t.TempDir()
 	relayAddr := relay.StartRelay(t.Context(), t)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	var eg errgroup.Group
+	runAddCommand := func(dstDir string, unverified bool) {
+		var eg errgroup.Group
 
-	for i := 0; i < conf.NumNodes; i++ {
-		addConf := addValidatorsConfig{
-			SrcDir:            nodeDir(conf.ClusterDir, i),
-			DstDir:            nodeDir(dstClusterDir, i),
-			NumValidators:     2,
-			WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
-			FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
-			DKG: dkg.Config{
-				P2P: p2p.Config{
-					Relays:   []string{relayAddr},
-					TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+		for i := 0; i < conf.NumNodes; i++ {
+			addConf := addValidatorsConfig{
+				SrcDir:            nodeDir(conf.ClusterDir, i),
+				DstDir:            nodeDir(dstDir, i),
+				NumValidators:     2,
+				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
+				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
+				Unverified:        unverified,
+				DKG: dkg.Config{
+					P2P: p2p.Config{
+						Relays:   []string{relayAddr},
+						TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+					},
+					Log:            log.DefaultConfig(),
+					ShutdownDelay:  1 * time.Second,
+					PublishTimeout: 30 * time.Second,
+					Timeout:        8 * time.Second,
+					NoVerify:       true,
 				},
-				Log:            log.DefaultConfig(),
-				ShutdownDelay:  1 * time.Second,
-				PublishTimeout: 30 * time.Second,
-				Timeout:        8 * time.Second,
-				NoVerify:       true,
-			},
-		}
-
-		eg.Go(func() error {
-			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
-
-			err := runAddValidators(peerCtx, addConf)
-			if err != nil {
-				cancel()
 			}
 
-			return err
-		})
+			if unverified {
+				err = os.RemoveAll(filepath.Join(nodeDir(conf.ClusterDir, i), validatorKeysSubDir))
+				require.NoError(t, err)
+			}
 
-		time.Sleep(time.Millisecond * 100)
+			eg.Go(func() error {
+				peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
+
+				err := runAddValidators(peerCtx, addConf)
+				if err != nil {
+					cancel()
+				}
+
+				return err
+			})
+
+			time.Sleep(time.Millisecond * 100)
+		}
+
+		err = eg.Wait()
+		testutil.SkipIfBindErr(t, err)
+		testutil.RequireNoError(t, err)
 	}
 
-	err = eg.Wait()
-	testutil.SkipIfBindErr(t, err)
-	testutil.RequireNoError(t, err)
+	verifyAddCommandResults := func(dstDir string, unverified bool) {
+		for n := 0; n < conf.NumNodes; n++ {
+			nd := nodeDir(dstDir, n)
+			require.True(t, app.FileExists(nd))
+			require.True(t, app.FileExists(filepath.Join(nd, clusterLockFile)))
+			require.True(t, app.FileExists(filepath.Join(nd, validatorKeysSubDir)))
 
-	for n := 0; n < conf.NumNodes; n++ {
-		nd := nodeDir(dstClusterDir, n)
-		require.True(t, app.FileExists(nd))
-		require.True(t, app.FileExists(filepath.Join(nd, clusterLockFile)))
-		require.True(t, app.FileExists(filepath.Join(nd, validatorKeysSubDir)))
+			keyFiles, err := os.ReadDir(filepath.Join(nd, validatorKeysSubDir))
+			require.NoError(t, err)
 
-		keyFiles, err := os.ReadDir(filepath.Join(nd, validatorKeysSubDir))
-		require.NoError(t, err)
-		require.Len(t, keyFiles, 10) // 5 validators * two files per key
+			if unverified {
+				require.Len(t, keyFiles, 4) // 2 new validators * two files per key
+			} else {
+				require.Len(t, keyFiles, 10) // 5 total validators * two files per key
+			}
 
-		var lock cluster.Lock
+			var lock cluster.Lock
 
-		lockFilePath := filepath.Join(nd, clusterLockFile)
-		lockFile, err := os.ReadFile(lockFilePath)
-		require.NoError(t, err)
-		err = json.Unmarshal(lockFile, &lock)
-		require.NoError(t, err)
+			lockFilePath := filepath.Join(nd, clusterLockFile)
+			lockFile, err := os.ReadFile(lockFilePath)
+			require.NoError(t, err)
+			err = json.Unmarshal(lockFile, &lock)
+			require.NoError(t, err)
 
-		require.Equal(t, 5, lock.NumValidators)
-		require.Len(t, lock.Validators, 5)
+			require.Equal(t, 5, lock.NumValidators)
+			require.Len(t, lock.Validators, 5)
 
-		err = lock.VerifyHashes()
-		require.NoError(t, err)
-		err = lock.VerifySignatures(eth1wrap.NewDefaultEthClientRunner(""))
-		require.NoError(t, err)
+			err = lock.VerifyHashes()
+			require.NoError(t, err)
+
+			if !unverified {
+				err = lock.VerifySignatures(eth1wrap.NewDefaultEthClientRunner(""))
+				require.NoError(t, err)
+			}
+
+			dd, err := deposit.ReadDepositDataFiles(nd)
+			require.NoError(t, err)
+			require.Len(t, dd, 2) // two default amounts: 1eth and 32eth
+			require.Len(t, dd[0], lock.NumValidators)
+			require.Len(t, dd[1], lock.NumValidators)
+		}
 	}
+
+	t.Run("add validators without unverified flag", func(t *testing.T) {
+		dir := t.TempDir()
+		runAddCommand(dir, false)
+		verifyAddCommandResults(dir, false)
+	})
+
+	t.Run("add validators with unverified flag", func(t *testing.T) {
+		dir := t.TempDir()
+		runAddCommand(dir, true)
+		verifyAddCommandResults(dir, true)
+	})
 }
 
 func TestValidateConfigAddValidators(t *testing.T) {
@@ -207,6 +244,33 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			errMsg: "mismatching --num-validators and --fee-recipient-addresses",
 		},
 		{
+			name: "both --unverified and --publish flags",
+			conf: addValidatorsConfig{
+				SrcDir:            realDir,
+				DstDir:            ".",
+				NumValidators:     2,
+				Unverified:        true,
+				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+				DKG: dkg.Config{
+					Publish: true,
+				},
+			},
+			errMsg: "the --unverified flag cannot be used when the --publish flag is set",
+		},
+		{
+			name: "both --unverified flag for non empty validator_keys dir",
+			conf: addValidatorsConfig{
+				SrcDir:            realDir,
+				DstDir:            ".",
+				NumValidators:     2,
+				Unverified:        true,
+				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+			},
+			errMsg: "the --unverified flag cannot be used when the validator_keys directory is present",
+		},
+		{
 			name: "multiple addrs for multiple validators",
 			conf: addValidatorsConfig{
 				SrcDir:            realDir,
@@ -243,14 +307,14 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		}
 
 		err = validateConfig(t.Context(), &cfg)
-		require.Equal(t, "src-dir must contain a validator_keys directory with all key share files", err.Error())
+		require.Equal(t, "src-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
 
 		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
 		err = app.CreateNewEmptyDir(validatorKeysDir)
 		require.NoError(t, err)
 
 		err = validateConfig(t.Context(), &cfg)
-		require.Equal(t, "src-dir must contain a validator_keys directory with all key share files", err.Error())
+		require.Equal(t, "src-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
 	})
 }
 

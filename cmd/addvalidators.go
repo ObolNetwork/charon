@@ -18,7 +18,9 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 const (
@@ -30,6 +32,7 @@ const (
 // addValidatorsConfig is config for the `add-validators` command.
 type addValidatorsConfig struct {
 	NumValidators     int
+	Unverified        bool
 	SrcDir            string
 	DstDir            string
 	DKG               dkg.Config
@@ -55,9 +58,11 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	}
 
 	// Bind `add-validator` flags.
-	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of new validators to add to the existing cluster.")
+	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of new validators to generate and add to the existing cluster.")
 	cmd.Flags().StringVar(&config.SrcDir, "src-dir", ".charon", "The source charon folder with existing cluster data (lock, validator_keys, etc.).")
-	cmd.Flags().StringVar(&config.DstDir, "dst-dir", ".charon-add-validators", "Destination (empty) charon folder for combined cluster data. The new cluster data files will be stored here.")
+	cmd.Flags().StringVar(&config.DstDir, "dst-dir", ".charon-add-validators", "The destination empty charon folder for the new (combined) cluster data.")
+	cmd.Flags().BoolVar(&config.Unverified, "unverified", false,
+		"When KeyManager is used, charon has no access to the existing validator keys. The flag allows to proceed, but resulting cluster-lock.json becomes unverifiable.")
 
 	// Bind `dkg` flags.
 	bindKeymanagerFlags(cmd.Flags(), &config.DKG.KeymanagerAddr, &config.DKG.KeymanagerAuthToken)
@@ -66,6 +71,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	bindLogFlags(cmd.Flags(), &config.DKG.Log)
 	bindShutdownDelayFlag(cmd.Flags(), &config.DKG.ShutdownDelay)
 	bindEth1Flag(cmd.Flags(), &config.DKG.ExecutionEngineAddr)
+	bindPublishFlags(cmd.Flags(), &config.DKG)
 	cmd.Flags().DurationVar(&config.DKG.Timeout, "timeout", 1*time.Minute, "Timeout for the command, should be increased if the command times out.")
 
 	// Bind `create dkg` flags.
@@ -104,20 +110,33 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	}
 
 	// Loading the existing cluster keystore.
-	keyStorePath := filepath.Join(conf.SrcDir, validatorKeysSubDir)
-	log.Info(ctx, "Loading keystore", z.Str("path", keyStorePath))
+	var secrets []tbls.PrivateKey
 
-	privateKeyFiles, err := keystore.LoadFilesUnordered(keyStorePath)
-	if err != nil {
-		return errors.Wrap(err, "cannot load private key share", z.Str("path", keyStorePath))
+	if !conf.Unverified {
+		keyStorePath := filepath.Join(conf.SrcDir, validatorKeysSubDir)
+		log.Info(ctx, "Loading keystore", z.Str("path", keyStorePath))
+
+		privateKeyFiles, err := keystore.LoadFilesUnordered(keyStorePath)
+		if err != nil {
+			return errors.Wrap(err, "cannot load private key share", z.Str("path", keyStorePath))
+		}
+
+		secrets, err = privateKeyFiles.SequencedKeys()
+		if err != nil {
+			return errors.Wrap(err, "order private key shares")
+		}
+
+		log.Info(ctx, "Loaded private key shares", z.Int("numKeys", len(secrets)))
 	}
 
-	secrets, err := privateKeyFiles.SequencedKeys()
+	// Loading the existing deposit data files.
+	// In DKG ceremony we will merge the existing deposit data files with the new ones.
+	depositData, err := deposit.ReadDepositDataFiles(conf.SrcDir)
 	if err != nil {
-		return errors.Wrap(err, "order private key shares")
+		return errors.Wrap(err, "read deposit data files", z.Str("path", conf.SrcDir))
 	}
 
-	log.Info(ctx, "Loaded private key shares", z.Int("numKeys", len(secrets)))
+	log.Info(ctx, "Loaded deposit data files", z.Int("numFiles", len(depositData)))
 
 	// Creating dst directory for the new cluster data and
 	// copying ENR private key file to the temporary directory for DKG.
@@ -145,7 +164,9 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 		ClusterLock:        &lock,
 		SecretShares:       secrets,
 		AddValidators:      conf.NumValidators,
+		Unverified:         conf.Unverified,
 		ValidatorAddresses: valAddresses,
+		DepositData:        depositData,
 	}
 
 	if err := dkg.Run(ctx, dkgConfig); err != nil {
@@ -156,8 +177,12 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	log.Info(ctx, "IMPORTANT:")
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+conf.DstDir)
-	log.Info(ctx, "Note that the new cluster definition has empty creator and operators config signatures.")
-	log.Info(ctx, "However, this does not affect the cluster/DV functionality.")
+
+	if conf.Unverified {
+		log.Info(ctx, "Because you used --unverified flag, the new cluster cannot pass signatures verification.")
+		log.Info(ctx, "This will require using --no-verify flag when running the new cluster.")
+		log.Info(ctx, "However, this does not affect the cluster/DV functionality.")
+	}
 
 	return nil
 }
@@ -202,13 +227,27 @@ func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error
 		return errors.New("src-dir must contain a cluster-lock.json file")
 	}
 
+	if config.DKG.Publish && config.Unverified {
+		log.Error(ctx, "Publishing unverifiable cluster is not allowed. You must choose between --unverified and --publish flags.", nil)
+
+		return errors.New("the --unverified flag cannot be used when the --publish flag is set")
+	}
+
 	validatorKeysDir := filepath.Join(config.SrcDir, validatorKeysSubDir)
 
 	keyFiles, err := os.ReadDir(validatorKeysDir)
-	if err != nil || len(keyFiles) == 0 {
-		log.Error(ctx, "The validator_keys directory is empty. This typically means a KeyManager was used during cluster creation.", nil)
 
-		return errors.New("src-dir must contain a validator_keys directory with all key share files")
+	validatorKeysDirPresent := err == nil && len(keyFiles) > 0
+	if validatorKeysDirPresent && config.Unverified {
+		log.Error(ctx, "The --unverified flag cannot be used when the validator_keys directory is present.", nil)
+
+		return errors.New("the --unverified flag cannot be used when the validator_keys directory is present")
+	}
+
+	if !validatorKeysDirPresent && !config.Unverified {
+		log.Error(ctx, "The validator_keys directory is empty. Consider using the --unverified flag.", nil)
+
+		return errors.New("src-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set")
 	}
 
 	config.FeeRecipientAddrs, config.WithdrawalAddrs, err = validateAddresses(config.NumValidators, config.FeeRecipientAddrs, config.WithdrawalAddrs)

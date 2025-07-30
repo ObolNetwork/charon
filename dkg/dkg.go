@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"slices"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -89,8 +90,12 @@ type AppendConfig struct {
 	SecretShares []tbls.PrivateKey
 	// The number of validators to add to the existing cluster.
 	AddValidators int
+	// Unverified is true when source validator keys are not available.
+	Unverified bool
 	// ValidatorAddresses' length must match AddValidators.
 	ValidatorAddresses []cluster.ValidatorAddresses
+	// DepositDatas is the deposit data from the existing cluster.
+	DepositData [][]eth2p0.DepositData
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -125,14 +130,32 @@ func Run(ctx context.Context, conf Config) (err error) {
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
 	go eth1Cl.Run(ctx)
 
-	var def cluster.Definition
+	var (
+		def                  cluster.Definition
+		totalValidators      int
+		newValidators        int
+		newWithdrawalAddrs   []string
+		newFeeRecipientAddrs []string
+	)
+
 	if conf.AppendConfig != nil {
 		def = conf.AppendConfig.ClusterLock.Definition
-		def.NumValidators = conf.AppendConfig.AddValidators
+		newValidators = conf.AppendConfig.AddValidators
+		totalValidators = def.NumValidators + newValidators
+
+		for _, addr := range conf.AppendConfig.ValidatorAddresses {
+			newWithdrawalAddrs = append(newWithdrawalAddrs, addr.WithdrawalAddress)
+			newFeeRecipientAddrs = append(newFeeRecipientAddrs, addr.FeeRecipientAddress)
+		}
 	} else {
 		if def, err = loadDefinition(ctx, conf, eth1Cl); err != nil {
 			return err
 		}
+
+		totalValidators = def.NumValidators
+		newValidators = def.NumValidators
+		newWithdrawalAddrs = def.WithdrawalAddresses()
+		newFeeRecipientAddrs = def.FeeRecipientAddresses()
 	}
 
 	// This DKG only supports a few specific config versions.
@@ -218,12 +241,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	_ = peerinfo.New(p2pNode, peerIDs, version.Version, def.DefinitionHash, gitHash, nil, false, "")
 
-	totalValidators := def.NumValidators
-	if conf.AppendConfig != nil {
-		totalValidators += conf.AppendConfig.ClusterLock.NumValidators
-	}
-
-	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, totalValidators, []sigType{
+	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{
 		sigLock,
 		sigDepositData,
 		sigValidatorRegistration,
@@ -243,7 +261,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	caster := bcast.New(p2pNode, peerIDs, key)
 
 	// register bcast callbacks for frostp2p
-	tp, err := newFrostP2P(p2pNode, peerMap, caster, def.Threshold, def.NumValidators)
+	tp, err := newFrostP2P(p2pNode, peerMap, caster, def.Threshold, newValidators)
 	if err != nil {
 		return errors.Wrap(err, "frost error")
 	}
@@ -263,36 +281,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
 
-	var existingShares []share
-
-	// In case of add-validators ceremony, we need to read the existing cluster public key shares.
-	if conf.AppendConfig != nil {
-		for i, secretShare := range conf.AppendConfig.SecretShares {
-			dvPubKey, err := conf.AppendConfig.ClusterLock.Validators[i].PublicKey()
-			if err != nil {
-				return errors.Wrap(err, "decode distributed validator public key")
-			}
-
-			publicShares := make(map[int]tbls.PublicKey)
-			for idx, ps := range conf.AppendConfig.ClusterLock.Validators[i].PubShares {
-				var tblsPublicKey tbls.PublicKey
-				copy(tblsPublicKey[:], ps)
-				publicShares[idx+1] = tblsPublicKey
-			}
-
-			existingShares = append(existingShares, share{
-				PubKey:       dvPubKey,
-				SecretShare:  secretShare,
-				PublicShares: publicShares,
-			})
-		}
-	}
-
 	var shares []share
 
 	switch def.DKGAlgorithm {
 	case "default", "frost":
-		shares, err = runFrostParallel(ctx, tp, uint32(def.NumValidators), uint32(len(peerMap)),
+		shares, err = runFrostParallel(ctx, tp, uint32(newValidators), uint32(len(peerMap)),
 			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
 		if err != nil {
 			return err
@@ -306,26 +299,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	if len(existingShares) > 0 {
-		shares = append(existingShares, shares...)
+	var existingShares []share
 
-		def.NumValidators = totalValidators
-		def.ValidatorAddresses = append(def.ValidatorAddresses, conf.AppendConfig.ValidatorAddresses...)
-
-		// We have to reset creator and operators signatures, as they are not valid anymore
-		def.Creator = cluster.Creator{}
-		for i := range def.Operators {
-			def.Operators[i] = cluster.Operator{
-				ENR: def.Operators[i].ENR,
+	// Updating definition object when appending validators.
+	if conf.AppendConfig != nil {
+		if !conf.AppendConfig.Unverified {
+			existingShares, err = getExistingShares(conf.AppendConfig)
+			if err != nil {
+				return errors.Wrap(err, "get existing shares")
 			}
 		}
 
-		def, err = def.SetDefinitionHashes()
-		if err != nil {
-			return errors.Wrap(err, "set definition hashes")
-		}
-
-		log.Debug(ctx, "Combined validator keys", z.Int("total", def.NumValidators), z.Int("added", len(existingShares)))
+		log.Debug(ctx, "Validator keys summary", z.Int("total", totalValidators), z.Int("added", newValidators))
 	}
 
 	// Sign, exchange and aggregate Deposit Data
@@ -340,7 +325,15 @@ func Run(ctx context.Context, conf Config) (err error) {
 		depositAmounts = deposit.DedupAmounts(depositAmounts)
 	}
 
-	depositDatas, err := signAndAggDepositData(ctx, ex, shares, def.WithdrawalAddresses(), network, nodeIdx, depositAmounts, def.Compounding)
+	if conf.AppendConfig != nil && conf.AppendConfig.DepositData != nil {
+		if len(conf.AppendConfig.DepositData) != len(depositAmounts) {
+			return errors.New("deposit data length does not match deposit amounts length",
+				z.Int("depositData", len(conf.AppendConfig.DepositData)),
+				z.Int("depositAmounts", len(depositAmounts)))
+		}
+	}
+
+	depositDatas, err := signAndAggDepositData(ctx, ex, shares, newWithdrawalAddrs, network, nodeIdx, depositAmounts, def.Compounding)
 	if err != nil {
 		return err
 	}
@@ -355,7 +348,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		ctx,
 		ex,
 		shares,
-		def.FeeRecipientAddresses(),
+		newFeeRecipientAddrs,
 		uint64(def.TargetGasLimit),
 		nodeIdx,
 		def.ForkVersion,
@@ -370,7 +363,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Sign, exchange and aggregate Lock Hash signatures
-	lock, err := signAndAggLockHash(ctx, shares, def, nodeIdx, ex, depositDatas, valRegs)
+	lock, err := signAndAggLockHash(ctx, existingShares, shares, def, nodeIdx, ex, depositDatas, valRegs, conf.AppendConfig)
 	if err != nil {
 		return err
 	}
@@ -395,9 +388,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	if !conf.NoVerify {
+	if !conf.NoVerify && (conf.AppendConfig == nil || !conf.AppendConfig.Unverified) {
 		if err := lock.VerifySignatures(eth1Cl); err != nil {
-			return errors.Wrap(err, "invalid lock file")
+			return errors.Wrap(err, "invalid lock file signatures")
 		}
 	}
 
@@ -405,17 +398,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// to prevent partial data writes in case of peer connection lost
 
 	if conf.KeymanagerAddr != "" { // Save to keymanager
+		// KeyManager always gets the new keys shares
 		if err = writeKeysToKeymanager(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken, shares); err != nil {
 			return err
 		}
 
-		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr))
+		log.Debug(ctx, "Imported keyshares to keymanager", z.Str("keymanager_address", conf.KeymanagerAddr), z.Int("total", len(shares)))
 	} else { // Else save to disk
-		if err = writeKeysToDisk(conf, shares); err != nil {
+		// Always write all key shares to disk
+		allShares := slices.Concat(existingShares, shares)
+		if err = writeKeysToDisk(conf, allShares); err != nil {
 			return err
 		}
 
-		log.Debug(ctx, "Saved keyshares to disk")
+		log.Debug(ctx, "Saved keyshares to disk", z.Int("total", len(allShares)))
 	}
 
 	// dashboardURL is the Launchpad dashboard url for a given lock file.
@@ -435,13 +431,20 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Debug(ctx, "Saved lock file to disk")
 
+	if conf.AppendConfig != nil && conf.AppendConfig.DepositData != nil {
+		// Merging existing deposit data files with the new ones (append mode).
+		depositDatas = deposit.MergeDepositDataSets(depositDatas, conf.AppendConfig.DepositData)
+
+		log.Debug(ctx, "Merged deposit data files", z.Int("amounts", len(depositDatas)), z.Int("validators", len(depositDatas[0])))
+	}
+
 	// The loop across partial amounts (shall be unique)
 	for _, dd := range depositDatas {
 		if err := deposit.WriteDepositDataFile(dd, network, conf.DataDir); err != nil {
 			return err
 		}
 
-		log.Debug(ctx, "Saved deposit data file to disk", z.Str("filepath", deposit.GetDepositFilePath(conf.DataDir, dd[0].Amount)))
+		log.Debug(ctx, "Saved deposit data file(s) to disk")
 	}
 
 	// Signature verification and disk key write was step 6, advance to step 7
@@ -590,12 +593,35 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 }
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
-func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definition,
-	nodeIdx cluster.NodeIdx, ex *exchanger, depositDatas [][]eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration,
+func signAndAggLockHash(ctx context.Context, existingShares, newShares []share, def cluster.Definition,
+	nodeIdx cluster.NodeIdx, ex *exchanger, depositDatas [][]eth2p0.DepositData,
+	valRegs []core.VersionedSignedValidatorRegistration, appendConfig *AppendConfig,
 ) (cluster.Lock, error) {
-	vals, err := createDistValidators(shares, depositDatas, valRegs)
+	vals, err := createDistValidators(newShares, depositDatas, valRegs)
 	if err != nil {
 		return cluster.Lock{}, err
+	}
+
+	if appendConfig != nil {
+		// Join dist validators
+		vals = append(appendConfig.ClusterLock.Validators, vals...)
+		def.ValidatorAddresses = append(def.ValidatorAddresses, appendConfig.ValidatorAddresses...)
+		def.NumValidators = len(vals)
+
+		// We have to reset creator and operators signatures, as they are not valid anymore
+		if !appendConfig.Unverified {
+			def.Creator = cluster.Creator{}
+			for i := range def.Operators {
+				def.Operators[i] = cluster.Operator{
+					ENR: def.Operators[i].ENR,
+				}
+			}
+		}
+
+		def, err = def.SetDefinitionHashes()
+		if err != nil {
+			return cluster.Lock{}, errors.Wrap(err, "set definition hashes")
+		}
 	}
 
 	if !cluster.SupportPregenRegistrations(def.Version) {
@@ -614,37 +640,43 @@ func signAndAggLockHash(ctx context.Context, shares []share, def cluster.Definit
 		return cluster.Lock{}, err
 	}
 
-	lockHashSig, err := signLockHash(nodeIdx.ShareIdx, shares, lock.LockHash)
-	if err != nil {
-		return cluster.Lock{}, err
-	}
+	if appendConfig == nil || !appendConfig.Unverified {
+		allShares := slices.Concat(existingShares, newShares)
 
-	peerSigs, err := ex.exchange(ctx, sigLock, lockHashSig)
-	if err != nil {
-		return cluster.Lock{}, err
-	}
-
-	pubkeyToShares := make(map[core.PubKey]share)
-	for _, sh := range shares {
-		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
+		lockHashSig, err := signLockHash(nodeIdx.ShareIdx, allShares, lock.LockHash)
 		if err != nil {
 			return cluster.Lock{}, err
 		}
 
-		pubkeyToShares[pk] = sh
-	}
+		peerSigs, err := ex.exchange(ctx, sigLock, lockHashSig)
+		if err != nil {
+			return cluster.Lock{}, err
+		}
 
-	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, lock.LockHash)
-	if err != nil {
-		return cluster.Lock{}, err
-	}
+		pubkeyToShares := make(map[core.PubKey]share)
+		for _, sh := range allShares {
+			pk, err := core.PubKeyFromBytes(sh.PubKey[:])
+			if err != nil {
+				return cluster.Lock{}, err
+			}
 
-	err = tbls.VerifyAggregate(aggPkLockHash, aggSigLockHash, lock.LockHash)
-	if err != nil {
-		return cluster.Lock{}, errors.Wrap(err, "verify multisignature")
-	}
+			pubkeyToShares[pk] = sh
+		}
 
-	lock.SignatureAggregate = aggSigLockHash[:]
+		aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, lock.LockHash)
+		if err != nil {
+			return cluster.Lock{}, err
+		}
+
+		err = tbls.VerifyAggregate(aggPkLockHash, aggSigLockHash, lock.LockHash)
+		if err != nil {
+			return cluster.Lock{}, errors.Wrap(err, "verify multisignature")
+		}
+
+		lock.SignatureAggregate = aggSigLockHash[:]
+	} else {
+		log.Info(ctx, "The new cluster-lock file will not be signed due to --unverified flag")
+	}
 
 	return lock, nil
 }
@@ -1204,4 +1236,34 @@ func setRegistrationSignature(reg core.VersionedSignedValidatorRegistration, sig
 	}
 
 	return reg, nil
+}
+
+func getExistingShares(conf *AppendConfig) ([]share, error) {
+	if conf == nil {
+		return nil, nil
+	}
+
+	var shares []share
+
+	for i, secretShare := range conf.SecretShares {
+		dvPubKey, err := conf.ClusterLock.Validators[i].PublicKey()
+		if err != nil {
+			return nil, errors.Wrap(err, "decode distributed validator public key")
+		}
+
+		publicShares := make(map[int]tbls.PublicKey)
+		for idx, ps := range conf.ClusterLock.Validators[i].PubShares {
+			var tblsPublicKey tbls.PublicKey
+			copy(tblsPublicKey[:], ps)
+			publicShares[idx+1] = tblsPublicKey
+		}
+
+		shares = append(shares, share{
+			PubKey:       dvPubKey,
+			SecretShare:  secretShare,
+			PublicShares: publicShares,
+		})
+	}
+
+	return shares, nil
 }
