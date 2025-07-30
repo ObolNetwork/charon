@@ -32,4 +32,4 @@ jobs:
               "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
               "color": 10038562
             }]
-        uses: Ilshidur/action-discord@0.3.2
+        uses: Ilshidur/action-discord@0.4.0

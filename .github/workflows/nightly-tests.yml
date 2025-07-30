@@ -57,7 +57,7 @@ jobs:
     if: always() && github.ref == 'refs/heads/main' && contains(join(needs.*.result, ','), 'failure')
     steps:
       - name: notify failure
-        uses: Ilshidur/action-discord@0.3.2
+        uses: Ilshidur/action-discord@0.4.0
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USERNAME: GitHub
