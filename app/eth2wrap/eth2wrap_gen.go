@@ -21,7 +21,6 @@ import (
 type Client interface {
 	eth2client.Service
 	eth2exp.ProposerConfigProvider
-	BlockProvider
 
 	CachedValidatorsProvider
 	SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))

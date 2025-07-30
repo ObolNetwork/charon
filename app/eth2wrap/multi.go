@@ -5,8 +5,6 @@ package eth2wrap
 import (
 	"context"
 
-	"github.com/attestantio/go-eth2-client/spec"
-
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -141,23 +139,4 @@ func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 	}
 
 	return res0, err
-}
-
-func (m multi) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
-	const label = "block_v2"
-	defer latency(ctx, label, false)()
-	defer incRequest(label)
-
-	res, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (*spec.VersionedSignedBeaconBlock, error) {
-			return args.client.Block(ctx, stateID)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res, err
 }

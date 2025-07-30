@@ -391,10 +391,6 @@ func (m Mock) SyncCommitteeSelections(ctx context.Context, opts *eth2api.SyncCom
 	return wrapResponse(selections), nil
 }
 
-func (m Mock) Block(ctx context.Context, stateID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
-	return m.BlockFunc(ctx, stateID)
-}
-
 func (m Mock) NodePeerCount(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2api.Response[*eth2v1.PeerCount], error) {
 	peerCount, err := m.NodePeerCountFunc(ctx, opts)
 	if err != nil {

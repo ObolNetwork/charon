@@ -16,7 +16,6 @@ import (
 	"github.com/attestantio/go-eth2-client/api"
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
-	"github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -24,13 +23,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
-
-// BlockProvider is the interface for providing block details.
-// It is a standard beacon API endpoint not implemented by eth2client.
-// See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockV2.
-type BlockProvider interface {
-	Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error)
-}
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
 func NewHTTPAdapterForT(_ *testing.T, address string, headers map[string]string, timeout time.Duration) Client {
@@ -128,39 +120,6 @@ func (h *httpAdapter) Validators(ctx context.Context, opts *api.ValidatorsOpts) 
 	}()
 
 	return h.Service.Validators(reqCtx, opts)
-}
-
-// Block returns the block details.
-// See https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockV2.
-func (h *httpAdapter) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
-	path := "/eth/v2/beacon/blocks/" + stateID
-
-	ctx, cancel := context.WithTimeout(ctx, h.timeout)
-	defer cancel()
-
-	resp, err := httpGetRaw(ctx, h.address, path, h.headers, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "request block")
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil //nolint:nilnil // No block for slot.
-	} else if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("request block failed", z.Int("status", resp.StatusCode))
-	}
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "request block attestations body")
-	}
-
-	res := spec.VersionedSignedBeaconBlock{}
-	if err := json.Unmarshal(respBody, &res); err != nil {
-		return nil, errors.Wrap(err, "failed to parse block response")
-	}
-
-	return &res, nil
 }
 
 // ProposerConfig implements eth2exp.ProposerConfigProvider.

@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/attestantio/go-eth2-client/spec"
-
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -173,13 +171,4 @@ func (l *lazy) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigRespo
 	}
 
 	return cl.ProposerConfig(ctx)
-}
-
-func (l *lazy) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.Block(ctx, stateID)
 }

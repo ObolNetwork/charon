@@ -650,10 +650,12 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 		return a.checkBlockAndAtts(ctx, slot, attDuties)
 	}
 
-	block, err := a.eth2Cl.Block(ctx, strconv.FormatUint(slot, 10))
+	eth2Resp, err := a.eth2Cl.SignedBeaconBlock(ctx, &eth2api.SignedBeaconBlockOpts{Block: strconv.FormatUint(slot, 10)})
 	if err != nil {
 		return err
 	}
+
+	block := eth2Resp.Data
 
 	var found bool
 	if block != nil {

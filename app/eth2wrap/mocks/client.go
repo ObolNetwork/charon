@@ -288,36 +288,6 @@ func (_m *Client) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitte
 	return r0, r1
 }
 
-// Block provides a mock function with given fields: ctx, stateID
-func (_m *Client) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
-	ret := _m.Called(ctx, stateID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Block")
-	}
-
-	var r0 *spec.VersionedSignedBeaconBlock
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*spec.VersionedSignedBeaconBlock, error)); ok {
-		return rf(ctx, stateID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *spec.VersionedSignedBeaconBlock); ok {
-		r0 = rf(ctx, stateID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*spec.VersionedSignedBeaconBlock)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, stateID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // CompleteValidators provides a mock function with given fields: ctx
 func (_m *Client) CompleteValidators(ctx context.Context) (eth2wrap.CompleteValidators, error) {
 	ret := _m.Called(ctx)
