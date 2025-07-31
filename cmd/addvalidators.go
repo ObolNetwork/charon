@@ -71,7 +71,6 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	bindLogFlags(cmd.Flags(), &config.DKG.Log)
 	bindShutdownDelayFlag(cmd.Flags(), &config.DKG.ShutdownDelay)
 	bindEth1Flag(cmd.Flags(), &config.DKG.ExecutionEngineAddr)
-	bindPublishFlags(cmd.Flags(), &config.DKG)
 	cmd.Flags().DurationVar(&config.DKG.Timeout, "timeout", 1*time.Minute, "Timeout for the command, should be increased if the command times out.")
 
 	// Bind `create dkg` flags.
@@ -225,12 +224,6 @@ func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error
 	lockFile := filepath.Join(config.SrcDir, clusterLockFile)
 	if !app.FileExists(lockFile) {
 		return errors.New("src-dir must contain a cluster-lock.json file")
-	}
-
-	if config.DKG.Publish && config.Unverified {
-		log.Error(ctx, "Publishing unverifiable cluster is not allowed. You must choose between --unverified and --publish flags.", nil)
-
-		return errors.New("the --unverified flag cannot be used when the --publish flag is set")
 	}
 
 	validatorKeysDir := filepath.Join(config.SrcDir, validatorKeysSubDir)

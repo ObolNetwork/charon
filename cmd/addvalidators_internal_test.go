@@ -90,11 +90,10 @@ func TestRunAddValidators(t *testing.T) {
 						Relays:   []string{relayAddr},
 						TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 					},
-					Log:            log.DefaultConfig(),
-					ShutdownDelay:  1 * time.Second,
-					PublishTimeout: 30 * time.Second,
-					Timeout:        8 * time.Second,
-					NoVerify:       true,
+					Log:           log.DefaultConfig(),
+					ShutdownDelay: 1 * time.Second,
+					Timeout:       8 * time.Second,
+					NoVerify:      true,
 				},
 			}
 
@@ -263,21 +262,6 @@ func TestValidateConfigAddValidators(t *testing.T) {
 				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
 			},
 			errMsg: "mismatching --num-validators and --fee-recipient-addresses",
-		},
-		{
-			name: "both --unverified and --publish flags",
-			conf: addValidatorsConfig{
-				SrcDir:            realDir,
-				DstDir:            ".",
-				NumValidators:     2,
-				Unverified:        true,
-				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-				DKG: dkg.Config{
-					Publish: true,
-				},
-			},
-			errMsg: "the --unverified flag cannot be used when the --publish flag is set",
 		},
 		{
 			name: "both --unverified flag for non empty validator_keys dir",
