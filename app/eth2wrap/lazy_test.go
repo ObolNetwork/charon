@@ -6,13 +6,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 func TestLazy_Name(t *testing.T) {
@@ -49,75 +47,6 @@ func TestLazy_IsSynced(t *testing.T) {
 	l := eth2wrap.NewLazyForT(client)
 
 	require.True(t, l.IsSynced())
-}
-
-func TestLazy_NodePeerCount(t *testing.T) {
-	client := mocks.NewClient(t)
-	client.On("NodePeerCount", mock.Anything).Return(5, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	c, err := l.NodePeerCount(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, 5, c)
-}
-
-func TestLazy_BlockAttestations(t *testing.T) {
-	ctx := context.Background()
-	atts := make([]*spec.VersionedAttestation, 3)
-
-	client := mocks.NewClient(t)
-	client.On("BlockAttestations", ctx, "state").Return(atts, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	atts2, err := l.BlockAttestations(ctx, "state")
-	require.NoError(t, err)
-	require.Equal(t, atts, atts2)
-}
-
-func TestLazy_AggregateSyncCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.SyncCommitteeSelection, 1)
-	selections := make([]*eth2exp.SyncCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("AggregateSyncCommitteeSelections", ctx, partsel).Return(selections, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	selections2, err := l.AggregateSyncCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-}
-
-func TestLazy_AggregateBeaconCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.BeaconCommitteeSelection, 1)
-	selections := make([]*eth2exp.BeaconCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("AggregateBeaconCommitteeSelections", ctx, partsel).Return(selections, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	selections2, err := l.AggregateBeaconCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-}
-
-func TestLazy_ProposerConfig(t *testing.T) {
-	ctx := context.Background()
-	resp := &eth2exp.ProposerConfigResponse{}
-
-	client := mocks.NewClient(t)
-	client.On("ProposerConfig", ctx).Return(resp, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	resp2, err := l.ProposerConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, resp, resp2)
 }
 
 func TestLazy_ActiveValidators(t *testing.T) {

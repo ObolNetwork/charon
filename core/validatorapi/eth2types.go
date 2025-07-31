@@ -13,7 +13,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // errorResponse an error response from the beacon-node api.
@@ -99,12 +98,12 @@ type aggregateAttestationV2Response struct {
 	Data    any    `json:"data"`
 }
 
-type aggregateBeaconCommitteeSelectionsJSON struct {
-	Data []*eth2exp.BeaconCommitteeSelection `json:"data"`
+type beaconCommitteeSelectionsJSON struct {
+	Data []*eth2v1.BeaconCommitteeSelection `json:"data"`
 }
 
-type aggregateSyncCommitteeSelectionsJSON struct {
-	Data []*eth2exp.SyncCommitteeSelection `json:"data"`
+type syncCommitteeSelectionsJSON struct {
+	Data []*eth2v1.SyncCommitteeSelection `json:"data"`
 }
 
 // root wraps eth2p0 root adding proper json marshalling.

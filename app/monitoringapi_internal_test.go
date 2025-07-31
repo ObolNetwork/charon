@@ -117,8 +117,8 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			if tt.zeroBNPeers {
-				bmock.NodePeerCountFunc = func(ctx context.Context) (int, error) {
-					return 0, nil
+				bmock.NodePeerCountFunc = func(ctx context.Context, _ *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
+					return &eth2v1.PeerCount{Connected: 0}, nil
 				}
 			}
 

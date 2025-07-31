@@ -6,11 +6,6 @@ import (
 	"context"
 	"sync"
 	"time"
-
-	"github.com/attestantio/go-eth2-client/spec"
-
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
-	"github.com/obolnetwork/charon/eth2util/statecomm"
 )
 
 //go:generate mockery --name=Client --output=mocks --outpkg=mocks --case=underscore
@@ -165,67 +160,4 @@ func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidator
 	if cl, ok := l.getClient(); ok {
 		cl.SetValidatorCache(valCache)
 	}
-}
-
-func (l *lazy) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.ProposerConfig(ctx)
-}
-
-func (l *lazy) AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.AggregateBeaconCommitteeSelections(ctx, partialSelections)
-}
-
-func (l *lazy) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.AggregateSyncCommitteeSelections(ctx, partialSelections)
-}
-
-func (l *lazy) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.BlockAttestations(ctx, stateID)
-}
-
-func (l *lazy) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.Block(ctx, stateID)
-}
-
-func (l *lazy) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.BeaconStateCommittees(ctx, slot)
-}
-
-func (l *lazy) NodePeerCount(ctx context.Context) (int, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	return cl.NodePeerCount(ctx)
 }

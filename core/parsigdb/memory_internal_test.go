@@ -6,13 +6,13 @@ import (
 	"context"
 	"testing"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -73,7 +73,7 @@ func TestGetThresholdMatching(t *testing.T) {
 				},
 				"Selection": func(i int) core.ParSignedData {
 					// Message is constant
-					msg := &eth2exp.BeaconCommitteeSelection{
+					msg := &eth2v1.BeaconCommitteeSelection{
 						ValidatorIndex: valIdx,
 						Slot:           eth2p0.Slot(test.input[i]), // Vary slot based on input
 						SelectionProof: testutil.RandomEth2Signature(),

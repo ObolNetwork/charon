@@ -57,13 +57,7 @@ const (
 )
 
 func isAnyVersion(version string, list ...string) bool {
-	for _, v := range list {
-		if version == v {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(list, version)
 }
 
 func TestDKG(t *testing.T) {

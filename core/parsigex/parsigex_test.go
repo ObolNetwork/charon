@@ -314,7 +314,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		data := &altair.SyncAggregatorSelectionData{
 			Slot:              selection.Slot,
-			SubcommitteeIndex: uint64(selection.SubcommitteeIndex),
+			SubcommitteeIndex: selection.SubcommitteeIndex,
 		}
 		sigRoot, err := data.HashTreeRoot()
 		require.NoError(t, err)

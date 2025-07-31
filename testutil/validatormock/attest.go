@@ -25,7 +25,7 @@ import (
 // Type aliases for concise function signatures.
 type (
 	attDuties     []*eth2v1.AttesterDuty
-	attSelections []*eth2exp.BeaconCommitteeSelection
+	attSelections []*eth2v1.BeaconCommitteeSelection
 	attDatas      []*eth2p0.AttestationData
 )
 
@@ -250,7 +250,7 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 	}
 
 	var (
-		partials    []*eth2exp.BeaconCommitteeSelection
+		partials    []*eth2v1.BeaconCommitteeSelection
 		commLengths = make(map[eth2p0.ValidatorIndex]uint64)
 	)
 	for _, duty := range duties {
@@ -266,17 +266,19 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 
 		commLengths[duty.ValidatorIndex] = duty.CommitteeLength
 
-		partials = append(partials, &eth2exp.BeaconCommitteeSelection{
+		partials = append(partials, &eth2v1.BeaconCommitteeSelection{
 			ValidatorIndex: duty.ValidatorIndex,
 			Slot:           duty.Slot,
 			SelectionProof: slotSig,
 		})
 	}
 
-	aggregateSelections, err := eth2Cl.AggregateBeaconCommitteeSelections(ctx, partials)
+	eth2Resp, err := eth2Cl.BeaconCommitteeSelections(ctx, &eth2api.BeaconCommitteeSelectionsOpts{Selections: partials})
 	if err != nil {
 		return nil, err
 	}
+
+	aggregateSelections := eth2Resp.Data
 
 	var selections attSelections
 

@@ -23,7 +23,7 @@ import (
 
 type (
 	syncDuties     []*eth2v1.SyncCommitteeDuty
-	syncSelections []*eth2exp.SyncCommitteeSelection
+	syncSelections []*eth2v1.SyncCommitteeSelection
 )
 
 func NewSyncCommMember(eth2Cl eth2wrap.Client, epoch eth2p0.Epoch, signFunc SignFunc, pubkeys []eth2p0.BLSPubKey) *SyncCommMember {
@@ -314,7 +314,7 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 		return nil, err
 	}
 
-	var partials []*eth2exp.SyncCommitteeSelection
+	var partials []*eth2v1.SyncCommitteeSelection
 
 	for _, duty := range duties {
 		subcommIdxs, err := getSubcommittees(ctx, eth2Cl, duty)
@@ -343,19 +343,21 @@ func prepareSyncSelections(ctx context.Context, eth2Cl eth2wrap.Client, signFunc
 				return nil, err
 			}
 
-			partials = append(partials, &eth2exp.SyncCommitteeSelection{
+			partials = append(partials, &eth2v1.SyncCommitteeSelection{
 				ValidatorIndex:    duty.ValidatorIndex,
 				Slot:              slot,
-				SubcommitteeIndex: subcommIdx,
+				SubcommitteeIndex: uint64(subcommIdx),
 				SelectionProof:    sig,
 			})
 		}
 	}
 
-	aggregateSelections, err := eth2Cl.AggregateSyncCommitteeSelections(ctx, partials)
+	eth2Resp, err := eth2Cl.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: partials})
 	if err != nil {
 		return nil, err
 	}
+
+	aggregateSelections := eth2Resp.Data
 
 	var selections syncSelections
 
@@ -466,7 +468,7 @@ func aggContributions(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 		// Query BN to get sync committee contribution.
 		opts := &eth2api.SyncCommitteeContributionOpts{
 			Slot:              selection.Slot,
-			SubcommitteeIndex: uint64(selection.SubcommitteeIndex),
+			SubcommitteeIndex: selection.SubcommitteeIndex,
 			BeaconBlockRoot:   blockRoot,
 		}
 

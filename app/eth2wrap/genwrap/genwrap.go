@@ -47,13 +47,6 @@ import (
 // Client defines all go-eth2-client interfaces used in charon.
 type Client interface {
     eth2client.Service
-    eth2exp.BeaconCommitteeSelectionAggregator
-    eth2exp.SyncCommitteeSelectionAggregator
-    eth2exp.ProposerConfigProvider
-    BlockAttestationsProvider
-		BlockProvider
-    BeaconStateCommitteesProvider
-    NodePeerCountProvider
 
     CachedValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
@@ -113,6 +106,9 @@ type Client interface {
 		"BeaconBlockRootProvider":               {Latency: false, Log: false},
 		"ProposalSubmitter":                     {Latency: true, Log: false},
 		"BeaconCommitteeSubscriptionsSubmitter": {Latency: true, Log: false},
+		"BeaconBlockAttestationsProvider":       {Latency: true, Log: false},
+		"BeaconCommitteeSelectionsProvider":     {Latency: true, Log: false},
+		"BeaconCommitteesProvider":              {Latency: true, Log: false},
 		"BlindedProposalProvider":               {Latency: true, Log: false},
 		"BlindedProposalSubmitter":              {Latency: true, Log: false},
 		"DepositContractProvider":               {Latency: false, Log: false},
@@ -120,6 +116,7 @@ type Client interface {
 		"ForkProvider":                          {Latency: true, Log: false},
 		"ForkScheduleProvider":                  {Latency: true, Log: false},
 		"GenesisProvider":                       {Latency: false, Log: false},
+		"NodePeerCountProvider":                 {Latency: false, Log: false},
 		"NodeSyncingProvider":                   {Latency: true, Log: false},
 		"NodeVersionProvider":                   {Latency: false, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},
@@ -133,6 +130,7 @@ type Client interface {
 		"SyncCommitteeContributionsSubmitter":   {Latency: true, Log: false},
 		"SyncCommitteeMessagesSubmitter":        {Latency: true, Log: false},
 		"SyncCommitteeSubscriptionsSubmitter":   {Latency: true, Log: false},
+		"SyncCommitteeSelectionsProvider":       {Latency: true, Log: false},
 		"ValidatorsProvider":                    {Latency: true, Log: true},
 		"ValidatorRegistrationsSubmitter":       {Latency: true, Log: false},
 		"VoluntaryExitSubmitter":                {Latency: true, Log: false},

@@ -41,7 +41,6 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls"
 )
 
@@ -848,8 +847,8 @@ func RandomVersionedSignedValidatorRegistration(t *testing.T) *eth2api.Versioned
 	}
 }
 
-func RandomBeaconCommitteeSelection() *eth2exp.BeaconCommitteeSelection {
-	return &eth2exp.BeaconCommitteeSelection{
+func RandomBeaconCommitteeSelection() *eth2v1.BeaconCommitteeSelection {
+	return &eth2v1.BeaconCommitteeSelection{
 		ValidatorIndex: RandomVIdx(),
 		Slot:           RandomSlot(),
 		SelectionProof: RandomEth2Signature(),
@@ -945,11 +944,11 @@ func RandomSyncCommittee(t *testing.T) *altair.SyncCommittee {
 	}
 }
 
-func RandomSyncCommitteeSelection() *eth2exp.SyncCommitteeSelection {
-	return &eth2exp.SyncCommitteeSelection{
+func RandomSyncCommitteeSelection() *eth2v1.SyncCommitteeSelection {
+	return &eth2v1.SyncCommitteeSelection{
 		ValidatorIndex:    RandomVIdx(),
 		Slot:              RandomSlot(),
-		SubcommitteeIndex: RandomCommIdx(),
+		SubcommitteeIndex: uint64(rand.Intn(4)),
 		SelectionProof:    RandomEth2Signature(),
 	}
 }
