@@ -6,8 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,6 +61,19 @@ func TestRunAddValidators(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	const testAuthToken = "test-auth-token"
+
+	var allReceivedKeystores atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bearerAuthToken := strings.Split(r.Header.Get("Authorization"), " ")
+		require.Equal(t, bearerAuthToken[0], "Bearer")
+		require.Equal(t, bearerAuthToken[1], testAuthToken)
+
+		allReceivedKeystores.Add(1)
+	}))
+	defer srv.Close()
+
 	runAddCommand := func(dstDir string, unverified bool) {
 		var eg errgroup.Group
 
@@ -84,6 +101,9 @@ func TestRunAddValidators(t *testing.T) {
 			if unverified {
 				err = os.RemoveAll(filepath.Join(nodeDir(conf.ClusterDir, i), validatorKeysSubDir))
 				require.NoError(t, err)
+
+				addConf.DKG.KeymanagerAddr = srv.URL
+				addConf.DKG.KeymanagerAuthToken = testAuthToken
 			}
 
 			eg.Go(func() error {
@@ -110,15 +130,16 @@ func TestRunAddValidators(t *testing.T) {
 			nd := nodeDir(dstDir, n)
 			require.True(t, app.FileExists(nd))
 			require.True(t, app.FileExists(filepath.Join(nd, clusterLockFile)))
-			require.True(t, app.FileExists(filepath.Join(nd, validatorKeysSubDir)))
 
-			keyFiles, err := os.ReadDir(filepath.Join(nd, validatorKeysSubDir))
-			require.NoError(t, err)
+			if !unverified {
+				require.True(t, app.FileExists(filepath.Join(nd, validatorKeysSubDir)))
 
-			if unverified {
-				require.Len(t, keyFiles, 4) // 2 new validators * two files per key
-			} else {
+				keyFiles, err := os.ReadDir(filepath.Join(nd, validatorKeysSubDir))
+				require.NoError(t, err)
+
 				require.Len(t, keyFiles, 10) // 5 total validators * two files per key
+			} else {
+				require.EqualValues(t, 4, allReceivedKeystores.Load())
 			}
 
 			var lock cluster.Lock
@@ -315,6 +336,14 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 		err = validateConfig(t.Context(), &cfg)
 		require.Equal(t, "src-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
+
+		cfg.Unverified = true
+		err = validateConfig(t.Context(), &cfg)
+		require.Equal(t, "the --keymanager flag is required when the validator_keys directory is empty", err.Error())
+
+		cfg.DKG.KeymanagerAddr = "http://localhost:1234"
+		err = validateConfig(t.Context(), &cfg)
+		require.NoError(t, err)
 	})
 }
 

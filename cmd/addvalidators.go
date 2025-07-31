@@ -250,6 +250,12 @@ func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error
 		return errors.New("src-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set")
 	}
 
+	if !validatorKeysDirPresent && len(config.DKG.KeymanagerAddr) == 0 {
+		log.Error(ctx, "The --keymanager flag is required when the validator_keys directory is empty.", nil)
+
+		return errors.New("the --keymanager flag is required when the validator_keys directory is empty")
+	}
+
 	config.FeeRecipientAddrs, config.WithdrawalAddrs, err = validateAddresses(config.NumValidators, config.FeeRecipientAddrs, config.WithdrawalAddrs)
 
 	return err
