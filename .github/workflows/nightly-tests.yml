@@ -2,7 +2,7 @@
 name: nightly tests
 on:
   schedule:
-    - cron: '00 12 * * *'
+    - cron: "00 12 * * *"
 
 jobs:
   nightly_test:
@@ -49,22 +49,3 @@ jobs:
           name: fuzz-test-logs
           path: testutil/compose/fuzz/*.log
           retention-days: 3
-
-  notify_failure:
-    runs-on: ubuntu-latest
-    needs: [ nightly_test ]
-    # Syntax ref: https://github.com/actions/runner/issues/1251
-    if: always() && github.ref == 'refs/heads/main' && contains(join(needs.*.result, ','), 'failure')
-    steps:
-      - name: notify failure
-        uses: Ilshidur/action-discord@0.3.2
-        env:
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          DISCORD_USERNAME: GitHub
-          DISCORD_AVATAR: https://avatars.githubusercontent.com/u/583231
-          DISCORD_EMBEDS: |
-            [{
-              "title": "🚨  Nightly tests failed: ${{ github.workflow }}",
-              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-              "color": 10038562
-            }]
