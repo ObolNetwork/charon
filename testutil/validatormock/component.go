@@ -278,6 +278,14 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		}
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
+	case core.DutyPrepareSyncContribution:
+		if syncComm == nil {
+			return errors.New("syncomm is nil", z.Str("duty", duty.String()))
+		}
+
+		if err = syncComm.PrepareSlot(ctx, eth2Slot); err != nil { // Rename to sync.Comm.SelectSyncContribution
+			return err
+		}
 	case core.DutySyncMessage:
 		if syncComm == nil {
 			return errors.New("syncomm is nil", z.Str("duty", duty.String()))
