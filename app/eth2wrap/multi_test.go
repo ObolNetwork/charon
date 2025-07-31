@@ -12,7 +12,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 func TestMulti_Name(t *testing.T) {
@@ -54,27 +53,6 @@ func TestMulti_IsSynced(t *testing.T) {
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client1, client2}, nil)
 
 	require.True(t, m.IsSynced())
-}
-
-func TestMulti_ProposerConfig(t *testing.T) {
-	ctx := context.Background()
-	resp := &eth2exp.ProposerConfigResponse{}
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("ProposerConfig", mock.Anything).Return(resp, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	resp2, err := m.ProposerConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, resp, resp2)
-
-	expectedErr := errors.New("boo")
-	client.On("ProposerConfig", mock.Anything).Return(nil, expectedErr).Once()
-
-	_, err = m.ProposerConfig(ctx)
-	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_ActiveValidators(t *testing.T) {

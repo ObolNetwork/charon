@@ -11,7 +11,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 func TestLazy_Name(t *testing.T) {
@@ -48,20 +47,6 @@ func TestLazy_IsSynced(t *testing.T) {
 	l := eth2wrap.NewLazyForT(client)
 
 	require.True(t, l.IsSynced())
-}
-
-func TestLazy_ProposerConfig(t *testing.T) {
-	ctx := context.Background()
-	resp := &eth2exp.ProposerConfigResponse{}
-
-	client := mocks.NewClient(t)
-	client.On("ProposerConfig", ctx).Return(resp, nil).Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	resp2, err := l.ProposerConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, resp, resp2)
 }
 
 func TestLazy_ActiveValidators(t *testing.T) {

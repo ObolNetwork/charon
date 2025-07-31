@@ -38,7 +38,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // Interface assertions.
@@ -221,7 +220,6 @@ type Mock struct {
 	SubmitSyncCommitteeSubscriptionsFunc   func(ctx context.Context, subscriptions []*eth2v1.SyncCommitteeSubscription) error
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
 	ForkScheduleFunc                       func(context.Context, *eth2api.ForkScheduleOpts) ([]*eth2p0.Fork, error)
-	ProposerConfigFunc                     func(context.Context) (*eth2exp.ProposerConfigResponse, error)
 	NodeVersionFunc                        func(context.Context, *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
 }
 
@@ -442,10 +440,6 @@ func (m Mock) SubmitProposalPreparations(ctx context.Context, preparations []*et
 
 func (m Mock) SlotsPerEpoch(ctx context.Context) (uint64, error) {
 	return m.SlotsPerEpochFunc(ctx)
-}
-
-func (m Mock) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	return m.ProposerConfigFunc(ctx)
 }
 
 func (m Mock) NodeVersion(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {

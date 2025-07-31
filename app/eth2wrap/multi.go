@@ -4,8 +4,6 @@ package eth2wrap
 
 import (
 	"context"
-
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // NewMultiForT creates a new mutil client for testing.
@@ -113,25 +111,6 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 			return args.client.CompleteValidators(ctx)
 		},
 		nil, nil,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
-func (m multi) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	const label = "proposer_config"
-	defer latency(ctx, label, false)()
-	defer incRequest(label)
-
-	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (*eth2exp.ProposerConfigResponse, error) {
-			return args.client.ProposerConfig(ctx)
-		},
-		nil, m.selector,
 	)
 	if err != nil {
 		incError(label)

@@ -6,8 +6,6 @@ import (
 	"context"
 	"sync"
 	"time"
-
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 //go:generate mockery --name=Client --output=mocks --outpkg=mocks --case=underscore
@@ -162,13 +160,4 @@ func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidator
 	if cl, ok := l.getClient(); ok {
 		cl.SetValidatorCache(valCache)
 	}
-}
-
-func (l *lazy) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.ProposerConfig(ctx)
 }

@@ -43,7 +43,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
@@ -83,7 +82,6 @@ type Handler interface {
 	eth2client.ValidatorsProvider
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
-	eth2exp.ProposerConfigProvider
 	// Above sorted alphabetically.
 }
 
@@ -221,14 +219,14 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 		{
 			Name:      "teku_proposer_config",
 			Path:      "/teku_proposer_config",
-			Handler:   proposerConfig(h),
+			Handler:   respond404("/teku_proposer_config"),
 			Methods:   []string{http.MethodGet},
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
 			Name:      "proposer_config",
 			Path:      "/proposer_config",
-			Handler:   proposerConfig(h),
+			Handler:   respond404("/proposer_config"),
 			Methods:   []string{http.MethodGet},
 			Encodings: []contentType{contentTypeJSON},
 		},
@@ -1219,17 +1217,6 @@ func submitExit(p eth2client.VoluntaryExitSubmitter) handlerFunc {
 		}
 
 		return nil, nil, p.SubmitVoluntaryExit(ctx, exit)
-	}
-}
-
-func proposerConfig(p eth2exp.ProposerConfigProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		resp, err := p.ProposerConfig(ctx)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "proposer config")
-		}
-
-		return resp, nil, nil
 	}
 }
 

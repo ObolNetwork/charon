@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"sort"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -33,7 +32,6 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -1882,80 +1880,6 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 
 	err = vapi.SubmitValidatorRegistrations(ctx, []*eth2api.VersionedSignedValidatorRegistration{signed})
 	require.ErrorContains(t, err, "signature not verified")
-}
-
-func TestComponent_TekuProposerConfig(t *testing.T) {
-	ctx := context.Background()
-
-	const (
-		zeroAddr     = "0x0000000000000000000000000000000000000000"
-		feeRecipient = "0x123456"
-		shareIdx     = 1
-	)
-	// Create keys (just use normal keys, not split tbls)
-	secret, err := tbls.GenerateSecretKey()
-	require.NoError(t, err)
-
-	pubkey, err := tbls.SecretToPublicKey(secret)
-	require.NoError(t, err)
-
-	// Convert pubkey
-	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-
-	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
-
-	// Configure beacon mock
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, func(core.PubKey) string {
-		return feeRecipient
-	}, true, 30000000, nil)
-	require.NoError(t, err)
-
-	resp, err := vapi.ProposerConfig(ctx)
-	require.NoError(t, err)
-
-	pk, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-
-	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
-	require.NoError(t, err)
-
-	genesisTime := genesis.Data.GenesisTime
-	respSpec, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
-	require.NoError(t, err)
-
-	slotDuration, ok := respSpec.Data["SECONDS_PER_SLOT"].(time.Duration)
-	require.True(t, ok)
-
-	eth2pk, err := pk.ToETH2()
-	require.NoError(t, err)
-
-	require.Equal(t, &eth2exp.ProposerConfigResponse{
-		Proposers: map[eth2p0.BLSPubKey]eth2exp.ProposerConfig{
-			eth2pk: {
-				FeeRecipient: feeRecipient,
-				Builder: eth2exp.Builder{
-					Enabled:  true,
-					GasLimit: 30000000,
-					Overrides: map[string]string{
-						"timestamp":  strconv.FormatInt(genesisTime.Add(slotDuration).Unix(), 10),
-						"public_key": string(pk),
-					},
-				},
-			},
-		},
-		Default: eth2exp.ProposerConfig{
-			FeeRecipient: zeroAddr,
-			Builder: eth2exp.Builder{
-				Enabled:  false,
-				GasLimit: 30000000,
-			},
-		},
-	}, resp)
 }
 
 func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {

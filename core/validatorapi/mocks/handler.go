@@ -10,8 +10,6 @@ import (
 
 	context "context"
 
-	eth2exp "github.com/obolnetwork/charon/eth2util/eth2exp"
-
 	mock "github.com/stretchr/testify/mock"
 
 	phase0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -199,36 +197,6 @@ func (_m *Handler) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.R
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.ProposalOpts) error); ok {
 		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// ProposerConfig provides a mock function with given fields: ctx
-func (_m *Handler) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	ret := _m.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ProposerConfig")
-	}
-
-	var r0 *eth2exp.ProposerConfigResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (*eth2exp.ProposerConfigResponse, error)); ok {
-		return rf(ctx)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context) *eth2exp.ProposerConfigResponse); ok {
-		r0 = rf(ctx)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*eth2exp.ProposerConfigResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}

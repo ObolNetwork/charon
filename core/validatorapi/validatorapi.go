@@ -8,7 +8,6 @@ import (
 	"maps"
 	"math/big"
 	"runtime"
-	"strconv"
 	"testing"
 	"time"
 
@@ -27,7 +26,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -1354,62 +1352,6 @@ func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedDa
 	}
 
 	return core.VerifyEth2SignedData(ctx, c.eth2Cl, eth2Signed, pubshare)
-}
-
-// ProposerConfig returns the proposer configuration for all validators.
-func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	var targetGasLimit uint
-	if c.targetGasLimit == 0 {
-		log.Warn(ctx, "", errors.New("custom target gas limit not supported, setting to default", z.Uint("default_gas_limit", defaultGasLimit)))
-		targetGasLimit = defaultGasLimit
-	} else {
-		targetGasLimit = c.targetGasLimit
-	}
-
-	resp := eth2exp.ProposerConfigResponse{
-		Proposers: make(map[eth2p0.BLSPubKey]eth2exp.ProposerConfig),
-		Default: eth2exp.ProposerConfig{ // Default doesn't make sense, disable for now.
-			FeeRecipient: zeroAddress,
-			Builder: eth2exp.Builder{
-				Enabled:  false,
-				GasLimit: targetGasLimit,
-			},
-		},
-	}
-
-	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, c.eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, c.eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	timestamp := genesisTime
-	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
-
-	for pubkey, pubshare := range c.sharesByKey {
-		eth2Share, err := pubshare.ToETH2()
-		if err != nil {
-			return nil, err
-		}
-
-		resp.Proposers[eth2Share] = eth2exp.ProposerConfig{
-			FeeRecipient: c.feeRecipientFunc(pubkey),
-			Builder: eth2exp.Builder{
-				Enabled:  c.builderEnabled,
-				GasLimit: targetGasLimit,
-				Overrides: map[string]string{
-					"timestamp":  strconv.FormatInt(timestamp.Unix(), 10),
-					"public_key": string(pubkey),
-				},
-			},
-		}
-	}
-
-	return &resp, nil
 }
 
 // wrapResponse wraps the provided data into an API Response and returns the response.

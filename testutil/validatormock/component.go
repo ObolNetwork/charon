@@ -278,30 +278,6 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		}
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
-	case core.DutyBuilderRegistration:
-		if !m.builderAPI {
-			return nil
-		}
-
-		regs, err := RegistrationsFromProposerConfig(ctx, eth2Cl)
-		if err != nil {
-			return err
-		}
-
-		for pubshare, reg := range regs {
-			err = Register(ctx, eth2Cl, m.signFunc, reg, pubshare)
-			if err != nil {
-				return err
-			}
-		}
-	case core.DutyPrepareSyncContribution:
-		if syncComm == nil {
-			return errors.New("syncomm is nil", z.Str("duty", duty.String()))
-		}
-
-		if err = syncComm.PrepareSlot(ctx, eth2Slot); err != nil { // Rename to sync.Comm.SelectSyncContribution
-			return err
-		}
 	case core.DutySyncMessage:
 		if syncComm == nil {
 			return errors.New("syncomm is nil", z.Str("duty", duty.String()))

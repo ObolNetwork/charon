@@ -5,10 +5,6 @@ package eth2wrap
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -19,9 +15,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
@@ -122,23 +116,6 @@ func (h *httpAdapter) Validators(ctx context.Context, opts *api.ValidatorsOpts) 
 	return h.Service.Validators(reqCtx, opts)
 }
 
-// ProposerConfig implements eth2exp.ProposerConfigProvider.
-func (h *httpAdapter) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	respBody, statusCode, err := httpGet(ctx, h.address, "/proposer_config", h.headers, nil, h.timeout)
-	if err != nil {
-		return nil, errors.Wrap(err, "submit sync committee selections")
-	} else if statusCode != http.StatusOK {
-		return nil, errors.New("request proposer config failed", z.Int("status", statusCode), z.Str("body", string(respBody)))
-	}
-
-	var resp eth2exp.ProposerConfigResponse
-	if err := json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrap(err, "failed to parse sync committee selections response")
-	}
-
-	return &resp, nil
-}
-
 // Domain returns the signing domain for a given domain type.
 // After EIP-7044, the VOLUNTARY_EXIT domain must always return a domain relative to the Capella hardfork.
 // This method returns just that for that domain type, otherwise follows the standard go-eth2-client flow.
@@ -153,59 +130,4 @@ func (h *httpAdapter) Domain(ctx context.Context, domainType eth2p0.DomainType, 
 	}
 
 	return h.Service.Domain(ctx, domainType, epoch)
-}
-
-// httpGetRaw performs a GET request and returns the raw http response or an error.
-func httpGetRaw(ctx context.Context, base string, endpoint string, headers map[string]string, queryParams map[string]string) (*http.Response, error) {
-	addr, err := url.JoinPath(base, endpoint)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid address")
-	}
-
-	u, err := url.ParseRequestURI(addr)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid endpoint")
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "new GET request with ctx")
-	}
-
-	for k, v := range headers {
-		req.Header.Add(k, v)
-	}
-
-	q := req.URL.Query()
-	for key, val := range queryParams {
-		q.Add(key, val)
-	}
-
-	req.URL.RawQuery = q.Encode()
-
-	res, err := new(http.Client).Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to call GET endpoint")
-	}
-
-	return res, nil
-}
-
-// httpGet performs a GET request and returns the body and status code or an error.
-func httpGet(ctx context.Context, base string, endpoint string, headers map[string]string, queryParams map[string]string, timeout time.Duration) ([]byte, int, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	res, err := httpGetRaw(ctx, base, endpoint, headers, queryParams)
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to read GET response")
-	}
-	defer res.Body.Close()
-
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, res.StatusCode, errors.Wrap(err, "failed to read GET response body")
-	}
-
-	return data, res.StatusCode, nil
 }
