@@ -947,7 +947,7 @@ func RandomSyncCommitteeSelection() *eth2v1.SyncCommitteeSelection {
 	return &eth2v1.SyncCommitteeSelection{
 		ValidatorIndex:    RandomVIdx(),
 		Slot:              RandomSlot(),
-		SubcommitteeIndex: rand.Uint64(),
+		SubcommitteeIndex: uint64(rand.Intn(4)),
 		SelectionProof:    RandomEth2Signature(),
 	}
 }
