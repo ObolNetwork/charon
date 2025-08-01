@@ -33,6 +33,7 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
+	"github.com/obolnetwork/charon/testutil/relay"
 )
 
 // vcType enumerates the different types of VCs.
@@ -308,7 +309,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	relayAddr := startRelay(ctx, t)
+	relayAddr := relay.StartRelay(ctx, t)
 	// NOTE: We can add support for in-memory transport to QBFT.
 	parSigExFunc := parsigex.NewMemExFunc(args.N)
 

@@ -94,7 +94,7 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := range nodes {
-		ex := newExchanger(hosts[i], i, peers, dvs, expectedSigTypes, 8*time.Second)
+		ex := newExchanger(hosts[i], i, peers, expectedSigTypes, 8*time.Second)
 		exchangers = append(exchangers, ex)
 	}
 

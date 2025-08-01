@@ -4,6 +4,7 @@ package deposit_test
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
@@ -232,6 +233,160 @@ func TestWriteDepositDataFile(t *testing.T) {
 		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
 		require.ErrorContains(t, err, "deposit datas has different amount")
 	})
+}
+
+func TestReadDepositDataFiles_Errors(t *testing.T) {
+	t.Run("no files found", func(t *testing.T) {
+		dir := t.TempDir()
+		_, err := deposit.ReadDepositDataFiles(dir)
+		require.ErrorContains(t, err, "finding deposit-data files")
+	})
+
+	t.Run("invalid json in file", func(t *testing.T) {
+		dir := t.TempDir()
+		file := path.Join(dir, "deposit-data.json")
+		err := os.WriteFile(file, []byte("{invalid json"), 0o644)
+		require.NoError(t, err)
+
+		_, err = deposit.ReadDepositDataFiles(dir)
+		require.ErrorContains(t, err, "unmarshal deposit data file")
+	})
+
+	t.Run("invalid pubkey hex", func(t *testing.T) {
+		dir := t.TempDir()
+		// Write a valid deposit data file, then corrupt pubkey
+		depositDatas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
+		require.NoError(t, err)
+
+		file := deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount)
+		bytes, err := os.ReadFile(file)
+		require.NoError(t, err)
+
+		// Corrupt pubkey
+		require.NoError(t, os.Remove(file))
+
+		var ddList []map[string]interface{}
+		require.NoError(t, json.Unmarshal(bytes, &ddList))
+		ddList[0]["pubkey"] = "zzzz"
+		corruptBytes, err := json.Marshal(ddList)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(file, corruptBytes, 0o644))
+
+		_, err = deposit.ReadDepositDataFiles(dir)
+		require.ErrorContains(t, err, "decode pubkey")
+	})
+
+	t.Run("invalid pubkey length", func(t *testing.T) {
+		dir := t.TempDir()
+		depositDatas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
+		require.NoError(t, err)
+
+		file := deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount)
+		bytes, err := os.ReadFile(file)
+		require.NoError(t, err)
+
+		var ddList []map[string]interface{}
+		require.NoError(t, json.Unmarshal(bytes, &ddList))
+		ddList[0]["pubkey"] = "abcd" // too short
+		corruptBytes, err := json.Marshal(ddList)
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(file))
+		require.NoError(t, os.WriteFile(file, corruptBytes, 0o644))
+
+		_, err = deposit.ReadDepositDataFiles(dir)
+		require.ErrorContains(t, err, "invalid pubkey length")
+	})
+
+	t.Run("invalid withdrawal credentials hex", func(t *testing.T) {
+		dir := t.TempDir()
+		depositDatas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
+		require.NoError(t, err)
+
+		file := deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount)
+		bytes, err := os.ReadFile(file)
+		require.NoError(t, err)
+
+		var ddList []map[string]interface{}
+		require.NoError(t, json.Unmarshal(bytes, &ddList))
+		ddList[0]["withdrawal_credentials"] = "badhex"
+		corruptBytes, err := json.Marshal(ddList)
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(file))
+		require.NoError(t, os.WriteFile(file, corruptBytes, 0o644))
+
+		_, err = deposit.ReadDepositDataFiles(dir)
+		require.ErrorContains(t, err, "decode withdrawal credentials")
+	})
+
+	t.Run("invalid signature hex", func(t *testing.T) {
+		dir := t.TempDir()
+		depositDatas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
+		require.NoError(t, err)
+
+		file := deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount)
+		bytes, err := os.ReadFile(file)
+		require.NoError(t, err)
+
+		var ddList []map[string]interface{}
+		require.NoError(t, json.Unmarshal(bytes, &ddList))
+		ddList[0]["signature"] = "badhex"
+		corruptBytes, err := json.Marshal(ddList)
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(file))
+		require.NoError(t, os.WriteFile(file, corruptBytes, 0o644))
+
+		_, err = deposit.ReadDepositDataFiles(dir)
+		require.ErrorContains(t, err, "decode signature")
+	})
+
+	t.Run("invalid signature length", func(t *testing.T) {
+		dir := t.TempDir()
+		depositDatas := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
+		require.NoError(t, err)
+
+		file := deposit.GetDepositFilePath(dir, deposit.DefaultDepositAmount)
+		bytes, err := os.ReadFile(file)
+		require.NoError(t, err)
+
+		var ddList []map[string]interface{}
+		require.NoError(t, json.Unmarshal(bytes, &ddList))
+		ddList[0]["signature"] = "abcd" // too short
+		corruptBytes, err := json.Marshal(ddList)
+		require.NoError(t, err)
+		require.NoError(t, os.Remove(file))
+		require.NoError(t, os.WriteFile(file, corruptBytes, 0o644))
+
+		_, err = deposit.ReadDepositDataFiles(dir)
+		require.ErrorContains(t, err, "invalid signature length")
+	})
+}
+
+func TestMergeDepositDataSets(t *testing.T) {
+	// This generates 4 fixed vals per amount
+	depositDatas1 := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount)
+	depositDatas2 := mustGenerateDepositDatas(t, deposit.DefaultDepositAmount/2)
+
+	var set1, set2 [][]eth2p0.DepositData
+
+	set1 = append(set1, depositDatas1[0:2], depositDatas2[0:2])
+	set2 = append(set2, depositDatas1[2:4], depositDatas2[2:4])
+
+	merged := deposit.MergeDepositDataSets(set1, set2)
+	require.Len(t, merged, 2) // two distinct amounts
+
+	for _, dd := range merged {
+		require.Len(t, dd, 4) // four deposit datas for each amount
+		require.Equal(t, dd[0].Amount, dd[1].Amount)
+		require.Equal(t, dd[0].Amount, dd[2].Amount)
+		require.Equal(t, dd[0].Amount, dd[3].Amount)
+	}
+
+	require.NotEqual(t, merged[0][0].Amount, merged[1][0].Amount)
 }
 
 func TestWriteClusterDepositDataFiles(t *testing.T) {

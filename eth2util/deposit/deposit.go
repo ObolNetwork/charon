@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strconv"
@@ -371,4 +372,107 @@ func GetDepositFilePath(dataDir string, amount eth2p0.Gwei) string {
 	}
 
 	return path.Join(dataDir, filename)
+}
+
+// ReadDepositDataFiles reads all deposit-data files in the cluster directory and returns a list of deposit data,
+// ordered by the amount of deposits (same as in DKG ceremony).
+func ReadDepositDataFiles(clusterDir string) ([][]eth2p0.DepositData, error) {
+	files, err := filepath.Glob(path.Join(clusterDir, "deposit-data*.json"))
+	if err != nil || len(files) == 0 {
+		return nil, errors.Wrap(err, "finding deposit-data files")
+	}
+
+	var depositDatas [][]eth2p0.DepositData
+
+	for _, file := range files {
+		bytes, err := os.ReadFile(file)
+		if err != nil {
+			return nil, errors.Wrap(err, "read deposit data file", z.Str("file", file))
+		}
+
+		var ddList []depositDataJSON
+		if err := json.Unmarshal(bytes, &ddList); err != nil {
+			return nil, errors.Wrap(err, "unmarshal deposit data file", z.Str("file", file))
+		}
+
+		dd := make([]eth2p0.DepositData, len(ddList))
+		for i, d := range ddList {
+			var (
+				pubkey eth2p0.BLSPubKey
+				sig    eth2p0.BLSSignature
+			)
+
+			rawPubKey, err := hex.DecodeString(d.PubKey)
+			if err != nil {
+				return nil, errors.Wrap(err, "decode pubkey", z.Str("pubkey", d.PubKey))
+			}
+
+			if len(rawPubKey) != len(pubkey) {
+				return nil, errors.New("invalid pubkey length", z.Str("pubkey", d.PubKey))
+			}
+
+			copy(pubkey[:], rawPubKey)
+
+			wc, err := hex.DecodeString(d.WithdrawalCredentials)
+			if err != nil {
+				return nil, errors.Wrap(err, "decode withdrawal credentials", z.Str("withdrawal_credentials", d.WithdrawalCredentials))
+			}
+
+			rawSig, err := hex.DecodeString(d.Signature)
+			if err != nil {
+				return nil, errors.Wrap(err, "decode signature", z.Str("signature", d.Signature))
+			}
+
+			if len(rawSig) != len(sig) {
+				return nil, errors.New("invalid signature length", z.Str("signature", d.Signature))
+			}
+
+			copy(sig[:], rawSig)
+
+			dd[i] = eth2p0.DepositData{
+				PublicKey:             pubkey,
+				WithdrawalCredentials: wc,
+				Amount:                eth2p0.Gwei(d.Amount),
+				Signature:             sig,
+			}
+		}
+
+		depositDatas = append(depositDatas, dd)
+	}
+
+	return depositDatas, nil
+}
+
+// MergeDepositDataSets merges two sets of deposit data files.
+func MergeDepositDataSets(a, b [][]eth2p0.DepositData) [][]eth2p0.DepositData {
+	if len(a) == 0 {
+		return b
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	ddm := make(map[eth2p0.Gwei][]eth2p0.DepositData)
+
+	for _, s := range a {
+		for _, d := range s {
+			ddm[d.Amount] = append(ddm[d.Amount], d)
+		}
+	}
+
+	for _, s := range b {
+		for _, d := range s {
+			ddm[d.Amount] = append(ddm[d.Amount], d)
+		}
+	}
+
+	o := make([][]eth2p0.DepositData, 0, len(ddm))
+	for _, dd := range ddm {
+		if len(dd) > 0 {
+			o = append(o, dd)
+		}
+	}
+
+	return o
 }

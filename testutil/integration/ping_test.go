@@ -25,6 +25,7 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
+	"github.com/obolnetwork/charon/testutil/relay"
 )
 
 // TestPingCluster starts a cluster of charon nodes and waits for each node to ping all the others.
@@ -76,7 +77,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	relayAddr := startRelay(ctx, t)
+	relayAddr := relay.StartRelay(ctx, t)
 
 	const n = 3
 
