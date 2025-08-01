@@ -33,10 +33,7 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 			P2PConfig: p2p.Config{
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
-			LogConfig: log.Config{
-				Level:  "error",
-				Format: "console",
-			},
+			LogConfig:     log.DefaultConfig(),
 			AutoP2PKey:    true,
 			MaxResPerPeer: 8,
 			MaxConns:      1024,

@@ -56,8 +56,6 @@ func TestRunAddValidators(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 4)
 
-	relayAddr := relay.StartRelay(t.Context(), t)
-
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
@@ -73,6 +71,8 @@ func TestRunAddValidators(t *testing.T) {
 		allReceivedKeystores.Add(1)
 	}))
 	defer srv.Close()
+
+	relayAddr := relay.StartRelay(ctx, t)
 
 	runAddCommand := func(dstDir string, unverified bool) {
 		var eg errgroup.Group
