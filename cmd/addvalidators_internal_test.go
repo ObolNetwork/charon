@@ -31,6 +31,14 @@ import (
 	"github.com/obolnetwork/charon/testutil/relay"
 )
 
+func TestNewAddValidatorsCmd(t *testing.T) {
+	cmd := newAddValidatorsCmd(runAddValidators)
+	require.NotNil(t, cmd)
+	require.Equal(t, "add-validators", cmd.Use)
+	require.Equal(t, "Add new validators to an existing distributed validator cluster", cmd.Short)
+	require.Empty(t, cmd.Flags().Args())
+}
+
 func TestRunAddValidators(t *testing.T) {
 	// This test creates a solo cluster with all charon data for all nodes.
 	// Then it runs add-validators on each node in parallel to add 2 validators per node.
