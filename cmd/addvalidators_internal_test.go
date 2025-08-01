@@ -5,6 +5,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -189,6 +190,62 @@ func TestRunAddValidators(t *testing.T) {
 	})
 }
 
+func TestRunAddValidatorsInvalidLock(t *testing.T) {
+	conf := clusterConfig{
+		ClusterDir:        t.TempDir(),
+		Name:              "test_cluster",
+		NumNodes:          4,
+		Threshold:         3,
+		NumDVs:            3,
+		Network:           eth2util.Holesky.Name,
+		TargetGasLimit:    36000000,
+		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+	}
+
+	var (
+		buf    bytes.Buffer
+		dstDir = t.TempDir()
+	)
+
+	err := runCreateCluster(t.Context(), &buf, conf)
+	require.NoError(t, err)
+
+	addConf := addValidatorsConfig{
+		SrcDir:            nodeDir(conf.ClusterDir, 0),
+		DstDir:            nodeDir(dstDir, 0),
+		NumValidators:     2,
+		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
+		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
+		DKG: dkg.Config{
+			P2P: p2p.Config{
+				Relays:   []string{"http://localhost:1234"},
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+			},
+			Log:           log.DefaultConfig(),
+			ShutdownDelay: 1 * time.Second,
+			Timeout:       8 * time.Second,
+			NoVerify:      false,
+		},
+	}
+
+	lockFilePath := filepath.Join(nodeDir(conf.ClusterDir, 0), clusterLockFile)
+	lock := mustLoadTestLockFile(t, lockFilePath)
+	require.NoError(t, os.Remove(lockFilePath))
+
+	t.Run("invalid lock file", func(t *testing.T) {
+		lockBytes, err := json.Marshal(lock)
+		require.NoError(t, err)
+
+		lockBytes = []byte(strings.Replace(string(lockBytes), hex.EncodeToString(lock.LockHash), "invalid_hash", 1))
+
+		require.NoError(t, os.WriteFile(lockFilePath, lockBytes, 0o444))
+
+		err = runAddValidators(t.Context(), addConf)
+		require.ErrorContains(t, err, "unmarshal cluster-lock.json")
+	})
+}
+
 func TestValidateConfigAddValidators(t *testing.T) {
 	realDir := t.TempDir()
 	err := os.WriteFile(filepath.Join(realDir, clusterLockFile), []byte("{}"), 0o444)
@@ -340,7 +397,39 @@ func TestValidateConfigAddValidators(t *testing.T) {
 }
 
 func TestVerifyLock(t *testing.T) {
-	b, err := os.ReadFile("testdata/test_cluster_lock.json")
+	lock := mustLoadTestLockFile(t, "testdata/test_cluster_lock.json")
+
+	err := verifyLock(t.Context(), lock, dkg.Config{NoVerify: true})
+	require.NoError(t, err)
+
+	err = verifyLock(t.Context(), lock, dkg.Config{NoVerify: false})
+	require.NoError(t, err)
+
+	t.Run("invalid lock hash", func(t *testing.T) {
+		lock2 := lock
+		lock2.LockHash = []byte("invalid")
+		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: false})
+		require.ErrorContains(t, err, "cluster lock hashes verification failed")
+
+		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: true})
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid lock signature", func(t *testing.T) {
+		lock2 := lock
+		lock2.SignatureAggregate = []byte("invalid")
+		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: false})
+		require.ErrorContains(t, err, "cluster lock signature verification failed")
+
+		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: true})
+		require.NoError(t, err)
+	})
+}
+
+func mustLoadTestLockFile(t *testing.T, path string) cluster.Lock {
+	t.Helper()
+
+	b, err := os.ReadFile(path)
 	require.NoError(t, err)
 
 	var lock cluster.Lock
@@ -348,9 +437,5 @@ func TestVerifyLock(t *testing.T) {
 	err = json.Unmarshal(b, &lock)
 	require.NoError(t, err)
 
-	err = verifyLock(t.Context(), lock, dkg.Config{NoVerify: true})
-	require.NoError(t, err)
-
-	err = verifyLock(t.Context(), lock, dkg.Config{NoVerify: false})
-	require.NoError(t, err)
+	return lock
 }
