@@ -38,15 +38,19 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 			MaxResPerPeer: 8,
 			MaxConns:      1024,
 		})
-		t.Logf("Relay stopped: err=%v", err)
+		if err != nil {
+			log.Warn(parentCtx, "Relay stopped with error", err)
+		} else {
+			log.Info(parentCtx, "Relay stopped without error")
+		}
 
 		errChan <- err
 	}()
 
 	endpoint := "http://" + addr
 
-	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+	// Wait up to 10s for bootnode to become available.
+	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
 	defer cancel()
 
 	isUp := make(chan struct{})
