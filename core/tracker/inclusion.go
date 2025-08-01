@@ -230,6 +230,15 @@ func (i *inclusionCore) Trim(ctx context.Context, slot uint64) {
 
 		delete(i.submissions, key)
 	}
+
+	// Trim state committees
+	for key := range i.stateCommittees {
+		if uint64(key) > slot {
+			continue
+		}
+
+		delete(i.stateCommittees, key)
+	}
 }
 
 // CheckBlock checks whether the block includes any of the submitted duties.
