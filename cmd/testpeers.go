@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -821,7 +823,7 @@ func startTCPNode(ctx context.Context, conf testPeersConfig) (host.Host, func(),
 	allENRsString := strings.Join(allENRs, ",")
 	allENRsHash := sha256.Sum256([]byte(allENRsString))
 
-	return p2p.SetupP2P(ctx, p2pPrivKey, conf.P2P, peers, allENRsHash[:])
+	return setupP2P(ctx, p2pPrivKey, conf.P2P, peers, allENRsHash[:])
 }
 
 func pingPeerOnce(ctx context.Context, p2pNode host.Host, peer p2p.Peer) (ping.Result, error) {
@@ -883,4 +885,45 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	}
 
 	return nil
+}
+
+func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peers []p2p.Peer, enrsHash []byte) (host.Host, func(), error) {
+	var peerIDs []peer.ID
+	for _, peer := range peers {
+		peerIDs = append(peerIDs, peer.ID)
+	}
+
+	if err := p2p.VerifyP2PKey(peers, privKey); err != nil {
+		return nil, nil, err
+	}
+
+	relays, err := p2p.NewRelays(ctx, conf.Relays, hex.EncodeToString(enrsHash))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	connGater, err := p2p.NewConnGater(peerIDs, relays)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tcpNode, err := p2p.NewNode(ctx, conf, privKey, connGater, false, p2p.NodeTypeTCP)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	p2p.RegisterConnectionLogger(ctx, tcpNode, peerIDs)
+
+	for _, relay := range relays {
+		go p2p.NewRelayReserver(tcpNode, relay)(ctx)
+	}
+
+	go p2p.NewRelayRouter(tcpNode, peerIDs, relays)(ctx)
+
+	return tcpNode, func() {
+		err := tcpNode.Close()
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Error(ctx, "Close TCP node", err)
+		}
+	}, nil
 }

@@ -220,7 +220,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
 
-	p2pNode, shutdown, err := p2p.SetupP2P(ctx, key, conf.P2P, peers, def.DefinitionHash)
+	p2pNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash)
 	if err != nil {
 		return err
 	}
@@ -231,15 +231,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "private key not matching definition file")
 	}
 
-	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
-	gitHash, _ := version.GitCommit()
-
 	peerIDs, err := def.PeerIDs()
 	if err != nil {
 		return errors.Wrap(err, "get peer IDs")
 	}
-
-	_ = peerinfo.New(p2pNode, peerIDs, version.Version, def.DefinitionHash, gitHash, nil, false, "")
 
 	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{
 		sigLock,
@@ -1236,6 +1231,54 @@ func setRegistrationSignature(reg core.VersionedSignedValidatorRegistration, sig
 	}
 
 	return reg, nil
+}
+
+// setupP2P returns a started libp2p tcp node and a shutdown function.
+func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
+	var peerIDs []peer.ID
+	for _, p := range peers {
+		peerIDs = append(peerIDs, p.ID)
+	}
+
+	if err := p2p.VerifyP2PKey(peers, key); err != nil {
+		return nil, nil, err
+	}
+
+	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	connGater, err := p2p.NewConnGater(peerIDs, relays)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	p2pNode, err := p2p.NewNode(ctx, conf.P2P, key, connGater, false, p2p.NodeTypeTCP)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if conf.TestConfig.P2PNodeCallback != nil {
+		conf.TestConfig.P2PNodeCallback(p2pNode)
+	}
+
+	p2p.RegisterConnectionLogger(ctx, p2pNode, peerIDs)
+
+	for _, relay := range relays {
+		go p2p.NewRelayReserver(p2pNode, relay)(ctx)
+	}
+
+	go p2p.NewRelayRouter(p2pNode, peerIDs, relays)(ctx)
+
+	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
+	gitHash, _ := version.GitCommit()
+
+	_ = peerinfo.New(p2pNode, peerIDs, version.Version, defHash, gitHash, nil, false, "")
+
+	return p2pNode, func() {
+		_ = p2pNode.Close()
+	}, nil
 }
 
 func getExistingShares(conf *AppendConfig) ([]share, error) {
