@@ -7,6 +7,7 @@ import (
 	"context"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -163,13 +164,7 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 
 	zero := func() O { var z O; return z }()
 
-	runForkJoin := func(clients []Client, isFallback bool) (O, error) {
-		if isFallback {
-			usingFallbackGauge.Set(1)
-		} else {
-			usingFallbackGauge.Set(0)
-		}
-
+	runForkJoin := func(clients []Client) (O, error) {
 		fork, join, cancel := forkjoin.New(ctx, work,
 			forkjoin.WithoutFailFast(),
 			forkjoin.WithWorkers(len(clients)),
@@ -208,13 +203,29 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 
 		return nokResp.Output, nokResp.Err
 	}
+	output, err := runForkJoin(clients)
 
-	output, err := runForkJoin(clients, false)
-	if err == nil || ctx.Err() != nil || len(fallbacks) == 0 {
-		return output, err
+	// Call fallback nodes when request to beacon node timeout or if it's syncing
+	if err != nil && len(fallbacks) != 0 && (isTimeoutError(err) || isSyncingError(err)) {
+		usingFallbackGauge.Set(1)
+		return runForkJoin(fallbacks)
 	}
 
-	return runForkJoin(fallbacks, true)
+	usingFallbackGauge.Set(0)
+
+	return output, err
+}
+
+// isTimeoutError returns true if error message contains known strings for timeout related issues.
+func isTimeoutError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "http request timeout") || strings.Contains(msg, "client is not active") || strings.Contains(msg, "context deadline exceeded")
+}
+
+// isSyncingError returns true if error message contains the word "syncing".
+func isSyncingError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "syncing")
 }
 
 type empty struct{}
