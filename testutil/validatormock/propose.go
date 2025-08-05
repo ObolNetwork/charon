@@ -5,8 +5,6 @@ package validatormock
 
 import (
 	"context"
-	"encoding/hex"
-	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -217,59 +215,6 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	}
 
 	return eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{Proposal: signedBlock})
-}
-
-// RegistrationsFromProposerConfig returns all enabled builder-API registrations from upstream proposer config.
-func RegistrationsFromProposerConfig(ctx context.Context, eth2Cl eth2wrap.Client) (map[eth2p0.BLSPubKey]*eth2api.VersionedValidatorRegistration, error) {
-	confs, err := eth2Cl.ProposerConfig(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "get proposer config")
-	}
-
-	resp := make(map[eth2p0.BLSPubKey]*eth2api.VersionedValidatorRegistration)
-
-	for pubshare, conf := range confs.Proposers {
-		if !conf.Builder.Enabled {
-			continue
-		}
-
-		ts, ok, err := conf.Builder.TimestampOverride()
-		if err != nil {
-			return nil, errors.Wrap(err, "get builder timestamp override")
-		} else if !ok {
-			return nil, errors.Wrap(err, "no builder timestamp override")
-		}
-
-		pubkey, ok, err := conf.Builder.PublicKeyOverride()
-		if err != nil {
-			return nil, errors.Wrap(err, "get builder public key override")
-		} else if !ok {
-			return nil, errors.Wrap(err, "no builder public key override")
-		}
-
-		if conf.Builder.GasLimit == 0 {
-			return nil, errors.New("invalid builder gas limit")
-		}
-
-		feeRecipientBytes, err := hex.DecodeString(strings.TrimPrefix(conf.FeeRecipient, "0x"))
-		if err != nil {
-			return nil, errors.Wrap(err, "decode fee recipient")
-		} else if len(feeRecipientBytes) != 20 {
-			return nil, errors.New("invalid fee recipient")
-		}
-
-		resp[pubshare] = &eth2api.VersionedValidatorRegistration{
-			Version: eth2spec.BuilderVersionV1,
-			V1: &eth2v1.ValidatorRegistration{
-				FeeRecipient: bellatrix.ExecutionAddress(feeRecipientBytes),
-				GasLimit:     uint64(conf.Builder.GasLimit),
-				Timestamp:    ts,
-				Pubkey:       pubkey,
-			},
-		}
-	}
-
-	return resp, nil
 }
 
 // Register signs and submits the validator builder registration to the validator API.

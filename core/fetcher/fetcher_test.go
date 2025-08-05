@@ -22,7 +22,6 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -385,14 +384,14 @@ func TestFetchSyncContribution(t *testing.T) {
 		sigB = "99e60f20dde4d4872b048d703f1943071c20213d504012e7e520c229da87661803b9f139b9a0c5be31de3cef6821c080125aed38ebaf51ba9a2e9d21d7fbf2903577983109d097a8599610a92c0305408d97c1fd4b0b2d1743fb4eedf5443f99"
 	)
 	// Construct sync committee selections.
-	selectionA := &eth2exp.SyncCommitteeSelection{
+	selectionA := &eth2v1.SyncCommitteeSelection{
 		ValidatorIndex:    vIdxA,
 		Slot:              slot,
 		SubcommitteeIndex: subCommIdxA,
 		SelectionProof:    blsSigFromHex(t, sigA),
 	}
 
-	selectionB := &eth2exp.SyncCommitteeSelection{
+	selectionB := &eth2v1.SyncCommitteeSelection{
 		ValidatorIndex:    vIdxB,
 		Slot:              slot,
 		SubcommitteeIndex: subCommIdxB,
@@ -439,7 +438,7 @@ func TestFetchSyncContribution(t *testing.T) {
 				s, ok := selection.(core.SyncCommitteeSelection)
 				require.True(t, ok)
 
-				if s.SubcommitteeIndex == eth2p0.CommitteeIndex(subcommitteeIndex) {
+				if s.SubcommitteeIndex == subcommitteeIndex {
 					signedSelection = s
 				}
 			}
@@ -489,12 +488,12 @@ func TestFetchSyncContribution(t *testing.T) {
 				}
 
 				require.Equal(t, eth2p0.Slot(slot), selection.Slot)
-				require.Equal(t, eth2p0.CommitteeIndex(contribution.SubcommitteeIndex), selection.SubcommitteeIndex)
+				require.Equal(t, contribution.SubcommitteeIndex, selection.SubcommitteeIndex)
 
 				if selection.ValidatorIndex == eth2p0.ValidatorIndex(vIdxA) {
-					require.Equal(t, eth2p0.CommitteeIndex(subCommIdxA), selection.SubcommitteeIndex)
+					require.Equal(t, uint64(subCommIdxA), selection.SubcommitteeIndex)
 				} else if selection.ValidatorIndex == eth2p0.ValidatorIndex(vIdxB) {
-					require.Equal(t, eth2p0.CommitteeIndex(subCommIdxB), selection.SubcommitteeIndex)
+					require.Equal(t, uint64(subCommIdxB), selection.SubcommitteeIndex)
 				}
 
 				message, ok := syncMsgsByPubkey[pubkey].(core.SignedSyncMessage)
@@ -521,7 +520,7 @@ func TestFetchSyncContribution(t *testing.T) {
 				// Signature corresponding to a non-aggregator. Refer https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L336
 				sig := "b9251a82040d4620b8c5665f328ee6c2eaa02d31d71d153f4abba31a7922a981e541e85283f0ced387d26e86aef9386d18c6982b9b5f8759882fe7f25a328180d86e146994ef19d28bc1432baf29751dec12b5f3d65dbbe224d72cf900c6831a"
 				resp := blsSigFromHex(t, sig)
-				selection := &eth2exp.SyncCommitteeSelection{
+				selection := &eth2v1.SyncCommitteeSelection{
 					SelectionProof: resp,
 				}
 

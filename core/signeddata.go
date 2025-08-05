@@ -26,7 +26,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 )
 
@@ -1163,14 +1162,14 @@ func (s SignedRandao) clone() (SignedRandao, error) {
 }
 
 // NewBeaconCommitteeSelection is a convenience function which returns new signed BeaconCommitteeSelection.
-func NewBeaconCommitteeSelection(selection *eth2exp.BeaconCommitteeSelection) BeaconCommitteeSelection {
+func NewBeaconCommitteeSelection(selection *eth2v1.BeaconCommitteeSelection) BeaconCommitteeSelection {
 	return BeaconCommitteeSelection{
 		BeaconCommitteeSelection: *selection,
 	}
 }
 
 // NewPartialSignedBeaconCommitteeSelection is a convenience function which returns new partially signed BeaconCommitteeSelection.
-func NewPartialSignedBeaconCommitteeSelection(selection *eth2exp.BeaconCommitteeSelection, shareIdx int) ParSignedData {
+func NewPartialSignedBeaconCommitteeSelection(selection *eth2v1.BeaconCommitteeSelection, shareIdx int) ParSignedData {
 	return ParSignedData{
 		SignedData: NewBeaconCommitteeSelection(selection),
 		ShareIdx:   shareIdx,
@@ -1179,7 +1178,7 @@ func NewPartialSignedBeaconCommitteeSelection(selection *eth2exp.BeaconCommittee
 
 // BeaconCommitteeSelection wraps a BeaconCommitteeSelection which implements SignedData.
 type BeaconCommitteeSelection struct {
-	eth2exp.BeaconCommitteeSelection
+	eth2v1.BeaconCommitteeSelection
 }
 
 func (s BeaconCommitteeSelection) MessageRoot() ([32]byte, error) {
@@ -1225,14 +1224,14 @@ func (s *BeaconCommitteeSelection) UnmarshalJSON(input []byte) error {
 }
 
 // NewSyncCommitteeSelection is a convenience function which returns new signed SyncCommitteeSelection.
-func NewSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection) SyncCommitteeSelection {
+func NewSyncCommitteeSelection(selection *eth2v1.SyncCommitteeSelection) SyncCommitteeSelection {
 	return SyncCommitteeSelection{
 		SyncCommitteeSelection: *selection,
 	}
 }
 
 // NewPartialSignedSyncCommitteeSelection is a convenience function which returns new partially signed SyncCommitteeSelection.
-func NewPartialSignedSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSelection, shareIdx int) ParSignedData {
+func NewPartialSignedSyncCommitteeSelection(selection *eth2v1.SyncCommitteeSelection, shareIdx int) ParSignedData {
 	return ParSignedData{
 		SignedData: NewSyncCommitteeSelection(selection),
 		ShareIdx:   shareIdx,
@@ -1241,7 +1240,7 @@ func NewPartialSignedSyncCommitteeSelection(selection *eth2exp.SyncCommitteeSele
 
 // SyncCommitteeSelection wraps an eth2exp.SyncCommitteeSelection and implements SignedData.
 type SyncCommitteeSelection struct {
-	eth2exp.SyncCommitteeSelection
+	eth2v1.SyncCommitteeSelection
 }
 
 // MessageRoot returns the signing roots for the provided SyncCommitteeSelection.
@@ -1249,7 +1248,7 @@ type SyncCommitteeSelection struct {
 func (s SyncCommitteeSelection) MessageRoot() ([32]byte, error) {
 	data := altair.SyncAggregatorSelectionData{
 		Slot:              s.Slot,
-		SubcommitteeIndex: uint64(s.SubcommitteeIndex),
+		SubcommitteeIndex: s.SubcommitteeIndex,
 	}
 
 	return data.HashTreeRoot()

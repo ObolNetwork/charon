@@ -324,7 +324,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 			return core.UnsignedDataSet{}, errors.New("invalid sync committee selection")
 		}
 
-		subcommIdx := uint64(selection.SubcommitteeIndex)
+		subcommIdx := selection.SubcommitteeIndex
 
 		// Check if the validator is an aggregator for the sync committee.
 		ok, err = eth2exp.IsSyncCommAggregator(ctx, f.eth2Cl, selection.SelectionProof)

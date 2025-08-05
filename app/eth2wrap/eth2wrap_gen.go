@@ -14,19 +14,11 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 // Client defines all go-eth2-client interfaces used in charon.
 type Client interface {
 	eth2client.Service
-	eth2exp.BeaconCommitteeSelectionAggregator
-	eth2exp.SyncCommitteeSelectionAggregator
-	eth2exp.ProposerConfigProvider
-	BlockAttestationsProvider
-	BlockProvider
-	BeaconStateCommitteesProvider
-	NodePeerCountProvider
 
 	CachedValidatorsProvider
 	SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
@@ -38,14 +30,18 @@ type Client interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
+	eth2client.BeaconBlockAttestationsProvider
 	eth2client.BeaconBlockRootProvider
+	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
+	eth2client.BeaconCommitteesProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
+	eth2client.NodePeerCountProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.ProposalPreparationsSubmitter
@@ -60,6 +56,7 @@ type Client interface {
 	eth2client.SyncCommitteeContributionsSubmitter
 	eth2client.SyncCommitteeDutiesProvider
 	eth2client.SyncCommitteeMessagesSubmitter
+	eth2client.SyncCommitteeSelectionsProvider
 	eth2client.SyncCommitteeSubscriptionsSubmitter
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.ValidatorsProvider
@@ -123,6 +120,27 @@ func (m multi) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedSignedBeaconBlock], error) {
 			return args.client.SignedBeaconBlock(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// BeaconCommittees fetches all beacon committees for the given options.
+func (m multi) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitteesOpts) (*api.Response[[]*apiv1.BeaconCommittee], error) {
+	const label = "beacon_committees"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.BeaconCommittee], error) {
+			return args.client.BeaconCommittees(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -368,6 +386,27 @@ func (m multi) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return err
 }
 
+// SyncCommitteeSelections submits sync committee selections.
+func (m multi) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCommitteeSelectionsOpts) (*api.Response[[]*apiv1.SyncCommitteeSelection], error) {
+	const label = "sync_committee_selections"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.SyncCommitteeSelection], error) {
+			return args.client.SyncCommitteeSelections(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // Proposal fetches a proposal for signing.
 func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
 	const label = "proposal"
@@ -399,6 +438,27 @@ func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*phase0.Root], error) {
 			return args.client.BeaconBlockRoot(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// BeaconBlockAttestations fetches a block's attestations given a set of options.
+func (m multi) BeaconBlockAttestations(ctx context.Context, opts *api.BeaconBlockAttestationsOpts) (*api.Response[[]*spec.VersionedAttestation], error) {
+	const label = "beacon_block_attestations"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*spec.VersionedAttestation], error) {
+			return args.client.BeaconBlockAttestations(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -451,6 +511,27 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	}
 
 	return err
+}
+
+// BeaconCommitteeSelections submits beacon committee selections.
+func (m multi) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (*api.Response[[]*apiv1.BeaconCommitteeSelection], error) {
+	const label = "beacon_committee_selections"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.BeaconCommitteeSelection], error) {
+			return args.client.BeaconCommitteeSelections(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
 }
 
 // SubmitBlindedProposal submits a beacon block.
@@ -547,6 +628,28 @@ func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Respons
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.Genesis], error) {
 			return args.client.Genesis(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// NodePeerCount provides the peer count of the node.
+// Note this endpoint is cached in go-eth2-client.
+func (m multi) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (*api.Response[*apiv1.PeerCount], error) {
+	const label = "node_peer_count"
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.PeerCount], error) {
+			return args.client.NodePeerCount(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -790,6 +893,16 @@ func (l *lazy) SignedBeaconBlock(ctx context.Context, opts *api.SignedBeaconBloc
 	return cl.SignedBeaconBlock(ctx, opts)
 }
 
+// BeaconCommittees fetches all beacon committees for the given options.
+func (l *lazy) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitteesOpts) (res0 *api.Response[[]*apiv1.BeaconCommittee], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.BeaconCommittees(ctx, opts)
+}
+
 // AggregateAttestation fetches the aggregate attestation for the given options.
 func (l *lazy) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (res0 *api.Response[*spec.VersionedAttestation], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -901,6 +1014,16 @@ func (l *lazy) SubmitSyncCommitteeContributions(ctx context.Context, contributio
 	return cl.SubmitSyncCommitteeContributions(ctx, contributionAndProofs)
 }
 
+// SyncCommitteeSelections submits sync committee selections.
+func (l *lazy) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCommitteeSelectionsOpts) (res0 *api.Response[[]*apiv1.SyncCommitteeSelection], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.SyncCommitteeSelections(ctx, opts)
+}
+
 // Proposal fetches a proposal for signing.
 func (l *lazy) Proposal(ctx context.Context, opts *api.ProposalOpts) (res0 *api.Response[*api.VersionedProposal], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -921,6 +1044,16 @@ func (l *lazy) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpt
 	return cl.BeaconBlockRoot(ctx, opts)
 }
 
+// BeaconBlockAttestations fetches a block's attestations given a set of options.
+func (l *lazy) BeaconBlockAttestations(ctx context.Context, opts *api.BeaconBlockAttestationsOpts) (res0 *api.Response[[]*spec.VersionedAttestation], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.BeaconBlockAttestations(ctx, opts)
+}
+
 // SubmitProposal submits a proposal.
 func (l *lazy) SubmitProposal(ctx context.Context, opts *api.SubmitProposalOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -939,6 +1072,16 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	}
 
 	return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
+}
+
+// BeaconCommitteeSelections submits beacon committee selections.
+func (l *lazy) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (res0 *api.Response[[]*apiv1.BeaconCommitteeSelection], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.BeaconCommitteeSelections(ctx, opts)
 }
 
 // SubmitBlindedProposal submits a beacon block.
@@ -989,6 +1132,16 @@ func (l *lazy) Genesis(ctx context.Context, opts *api.GenesisOpts) (res0 *api.Re
 	}
 
 	return cl.Genesis(ctx, opts)
+}
+
+// NodePeerCount provides the peer count of the node.
+func (l *lazy) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (res0 *api.Response[*apiv1.PeerCount], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.NodePeerCount(ctx, opts)
 }
 
 // NodeSyncing provides the state of the node's synchronization with the chain.

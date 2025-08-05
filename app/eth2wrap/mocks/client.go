@@ -10,8 +10,6 @@ import (
 
 	context "context"
 
-	eth2exp "github.com/obolnetwork/charon/eth2util/eth2exp"
-
 	eth2wrap "github.com/obolnetwork/charon/app/eth2wrap"
 
 	mock "github.com/stretchr/testify/mock"
@@ -19,8 +17,6 @@ import (
 	phase0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	spec "github.com/attestantio/go-eth2-client/spec"
-
-	statecomm "github.com/obolnetwork/charon/eth2util/statecomm"
 
 	time "time"
 
@@ -110,66 +106,6 @@ func (_m *Client) AggregateAttestation(ctx context.Context, opts *api.AggregateA
 	return r0, r1
 }
 
-// AggregateBeaconCommitteeSelections provides a mock function with given fields: ctx, partialSelections
-func (_m *Client) AggregateBeaconCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	ret := _m.Called(ctx, partialSelections)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AggregateBeaconCommitteeSelections")
-	}
-
-	var r0 []*eth2exp.BeaconCommitteeSelection
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)); ok {
-		return rf(ctx, partialSelections)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, []*eth2exp.BeaconCommitteeSelection) []*eth2exp.BeaconCommitteeSelection); ok {
-		r0 = rf(ctx, partialSelections)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*eth2exp.BeaconCommitteeSelection)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, []*eth2exp.BeaconCommitteeSelection) error); ok {
-		r1 = rf(ctx, partialSelections)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// AggregateSyncCommitteeSelections provides a mock function with given fields: ctx, partialSelections
-func (_m *Client) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	ret := _m.Called(ctx, partialSelections)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AggregateSyncCommitteeSelections")
-	}
-
-	var r0 []*eth2exp.SyncCommitteeSelection
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)); ok {
-		return rf(ctx, partialSelections)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, []*eth2exp.SyncCommitteeSelection) []*eth2exp.SyncCommitteeSelection); ok {
-		r0 = rf(ctx, partialSelections)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*eth2exp.SyncCommitteeSelection)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, []*eth2exp.SyncCommitteeSelection) error); ok {
-		r1 = rf(ctx, partialSelections)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // AttestationData provides a mock function with given fields: ctx, opts
 func (_m *Client) AttestationData(ctx context.Context, opts *api.AttestationDataOpts) (*api.Response[*phase0.AttestationData], error) {
 	ret := _m.Called(ctx, opts)
@@ -230,6 +166,36 @@ func (_m *Client) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOp
 	return r0, r1
 }
 
+// BeaconBlockAttestations provides a mock function with given fields: ctx, opts
+func (_m *Client) BeaconBlockAttestations(ctx context.Context, opts *api.BeaconBlockAttestationsOpts) (*api.Response[[]*spec.VersionedAttestation], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for BeaconBlockAttestations")
+	}
+
+	var r0 *api.Response[[]*spec.VersionedAttestation]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconBlockAttestationsOpts) (*api.Response[[]*spec.VersionedAttestation], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconBlockAttestationsOpts) *api.Response[[]*spec.VersionedAttestation]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*spec.VersionedAttestation])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconBlockAttestationsOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // BeaconBlockRoot provides a mock function with given fields: ctx, opts
 func (_m *Client) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (*api.Response[*phase0.Root], error) {
 	ret := _m.Called(ctx, opts)
@@ -260,29 +226,29 @@ func (_m *Client) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRoot
 	return r0, r1
 }
 
-// BeaconStateCommittees provides a mock function with given fields: ctx, slot
-func (_m *Client) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-	ret := _m.Called(ctx, slot)
+// BeaconCommitteeSelections provides a mock function with given fields: ctx, opts
+func (_m *Client) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (*api.Response[[]*v1.BeaconCommitteeSelection], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
-		panic("no return value specified for BeaconStateCommittees")
+		panic("no return value specified for BeaconCommitteeSelections")
 	}
 
-	var r0 []*statecomm.StateCommittee
+	var r0 *api.Response[[]*v1.BeaconCommitteeSelection]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) ([]*statecomm.StateCommittee, error)); ok {
-		return rf(ctx, slot)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconCommitteeSelectionsOpts) (*api.Response[[]*v1.BeaconCommitteeSelection], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) []*statecomm.StateCommittee); ok {
-		r0 = rf(ctx, slot)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconCommitteeSelectionsOpts) *api.Response[[]*v1.BeaconCommitteeSelection]); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*statecomm.StateCommittee)
+			r0 = ret.Get(0).(*api.Response[[]*v1.BeaconCommitteeSelection])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uint64) error); ok {
-		r1 = rf(ctx, slot)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconCommitteeSelectionsOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -290,59 +256,29 @@ func (_m *Client) BeaconStateCommittees(ctx context.Context, slot uint64) ([]*st
 	return r0, r1
 }
 
-// Block provides a mock function with given fields: ctx, stateID
-func (_m *Client) Block(ctx context.Context, stateID string) (*spec.VersionedSignedBeaconBlock, error) {
-	ret := _m.Called(ctx, stateID)
+// BeaconCommittees provides a mock function with given fields: ctx, opts
+func (_m *Client) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitteesOpts) (*api.Response[[]*v1.BeaconCommittee], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Block")
+		panic("no return value specified for BeaconCommittees")
 	}
 
-	var r0 *spec.VersionedSignedBeaconBlock
+	var r0 *api.Response[[]*v1.BeaconCommittee]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*spec.VersionedSignedBeaconBlock, error)); ok {
-		return rf(ctx, stateID)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconCommitteesOpts) (*api.Response[[]*v1.BeaconCommittee], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *spec.VersionedSignedBeaconBlock); ok {
-		r0 = rf(ctx, stateID)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.BeaconCommitteesOpts) *api.Response[[]*v1.BeaconCommittee]); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*spec.VersionedSignedBeaconBlock)
+			r0 = ret.Get(0).(*api.Response[[]*v1.BeaconCommittee])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, stateID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// BlockAttestations provides a mock function with given fields: ctx, stateID
-func (_m *Client) BlockAttestations(ctx context.Context, stateID string) ([]*spec.VersionedAttestation, error) {
-	ret := _m.Called(ctx, stateID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for BlockAttestations")
-	}
-
-	var r0 []*spec.VersionedAttestation
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*spec.VersionedAttestation, error)); ok {
-		return rf(ctx, stateID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*spec.VersionedAttestation); ok {
-		r0 = rf(ctx, stateID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*spec.VersionedAttestation)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, stateID)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconCommitteesOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -614,27 +550,29 @@ func (_m *Client) Name() string {
 	return r0
 }
 
-// NodePeerCount provides a mock function with given fields: ctx
-func (_m *Client) NodePeerCount(ctx context.Context) (int, error) {
-	ret := _m.Called(ctx)
+// NodePeerCount provides a mock function with given fields: ctx, opts
+func (_m *Client) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (*api.Response[*v1.PeerCount], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for NodePeerCount")
 	}
 
-	var r0 int
+	var r0 *api.Response[*v1.PeerCount]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (int, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodePeerCountOpts) (*api.Response[*v1.PeerCount], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) int); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodePeerCountOpts) *api.Response[*v1.PeerCount]); ok {
+		r0 = rf(ctx, opts)
 	} else {
-		r0 = ret.Get(0).(int)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*v1.PeerCount])
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.NodePeerCountOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -725,36 +663,6 @@ func (_m *Client) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Re
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.ProposalOpts) error); ok {
 		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// ProposerConfig provides a mock function with given fields: ctx
-func (_m *Client) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	ret := _m.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ProposerConfig")
-	}
-
-	var r0 *eth2exp.ProposerConfigResponse
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (*eth2exp.ProposerConfigResponse, error)); ok {
-		return rf(ctx)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context) *eth2exp.ProposerConfigResponse); ok {
-		r0 = rf(ctx)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*eth2exp.ProposerConfigResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1168,6 +1076,36 @@ func (_m *Client) SyncCommitteeDuties(ctx context.Context, opts *api.SyncCommitt
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.SyncCommitteeDutiesOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// SyncCommitteeSelections provides a mock function with given fields: ctx, opts
+func (_m *Client) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCommitteeSelectionsOpts) (*api.Response[[]*v1.SyncCommitteeSelection], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SyncCommitteeSelections")
+	}
+
+	var r0 *api.Response[[]*v1.SyncCommitteeSelection]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SyncCommitteeSelectionsOpts) (*api.Response[[]*v1.SyncCommitteeSelection], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SyncCommitteeSelectionsOpts) *api.Response[[]*v1.SyncCommitteeSelection]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*v1.SyncCommitteeSelection])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.SyncCommitteeSelectionsOpts) error); ok {
 		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)

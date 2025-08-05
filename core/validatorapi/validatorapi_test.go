@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"sort"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -33,7 +32,6 @@ import (
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -1884,80 +1882,6 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	require.ErrorContains(t, err, "signature not verified")
 }
 
-func TestComponent_TekuProposerConfig(t *testing.T) {
-	ctx := context.Background()
-
-	const (
-		zeroAddr     = "0x0000000000000000000000000000000000000000"
-		feeRecipient = "0x123456"
-		shareIdx     = 1
-	)
-	// Create keys (just use normal keys, not split tbls)
-	secret, err := tbls.GenerateSecretKey()
-	require.NoError(t, err)
-
-	pubkey, err := tbls.SecretToPublicKey(secret)
-	require.NoError(t, err)
-
-	// Convert pubkey
-	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-
-	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
-
-	// Configure beacon mock
-	bmock, err := beaconmock.New()
-	require.NoError(t, err)
-
-	// Construct the validator api component
-	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, func(core.PubKey) string {
-		return feeRecipient
-	}, true, 30000000, nil)
-	require.NoError(t, err)
-
-	resp, err := vapi.ProposerConfig(ctx)
-	require.NoError(t, err)
-
-	pk, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-
-	genesis, err := bmock.Genesis(ctx, &eth2api.GenesisOpts{})
-	require.NoError(t, err)
-
-	genesisTime := genesis.Data.GenesisTime
-	respSpec, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
-	require.NoError(t, err)
-
-	slotDuration, ok := respSpec.Data["SECONDS_PER_SLOT"].(time.Duration)
-	require.True(t, ok)
-
-	eth2pk, err := pk.ToETH2()
-	require.NoError(t, err)
-
-	require.Equal(t, &eth2exp.ProposerConfigResponse{
-		Proposers: map[eth2p0.BLSPubKey]eth2exp.ProposerConfig{
-			eth2pk: {
-				FeeRecipient: feeRecipient,
-				Builder: eth2exp.Builder{
-					Enabled:  true,
-					GasLimit: 30000000,
-					Overrides: map[string]string{
-						"timestamp":  strconv.FormatInt(genesisTime.Add(slotDuration).Unix(), 10),
-						"public_key": string(pk),
-					},
-				},
-			},
-		},
-		Default: eth2exp.ProposerConfig{
-			FeeRecipient: zeroAddr,
-			Builder: eth2exp.Builder{
-				Enabled:  false,
-				GasLimit: 30000000,
-			},
-		},
-	}, resp)
-}
-
 func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 	ctx := context.Background()
 
@@ -1970,7 +1894,7 @@ func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
 	require.NoError(t, err)
 
-	selections := []*eth2exp.BeaconCommitteeSelection{
+	selections := []*eth2v1.BeaconCommitteeSelection{
 		{
 			ValidatorIndex: valSet[1].Index,
 			Slot:           slot,
@@ -2003,8 +1927,10 @@ func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 		return nil, errors.New("unknown public key")
 	})
 
-	actual, err := vapi.AggregateBeaconCommitteeSelections(ctx, selections)
+	eth2Resp, err := vapi.BeaconCommitteeSelections(ctx, &eth2api.BeaconCommitteeSelectionsOpts{Selections: selections})
 	require.NoError(t, err)
+
+	actual := eth2Resp.Data
 
 	// Sort by VIdx before comparing
 	sort.Slice(actual, func(i, j int) bool {
@@ -2139,7 +2065,7 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 		ctx        = context.Background()
 		val        = testutil.RandomValidator(t)
 		slot       = eth2p0.Slot(50)
-		subcommIdx = eth2p0.CommitteeIndex(1)
+		subcommIdx = uint64(1)
 	)
 
 	// Create keys (just use normal keys, not split tbls).
@@ -2165,7 +2091,7 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 		Contribution:    testutil.RandomSyncCommitteeContribution(),
 	}
 	contribAndProof.Contribution.Slot = slot
-	contribAndProof.Contribution.SubcommitteeIndex = uint64(subcommIdx)
+	contribAndProof.Contribution.SubcommitteeIndex = subcommIdx
 	contribAndProof.SelectionProof = syncCommSelectionProof(t, bmock, secret, slot, subcommIdx)
 
 	signedContribAndProof := &altair.SignedContributionAndProof{
@@ -2432,7 +2358,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	selection1.SelectionProof = syncCommSelectionProof(t, bmock, secret1, slot, selection1.SubcommitteeIndex)
 	selection2.SelectionProof = syncCommSelectionProof(t, bmock, secret2, slot, selection2.SubcommitteeIndex)
 
-	selections := []*eth2exp.SyncCommitteeSelection{selection1, selection2}
+	selections := []*eth2v1.SyncCommitteeSelection{selection1, selection2}
 
 	// Populate all pubshares map.
 	corePubKey1, err := core.PubKeyFromBytes(pubkey1[:])
@@ -2485,8 +2411,10 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 		return nil
 	})
 
-	got, err := vapi.AggregateSyncCommitteeSelections(ctx, selections)
+	eth2Resp, err := vapi.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: selections})
 	require.NoError(t, err)
+
+	got := eth2Resp.Data
 
 	// Sort by VIdx before comparing.
 	sort.Slice(got, func(i, j int) bool {
@@ -2498,7 +2426,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 
 // syncCommSelectionProof returns the selection_proof corresponding to the provided altair.ContributionAndProof.
 // Refer get_sync_committee_selection_proof from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
-func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot, subcommIdx eth2p0.CommitteeIndex) eth2p0.BLSSignature {
+func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot, subcommIdx uint64) eth2p0.BLSSignature {
 	t.Helper()
 
 	epoch, err := eth2util.EpochFromSlot(context.Background(), eth2Cl, slot)
@@ -2506,7 +2434,7 @@ func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.Pr
 
 	data := altair.SyncAggregatorSelectionData{
 		Slot:              slot,
-		SubcommitteeIndex: uint64(subcommIdx),
+		SubcommitteeIndex: subcommIdx,
 	}
 
 	sigRoot, err := data.HashTreeRoot()
