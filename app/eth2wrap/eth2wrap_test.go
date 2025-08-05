@@ -147,7 +147,7 @@ func TestMulti(t *testing.T) {
 
 func TestFallback(t *testing.T) {
 	returnValue := &eth2v1.PeerCount{Connected: 42}
-	closedErr := errors.New("error")
+	closedErr := errors.New("context deadline exceeded")
 
 	tests := []struct {
 		name         string
