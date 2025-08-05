@@ -215,7 +215,7 @@ func LoadFilesRecursively(dir string) (KeyFiles, error) {
 			}
 		}
 
-		// Using atomic, because this worked is executed concurrently.
+		// Using atomic, because this worker is executed concurrently.
 		index := keyFileIndex.Add(1)
 
 		return KeyFile{
