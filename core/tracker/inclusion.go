@@ -231,12 +231,12 @@ func (i *inclusionCore) Trim(ctx context.Context, slot uint64) {
 	}
 
 	// Trim state committees
-	for key := range i.stateCommittees {
+	for key := range i.beaconCommittees {
 		if uint64(key) > slot {
 			continue
 		}
 
-		delete(i.stateCommittees, key)
+		delete(i.beaconCommittees, key)
 	}
 }
 
