@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
+	"sync/atomic"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
@@ -120,6 +122,114 @@ func LoadFilesUnordered(dir string) (KeyFiles, error) {
 		context.Background(),
 		workFunc,
 		files,
+		forkjoin.WithWorkers(loadStoreWorkers),
+	)
+	defer cancel()
+
+	return joinResults.Flatten()
+}
+
+// LoadFilesRecursively works like LoadFilesUnordered but recursively searches for keystore files in the given directory.
+// It tries matching the found password files to decrypted keystore files.
+func LoadFilesRecursively(dir string) (KeyFiles, error) {
+	var (
+		jsonFiles []string
+		txtFiles  []string
+	)
+
+	// Step 1: Walk the directory to find all .json and .txt files.
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			if strings.HasSuffix(info.Name(), ".json") {
+				jsonFiles = append(jsonFiles, path)
+			} else if strings.HasSuffix(info.Name(), ".txt") {
+				txtFiles = append(txtFiles, path)
+			}
+		}
+
+		return err
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "walk directory", z.Str("dir", dir))
+	}
+
+	// Step 2: Decode the keystore files.
+	keyStoresMap := make(map[string]Keystore)
+	validFiles := []string{}
+
+	for _, filepath := range jsonFiles {
+		b, err := os.ReadFile(filepath)
+		if err != nil {
+			return nil, errors.Wrap(err, "read file", z.Str("filepath", filepath))
+		}
+
+		var store Keystore
+		if err := json.Unmarshal(b, &store); err != nil {
+			continue
+		}
+
+		keyStoresMap[filepath] = store
+		validFiles = append(validFiles, filepath)
+	}
+
+	// Step 3: Load all passwords from .txt files.
+	passwordsMap := make(map[string]string)
+
+	for _, filepath := range txtFiles {
+		b, err := os.ReadFile(filepath)
+		if err != nil {
+			return nil, errors.Wrap(err, "read file", z.Str("filepath", filepath))
+		}
+
+		passwordsMap[filepath] = string(b)
+	}
+
+	var keyFileIndex atomic.Int32
+
+	workFunc := func(_ context.Context, filepath string) (KeyFile, error) {
+		store, ok := keyStoresMap[filepath]
+		if !ok {
+			return KeyFile{}, errors.New("keystore not found", z.Str("filepath", filepath))
+		}
+
+		// First try the password file that matches the keystore file.
+		passwordFile := strings.Replace(filepath, ".json", ".txt", 1)
+
+		password, ok := passwordsMap[passwordFile]
+		if !ok {
+			return KeyFile{}, errors.New("password file not found", z.Str("filepath", filepath))
+		}
+
+		secret, err := decrypt(store, password)
+		if err != nil {
+			// Try other passwords
+			for _, otherPassword := range passwordsMap {
+				secret, err = decrypt(store, otherPassword)
+				if err == nil {
+					break
+				}
+			}
+
+			if err != nil {
+				return KeyFile{}, errors.Wrap(err, "keystore decryption", z.Str("filepath", filepath))
+			}
+		}
+
+		// Using atomic, because this worked is executed concurrently.
+		index := keyFileIndex.Add(1)
+
+		return KeyFile{
+			PrivateKey: secret,
+			Filename:   filepath,
+			FileIndex:  int(index),
+		}, nil
+	}
+
+	// Step 4: Final join with decryption.
+	joinResults, cancel := forkjoin.NewWithInputs(
+		context.Background(),
+		workFunc,
+		validFiles,
 		forkjoin.WithWorkers(loadStoreWorkers),
 	)
 	defer cancel()

@@ -202,6 +202,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 			return err
 		}
 
+		log.Debug(ctx, "Read keys from split-keys-dir", z.Int("count", len(secrets)))
+
 		// Needed if --split-existing-keys is called without a definition file.
 		conf.NumDVs = len(secrets)
 	}
@@ -618,13 +620,18 @@ func getKeys(splitKeysDir string, useSequencedKeys bool) ([]tbls.PrivateKey, err
 		return nil, errors.New("--split-keys-dir required when splitting keys")
 	}
 
-	files, err := keystore.LoadFilesUnordered(splitKeysDir)
-	if err != nil {
-		return nil, err
+	if useSequencedKeys {
+		files, err := keystore.LoadFilesUnordered(splitKeysDir)
+		if err != nil {
+			return nil, err
+		}
+
+		return files.SequencedKeys()
 	}
 
-	if useSequencedKeys {
-		return files.SequencedKeys()
+	files, err := keystore.LoadFilesRecursively(splitKeysDir)
+	if err != nil {
+		return nil, err
 	}
 
 	return files.Keys(), nil

@@ -288,6 +288,55 @@ func TestSequencedKeys(t *testing.T) {
 	}
 }
 
+func TestLoadFilesRecursively(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create a nested directory structure with keystore files.
+	nestedDir := filepath.Join(dir, "nested")
+	require.NoError(t, os.Mkdir(nestedDir, 0o755))
+
+	// Store keys in the root & nested directories.
+	pk1 := storeNewKeyForT(t, filepath.Join(dir, "keystore-alpha.json"))
+	pk2 := storeNewKeyForT(t, filepath.Join(nestedDir, "keystore-bravo.json"))
+
+	keyFiles, err := keystore.LoadFilesRecursively(dir)
+	require.NoError(t, err)
+
+	require.Len(t, keyFiles, 2)
+
+	// Check if both keys are loaded correctly.
+	for i := 0; i < 2; i++ {
+		isPk1 := bytes.Equal(keyFiles[i].PrivateKey[:], pk1[:])
+		isPk2 := bytes.Equal(keyFiles[i].PrivateKey[:], pk2[:])
+		require.True(t, isPk1 || isPk2, "Loaded key does not match expected keys")
+	}
+
+	require.NotEqual(t, keyFiles[0].PrivateKey, keyFiles[1].PrivateKey)
+	require.NotEqual(t, keyFiles[0].FileIndex, keyFiles[1].FileIndex)
+
+	t.Run("shuffle password files", func(t *testing.T) {
+		alphaPassword, err := os.ReadFile(filepath.Join(dir, "keystore-alpha.txt"))
+		require.NoError(t, err)
+		bravoPassword, err := os.ReadFile(filepath.Join(nestedDir, "keystore-bravo.txt"))
+		require.NoError(t, err)
+
+		err = os.Remove(filepath.Join(dir, "keystore-alpha.txt"))
+		require.NoError(t, err)
+		err = os.Remove(filepath.Join(nestedDir, "keystore-bravo.txt"))
+		require.NoError(t, err)
+
+		err = os.WriteFile(filepath.Join(dir, "keystore-alpha.txt"), bravoPassword, 0o444)
+		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(nestedDir, "keystore-bravo.txt"), alphaPassword, 0o444)
+		require.NoError(t, err)
+
+		keyFiles, err := keystore.LoadFilesRecursively(dir)
+		require.NoError(t, err)
+
+		require.Len(t, keyFiles, 2)
+	})
+}
+
 // storeNewKeyForT generates a new key and stores it in the given target filename
 // it also stores the corresponding txt password next to it.
 // It also returns the generated key.
