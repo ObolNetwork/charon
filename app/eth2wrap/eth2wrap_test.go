@@ -100,9 +100,9 @@ func TestMulti(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			cl1, err := beaconmock.New()
+			cl1, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
-			cl2, err := beaconmock.New()
+			cl2, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			cl1Resp := make(chan *eth2v1.PeerCount)
@@ -192,7 +192,7 @@ func TestFallback(t *testing.T) {
 					allPrimariesFail = false
 				}
 
-				cl, err := beaconmock.New()
+				cl, err := beaconmock.New(t.Context())
 				require.NoError(t, err)
 
 				cl.NodePeerCountFunc = func(context.Context, *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
@@ -210,7 +210,7 @@ func TestFallback(t *testing.T) {
 			// Create fallback client
 			fallbackClients := make([]eth2wrap.Client, len(tt.fallbackErrs))
 			for i, fallbackErr := range tt.fallbackErrs {
-				cl, err := beaconmock.New()
+				cl, err := beaconmock.New(t.Context())
 				require.NoError(t, err)
 
 				cl.NodePeerCountFunc = func(context.Context, *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
@@ -261,9 +261,9 @@ func TestFallback(t *testing.T) {
 }
 
 func TestSyncState(t *testing.T) {
-	cl1, err := beaconmock.New()
+	cl1, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
-	cl2, err := beaconmock.New()
+	cl2, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	cl1.NodeSyncingFunc = func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {
@@ -323,7 +323,7 @@ func TestErrors(t *testing.T) {
 	})
 
 	t.Run("zero net op error", func(t *testing.T) {
-		bmock, err := beaconmock.New()
+		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		bmock.GenesisFunc = func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
@@ -341,7 +341,7 @@ func TestErrors(t *testing.T) {
 	})
 
 	t.Run("eth2api error", func(t *testing.T) {
-		bmock, err := beaconmock.New()
+		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		bmock.SignedBeaconBlockFunc = func(_ context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
@@ -367,7 +367,7 @@ func TestCtxCancel(t *testing.T) {
 	for range 10 {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		bmock, err := beaconmock.New()
+		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, []string{bmock.Address()}, nil)
 		require.NoError(t, err)
@@ -388,7 +388,7 @@ func TestOneError(t *testing.T) {
 	defer srv.Close()
 
 	ctx := context.Background()
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	addresses := []string{
@@ -419,7 +419,7 @@ func TestOneTimeout(t *testing.T) {
 	defer srv.Close()
 	defer cancel() // Cancel the context before stopping the server.
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	addresses := []string{
@@ -496,7 +496,7 @@ func TestOnlyTimeout(t *testing.T) {
 func TestLazy(t *testing.T) {
 	ctx := context.Background()
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	target := testutil.MustParseURL(t, bmock.Address())
@@ -589,7 +589,7 @@ func TestLazyDomain(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			bmock, err := beaconmock.New()
+			bmock, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			target := testutil.MustParseURL(t, bmock.Address())

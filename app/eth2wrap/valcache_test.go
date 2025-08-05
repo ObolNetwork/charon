@@ -43,7 +43,7 @@ func TestValidatorCache(t *testing.T) {
 	}
 
 	// Create a mock client.
-	eth2Cl, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Configure it to return the set of validators if queried.
@@ -97,7 +97,7 @@ func TestValidatorCache(t *testing.T) {
 func TestGetBySlot(t *testing.T) {
 	t.Run("successful fetch", func(t *testing.T) {
 		// Create a mock client.
-		eth2Cl, err := beaconmock.New()
+		eth2Cl, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		// Create two validators pubkeys
@@ -194,7 +194,7 @@ func TestGetBySlot(t *testing.T) {
 
 	t.Run("fallback to head state", func(t *testing.T) {
 		// Create a mock client.
-		eth2Cl, err := beaconmock.New()
+		eth2Cl, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		// Create two validators pubkeys

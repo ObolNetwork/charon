@@ -82,7 +82,7 @@ func TestVerifyEth2SignedData(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			bmock, err := beaconmock.New()
+			bmock, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			epoch, err := test.data.Epoch(context.Background(), bmock)

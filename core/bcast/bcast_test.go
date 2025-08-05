@@ -42,7 +42,7 @@ func TestBroadcast(t *testing.T) {
 	}
 
 	for _, testFunc := range testFuncs {
-		mock, err := beaconmock.New()
+		mock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		test := testFunc(t, &mock)
@@ -74,7 +74,7 @@ func TestBroadcast(t *testing.T) {
 }
 
 func TestBroadcastOtherDuties(t *testing.T) {
-	mock, err := beaconmock.New()
+	mock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	bcaster, err := bcast.New(context.Background(), mock)

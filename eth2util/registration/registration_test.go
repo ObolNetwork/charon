@@ -136,7 +136,7 @@ func TestVerifySignedRegistration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	epoch, err := signedRegistration.Epoch(ctx, bmock)

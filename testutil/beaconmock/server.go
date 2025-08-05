@@ -174,8 +174,10 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 }
 
 // newHTTPMock starts and returns a static beacon mock http server and client.
-func newHTTPMock(optionalHandlers map[string]http.HandlerFunc, overrides ...staticOverride) (HTTPMock, *http.Server, error) {
-	l, err := net.Listen("tcp", "localhost:0")
+func newHTTPMock(ctx context.Context, optionalHandlers map[string]http.HandlerFunc, overrides ...staticOverride) (HTTPMock, *http.Server, error) {
+	lc := net.ListenConfig{}
+
+	l, err := lc.Listen(ctx, "tcp", "localhost:0")
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "listen")
 	}

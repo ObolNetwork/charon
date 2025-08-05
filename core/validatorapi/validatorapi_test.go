@@ -143,7 +143,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := t.Context()
-			eth2Cl, err := beaconmock.New()
+			eth2Cl, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			vPKA := testutil.RandomCorePubKey(t)
@@ -215,7 +215,7 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 
 func TestComponent_InvalidSubmitAttestations(t *testing.T) {
 	ctx := context.Background()
-	eth2Cl, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	const (
@@ -285,6 +285,7 @@ func TestSubmitAttestations_Verify(t *testing.T) {
 
 	// Configure beacon mock
 	bmock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSet{vIdx: validator}),
 		beaconmock.WithDeterministicAttesterDuties(0), // All duties in first slot of epoch.
 	)
@@ -347,6 +348,7 @@ func TestSignAndVerify(t *testing.T) {
         	"epoch": "0"
       	}]}`
 	bmock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithEndpoint("/eth/v1/config/fork_schedule", forkSchedule),
 		beaconmock.WithGenesisValidatorsRoot([32]byte{0x01, 0x02}))
 	require.NoError(t, err)
@@ -470,7 +472,7 @@ func padTo(b []byte, size int) []byte {
 
 func TestComponent_Proposal(t *testing.T) {
 	ctx := context.Background()
-	eth2Cl, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	const (
@@ -562,7 +564,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -779,7 +781,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 			allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 			// Configure beacon mock
-			bmock, err := beaconmock.New()
+			bmock, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			// Construct the validator api component
@@ -860,7 +862,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 // 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 // 	// Configure beacon mock
-// 	bmock, err := beaconmock.New()
+// 	bmock, err := beaconmock.New(t.Context())
 // 	require.NoError(t, err)
 
 // Construct the validator api component
@@ -958,7 +960,7 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1029,7 +1031,7 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{pubkey: {shareIdx: tblsPubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1260,7 +1262,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 			// Configure beacon mock
-			bmock, err := beaconmock.New()
+			bmock, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			// Construct the validator api component
@@ -1338,7 +1340,7 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1412,7 +1414,7 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{pubkey: {shareIdx: *(*tbls.PublicKey)(pkb)}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1543,7 +1545,7 @@ func TestComponent_SubmitVoluntaryExit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1615,7 +1617,7 @@ func TestComponent_SubmitVoluntaryExitInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1660,7 +1662,7 @@ func TestComponent_Duties(t *testing.T) {
 
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubshare}}
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	t.Run("proposer_duties", func(t *testing.T) {
@@ -1763,7 +1765,7 @@ func TestComponent_SubmitValidatorRegistration(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1846,7 +1848,7 @@ func TestComponent_SubmitValidatorRegistrationInvalidSignature(t *testing.T) {
 	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
 	// Configure beacon mock
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Construct the validator api component
@@ -1888,7 +1890,7 @@ func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 	const slot = 99
 
 	valSet := beaconmock.ValidatorSetA
-	eth2Cl, err := beaconmock.New(beaconmock.WithValidatorSet(valSet))
+	eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet))
 	require.NoError(t, err)
 
 	vapi, err := validatorapi.NewComponentInsecure(t, eth2Cl, 0)
@@ -1961,7 +1963,7 @@ func TestComponent_SubmitAggregateAttestations(t *testing.T) {
 
 	pubkey := beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
 	require.NoError(t, err)
 
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
@@ -1995,7 +1997,7 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 
 	msg.ValidatorIndex = vIdx
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
 	require.NoError(t, err)
 
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
@@ -2033,7 +2035,7 @@ func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 
 	contrib.Message.AggregatorIndex = vIdx
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
 	require.NoError(t, err)
 
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
@@ -2082,7 +2084,7 @@ func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 
 	val.Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSet{val.Index: val}))
 	require.NoError(t, err)
 
 	// Create contribution and proof.
@@ -2137,7 +2139,7 @@ func TestComponent_ValidatorCache(t *testing.T) {
 		valByPubkey[val.Validator.PublicKey] = val
 	}
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(baseValSet))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(baseValSet))
 	require.NoError(t, err)
 
 	bmock.CachedValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
@@ -2252,7 +2254,7 @@ func TestComponent_GetAllValidators(t *testing.T) {
 		}
 	}
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(validatorSet))
 	require.NoError(t, err)
 
 	// Construct validatorapi component.
@@ -2291,7 +2293,7 @@ func TestComponent_GetClusterValidatorsWithError(t *testing.T) {
 		indices = append(indices, vidx)
 	}
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(validatorSet))
 	require.NoError(t, err)
 
 	// Construct validatorapi component.
@@ -2352,7 +2354,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	selection2.Slot = slot
 
 	// Construct beaconmock.
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(valSet))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet))
 	require.NoError(t, err)
 
 	selection1.SelectionProof = syncCommSelectionProof(t, bmock, secret1, slot, selection1.SubcommitteeIndex)
@@ -2551,7 +2553,7 @@ func TestSlotFromTimestamp(t *testing.T) {
 			require.NoError(t, err)
 
 			ctx := context.Background()
-			eth2Cl, err := beaconmock.New(beaconmock.WithGenesisTime(genesis))
+			eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(genesis))
 			require.NoError(t, err)
 
 			got, err := validatorapi.SlotFromTimestamp(ctx, eth2Cl, tt.timestamp)

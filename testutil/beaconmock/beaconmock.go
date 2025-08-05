@@ -47,7 +47,7 @@ var (
 )
 
 // New returns a new beacon client mock configured with the default and provided options.
-func New(opts ...Option) (Mock, error) {
+func New(ctx context.Context, opts ...Option) (Mock, error) {
 	// Configure http mock first.
 	temp := defaultHTTPMock()
 	for _, opt := range opts {
@@ -56,7 +56,7 @@ func New(opts ...Option) (Mock, error) {
 
 	headProducer := newHeadProducer()
 
-	httpMock, httpServer, err := newHTTPMock(headProducer.Handlers(), temp.overrides...)
+	httpMock, httpServer, err := newHTTPMock(ctx, headProducer.Handlers(), temp.overrides...)
 	if err != nil {
 		return Mock{}, err
 	}

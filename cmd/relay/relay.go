@@ -166,7 +166,7 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 		}
 
 		resolveExtHost := func() {
-			ip, err := net.LookupIP(config.ExternalHost)
+			ip, err := net.DefaultResolver.LookupIPAddr(ctx, config.ExternalHost)
 			if err != nil {
 				log.Warn(ctx, "Failed to resolve external host", err, z.Str("host", config.ExternalHost))
 				return
@@ -174,7 +174,7 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 
 			extHostMu.Lock()
 
-			extHostIP = ip[0]
+			extHostIP = ip[0].IP
 
 			extHostMu.Unlock()
 		}

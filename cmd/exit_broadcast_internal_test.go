@@ -110,6 +110,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 	}
 
 	beaconMock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(validatorSet),
 		beaconmock.WithEndpoint("/eth/v1/beacon/pool/voluntary_exits", ""),
 	)
@@ -310,7 +311,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 			bnURL := badStr
 
 			if !test.badBeaconNodeEndpoints {
-				beaconMock, err := beaconmock.New()
+				beaconMock, err := beaconmock.New(t.Context())
 				require.NoError(t, err)
 
 				defer func() {
@@ -490,6 +491,7 @@ func TestExitBcastFullExitNotActivated(t *testing.T) {
 	}
 
 	beaconMock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(validatorSet),
 		beaconmock.WithEndpoint("/eth/v1/beacon/pool/voluntary_exits", ""),
 	)

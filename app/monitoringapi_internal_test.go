@@ -103,7 +103,7 @@ func TestStartChecker(t *testing.T) {
 			slotDuration := 12 * time.Second
 			slotsPerEpoch := 32
 
-			bmock, err := beaconmock.New(beaconmock.WithSlotDuration(slotDuration), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
+			bmock, err := beaconmock.New(t.Context(), beaconmock.WithSlotDuration(slotDuration), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 			require.NoError(t, err)
 
 			bmock.NodeSyncingFunc = func(ctx context.Context, opts *eth2api.NodeSyncingOpts) (*eth2v1.SyncState, error) {

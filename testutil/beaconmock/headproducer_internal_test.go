@@ -19,7 +19,7 @@ import (
 )
 
 func TestHeadProducer(t *testing.T) {
-	bmock, err := New()
+	bmock, err := New(t.Context())
 	require.NoError(t, err)
 
 	defer bmock.Close()

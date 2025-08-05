@@ -16,7 +16,7 @@ import (
 func TestStatic(t *testing.T) {
 	ctx := context.Background()
 
-	eth2Cl, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	genesisResp, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
@@ -50,7 +50,7 @@ func TestGenesisTimeOverride(t *testing.T) {
 	ctx := context.Background()
 
 	t0 := time.Now().Truncate(time.Second)
-	eth2Cl, err := beaconmock.New(beaconmock.WithGenesisTime(t0))
+	eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(t0))
 	require.NoError(t, err)
 
 	genesisResp, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
@@ -62,7 +62,7 @@ func TestSlotsPerEpochOverride(t *testing.T) {
 	ctx := context.Background()
 
 	expect := 5
-	eth2Cl, err := beaconmock.New(beaconmock.WithSlotsPerEpoch(expect))
+	eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithSlotsPerEpoch(expect))
 	require.NoError(t, err)
 
 	actual, err := eth2Cl.SlotsPerEpoch(ctx)
@@ -78,7 +78,7 @@ func TestSlotsDurationOverride(t *testing.T) {
 	ctx := context.Background()
 
 	expect := time.Second
-	eth2Cl, err := beaconmock.New(beaconmock.WithSlotDuration(expect))
+	eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithSlotDuration(expect))
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -104,6 +104,7 @@ func TestEndpointOverride(t *testing.T) {
         	"epoch": "0"
       	}]}`
 	bmock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithEndpoint("/eth/v1/config/fork_schedule", forkSchedule),
 	)
 	require.NoError(t, err)
@@ -117,7 +118,7 @@ func TestEndpointOverride(t *testing.T) {
 
 func TestDefaultOverrides(t *testing.T) {
 	ctx := context.Background()
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	resp, err := bmock.Spec(ctx, &eth2api.SpecOpts{})
