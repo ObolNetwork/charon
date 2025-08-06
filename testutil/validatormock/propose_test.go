@@ -52,6 +52,7 @@ func TestAttest(t *testing.T) {
 			// Configure beacon mock
 			valSet := beaconmock.ValidatorSetA
 			beaconMock, err := beaconmock.New(
+				t.Context(),
 				beaconmock.WithClock(clock),
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithDeterministicAttesterDuties(test.DutyFactor),
@@ -279,6 +280,7 @@ func TestProposeBlock(t *testing.T) {
 			// Configure beacon mock
 			valSet := beaconmock.ValidatorSetA
 			beaconMock, err := beaconmock.New(
+				t.Context(),
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithDeterministicProposerDuties(0),
 			)
@@ -328,6 +330,7 @@ func TestProposeBlindedBlock(t *testing.T) {
 	// Configure beacon mock
 	valSet := beaconmock.ValidatorSetA
 	beaconMock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithDeterministicProposerDuties(0),
 	)

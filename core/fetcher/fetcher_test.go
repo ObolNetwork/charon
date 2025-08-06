@@ -62,7 +62,7 @@ func TestFetchAttester(t *testing.T) {
 		pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
 	}
 	duty := core.NewAttesterDuty(slot)
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	fetch := mustCreateFetcher(t, bmock)
@@ -138,7 +138,7 @@ func TestFetchAggregator(t *testing.T) {
 		pubkeysByIdx[vIdxB]: testutil.RandomCoreBeaconCommitteeSelection(),
 	}
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	var aggAttCallCount int
@@ -295,7 +295,7 @@ func TestFetchBlocks(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	t.Run("fetch DutyProposer", func(t *testing.T) {
@@ -413,7 +413,7 @@ func TestFetchSyncContribution(t *testing.T) {
 	}
 
 	t.Run("contribution aggregator", func(t *testing.T) {
-		bmock, err := beaconmock.New()
+		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		bmock.SyncCommitteeContributionFunc = func(ctx context.Context, resSlot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
@@ -509,7 +509,7 @@ func TestFetchSyncContribution(t *testing.T) {
 	})
 
 	t.Run("not contribution aggregator", func(t *testing.T) {
-		bmock, err := beaconmock.New()
+		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		fetch := mustCreateFetcher(t, bmock)
@@ -535,7 +535,7 @@ func TestFetchSyncContribution(t *testing.T) {
 	})
 
 	t.Run("fetch contribution data error", func(t *testing.T) {
-		bmock, err := beaconmock.New()
+		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		fetch := mustCreateFetcher(t, bmock)

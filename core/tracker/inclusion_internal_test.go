@@ -167,7 +167,7 @@ func TestDuplicateAttData(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			bmock, err := beaconmock.New()
+			bmock, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			// Mock 3 attestations, with same data but different aggregation bits.

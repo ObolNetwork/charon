@@ -42,6 +42,7 @@ func TestCalculateTrackerDelay(t *testing.T) {
 			genesis := now.Add(-test.slotDuration * currentSlot)
 
 			bmock, err := beaconmock.New(
+				t.Context(),
 				beaconmock.WithSlotDuration(test.slotDuration),
 				beaconmock.WithGenesisTime(genesis),
 			)
@@ -73,7 +74,7 @@ func TestSetFeeRecipient(t *testing.T) {
 			}
 		}
 
-		bmock, err := beaconmock.New(beaconmock.WithValidatorSet(clone))
+		bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(clone))
 		require.NoError(t, err)
 
 		// Only expect preparations for active validators.

@@ -17,6 +17,7 @@ import (
 func TestGetSubcommittees(t *testing.T) {
 	ctx := context.Background()
 	bmock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithSyncCommitteeSize(512),
 		beaconmock.WithSyncCommitteeSubnetCount(4),
 	)

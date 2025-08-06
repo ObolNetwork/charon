@@ -18,7 +18,7 @@ import (
 func TestIsAttAggregator(t *testing.T) {
 	ctx := context.Background()
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// https://github.com/prysmaticlabs/prysm/blob/8627fe72e80009ae162430140bcfff6f209d7a32/beacon-chain/core/helpers/attestation_test.go#L28
@@ -47,7 +47,7 @@ func TestIsAttAggregator(t *testing.T) {
 func TestIsSyncCommAggregator(t *testing.T) {
 	ctx := context.Background()
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// The non-aggregator tests (isAgg: false) are taken from https://github.com/prysmaticlabs/prysm/blob/39a7988e9edbed5b517229b4d66c2a8aab7c7b4d/beacon-chain/sync/validate_sync_contribution_proof_test.go#L336.

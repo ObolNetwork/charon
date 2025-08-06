@@ -1397,7 +1397,8 @@ func SkipIfBindErr(t *testing.T, err error) {
 func AvailableAddr(t *testing.T) *net.TCPAddr {
 	t.Helper()
 
-	l, err := net.Listen("tcp", "localhost:0")
+	lc := net.ListenConfig{}
+	l, err := lc.Listen(t.Context(), "tcp", "localhost:0")
 	require.NoError(t, err)
 
 	defer l.Close()
@@ -1435,7 +1436,8 @@ func AvailableUDPAddr(t *testing.T) *net.UDPAddr {
 func AvailableMultiAddr(t *testing.T) multiaddr.Multiaddr {
 	t.Helper()
 
-	l, err := net.Listen("tcp", "localhost:0")
+	lc := net.ListenConfig{}
+	l, err := lc.Listen(t.Context(), "tcp", "localhost:0")
 	require.NoError(t, err)
 
 	defer l.Close()

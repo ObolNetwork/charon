@@ -88,7 +88,7 @@ func TestDeadliner(t *testing.T) {
 }
 
 func TestNewDutyDeadlineFunc(t *testing.T) {
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	genesisTime, err := eth2wrap.FetchGenesisTime(t.Context(), bmock)

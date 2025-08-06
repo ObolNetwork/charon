@@ -86,6 +86,7 @@ func Parse(enrStr string) (Record, error) {
 			if string(val) != valID {
 				return Record{}, errors.New("non-v4 identity scheme not supported")
 			}
+		default:
 		}
 	}
 

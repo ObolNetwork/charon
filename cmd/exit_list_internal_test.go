@@ -67,7 +67,7 @@ func Test_runListActiveVals(t *testing.T) {
 		}
 	}
 
-	beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+	beaconMock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(validatorSet))
 	require.NoError(t, err)
 
 	defer func() {
@@ -135,7 +135,7 @@ func Test_listActiveVals(t *testing.T) {
 			}
 		}
 
-		beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+		beaconMock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(validatorSet))
 		require.NoError(t, err)
 
 		defer func() {
@@ -178,7 +178,7 @@ func Test_listActiveVals(t *testing.T) {
 			}
 		}
 
-		beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+		beaconMock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(validatorSet))
 		require.NoError(t, err)
 
 		defer func() {

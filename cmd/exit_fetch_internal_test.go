@@ -84,6 +84,7 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 	}
 
 	beaconMock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(validatorSet),
 	)
 	require.NoError(t, err)
@@ -297,6 +298,7 @@ func TestFetchExitFullFlowNotActivated(t *testing.T) {
 	}
 
 	beaconMock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(validatorSet),
 	)
 	require.NoError(t, err)

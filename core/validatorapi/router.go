@@ -1624,9 +1624,9 @@ func unmarshal(typ contentType, body []byte, v any) error {
 		}
 
 		return nil
+	default:
+		return errors.New("bug: invalid content type")
 	}
-
-	return errors.New("bug: invalid content type")
 }
 
 // uintParam returns a uint path parameter.

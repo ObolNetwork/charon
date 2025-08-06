@@ -14,7 +14,7 @@ import (
 )
 
 func TestFetchGenesisTime(t *testing.T) {
-	eth2Cl, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	genesisTime, err := eth2wrap.FetchGenesisTime(t.Context(), eth2Cl)
@@ -25,7 +25,7 @@ func TestFetchGenesisTime(t *testing.T) {
 }
 
 func TestFetchSlotsConfig(t *testing.T) {
-	eth2Cl, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(t.Context(), eth2Cl)
@@ -37,7 +37,7 @@ func TestFetchSlotsConfig(t *testing.T) {
 }
 
 func TestFetchForkConfig(t *testing.T) {
-	eth2Cl, err := beaconmock.New()
+	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	forkConfig, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)

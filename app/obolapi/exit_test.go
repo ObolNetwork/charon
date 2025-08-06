@@ -29,7 +29,7 @@ const exitEpoch = eth2p0.Epoch(194048)
 func TestAPIFlow(t *testing.T) {
 	kn := 4
 
-	beaconMock, err := beaconmock.New()
+	beaconMock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	defer func() {
@@ -121,7 +121,7 @@ func TestAPIFlow(t *testing.T) {
 func TestAPIFlowMissingSig(t *testing.T) {
 	kn := 4
 
-	beaconMock, err := beaconmock.New()
+	beaconMock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	defer func() {

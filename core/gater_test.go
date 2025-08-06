@@ -20,6 +20,7 @@ func TestDutyGater(t *testing.T) {
 	// Allow slots 0-3.
 	slotDuration := time.Second
 	bmock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithGenesisTime(now),
 		beaconmock.WithSlotDuration(slotDuration),
 		beaconmock.WithSlotsPerEpoch(2),
