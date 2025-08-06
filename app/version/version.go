@@ -55,6 +55,7 @@ func GitCommit() (hash string, timestamp string) {
 			hash = s.Value[:hashLen]
 		case "vcs.time":
 			timestamp = s.Value
+		default:
 		}
 	}
 

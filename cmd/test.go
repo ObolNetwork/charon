@@ -344,6 +344,8 @@ func writeResultToFile(res testCategoryResult, path string) error {
 		file.MEV = res
 	case infraTestCategory:
 		file.Infra = res
+	default:
+		return errors.New("unknown category", z.Str("category", res.CategoryName))
 	}
 
 	// write data to temp file
@@ -394,6 +396,7 @@ func writeResultToWriter(res testCategoryResult, w io.Writer) error {
 		lines = append(lines, categoryDefaultASCII()...)
 	}
 
+	//nolint:revive // enforce-switch-style: the list is exhaustive and there is no need for default
 	switch res.Score {
 	case categoryScoreA:
 		lines = appendScore(lines, scoreAASCII())
@@ -488,6 +491,7 @@ func calculateScore(results []testResult) categoryScore {
 	avg := 0
 
 	for _, t := range results {
+		//nolint:revive // enforce-switch-style: the list is exhaustive and there is no need for default
 		switch t.Verdict {
 		case testVerdictPoor:
 			return categoryScoreC

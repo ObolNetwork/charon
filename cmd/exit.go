@@ -146,6 +146,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			return s
 		}
 
+		//nolint:revive // enforce-switch-style: the list is exhaustive and there is no need for default
 		switch flag {
 		case publishAddress:
 			cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", maybeRequired("The URL of the remote API."))
