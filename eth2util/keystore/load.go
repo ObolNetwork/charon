@@ -192,16 +192,20 @@ func LoadFilesRecursively(dir string) (KeyFiles, error) {
 			return KeyFile{}, errors.New("keystore not found", z.Str("filepath", filepath))
 		}
 
+		var (
+			secret tbls.PrivateKey
+			err    error
+		)
+
 		// First try the password file that matches the keystore file.
 		passwordFile := strings.Replace(filepath, ".json", ".txt", 1)
 
 		password, ok := passwordsMap[passwordFile]
-		if !ok {
-			return KeyFile{}, errors.New("password file not found", z.Str("filepath", filepath))
+		if ok {
+			secret, err = decrypt(store, password)
 		}
 
-		secret, err := decrypt(store, password)
-		if err != nil {
+		if !ok || err != nil {
 			// Try other passwords
 			for _, otherPassword := range passwordsMap {
 				secret, err = decrypt(store, otherPassword)
