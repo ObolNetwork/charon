@@ -307,3 +307,49 @@ func TestDKGCLI(t *testing.T) {
 		})
 	}
 }
+
+func TestLaunchpadLink(t *testing.T) {
+	tests := []struct {
+		name       string
+		network    string
+		configHash []byte
+		result     string
+	}{
+		{
+			name:       "mainnet",
+			network:    "mainnet",
+			configHash: []byte("123abc"),
+			result:     "https://launchpad.obol.org/dv#0x313233616263",
+		},
+		{
+			name:       "holesky",
+			network:    "holesky",
+			configHash: []byte("123abc"),
+			result:     "https://holesky.launchpad.obol.org/dv#0x313233616263",
+		},
+		{
+			name:       "hoodi",
+			network:    "hoodi",
+			configHash: []byte("123abc"),
+			result:     "https://hoodi.launchpad.obol.org/dv#0x313233616263",
+		},
+		{
+			name:       "sepolia",
+			network:    "sepolia",
+			configHash: []byte("123abc"),
+			result:     "https://sepolia.launchpad.obol.org/dv#0x313233616263",
+		},
+		{
+			name:       "unknown",
+			network:    "testnet-1",
+			configHash: []byte("123abc"),
+			result:     "https://launchpad.obol.org/dv#0x313233616263",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.result, generateLaunchpadLink(test.configHash, test.network))
+		})
+	}
+}

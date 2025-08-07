@@ -314,6 +314,25 @@ func isMainOrGnosis(network string) bool {
 	return network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name
 }
 
+func generateLaunchpadLink(configHash []byte, network string) string {
+	var networkLink string
+
+	switch network {
+	case "mainnet":
+		networkLink = ""
+	case "holesky":
+		networkLink = "holesky."
+	case "hoodi":
+		networkLink = "hoodi."
+	case "sepolia":
+		networkLink = "sepolia."
+	default:
+		networkLink = ""
+	}
+
+	return "https://" + networkLink + "launchpad.obol.org/dv#" + fmt.Sprintf("%#x", configHash)
+}
+
 func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey *k1.PrivateKey, def cluster.Definition) error {
 	apiClient, err := obolapi.New(conf.PublishAddress, obolapi.WithTimeout(10*time.Second))
 	if err != nil {
@@ -338,7 +357,7 @@ func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey
 	}
 
 	log.Info(ctx, "Cluster Invitation Prepared")
-	log.Info(ctx, "Direct the Node Operators to: https://launchpad.obol.org/dv#"+fmt.Sprintf("%#x", def.ConfigHash)+" to review the cluster configuration and begin the distributed key generation ceremony.")
+	log.Info(ctx, "Direct the Node Operators to: "+generateLaunchpadLink(def.ConfigHash, conf.Network)+"to review the cluster configuration and begin the distributed key generation ceremony.")
 
 	return nil
 }
