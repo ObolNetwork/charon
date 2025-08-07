@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	crand "crypto/rand"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/k1util"
@@ -160,5 +162,15 @@ func TestCreateValidatorKeysDir(t *testing.T) {
 		// Parent directory does not exist
 		_, err := CreateValidatorKeysDir(path.Join(tmp, "nonexistent"))
 		require.ErrorContains(t, err, "mkdir")
+	})
+}
+
+func TestUUID(t *testing.T) {
+	t.Run("generate", func(t *testing.T) {
+		uuidStr, err := generateUUID(crand.Reader)
+		require.NoError(t, err)
+		u, err := uuid.Parse(uuidStr)
+		require.NoError(t, err)
+		require.Equal(t, u.Variant(), uuid.RFC4122)
 	})
 }

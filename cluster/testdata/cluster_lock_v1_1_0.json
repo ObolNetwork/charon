@@ -17,7 +17,7 @@
     "enr_signature": ""
    }
   ],
-  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+  "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
   "version": "v1.1.0",
   "timestamp": "2022-07-19T18:19:58+02:00",
   "num_validators": 2,
@@ -26,8 +26,8 @@
   "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
-  "config_hash": "yap39UmP0zpqYRF5iYTg0kLJbeeOkEyPR64YV+gaNSU=",
-  "definition_hash": "HaEpLad6JH4yAXNpq5bSZC3BBYJa+nvlwoHpKh2VV3M="
+  "config_hash": "phKaGmXoB46xHsRruoqOEqLsrKuFmr1NBHX0WkSe0Q8=",
+  "definition_hash": "X5q1oL8NER80+7FKiuI50iwpxh0S04yEdv0EXFtDQe0="
  },
  "distributed_validators": [
   {
@@ -46,5 +46,5 @@
   }
  ],
  "signature_aggregate": "hWUMMOwpo3A5NL9Qoo2hApdd7ad+dYV56j3+QTar91I=",
- "lock_hash": "QIbJZzDSganV532HtTDSyYvaWIsGRA2HqgQDaB2Ehck="
+ "lock_hash": "E3wsXY86BdfW/KldCBIwM1Bc1QyRrnPb+gEm+VoEw6o="
 }

@@ -18,7 +18,7 @@
    "enr_signature": "0xf32b7c7822ba64f84ab43ca0c6e6b91c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb6865fcf92b0c3a17c9028be9914eb7649c1c"
   }
  ],
- "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+ "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
  "version": "v1.10.0",
  "timestamp": "2022-07-19T18:19:58+02:00",
  "num_validators": 2,
@@ -42,6 +42,6 @@
  "consensus_protocol": "abft",
  "target_gas_limit": 30000000,
  "compounding": false,
- "config_hash": "0xafad2b3c34a7579fdd38c7a8d2b9f1ea5c7d0f940d2fbbcd2a383258ce8d76a2",
- "definition_hash": "0x4b14c0ed4538c288b7107d99e03e85bf883f93adcc51df0ee09091a9ef05068d"
+ "config_hash": "0x19f6e5753f05c9b662b54959fbe5b0c265d6f571ea414310b84c5fe2e0851f61",
+ "definition_hash": "0x59a8d3ffa9010f54965a11248e2835e716049d508f4f64bf43bd5a6ca56037c0"
 }

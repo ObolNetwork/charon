@@ -82,10 +82,15 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 		return Definition{}, errors.New("insufficient withdrawal addresses")
 	}
 
+	uuid, err := generateUUID(random)
+	if err != nil {
+		return Definition{}, err
+	}
+
 	def := Definition{
 		Version:           currentVersion,
 		Name:              name,
-		UUID:              uuid(random),
+		UUID:              uuid,
 		Timestamp:         time.Now().Format(time.RFC3339),
 		NumValidators:     numVals,
 		Threshold:         threshold,
@@ -104,8 +109,6 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 			WithdrawalAddress:   withdrawalAddresses[i],
 		})
 	}
-
-	var err error
 
 	def.ForkVersion, err = from0xHex(forkVersionHex, forkVersionLen)
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
+	"github.com/google/uuid"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -86,12 +87,16 @@ func CreateValidatorKeysDir(parentDir string) (string, error) {
 	return "", errors.New("directory not empty", z.Str("path", vkdir))
 }
 
-// uuid returns a random uuid.
-func uuid(random io.Reader) string {
-	b := make([]byte, 16)
-	_, _ = random.Read(b)
+// generateUUID returns a random UUID.
+func generateUUID(random io.Reader) (string, error) {
+	res, err := uuid.NewRandomFromReader(random)
+	if err != nil {
+		return "", errors.Wrap(err, "generate uuid from reader")
+	}
 
-	return fmt.Sprintf("%X-%X-%X-%X-%X", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+	formatted := strings.ToUpper(res.String())
+
+	return formatted, nil
 }
 
 // verifySig returns true if the signature matches the digest and address.
