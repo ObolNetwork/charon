@@ -224,13 +224,11 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
 			Return([4]byte{0x16, 0x26, 0xba, 0x7e}, nil).Once()
 
-		clientCreatedCh := make(chan struct{})
 		doneCh := make(chan struct{})
 
 		client := eth1wrap.NewEthClientRunner(
 			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
-				defer close(clientCreatedCh)
 				return mockEth1Client, nil
 			},
 			func(contractAddress string, eth1Client eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
@@ -246,10 +244,17 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 			close(doneCh)
 		}()
 
-		// Wait for client to initialize
-		<-clientCreatedCh
+		// Retry until client is ready
+		var (
+			valid bool
+			err   error
+		)
 
-		valid, err := client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+		require.Eventually(t, func() bool {
+			valid, err = client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+			return err == nil || !errors.Is(err, eth1wrap.ErrEthClientNotConnected)
+		}, 1*time.Second, 10*time.Millisecond)
+
 		require.NoError(t, err)
 		require.True(t, valid)
 
@@ -269,13 +274,11 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 		mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
 			Return([4]byte{0x00, 0x00, 0x00, 0x00}, nil).Once()
 
-		clientCreatedCh := make(chan struct{})
 		doneCh := make(chan struct{})
 
 		client := eth1wrap.NewEthClientRunner(
 			"",
 			func(ctx context.Context, rawurl string) (eth1wrap.EthClient, error) {
-				defer close(clientCreatedCh)
 				return mockEth1Client, nil
 			},
 			func(contractAddress string, eth1Client eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
@@ -290,10 +293,17 @@ func TestVerifySmartContractBasedSignature(t *testing.T) {
 			close(doneCh)
 		}()
 
-		// Wait for client to initialize
-		<-clientCreatedCh
+		// Retry until client is ready
+		var (
+			valid bool
+			err   error
+		)
 
-		valid, err := client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+		require.Eventually(t, func() bool {
+			valid, err = client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+			return err == nil || !errors.Is(err, eth1wrap.ErrEthClientNotConnected)
+		}, 1*time.Second, 10*time.Millisecond)
+
 		require.NoError(t, err)
 		require.False(t, valid)
 
