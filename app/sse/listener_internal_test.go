@@ -105,7 +105,7 @@ func TestHandleEvents(t *testing.T) {
 }
 
 func TestStartListener(t *testing.T) {
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	_, err = StartListener(t.Context(), bmock, []string{bmock.Address()}, []string{})

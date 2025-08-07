@@ -107,7 +107,7 @@ func TestLatestTags(t *testing.T) {
 		return
 	}
 
-	tags, err := getLatestTags(2)
+	tags, err := getLatestTags(t.Context(), 2)
 	require.NoError(t, err)
 	require.Len(t, tags, 2)
 	t.Log(tags)
@@ -122,7 +122,7 @@ func TestParsePRs(t *testing.T) {
 	}
 
 	gitRange := "v0.12.0..v0.13.0"
-	prs, err := parsePRs(gitRange)
+	prs, err := parsePRs(t.Context(), gitRange)
 	require.NoError(t, err)
 
 	data, err := tplDataFromPRs(prs, gitRange, func(i int) (string, string, error) {

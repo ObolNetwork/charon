@@ -28,7 +28,6 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -555,14 +554,14 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
-		BlockAttestationsFunc: func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+		BeaconBlockAttestationsFunc: func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
 			return []*eth2spec.VersionedAttestation{}, nil
 		},
 		BlockFunc: func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return &eth2spec.VersionedSignedBeaconBlock{}, nil
 		},
-		NodePeerCountFunc: func(context.Context) (int, error) {
-			return 80, nil
+		NodePeerCountFunc: func(context.Context, *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
+			return &eth2v1.PeerCount{Connected: 80}, nil
 		},
 		AttestationDataFunc: func(ctx context.Context, slot eth2p0.Slot, index eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			return attStore.NewAttestationData(ctx, slot, index)
@@ -626,8 +625,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SubmitValidatorRegistrationsFunc: func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
 			return nil
 		},
-		AggregateBeaconCommitteeSelectionsFunc: func(_ context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-			return selections, nil
+		BeaconCommitteeSelectionsFunc: func(_ context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) ([]*eth2v1.BeaconCommitteeSelection, error) {
+			return opts.Selections, nil
 		},
 		SubmitAggregateAttestationsFunc: func(context.Context, *eth2api.SubmitAggregateAttestationsOpts) error {
 			return nil
@@ -650,8 +649,8 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			return []*eth2v1.SyncCommitteeDuty{}, nil
 		},
-		AggregateSyncCommitteeSelectionsFunc: func(_ context.Context, selections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-			return selections, nil
+		SyncCommitteeSelectionsFunc: func(_ context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) ([]*eth2v1.SyncCommitteeSelection, error) {
+			return opts.Selections, nil
 		},
 		SubmitSyncCommitteeMessagesFunc: func(context.Context, []*altair.SyncCommitteeMessage) error {
 			return nil
@@ -681,9 +680,6 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			}
 
 			return eth2Resp.Data, nil
-		},
-		ProposerConfigFunc: func(context.Context) (*eth2exp.ProposerConfigResponse, error) {
-			return nil, nil
 		},
 		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil

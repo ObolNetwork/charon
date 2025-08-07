@@ -112,6 +112,8 @@ type tplPR struct {
 }
 
 func main() {
+	ctx := context.Background()
+
 	flag.Parse()
 
 	token, ok := os.LookupEnv("GITHUB_TOKEN")
@@ -121,7 +123,7 @@ func main() {
 		fmt.Println("GITHUB_TOKEN env var not set, using unauthenticated API")
 	}
 
-	err := run(*rangeFlag, *outputFlag, token)
+	err := run(ctx, *rangeFlag, *outputFlag, token)
 	if err != nil {
 		applog.Error(context.Background(), "Run error", err)
 		os.Exit(1)
@@ -129,9 +131,9 @@ func main() {
 }
 
 // run runs the command.
-func run(gitRange string, output string, token string) error {
+func run(ctx context.Context, gitRange string, output string, token string) error {
 	if gitRange == "" {
-		tags, err := getLatestTags(2)
+		tags, err := getLatestTags(ctx, 2)
 		if err != nil {
 			return err
 		}
@@ -140,7 +142,7 @@ func run(gitRange string, output string, token string) error {
 		fmt.Printf("Flag --range empty, defaulting to %s\n", gitRange)
 	}
 
-	prs, err := parsePRs(gitRange)
+	prs, err := parsePRs(ctx, gitRange)
 	if err != nil {
 		return err
 	}
@@ -340,11 +342,11 @@ func selectCategory(current, candidate string) string {
 }
 
 // parsePRs returns parsed PRs by query the git logs for the provided range.
-func parsePRs(gitRange string) ([]pullRequest, error) {
+func parsePRs(ctx context.Context, gitRange string) ([]pullRequest, error) {
 	// Custom json encoding of git log output.
 	const format = `--pretty=format:{¬commit¬: ¬%h¬,¬body¬: ¬%b¬,¬subject¬: ¬%s¬,¬author¬: ¬%aE¬}†`
 
-	b, err := exec.Command("git", "log", format, gitRange).CombinedOutput()
+	b, err := exec.CommandContext(ctx, "git", "log", format, gitRange).CombinedOutput()
 	if err != nil {
 		return nil, errors.Wrap(err, "git log")
 	}
@@ -460,13 +462,13 @@ func getFirstMatch(r *regexp.Regexp, s string) (string, bool) {
 }
 
 // getLatestTags returns the latest N git tags.
-func getLatestTags(n int) ([]string, error) {
-	out, err := exec.Command("git", "fetch", "--tags", "-f").CombinedOutput()
+func getLatestTags(ctx context.Context, n int) ([]string, error) {
+	out, err := exec.CommandContext(ctx, "git", "fetch", "--tags", "-f").CombinedOutput()
 	if err != nil {
 		return nil, errors.Wrap(err, "git fetch", z.Str("out", string(out)))
 	}
 
-	out, err = exec.Command("git", "tag", "--sort=v:refname").CombinedOutput()
+	out, err = exec.CommandContext(ctx, "git", "tag", "--sort=v:refname").CombinedOutput()
 	if err != nil {
 		return nil, errors.Wrap(err, "git tag", z.Str("out", string(out)))
 	}

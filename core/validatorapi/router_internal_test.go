@@ -40,7 +40,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -1392,23 +1391,23 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("aggregate sync committee selections", func(t *testing.T) {
-		selections := []*eth2exp.SyncCommitteeSelection{testutil.RandomSyncCommitteeSelection(), testutil.RandomSyncCommitteeSelection()}
+		selections := []*eth2v1.SyncCommitteeSelection{testutil.RandomSyncCommitteeSelection(), testutil.RandomSyncCommitteeSelection()}
 
 		handler := testHandler{
-			AggregateSyncCommitteeSelectionsFunc: func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+			SyncCommitteeSelectionsFunc: func(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error) {
 				for i := range selections {
-					require.Equal(t, selections[i], partialSelections[i])
+					require.Equal(t, selections[i], opts.Selections[i])
 				}
 
-				return partialSelections, nil
+				return wrapResponse(opts.Selections), nil
 			},
 		}
 
 		callback := func(ctx context.Context, cl *eth2http.Service) {
 			eth2Cl := eth2wrap.AdaptEth2HTTP(cl, nil, time.Second)
-			actual, err := eth2Cl.AggregateSyncCommitteeSelections(ctx, selections)
+			actual, err := eth2Cl.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: selections})
 			require.NoError(t, err)
-			require.Equal(t, selections, actual)
+			require.Equal(t, selections, actual.Data)
 		}
 
 		testRouter(t, handler, callback)
@@ -1447,8 +1446,8 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	)
 
 	handler := testHandler{
-		AggregateBeaconCommitteeSelectionsFunc: func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-			return selections, nil
+		BeaconCommitteeSelectionsFunc: func(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error) {
+			return wrapResponse(opts.Selections), nil
 		},
 	}
 
@@ -1469,7 +1468,7 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	selections := []*eth2exp.BeaconCommitteeSelection{
+	selections := []*eth2v1.BeaconCommitteeSelection{
 		{
 			Slot:           slotA,
 			ValidatorIndex: vIdxA,
@@ -1488,9 +1487,9 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	}
 
 	eth2Cl := eth2wrap.AdaptEth2HTTP(eth2Svc.(*eth2http.Service), nil, time.Second)
-	actual, err := eth2Cl.AggregateBeaconCommitteeSelections(ctx, selections)
+	actual, err := eth2Cl.BeaconCommitteeSelections(ctx, &eth2api.BeaconCommitteeSelectionsOpts{Selections: selections})
 	require.NoError(t, err)
-	require.Equal(t, selections, actual)
+	require.Equal(t, selections, actual.Data)
 }
 
 func TestSubmitAggregateAttestations(t *testing.T) {
@@ -1990,26 +1989,26 @@ type testHandler struct {
 	Handler
 	eth2client.BeaconStateProvider
 
-	ProxyHandler                           http.HandlerFunc
-	AggregateSyncCommitteeSelectionsFunc   func(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error)
-	AttestationDataFunc                    func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
-	AttesterDutiesFunc                     func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
-	SubmitAttestationsFunc                 func(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error
-	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
-	SubmitProposalFunc                     func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
-	SubmitBlindedProposalFunc              func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
-	ProposerDutiesFunc                     func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
-	NodeVersionFunc                        func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
-	ValidatorsFunc                         func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
-	BeaconStateFunc                        func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error)
-	ValidatorsByPubKeyFunc                 func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	SubmitVoluntaryExitFunc                func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
-	SubmitValidatorRegistrationsFunc       func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
-	AggregateBeaconCommitteeSelectionsFunc func(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error)
-	SubmitAggregateAttestationsFunc        func(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error
-	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
-	SyncCommitteeDutiesFunc                func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
-	SyncCommitteeContributionFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
+	ProxyHandler                     http.HandlerFunc
+	SyncCommitteeSelectionsFunc      func(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error)
+	AttestationDataFunc              func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
+	AttesterDutiesFunc               func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
+	SubmitAttestationsFunc           func(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error
+	ProposalFunc                     func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
+	SubmitProposalFunc               func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
+	SubmitBlindedProposalFunc        func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
+	ProposerDutiesFunc               func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
+	NodeVersionFunc                  func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
+	ValidatorsFunc                   func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
+	BeaconStateFunc                  func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error)
+	ValidatorsByPubKeyFunc           func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	SubmitVoluntaryExitFunc          func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
+	SubmitValidatorRegistrationsFunc func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
+	BeaconCommitteeSelectionsFunc    func(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error)
+	SubmitAggregateAttestationsFunc  func(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error
+	SubmitSyncCommitteeMessagesFunc  func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
+	SyncCommitteeDutiesFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
+	SyncCommitteeContributionFunc    func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
 }
 
 func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
@@ -2068,8 +2067,8 @@ func (h testHandler) SubmitValidatorRegistrations(ctx context.Context, registrat
 	return h.SubmitValidatorRegistrationsFunc(ctx, registrations)
 }
 
-func (h testHandler) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	return h.AggregateBeaconCommitteeSelectionsFunc(ctx, selections)
+func (h testHandler) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error) {
+	return h.BeaconCommitteeSelectionsFunc(ctx, opts)
 }
 
 func (h testHandler) SubmitAggregateAttestations(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error {
@@ -2088,8 +2087,8 @@ func (h testHandler) SyncCommitteeContribution(ctx context.Context, opts *eth2ap
 	return h.SyncCommitteeContributionFunc(ctx, opts)
 }
 
-func (h testHandler) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
-	return h.AggregateSyncCommitteeSelectionsFunc(ctx, partialSelections)
+func (h testHandler) SyncCommitteeSelections(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error) {
+	return h.SyncCommitteeSelectionsFunc(ctx, opts)
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the

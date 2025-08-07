@@ -184,7 +184,7 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCh
 		}
 	}
 
-	beaconMock, err := beaconmock.New(beaconmock.WithValidatorSet(validatorSet))
+	beaconMock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(validatorSet))
 	require.NoError(t, err)
 
 	defer func() {
@@ -355,7 +355,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 			bnURL := badStr
 
 			if !test.badBeaconNodeEndpoints {
-				beaconMock, err := beaconmock.New()
+				beaconMock, err := beaconmock.New(t.Context())
 				require.NoError(t, err)
 
 				defer func() {

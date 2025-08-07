@@ -35,7 +35,7 @@ func TestSigAgg(t *testing.T) {
 		peers     = 4
 	)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	t.Run("invalid threshold", func(t *testing.T) {
@@ -82,7 +82,7 @@ func TestSigAgg_DutyAttester(t *testing.T) {
 	msgRoot, err := att.MessageRoot()
 	require.NoError(t, err)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	epoch, err := att.Epoch(ctx, bmock)
@@ -171,7 +171,7 @@ func TestSigAgg_DutyRandao(t *testing.T) {
 		epoch     = 123
 	)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	randao := core.NewSignedRandao(epoch, eth2p0.BLSSignature{})
@@ -248,7 +248,7 @@ func TestSigAgg_DutyExit(t *testing.T) {
 		epoch     = 123
 	)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Generate private shares
@@ -330,7 +330,7 @@ func TestSigAgg_DutyProposer(t *testing.T) {
 		peers     = 4
 	)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Generate private shares
@@ -469,7 +469,7 @@ func TestSigAgg_DutyBuilderProposer(t *testing.T) {
 		peers     = 4
 	)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Generate private shares
@@ -592,7 +592,7 @@ func TestSigAgg_DutyBuilderRegistration(t *testing.T) {
 		epoch     = 123
 	)
 
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	// Generate private shares

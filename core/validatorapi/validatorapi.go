@@ -8,7 +8,6 @@ import (
 	"maps"
 	"math/big"
 	"runtime"
-	"strconv"
 	"testing"
 	"time"
 
@@ -27,7 +26,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -783,8 +781,8 @@ func (c Component) SubmitVoluntaryExit(ctx context.Context, exit *eth2p0.SignedV
 	return nil
 }
 
-// AggregateBeaconCommitteeSelections returns aggregate beacon committee selection proofs.
-func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selections []*eth2exp.BeaconCommitteeSelection) ([]*eth2exp.BeaconCommitteeSelection, error) {
+// BeaconCommitteeSelections returns aggregate beacon committee selection proofs.
+func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error) {
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return nil, err
@@ -792,7 +790,7 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 
-	for _, selection := range selections {
+	for _, selection := range opts.Selections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
 			return nil, errors.New("validator not found", z.Any("provided", selection.ValidatorIndex), z.Any("expected", vals.Indices()))
@@ -829,7 +827,27 @@ func (c Component) AggregateBeaconCommitteeSelections(ctx context.Context, selec
 		}
 	}
 
-	return c.getAggregateBeaconCommSelection(ctx, psigsBySlot)
+	var resp []*eth2v1.BeaconCommitteeSelection
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewPrepareAggregatorDuty(uint64(slot))
+		for pk := range data {
+			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
+			if err != nil {
+				return nil, err
+			}
+
+			sub, ok := s.(core.BeaconCommitteeSelection)
+			if !ok {
+				return nil, errors.New("invalid beacon committee selection")
+			}
+
+			resp = append(resp, &sub.BeaconCommitteeSelection)
+		}
+	}
+
+	return wrapResponse(resp), nil
 }
 
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
@@ -1037,8 +1055,8 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 	return nil
 }
 
-// AggregateSyncCommitteeSelections returns aggregate sync committee selection proofs.
-func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partialSelections []*eth2exp.SyncCommitteeSelection) ([]*eth2exp.SyncCommitteeSelection, error) {
+// SyncCommitteeSelections returns aggregate sync committee selection proofs.
+func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error) {
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return nil, err
@@ -1046,7 +1064,7 @@ func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partial
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 
-	for _, selection := range partialSelections {
+	for _, selection := range opts.Selections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
 			return nil, errors.New("validator not found")
@@ -1083,7 +1101,27 @@ func (c Component) AggregateSyncCommitteeSelections(ctx context.Context, partial
 		}
 	}
 
-	return c.getAggregateSyncCommSelection(ctx, psigsBySlot)
+	var resp []*eth2v1.SyncCommitteeSelection
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewPrepareSyncContributionDuty(uint64(slot))
+		for pk := range data {
+			// Query aggregated sync committee selection from aggsigdb for each duty and public key (this is blocking).
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
+			if err != nil {
+				return nil, err
+			}
+
+			sub, ok := s.(core.SyncCommitteeSelection)
+			if !ok {
+				return nil, errors.New("invalid sync committee selection")
+			}
+
+			resp = append(resp, &sub.SyncCommitteeSelection)
+		}
+	}
+
+	return wrapResponse(resp), nil
 }
 
 // ProposerDuties obtains proposer duties for the given options.
@@ -1314,110 +1352,6 @@ func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedDa
 	}
 
 	return core.VerifyEth2SignedData(ctx, c.eth2Cl, eth2Signed, pubshare)
-}
-
-func (c Component) getAggregateBeaconCommSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.BeaconCommitteeSelection, error) {
-	var resp []*eth2exp.BeaconCommitteeSelection
-
-	for slot, data := range psigsBySlot {
-		duty := core.NewPrepareAggregatorDuty(uint64(slot))
-		for pk := range data {
-			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
-			if err != nil {
-				return nil, err
-			}
-
-			sub, ok := s.(core.BeaconCommitteeSelection)
-			if !ok {
-				return nil, errors.New("invalid beacon committee selection")
-			}
-
-			resp = append(resp, &sub.BeaconCommitteeSelection)
-		}
-	}
-
-	return resp, nil
-}
-
-func (c Component) getAggregateSyncCommSelection(ctx context.Context, psigsBySlot map[eth2p0.Slot]core.ParSignedDataSet) ([]*eth2exp.SyncCommitteeSelection, error) {
-	var resp []*eth2exp.SyncCommitteeSelection
-
-	for slot, data := range psigsBySlot {
-		duty := core.NewPrepareSyncContributionDuty(uint64(slot))
-		for pk := range data {
-			// Query aggregated sync committee selection from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
-			if err != nil {
-				return nil, err
-			}
-
-			sub, ok := s.(core.SyncCommitteeSelection)
-			if !ok {
-				return nil, errors.New("invalid sync committee selection")
-			}
-
-			resp = append(resp, &sub.SyncCommitteeSelection)
-		}
-	}
-
-	return resp, nil
-}
-
-// ProposerConfig returns the proposer configuration for all validators.
-func (c Component) ProposerConfig(ctx context.Context) (*eth2exp.ProposerConfigResponse, error) {
-	var targetGasLimit uint
-	if c.targetGasLimit == 0 {
-		log.Warn(ctx, "", errors.New("custom target gas limit not supported, setting to default", z.Uint("default_gas_limit", defaultGasLimit)))
-		targetGasLimit = defaultGasLimit
-	} else {
-		targetGasLimit = c.targetGasLimit
-	}
-
-	resp := eth2exp.ProposerConfigResponse{
-		Proposers: make(map[eth2p0.BLSPubKey]eth2exp.ProposerConfig),
-		Default: eth2exp.ProposerConfig{ // Default doesn't make sense, disable for now.
-			FeeRecipient: zeroAddress,
-			Builder: eth2exp.Builder{
-				Enabled:  false,
-				GasLimit: targetGasLimit,
-			},
-		},
-	}
-
-	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, c.eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, c.eth2Cl)
-	if err != nil {
-		return nil, err
-	}
-
-	timestamp := genesisTime
-	timestamp = timestamp.Add(slotDuration) // Use slot 1 for timestamp to override pre-generated registrations.
-
-	for pubkey, pubshare := range c.sharesByKey {
-		eth2Share, err := pubshare.ToETH2()
-		if err != nil {
-			return nil, err
-		}
-
-		resp.Proposers[eth2Share] = eth2exp.ProposerConfig{
-			FeeRecipient: c.feeRecipientFunc(pubkey),
-			Builder: eth2exp.Builder{
-				Enabled:  c.builderEnabled,
-				GasLimit: targetGasLimit,
-				Overrides: map[string]string{
-					"timestamp":  strconv.FormatInt(timestamp.Unix(), 10),
-					"public_key": string(pubkey),
-				},
-			},
-		}
-	}
-
-	return &resp, nil
 }
 
 // wrapResponse wraps the provided data into an API Response and returns the response.

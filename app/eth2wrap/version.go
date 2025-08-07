@@ -81,6 +81,7 @@ func checkBeaconNodeVersionStatus(bnVersion string) (beaconNodeVersionStatus Bea
 func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 	status, currentVersion, minVersion := checkBeaconNodeVersionStatus(bnVersion)
 
+	//nolint:revive // enforce-switch-style: the list is exhaustive and there is no need for default
 	switch status {
 	case VersionFormatError:
 		log.Warn(ctx, "Failed to parse beacon node version string due to unexpected format",

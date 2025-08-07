@@ -82,6 +82,7 @@ func testRunDeleteExitFullFlow(t *testing.T, all bool) {
 	}
 
 	beaconMock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(validatorSet),
 	)
 	require.NoError(t, err)

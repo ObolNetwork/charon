@@ -782,6 +782,7 @@ func availableMemoryMacos(ctx context.Context) (int64, error) {
 			}
 
 			pagesSpeculative = bytes
+		default:
 		}
 	}
 

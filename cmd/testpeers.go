@@ -771,6 +771,8 @@ func fetchENRs(ctx context.Context, conf testPeersConfig) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+	default:
+		return nil, errors.New("no enrs, definition file or lock file specified")
 	}
 
 	return enrs, nil

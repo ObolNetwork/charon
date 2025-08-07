@@ -7,13 +7,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
-	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
 func TestMulti_Name(t *testing.T) {
@@ -55,108 +53,6 @@ func TestMulti_IsSynced(t *testing.T) {
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client1, client2}, nil)
 
 	require.True(t, m.IsSynced())
-}
-
-func TestMulti_NodePeerCount(t *testing.T) {
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("NodePeerCount", mock.Anything).Return(5, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	c, err := m.NodePeerCount(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, 5, c)
-
-	expectedErr := errors.New("boo")
-	client.On("NodePeerCount", mock.Anything).Return(0, expectedErr).Once()
-
-	_, err = m.NodePeerCount(context.Background())
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestMulti_BlockAttestations(t *testing.T) {
-	ctx := context.Background()
-	atts := make([]*spec.VersionedAttestation, 3)
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("BlockAttestations", mock.Anything, "state").Return(atts, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	atts2, err := m.BlockAttestations(ctx, "state")
-	require.NoError(t, err)
-	require.Equal(t, atts, atts2)
-
-	expectedErr := errors.New("boo")
-	client.On("BlockAttestations", mock.Anything, "state").Return(nil, expectedErr).Once()
-
-	_, err = m.BlockAttestations(ctx, "state")
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestMulti_AggregateSyncCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.SyncCommitteeSelection, 1)
-	selections := make([]*eth2exp.SyncCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("AggregateSyncCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	selections2, err := m.AggregateSyncCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-
-	expectedErr := errors.New("boo")
-	client.On("AggregateSyncCommitteeSelections", mock.Anything, partsel).Return(nil, expectedErr).Once()
-	_, err = m.AggregateSyncCommitteeSelections(ctx, partsel)
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestMulti_AggregateBeaconCommitteeSelections(t *testing.T) {
-	ctx := context.Background()
-	partsel := make([]*eth2exp.BeaconCommitteeSelection, 1)
-	selections := make([]*eth2exp.BeaconCommitteeSelection, 3)
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("AggregateBeaconCommitteeSelections", mock.Anything, partsel).Return(selections, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	selections2, err := m.AggregateBeaconCommitteeSelections(ctx, partsel)
-	require.NoError(t, err)
-	require.Equal(t, selections, selections2)
-
-	expectedErr := errors.New("boo")
-	client.On("AggregateBeaconCommitteeSelections", mock.Anything, partsel).Return(nil, expectedErr).Once()
-	_, err = m.AggregateBeaconCommitteeSelections(ctx, partsel)
-	require.ErrorIs(t, err, expectedErr)
-}
-
-func TestMulti_ProposerConfig(t *testing.T) {
-	ctx := context.Background()
-	resp := &eth2exp.ProposerConfigResponse{}
-
-	client := mocks.NewClient(t)
-	client.On("Address").Return("test").Once()
-	client.On("ProposerConfig", mock.Anything).Return(resp, nil).Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	resp2, err := m.ProposerConfig(ctx)
-	require.NoError(t, err)
-	require.Equal(t, resp, resp2)
-
-	expectedErr := errors.New("boo")
-	client.On("ProposerConfig", mock.Anything).Return(nil, expectedErr).Once()
-
-	_, err = m.ProposerConfig(ctx)
-	require.ErrorIs(t, err, expectedErr)
 }
 
 func TestMulti_ActiveValidators(t *testing.T) {

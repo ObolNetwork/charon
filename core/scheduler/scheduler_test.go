@@ -120,7 +120,7 @@ func TestSchedulerWait(t *testing.T) {
 			var t0 time.Time
 
 			clock := newTestClock(t0)
-			eth2Cl, err := beaconmock.New()
+			eth2Cl, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			eth2Cl.GenesisFunc = func(context.Context, *eth2api.GenesisOpts) (*eth2v1.Genesis, error) {
@@ -196,6 +196,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 			valSet := beaconmock.ValidatorSetA
 			eth2Cl, err := beaconmock.New(
+				t.Context(),
 				beaconmock.WithValidatorSet(valSet),
 				beaconmock.WithGenesisTime(t0),
 				beaconmock.WithDeterministicAttesterDuties(test.Factor),
@@ -309,6 +310,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 
 	// Configure beacon mock.
 	eth2Cl, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithGenesisTime(t0),
 		beaconmock.WithDeterministicAttesterDuties(0),
@@ -402,6 +404,7 @@ func TestNoActive(t *testing.T) {
 
 	// Configure beacon mock.
 	eth2Cl, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithGenesisTime(t0),
 		beaconmock.WithSlotDuration(slotDuration),
 		beaconmock.WithSlotsPerEpoch(1),
@@ -432,6 +435,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 
 	// Configure beacon mock.
 	eth2Cl, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithGenesisTime(t0),
 		beaconmock.WithDeterministicAttesterDuties(1),

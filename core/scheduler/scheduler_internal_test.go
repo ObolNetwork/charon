@@ -27,6 +27,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 
 	// Configure beacon mock.
 	eth2Cl, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithGenesisTime(t0),
 		beaconmock.WithDeterministicAttesterDuties(0),

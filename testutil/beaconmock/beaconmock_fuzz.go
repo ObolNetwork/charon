@@ -132,11 +132,11 @@ func WithBeaconMockFuzzer() Option {
 			return vals, nil
 		}
 
-		mock.NodePeerCountFunc = func(context.Context) (int, error) {
-			var count int
+		mock.NodePeerCountFunc = func(context.Context, *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error) {
+			var count uint64
 			fuzz.New().Fuzz(&count)
 
-			return count, nil
+			return &eth2v1.PeerCount{Connected: count}, nil
 		}
 
 		mock.ValidatorsByPubKeyFunc = func(_ context.Context, _ string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
@@ -179,7 +179,7 @@ func WithBeaconMockFuzzer() Option {
 			return contribution, nil
 		}
 
-		mock.BlockAttestationsFunc = func(context.Context, string) ([]*eth2spec.VersionedAttestation, error) {
+		mock.BeaconBlockAttestationsFunc = func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
 			var atts []*eth2spec.VersionedAttestation
 			fuzz.New().Fuzz(&atts)
 

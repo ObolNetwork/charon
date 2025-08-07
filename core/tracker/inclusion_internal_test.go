@@ -8,6 +8,8 @@ import (
 	"slices"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -17,7 +19,6 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/statecomm"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -28,10 +29,10 @@ func TestDuplicateAttData(t *testing.T) {
 	featureset.EnableForT(t, featureset.AttestationInclusion)
 
 	tests := []struct {
-		name                      string
-		attData                   *eth2p0.AttestationData
-		attestationsFunc          func(*eth2p0.AttestationData, bitfield.Bitlist, bitfield.Bitlist, bitfield.Bitlist) []*eth2spec.VersionedAttestation
-		beaconStateCommitteesFunc func(*eth2p0.AttestationData) []*statecomm.StateCommittee
+		name                 string
+		attData              *eth2p0.AttestationData
+		attestationsFunc     func(*eth2p0.AttestationData, bitfield.Bitlist, bitfield.Bitlist, bitfield.Bitlist) []*eth2spec.VersionedAttestation
+		beaconCommitteesFunc func(*eth2p0.AttestationData) []*eth2v1.BeaconCommittee
 	}{
 		{
 			name:    "phase0",
@@ -43,8 +44,8 @@ func TestDuplicateAttData(t *testing.T) {
 					{Version: eth2spec.DataVersionPhase0, Phase0: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
 				}
 			},
-			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
-				return []*statecomm.StateCommittee{
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
 					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
 				}
 			},
@@ -59,8 +60,8 @@ func TestDuplicateAttData(t *testing.T) {
 					{Version: eth2spec.DataVersionAltair, Altair: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
 				}
 			},
-			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
-				return []*statecomm.StateCommittee{
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
 					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
 				}
 			},
@@ -75,8 +76,8 @@ func TestDuplicateAttData(t *testing.T) {
 					{Version: eth2spec.DataVersionBellatrix, Bellatrix: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
 				}
 			},
-			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
-				return []*statecomm.StateCommittee{
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
 					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
 				}
 			},
@@ -91,8 +92,8 @@ func TestDuplicateAttData(t *testing.T) {
 					{Version: eth2spec.DataVersionCapella, Capella: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
 				}
 			},
-			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
-				return []*statecomm.StateCommittee{
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
 					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
 				}
 			},
@@ -107,8 +108,8 @@ func TestDuplicateAttData(t *testing.T) {
 					{Version: eth2spec.DataVersionDeneb, Deneb: &eth2p0.Attestation{AggregationBits: aggBits3, Data: attData}},
 				}
 			},
-			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
-				return []*statecomm.StateCommittee{
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
 					{Index: attData.Index, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1}},
 				}
 			},
@@ -130,8 +131,8 @@ func TestDuplicateAttData(t *testing.T) {
 					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: aggBits3, Data: attData, CommitteeBits: twoComm}},
 				}
 			},
-			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
-				return []*statecomm.StateCommittee{
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
 					{Index: 0, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
 					{Index: 1, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
 					{Index: 2, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
@@ -154,8 +155,8 @@ func TestDuplicateAttData(t *testing.T) {
 					{Version: eth2spec.DataVersionElectra, Electra: &electra.Attestation{AggregationBits: aggBits2, Data: attData, CommitteeBits: oneComm}},
 				}
 			},
-			beaconStateCommitteesFunc: func(attData *eth2p0.AttestationData) []*statecomm.StateCommittee {
-				return []*statecomm.StateCommittee{
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
 					{Index: 0, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
 					{Index: 1, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
 					{Index: 2, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
@@ -166,7 +167,7 @@ func TestDuplicateAttData(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			bmock, err := beaconmock.New()
+			bmock, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
 			// Mock 3 attestations, with same data but different aggregation bits.
@@ -175,12 +176,12 @@ func TestDuplicateAttData(t *testing.T) {
 			aggBits2 := testutil.RandomBitList(8)
 			aggBits3 := testutil.RandomBitList(8)
 
-			bmock.BlockAttestationsFunc = func(_ context.Context, _ string) ([]*eth2spec.VersionedAttestation, error) {
+			bmock.BeaconBlockAttestationsFunc = func(_ context.Context, _ *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
 				return test.attestationsFunc(attData, aggBits1, aggBits2, aggBits3), nil
 			}
 
-			bmock.BeaconStateCommitteesFunc = func(_ context.Context, slot uint64) ([]*statecomm.StateCommittee, error) {
-				return test.beaconStateCommitteesFunc(attData), nil
+			bmock.BeaconCommitteesFunc = func(_ context.Context, opts *eth2api.BeaconCommitteesOpts) ([]*eth2v1.BeaconCommittee, error) {
+				return test.beaconCommitteesFunc(attData), nil
 			}
 
 			noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}

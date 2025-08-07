@@ -177,7 +177,7 @@ func TestSynthProposer(t *testing.T) {
 				activeVals                 = 0
 			)
 
-			bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
+			bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 			require.NoError(t, err)
 
 			bmock.SubmitProposalFunc = func(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
@@ -332,7 +332,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 		timesCalled   int
 	)
 
-	bmock, err := beaconmock.New(beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
 	require.NoError(t, err)
 
 	bmock.ProposerDutiesFunc = func(ctx context.Context, e eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {

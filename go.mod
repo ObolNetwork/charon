@@ -7,20 +7,20 @@ require (
 	github.com/attestantio/go-eth2-client v0.26.0
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
-	github.com/ethereum/go-ethereum v1.16.1
+	github.com/ethereum/go-ethereum v1.16.2
 	github.com/ferranbt/fastssz v0.1.4
 	github.com/golang/snappy v1.0.0
 	github.com/google/gofuzz v1.2.0
 	github.com/gorilla/mux v1.8.1
 	github.com/herumi/bls-eth-go-binary v1.36.4
 	github.com/holiman/uint256 v1.3.2
-	github.com/ipfs/go-log/v2 v2.6.0
+	github.com/ipfs/go-log/v2 v2.8.0
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/libp2p/go-libp2p v0.41.1
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/multiformats/go-multiaddr v0.16.0
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/client_golang v1.23.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/protolambda/eth2-shuffle v1.1.0
 	github.com/prysmaticlabs/go-bitfield v0.0.0-20240618144021-706c95b2dd15
@@ -229,8 +229,8 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/profile v1.7.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/common v0.63.0 // indirect
-	github.com/prometheus/procfs v0.16.0 // indirect
+	github.com/prometheus/common v0.65.0 // indirect
+	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.50.1 // indirect
 	github.com/quic-go/webtransport-go v0.8.1-0.20241018022711-4ac2c9250e66 // indirect
@@ -293,9 +293,8 @@ require (
 // We're replacing kryptology with our own fork, which fixes dependencies' security vulnerabilities.
 replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.1.0
 
-// We're replacing go-eth2-client with a branch off our fork, at version v0.21.10.
-// This is needed to ensure Gnosis compatibility.
-// replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.21.11-0.20240822135044-f0a5b21e02c6
+// We're replacing go-eth2-client with a branch off our fork. The branch is kept up to date with the latest attestantio versions.
+replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.26.0-obol.2 //nolint
 
 tool (
 	github.com/bufbuild/buf/cmd/buf

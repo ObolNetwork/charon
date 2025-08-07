@@ -133,9 +133,9 @@ func (c Config) InferColor() (bool, error) {
 		return true, nil
 	case colorAuto, "":
 		return term.IsTerminal(int(os.Stderr.Fd())), nil
+	default:
+		return false, errors.New("invalid --log-color value", z.Str("value", c.Color))
 	}
-
-	return false, errors.New("invalid --log-color value", z.Str("value", c.Color))
 }
 
 // DefaultConfig returns the default logging config.

@@ -40,7 +40,7 @@ var pkgFlag = flag.String("package", "", "The fully qualified go package to gene
 func main() {
 	ctx := context.Background()
 
-	pkg, err := getPkg()
+	pkg, err := getPkg(ctx)
 	if err != nil {
 		log.Error(context.Background(), "Failed to get module", err)
 		os.Exit(1)
@@ -188,12 +188,12 @@ func writeTemplate(types []Type, filename string, pkg string) error {
 	return nil
 }
 
-func getPkg() (string, error) {
+func getPkg(ctx context.Context) (string, error) {
 	if *pkgFlag != "" {
 		return *pkgFlag, nil
 	}
 
-	out, err := exec.Command("go", "list", ".").Output()
+	out, err := exec.CommandContext(ctx, "go", "list", ".").Output()
 	if err != nil {
 		return "", errors.Wrap(err, "get package")
 	}

@@ -18,6 +18,7 @@ import (
 
 func TestDeterministicAttesterDuties(t *testing.T) {
 	bmock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSetA),
 		beaconmock.WithDeterministicAttesterDuties(1),
 	)
@@ -34,6 +35,7 @@ func TestDeterministicAttesterDuties(t *testing.T) {
 
 func TestDeterministicProposerDuties(t *testing.T) {
 	bmock, err := beaconmock.New(
+		t.Context(),
 		beaconmock.WithValidatorSet(beaconmock.ValidatorSetA),
 		beaconmock.WithDeterministicProposerDuties(1),
 	)
@@ -49,7 +51,7 @@ func TestDeterministicProposerDuties(t *testing.T) {
 }
 
 func TestAttestationStore(t *testing.T) {
-	bmock, err := beaconmock.New()
+	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
 	ctx := context.Background()

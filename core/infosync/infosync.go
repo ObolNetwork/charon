@@ -61,6 +61,7 @@ func New(prioritiser *priority.Component, versions []version.SemVer, protocols [
 					res.protocols = append(res.protocols, protocol.ID(prio))
 				case topicProposal:
 					res.proposals = append(res.proposals, core.ProposalType(prio))
+				default:
 				}
 			}
 		}
