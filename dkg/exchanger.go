@@ -42,9 +42,8 @@ type sigTypeStore map[sigType]map[core.PubKey][]core.ParSignedData
 
 // dataByPubkey maps a sigType to its map of public key to slice of core.ParSignedData..
 type dataByPubkey struct {
-	numVals int
-	store   sigTypeStore
-	lock    sync.Mutex
+	store sigTypeStore
+	lock  sync.Mutex
 }
 
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
@@ -57,7 +56,7 @@ type exchanger struct {
 	sigDatasChan  chan map[core.PubKey][]core.ParSignedData
 }
 
-func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, vals int, sigTypes []sigType, timeout time.Duration) *exchanger {
+func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []sigType, timeout time.Duration) *exchanger {
 	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
 	noopVerifier := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
 		return nil
@@ -87,9 +86,8 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, vals int, sig
 		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, noopVerifier, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
 		sigTypes: st,
 		sigData: dataByPubkey{
-			store:   sigTypeStore{},
-			numVals: vals,
-			lock:    sync.Mutex{},
+			store: sigTypeStore{},
+			lock:  sync.Mutex{},
 		},
 		dutyGaterFunc: dutyGaterFunc,
 		sigDatasChan:  make(chan map[core.PubKey][]core.ParSignedData, 1),
@@ -114,14 +112,19 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 		return nil, err
 	}
 
+	expectedSigs := len(set)
+
 	for {
 		select {
 		case sigDatas, ok := <-e.sigDatasChan:
 			if !ok {
 				return nil, errors.New("sigdata channel has been closed")
 			}
-			// We are done when we have ParSignedData of all the DVs from all each peer
-			return sigDatas, nil
+
+			if len(sigDatas) == expectedSigs {
+				// We are done when we have ParSignedData of all the DVs from all each peer
+				return sigDatas, nil
+			}
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -148,7 +151,7 @@ func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.
 	}
 
 	data, ok := e.sigData.store[sigType]
-	if !ok || len(data) != e.sigData.numVals {
+	if !ok {
 		e.sigData.lock.Unlock()
 		return nil
 	}

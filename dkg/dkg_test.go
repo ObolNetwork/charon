@@ -25,11 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/dkg"
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
@@ -40,6 +40,7 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/relay"
 )
 
 const (
@@ -138,7 +139,7 @@ func TestDKG(t *testing.T) {
 			lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, seed, random, opts...)
 			dir := t.TempDir()
 
-			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish)
+			testDKG(t, lock.Definition, dir, keys, test.keymanager, test.publish, nil)
 
 			if !test.keymanager {
 				verifyDKGResults(t, lock.Definition, dir)
@@ -147,7 +148,116 @@ func TestDKG(t *testing.T) {
 	}
 }
 
-func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool) {
+func TestAppendDKG(t *testing.T) {
+	const (
+		nodes   = 3
+		vals    = 2
+		addVals = 3
+	)
+
+	withAlgo := func(algo string) func(*cluster.Definition) {
+		return func(d *cluster.Definition) {
+			d.DKGAlgorithm = algo
+		}
+	}
+
+	opts := []func(*cluster.Definition){
+		withAlgo("default"),
+	}
+
+	opts = append(opts, func(d *cluster.Definition) { d.TargetGasLimit = 30000000 })
+
+	seed := 1
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, keys, pkShares := cluster.NewForT(t, vals, nodes, nodes, seed, random, opts...)
+	srcDir := t.TempDir()
+
+	eth1 := eth1wrap.NewDefaultEthClientRunner("")
+
+	require.NoError(t, lock.Definition.VerifyHashes())
+	require.NoError(t, lock.Definition.VerifySignatures(eth1))
+
+	testDKG(t, lock.Definition, srcDir, keys, false, false, nil)
+	verifyDKGResults(t, lock.Definition, srcDir)
+
+	dstDir := t.TempDir()
+
+	appendConfigs := make([]dkg.AppendConfig, nodes)
+	for i := range nodes {
+		secretShares := make([]tbls.PrivateKey, vals)
+		for j := range vals {
+			secretShares[j] = pkShares[j][i]
+		}
+
+		lockCopy := clone(t, lock)
+
+		dataDir := path.Join(srcDir, fmt.Sprintf("node%d", i))
+		depositData, err := deposit.ReadDepositDataFiles(dataDir)
+		require.NoError(t, err)
+
+		appendConfigs[i] = dkg.AppendConfig{
+			AddValidators: addVals,
+			ValidatorAddresses: []cluster.ValidatorAddresses{
+				{
+					FeeRecipientAddress: "0x0000000000000000000000000000000000000001",
+					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
+				},
+				{
+					FeeRecipientAddress: "0x0000000000000000000000000000000000000001",
+					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
+				},
+				{
+					FeeRecipientAddress: "0x0000000000000000000000000000000000000001",
+					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
+				},
+			},
+			ClusterLock:  &lockCopy,
+			SecretShares: secretShares,
+			DepositData:  depositData,
+		}
+	}
+
+	testDKG(t, lock.Definition, dstDir, keys, false, false, appendConfigs)
+
+	totalVals := vals + addVals
+	secretShares := make([][]tbls.PrivateKey, totalVals)
+
+	for i := range nodes {
+		dataDir := path.Join(dstDir, fmt.Sprintf("node%d", i))
+		keyFiles, err := keystore.LoadFilesUnordered(path.Join(dataDir, "/validator_keys"))
+		require.NoError(t, err)
+		require.Len(t, keyFiles, totalVals)
+
+		secrets, err := keyFiles.SequencedKeys()
+		require.NoError(t, err)
+
+		for j, secret := range secrets {
+			secretShares[j] = append(secretShares[j], secret)
+		}
+
+		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))
+		require.NoError(t, err)
+
+		var lock cluster.Lock
+		require.NoError(t, json.Unmarshal(lockFile, &lock))
+		require.Equal(t, lock.NumValidators, totalVals)
+		require.Len(t, lock.Validators, totalVals)
+
+		require.NoError(t, lock.VerifyHashes())
+
+		if !appendConfigs[i].Unverified {
+			require.NoError(t, lock.VerifySignatures(eth1wrap.NewDefaultEthClientRunner("")))
+		}
+
+		dd, err := deposit.ReadDepositDataFiles(dataDir)
+		require.NoError(t, err)
+		require.Len(t, dd, 2) // two default amounts: 1eth and 32eth
+		require.Len(t, dd[0], totalVals)
+		require.Len(t, dd[1], totalVals)
+	}
+}
+
+func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool, addConfig []dkg.AppendConfig) {
 	t.Helper()
 
 	require.NoError(t, def.VerifySignatures(nil))
@@ -156,7 +266,9 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	defer cancel()
 
 	// Start relay.
-	relayAddr := startRelay(ctx, t)
+	relayAddr := relay.StartRelay(ctx, t)
+
+	defClone := clone(t, def)
 
 	// Setup config
 	conf := dkg.Config{
@@ -166,7 +278,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		},
 		Log: log.DefaultConfig(),
 		TestConfig: dkg.TestConfig{
-			Def: &def,
+			Def: &defClone,
 			StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
 				return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
 			},
@@ -217,7 +329,11 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	for i := range len(def.Operators) {
 		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
+
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
+		if len(addConfig) > 0 {
+			conf.AppendConfig = &addConfig[i]
+		}
 
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 		err := k1util.Save(p2pKeys[i], p2p.KeyPath(conf.DataDir))
@@ -272,78 +388,6 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		}
 
 		t.Log("Lockfile published to obol-api 🎉")
-	}
-}
-
-// startRelay starts a charon relay and returns its http multiaddr endpoint.
-func startRelay(parentCtx context.Context, t *testing.T) string {
-	t.Helper()
-
-	dir := t.TempDir()
-
-	addr := testutil.AvailableAddr(t).String()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		err := relay.Run(parentCtx, relay.Config{
-			DataDir:  dir,
-			HTTPAddr: addr,
-			P2PConfig: p2p.Config{
-				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-			},
-			LogConfig: log.Config{
-				Level:  "error",
-				Format: "console",
-			},
-			AutoP2PKey:    true,
-			MaxResPerPeer: 8,
-			MaxConns:      1024,
-		})
-		if err != nil {
-			log.Warn(parentCtx, "Relay stopped with error", err)
-		} else {
-			log.Info(parentCtx, "Relay stopped without error")
-		}
-
-		errChan <- err
-	}()
-
-	endpoint := "http://" + addr
-
-	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
-	defer cancel()
-
-	isUp := make(chan struct{})
-
-	go func() {
-		for ctx.Err() == nil {
-			_, err := http.Get(endpoint)
-			if err != nil {
-				time.Sleep(time.Millisecond * 100)
-				continue
-			}
-
-			close(isUp)
-
-			return
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			require.Fail(t, "Relay context canceled before startup")
-			return ""
-		case err := <-errChan:
-			testutil.SkipIfBindErr(t, err)
-			require.Fail(t, "Relay exitted before startup", "err=%v", err)
-
-			return ""
-		case <-isUp:
-			return endpoint
-		}
 	}
 }
 
@@ -525,7 +569,7 @@ func TestSyncFlow(t *testing.T) {
 			defer cancel()
 
 			ctx = log.WithTopic(ctx, "test")
-			relayAddr := startRelay(ctx, t)
+			relayAddr := relay.StartRelay(ctx, t)
 			dir := t.TempDir()
 			configs := getConfigs(t, lock.Definition, keys, dir, relayAddr)
 
@@ -718,4 +762,18 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	}()
 
 	return cancel
+}
+
+func clone[T any](t *testing.T, v T) T {
+	t.Helper()
+
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+
+	var clone T
+
+	err = json.Unmarshal(b, &clone)
+	require.NoError(t, err)
+
+	return clone
 }

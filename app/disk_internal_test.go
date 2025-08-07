@@ -3,101 +3,28 @@
 package app
 
 import (
-	"context"
 	"os"
+	"path/filepath"
 	"testing"
-	"time"
 
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/testutil/beaconmock"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 )
 
-func TestCalculateTrackerDelay(t *testing.T) {
-	tests := []struct {
-		name         string
-		slotDuration time.Duration
-		slotDelay    int64
-	}{
-		{
-			name:         "slow slots",
-			slotDuration: time.Second,
-			slotDelay:    11,
-		},
-		{
-			name:         "fast slots",
-			slotDuration: time.Second * 12,
-			slotDelay:    2,
-		},
+func TestLoadClusterManifest(t *testing.T) {
+	conf := Config{
+		LockFile: "testdata/test-cluster-lock.json",
+		NoVerify: true,
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			const currentSlot = 100
 
-			ctx := context.Background()
-			now := time.Now()
-			genesis := now.Add(-test.slotDuration * currentSlot)
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner("")
+	go eth1Cl.Run(t.Context())
 
-			bmock, err := beaconmock.New(
-				t.Context(),
-				beaconmock.WithSlotDuration(test.slotDuration),
-				beaconmock.WithGenesisTime(genesis),
-			)
-			require.NoError(t, err)
-
-			fromSlot, err := calculateTrackerDelay(ctx, bmock, now)
-			require.NoError(t, err)
-			require.EqualValues(t, currentSlot+test.slotDelay, fromSlot)
-		})
-	}
-}
-
-func TestSetFeeRecipient(t *testing.T) {
-	set := beaconmock.ValidatorSetA
-	for i := range len(set) {
-		clone, err := set.Clone()
-		require.NoError(t, err)
-
-		// Make i+1 validators inactive
-		inactive := i + 1
-
-		for index, validator := range clone {
-			validator.Status = eth2v1.ValidatorStatePendingQueued
-			clone[index] = validator
-
-			inactive--
-			if inactive == 0 {
-				break
-			}
-		}
-
-		bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(clone))
-		require.NoError(t, err)
-
-		// Only expect preparations for active validators.
-		var active int
-
-		bmock.SubmitProposalPreparationsFunc = func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
-			if len(preparations) == 0 {
-				return errors.New("empty slice")
-			}
-
-			active = len(preparations)
-
-			return nil
-		}
-
-		fn := setFeeRecipient(bmock, func(core.PubKey) string {
-			return "0xdead"
-		})
-		err = fn(context.Background(), core.Slot{SlotsPerEpoch: 1})
-		require.NoError(t, err)
-
-		require.Equal(t, active, len(clone)-(i+1))
-	}
+	cluster, err := loadClusterManifest(t.Context(), conf, eth1Cl)
+	require.NoError(t, err)
+	require.NotNil(t, cluster)
+	require.Len(t, cluster.GetValidators(), 2)
 }
 
 func TestFileExists(t *testing.T) {
@@ -110,4 +37,73 @@ func TestFileExists(t *testing.T) {
 
 	exists := FileExists(tmpFile.Name())
 	require.False(t, exists)
+}
+
+func TestCreateNewEmptyDir(t *testing.T) {
+	tempDir := t.TempDir()
+	newDir := filepath.Join(tempDir, "new-cluster")
+
+	// Positive case: create new empty dir
+	err := CreateNewEmptyDir(newDir)
+	require.NoError(t, err)
+
+	_, err = os.Stat(newDir)
+	require.NoError(t, err)
+
+	err = os.WriteFile(filepath.Join(newDir, "testfile.txt"), []byte("test"), 0o644)
+	require.NoError(t, err)
+
+	// Negative case: directory not empty
+	err = CreateNewEmptyDir(newDir)
+	require.ErrorContains(t, err, "directory not empty")
+
+	// Negative case: path exists as a file
+	filePath := filepath.Join(tempDir, "somefile")
+	err = os.WriteFile(filePath, []byte("data"), 0o644)
+	require.NoError(t, err)
+
+	err = CreateNewEmptyDir(filePath)
+	require.ErrorContains(t, err, "not a directory")
+
+	// Negative case: parent directory does not exist
+	nonExistentParent := filepath.Join(tempDir, "doesnotexist", "child")
+	err = CreateNewEmptyDir(nonExistentParent)
+	require.Error(t, err)
+}
+
+func TestCopyFile(t *testing.T) {
+	tempDir := t.TempDir()
+	srcFile := filepath.Join(tempDir, "src.txt")
+	destFile := filepath.Join(tempDir, "dest.txt")
+
+	// Create a source file with some content
+	err := os.WriteFile(srcFile, []byte("Hello, World!"), 0o644)
+	require.NoError(t, err)
+
+	err = CopyFile(srcFile, destFile)
+	require.NoError(t, err)
+
+	// Verify the destination file has the same content
+	destContent, err := os.ReadFile(destFile)
+	require.NoError(t, err)
+	require.Equal(t, "Hello, World!", string(destContent))
+
+	// Negative case: source file does not exist
+	nonExistentSrc := filepath.Join(tempDir, "doesnotexist.txt")
+	err = CopyFile(nonExistentSrc, filepath.Join(tempDir, "shouldnotexist.txt"))
+	require.Error(t, err)
+
+	// Negative case: destination path is a directory
+	destDir := filepath.Join(tempDir, "destdir")
+	err = os.Mkdir(destDir, 0o755)
+	require.NoError(t, err)
+	err = CopyFile(srcFile, destDir)
+	require.Error(t, err)
+
+	// Negative case: source path is a directory
+	srcDir := filepath.Join(tempDir, "srcdir")
+	err = os.Mkdir(srcDir, 0o755)
+	require.NoError(t, err)
+	err = CopyFile(srcDir, filepath.Join(tempDir, "dest2.txt"))
+	require.Error(t, err)
 }

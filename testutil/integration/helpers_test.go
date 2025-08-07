@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"net"
-	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -18,9 +17,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cmd/relay"
-	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/testutil"
 )
 
 var integration = flag.Bool("integration", false, "Enable this package's integration tests")
@@ -30,74 +26,6 @@ func skipIfDisabled(t *testing.T) {
 
 	if !*integration {
 		t.Skip("Integration tests are disabled")
-	}
-}
-
-// startRelay starts a charon relay and returns its http multiaddr endpoint.
-func startRelay(parentCtx context.Context, t *testing.T) string {
-	t.Helper()
-
-	dir := t.TempDir()
-
-	addr := testutil.AvailableAddr(t).String()
-
-	errChan := make(chan error, 1)
-
-	go func() {
-		err := relay.Run(parentCtx, relay.Config{
-			DataDir:  dir,
-			HTTPAddr: addr,
-			P2PConfig: p2p.Config{
-				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-			},
-			LogConfig: log.Config{
-				Level:  "error",
-				Format: "console",
-			},
-			AutoP2PKey:    true,
-			MaxResPerPeer: 8,
-			MaxConns:      1024,
-		})
-		t.Logf("Relay stopped: err=%v", err)
-
-		errChan <- err
-	}()
-
-	endpoint := "http://" + addr
-
-	// Wait up to 5s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-	defer cancel()
-
-	isUp := make(chan struct{})
-
-	go func() {
-		for ctx.Err() == nil {
-			_, err := http.Get(endpoint)
-			if err != nil {
-				time.Sleep(time.Millisecond * 100)
-				continue
-			}
-
-			close(isUp)
-
-			return
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			require.Fail(t, "Relay context canceled before startup")
-			return ""
-		case err := <-errChan:
-			testutil.SkipIfBindErr(t, err)
-			require.Fail(t, "Relay exitted before startup", "err=%v", err)
-
-			return ""
-		case <-isUp:
-			return endpoint
-		}
 	}
 }
 

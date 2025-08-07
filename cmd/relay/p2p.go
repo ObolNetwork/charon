@@ -4,7 +4,6 @@ package relay
 
 import (
 	"context"
-	"encoding/hex"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -18,6 +17,7 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/peerinfo"
@@ -202,20 +202,10 @@ func getPeerInfo(ctx context.Context, p2pNode host.Host, pID peer.ID, name strin
 		return unknownCluster, true, nil
 	}
 
-	clusterHash := hex7(info.GetLockHash())
+	clusterHash := app.Hex7(info.GetLockHash())
 	peerPingLatency.WithLabelValues(name, clusterHash).Observe(rtt.Seconds() / 2)
 
 	return clusterHash, true, nil
-}
-
-// hex7 returns the first 7 (or less) hex chars of the provided bytes.
-func hex7(input []byte) string {
-	resp := hex.EncodeToString(input)
-	if len(resp) <= 7 {
-		return resp
-	}
-
-	return resp[:7]
 }
 
 // connEvent is a connection event.

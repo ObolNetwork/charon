@@ -121,12 +121,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 
 	cl := keymanager.New(keymanagerURL, authToken)
 
-	err := cl.ImportKeystores(ctx, keystores, passwords)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return cl.ImportKeystores(ctx, keystores, passwords)
 }
 
 // writeKeysToDisk writes validator private keyshares for the node to disk.
