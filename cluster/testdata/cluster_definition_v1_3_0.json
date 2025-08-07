@@ -14,7 +14,7 @@
    "enr_signature": "0x6c9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818526f1814be823350eab13935f31d84484517e924aef78ae151c00755925836b7071b"
   }
  ],
- "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+ "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
  "version": "v1.3.0",
  "timestamp": "2022-07-19T18:19:58+02:00",
  "num_validators": 2,
@@ -23,6 +23,6 @@
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
- "config_hash": "0x1585f794ed674b7fbdf47ab40bb848b590c417c92b32f10b659b899ef1f70344",
- "definition_hash": "0xe5bd3576ed21dd2524e975d92a8fe83e28321443551f0bd492aa09af6c265a6d"
+ "config_hash": "0xc6d3acd4b419aa59ddde2ef268d9fdbf01d68185c7d5151e6d5885058e4a3f26",
+ "definition_hash": "0x74c6ef723d64b96adee77182919ddf88e99042e25deebe5f2c7a4a1a8b308a42"
 }

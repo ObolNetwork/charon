@@ -19,7 +19,7 @@
     "enr_signature": "0xf32b7c7822ba64f84ab43ca0c6e6b91c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb6865fcf92b0c3a17c9028be9914eb7649c1c"
    }
   ],
-  "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+  "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
   "version": "v1.8.0",
   "timestamp": "2022-07-19T18:19:58+02:00",
   "num_validators": 2,
@@ -40,8 +40,8 @@
    "16000000000",
    "16000000000"
   ],
-  "config_hash": "0x50dc8e02ebf691d4c4d996968dd4260a3654e0b28ead5a4202835d1b828a47da",
-  "definition_hash": "0x552c086c47f9258edfba2a1885753e6256ad7c14c1fed12a57a527d1d0a2f58b"
+  "config_hash": "0x5ee413f71ef5a3cb1c31b2bd235b6d98a306358547006514d1bd8cc36243ad5e",
+  "definition_hash": "0xec1e96b2ee3f4aedfd3a60efd7bc9b9b5cc3f3f2f2d84282579311e66db12e47"
  },
  "distributed_validators": [
   {
@@ -106,7 +106,7 @@
   }
  ],
  "signature_aggregate": "0x9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818526f",
- "lock_hash": "0x253275af3b787938e705b1c52b95d3be29472048a02a83b4db4c2fef67bc3aac",
+ "lock_hash": "0x0f36151f988f964243fabee0b293675795c4f2d1aef24ea753a50e1c9c7e3420",
  "node_signatures": [
   "0xb38b19f53784c19e9beac03c875a27db029de37ae37a42318813487685929359",
   "0xca8c5eb94e152dc1af42ea3d1676c1bdd19ab8e2925c6daee4de5ef9f9dcf08d"

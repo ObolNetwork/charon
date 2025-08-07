@@ -18,7 +18,7 @@
    "enr_signature": "0xf32b7c7822ba64f84ab43ca0c6e6b91c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb6865fcf92b0c3a17c9028be9914eb7649c1c"
   }
  ],
- "uuid": "0194FDC2-FA2F-FCC0-41D3-FF12045B73C8",
+ "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
  "version": "v1.9.0",
  "timestamp": "2022-07-19T18:19:58+02:00",
  "num_validators": 2,
@@ -40,6 +40,6 @@
   "16000000000"
  ],
  "consensus_protocol": "abft",
- "config_hash": "0x2bc23d365327462a290464e4094ca1d70998f6604d19aa5e220cc4d57047120e",
- "definition_hash": "0x1936f10c991361aa585d86dd745bc6b0a89371dca8c22c069def26579aca9f55"
+ "config_hash": "0x48e9153002ad299af99c3b24496c897a6ed6e68e5273d7b141b699f002cff952",
+ "definition_hash": "0x0e1a7dff496f5aff68507ab4ed90e6c162834c9bbccb6bfd3b894ab095b04f75"
 }
