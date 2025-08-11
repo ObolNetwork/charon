@@ -11,7 +11,7 @@ jobs:
     runs-on: charon-ci
     name: Build Docker Image
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 0
     - name: Set up QEMU
