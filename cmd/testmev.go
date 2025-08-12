@@ -590,7 +590,7 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 			},
 			Signature: eth2p0.BLSSignature(sig),
 		}
-	case eth2spec.DataVersionElectra:
+	case eth2spec.DataVersionElectra, eth2spec.DataVersionFulu: // same block structure for both
 		payload = eth2electra.SignedBlindedBeaconBlock{
 			Message: &eth2electra.BlindedBeaconBlock{
 				Slot:          0,

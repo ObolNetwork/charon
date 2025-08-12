@@ -611,7 +611,7 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 
 			err = unmarshal(typ, body, electraAtts)
 			if err != nil {
-				return nil, nil, errors.New("invalid attestations", z.Hex("body", body))
+				return nil, nil, errors.New("invalid electra attestations", z.Hex("body", body))
 			}
 
 			for _, electraAtt := range *electraAtts {
@@ -621,6 +621,31 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 					Version:        eth2spec.DataVersionElectra,
 					ValidatorIndex: &electraAtt.AttesterIndex,
 					Electra: &electra.Attestation{
+						// the VersionedAttestation object will be converted back to SingleAttestation object inside go-eth2-client's SubmitAttestations,
+						// SingleAttestation object disregards AggregationBits, so this empty Bitlist is safe
+						AggregationBits: bitfield.NewBitlist(0),
+						Data:            electraAtt.Data,
+						Signature:       electraAtt.Signature,
+						CommitteeBits:   commBits,
+					},
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
+		case eth2spec.DataVersionFulu:
+			electraAtts := new([]electra.SingleAttestation)
+
+			err = unmarshal(typ, body, electraAtts)
+			if err != nil {
+				return nil, nil, errors.New("invalid fulu attestations", z.Hex("body", body))
+			}
+
+			for _, electraAtt := range *electraAtts {
+				commBits := bitfield.NewBitvector64()
+				commBits.SetBitAt(uint64(electraAtt.CommitteeIndex), true)
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version:        eth2spec.DataVersionFulu,
+					ValidatorIndex: &electraAtt.AttesterIndex,
+					Fulu: &electra.Attestation{
 						// the VersionedAttestation object will be converted back to SingleAttestation object inside go-eth2-client's SubmitAttestations,
 						// SingleAttestation object disregards AggregationBits, so this empty Bitlist is safe
 						AggregationBits: bitfield.NewBitlist(0),
@@ -984,6 +1009,22 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 
 			blockData = proposal.Electra
 		}
+	case eth2spec.DataVersionFulu:
+		version = eth2spec.DataVersionFulu.String()
+
+		if proposal.Blinded {
+			if proposal.FuluBlinded == nil {
+				return nil, errors.New("no fulu blinded block")
+			}
+
+			blockData = proposal.FuluBlinded
+		} else {
+			if proposal.Fulu == nil {
+				return nil, errors.New("no fulu block")
+			}
+
+			blockData = proposal.Fulu
+		}
 	default:
 		if proposal.Blinded {
 			return nil, errors.New("invalid blinded block")
@@ -1002,81 +1043,23 @@ func createProposeBlockResponse(proposal *eth2api.VersionedProposal) (*proposeBl
 }
 
 func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		electraBlock := new(eth2electra.SignedBlockContents)
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
 
-		err := unmarshal(typ, body, electraBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionElectra,
-				Electra: electraBlock,
-			}
-
-			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-				Proposal: block,
-			})
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, errors.New("missing consensus version header", z.Hex("body", body))
 		}
 
-		denebBlock := new(eth2deneb.SignedBlockContents)
+		switch version {
+		case eth2spec.DataVersionPhase0:
+			phase0Block := new(eth2p0.SignedBeaconBlock)
 
-		err = unmarshal(typ, body, denebBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionDeneb,
-				Deneb:   denebBlock,
+			err = unmarshal(typ, body, phase0Block)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted phase0 block", z.Hex("body", body))
 			}
 
-			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-				Proposal: block,
-			})
-		}
-
-		capellaBlock := new(capella.SignedBeaconBlock)
-
-		err = unmarshal(typ, body, capellaBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionCapella,
-				Capella: capellaBlock,
-			}
-
-			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-				Proposal: block,
-			})
-		}
-
-		bellatrixBlock := new(bellatrix.SignedBeaconBlock)
-
-		err = unmarshal(typ, body, bellatrixBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedProposal{
-				Version:   eth2spec.DataVersionBellatrix,
-				Bellatrix: bellatrixBlock,
-			}
-
-			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-				Proposal: block,
-			})
-		}
-
-		altairBlock := new(altair.SignedBeaconBlock)
-
-		err = unmarshal(typ, body, altairBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedProposal{
-				Version: eth2spec.DataVersionAltair,
-				Altair:  altairBlock,
-			}
-
-			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
-				Proposal: block,
-			})
-		}
-
-		phase0Block := new(eth2p0.SignedBeaconBlock)
-
-		err = unmarshal(typ, body, phase0Block)
-		if err == nil {
 			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionPhase0,
 				Phase0:  phase0Block,
@@ -1085,61 +1068,133 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
 				Proposal: block,
 			})
-		}
 
-		return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
-	}
-}
+		case eth2spec.DataVersionAltair:
+			altairBlock := new(altair.SignedBeaconBlock)
 
-func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		// The blinded block maybe either bellatrix, capella, deneb or electra.
-		electraBlock := new(eth2electra.SignedBlindedBeaconBlock)
-
-		err := unmarshal(typ, body, electraBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedBlindedProposal{
-				Version: eth2spec.DataVersionElectra,
-				Electra: electraBlock,
+			err = unmarshal(typ, body, altairBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted altair block", z.Hex("body", body))
 			}
 
-			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
-				Proposal: block,
-			})
-		}
-
-		denebBlock := new(eth2deneb.SignedBlindedBeaconBlock)
-
-		err = unmarshal(typ, body, denebBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedBlindedProposal{
-				Version: eth2spec.DataVersionDeneb,
-				Deneb:   denebBlock,
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionAltair,
+				Altair:  altairBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
 				Proposal: block,
 			})
-		}
 
-		capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
+		case eth2spec.DataVersionBellatrix:
+			bellatrixBlock := new(bellatrix.SignedBeaconBlock)
 
-		err = unmarshal(typ, body, capellaBlock)
-		if err == nil {
-			block := &eth2api.VersionedSignedBlindedProposal{
+			err = unmarshal(typ, body, bellatrixBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted bellatrix block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedProposal{
+				Version:   eth2spec.DataVersionBellatrix,
+				Bellatrix: bellatrixBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+
+		case eth2spec.DataVersionCapella:
+			capellaBlock := new(capella.SignedBeaconBlock)
+
+			err = unmarshal(typ, body, capellaBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted capella block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionCapella,
 				Capella: capellaBlock,
 			}
 
-			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
 				Proposal: block,
 			})
+
+		case eth2spec.DataVersionDeneb:
+			denebBlock := new(eth2deneb.SignedBlockContents)
+
+			err = unmarshal(typ, body, denebBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted deneb block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   denebBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+
+		case eth2spec.DataVersionElectra:
+			electraBlock := new(eth2electra.SignedBlockContents)
+
+			err = unmarshal(typ, body, electraBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted electra block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: electraBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+
+		case eth2spec.DataVersionFulu:
+			fuluBlock := new(eth2electra.SignedBlockContents) // Fulu blocks have the same structure as electra blocks.
+
+			err = unmarshal(typ, body, fuluBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted fulu block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionFulu,
+				Fulu:    fuluBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+
+		default:
+			return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
+		}
+	}
+}
+
+func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, errors.New("missing consensus version header", z.Hex("body", body))
 		}
 
-		bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
+		switch version {
+		case eth2spec.DataVersionBellatrix:
+			bellatrixBlock := new(eth2bellatrix.SignedBlindedBeaconBlock)
 
-		err = unmarshal(typ, body, bellatrixBlock)
-		if err == nil {
+			err = unmarshal(typ, body, bellatrixBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted bellatrix blinded block", z.Hex("body", body))
+			}
+
 			block := &eth2api.VersionedSignedBlindedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
 				Bellatrix: bellatrixBlock,
@@ -1148,9 +1203,78 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
 				Proposal: block,
 			})
-		}
 
-		return nil, nil, errors.New("invalid block")
+		case eth2spec.DataVersionCapella:
+			capellaBlock := new(eth2capella.SignedBlindedBeaconBlock)
+
+			err = unmarshal(typ, body, capellaBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted capella blinded block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionCapella,
+				Capella: capellaBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
+
+		case eth2spec.DataVersionDeneb:
+			denebBlock := new(eth2deneb.SignedBlindedBeaconBlock)
+
+			err = unmarshal(typ, body, denebBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted deneb blinded block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionDeneb,
+				Deneb:   denebBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
+
+		case eth2spec.DataVersionElectra:
+			electraBlock := new(eth2electra.SignedBlindedBeaconBlock)
+
+			err := unmarshal(typ, body, electraBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted electra blinded block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionElectra,
+				Electra: electraBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
+
+		case eth2spec.DataVersionFulu:
+			fuluBlock := new(eth2electra.SignedBlindedBeaconBlock) // Fulu blinded blocks have the same structure as electra blinded blocks.
+
+			err := unmarshal(typ, body, fuluBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted fulu blinded block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedBlindedProposal{
+				Version: eth2spec.DataVersionFulu,
+				Fulu:    fuluBlock,
+			}
+
+			return nil, nil, p.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block,
+			})
+
+		default:
+			return nil, nil, errors.New("invalid block")
+		}
 	}
 }
 
@@ -1303,6 +1427,12 @@ func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggrega
 		}
 
 		res.Data = aggAtt.Electra
+	case eth2spec.DataVersionFulu:
+		if aggAtt.Fulu == nil {
+			return nil, errors.New("no fulu attestation")
+		}
+
+		res.Data = aggAtt.Fulu
 	default:
 		return nil, errors.New("invalid attestation")
 	}
@@ -1409,6 +1539,21 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionElectra,
 					Electra: electraAgg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		case eth2spec.DataVersionFulu:
+			var electraAggs []*electra.SignedAggregateAndProof
+
+			err := unmarshal(typ, body, &electraAggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal fulu signed aggregate and proofs", z.Hex("body", body))
+			}
+
+			for _, electraAgg := range electraAggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionFulu,
+					Fulu:    electraAgg,
 				}
 				aggs = append(aggs, &versionedAgg)
 			}

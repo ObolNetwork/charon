@@ -10,40 +10,15 @@
    "Issues": [
     {
      "Category": "feature",
-     "Title": "Issue#1582",
-     "Number": 1582,
-     "Label": "#1582",
+     "Title": "Issue#947",
+     "Number": 947,
+     "Label": "#947",
      "PRs": [
       {
-       "Label": "#1598"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1490",
-     "Number": 1490,
-     "Label": "#1490",
-     "PRs": [
-      {
-       "Label": "#1615"
+       "Label": "#1601"
       },
       {
-       "Label": "#1532"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1506",
-     "Number": 1506,
-     "Label": "#1506",
-     "PRs": [
-      {
-       "Label": "#1534"
-      },
-      {
-       "Label": "#1512"
+       "Label": "#1586"
       }
      ]
     },
@@ -55,128 +30,6 @@
      "PRs": [
       {
        "Label": "#1511"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1421",
-     "Number": 1421,
-     "Label": "#1421",
-     "PRs": [
-      {
-       "Label": "#1485"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1446",
-     "Number": 1446,
-     "Label": "#1446",
-     "PRs": [
-      {
-       "Label": "#1473"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1501",
-     "Number": 1501,
-     "Label": "#1501",
-     "PRs": [
-      {
-       "Label": "#1609"
-      },
-      {
-       "Label": "#1599"
-      },
-      {
-       "Label": "#1597"
-      },
-      {
-       "Label": "#1566"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1247",
-     "Number": 1247,
-     "Label": "#1247",
-     "PRs": [
-      {
-       "Label": "#1526"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1503",
-     "Number": 1503,
-     "Label": "#1503",
-     "PRs": [
-      {
-       "Label": "#1622"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1584",
-     "Number": 1584,
-     "Label": "#1584",
-     "PRs": [
-      {
-       "Label": "#1596"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1488",
-     "Number": 1488,
-     "Label": "#1488",
-     "PRs": [
-      {
-       "Label": "#1520"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1590",
-     "Number": 1590,
-     "Label": "#1590",
-     "PRs": [
-      {
-       "Label": "#1604"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1521",
-     "Number": 1521,
-     "Label": "#1521",
-     "PRs": [
-      {
-       "Label": "#1536"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#947",
-     "Number": 947,
-     "Label": "#947",
-     "PRs": [
-      {
-       "Label": "#1601"
-      },
-      {
-       "Label": "#1586"
       }
      ]
     },
@@ -208,12 +61,167 @@
     },
     {
      "Category": "feature",
+     "Title": "Issue#1521",
+     "Number": 1521,
+     "Label": "#1521",
+     "PRs": [
+      {
+       "Label": "#1536"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1506",
+     "Number": 1506,
+     "Label": "#1506",
+     "PRs": [
+      {
+       "Label": "#1534"
+      },
+      {
+       "Label": "#1512"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1584",
+     "Number": 1584,
+     "Label": "#1584",
+     "PRs": [
+      {
+       "Label": "#1596"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1464",
+     "Number": 1464,
+     "Label": "#1464",
+     "PRs": [
+      {
+       "Label": "#1570"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1488",
+     "Number": 1488,
+     "Label": "#1488",
+     "PRs": [
+      {
+       "Label": "#1520"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1446",
+     "Number": 1446,
+     "Label": "#1446",
+     "PRs": [
+      {
+       "Label": "#1473"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1503",
+     "Number": 1503,
+     "Label": "#1503",
+     "PRs": [
+      {
+       "Label": "#1622"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1254",
+     "Number": 1254,
+     "Label": "#1254",
+     "PRs": [
+      {
+       "Label": "#1468"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1501",
+     "Number": 1501,
+     "Label": "#1501",
+     "PRs": [
+      {
+       "Label": "#1609"
+      },
+      {
+       "Label": "#1599"
+      },
+      {
+       "Label": "#1597"
+      },
+      {
+       "Label": "#1566"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
      "Title": "Issue#712",
      "Number": 712,
      "Label": "#712",
      "PRs": [
       {
        "Label": "#1496"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1590",
+     "Number": 1590,
+     "Label": "#1590",
+     "PRs": [
+      {
+       "Label": "#1604"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1582",
+     "Number": 1582,
+     "Label": "#1582",
+     "PRs": [
+      {
+       "Label": "#1598"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1247",
+     "Number": 1247,
+     "Label": "#1247",
+     "PRs": [
+      {
+       "Label": "#1526"
+      }
+     ]
+    },
+    {
+     "Category": "feature",
+     "Title": "Issue#1421",
+     "Number": 1421,
+     "Label": "#1421",
+     "PRs": [
+      {
+       "Label": "#1485"
       }
      ]
     },
@@ -233,23 +241,15 @@
     },
     {
      "Category": "feature",
-     "Title": "Issue#1464",
-     "Number": 1464,
-     "Label": "#1464",
+     "Title": "Issue#1490",
+     "Number": 1490,
+     "Label": "#1490",
      "PRs": [
       {
-       "Label": "#1570"
-      }
-     ]
-    },
-    {
-     "Category": "feature",
-     "Title": "Issue#1254",
-     "Number": 1254,
-     "Label": "#1254",
-     "PRs": [
+       "Label": "#1615"
+      },
       {
-       "Label": "#1468"
+       "Label": "#1532"
       }
      ]
     }
@@ -272,23 +272,23 @@
     },
     {
      "Category": "bug",
+     "Title": "Issue#978",
+     "Number": 978,
+     "Label": "#978",
+     "PRs": [
+      {
+       "Label": "#1595"
+      }
+     ]
+    },
+    {
+     "Category": "bug",
      "Title": "Issue#1527",
      "Number": 1527,
      "Label": "#1527",
      "PRs": [
       {
        "Label": "#1528"
-      }
-     ]
-    },
-    {
-     "Category": "bug",
-     "Title": "Issue#1445",
-     "Number": 1445,
-     "Label": "#1445",
-     "PRs": [
-      {
-       "Label": "#1474"
       }
      ]
     },
@@ -308,12 +308,12 @@
     },
     {
      "Category": "bug",
-     "Title": "Issue#978",
-     "Number": 978,
-     "Label": "#978",
+     "Title": "Issue#1445",
+     "Number": 1445,
+     "Label": "#1445",
      "PRs": [
       {
-       "Label": "#1595"
+       "Label": "#1474"
       }
      ]
     },
@@ -351,45 +351,12 @@
    "Issues": [
     {
      "Category": "refactor",
-     "Title": "Issue#1524",
-     "Number": 1524,
-     "Label": "#1524",
+     "Title": "Issue#1587",
+     "Number": 1587,
+     "Label": "#1587",
      "PRs": [
       {
-       "Label": "#1610"
-      }
-     ]
-    },
-    {
-     "Category": "refactor",
-     "Title": "Issue#139",
-     "Number": 139,
-     "Label": "#139",
-     "PRs": [
-      {
-       "Label": "#1489"
-      }
-     ]
-    },
-    {
-     "Category": "refactor",
-     "Title": "Issue#1591",
-     "Number": 1591,
-     "Label": "#1591",
-     "PRs": [
-      {
-       "Label": "#1602"
-      }
-     ]
-    },
-    {
-     "Category": "refactor",
-     "Title": "Issue#1494",
-     "Number": 1494,
-     "Label": "#1494",
-     "PRs": [
-      {
-       "Label": "#1592"
+       "Label": "#1600"
       }
      ]
     },
@@ -406,23 +373,56 @@
     },
     {
      "Category": "refactor",
-     "Title": "Issue#1587",
-     "Number": 1587,
-     "Label": "#1587",
-     "PRs": [
-      {
-       "Label": "#1600"
-      }
-     ]
-    },
-    {
-     "Category": "refactor",
      "Title": "Issue#1606",
      "Number": 1606,
      "Label": "#1606",
      "PRs": [
       {
        "Label": "#1607"
+      }
+     ]
+    },
+    {
+     "Category": "refactor",
+     "Title": "Issue#1494",
+     "Number": 1494,
+     "Label": "#1494",
+     "PRs": [
+      {
+       "Label": "#1592"
+      }
+     ]
+    },
+    {
+     "Category": "refactor",
+     "Title": "Issue#139",
+     "Number": 139,
+     "Label": "#139",
+     "PRs": [
+      {
+       "Label": "#1489"
+      }
+     ]
+    },
+    {
+     "Category": "refactor",
+     "Title": "Issue#1524",
+     "Number": 1524,
+     "Label": "#1524",
+     "PRs": [
+      {
+       "Label": "#1610"
+      }
+     ]
+    },
+    {
+     "Category": "refactor",
+     "Title": "Issue#1591",
+     "Number": 1591,
+     "Label": "#1591",
+     "PRs": [
+      {
+       "Label": "#1602"
       }
      ]
     }

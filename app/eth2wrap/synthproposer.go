@@ -185,6 +185,14 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		proposal.Electra.Block.ProposerIndex = vIdx
 		proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		proposal.Electra.Block.Body.ExecutionPayload.Transactions = fraction(proposal.Electra.Block.Body.ExecutionPayload.Transactions)
+	case eth2spec.DataVersionFulu:
+		proposal.Fulu = &eth2electra.BlockContents{}
+		proposal.Fulu.Block = signedBlock.Fulu.Message
+		proposal.Fulu.Block.Body.Graffiti = GetSyntheticGraffiti()
+		proposal.Fulu.Block.Slot = slot
+		proposal.Fulu.Block.ProposerIndex = vIdx
+		proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient = feeRecipient
+		proposal.Fulu.Block.Body.ExecutionPayload.Transactions = fraction(proposal.Fulu.Block.Body.ExecutionPayload.Transactions)
 	default:
 		return nil, errors.New("unsupported proposal version")
 	}
@@ -239,6 +247,8 @@ func IsSyntheticBlindedBlock(block *eth2api.VersionedSignedBlindedProposal) bool
 		graffiti = block.Deneb.Message.Body.Graffiti
 	case eth2spec.DataVersionElectra:
 		graffiti = block.Electra.Message.Body.Graffiti
+	case eth2spec.DataVersionFulu:
+		graffiti = block.Fulu.Message.Body.Graffiti
 	default:
 		return false
 	}
@@ -263,6 +273,8 @@ func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 		graffiti = block.Deneb.SignedBlock.Message.Body.Graffiti
 	case eth2spec.DataVersionElectra:
 		graffiti = block.Electra.SignedBlock.Message.Body.Graffiti
+	case eth2spec.DataVersionFulu:
+		graffiti = block.Fulu.SignedBlock.Message.Body.Graffiti
 	default:
 		return false
 	}

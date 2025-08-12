@@ -53,15 +53,16 @@ func TestFetchForkConfig(t *testing.T) {
 	require.NoError(t, err)
 	eVersion, err := hex.DecodeString("60000910")
 	require.NoError(t, err)
-	// fVersion, err := hex.DecodeString("70000910")
-	// require.NoError(t, err)
+	fVersion, err := hex.DecodeString("70000910")
+	require.NoError(t, err)
+
 	ffs := eth2wrap.ForkForkSchedule{
 		eth2wrap.Altair:    eth2wrap.ForkSchedule{Epoch: 0, Version: [4]byte(aVersion)},
 		eth2wrap.Bellatrix: eth2wrap.ForkSchedule{Epoch: 0, Version: [4]byte(bVersion)},
 		eth2wrap.Capella:   eth2wrap.ForkSchedule{Epoch: 0, Version: [4]byte(cVersion)},
 		eth2wrap.Deneb:     eth2wrap.ForkSchedule{Epoch: 0, Version: [4]byte(dVersion)},
 		eth2wrap.Electra:   eth2wrap.ForkSchedule{Epoch: 2048, Version: [4]byte(eVersion)},
-		// eth2wrap.Fulu:      eth2wrap.ForkSchedule{Epoch: 18446744073709551615, Version: [4]byte(fVersion)},
+		eth2wrap.Fulu:      eth2wrap.ForkSchedule{Epoch: 18446744073709551615, Version: [4]byte(fVersion)},
 	}
 
 	// Matching beaconmock/static.json

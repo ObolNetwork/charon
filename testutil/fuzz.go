@@ -32,6 +32,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 		eth2spec.DataVersionCapella,
 		eth2spec.DataVersionDeneb,
 		eth2spec.DataVersionElectra,
+		eth2spec.DataVersionFulu,
 	}
 
 	allVersions := []eth2spec.DataVersion{
@@ -41,6 +42,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 		eth2spec.DataVersionCapella,
 		eth2spec.DataVersionDeneb,
 		eth2spec.DataVersionElectra,
+		eth2spec.DataVersionFulu,
 	}
 
 	if seed == 0 {
@@ -217,6 +219,55 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 						}
 					}
 				}
+
+				if e.Version == eth2spec.DataVersionFulu {
+					if e.Fulu != nil {
+						// Limit length of KZGProofs to 6
+						if len(e.Fulu.KZGProofs) > maxKZGProofs {
+							e.Fulu.KZGProofs = e.Fulu.KZGProofs[:maxKZGProofs]
+						}
+						// Limit length of Blobs to 6
+						if len(e.Fulu.Blobs) > maxBlobs {
+							e.Fulu.Blobs = e.Fulu.Blobs[:maxBlobs]
+						}
+						// Limit ExecutionRequests.Consolidations to 2
+						if len(e.Fulu.SignedBlock.Message.Body.ExecutionRequests.Consolidations) > 2 {
+							// Limit length of BlobKZGCommitments to 6
+							e.Fulu.SignedBlock.Message.Body.ExecutionRequests.Consolidations = e.Fulu.SignedBlock.Message.Body.ExecutionRequests.Consolidations[:2]
+						}
+						// Limit Attestations to 8
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.Fulu.SignedBlock.Message.Body.Attestations) > 8 {
+							e.Fulu.SignedBlock.Message.Body.Attestations = e.Fulu.SignedBlock.Message.Body.Attestations[:8]
+						}
+						// Limit AttesterSlashings to 1
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.Fulu.SignedBlock.Message.Body.AttesterSlashings) > 1 {
+							e.Fulu.SignedBlock.Message.Body.AttesterSlashings = e.Fulu.SignedBlock.Message.Body.AttesterSlashings[:1]
+						}
+					}
+
+					if e.FuluBlinded != nil {
+						if len(e.FuluBlinded.Message.Body.BlobKZGCommitments) > maxBlobCommitments {
+							// Limit ExecutionRequests.Consolidations to 2
+							e.FuluBlinded.Message.Body.BlobKZGCommitments = e.FuluBlinded.Message.Body.BlobKZGCommitments[:maxBlobCommitments]
+						}
+						// Limit ExecutionRequests.Consolidations to 2
+						if len(e.FuluBlinded.Message.Body.ExecutionRequests.Consolidations) > 2 {
+							e.FuluBlinded.Message.Body.ExecutionRequests.Consolidations = e.FuluBlinded.Message.Body.ExecutionRequests.Consolidations[:2]
+						}
+						// Limit Attestations to 8
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.FuluBlinded.Message.Body.Attestations) > 8 {
+							e.FuluBlinded.Message.Body.Attestations = e.Fulu.SignedBlock.Message.Body.Attestations[:8]
+						}
+						// Limit AttesterSlashings to 1
+						// https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+						if len(e.FuluBlinded.Message.Body.AttesterSlashings) > 1 {
+							e.FuluBlinded.Message.Body.AttesterSlashings = e.Fulu.SignedBlock.Message.Body.AttesterSlashings[:1]
+						}
+					}
+				}
 			},
 			func(e *core.VersionedProposal, c fuzz.Continue) {
 				e.Version = allVersions[(c.Intn(len(allVersions)))]
@@ -226,17 +277,17 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				val := core.VersionedBlindedSSZValueForT(t, e, version, false)
 				c.Fuzz(val)
 
-				if e.Version == eth2spec.DataVersionElectra {
+				if e.Version == eth2spec.DataVersionDeneb {
 					// Limit length of KZGProofs and Blobs to 6
 					// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
 					maxKZGProofs := 6
 					maxBlobs := 6
 
-					if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.KZGProofs) > maxKZGProofs {
+					if len(e.Deneb.KZGProofs) > maxKZGProofs {
 						e.Deneb.KZGProofs = e.Deneb.KZGProofs[:maxKZGProofs]
 					}
 
-					if e.Version == eth2spec.DataVersionDeneb && len(e.Deneb.Blobs) > maxBlobs {
+					if len(e.Deneb.Blobs) > maxBlobs {
 						e.Deneb.Blobs = e.Deneb.Blobs[:maxBlobs]
 					}
 				}
@@ -245,8 +296,8 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					// Limit length of KZGProofs and Blobs to 6
 					// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
 					maxKZGProofs := 6
-
 					maxBlobs := 6
+
 					if len(e.Electra.Blobs) > maxBlobs {
 						e.Electra.Blobs = e.Electra.Blobs[:maxBlobs]
 					}
@@ -268,6 +319,36 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					// See https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
 					if len(e.Electra.Block.Body.AttesterSlashings) > 1 {
 						e.Electra.Block.Body.AttesterSlashings = e.Electra.Block.Body.AttesterSlashings[:1]
+					}
+				}
+
+				if e.Version == eth2spec.DataVersionFulu {
+					// Limit length of KZGProofs and Blobs to 6
+					// See https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/beacon-chain.md#execution
+					maxKZGProofs := 6
+					maxBlobs := 6
+
+					if len(e.Fulu.Blobs) > maxBlobs {
+						e.Fulu.Blobs = e.Fulu.Blobs[:maxBlobs]
+					}
+
+					if len(e.Fulu.KZGProofs) > maxKZGProofs {
+						e.Fulu.KZGProofs = e.Fulu.KZGProofs[:maxKZGProofs]
+					}
+
+					// Limit ExecutionRequests.Consolidations to 2
+					if len(e.Fulu.Block.Body.ExecutionRequests.Consolidations) > 2 {
+						e.Fulu.Block.Body.ExecutionRequests.Consolidations = e.Fulu.Block.Body.ExecutionRequests.Consolidations[:2]
+					}
+					// Limit Attestations to 8
+					// See https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+					if len(e.Fulu.Block.Body.Attestations) > 8 {
+						e.Fulu.Block.Body.Attestations = e.Fulu.Block.Body.Attestations[:8]
+					}
+					// Limit AttesterSlashings to 1
+					// See https://github.com/ethereum/consensus-specs/blob/v1.5.0-beta.3/specs/electra/beacon-chain.md#max-operations-per-block
+					if len(e.Fulu.Block.Body.AttesterSlashings) > 1 {
+						e.Fulu.Block.Body.AttesterSlashings = e.Fulu.Block.Body.AttesterSlashings[:1]
 					}
 				}
 			},

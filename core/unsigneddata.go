@@ -171,6 +171,10 @@ func NewVersionedAggregatedAttestation(att *eth2spec.VersionedAttestation) (Vers
 		if att.Electra == nil {
 			return VersionedAggregatedAttestation{}, errors.New("no electra attestation")
 		}
+	case eth2spec.DataVersionFulu:
+		if att.Fulu == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no fulu attestation")
+		}
 	default:
 		return VersionedAggregatedAttestation{}, errors.New("unknown version")
 	}
@@ -211,6 +215,8 @@ func (a VersionedAggregatedAttestation) MarshalJSON() ([]byte, error) {
 		marshaller = a.Deneb
 	case eth2spec.DataVersionElectra:
 		marshaller = a.Electra
+	case eth2spec.DataVersionFulu:
+		marshaller = a.Fulu
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -252,6 +258,8 @@ func (a VersionedAggregatedAttestation) HashTreeRoot() ([32]byte, error) {
 		return a.Deneb.HashTreeRoot()
 	case eth2spec.DataVersionElectra:
 		return a.Electra.HashTreeRoot()
+	case eth2spec.DataVersionFulu:
+		return a.Fulu.HashTreeRoot()
 	default:
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -319,6 +327,15 @@ func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
 		}
 
 		resp.Electra = att
+	case eth2spec.DataVersionFulu:
+		att := new(eth2e.Attestation)
+
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal fulu")
+		}
+
+		resp.Fulu = att
 	default:
 		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -372,6 +389,14 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 
 		if proposal.ElectraBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no electra blinded block")
+		}
+	case eth2spec.DataVersionFulu:
+		if proposal.Fulu == nil && !proposal.Blinded {
+			return VersionedProposal{}, errors.New("no fulu block")
+		}
+
+		if proposal.FuluBlinded == nil && proposal.Blinded {
+			return VersionedProposal{}, errors.New("no fulu blinded block")
 		}
 	default:
 		return VersionedProposal{}, errors.New("unknown version")
@@ -428,6 +453,12 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 			marshaller = p.ElectraBlinded
 		} else {
 			marshaller = p.Electra
+		}
+	case eth2spec.DataVersionFulu:
+		if p.Blinded {
+			marshaller = p.FuluBlinded
+		} else {
+			marshaller = p.Fulu
 		}
 	default:
 		return nil, errors.New("unknown version")
@@ -552,6 +583,22 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			}
 
 			resp.Electra = block
+		}
+	case eth2spec.DataVersionFulu:
+		if raw.Blinded {
+			block := new(eth2electra.BlindedBeaconBlock) // Fulu blinded blocks have the same structure as electra blinded blocks.
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal fulu blinded")
+			}
+
+			resp.FuluBlinded = block
+		} else {
+			block := new(eth2electra.BlockContents) // Fulu blocks have the same structure as electra blocks.
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal fulu")
+			}
+
+			resp.Fulu = block
 		}
 	default:
 		return errors.New("unknown version")

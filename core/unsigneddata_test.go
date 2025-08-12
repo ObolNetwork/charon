@@ -97,6 +97,10 @@ func TestNewVersionedProposal(t *testing.T) {
 			version: eth2spec.DataVersionElectra,
 		},
 		{
+			error:   "no fulu block",
+			version: eth2spec.DataVersionFulu,
+		},
+		{
 			error:   "no bellatrix blinded block",
 			version: eth2spec.DataVersionBellatrix,
 			blinded: true,
@@ -114,6 +118,11 @@ func TestNewVersionedProposal(t *testing.T) {
 		{
 			error:   "no electra blinded block",
 			version: eth2spec.DataVersionElectra,
+			blinded: true,
+		},
+		{
+			error:   "no fulu blinded block",
+			version: eth2spec.DataVersionFulu,
 			blinded: true,
 		},
 	}
@@ -172,6 +181,10 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 			error:   "no electra attestation",
 			version: eth2spec.DataVersionElectra,
 		},
+		{
+			error:   "no fulu attestation",
+			version: eth2spec.DataVersionFulu,
+		},
 	}
 
 	for _, test := range tests {
@@ -183,8 +196,16 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 		})
 	}
 
-	t.Run("happy path", func(t *testing.T) {
+	t.Run("happy path electra", func(t *testing.T) {
 		attestation := testutil.RandomElectraCoreVersionedAttestation()
+
+		p, err := core.NewVersionedAggregatedAttestation(&attestation.VersionedAttestation)
+		require.NoError(t, err)
+		require.Equal(t, attestation.VersionedAttestation, p.VersionedAttestation)
+	})
+
+	t.Run("happy path fulu", func(t *testing.T) {
+		attestation := testutil.RandomFuluCoreVersionedAttestation()
 
 		p, err := core.NewVersionedAggregatedAttestation(&attestation.VersionedAttestation)
 		require.NoError(t, err)
@@ -273,6 +294,20 @@ func TestVersionedAggregatedAttestationUtilFunctions(t *testing.T) {
 				VersionedAttestation: eth2spec.VersionedAttestation{
 					Version: eth2spec.DataVersionElectra,
 					Electra: &electra.Attestation{
+						AggregationBits: aggregationBits,
+						Data:            data,
+						Signature:       testutil.RandomEth2Signature(),
+						CommitteeBits:   testutil.RandomBitVec64(),
+					},
+				},
+			},
+		},
+		{
+			name: "fulu",
+			versionedAttestation: core.VersionedAggregatedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &electra.Attestation{
 						AggregationBits: aggregationBits,
 						Data:            data,
 						Signature:       testutil.RandomEth2Signature(),
@@ -401,6 +436,21 @@ func TestVersionedProposal(t *testing.T) {
 				Version:        eth2spec.DataVersionElectra,
 				ElectraBlinded: testutil.RandomElectraBlindedBeaconBlock(),
 				Blinded:        true,
+			},
+		},
+		{
+			name: "fulu",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionFulu,
+				Fulu:    testutil.RandomFuluVersionedProposal().Fulu,
+			},
+		},
+		{
+			name: "fulu blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:     eth2spec.DataVersionFulu,
+				FuluBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+				Blinded:     true,
 			},
 		},
 	}

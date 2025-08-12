@@ -353,9 +353,9 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 			commBits.SetBitAt(uint64(duty.CommitteeIndex), true)
 
 			atts = append(atts, &eth2spec.VersionedAttestation{
-				Version:        eth2spec.DataVersionElectra,
+				Version:        eth2spec.DataVersionFulu,
 				ValidatorIndex: &duty.ValidatorIndex,
-				Electra: &electra.Attestation{
+				Fulu: &electra.Attestation{
 					AggregationBits: aggBits,
 					Data:            data,
 					Signature:       sig,
@@ -416,10 +416,10 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		}
 
 		proof := eth2spec.VersionedAggregateAndProof{
-			Version: eth2spec.DataVersionElectra,
-			Electra: &electra.AggregateAndProof{
+			Version: eth2spec.DataVersionFulu,
+			Fulu: &electra.AggregateAndProof{
 				AggregatorIndex: selection.ValidatorIndex,
-				Aggregate:       att.Electra,
+				Aggregate:       att.Fulu,
 				SelectionProof:  selection.SelectionProof,
 			},
 		}
@@ -445,9 +445,9 @@ func aggregate(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, s
 		}
 
 		aggs = append(aggs, &eth2spec.VersionedSignedAggregateAndProof{
-			Version: eth2spec.DataVersionElectra,
-			Electra: &electra.SignedAggregateAndProof{
-				Message:   proof.Electra,
+			Version: eth2spec.DataVersionFulu,
+			Fulu: &electra.SignedAggregateAndProof{
+				Message:   proof.Fulu,
 				Signature: proofSig,
 			},
 		})

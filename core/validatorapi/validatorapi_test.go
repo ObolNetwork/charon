@@ -138,6 +138,40 @@ func TestComponent_ValidSubmitAttestations(t *testing.T) {
 			},
 			err: nil,
 		},
+		{
+			name: "fulu",
+			attA: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionFulu,
+				ValidatorIndex: &valIdxAMut,
+				Fulu: &electra.Attestation{
+					AggregationBits: bitfield.NewBitlist(0),
+					Data: &eth2p0.AttestationData{
+						Slot:   slot,
+						Index:  0,
+						Source: &eth2p0.Checkpoint{},
+						Target: &eth2p0.Checkpoint{},
+					},
+					CommitteeBits: commBitsA,
+					Signature:     eth2p0.BLSSignature{},
+				},
+			},
+			attB: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionFulu,
+				ValidatorIndex: &valIdxBMut,
+				Fulu: &electra.Attestation{
+					AggregationBits: bitfield.NewBitlist(0),
+					Data: &eth2p0.AttestationData{
+						Slot:   slot,
+						Index:  0,
+						Source: &eth2p0.Checkpoint{},
+						Target: &eth2p0.Checkpoint{},
+					},
+					CommitteeBits: commBitsB,
+					Signature:     eth2p0.BLSSignature{},
+				},
+			},
+			err: nil,
+		},
 	}
 
 	for _, test := range tests {
@@ -763,6 +797,44 @@ func TestComponent_SubmitProposal(t *testing.T) {
 				}
 			},
 		},
+		{
+			version:              eth2spec.DataVersionFulu,
+			versionedSignedBlock: testutil.RandomFuluVersionedSignedBeaconBlock(),
+			unsignedBlockFunc: func(randao eth2p0.BLSSignature) *eth2spec.VersionedBeaconBlock {
+				unsignedBlock := &eth2spec.VersionedBeaconBlock{
+					Version: eth2spec.DataVersionFulu,
+					Fulu:    testutil.RandomElectraBeaconBlock(),
+				}
+				unsignedBlock.Fulu.Body.RANDAOReveal = randao
+				unsignedBlock.Fulu.Slot = slot
+				unsignedBlock.Fulu.ProposerIndex = vIdx
+
+				return unsignedBlock
+			},
+			signedBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, s [96]byte) *eth2api.VersionedSignedProposal {
+				return &eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &eth2electra.SignedBlockContents{
+						SignedBlock: &electra.SignedBeaconBlock{
+							Message:   unsignedBlock.Fulu,
+							Signature: eth2p0.BLSSignature(s),
+						},
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				}
+			},
+			awaitBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, signedBlock *eth2api.VersionedSignedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version: signedBlock.Version,
+					Fulu: &eth2electra.BlockContents{
+						Block:     unsignedBlock.Fulu,
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				}
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -1241,6 +1313,35 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 					Version:        signedBlock.Version,
 					Blinded:        true,
 					ElectraBlinded: signedBlock.Electra.Message,
+				}
+			},
+		},
+		{
+			version: eth2spec.DataVersionFulu,
+			unsignedBlockSigRootFunc: func(sig tbls.Signature) (any, [32]byte, error) {
+				unsignedBlindedBlock := testutil.RandomElectraBlindedBeaconBlock()
+				unsignedBlindedBlock.Body.RANDAOReveal = eth2p0.BLSSignature(sig)
+				unsignedBlindedBlock.Slot = slot
+				unsignedBlindedBlock.ProposerIndex = vIdx
+				hash, err := unsignedBlindedBlock.HashTreeRoot()
+
+				return unsignedBlindedBlock, hash, err
+			},
+			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
+				parsed := unsignedBlock.(*eth2electra.BlindedBeaconBlock)
+				return &eth2api.VersionedSignedBlindedProposal{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &eth2electra.SignedBlindedBeaconBlock{
+						Message:   parsed,
+						Signature: eth2p0.BLSSignature(s),
+					},
+				}
+			},
+			awaitBlockFunc: func(signedBlock *eth2api.VersionedSignedBlindedProposal) *eth2api.VersionedProposal {
+				return &eth2api.VersionedProposal{
+					Version:     signedBlock.Version,
+					Blinded:     true,
+					FuluBlinded: signedBlock.Fulu.Message,
 				}
 			},
 		},

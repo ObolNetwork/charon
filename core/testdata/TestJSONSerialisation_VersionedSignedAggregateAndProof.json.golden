@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "aggregate_and_proof": {
     "message": {
       "aggregator_index": "12258969221770119542",

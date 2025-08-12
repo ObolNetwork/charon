@@ -2,47 +2,49 @@
 
 ![Obol Logo](https://obol.tech/obolnetwork.png)
 
-This release introduces general fixes and improvements including progress on great new features.
+<!-- TODO: Add resume of the release in free text -->
+
+Read the rest of the release notes for more:
 
 **Full Changelog**: [v0.12.0..v0.13.0](https://github.com/obolnetwork/charon/compare/v0.12.0..v0.13.0)
 
 ## Feature
-- Issue#1582 #1582 (#1598)
-- Issue#1490 #1490 (#1615,#1532)
-- Issue#1506 #1506 (#1534,#1512)
-- Issue#1509 #1509 (#1511)
-- Issue#1421 #1421 (#1485)
-- Issue#1446 #1446 (#1473)
-- Issue#1501 #1501 (#1609,#1599,#1597,#1566)
-- Issue#1247 #1247 (#1526)
-- Issue#1503 #1503 (#1622)
-- Issue#1584 #1584 (#1596)
-- Issue#1488 #1488 (#1520)
-- Issue#1590 #1590 (#1604)
-- Issue#1521 #1521 (#1536)
 - Issue#947 #947 (#1601,#1586)
+- Issue#1509 #1509 (#1511)
 - Issue#1486 #1486 (#1544,#1539,#1533,#1499,#1497,#1487)
-- Issue#712 #712 (#1496)
-- Issue#1608 #1608 (#1627,#1624)
+- Issue#1521 #1521 (#1536)
+- Issue#1506 #1506 (#1534,#1512)
+- Issue#1584 #1584 (#1596)
 - Issue#1464 #1464 (#1570)
+- Issue#1488 #1488 (#1520)
+- Issue#1446 #1446 (#1473)
+- Issue#1503 #1503 (#1622)
 - Issue#1254 #1254 (#1468)
+- Issue#1501 #1501 (#1609,#1599,#1597,#1566)
+- Issue#712 #712 (#1496)
+- Issue#1590 #1590 (#1604)
+- Issue#1582 #1582 (#1598)
+- Issue#1247 #1247 (#1526)
+- Issue#1421 #1421 (#1485)
+- Issue#1608 #1608 (#1627,#1624)
+- Issue#1490 #1490 (#1615,#1532)
 
 ## Bug
 - Issue#1493 #1493 (#1505)
-- Issue#1527 #1527 (#1528)
-- Issue#1445 #1445 (#1474)
-- Issue#1555 #1555 (#1556,#1554)
 - Issue#978 #978 (#1595)
+- Issue#1527 #1527 (#1528)
+- Issue#1555 #1555 (#1556,#1554)
+- Issue#1445 #1445 (#1474)
 - Issue#1540 #1540 (#1575,#1574,#1569,#1562,#1553,#1548)
 
 ## Refactor
-- Issue#1524 #1524 (#1610)
-- Issue#139 #139 (#1489)
-- Issue#1591 #1591 (#1602)
-- Issue#1494 #1494 (#1592)
-- Issue#1475 #1475 (#1495)
 - Issue#1587 #1587 (#1600)
+- Issue#1475 #1475 (#1495)
 - Issue#1606 #1606 (#1607)
+- Issue#1494 #1494 (#1592)
+- Issue#139 #139 (#1489)
+- Issue#1524 #1524 (#1610)
+- Issue#1591 #1591 (#1602)
 
 ## Test
 - Issue#992 #992 (#1466)
@@ -50,6 +52,28 @@ This release introduces general fixes and improvements including progress on gre
 ## Misc
 - Issue#1366 #1366 (#1481)
 
+## Compatibility Matrix
+
+<!-- TODO: Update versions with which this version is compatible -->
+This release of Charon is backwards compatible with Charon v1.0, v1.1, v1.2.
+
+The below matrix details a combination of beacon node (consensus layer) + validator clients and their corresponding versions the DV Labs team have tested with this Charon release. More validator and consensus client will be added to this list as they are supported in our automated testing framework.
+
+**Legend**
+- ✅: All duties succeed in testing
+- 🟡: All duties succeed in testing, except non-penalised aggregation duties
+- 🟠: Duties may fail for this combination
+- 🔴: One or more duties fails consistently
+
+<!-- TODO: Update clients versions, results and remarks -->
+| Validator 👉 Consensus 👇 | Teku v25.3.0 | Lighthouse v7.0.0 | Lodestar v1.28.1 | Nimbus v25.3.1 | Prysm v5.3.1 | Vouch v1.10.2 | Remarks |
+|---------------------------|--------------|-------------------|------------------|----------------|--------------|---------------|---------|
+| Teku v25.3.0              |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Lighthouse v7.0.0         |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Lodestar v1.28.1          |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Nimbus v25.3.1            |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Prysm v5.3.1              |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
+| Grandine v1.1.0           |       ✅     |         ✅        |        ✅        |       ✅       |       ✅     |       ✅      |         |
 
 ## What's Changed
 
@@ -124,3 +148,4 @@ This release introduces general fixes and improvements including progress on gre
 - [cmd: re-add previous relay address for backwards compatibility (#1639)](https://github.com/ObolNetwork/charon/pull/1639)
 
 - [app/version: bump to v0.13 (#1641)](https://github.com/ObolNetwork/charon/pull/1641)
+

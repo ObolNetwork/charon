@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "validator_index": "15",
   "attestation": {
     "aggregation_bits": "0x0c58485fe3352bc5b501",

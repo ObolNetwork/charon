@@ -82,6 +82,21 @@ func TestVerifyFeeRecipient(t *testing.T) {
 				Blinded:        true,
 			},
 		},
+		{
+			name: "fulu",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionFulu,
+				Fulu:    testutil.RandomFuluVersionedProposal().Fulu,
+			},
+		},
+		{
+			name: "fulu blinded",
+			proposal: eth2api.VersionedProposal{
+				Version:     eth2spec.DataVersionFulu,
+				FuluBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+				Blinded:     true,
+			},
+		},
 	}
 
 	for _, test := range tests {
