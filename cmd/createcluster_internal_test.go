@@ -998,9 +998,13 @@ func TestZipping(t *testing.T) {
 	}
 
 	conf.ClusterDir = t.TempDir()
+	backupDir := t.TempDir()
 
 	var buf bytes.Buffer
 	require.NoError(t, runCreateCluster(ctx, &buf, conf))
+
+	// Backup cluster dir since bundleOutput is destructive
+	require.NoError(t, os.CopyFS(backupDir, os.DirFS(conf.ClusterDir)))
 
 	require.NoError(t, bundleOutput(conf.ClusterDir, conf.NumNodes))
 
@@ -1011,7 +1015,7 @@ func TestZipping(t *testing.T) {
 	require.NoError(t, err)
 
 	// Walk both directories and compare files
-	err = filepath.Walk(conf.ClusterDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
 		require.NoError(t, err)
 
 		// Get the corresponding file in the unzipped directory
