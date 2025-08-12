@@ -362,7 +362,9 @@ func versionedSignedProposalRoot(t *testing.T, p *eth2api.VersionedSignedProposa
 	case eth2spec.DataVersionDeneb:
 		return p.Deneb.SignedBlock.Message.HashTreeRoot()
 	case eth2spec.DataVersionElectra:
-		return p.Deneb.SignedBlock.Message.HashTreeRoot()
+		return p.Electra.SignedBlock.Message.HashTreeRoot()
+	case eth2spec.DataVersionFulu:
+		return p.Fulu.SignedBlock.Message.HashTreeRoot()
 	default:
 		require.Equal(t, 0, 1)
 	}

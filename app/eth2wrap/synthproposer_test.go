@@ -35,6 +35,49 @@ func TestSynthProposer(t *testing.T) {
 		createVersionedSignedProposal func(*eth2api.VersionedProposal) *eth2api.VersionedSignedProposal
 	}{
 		{
+			version:              eth2spec.DataVersionFulu,
+			versionedSignedBlock: testutil.RandomFuluVersionedSignedBeaconBlock(),
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				var block *eth2api.VersionedProposal
+				if opts.BuilderBoostFactor == nil || *opts.BuilderBoostFactor == 0 {
+					block = testutil.RandomFuluVersionedProposal()
+					block.Fulu.Block.Slot = opts.Slot
+					block.Fulu.Block.Body.RANDAOReveal = opts.RandaoReveal
+					block.Fulu.Block.Body.Graffiti = opts.Graffiti
+					block.ExecutionValue = big.NewInt(1)
+					block.ConsensusValue = big.NewInt(1)
+				} else {
+					block = &eth2api.VersionedProposal{
+						Version:     eth2spec.DataVersionFulu,
+						FuluBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+					}
+					block.FuluBlinded.Slot = opts.Slot
+					block.FuluBlinded.Body.RANDAOReveal = opts.RandaoReveal
+					block.FuluBlinded.Body.Graffiti = opts.Graffiti
+					block.ExecutionValue = big.NewInt(1)
+					block.ConsensusValue = big.NewInt(1)
+					block.Blinded = true
+				}
+
+				return block, nil
+			},
+			populateBlockFunc: func(block *eth2api.VersionedProposal) *eth2api.VersionedSignedBlindedProposal {
+				return &eth2api.VersionedSignedBlindedProposal{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &eth2electra.SignedBlindedBeaconBlock{
+						Message:   block.FuluBlinded,
+						Signature: testutil.RandomEth2Signature(),
+					},
+				}
+			},
+			createVersionedSignedProposal: func(block *eth2api.VersionedProposal) *eth2api.VersionedSignedProposal {
+				signed := testutil.RandomFuluVersionedSignedProposal()
+				signed.Fulu.SignedBlock.Message = block.Fulu.Block
+
+				return signed
+			},
+		},
+		{
 			version:              eth2spec.DataVersionElectra,
 			versionedSignedBlock: testutil.RandomElectraVersionedSignedBeaconBlock(),
 			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {

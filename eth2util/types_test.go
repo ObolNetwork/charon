@@ -90,6 +90,10 @@ func TestToETH2(t *testing.T) {
 			version:         eth2util.DataVersionElectra,
 			expectedVersion: eth2spec.DataVersionElectra,
 		},
+		{
+			version:         eth2util.DataVersionFulu,
+			expectedVersion: eth2spec.DataVersionFulu,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.version.String(), func(t *testing.T) {
@@ -133,6 +137,10 @@ func TestDataVersionFromETH2(t *testing.T) {
 		{
 			version:         eth2spec.DataVersionElectra,
 			expectedVersion: eth2util.DataVersionElectra,
+		},
+		{
+			version:         eth2spec.DataVersionFulu,
+			expectedVersion: eth2util.DataVersionFulu,
 		},
 	}
 	for _, test := range tests {

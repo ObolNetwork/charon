@@ -485,6 +485,7 @@ func TestRawRouter(t *testing.T) {
 				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, eth2spec.DataVersionBellatrix.String())
 
 			resp, err := new(http.Client).Do(req)
 			require.NoError(t, err)
@@ -518,6 +519,7 @@ func TestRawRouter(t *testing.T) {
 				baseURL+"/eth/v1/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, eth2spec.DataVersionCapella.String())
 
 			resp, err := new(http.Client).Do(req)
 			require.NoError(t, err)
@@ -551,6 +553,7 @@ func TestRawRouter(t *testing.T) {
 				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, eth2spec.DataVersionDeneb.String())
 
 			resp, err := new(http.Client).Do(req)
 			require.NoError(t, err)
@@ -584,6 +587,41 @@ func TestRawRouter(t *testing.T) {
 				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, eth2spec.DataVersionElectra.String())
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		}
+
+		testRawRouter(t, handler, callback)
+		require.True(t, done.Load())
+	})
+
+	t.Run("submit fulu ssz beacon block", func(t *testing.T) {
+		var done atomic.Bool
+
+		coreBlock := testutil.RandomFuluCoreVersionedSignedProposal()
+		proposal := &coreBlock.VersionedSignedProposal
+
+		handler := testHandler{
+			SubmitProposalFunc: func(ctx context.Context, actual *eth2api.SubmitProposalOpts) error {
+				require.Equal(t, proposal, actual.Proposal)
+				done.Store(true)
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			b, err := ssz.MarshalSSZ(proposal.Fulu)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+				baseURL+"/eth/v2/beacon/blocks", bytes.NewReader(b))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, eth2spec.DataVersionFulu.String())
 
 			resp, err := new(http.Client).Do(req)
 			require.NoError(t, err)
@@ -1294,6 +1332,31 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("submit blinded block fulu", func(t *testing.T) {
+		block1 := &eth2api.VersionedSignedBlindedProposal{
+			Version: eth2spec.DataVersionFulu,
+			Fulu: &eth2electra.SignedBlindedBeaconBlock{
+				Message:   testutil.RandomElectraBlindedBeaconBlock(),
+				Signature: testutil.RandomEth2Signature(),
+			},
+		}
+		handler := testHandler{
+			SubmitBlindedProposalFunc: func(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
+				require.Equal(t, block1, block.Proposal)
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			err := cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
+				Proposal: block1,
+			})
+			require.NoError(t, err)
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("submit validator registration", func(t *testing.T) {
 		expect := []*eth2api.VersionedSignedValidatorRegistration{
 			{
@@ -1514,10 +1577,10 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 			},
 		},
 		{
-			version: eth2spec.DataVersionElectra,
+			version: eth2spec.DataVersionFulu,
 			versionedSignedAggregateAndProof: &eth2spec.VersionedSignedAggregateAndProof{
-				Version: eth2spec.DataVersionElectra,
-				Electra: &electra.SignedAggregateAndProof{
+				Version: eth2spec.DataVersionFulu,
+				Fulu: &electra.SignedAggregateAndProof{
 					Message: &electra.AggregateAndProof{
 						AggregatorIndex: vIdx,
 						Aggregate:       testutil.RandomElectraAttestation(),
@@ -1588,6 +1651,14 @@ func TestSubmitAttestations(t *testing.T) {
 				Electra:        testutil.RandomElectraAttestation(),
 			},
 		},
+		{
+			version: eth2spec.DataVersionFulu,
+			versionedAttestation: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionFulu,
+				ValidatorIndex: &vidx,
+				Fulu:           testutil.RandomElectraAttestation(),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.version.String(), func(t *testing.T) {
@@ -1609,10 +1680,15 @@ func TestSubmitAttestations(t *testing.T) {
 					case eth2spec.DataVersionDeneb:
 						require.Equal(t, att, attestations.Attestations[0])
 					case eth2spec.DataVersionElectra:
-						// we don't check for aggregation bits for electra, as it uses SingleAttestation structure which does not include them aggregation bits
+						// we don't check for aggregation bits post-electra, as it uses SingleAttestation structure which does not include them aggregation bits
 						require.Equal(t, att.Electra.Data, attestations.Attestations[0].Electra.Data)
 						require.Equal(t, att.Electra.Signature, attestations.Attestations[0].Electra.Signature)
 						require.Equal(t, att.Electra.CommitteeBits, attestations.Attestations[0].Electra.CommitteeBits)
+					case eth2spec.DataVersionFulu:
+						// we don't check for aggregation bits post-electra, as it uses SingleAttestation structure which does not include them aggregation bits
+						require.Equal(t, att.Fulu.Data, attestations.Attestations[0].Fulu.Data)
+						require.Equal(t, att.Fulu.Signature, attestations.Attestations[0].Fulu.Signature)
+						require.Equal(t, att.Fulu.CommitteeBits, attestations.Attestations[0].Fulu.CommitteeBits)
 					default:
 						require.Fail(t, "unknown version")
 					}
@@ -1815,6 +1891,30 @@ func TestCreateProposeBlindedBlockResponse(t *testing.T) {
 			Blinded: true,
 		})
 		require.ErrorContains(t, err, "no electra blinded block")
+	})
+
+	t.Run("fulu", func(t *testing.T) {
+		p := &eth2api.VersionedProposal{
+			Version:        eth2spec.DataVersionFulu,
+			FuluBlinded:    testutil.RandomElectraBlindedBeaconBlock(),
+			Blinded:        true,
+			ConsensusValue: big.NewInt(123),
+			ExecutionValue: big.NewInt(456),
+		}
+
+		pp, err := createProposeBlockResponse(p)
+		require.NoError(t, err)
+		require.NotNil(t, pp)
+		require.Equal(t, p.Version.String(), pp.Version)
+		require.Equal(t, p.FuluBlinded, pp.Data)
+		require.Equal(t, p.ConsensusValue.String(), pp.ConsensusBlockValue)
+		require.Equal(t, p.ExecutionValue.String(), pp.ExecutionPayloadValue)
+
+		_, err = createProposeBlockResponse(&eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionFulu,
+			Blinded: true,
+		})
+		require.ErrorContains(t, err, "no fulu blinded block")
 	})
 }
 
