@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"net/url"
+	"strings"
 	"time"
 
 	libp2plog "github.com/ipfs/go-log/v2"
@@ -174,6 +175,10 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
+		if _, found := strings.CutPrefix(config.ExternalHost, "--"); found {
+			return errors.New("external hostname can not start with '--'", z.Str("hostname", config.ExternalHost))
+		}
+
 		for _, relay := range config.Relays {
 			u, err := url.Parse(relay)
 			if err != nil {
