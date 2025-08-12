@@ -140,6 +140,11 @@ func TestBindRunFlagsValidation(t *testing.T) {
 			Name: "valid vc tls cert and key files",
 			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-cert-file", certFile.Name(), "--vc-tls-key-file", keyFile.Name()),
 		},
+		{
+			Name: "invalid hostname",
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--p2p-external-hostname", "--p2p-tcp-address"),
+			Err:  "invalid hostname",
+		},
 	}
 
 	for _, test := range tests {
