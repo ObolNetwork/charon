@@ -143,7 +143,7 @@ func TestBindRunFlagsValidation(t *testing.T) {
 		{
 			Name: "invalid hostname",
 			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--p2p-external-hostname", "--p2p-tcp-address"),
-			Err:  "external hostname can not start with '--'",
+			Err:  "invalid hostname",
 		},
 	}
 
