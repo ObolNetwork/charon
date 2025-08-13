@@ -20,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
@@ -62,6 +63,8 @@ type Config struct {
 	TestConfig TestConfig
 
 	AppendConfig *AppendConfig
+
+	Zipped bool
 }
 
 // TestConfig defines additional test-only config for DKG.
@@ -453,6 +456,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	if conf.TestConfig.ShutdownCallback != nil {
 		conf.TestConfig.ShutdownCallback()
+	}
+
+	if conf.Zipped {
+		if err = app.BundleOutput(conf.DataDir, "dkg.tar.gz"); err != nil {
+			return err
+		}
 	}
 
 	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.ShutdownDelay.Seconds())))

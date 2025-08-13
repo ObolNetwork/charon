@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
@@ -762,6 +763,53 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	}()
 
 	return cancel
+}
+
+func TestZipped(t *testing.T) {
+	const (
+		nodes = 3
+		vals  = 2
+	)
+
+	seed := 1
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, keys, _ := cluster.NewForT(t, vals, nodes, nodes, seed, random)
+
+	dkgDir := t.TempDir()
+	testDKG(t, lock.Definition, dkgDir, keys, false, false, nil)
+
+	// Test bundling only for the first node
+	nodeDir := path.Join(dkgDir, "node0")
+
+	// Backup temp dir since bundleOutput is destructive
+	backupDir := t.TempDir()
+	require.NoError(t, os.CopyFS(backupDir, os.DirFS(nodeDir)))
+
+	err := app.BundleOutput(nodeDir, "dkg.tar.gz")
+	require.NoError(t, err, "bundleOutput should succeed for node0")
+
+	// Verify that dkg.tar.gz file exists and original files are deleted
+	tarPath := path.Join(nodeDir, "dkg.tar.gz")
+	_, err = os.Stat(tarPath)
+	require.NoError(t, err, "dkg.tar.gz should exist in node0 directory")
+
+	entries, err := os.ReadDir(nodeDir)
+	require.NoError(t, err)
+
+	for _, entry := range entries {
+		if entry.Name() != "dkg.tar.gz" {
+			t.Errorf("unexpected file %s found in zipped directory", entry.Name())
+		}
+	}
+
+	// Create new temp dir and unzip to there
+	unzippedDir := t.TempDir()
+	err = app.ExtractArchive(tarPath, unzippedDir)
+	require.NoError(t, err)
+
+	// Compare backup with unzipped folder
+	err = app.CompareDirectories(backupDir, unzippedDir)
+	require.NoError(t, err, "unzipped content should match original for node0")
 }
 
 func clone[T any](t *testing.T, v T) T {
