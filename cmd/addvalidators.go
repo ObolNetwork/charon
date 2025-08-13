@@ -60,7 +60,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	// Bind `add-validator` flags.
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of new validators to generate and add to the existing cluster.")
 	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The source charon folder with existing cluster data (lock, validator_keys, etc.).")
-	cmd.Flags().StringVar(&config.OutputDir, "output-dir", ".distributed_validator", "The destination folder for the new (combined) cluster data. Must be empty.")
+	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new (combined) cluster data. Must be empty.")
 	cmd.Flags().BoolVar(&config.Unverified, "unverified", false,
 		"If charon has no access to the existing validator keys, this flag allows the addition to proceed, but skips hashing and signing the new cluster lock data. charon run must be started with --no-verify flag.")
 
