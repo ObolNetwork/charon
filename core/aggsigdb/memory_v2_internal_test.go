@@ -14,8 +14,7 @@ import (
 )
 
 func TestDutyExpirationV2(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	deadliner := newTestDeadliner()
 
@@ -41,8 +40,7 @@ func TestDutyExpirationV2(t *testing.T) {
 }
 
 func TestCancelledQueryV2(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	db := NewMemDBV2(newTestDeadliner())
 

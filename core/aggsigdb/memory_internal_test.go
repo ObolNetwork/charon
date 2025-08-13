@@ -56,8 +56,7 @@ func TestDutyExpiration(t *testing.T) {
 }
 
 func TestCancelledQuery(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	db := NewMemDB(newTestDeadliner())
 
