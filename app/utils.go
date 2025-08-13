@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -135,7 +136,7 @@ func ExtractArchive(archivePath, targetDir string) error {
 
 	for {
 		header, err := tr.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil // End of archive
 		}
 
@@ -143,7 +144,27 @@ func ExtractArchive(archivePath, targetDir string) error {
 			return errors.Wrap(err, "tar read error")
 		}
 
-		target := filepath.Join(targetDir, header.Name)
+		cleanName := filepath.Clean(header.Name)
+		// Disallow absolute paths and paths with ".." as first element
+		if strings.HasPrefix(cleanName, "..") || filepath.IsAbs(cleanName) || strings.Contains(cleanName, ".."+string(os.PathSeparator)) {
+			return errors.New("invalid archive entry path: " + header.Name)
+		}
+
+		target := filepath.Join(targetDir, cleanName)
+
+		absTargetDir, err := filepath.Abs(targetDir)
+		if err != nil {
+			return errors.Wrap(err, "get absolute target dir")
+		}
+
+		absTarget, err := filepath.Abs(target)
+		if err != nil {
+			return errors.Wrap(err, "get absolute target path")
+		}
+
+		if !strings.HasPrefix(absTarget, absTargetDir+string(os.PathSeparator)) && absTarget != absTargetDir {
+			return errors.New("archive entry path escapes target directory: " + header.Name)
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -151,6 +172,12 @@ func ExtractArchive(archivePath, targetDir string) error {
 				return errors.Wrap(err, "create directory")
 			}
 		case tar.TypeReg:
+			// Check file size to prevent decompression bombs
+			const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
+			if header.Size > maxFileSize {
+				return errors.New("file too large in archive", z.Str("path", header.Name), z.I64("size", header.Size))
+			}
+
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return errors.Wrap(err, "create parent directory")
 			}
@@ -160,7 +187,10 @@ func ExtractArchive(archivePath, targetDir string) error {
 				return errors.Wrap(err, "create file")
 			}
 
-			_, err = io.Copy(f, tr)
+			// Use limited reader to prevent decompression bombs
+			limitedReader := io.LimitReader(tr, maxFileSize)
+
+			_, err = io.Copy(f, limitedReader)
 			if err != nil {
 				f.Close()
 				return errors.Wrap(err, "copy file contents")
@@ -177,7 +207,7 @@ func ExtractArchive(archivePath, targetDir string) error {
 
 // CompareDirectories recursively compares two directories and their contents.
 func CompareDirectories(originalDir, extractedDir string) error {
-	return filepath.Walk(originalDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(originalDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -230,4 +260,9 @@ func CompareDirectories(originalDir, extractedDir string) error {
 
 		return nil
 	})
+	if err != nil {
+		return errors.Wrap(err, "walk directory tree")
+	}
+
+	return nil
 }
