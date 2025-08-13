@@ -86,8 +86,6 @@ func TestBundleOutput(t *testing.T) {
 	// Compare the extracted content with the original backup
 	err = app.CompareDirectories(backupDir, extractDir)
 	require.NoError(t, err, "Extracted content should match original")
-
-	t.Log("BundleOutput test completed successfully 🎉")
 }
 
 func TestCompareDirectories(t *testing.T) {
