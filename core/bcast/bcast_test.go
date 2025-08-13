@@ -47,8 +47,7 @@ func TestBroadcast(t *testing.T) {
 
 		test := testFunc(t, &mock)
 		t.Run(test.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			bcaster, err := bcast.New(ctx, mock)
 			require.NoError(t, err)

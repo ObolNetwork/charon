@@ -117,8 +117,7 @@ func TestMemDBThreshold(t *testing.T) {
 	deadliner := newTestDeadliner()
 	db := NewMemDB(th, deadliner)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	go db.Trim(ctx)
 
