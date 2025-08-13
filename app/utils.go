@@ -4,6 +4,7 @@ package app
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"encoding/hex"
 	"io"
@@ -114,4 +115,119 @@ func BundleOutput(targetDir string, filename string) error {
 	}
 
 	return nil
+}
+
+// ExtractArchive extracts a .tar.gz archive to the target directory.
+func ExtractArchive(archivePath, targetDir string) error {
+	file, err := os.Open(archivePath)
+	if err != nil {
+		return errors.Wrap(err, "open archive file")
+	}
+	defer file.Close()
+
+	gzr, err := gzip.NewReader(file)
+	if err != nil {
+		return errors.Wrap(err, "create gzip reader")
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			return nil // End of archive
+		}
+
+		if err != nil {
+			return errors.Wrap(err, "tar read error")
+		}
+
+		target := filepath.Join(targetDir, header.Name)
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
+				return errors.Wrap(err, "create directory")
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return errors.Wrap(err, "create parent directory")
+			}
+
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode())
+			if err != nil {
+				return errors.Wrap(err, "create file")
+			}
+
+			_, err = io.Copy(f, tr)
+			if err != nil {
+				f.Close()
+				return errors.Wrap(err, "copy file contents")
+			}
+
+			if err := f.Close(); err != nil {
+				return errors.Wrap(err, "close file")
+			}
+		default:
+			// Skip other types (symlinks, etc.)
+		}
+	}
+}
+
+// CompareDirectories recursively compares two directories and their contents.
+func CompareDirectories(originalDir, extractedDir string) error {
+	return filepath.Walk(originalDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(originalDir, path)
+		if err != nil {
+			return errors.Wrap(err, "get relative path")
+		}
+
+		extractedPath := filepath.Join(extractedDir, relPath)
+
+		if info.IsDir() {
+			// Check if directory exists in extracted content
+			extractedInfo, err := os.Stat(extractedPath)
+			if err != nil {
+				return errors.Wrap(err, "directory should exist in extracted content", z.Str("path", relPath))
+			}
+
+			if !extractedInfo.IsDir() {
+				return errors.New("should be a directory", z.Str("path", relPath))
+			}
+
+			return nil
+		}
+
+		// Compare file contents
+		extractedInfo, err := os.Stat(extractedPath)
+		if err != nil {
+			return errors.Wrap(err, "file should exist in extracted content", z.Str("path", relPath))
+		}
+
+		if info.Size() != extractedInfo.Size() {
+			return errors.New("file sizes should match", z.Str("path", relPath))
+		}
+
+		// Read and compare file contents
+		originalContent, err := os.ReadFile(path)
+		if err != nil {
+			return errors.Wrap(err, "read original file", z.Str("path", path))
+		}
+
+		extractedContent, err := os.ReadFile(extractedPath)
+		if err != nil {
+			return errors.Wrap(err, "read extracted file", z.Str("path", extractedPath))
+		}
+
+		if !bytes.Equal(originalContent, extractedContent) {
+			return errors.New("file contents should match", z.Str("path", relPath))
+		}
+
+		return nil
+	})
 }

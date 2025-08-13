@@ -3,20 +3,16 @@
 package dkg_test
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -769,7 +765,7 @@ func startNewDKG(t *testing.T, parentCtx context.Context, config dkg.Config, dkg
 	return cancel
 }
 
-func TestZipping(t *testing.T) {
+func TestZipped(t *testing.T) {
 	const (
 		nodes = 3
 		vals  = 2
@@ -808,87 +804,12 @@ func TestZipping(t *testing.T) {
 
 	// Create new temp dir and unzip to there
 	unzippedDir := t.TempDir()
-	err = unzipOutput(t, nodeDir, unzippedDir)
+	err = app.ExtractArchive(tarPath, unzippedDir)
 	require.NoError(t, err)
 
 	// Compare backup with unzipped folder
-	err = filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
-		require.NoError(t, err)
-
-		relPath, err := filepath.Rel(backupDir, path)
-		require.NoError(t, err)
-
-		unzippedPath := filepath.Join(unzippedDir, relPath)
-
-		if info.IsDir() {
-			unzippedInfo, err := os.Stat(unzippedPath)
-			require.NoError(t, err, "directory should exist in unzipped content: %s", relPath)
-			require.True(t, unzippedInfo.IsDir(), "should be a directory: %s", relPath)
-
-			return nil
-		}
-
-		if info.Name() == "charon-enr-private-key.lock" {
-			return nil
-		}
-
-		unzippedInfo, err := os.Stat(unzippedPath)
-		require.NoError(t, err, "file should exist in unzipped content: %s", relPath)
-		require.Equal(t, info.Size(), unzippedInfo.Size(), "file sizes should match: %s", relPath)
-
-		originalContent, err := os.ReadFile(path)
-		require.NoError(t, err, "failed to read original file: %s", path)
-
-		unzippedContent, err := os.ReadFile(unzippedPath)
-		require.NoError(t, err, "failed to read unzipped file: %s", unzippedPath)
-
-		require.Equal(t, originalContent, unzippedContent, "file contents should match: %s", relPath)
-
-		return nil
-	})
+	err = app.CompareDirectories(backupDir, unzippedDir)
 	require.NoError(t, err, "unzipped content should match original for node0")
-}
-
-// unzipDKGOutput extracts dkg.tar.gz from sourceDir into targetDir
-func unzipOutput(t *testing.T, sourceDir, targetDir string) error {
-	t.Helper()
-
-	tarPath := path.Join(sourceDir, "dkg.tar.gz")
-	zf, err := os.Open(tarPath)
-	require.NoError(t, err, "failed to open dkg.tar.gz")
-
-	defer zf.Close()
-
-	gzr, err := gzip.NewReader(zf)
-	require.NoError(t, err, "failed to create gzip reader")
-
-	defer gzr.Close()
-
-	tr := tar.NewReader(gzr)
-
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			return nil // End of archive
-		}
-
-		require.NoError(t, err, "tar read error")
-
-		target := path.Join(targetDir, header.Name)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			require.NoError(t, os.MkdirAll(target, header.FileInfo().Mode()), "failed to create directory")
-		case tar.TypeReg:
-			require.NoError(t, os.MkdirAll(path.Dir(target), 0o755), "failed to create parent directory")
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode())
-			require.NoError(t, err, "failed to create file")
-			_, err = io.Copy(f, tr)
-			require.NoError(t, err, "failed to copy file contents")
-			require.NoError(t, f.Close(), "failed to close file")
-		default:
-			// Ignore other types
-		}
-	}
 }
 
 func clone[T any](t *testing.T, v T) T {
