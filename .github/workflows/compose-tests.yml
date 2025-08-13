@@ -13,7 +13,7 @@ jobs:
   compose_tests:
     runs-on: charon-ci
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up QEMU
         id: qemu
         uses: docker/setup-qemu-action@v3
