@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
@@ -788,7 +789,7 @@ func TestZipping(t *testing.T) {
 	backupDir := t.TempDir()
 	require.NoError(t, os.CopyFS(backupDir, os.DirFS(nodeDir)))
 
-	err := dkg.BundleOutputT(nodeDir)
+	err := app.BundleOutput(nodeDir, "dkg.tar.gz")
 	require.NoError(t, err, "bundleOutput should succeed for node0")
 
 	// Verify that dkg.tar.gz file exists and original files are deleted

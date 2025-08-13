@@ -3,16 +3,11 @@
 package dkg
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net/url"
-	"os"
-	"path/filepath"
 	"slices"
 	"time"
 
@@ -25,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
@@ -463,7 +459,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if conf.Zipped {
-		if err = bundleOutput(conf.DataDir); err != nil {
+		if err = app.BundleOutput(conf.DataDir, "dkg.tar.gz"); err != nil {
 			return err
 		}
 	}
@@ -1322,96 +1318,4 @@ func getExistingShares(conf *AppendConfig) ([]share, error) {
 	}
 
 	return shares, nil
-}
-
-// bundleOutput archives targetDir into a gzipped tarball named "dkg.tar.gz" in targetDir.
-// After successfully creating the archive, it deletes the original files from disk.
-func bundleOutput(targetDir string) error {
-	file, err := os.Create(filepath.Join(targetDir, "dkg.tar.gz"))
-	if err != nil {
-		return errors.Wrap(err, "create .tar.gz file")
-	}
-	defer file.Close()
-
-	gzw := gzip.NewWriter(file)
-	defer gzw.Close()
-
-	tw := tar.NewWriter(gzw)
-	defer tw.Close()
-
-	dirsToDelete := make([]string, 0)
-	filesToDelete := make([]string, 0)
-
-	err = filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return errors.Wrap(err, "filepath walk")
-		}
-
-		if !info.Mode().IsRegular() {
-			if info.IsDir() && path != targetDir {
-				dirsToDelete = append(dirsToDelete, path)
-			}
-
-			return nil
-		}
-
-		if path == file.Name() {
-			return nil
-		}
-
-		relPath, err := filepath.Rel(targetDir, path)
-		if err != nil {
-			return errors.Wrap(err, "relative path")
-		}
-
-		header, err := tar.FileInfoHeader(info, info.Name())
-		if err != nil {
-			return errors.Wrap(err, "file info header")
-		}
-
-		header.Name = relPath
-		if err := tw.WriteHeader(header); err != nil {
-			return errors.Wrap(err, "write header")
-		}
-
-		f, err := os.Open(path)
-		if err != nil {
-			return errors.Wrap(err, "open file")
-		}
-		defer f.Close()
-
-		_, err = io.Copy(tw, f)
-		if err != nil {
-			return errors.Wrap(err, "copy file", z.Str("filename", path))
-		}
-
-		filesToDelete = append(filesToDelete, path)
-
-		return nil
-	})
-	if err != nil {
-		return errors.Wrap(err, "filepath walk")
-	}
-
-	for _, path := range filesToDelete {
-		err := os.RemoveAll(path)
-		if err != nil {
-			return errors.Wrap(err, "remove file", z.Str("filename", path))
-		}
-	}
-
-	for _, path := range dirsToDelete {
-		err := os.RemoveAll(path)
-		if err != nil {
-			return errors.Wrap(err, "remove dir", z.Str("filename", path))
-		}
-	}
-
-	return nil
-}
-
-// BundleOutputT calls bundleOutput with the same arguments.
-// Used in testing.
-func BundleOutputT(targetDir string) error {
-	return bundleOutput(targetDir)
 }

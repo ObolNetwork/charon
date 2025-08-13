@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
@@ -1006,7 +1007,7 @@ func TestZipping(t *testing.T) {
 	// Backup cluster dir since bundleOutput is destructive
 	require.NoError(t, os.CopyFS(backupDir, os.DirFS(conf.ClusterDir)))
 
-	require.NoError(t, bundleOutput(conf.ClusterDir, conf.NumNodes))
+	require.NoError(t, app.BundleOutput(conf.ClusterDir, "cluster.tar.gz"))
 
 	unzippedDir := t.TempDir()
 	require.NoError(t, unzipOutputT(t, conf.ClusterDir, unzippedDir))
