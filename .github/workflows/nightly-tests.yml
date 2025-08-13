@@ -8,7 +8,7 @@ jobs:
   nightly_test:
     runs-on: charon-ci
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-go
       - uses: actions/cache@v4
         with:
@@ -23,7 +23,7 @@ jobs:
   fuzz_tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up QEMU
         id: qemu
         uses: docker/setup-qemu-action@v3

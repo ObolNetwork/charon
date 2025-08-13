@@ -48,6 +48,7 @@ this command at the same time.`,
 	bindEth1Flag(cmd.Flags(), &config.ExecutionEngineAddr)
 
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", 1*time.Minute, "Timeout for the DKG process, should be increased if DKG times out.")
+	cmd.Flags().BoolVar(&config.Zipped, "zipped", false, "Create a tar archive compressed with gzip of the target directory after creation.")
 
 	return cmd
 }

@@ -88,8 +88,8 @@ func TestRunAddValidators(t *testing.T) {
 
 		for i := 0; i < conf.NumNodes; i++ {
 			addConf := addValidatorsConfig{
-				SrcDir:            nodeDir(conf.ClusterDir, i),
-				DstDir:            nodeDir(dstDir, i),
+				DataDir:           nodeDir(conf.ClusterDir, i),
+				OutputDir:         nodeDir(dstDir, i),
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
@@ -212,8 +212,8 @@ func TestRunAddValidatorsInvalidLock(t *testing.T) {
 	require.NoError(t, err)
 
 	addConf := addValidatorsConfig{
-		SrcDir:            nodeDir(conf.ClusterDir, 0),
-		DstDir:            nodeDir(dstDir, 0),
+		DataDir:           nodeDir(conf.ClusterDir, 0),
+		OutputDir:         nodeDir(dstDir, 0),
 		NumValidators:     2,
 		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
@@ -271,36 +271,36 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			errMsg: "num-validators must be greater than 0",
 		},
 		{
-			name: "dst dir is required",
+			name: "output dir is required",
 			conf: addValidatorsConfig{
-				DstDir:        "",
+				OutputDir:     "",
 				NumValidators: 1,
 			},
-			errMsg: "dst-dir is required",
+			errMsg: "output-dir is required",
 		},
 		{
-			name: "src dir is required",
+			name: "data dir is required",
 			conf: addValidatorsConfig{
-				DstDir:        ".",
-				SrcDir:        "",
+				OutputDir:     ".",
+				DataDir:       "",
 				NumValidators: 1,
 			},
-			errMsg: "src-dir is required",
+			errMsg: "data-dir is required",
 		},
 		{
 			name: "missing lock file",
 			conf: addValidatorsConfig{
-				SrcDir:        ".",
-				DstDir:        ".",
+				DataDir:       ".",
+				OutputDir:     ".",
 				NumValidators: 1,
 			},
-			errMsg: "src-dir must contain a cluster-lock.json file",
+			errMsg: "data-dir must contain a cluster-lock.json file",
 		},
 		{
 			name: "addrs length mismatch",
 			conf: addValidatorsConfig{
-				SrcDir:            realDir,
-				DstDir:            ".",
+				DataDir:           realDir,
+				OutputDir:         ".",
 				NumValidators:     1,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr},
@@ -310,8 +310,8 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "single addr for all validators",
 			conf: addValidatorsConfig{
-				SrcDir:            realDir,
-				DstDir:            ".",
+				DataDir:           realDir,
+				OutputDir:         ".",
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr},
@@ -320,8 +320,8 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "count and addrs mismatch",
 			conf: addValidatorsConfig{
-				SrcDir:            realDir,
-				DstDir:            ".",
+				DataDir:           realDir,
+				OutputDir:         ".",
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
@@ -331,8 +331,8 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "both --unverified flag for non empty validator_keys dir",
 			conf: addValidatorsConfig{
-				SrcDir:            realDir,
-				DstDir:            ".",
+				DataDir:           realDir,
+				OutputDir:         ".",
 				NumValidators:     2,
 				Unverified:        true,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
@@ -343,8 +343,8 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "multiple addrs for multiple validators",
 			conf: addValidatorsConfig{
-				SrcDir:            realDir,
-				DstDir:            ".",
+				DataDir:           realDir,
+				OutputDir:         ".",
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
@@ -369,22 +369,22 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		require.NoError(t, err)
 
 		cfg := addValidatorsConfig{
-			SrcDir:            srcDir,
-			DstDir:            ".",
+			DataDir:           srcDir,
+			OutputDir:         ".",
 			NumValidators:     2,
 			WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 			FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
 		}
 
 		err = validateConfig(t.Context(), &cfg)
-		require.Equal(t, "src-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
+		require.Equal(t, "data-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
 
 		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
 		err = app.CreateNewEmptyDir(validatorKeysDir)
 		require.NoError(t, err)
 
 		err = validateConfig(t.Context(), &cfg)
-		require.Equal(t, "src-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
+		require.Equal(t, "data-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
 
 		cfg.Unverified = true
 		err = validateConfig(t.Context(), &cfg)

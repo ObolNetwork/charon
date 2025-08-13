@@ -3,9 +3,7 @@
 package cmd
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -29,6 +27,7 @@ import (
 	"github.com/spf13/pflag"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
@@ -351,7 +350,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if conf.Zipped {
-		if err = bundleOutput(conf.ClusterDir, numNodes); err != nil {
+		if err = app.BundleOutput(conf.ClusterDir, "cluster.tar.gz"); err != nil {
 			return err
 		}
 	}
@@ -1234,77 +1233,4 @@ func validateNetworkConfig(conf clusterConfig) error {
 	}
 
 	return errors.New("missing --network flag or testnet config flags")
-}
-
-// bundleOutput archives all node directories (node0, node1, ..., nodeN) within targetDir into a gzipped tarball named "cluster.tar.gz" in targetDir.
-// After successfully creating the archive, it deletes the original node directories from disk.
-func bundleOutput(targetDir string, numNodes int) error {
-	file, err := os.Create(filepath.Join(targetDir, "cluster.tar.gz"))
-	if err != nil {
-		return errors.Wrap(err, "create .tar.gz file")
-	}
-	defer file.Close()
-
-	gzw := gzip.NewWriter(file)
-	defer gzw.Close()
-
-	tw := tar.NewWriter(gzw)
-	defer tw.Close()
-
-	dirs := []string{}
-	for i := range numNodes {
-		dirs = append(dirs, filepath.Join(targetDir, fmt.Sprintf("node%d", i)))
-	}
-
-	for _, dir := range dirs {
-		err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return errors.Wrap(err, "filepath walk")
-			}
-
-			if !info.Mode().IsRegular() {
-				return nil
-			}
-
-			relPath, err := filepath.Rel(targetDir, path)
-			if err != nil {
-				return errors.Wrap(err, "relative path")
-			}
-
-			header, err := tar.FileInfoHeader(info, info.Name())
-			if err != nil {
-				return errors.Wrap(err, "file info header")
-			}
-
-			header.Name = relPath
-			if err := tw.WriteHeader(header); err != nil {
-				return errors.Wrap(err, "write header")
-			}
-
-			f, err := os.Open(path)
-			if err != nil {
-				return errors.Wrap(err, "open file")
-			}
-			defer f.Close()
-
-			_, err = io.Copy(tw, f)
-			if err != nil {
-				return errors.Wrap(err, "copy file", z.Str("filename", path))
-			}
-
-			return nil
-		})
-		if err != nil {
-			return errors.Wrap(err, "filepath walk")
-		}
-	}
-
-	for _, dir := range dirs {
-		err := os.RemoveAll(dir)
-		if err != nil {
-			return errors.Wrap(err, "remove file")
-		}
-	}
-
-	return nil
 }

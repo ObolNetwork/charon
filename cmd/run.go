@@ -10,6 +10,7 @@ import (
 	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/net/idna"
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
@@ -174,6 +175,10 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config) {
 	cmd.Flags().BoolVar(&config.DisableReuseport, "p2p-disable-reuseport", false, "Disables TCP port reuse for outgoing libp2p connections.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
+		if _, err := idna.Lookup.ToASCII(config.ExternalHost); err != nil {
+			return errors.Wrap(err, "invalid hostname", z.Str("hostname", config.ExternalHost))
+		}
+
 		for _, relay := range config.Relays {
 			u, err := url.Parse(relay)
 			if err != nil {

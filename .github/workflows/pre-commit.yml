@@ -10,7 +10,7 @@ jobs:
     env:
       SKIP: golangci-lint,run-go-tests,no-commit-to-branch
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # Disable shallow checkout
       - uses: actions/setup-python@v5
