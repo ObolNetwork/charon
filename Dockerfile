@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.24.6-bookworm AS builder
+FROM golang:1.25.0-bookworm AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git
 
@@ -15,9 +15,9 @@ RUN echo "Building with GO_BUILD_FLAG='${GO_BUILD_FLAG}'"
 
 # Build with Go module and Go build caches.
 RUN \
-   --mount=type=cache,target=/go/pkg \
-   --mount=type=cache,target=/root/.cache/go-build \
-   go build -o charon "${GO_BUILD_FLAG}" .
+  --mount=type=cache,target=/go/pkg \
+  --mount=type=cache,target=/root/.cache/go-build \
+  go build -o charon "${GO_BUILD_FLAG}" .
 RUN echo "Built charon version=$(./charon version)"
 
 # Copy final binary into light stage.
@@ -35,13 +35,13 @@ ENV UID=1000
 ENV GID=1000
 RUN addgroup --gid "$GID" "$USER" \
   && adduser \
-    --disabled-password \
-    --gecos "charon" \
-    --home "/opt/$USER" \
-    --ingroup "$USER" \
-    --no-create-home \
-    --uid "$UID" \
-    "$USER" \
+  --disabled-password \
+  --gecos "charon" \
+  --home "/opt/$USER" \
+  --ingroup "$USER" \
+  --no-create-home \
+  --uid "$UID" \
+  "$USER" \
   && chown "$USER" /usr/local/bin/charon \
   && chmod u+x /usr/local/bin/charon
 
