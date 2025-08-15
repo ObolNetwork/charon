@@ -163,6 +163,31 @@ func TestDuplicateAttData(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:    "fulu",
+			attData: testutil.RandomAttestationDataElectra(),
+			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
+				zeroComm := bitfield.NewBitvector64()
+				zeroComm.SetBitAt(0, true)
+				oneComm := bitfield.NewBitvector64()
+				oneComm.SetBitAt(1, true)
+				twoComm := bitfield.NewBitvector64()
+				twoComm.SetBitAt(2, true)
+
+				return []*eth2spec.VersionedAttestation{
+					{Version: eth2spec.DataVersionFulu, Fulu: &electra.Attestation{AggregationBits: aggBits1, Data: attData, CommitteeBits: zeroComm}},
+					{Version: eth2spec.DataVersionFulu, Fulu: &electra.Attestation{AggregationBits: aggBits2, Data: attData, CommitteeBits: oneComm}},
+					{Version: eth2spec.DataVersionFulu, Fulu: &electra.Attestation{AggregationBits: aggBits3, Data: attData, CommitteeBits: twoComm}},
+				}
+			},
+			beaconCommitteesFunc: func(attData *eth2p0.AttestationData) []*eth2v1.BeaconCommittee {
+				return []*eth2v1.BeaconCommittee{
+					{Index: 0, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+					{Index: 1, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+					{Index: 2, Slot: attData.Slot, Validators: []eth2p0.ValidatorIndex{0, 1, 2}},
+				}
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -322,7 +347,7 @@ func TestBlockInclusion(t *testing.T) {
 			submissions:     make(map[subkey]submission),
 		}
 
-		block := testutil.RandomElectraVersionedSignedProposal()
+		block := testutil.RandomFuluVersionedSignedProposal()
 		blockSlot, err := block.Slot()
 		require.NoError(t, err)
 
@@ -372,7 +397,7 @@ func TestBlockInclusion(t *testing.T) {
 			submissions:     make(map[subkey]submission),
 		}
 
-		block := testutil.RandomElectraVersionedSignedProposal()
+		block := testutil.RandomFuluVersionedSignedProposal()
 		blockSlot, err := block.Slot()
 		require.NoError(t, err)
 
@@ -397,7 +422,7 @@ func TestBlockInclusion(t *testing.T) {
 			submissions:     make(map[subkey]submission),
 		}
 
-		block := testutil.RandomElectraVersionedSignedProposal()
+		block := testutil.RandomFuluVersionedSignedProposal()
 		blockSlot, err := block.Slot()
 		require.NoError(t, err)
 

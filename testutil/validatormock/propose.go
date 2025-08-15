@@ -158,6 +158,11 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 				Message:   block.ElectraBlinded,
 				Signature: sig,
 			}
+		case eth2spec.DataVersionFulu:
+			signedBlock.Fulu = &eth2electra.SignedBlindedBeaconBlock{
+				Message:   block.FuluBlinded,
+				Signature: sig,
+			}
 		default:
 			return errors.New("invalid blinded block")
 		}
@@ -209,6 +214,15 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 			},
 			KZGProofs: block.Electra.KZGProofs,
 			Blobs:     block.Electra.Blobs,
+		}
+	case eth2spec.DataVersionFulu:
+		signedBlock.Fulu = &eth2electra.SignedBlockContents{
+			SignedBlock: &electra.SignedBeaconBlock{
+				Message:   block.Fulu.Block,
+				Signature: sig,
+			},
+			KZGProofs: block.Fulu.KZGProofs,
+			Blobs:     block.Fulu.Blobs,
 		}
 	default:
 		return errors.New("invalid block")
