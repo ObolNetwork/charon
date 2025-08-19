@@ -87,6 +87,7 @@ type Config struct {
 	JaegerAddr                  string
 	JaegerService               string
 	OTLPAddress                 string
+	OTLPHeaders                 []string
 	OTLPServiceName             string
 	SimnetBMock                 bool
 	SimnetVMock                 bool
@@ -916,7 +917,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 			return nil, nil, err
 		}
 
-		beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(conf.BeaconNodeHeaders)
+		beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(conf.BeaconNodeHeaders)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -959,7 +960,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 			return nil, nil, err
 		}
 
-		beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(conf.BeaconNodeHeaders)
+		beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(conf.BeaconNodeHeaders)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -990,7 +991,7 @@ func newETH2Client(ctx context.Context, conf Config, life *lifecycle.Manager, cl
 		log.Info(ctx, "Synthetic block proposals enabled")
 	}
 
-	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(conf.BeaconNodeHeaders)
+	beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(conf.BeaconNodeHeaders)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1120,8 +1121,13 @@ func wireTracing(life *lifecycle.Manager, conf Config, clusterHash []byte) error
 		return nil
 	}
 
+	otlpHeaders, err := eth2util.ParseHTTPHeaders(conf.OTLPHeaders)
+	if err != nil {
+		return err
+	}
+
 	stopTracer, err := tracer.Init(
-		tracer.WithOTLPTracer(conf.OTLPAddress),
+		tracer.WithOTLPTracer(conf.OTLPAddress, otlpHeaders),
 		tracer.WithServiceName(conf.OTLPServiceName),
 		tracer.WithNamespaceName(Hex7(clusterHash)),
 	)

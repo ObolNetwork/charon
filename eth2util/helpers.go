@@ -19,8 +19,8 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// ValidateBeaconNodeHeaders validates the format of a string containing beacon node headers.
-func ValidateBeaconNodeHeaders(headers []string) error {
+// ValidateHTTPHeaders validates the format of a string containing HTTP headers.
+func ValidateHTTPHeaders(headers []string) error {
 	if len(headers) > 0 {
 		// The pattern ([^=,]+) captures any string that does not contain '=' or ','.
 		// The pattern ([^,]+) captures any string that does not contain ','.
@@ -29,7 +29,7 @@ func ValidateBeaconNodeHeaders(headers []string) error {
 		headerPattern := regexp.MustCompile(`^([^=,]+)=([^,]+)$`)
 		for _, header := range headers {
 			if !headerPattern.MatchString(header) {
-				return errors.New("beacon node headers must be comma separated values formatted as header=value")
+				return errors.New("http headers must be comma separated values formatted as header=value")
 			}
 		}
 	}
@@ -37,15 +37,15 @@ func ValidateBeaconNodeHeaders(headers []string) error {
 	return nil
 }
 
-// ParseBeaconNodeHeaders validates and parses a string of headers into a map of key-value pairs.
+// ParseHTTPHeaders validates and parses a string of headers into a map of key-value pairs.
 // Returns empty map if string is empty.
-func ParseBeaconNodeHeaders(headers []string) (map[string]string, error) {
+func ParseHTTPHeaders(headers []string) (map[string]string, error) {
 	parsedHeaders := make(map[string]string)
 	if len(headers) == 0 {
 		return parsedHeaders, nil
 	}
 
-	err := ValidateBeaconNodeHeaders(headers)
+	err := ValidateHTTPHeaders(headers)
 	if err != nil {
 		return nil, err
 	}

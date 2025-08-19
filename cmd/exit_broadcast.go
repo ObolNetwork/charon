@@ -100,7 +100,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 			return errors.New(fmt.Sprintf("if you want to specify exit file directory for all validators, you must provide %s and not %s.", exitFromDir.String(), exitFromFile.String()))
 		}
 
-		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		err := eth2util.ValidateHTTPHeaders(config.BeaconNodeHeaders)
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(config.BeaconNodeHeaders)
 	if err != nil {
 		return err
 	}
