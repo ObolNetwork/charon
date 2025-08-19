@@ -574,6 +574,8 @@ func TestSyncFlow(t *testing.T) {
 			dir := t.TempDir()
 			configs := getConfigs(t, lock.Definition, keys, dir, relayAddr)
 
+			time.Sleep(100 * time.Millisecond)
+
 			var (
 				// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
 				stopDkgs   = make([]context.CancelFunc, test.nodes)
@@ -583,6 +585,7 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
+				time.Sleep(100 * time.Millisecond)
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestConfig.SyncCallback = cTracker.Set
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
@@ -598,6 +601,7 @@ func TestSyncFlow(t *testing.T) {
 
 			// Stop some peers.
 			for _, idx := range test.disconnect {
+				time.Sleep(100 * time.Millisecond)
 				log.Info(ctx, "Stopping peer", z.Int("peer_index", idx))
 				stopDkgs[idx]()
 
@@ -622,6 +626,7 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start other peers.
 			for _, idx := range test.reconnect {
+				time.Sleep(100 * time.Millisecond)
 				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
