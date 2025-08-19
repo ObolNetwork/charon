@@ -60,7 +60,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 		slotsPerEpoch:  slotsPerEpoch,
 	}
 
-	parsedHeaders, err := eth2util.ParseBeaconNodeHeaders(headers)
+	parsedHeaders, err := eth2util.ParseHTTPHeaders(headers)
 	if err != nil {
 		return nil, err
 	}

@@ -56,7 +56,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 	bindLogFlags(cmd.Flags(), &config.Log)
 
 	wrapPreRunE(cmd, func(*cobra.Command, []string) error {
-		return eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		return eth2util.ValidateHTTPHeaders(config.BeaconNodeHeaders)
 	})
 
 	return cmd
@@ -93,7 +93,7 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 		return nil, errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
 	}
 
-	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(config.BeaconNodeHeaders)
 	if err != nil {
 		return nil, err
 	}

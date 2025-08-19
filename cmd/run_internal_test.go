@@ -110,12 +110,12 @@ func TestBindRunFlagsValidation(t *testing.T) {
 		{
 			Name: "invalid beacon node headers separator",
 			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--beacon-node-headers", "key1=value1,key2:value2"),
-			Err:  "beacon node headers must be comma separated values formatted as header=value",
+			Err:  "http headers must be comma separated values formatted as header=value",
 		},
 		{
 			Name: "invalid beacon node headers completeness",
 			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--beacon-node-headers", "key1=value1,key2="),
-			Err:  "beacon node headers must be comma separated values formatted as header=value",
+			Err:  "http headers must be comma separated values formatted as header=value",
 		},
 		{
 			Name: "valid beacon node headers",

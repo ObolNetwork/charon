@@ -80,7 +80,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 			return errors.New(fmt.Sprintf("%s or %s should not be specified when %s is, as they are obsolete and misleading.", validatorIndex.String(), validatorPubkey.String(), all.String()))
 		}
 
-		err := eth2util.ValidateBeaconNodeHeaders(config.BeaconNodeHeaders)
+		err := eth2util.ValidateHTTPHeaders(config.BeaconNodeHeaders)
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
-	beaconNodeHeaders, err := eth2util.ParseBeaconNodeHeaders(config.BeaconNodeHeaders)
+	beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(config.BeaconNodeHeaders)
 	if err != nil {
 		return err
 	}

@@ -70,7 +70,7 @@ func TestPublicKeyToAddress(t *testing.T) {
 	require.Equal(t, testAddrHex, actual)
 }
 
-func TestValidateBeaconNodeHeaders(t *testing.T) {
+func TestValidateHTTPHeaders(t *testing.T) {
 	tests := []struct {
 		name    string
 		headers []string
@@ -140,7 +140,7 @@ func TestValidateBeaconNodeHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := eth2util.ValidateBeaconNodeHeaders(tt.headers)
+			err := eth2util.ValidateHTTPHeaders(tt.headers)
 			if err != nil && tt.valid {
 				require.Fail(t, "Fail", "Header (%d) is invalid, want valid", tt.headers)
 			} else if err == nil && !tt.valid {
@@ -150,7 +150,7 @@ func TestValidateBeaconNodeHeaders(t *testing.T) {
 	}
 }
 
-func TestParseBeaconNodeHeaders(t *testing.T) {
+func TestParseHTTPHeaders(t *testing.T) {
 	tests := []struct {
 		name    string
 		headers []string
@@ -180,7 +180,7 @@ func TestParseBeaconNodeHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parsed, err := eth2util.ParseBeaconNodeHeaders(tt.headers)
+			parsed, err := eth2util.ParseHTTPHeaders(tt.headers)
 			if err != nil {
 				require.Fail(t, "Fail", "Header (%d) failed to parse", tt.headers)
 			}
