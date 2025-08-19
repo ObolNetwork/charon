@@ -4,6 +4,7 @@ package p2p
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -316,6 +317,13 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	}
 
 	if err = s.Close(); err != nil {
+		// This close error doesn't require a retry or warning mechanism since the message was
+		// correctly sent to the destination. However, it is still unknown what/who is causing the
+		// stream to be canceled. This error appears much more frequently when QUIC is enabled.
+		if strings.Contains(err.Error(), "close called for canceled stream") {
+			log.Debug(ctx, "Closing canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
+			return nil
+		}
 		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
 	}
 
@@ -352,6 +360,13 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	}
 
 	if err := s.Close(); err != nil {
+		// This close error doesn't require a retry or warning mechanism since the message was
+		// correctly sent to the destination. However, it is still unknown what/who is causing the
+		// stream to be canceled. This error appears much more frequently when QUIC is enabled.
+		if strings.Contains(err.Error(), "close called for canceled stream") {
+			log.Debug(ctx, "Closing canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
+			return nil
+		}
 		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
 	}
 
