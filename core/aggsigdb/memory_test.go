@@ -33,8 +33,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	t.Helper()
 
 	t.Run("write read", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
@@ -53,8 +52,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	})
 
 	t.Run("write unblocks", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
@@ -87,8 +85,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	})
 
 	t.Run("cancel await", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
@@ -114,8 +111,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	})
 
 	t.Run("cancelled await", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
@@ -166,8 +162,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	})
 
 	t.Run("cannot overwrite", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
@@ -185,8 +180,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 	})
 
 	t.Run("write idempotent", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		db := newMemDB(newNoopDeadliner())
 		go db.Run(ctx)
