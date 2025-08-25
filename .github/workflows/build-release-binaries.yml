@@ -25,12 +25,14 @@ jobs:
       run: |
         echo "VCS_REVISION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
         echo "VCS_TIME=$(git log -1 --format="%cd" --date=iso-strict $GITHUB_SHA)" >> $GITHUB_ENV
-        echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "RELEASE_VERSION=v1.6.0-dev" >> $GITHUB_ENV
+#        echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
 
     - name: Construct LDFLAGS_VALUE
       run: |
-        LDFLAGS_VALUE=$'-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }} -X github.com/obolnetwork/charon/app/version.vcsRevision=${{ env.VCS_REVISION }} -X github.com/obolnetwork/charon/app/version.vcsTime=${{ env.VCS_TIME }}'
+        LDFLAGS_VALUE=$'-X github.com/obolnetwork/charon/app/version.version=v1.6.0-dev -X github.com/obolnetwork/charon/app/version.vcsRevision=${{ env.VCS_REVISION }} -X github.com/obolnetwork/charon/app/version.vcsTime=${{ env.VCS_TIME }}'
         echo "LDFLAGS_VALUE=${LDFLAGS_VALUE}" >> $GITHUB_ENV
+#        LDFLAGS_VALUE=$'-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }} -X github.com/obolnetwork/charon/app/version.vcsRevision=${{ env.VCS_REVISION }} -X github.com/obolnetwork/charon/app/version.vcsTime=${{ env.VCS_TIME }}'
 
     - name: Build x86_64 binary
       env:
