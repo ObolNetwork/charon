@@ -16,6 +16,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
       with:
+        ref: ${{ github.head_ref }}
         fetch-depth: 0
 
     - uses: ./.github/actions/setup-go
