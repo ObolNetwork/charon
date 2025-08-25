@@ -270,7 +270,7 @@ func IsSyntheticProposal(block *eth2api.VersionedSignedProposal) bool {
 	return graffiti == GetSyntheticGraffiti()
 }
 
-// synthProposerCache returns a new cache for synthetic proposer duties.
+// newSynthProposerCache returns a new cache for synthetic proposer duties.
 func newSynthProposerCache() *synthProposerCache {
 	return &synthProposerCache{
 		duties:      make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
