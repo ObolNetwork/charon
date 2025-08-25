@@ -1,13 +1,14 @@
 [
  {
-  "Version": "electra",
+  "Version": "fulu",
   "ValidatorIndex": "1",
   "Phase0": null,
   "Altair": null,
   "Bellatrix": null,
   "Capella": null,
   "Deneb": null,
-  "Electra": {
+  "Electra": null,
+  "Fulu": {
    "aggregation_bits": "0x03",
    "data": {
     "slot": "16",

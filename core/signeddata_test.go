@@ -166,6 +166,35 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "versioned signed proposal fulu",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &eth2electra.SignedBlockContents{
+						SignedBlock: &electra.SignedBeaconBlock{
+							Message:   testutil.RandomElectraBeaconBlock(),
+							Signature: testutil.RandomEth2Signature(),
+						},
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				},
+			},
+		},
+		{
+			name: "versioned signed proposal fulu blinded",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionFulu,
+					FuluBlinded: &eth2electra.SignedBlindedBeaconBlock{
+						Message:   testutil.RandomElectraBlindedBeaconBlock(),
+						Signature: testutil.RandomEth2Signature(),
+					},
+					Blinded: true,
+				},
+			},
+		},
+		{
 			name: "signed beacon committee selection",
 			data: testutil.RandomCoreBeaconCommitteeSelection(),
 		},
@@ -266,6 +295,22 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "signed aggregate and proof fulu",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &electra.SignedAggregateAndProof{
+						Message: &electra.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomElectraAttestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
 			name: "signed attestation phase0",
 			data: core.VersionedAttestation{
 				VersionedAttestation: eth2spec.VersionedAttestation{
@@ -336,6 +381,20 @@ func TestSignedDataSetSignature(t *testing.T) {
 				VersionedAttestation: eth2spec.VersionedAttestation{
 					Version: eth2spec.DataVersionElectra,
 					Electra: &electra.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationDataPhase0(),
+						Signature:       testutil.RandomEth2Signature(),
+						CommitteeBits:   testutil.RandomBitVec64(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation fulu",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &electra.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
 						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),
@@ -467,6 +526,10 @@ func TestNewVersionedSignedProposal(t *testing.T) {
 			version: eth2spec.DataVersionElectra,
 		},
 		{
+			error:   "no fulu proposal",
+			version: eth2spec.DataVersionFulu,
+		},
+		{
 			error:   "no bellatrix blinded proposal",
 			version: eth2spec.DataVersionBellatrix,
 			blinded: true,
@@ -484,6 +547,11 @@ func TestNewVersionedSignedProposal(t *testing.T) {
 		{
 			error:   "no electra blinded proposal",
 			version: eth2spec.DataVersionElectra,
+			blinded: true,
+		},
+		{
+			error:   "no fulu blinded proposal",
+			version: eth2spec.DataVersionFulu,
 			blinded: true,
 		},
 	}
@@ -517,7 +585,7 @@ func TestNewPartialVersionedSignedProposal(t *testing.T) {
 	require.Equal(t, 3, psd.ShareIdx)
 }
 
-func TestNewVersionedSignedProposalFromBlindedProposal(t *testing.T) {
+func TestNewVersionedSignedProposalFromBlindedProposalElectra(t *testing.T) {
 	proposal, err := testutil.RandomElectraVersionedSignedBlindedProposal().ToBlinded()
 	require.NoError(t, err)
 
@@ -527,8 +595,29 @@ func TestNewVersionedSignedProposalFromBlindedProposal(t *testing.T) {
 	require.NotNil(t, pvsp.ElectraBlinded)
 }
 
-func TestNewPartialVersionedSignedBlindedProposal(t *testing.T) {
+func TestNewPartialVersionedSignedBlindedProposalElectra(t *testing.T) {
 	proposal, err := testutil.RandomElectraVersionedSignedBlindedProposal().ToBlinded()
+	require.NoError(t, err)
+
+	pvsp, err := core.NewPartialVersionedSignedBlindedProposal(&proposal, 3)
+
+	require.NoError(t, err)
+	require.NotNil(t, pvsp.SignedData)
+	require.Equal(t, 3, pvsp.ShareIdx)
+}
+
+func TestNewVersionedSignedProposalFromBlindedProposalFulu(t *testing.T) {
+	proposal, err := testutil.RandomFuluVersionedSignedBlindedProposal().ToBlinded()
+	require.NoError(t, err)
+
+	pvsp, err := core.NewVersionedSignedProposalFromBlindedProposal(&proposal)
+
+	require.NoError(t, err)
+	require.NotNil(t, pvsp.FuluBlinded)
+}
+
+func TestNewPartialVersionedSignedBlindedProposalFulu(t *testing.T) {
+	proposal, err := testutil.RandomFuluVersionedSignedBlindedProposal().ToBlinded()
 	require.NoError(t, err)
 
 	pvsp, err := core.NewPartialVersionedSignedBlindedProposal(&proposal, 3)
@@ -573,6 +662,10 @@ func TestNewVersionedAttestation(t *testing.T) {
 			error:   "no electra attestation",
 			version: eth2spec.DataVersionElectra,
 		},
+		{
+			error:   "no fulu attestation",
+			version: eth2spec.DataVersionFulu,
+		},
 	}
 
 	for _, test := range tests {
@@ -584,8 +677,16 @@ func TestNewVersionedAttestation(t *testing.T) {
 		})
 	}
 
-	t.Run("happy path", func(t *testing.T) {
+	t.Run("happy path electra", func(t *testing.T) {
 		attestation := testutil.RandomElectraCoreVersionedAttestation()
+
+		p, err := core.NewVersionedAttestation(&attestation.VersionedAttestation)
+		require.NoError(t, err)
+		require.Equal(t, attestation, p)
+	})
+
+	t.Run("happy path fulu", func(t *testing.T) {
+		attestation := testutil.RandomFuluCoreVersionedAttestation()
 
 		p, err := core.NewVersionedAttestation(&attestation.VersionedAttestation)
 		require.NoError(t, err)
@@ -593,8 +694,18 @@ func TestNewVersionedAttestation(t *testing.T) {
 	})
 }
 
-func TestNewPartialVersionedAttestation(t *testing.T) {
+func TestNewPartialVersionedAttestationElectra(t *testing.T) {
 	attestation := testutil.RandomElectraVersionedAttestation()
+
+	pva, err := core.NewPartialVersionedAttestation(attestation, 3)
+
+	require.NoError(t, err)
+	require.NotNil(t, pva.SignedData)
+	require.Equal(t, 3, pva.ShareIdx)
+}
+
+func TestNewPartialVersionedAttestationFulu(t *testing.T) {
+	attestation := testutil.RandomFuluVersionedAttestation()
 
 	pva, err := core.NewPartialVersionedAttestation(attestation, 3)
 
@@ -702,6 +813,24 @@ func TestVersionedSignedProposal(t *testing.T) {
 			proposal: eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionElectra,
 				ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomElectraBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
+		{
+			name: "fulu",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionFulu,
+				Fulu:    testutil.RandomFuluVersionedSignedProposal().Fulu,
+			},
+		},
+		{
+			name: "fulu blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionFulu,
+				FuluBlinded: &eth2electra.SignedBlindedBeaconBlock{
 					Message:   testutil.RandomElectraBlindedBeaconBlock(),
 					Signature: testutil.RandomEth2Signature(),
 				},
@@ -858,6 +987,26 @@ func TestVersionedSignedAggregateAndProofUtilFunctions(t *testing.T) {
 				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionElectra,
 					Electra: &electra.SignedAggregateAndProof{
+						Message: &electra.AggregateAndProof{
+							AggregatorIndex: testutil.RandomVIdx(),
+							Aggregate: &electra.Attestation{
+								AggregationBits: aggregationBits,
+								Data:            data,
+								Signature:       testutil.RandomEth2Signature(),
+								CommitteeBits:   testutil.RandomBitVec64(),
+							},
+							SelectionProof: testutil.RandomEth2Signature(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "fulu",
+			aggregateAndProof: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &electra.SignedAggregateAndProof{
 						Message: &electra.AggregateAndProof{
 							AggregatorIndex: testutil.RandomVIdx(),
 							Aggregate: &electra.Attestation{

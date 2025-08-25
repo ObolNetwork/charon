@@ -179,6 +179,14 @@ func NewVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal) (Vers
 		if proposal.ElectraBlinded == nil && proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no electra blinded proposal")
 		}
+	case eth2spec.DataVersionFulu:
+		if proposal.Fulu == nil && !proposal.Blinded {
+			return VersionedSignedProposal{}, errors.New("no fulu proposal")
+		}
+
+		if proposal.FuluBlinded == nil && proposal.Blinded {
+			return VersionedSignedProposal{}, errors.New("no fulu blinded proposal")
+		}
 	default:
 		return VersionedSignedProposal{}, errors.New("unknown version")
 	}
@@ -207,6 +215,7 @@ func NewVersionedSignedProposalFromBlindedProposal(bp *eth2api.VersionedSignedBl
 		CapellaBlinded:   bp.Capella,
 		DenebBlinded:     bp.Deneb,
 		ElectraBlinded:   bp.Electra,
+		FuluBlinded:      bp.Fulu,
 	})
 	if err != nil {
 		return VersionedSignedProposal{}, err
@@ -223,6 +232,7 @@ func NewPartialVersionedSignedBlindedProposal(bp *eth2api.VersionedSignedBlinded
 		CapellaBlinded:   bp.Capella,
 		DenebBlinded:     bp.Deneb,
 		ElectraBlinded:   bp.Electra,
+		FuluBlinded:      bp.Fulu,
 	})
 	if err != nil {
 		return ParSignedData{}, err
@@ -250,6 +260,7 @@ func (p VersionedSignedProposal) ToBlinded() (eth2api.VersionedSignedBlindedProp
 		Capella:   p.CapellaBlinded,
 		Deneb:     p.DenebBlinded,
 		Electra:   p.ElectraBlinded,
+		Fulu:      p.FuluBlinded,
 	}, nil
 }
 
@@ -284,6 +295,12 @@ func (p VersionedSignedProposal) Signature() Signature {
 		}
 
 		return SigFromETH2(p.Electra.SignedBlock.Signature)
+	case eth2spec.DataVersionFulu:
+		if p.Blinded {
+			return SigFromETH2(p.FuluBlinded.Signature)
+		}
+
+		return SigFromETH2(p.Fulu.SignedBlock.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -324,6 +341,12 @@ func (p VersionedSignedProposal) SetSignature(sig Signature) (SignedData, error)
 			resp.ElectraBlinded.Signature = sig.ToETH2()
 		} else {
 			resp.Electra.SignedBlock.Signature = sig.ToETH2()
+		}
+	case eth2spec.DataVersionFulu:
+		if resp.Blinded {
+			resp.FuluBlinded.Signature = sig.ToETH2()
+		} else {
+			resp.Fulu.SignedBlock.Signature = sig.ToETH2()
 		}
 	default:
 		return nil, errors.New("unknown type")
@@ -368,6 +391,12 @@ func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 		}
 
 		return p.Electra.SignedBlock.Message.HashTreeRoot()
+	case eth2spec.DataVersionFulu:
+		if p.Blinded {
+			return p.FuluBlinded.Message.HashTreeRoot()
+		}
+
+		return p.Fulu.SignedBlock.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -422,6 +451,12 @@ func (p VersionedSignedProposal) MarshalJSON() ([]byte, error) {
 			marshaller = p.ElectraBlinded
 		} else {
 			marshaller = p.Electra
+		}
+	case eth2spec.DataVersionFulu:
+		if p.Blinded {
+			marshaller = p.FuluBlinded
+		} else {
+			marshaller = p.Fulu
 		}
 	default:
 		return nil, errors.New("unknown version")
@@ -534,6 +569,22 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 			}
 
 			resp.Electra = block
+		}
+	case eth2spec.DataVersionFulu:
+		if raw.Blinded {
+			block := new(eth2electra.SignedBlindedBeaconBlock) // Fulu blinded blocks have the same structure as electra blinded blocks.
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal fulu blinded")
+			}
+
+			resp.FuluBlinded = block
+		} else {
+			block := new(eth2electra.SignedBlockContents) // Fulu blocks have the same structure as electra blocks.
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal fulu")
+			}
+
+			resp.Fulu = block
 		}
 	default:
 		return errors.New("unknown version")
@@ -659,6 +710,10 @@ func NewVersionedAttestation(att *eth2spec.VersionedAttestation) (VersionedAttes
 		if att.Electra == nil {
 			return VersionedAttestation{}, errors.New("no electra attestation")
 		}
+	case eth2spec.DataVersionFulu:
+		if att.Fulu == nil {
+			return VersionedAttestation{}, errors.New("no fulu attestation")
+		}
 	default:
 		return VersionedAttestation{}, errors.New("unknown version")
 	}
@@ -754,6 +809,8 @@ func (a VersionedAttestation) SetSignature(sig Signature) (SignedData, error) {
 		resp.Deneb.Signature = sig.ToETH2()
 	case eth2spec.DataVersionElectra:
 		resp.Electra.Signature = sig.ToETH2()
+	case eth2spec.DataVersionFulu:
+		resp.Fulu.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -781,6 +838,8 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 		marshaller = a.Deneb
 	case eth2spec.DataVersionElectra:
 		marshaller = a.Electra
+	case eth2spec.DataVersionFulu:
+		marshaller = a.Fulu
 	default:
 		return nil, errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -869,6 +928,15 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 		}
 
 		resp.Electra = att
+	case eth2spec.DataVersionFulu:
+		att := new(eth2e.Attestation)
+
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal fulu")
+		}
+
+		resp.Fulu = att
 	default:
 		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -1424,6 +1492,12 @@ func (ap VersionedSignedAggregateAndProof) MessageRoot() ([32]byte, error) {
 		}
 
 		return ap.Electra.Message.HashTreeRoot()
+	case eth2spec.DataVersionFulu:
+		if ap.Fulu == nil {
+			return [32]byte{}, errors.New("unmarshal fulu")
+		}
+
+		return ap.Fulu.Message.HashTreeRoot()
 	default:
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -1467,6 +1541,12 @@ func (ap VersionedSignedAggregateAndProof) Signature() Signature {
 		}
 
 		return SigFromETH2(ap.Electra.Signature)
+	case eth2spec.DataVersionFulu:
+		if ap.Fulu == nil {
+			return Signature{}
+		}
+
+		return SigFromETH2(ap.Fulu.Signature)
 	default:
 		return Signature{}
 	}
@@ -1515,6 +1595,12 @@ func (ap VersionedSignedAggregateAndProof) SetSignature(sig Signature) (SignedDa
 		}
 
 		resp.Electra.Signature = sig.ToETH2()
+	case eth2spec.DataVersionFulu:
+		if ap.Fulu == nil {
+			return nil, errors.New("unmarshal fulu")
+		}
+
+		resp.Fulu.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -1557,6 +1643,8 @@ func (ap VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
 		marshaller = ap.Deneb
 	case eth2spec.DataVersionElectra:
 		marshaller = ap.Electra
+	case eth2spec.DataVersionFulu:
+		marshaller = ap.Fulu
 	default:
 		return nil, errors.New("unknown signedAggregateAndProof version", z.Str("version", ap.Version.String()))
 	}
@@ -1632,6 +1720,13 @@ func (ap *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 		}
 
 		resp.Electra = aggregateAndProof
+	case eth2spec.DataVersionFulu:
+		aggregateAndProof := new(eth2e.SignedAggregateAndProof)
+		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
+			return errors.Wrap(err, "unmarshal fulu")
+		}
+
+		resp.Fulu = aggregateAndProof
 	default:
 		return errors.New("unknown version")
 	}
@@ -1679,6 +1774,12 @@ func (ap VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
 		}
 
 		return ap.Electra.Message.Aggregate.Data
+	case eth2spec.DataVersionFulu:
+		if ap.Fulu == nil {
+			return nil
+		}
+
+		return ap.Fulu.Message.Aggregate.Data
 	default:
 		return nil
 	}
@@ -1722,6 +1823,12 @@ func (ap VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
 		}
 
 		return ap.Electra.Message.Aggregate.AggregationBits
+	case eth2spec.DataVersionFulu:
+		if ap.Fulu == nil {
+			return nil
+		}
+
+		return ap.Fulu.Message.Aggregate.AggregationBits
 	default:
 		return nil
 	}

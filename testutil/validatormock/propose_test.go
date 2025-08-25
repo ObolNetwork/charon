@@ -114,7 +114,7 @@ func TestAttest(t *testing.T) {
 			})
 
 			sort.Slice(aggs.SignedAggregateAndProofs, func(i, j int) bool {
-				return aggs.SignedAggregateAndProofs[i].Electra.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Electra.Message.Aggregate.Data.Index
+				return aggs.SignedAggregateAndProofs[i].Fulu.Message.Aggregate.Data.Index < aggs.SignedAggregateAndProofs[j].Fulu.Message.Aggregate.Data.Index
 			})
 
 			t.Run("attestations", func(t *testing.T) {
@@ -199,6 +199,27 @@ func TestProposeBlock(t *testing.T) {
 			},
 		},
 		{
+			version: "fulu",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomElectraBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
+
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := testutil.RandomFuluVersionedProposal()
+				block.Fulu.Block.Slot = opts.Slot
+				block.Fulu.Block.Body.RANDAOReveal = opts.RandaoReveal
+				block.Fulu.Block.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+
+				return block, nil
+			},
+		},
+		{
 			version: "capella blinded",
 			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
 				block := testutil.RandomCapellaBlindedBeaconBlock()
@@ -266,6 +287,31 @@ func TestProposeBlock(t *testing.T) {
 				block.ElectraBlinded.Slot = opts.Slot
 				block.ElectraBlinded.Body.RANDAOReveal = opts.RandaoReveal
 				block.ElectraBlinded.Body.Graffiti = opts.Graffiti
+				block.ExecutionValue = big.NewInt(1)
+				block.ConsensusValue = big.NewInt(1)
+				block.Blinded = true
+
+				return block, nil
+			},
+		},
+		{
+			version: "fulu blinded",
+			jsonBeaconBlock: func(slotsPerEpoch uint64) []byte {
+				block := testutil.RandomElectraBeaconBlock()
+				block.Slot = eth2p0.Slot(slotsPerEpoch)
+				blockJSON, err := block.MarshalJSON()
+				require.NoError(t, err)
+
+				return blockJSON
+			},
+			beaconMockProposalFunc: func(_ context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error) {
+				block := &eth2api.VersionedProposal{
+					Version:     eth2spec.DataVersionFulu,
+					FuluBlinded: testutil.RandomElectraBlindedBeaconBlock(),
+				}
+				block.FuluBlinded.Slot = opts.Slot
+				block.FuluBlinded.Body.RANDAOReveal = opts.RandaoReveal
+				block.FuluBlinded.Body.Graffiti = opts.Graffiti
 				block.ExecutionValue = big.NewInt(1)
 				block.ConsensusValue = big.NewInt(1)
 				block.Blinded = true

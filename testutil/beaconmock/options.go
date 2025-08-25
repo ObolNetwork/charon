@@ -576,9 +576,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			commBits.SetBitAt(0, true)
 
 			return &eth2spec.VersionedAttestation{
-				Version:        eth2spec.DataVersionElectra,
+				Version:        eth2spec.DataVersionFulu,
 				ValidatorIndex: &valIdx,
-				Electra: &electra.Attestation{
+				Fulu: &electra.Attestation{
 					AggregationBits: bitfield.NewBitlist(0),
 					Data:            attData,
 					CommitteeBits:   commBits,

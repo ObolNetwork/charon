@@ -41,6 +41,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomElectraCoreVersionedAttestation(),
 		},
 		{
+			Type: core.DutyAttester,
+			Data: testutil.RandomFuluCoreVersionedAttestation(),
+		},
+		{
 			Type: core.DutyExit,
 			Data: core.SignedVoluntaryExit{SignedVoluntaryExit: *testutil.RandomExit()},
 		},
@@ -55,6 +59,14 @@ func TestParSignedDataSetProto(t *testing.T) {
 		{
 			Type: core.DutyProposer,
 			Data: testutil.RandomDenebCoreVersionedSignedProposal(),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomElectraCoreVersionedSignedProposal(),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomFuluCoreVersionedSignedProposal(),
 		},
 		{
 			Type: core.DutyBuilderRegistration,

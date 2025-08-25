@@ -4,13 +4,14 @@
  },
  "SignedAggregateAndProofs": [
   {
-   "Version": "electra",
+   "Version": "fulu",
    "Phase0": null,
    "Altair": null,
    "Bellatrix": null,
    "Capella": null,
    "Deneb": null,
-   "Electra": {
+   "Electra": null,
+   "Fulu": {
     "message": {
      "aggregator_index": "1",
      "aggregate": {

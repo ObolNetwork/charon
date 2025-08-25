@@ -413,7 +413,7 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 		}
 
 		return ok, nil
-	case eth2spec.DataVersionElectra:
+	case eth2spec.DataVersionElectra, eth2spec.DataVersionFulu:
 		if subData.ValidatorIndex == nil {
 			return false, errors.New("no validator index in electra attestation")
 		}
@@ -842,6 +842,14 @@ func setAttestationSignature(att eth2spec.VersionedAttestation, sig eth2p0.BLSSi
 		att.Electra.Signature = sig
 
 		return nil
+	case eth2spec.DataVersionFulu:
+		if att.Fulu == nil {
+			return errors.New("no Fulu attestation")
+		}
+
+		att.Fulu.Signature = sig
+
+		return nil
 	default:
 		return errors.New("unknown attestation version", z.Str("version", att.Version.String()))
 	}
@@ -897,6 +905,14 @@ func setAttestationAggregationBits(att eth2spec.VersionedAttestation, bits bitfi
 		att.Electra.AggregationBits = bits
 
 		return nil
+	case eth2spec.DataVersionFulu:
+		if att.Fulu == nil {
+			return errors.New("no Fulu attestation")
+		}
+
+		att.Fulu.AggregationBits = bits
+
+		return nil
 	default:
 		return errors.New("unknown attestation version", z.Str("version", att.Version.String()))
 	}
@@ -937,6 +953,12 @@ func conjugateAggregationBits(att *attCommittee, attsMap map[eth2p0.Root]*attCom
 	case eth2spec.DataVersionElectra:
 		if att.Attestation.Electra == nil {
 			return nil, errors.New("no Electra attestation")
+		}
+
+		return conjugateAggregationBitsElectra(att, attsMap, root, committeesForState)
+	case eth2spec.DataVersionFulu:
+		if att.Attestation.Fulu == nil {
+			return nil, errors.New("no Fulu attestation")
 		}
 
 		return conjugateAggregationBitsElectra(att, attsMap, root, committeesForState)
