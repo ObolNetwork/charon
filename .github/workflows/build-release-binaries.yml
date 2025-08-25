@@ -1,7 +1,9 @@
+# on:
+#   push:
+#     tags:
+#       - 'v*'
 on:
-  push:
-    tags:
-      - 'v*'
+  pull_request:
 
 permissions:
     contents: write
@@ -22,7 +24,6 @@ jobs:
     - name: Set version from git tag
       if: github.ref_type == 'tag'
       run: |
-        echo "APP_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
         echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
         echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
 
@@ -41,7 +42,7 @@ jobs:
             export CGO_ENABLED=1 && \
             export GOOS=linux && \
             export GOARCH=amd64 && \
-            go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
+            go build -buildvcs=true -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
             -o dist/charon-$RELEASE_VERSION-linux-amd64
           "
 
@@ -61,7 +62,7 @@ jobs:
             export GOOS=linux && \
             export GOARCH=arm64 && \
             export CC=aarch64-linux-gnu-gcc && \
-            go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
+            go build -buildvcs=true -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
             -o dist/charon-$RELEASE_VERSION-linux-arm64
           "
 
