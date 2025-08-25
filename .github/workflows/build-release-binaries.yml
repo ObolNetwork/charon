@@ -24,8 +24,12 @@ jobs:
     - name: Set version from git tag
       if: github.ref_type == 'tag'
       run: |
+        export VCS_REVISION=$(git rev-parse --short HEAD)
+        export VCS_TIME=$(git log -1 --format="%cd" --date=iso-strict HEAD)
         echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-        echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "LDFLAGS_VALUE=-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }} \
+              -X github.com/obolnetwork/charon/app/version.vcsRevision=${{ env.VCS_REVISION }} \
+              -X github.com/obolnetwork/charon/app/version.vcsTime=${{ env.VCS_TIME }}" >> $GITHUB_ENV
 
     - name: Build x86_64 binary
       env:

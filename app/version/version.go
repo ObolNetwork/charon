@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"runtime/debug"
 	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -21,6 +20,12 @@ var version = "v1.6-dev"
 //   - Main branch: v0.X-dev
 //   - Release branch: v0.Y-rc
 var Version, _ = Parse(version) // Error is caught in tests.
+
+var (
+	// These variables are populated with build information via -ldflags.
+	vcsRevision string = "unknown"
+	vcsTime     string = "unknown"
+)
 
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []SemVer {
@@ -37,29 +42,7 @@ func Supported() []SemVer {
 
 // GitCommit returns the git commit hash and timestamp from build info.
 func GitCommit() (hash string, timestamp string) {
-	hash, timestamp = "unknown", "unknown"
-	hashLen := 7
-
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return hash, timestamp
-	}
-
-	for _, s := range info.Settings {
-		switch s.Key {
-		case "vcs.revision":
-			if len(s.Value) < hashLen {
-				hashLen = len(s.Value)
-			}
-
-			hash = s.Value[:hashLen]
-		case "vcs.time":
-			timestamp = s.Value
-		default:
-		}
-	}
-
-	return hash, timestamp
+	return vcsRevision, vcsTime
 }
 
 // LogInfo logs charon version information along-with the provided message.
