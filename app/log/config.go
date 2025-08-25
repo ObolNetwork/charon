@@ -508,7 +508,7 @@ var level4Map = map[zapcore.Level]string{
 	zapcore.FatalLevel:  "FATL",
 }
 
-// level4CharEncoder adapts zapcore CapitalColorLevelEncoder but trims level strings to 4 characters.
+// newLevel4CharEncoder adapts zapcore CapitalColorLevelEncoder but trims level strings to 4 characters.
 func newLevel4CharEncoder(color bool) zapcore.LevelEncoder {
 	return func(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
 		replace, ok := level4Map[l]
