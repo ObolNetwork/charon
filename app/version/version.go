@@ -23,8 +23,8 @@ var Version, _ = Parse(version) // Error is caught in tests.
 
 var (
 	// These variables are populated with build information via -ldflags.
-	vcsRevision string = "unknown"
-	vcsTime     string = "unknown"
+	vcsRevision = "unknown"
+	vcsTime     = "unknown"
 )
 
 // Supported returns the supported minor versions in order of precedence.
