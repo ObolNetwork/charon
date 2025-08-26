@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -22,9 +23,9 @@ var version = "v1.6-rc"
 var Version, _ = Parse(version) // Error is caught in tests.
 
 var (
-	// These variables are populated with build information via -ldflags.
-	vcsRevision = "unknown"
-	vcsTime     = "unknown"
+	// These variables are populated with build information via -ldflags when binaries are built, but not in Dockerfile.
+	vcsRevision = ""
+	vcsTime     = ""
 )
 
 // Supported returns the supported minor versions in order of precedence.
@@ -42,7 +43,33 @@ func Supported() []SemVer {
 
 // GitCommit returns the git commit hash and timestamp from build info.
 func GitCommit() (hash string, timestamp string) {
-	return vcsRevision, vcsTime
+	if vcsRevision != "" {
+		return vcsRevision, vcsTime
+	}
+
+	hash, timestamp = "unknown", "unknown"
+	hashLen := 7
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return hash, timestamp
+	}
+
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if len(s.Value) < hashLen {
+				hashLen = len(s.Value)
+			}
+
+			hash = s.Value[:hashLen]
+		case "vcs.time":
+			timestamp = s.Value
+		default:
+		}
+	}
+
+	return hash, timestamp
 }
 
 // LogInfo logs charon version information along-with the provided message.
