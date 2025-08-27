@@ -15,7 +15,7 @@ import (
 )
 
 // version a string since it is overwritten at build-time with the git tag for official releases.
-var version = "v1.6-rc"
+var version = "v1.6"
 
 // Version is the branch version of the codebase.
 //   - Main branch: v0.X-dev
