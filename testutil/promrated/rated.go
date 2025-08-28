@@ -94,7 +94,7 @@ func queryRatedAPI(ctx context.Context, url *url.URL, ratedAuth string, network 
 
 		res, err := client.Do(req)
 		if err != nil {
-			return nil, errors.Wrap(err, "requesting rated matrics")
+			return nil, errors.Wrap(err, "requesting rated metrics")
 		}
 
 		body, err := extractBody(res)

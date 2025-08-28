@@ -94,7 +94,7 @@ func (d Duty) String() string {
 	return fmt.Sprintf("%d/%s", d.Slot, d.Type)
 }
 
-// ProposalType defines a tyoe of block proposal process.
+// ProposalType defines a type of block proposal process.
 type ProposalType string
 
 const (

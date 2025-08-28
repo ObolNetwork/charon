@@ -23,7 +23,7 @@ func New(msg string, fields ...z.Field) error {
 }
 
 // NewSentinel returns a sentinel error that does not contain a stack trace. Sentinel errors are package level
-// global variables so their creation stack traces do not add value. Sentinel errors should therefor always be wrapped
+// global variables so their creation stack traces do not add value. Sentinel errors should therefore always be wrapped
 // when first returned to add proper stack trace.
 //
 // Usage:

@@ -17,7 +17,7 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestBackwardsCompatability(t *testing.T) {
+func TestBackwardsCompatibility(t *testing.T) {
 	require.EqualValues(t, 0, core.DutyUnknown)
 	require.EqualValues(t, 1, core.DutyProposer)
 	require.EqualValues(t, 2, core.DutyAttester)
