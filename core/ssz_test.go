@@ -100,7 +100,7 @@ func TestSSZ(t *testing.T) {
 
 func TestMarshalUnsignedProto(t *testing.T) {
 	tests := []struct {
-		unsignedPtr func() any // Need any pointer to avoid wrapping in interface which doesnt' support fuzzing.
+		unsignedPtr func() any // Need any pointer to avoid wrapping in interface which doesn't support fuzzing.
 		dutyType    core.DutyType
 	}{
 		{
@@ -175,7 +175,7 @@ func TestMarshalUnsignedProto(t *testing.T) {
 
 func TestMarshalParSignedProto(t *testing.T) {
 	tests := []struct {
-		signedPtr func() any // Need any pointer to avoid wrapping in interface which doesnt' support fuzzing.
+		signedPtr func() any // Need any pointer to avoid wrapping in interface which doesn't support fuzzing.
 		dutyType  core.DutyType
 	}{
 		{

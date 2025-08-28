@@ -85,7 +85,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 	)
 	defer cancel()
 
-	// Create hosts and enrs (ony for threshold).
+	// Create hosts and enrs (only for threshold).
 	for i := range threshold {
 		addr := testutil.AvailableAddr(t)
 		mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))

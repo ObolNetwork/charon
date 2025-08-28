@@ -12,33 +12,6 @@ import (
 
 type labelSelector func(*pb.MetricFamily) (*pb.Metric, error)
 
-// maxLabel returns the metric with the highest value.
-func maxLabel(metricsFam *pb.MetricFamily) *pb.Metric { //nolint: unused // This is used in the future.
-	var (
-		maxVal float64
-		resp   *pb.Metric
-	)
-	for _, metric := range metricsFam.GetMetric() {
-		var val float64
-
-		switch metricsFam.GetType() {
-		case pb.MetricType_COUNTER:
-			val = metric.GetCounter().GetValue()
-		case pb.MetricType_GAUGE:
-			val = metric.GetGauge().GetValue()
-		default:
-			panic("invalid metric type for simple value labelSelector")
-		}
-
-		if maxVal == 0 || val > maxVal {
-			maxVal = val
-			resp = metric
-		}
-	}
-
-	return resp
-}
-
 // countNonZeroLabels counts the number of metrics that have a non-zero value.
 func countNonZeroLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	timestamp := metricsFam.GetMetric()[0].GetTimestampMs()
@@ -109,25 +82,6 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 		}
 
 		return sum, nil
-	}
-}
-
-// selectLabel returns a selector that returns the first metric that matches all of the label pairs.
-func selectLabel(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) { //nolint: unused // This is used in the future.
-	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
-		var found *pb.Metric
-
-		for _, metric := range metricsFam.GetMetric() {
-			if labelsContain(metric.GetLabel(), labels) {
-				if found != nil {
-					return nil, errors.New("multiple metrics matching label selector")
-				}
-
-				found = metric
-			}
-		}
-
-		return found, nil
 	}
 }
 

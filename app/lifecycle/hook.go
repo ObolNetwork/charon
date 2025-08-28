@@ -57,12 +57,12 @@ const (
 	// with the application context. Using the application usually results in hard shutdown.
 	AsyncAppCtx HookStartType = iota + 1
 
-	// SyncBackground defines a start hook that wil be called synchronously (blocking)
+	// SyncBackground defines a start hook that will be called synchronously (blocking)
 	// with a fresh background context. Processes that support graceful shutdown can
 	// associate this with a call to RegisterStop.
 	SyncBackground
 
-	// AsyncBackground defines a start hook that wil be called asynchronously (non-blocking)
+	// AsyncBackground defines a start hook that will be called asynchronously (non-blocking)
 	// with a fresh background context. Processes that support graceful shutdown can
 	// associate this with a call to RegisterStop.
 	AsyncBackground

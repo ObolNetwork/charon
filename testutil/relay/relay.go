@@ -83,7 +83,7 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 			return ""
 		case err := <-errChan:
 			testutil.SkipIfBindErr(t, err)
-			require.Fail(t, "Relay exitted before startup", "err=%v", err)
+			require.Fail(t, "Relay exited before startup", "err=%v", err)
 
 			return ""
 		case <-isUp:

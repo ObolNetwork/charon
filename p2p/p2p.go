@@ -341,7 +341,7 @@ func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Hook
 	}
 }
 
-// IsQUICEnabled returns true if the host has an address or listenning address on QUIC
+// IsQUICEnabled returns true if the host has an address or listening address on QUIC
 func isQUICEnabled(h host.Host) bool {
 	if slices.ContainsFunc(h.Network().ListenAddresses(), isQUICAddr) {
 		return true

@@ -87,7 +87,7 @@ func decode(t *testing.T, b []byte) *pbv1.PushRequest {
 
 func TestLongLines(t *testing.T) {
 	const (
-		// copied fromm client.go, simulate production workload
+		// copied from client.go, simulate production workload
 		batchMax      = 5 * 1 << 20
 		maxLogLineLen = 4 << 10
 

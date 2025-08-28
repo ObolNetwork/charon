@@ -26,7 +26,7 @@ We take inspiration and guidance from these top-quality go projects.
 ## Tradeoffs
 Go is a high-level imperative “getting s@&!t done” language but there are always a
 thousand ways to approach a problem. The Charon codebase doesn't follow the common OOP-like style which emphasises *types and interfaces*.
-Instead, it follows a more procedural style for a focus on *functions and values*, [#AlgorthimsAndDataStructuresOverTypes](https://en.wikipedia.org/wiki/Object-oriented_programming#cite_note-48). This style can be summarized by the following tradeoffs:
+Instead, it follows a more procedural style for a focus on *functions and values*, [#AlgorithmsAndDataStructuresOverTypes](https://en.wikipedia.org/wiki/Object-oriented_programming#cite_note-48). This style can be summarized by the following tradeoffs:
 
 - Prefer **unexported over exported** types and functions. [#WriteShyCode](https://dave.cheney.net/practical-go/presentations/qcon-china.html#_package_design)
 - Prefer **functions over methods** as methods lends themselves to stateful code while functions are stateless. [#FunctionsOverMethods](https://kellysutton.com/2018/07/13/simple-made-easy-methods-vs-functions.html)

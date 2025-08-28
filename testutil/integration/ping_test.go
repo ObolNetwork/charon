@@ -134,7 +134,7 @@ func pingCluster(t *testing.T, test pingTest) {
 
 		eg.Go(func() error {
 			err := app.Run(peerCtx(ctx, i), conf)
-			t.Logf("Peer %d exitted: err=%v", i, err)
+			t.Logf("Peer %d exited: err=%v", i, err)
 			cancel()
 
 			return err
