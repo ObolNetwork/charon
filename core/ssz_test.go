@@ -356,6 +356,24 @@ func TestV3SignedProposalSSZSerialisation(t *testing.T) {
 				Blinded: true,
 			},
 		},
+		{
+			name: "fulu",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionFulu,
+				Fulu:    testutil.RandomFuluVersionedSignedProposal().Fulu,
+			},
+		},
+		{
+			name: "fulu blinded",
+			proposal: eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionFulu,
+				FuluBlinded: &eth2electra.SignedBlindedBeaconBlock{
+					Message:   testutil.RandomElectraBlindedBeaconBlock(),
+					Signature: testutil.RandomEth2Signature(),
+				},
+				Blinded: true,
+			},
+		},
 	}
 
 	for _, test := range tests {

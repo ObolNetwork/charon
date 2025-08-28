@@ -407,6 +407,12 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 		} else {
 			actualAddr = fmt.Sprintf("%#x", proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient)
 		}
+	case eth2spec.DataVersionFulu:
+		if proposal.Blinded {
+			actualAddr = fmt.Sprintf("%#x", proposal.FuluBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
+		} else {
+			actualAddr = fmt.Sprintf("%#x", proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient)
+		}
 	default:
 		return
 	}

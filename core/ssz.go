@@ -152,6 +152,20 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		}
 
 		return p.Electra, nil
+	case eth2util.DataVersionFulu:
+		if p.Fulu == nil && !blinded {
+			p.Fulu = new(eth2electra.SignedBlockContents) // Fulu blocks have the same structure as electra blocks.
+		}
+
+		if p.FuluBlinded == nil && blinded {
+			p.FuluBlinded = new(eth2electra.SignedBlindedBeaconBlock) // Fulu blinded blocks have the same structure as electra blinded blocks.
+		}
+
+		if blinded {
+			return p.FuluBlinded, nil
+		}
+
+		return p.Fulu, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -280,6 +294,20 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		}
 
 		return p.Electra, nil
+	case eth2util.DataVersionFulu:
+		if p.Fulu == nil && !blinded {
+			p.Fulu = new(eth2electra.BlockContents) // Fulu blocks have the same structure as electra blocks.
+		}
+
+		if p.FuluBlinded == nil && blinded {
+			p.FuluBlinded = new(eth2electra.BlindedBeaconBlock) // Fulu blinded blocks have the same structure as electra blinded blocks.
+		}
+
+		if blinded {
+			return p.FuluBlinded, nil
+		}
+
+		return p.Fulu, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -391,6 +419,12 @@ func (a *VersionedAttestation) sszValFromVersion(version eth2util.DataVersion) (
 		}
 
 		return a.Electra, nil
+	case eth2util.DataVersionFulu:
+		if a.Fulu == nil {
+			a.Fulu = new(electra.Attestation)
+		}
+
+		return a.Fulu, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -486,6 +520,12 @@ func (ap *VersionedSignedAggregateAndProof) sszValFromVersion(version eth2util.D
 		}
 
 		return ap.Electra, nil
+	case eth2util.DataVersionFulu:
+		if ap.Fulu == nil {
+			ap.Fulu = new(electra.SignedAggregateAndProof)
+		}
+
+		return ap.Fulu, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -581,6 +621,12 @@ func (a *VersionedAggregatedAttestation) sszValFromVersion(version eth2util.Data
 		}
 
 		return a.Electra, nil
+	case eth2util.DataVersionFulu:
+		if a.Fulu == nil {
+			a.Fulu = new(electra.Attestation)
+		}
+
+		return a.Fulu, nil
 	default:
 		return nil, errors.New("invalid version")
 	}

@@ -163,6 +163,18 @@ func RandomElectraCoreVersionedAttestation() core.VersionedAttestation {
 	}
 }
 
+func RandomFuluCoreVersionedAttestation() core.VersionedAttestation {
+	vIdx := RandomVIdx()
+
+	return core.VersionedAttestation{
+		VersionedAttestation: eth2spec.VersionedAttestation{
+			Version:        eth2spec.DataVersionFulu,
+			ValidatorIndex: &vIdx,
+			Fulu:           RandomElectraAttestation(),
+		},
+	}
+}
+
 func RandomDenebVersionedAttestation() *eth2spec.VersionedAttestation {
 	return &eth2spec.VersionedAttestation{
 		Version: eth2spec.DataVersionDeneb,
@@ -174,6 +186,13 @@ func RandomElectraVersionedAttestation() *eth2spec.VersionedAttestation {
 	return &eth2spec.VersionedAttestation{
 		Version: eth2spec.DataVersionElectra,
 		Electra: RandomElectraAttestation(),
+	}
+}
+
+func RandomFuluVersionedAttestation() *eth2spec.VersionedAttestation {
+	return &eth2spec.VersionedAttestation{
+		Version: eth2spec.DataVersionFulu,
+		Fulu:    RandomElectraAttestation(),
 	}
 }
 
@@ -432,6 +451,22 @@ func RandomElectraCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	}
 }
 
+func RandomFuluCoreVersionedSignedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
+			Version: eth2spec.DataVersionFulu,
+			Fulu: &eth2electra.SignedBlockContents{
+				SignedBlock: &electra.SignedBeaconBlock{
+					Message:   RandomElectraBeaconBlock(),
+					Signature: RandomEth2Signature(),
+				},
+				KZGProofs: []deneb.KZGProof{},
+				Blobs:     []deneb.Blob{},
+			},
+		},
+	}
+}
+
 // RandomCapellaVersionedSignedBeaconBlock returns a random signed capella beacon block.
 func RandomCapellaVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
 	return &eth2spec.VersionedSignedBeaconBlock{
@@ -459,6 +494,17 @@ func RandomElectraVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBl
 	return &eth2spec.VersionedSignedBeaconBlock{
 		Version: eth2spec.DataVersionElectra,
 		Electra: &electra.SignedBeaconBlock{
+			Message:   RandomElectraBeaconBlock(),
+			Signature: RandomEth2Signature(),
+		},
+	}
+}
+
+// RandomFuluVersionedSignedBeaconBlock returns a random signed fulu beacon block.
+func RandomFuluVersionedSignedBeaconBlock() *eth2spec.VersionedSignedBeaconBlock {
+	return &eth2spec.VersionedSignedBeaconBlock{
+		Version: eth2spec.DataVersionFulu,
+		Fulu: &electra.SignedBeaconBlock{
 			Message:   RandomElectraBeaconBlock(),
 			Signature: RandomEth2Signature(),
 		},
@@ -506,6 +552,21 @@ func RandomElectraVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	}
 }
 
+// RandomFuluVersionedSignedProposal returns a random versioned signed proposal containing fulu beacon block.
+func RandomFuluVersionedSignedProposal() *eth2api.VersionedSignedProposal {
+	return &eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionFulu,
+		Fulu: &eth2electra.SignedBlockContents{
+			SignedBlock: &electra.SignedBeaconBlock{
+				Message:   RandomElectraBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
+		},
+	}
+}
+
 // RandomCapellaVersionedProposal returns a random versioned proposal containing capella beacon block.
 func RandomCapellaVersionedProposal() *eth2api.VersionedProposal {
 	return &eth2api.VersionedProposal{
@@ -531,6 +592,18 @@ func RandomElectraVersionedProposal() *eth2api.VersionedProposal {
 	return &eth2api.VersionedProposal{
 		Version: eth2spec.DataVersionElectra,
 		Electra: &eth2electra.BlockContents{
+			Block:     RandomElectraBeaconBlock(),
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
+		},
+	}
+}
+
+// RandomFuluVersionedProposal returns a random versioned proposal containing fulu beacon block.
+func RandomFuluVersionedProposal() *eth2api.VersionedProposal {
+	return &eth2api.VersionedProposal{
+		Version: eth2spec.DataVersionFulu,
+		Fulu: &eth2electra.BlockContents{
 			Block:     RandomElectraBeaconBlock(),
 			KZGProofs: []deneb.KZGProof{},
 			Blobs:     []deneb.Blob{},
@@ -662,6 +735,19 @@ func RandomElectraVersionedSignedBlindedProposal() core.VersionedSignedProposal 
 			Blinded: true,
 			Version: eth2spec.DataVersionElectra,
 			ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+				Message:   RandomElectraBlindedBeaconBlock(),
+				Signature: RandomEth2Signature(),
+			},
+		},
+	}
+}
+
+func RandomFuluVersionedSignedBlindedProposal() core.VersionedSignedProposal {
+	return core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
+			Blinded: true,
+			Version: eth2spec.DataVersionFulu,
+			FuluBlinded: &eth2electra.SignedBlindedBeaconBlock{
 				Message:   RandomElectraBlindedBeaconBlock(),
 				Signature: RandomEth2Signature(),
 			},
