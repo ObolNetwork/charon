@@ -17,6 +17,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -814,7 +815,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 			signedBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, s [96]byte) *eth2api.VersionedSignedProposal {
 				return &eth2api.VersionedSignedProposal{
 					Version: eth2spec.DataVersionFulu,
-					Fulu: &eth2electra.SignedBlockContents{
+					Fulu: &eth2fulu.SignedBlockContents{
 						SignedBlock: &electra.SignedBeaconBlock{
 							Message:   unsignedBlock.Fulu,
 							Signature: eth2p0.BLSSignature(s),
@@ -827,7 +828,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 			awaitBlockFunc: func(unsignedBlock *eth2spec.VersionedBeaconBlock, signedBlock *eth2api.VersionedSignedProposal) *eth2api.VersionedProposal {
 				return &eth2api.VersionedProposal{
 					Version: signedBlock.Version,
-					Fulu: &eth2electra.BlockContents{
+					Fulu: &eth2fulu.BlockContents{
 						Block:     unsignedBlock.Fulu,
 						KZGProofs: []deneb.KZGProof{},
 						Blobs:     []deneb.Blob{},

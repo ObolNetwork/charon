@@ -12,6 +12,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -579,7 +580,7 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 
 			resp.FuluBlinded = block
 		} else {
-			block := new(eth2electra.SignedBlockContents) // Fulu blocks have the same structure as electra blocks.
+			block := new(eth2fulu.SignedBlockContents)
 			if err := json.Unmarshal(raw.Block, &block); err != nil {
 				return errors.Wrap(err, "unmarshal fulu")
 			}

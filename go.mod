@@ -294,7 +294,7 @@ require (
 replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.1.0
 
 // We're replacing go-eth2-client with a branch off our fork. The branch is kept up to date with the latest attestantio versions.
-replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.26.0-obol.2-fulu.2 //nolint
+replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.26.0-obol.2-fulu.3 //nolint
 
 tool (
 	github.com/bufbuild/buf/cmd/buf

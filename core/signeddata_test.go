@@ -12,6 +12,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -170,7 +171,7 @@ func TestSignedDataSetSignature(t *testing.T) {
 			data: core.VersionedSignedProposal{
 				VersionedSignedProposal: eth2api.VersionedSignedProposal{
 					Version: eth2spec.DataVersionFulu,
-					Fulu: &eth2electra.SignedBlockContents{
+					Fulu: &eth2fulu.SignedBlockContents{
 						SignedBlock: &electra.SignedBeaconBlock{
 							Message:   testutil.RandomElectraBeaconBlock(),
 							Signature: testutil.RandomEth2Signature(),

@@ -20,6 +20,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -455,7 +456,7 @@ func RandomFuluCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
 		VersionedSignedProposal: eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionFulu,
-			Fulu: &eth2electra.SignedBlockContents{
+			Fulu: &eth2fulu.SignedBlockContents{
 				SignedBlock: &electra.SignedBeaconBlock{
 					Message:   RandomElectraBeaconBlock(),
 					Signature: RandomEth2Signature(),
@@ -556,7 +557,7 @@ func RandomElectraVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 func RandomFuluVersionedSignedProposal() *eth2api.VersionedSignedProposal {
 	return &eth2api.VersionedSignedProposal{
 		Version: eth2spec.DataVersionFulu,
-		Fulu: &eth2electra.SignedBlockContents{
+		Fulu: &eth2fulu.SignedBlockContents{
 			SignedBlock: &electra.SignedBeaconBlock{
 				Message:   RandomElectraBeaconBlock(),
 				Signature: RandomEth2Signature(),
@@ -603,7 +604,7 @@ func RandomElectraVersionedProposal() *eth2api.VersionedProposal {
 func RandomFuluVersionedProposal() *eth2api.VersionedProposal {
 	return &eth2api.VersionedProposal{
 		Version: eth2spec.DataVersionFulu,
-		Fulu: &eth2electra.BlockContents{
+		Fulu: &eth2fulu.BlockContents{
 			Block:     RandomElectraBeaconBlock(),
 			KZGProofs: []deneb.KZGProof{},
 			Blobs:     []deneb.Blob{},
