@@ -15,6 +15,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -186,7 +187,7 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 		proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient = feeRecipient
 		proposal.Electra.Block.Body.ExecutionPayload.Transactions = fraction(proposal.Electra.Block.Body.ExecutionPayload.Transactions)
 	case eth2spec.DataVersionFulu:
-		proposal.Fulu = &eth2electra.BlockContents{}
+		proposal.Fulu = &eth2fulu.BlockContents{}
 		proposal.Fulu.Block = signedBlock.Fulu.Message
 		proposal.Fulu.Block.Body.Graffiti = GetSyntheticGraffiti()
 		proposal.Fulu.Block.Slot = slot

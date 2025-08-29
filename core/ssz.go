@@ -10,6 +10,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -154,7 +155,7 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		return p.Electra, nil
 	case eth2util.DataVersionFulu:
 		if p.Fulu == nil && !blinded {
-			p.Fulu = new(eth2electra.SignedBlockContents) // Fulu blocks have the same structure as electra blocks.
+			p.Fulu = new(eth2fulu.SignedBlockContents)
 		}
 
 		if p.FuluBlinded == nil && blinded {
@@ -296,7 +297,7 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		return p.Electra, nil
 	case eth2util.DataVersionFulu:
 		if p.Fulu == nil && !blinded {
-			p.Fulu = new(eth2electra.BlockContents) // Fulu blocks have the same structure as electra blocks.
+			p.Fulu = new(eth2fulu.BlockContents)
 		}
 
 		if p.FuluBlinded == nil && blinded {

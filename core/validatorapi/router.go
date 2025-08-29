@@ -28,6 +28,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -1155,7 +1156,7 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 			})
 
 		case eth2spec.DataVersionFulu:
-			fuluBlock := new(eth2electra.SignedBlockContents) // Fulu blocks have the same structure as electra blocks.
+			fuluBlock := new(eth2fulu.SignedBlockContents)
 
 			err = unmarshal(typ, body, fuluBlock)
 			if err != nil {
