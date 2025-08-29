@@ -292,8 +292,11 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 		proposal := eth2Resp.Data
 
-		// Ensure fee recipient is correctly populated in proposal.
-		verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
+		// Builders set fee recipient to themselves so it's always different from validator's.
+		if !f.builderEnabled {
+			// Ensure fee recipient is correctly populated in proposal.
+			verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
+		}
 
 		coreProposal, err := core.NewVersionedProposal(proposal)
 		if err != nil {
