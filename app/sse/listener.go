@@ -224,7 +224,7 @@ func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr stri
 
 	err := json.Unmarshal(event.Data, &block)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal SSE block_gossip event", z.Str("addr", addr))
+		return errors.Wrap(err, "unmarshal SSE block event", z.Str("addr", addr))
 	}
 
 	slot, err := strconv.ParseUint(block.Slot, 10, 64)
