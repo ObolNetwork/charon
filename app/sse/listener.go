@@ -100,6 +100,10 @@ func (p *listener) eventHandler(ctx context.Context, event *event, addr string) 
 		return p.handleHeadEvent(ctx, event, addr)
 	case sseChainReorgEvent:
 		return p.handleChainReorgEvent(ctx, event, addr)
+	case sseBlockGossipEvent:
+		return p.handleBlockGossipEvent(ctx, event, addr)
+	case sseBlockEvent:
+		return p.handleBlockEvent(ctx, event, addr)
 	default:
 		return nil
 	}
@@ -122,7 +126,11 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 		return errors.New("slot value exceeds int64 range", z.Str("addr", addr), z.U64("slot", slot))
 	}
 
-	delay, ok := p.computeDelay(slot, event.Timestamp)
+	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
+		// Chain's head is updated upon majority of the chain voting with attestations for a block.
+		// Realistically this happens between 2/3 and 3/3 of the slot's timeframe.
+		return delay < p.slotDuration
+	})
 	if !ok {
 		log.Debug(ctx, "Beacon node received head event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
 	} else {
@@ -142,7 +150,7 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 }
 
 func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr string) error {
-	var chainReorg chainReorgData
+	var chainReorg chainReorgEventData
 
 	err := json.Unmarshal(event.Data, &chainReorg)
 	if err != nil {
@@ -180,6 +188,68 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 	return nil
 }
 
+func (p *listener) handleBlockGossipEvent(ctx context.Context, event *event, addr string) error {
+	var blockGossip blockGossipEventData
+
+	err := json.Unmarshal(event.Data, &blockGossip)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal SSE block_gossip event", z.Str("addr", addr))
+	}
+
+	slot, err := strconv.ParseUint(blockGossip.Slot, 10, 64)
+	if err != nil {
+		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
+	}
+
+	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
+		// Beacon node should receive a block via P2P or API between 0/3 and 1/3 of the slot's timeframe.
+		return delay < (p.slotDuration / 3)
+	})
+	if !ok {
+		log.Debug(ctx, "Beacon node received block_gossip event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
+	}
+
+	log.Debug(ctx, "SSE block gossip event",
+		z.U64("slot", slot),
+		z.Str("delay", delay.String()),
+		z.Str("block", blockGossip.Block))
+
+	sseBlockGossipHistogram.WithLabelValues(addr).Observe(float64(delay))
+
+	return nil
+}
+
+func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr string) error {
+	var block blockEventData
+
+	err := json.Unmarshal(event.Data, &block)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal SSE block event", z.Str("addr", addr))
+	}
+
+	slot, err := strconv.ParseUint(block.Slot, 10, 64)
+	if err != nil {
+		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
+	}
+
+	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
+		// Beacon node should import a block to its fork-choice between 0/3 and 1/3 of the slot's timeframe.
+		return delay < (p.slotDuration / 3)
+	})
+	if !ok {
+		log.Debug(ctx, "Beacon node received block event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
+	}
+
+	log.Debug(ctx, "SSE block event",
+		z.U64("slot", slot),
+		z.Str("delay", delay.String()),
+		z.Str("block", block.Block))
+
+	sseBlockHistogram.WithLabelValues(addr).Observe(float64(delay))
+
+	return nil
+}
+
 func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 	p.Lock()
 	defer p.Unlock()
@@ -194,14 +264,11 @@ func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 	}
 }
 
-// Compute delay between start of the slot and receiving the head update event.
-func (p *listener) computeDelay(slot uint64, eventTS time.Time) (time.Duration, bool) {
+// Compute delay between start of the slot and receiving the event.
+func (p *listener) computeDelay(slot uint64, eventTS time.Time, delayOKFunc func(delay time.Duration) bool) (time.Duration, bool) {
 	slotStartTime := p.genesisTime.Add(time.Duration(slot) * p.slotDuration)
 	delay := eventTS.Sub(slotStartTime)
-	// Chain's head is updated upon majority of the chain voting with attestations for a block.
-	// Realistically this happens between 2/3 and 3/3 of the slot's timeframe.
-	delayOK := delay < p.slotDuration
 
 	// calculate time of receiving the event - the time of start of the slot
-	return delay + p.slotDuration, delayOK
+	return delay, delayOKFunc(delay)
 }

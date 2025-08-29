@@ -3,8 +3,10 @@
 package sse
 
 const (
-	sseHeadEvent       = "head"
-	sseChainReorgEvent = "chain_reorg"
+	sseHeadEvent        = "head"
+	sseChainReorgEvent  = "chain_reorg"
+	sseBlockGossipEvent = "block_gossip"
+	sseBlockEvent       = "block"
 )
 
 type headEventData struct {
@@ -17,7 +19,7 @@ type headEventData struct {
 	ExecutionOptimistic       bool   `json:"execution_optimistic"`
 }
 
-type chainReorgData struct {
+type chainReorgEventData struct {
 	Slot                string `json:"slot"`
 	Depth               string `json:"depth"`
 	OldHeadBlock        string `json:"old_head_block"`
@@ -25,5 +27,16 @@ type chainReorgData struct {
 	OldHeadState        string `json:"old_head_state"`
 	NewHeadState        string `json:"new_head_state"`
 	Epoch               string `json:"epoch"`
+	ExecutionOptimistic bool   `json:"execution_optimistic"`
+}
+
+type blockGossipEventData struct {
+	Slot  string `json:"slot"`
+	Block string `json:"block"`
+}
+
+type blockEventData struct {
+	Slot                string `json:"slot"`
+	Block               string `json:"block"`
 	ExecutionOptimistic bool   `json:"execution_optimistic"`
 }
