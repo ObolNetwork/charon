@@ -520,6 +520,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
 		c.pubkeys = make(map[int64]*k1.PublicKey)
 		c.pubkeys[0] = p2pKey.PubKey()
+		c.p2pNode = testutil.CreateHost(t, testutil.AvailableAddr(t))
 
 		duty := core.Duty{Slot: 42, Type: 1}
 		msg := &pbv1.QBFTConsensusMsg{

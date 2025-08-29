@@ -370,6 +370,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	defer cancel()
 
 	log.Debug(ctx, "QBFT consensus instance starting",
+		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
 		z.Any("peers", c.peerLabels),
 		z.Any("timer", string(roundTimer.Type())),
 	)
