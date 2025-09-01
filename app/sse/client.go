@@ -58,6 +58,8 @@ func newClient(addr string, header http.Header) (*client, error) {
 	q := u.Query()
 	q.Add("topics", sseHeadEvent)
 	q.Add("topics", sseChainReorgEvent)
+	q.Add("topics", sseBlockGossipEvent)
+	q.Add("topics", sseBlockEvent)
 	u.RawQuery = q.Encode()
 
 	return &client{
@@ -178,9 +180,7 @@ func (c *client) connect(ctx context.Context, eventFn EventHandler) error {
 }
 
 func (c *client) parseEvent(r *bufio.Reader) (*event, error) {
-	event := &event{
-		Timestamp: time.Now(),
-	}
+	event := &event{}
 
 	for {
 		parts, err := formatAndValidateEvent(r)
@@ -204,6 +204,7 @@ func (c *client) parseEvent(r *bufio.Reader) (*event, error) {
 		case "id":
 			event.ID = string(parts[1])
 		case "event":
+			event.Timestamp = time.Now()
 			event.Event = string(parts[1])
 		case "data":
 			if event.Data != nil {

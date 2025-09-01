@@ -151,14 +151,14 @@ func TestComputeDelay(t *testing.T) {
 			name:       "happy path",
 			slot:       1,
 			eventTS:    genesisTime.Add(slotDuration + 2*slotDuration/3), // 2/3 into slot 1
-			expected:   2*slotDuration/3 + slotDuration,
+			expected:   2 * slotDuration / 3,
 			expectedOk: true,
 		},
 		{
 			name:       "happy path, not ok",
 			slot:       1,
 			eventTS:    genesisTime.Add(2*slotDuration + time.Second), // 1 second into slot 2
-			expected:   2*slotDuration + time.Second,
+			expected:   slotDuration + time.Second,
 			expectedOk: false,
 		},
 	}
@@ -171,7 +171,9 @@ func TestComputeDelay(t *testing.T) {
 				slotsPerEpoch: 32,
 			}
 
-			res, ok := l.computeDelay(test.slot, test.eventTS)
+			res, ok := l.computeDelay(test.slot, test.eventTS, func(delay time.Duration) bool {
+				return delay < slotDuration
+			})
 			require.Equal(t, test.expected, res)
 			require.Equal(t, test.expectedOk, ok)
 		})
