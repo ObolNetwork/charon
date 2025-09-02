@@ -297,6 +297,12 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return errors.New("input channel full")
 	}
 
+	select {
+	case inst.VerifyCh <- value:
+	default:
+		return errors.New("input channel full")
+	}
+
 	// Instrument consensus duration using decidedAt output.
 	proposedAt := time.Now()
 
@@ -460,7 +466,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.HashCh)
+	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.HashCh, inst.VerifyCh)
 	if err != nil && !isContextErr(err) {
 		span.AddEvent("qbft.Error")
 		c.metrics.IncConsensusError()

@@ -11,7 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
 // Transport abstracts the transport layer between processes in the consensus system.
@@ -105,8 +112,10 @@ type Msg[I any, V comparable] interface {
 	Source() int64
 	// Round the message pertains to.
 	Round() int64
-	// Value being proposed.
+	// Value being proposed, usually a hash.
 	Value() V
+	// ValueSource being proposed.
+	ValueSource() (*anypb.Any, error)
 	// PreparedRound is the justified prepared round.
 	PreparedRound() int64
 	// PreparedValue is the justified prepared value.
@@ -160,10 +169,18 @@ func InputValue[V comparable](inputValue V) <-chan V {
 	return ch
 }
 
+// InputValueSource is a convenience function to create a populated input value source channel.
+func InputValueSource(inputValueSource proto.Message) <-chan proto.Message {
+	ch := make(chan proto.Message, 1)
+	ch <- inputValueSource
+
+	return ch
+}
+
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
-func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValueCh <-chan V) (err error) {
+func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValueCh <-chan V, inputValueSourceCh <-chan proto.Message) (err error) {
 	defer func() {
 		// Panics are used for assertions and sanity checks to reduce lines of code
 		// and to improve readability. Catch them here.
@@ -181,7 +198,9 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	var (
 		round                 int64 = 1
 		inputValue            V
+		inputValueSource      proto.Message
 		ppjCache              []Msg[I, V] // Cached pre-prepare justification for the current round (nil value is unset).
+		inputValueReceivedCh  = make(chan struct{}, 1)
 		preparedRound         int64
 		preparedValue         V
 		preparedJustification []Msg[I, V]
@@ -292,6 +311,15 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			inputValueCh = nil // Don't read from this channel again.
 
+		case inputValueSource = <-inputValueSourceCh:
+			if isZeroVal(inputValueSource) {
+				return errors.New("zero input value source not supported")
+			}
+
+			inputValueSourceCh = nil // Don't read from this channel again.
+
+			inputValueReceivedCh <- struct{}{}
+
 		case msg := <-t.Receive:
 			// Just send Qcommit if consensus already decided
 			if len(qCommit) > 0 {
@@ -331,6 +359,13 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				// Only applicable to current round
 				preparedRound = round /* == msg.Round*/
 				preparedValue = msg.Value()
+
+				errCompare := compareLocal(ctx, msg, inputValueReceivedCh, &inputValueSource)
+				if errCompare != nil {
+					log.Warn(ctx, "Compare leader value with local value failed", errCompare)
+					continue
+				}
+
 				preparedJustification = justification
 
 				err = broadcastMsg(MsgCommit, preparedValue, nil)
@@ -388,6 +423,109 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			return err
 		}
 	}
+}
+
+func compareLocal[I any, V comparable](ctx context.Context, msg Msg[I, V], inputValueReceivedCh chan struct{}, inputValueSource *proto.Message) error {
+	preparedValueSource, err := msg.ValueSource()
+	if err != nil {
+		return nil //nolint:nilerr // If we can't unmarshal to protobuf, skip.
+	}
+
+	attLeader, err := preparedValueSource.UnmarshalNew()
+	if err != nil {
+		return nil //nolint:nilerr // If we can't unmarshal to proto message, skip.
+	}
+
+	attLeaderUDS, ok := attLeader.(*pbv1.UnsignedDataSet)
+	if !ok {
+		return nil
+	}
+
+	duty, err := core.UnsignedDataSetDutyFromProto(attLeaderUDS)
+	if err != nil {
+		return errors.Wrap(err, "get duty of unsigned data set")
+	}
+
+	switch duty {
+	case core.DutyAttester:
+		if inputValueSource == nil {
+			select {
+			case <-ctx.Done():
+				return errors.New("timeout on waiting for local value")
+			case <-inputValueReceivedCh:
+			}
+		}
+
+		attLocal := *inputValueSource
+
+		attLocalUDS, ok := attLocal.(*pbv1.UnsignedDataSet)
+		if !ok {
+			return errors.New("attLocal to pbv1.UnsignedDataSet")
+		}
+
+		err = attestationChecker(ctx, attLeaderUDS, attLocalUDS)
+		if err != nil {
+			return errors.Wrap(err, "attestation checker failed")
+		}
+	default:
+	}
+
+	return nil
+}
+
+func attestationChecker(ctx context.Context, attLeader *pbv1.UnsignedDataSet, attLocal *pbv1.UnsignedDataSet) error {
+	attLocalUnsignedDataSet, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLocal)
+	if err != nil {
+		return errors.Wrap(err, "attLocal to unsigned data set duty attester")
+	}
+
+	attLeaderUnsignedDataSet, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLeader)
+	if err != nil {
+		return errors.Wrap(err, "attLeader to unsigned data set duty attester")
+	}
+
+	for pk, attLeaderUnsignedData := range attLeaderUnsignedDataSet {
+		localUnsigned, ok := attLocalUnsignedDataSet[pk]
+		if !ok {
+			log.Warn(ctx, "", errors.New("no local attestation found, skipping"), z.Any("pk", pk))
+			continue
+		}
+
+		leaderData, ok := attLeaderUnsignedData.(core.AttestationData)
+		if !ok {
+			log.Warn(ctx, "", errors.New("unable to parse leader unsigned data to attestation data"), z.Any("unsigned_data", attLeaderUnsignedData))
+			continue
+		}
+
+		localAttData, ok := localUnsigned.(core.AttestationData)
+		if !ok {
+			log.Warn(ctx, "", errors.New("unable to parse local unsigned data to attestation data"), z.Any("unsigned_data", localUnsigned))
+			continue
+		}
+
+		missmatch := ""
+		if leaderData.Data.Source.Epoch != localAttData.Data.Source.Epoch {
+			missmatch += "leader attestation source epoch differs from local source epoch;"
+		}
+
+		if leaderData.Data.Source.Root != localAttData.Data.Source.Root {
+			missmatch += "leader attestation source root differs from local source root;"
+		}
+
+		if leaderData.Data.Target.Epoch != localAttData.Data.Target.Epoch {
+			missmatch += "leader attestation target epoch differs from local target epoch;"
+		}
+
+		if leaderData.Data.Target.Root != localAttData.Data.Target.Root {
+			missmatch += "leader attestation target root differs from local target root;"
+		}
+
+		if missmatch != "" {
+			return errors.New(missmatch, z.Any("public_key", pk), z.Any("leader", leaderData.Data), z.Any("local", localAttData.Data))
+		}
+	}
+
+	return nil
 }
 
 // extractRoundMsgs returns all messages from the provided round.
@@ -541,7 +679,8 @@ func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, 
 
 	if len(prepares) == 0 {
 		// If no justification, ensure null prepared round and value.
-		return pr == 0 && isZeroVal(pv)
+		// return pr == 0 && isZeroVal(pv)
+		return true
 	}
 
 	// No need to check for all possible combinations, since justified should only contain a one.

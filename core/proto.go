@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"testing"
 
 	ssz "github.com/ferranbt/fastssz"
@@ -259,6 +261,15 @@ func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (Unsigned
 	}
 
 	return resp, nil
+}
+
+// UnsignedDataSetDutyFromProto returns the duty.
+func UnsignedDataSetDutyFromProto(set *pbv1.UnsignedDataSet) (DutyType, error) {
+	if set == nil || len(set.GetSet()) == 0 {
+		return DutyUnknown, errors.New("invalid unsigned data set fields", z.Any("set", set))
+	}
+
+	return unmarshalDutyFromUnsignedData(slices.Collect(maps.Values(set.GetSet()))[0]), nil
 }
 
 // marshal marshals the given value into bytes, either as SSZ if supported by the type (and if enabled) or as json.

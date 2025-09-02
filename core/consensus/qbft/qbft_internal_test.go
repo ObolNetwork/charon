@@ -111,6 +111,10 @@ func (t testMsg) Value() [32]byte {
 	panic("implement me")
 }
 
+func (t testMsg) ValueSource() (*anypb.Any, error) {
+	panic("implement me")
+}
+
 func (t testMsg) PreparedRound() int64 {
 	panic("implement me")
 }

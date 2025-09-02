@@ -694,3 +694,34 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 		return nil, errors.New("unsupported unsigned data duty type")
 	}
 }
+
+// unmarshalDutyFromUnsignedData returns a duty type.
+func unmarshalDutyFromUnsignedData(data []byte) DutyType {
+	var respAtt AttestationData
+
+	err := unmarshal(data, &respAtt)
+	if err == nil {
+		return DutyAttester
+	}
+
+	var respProposal VersionedProposal
+
+	err = unmarshal(data, &respProposal)
+	if err == nil {
+		return DutyProposer
+	}
+
+	var respAggregator VersionedAggregatedAttestation
+
+	err = unmarshal(data, &respAggregator)
+	if err == nil {
+		return DutyAggregator
+	}
+
+	var respSyncContr SyncContribution
+	if err := unmarshal(data, &respSyncContr); err != nil {
+		return DutySyncContribution
+	}
+
+	return DutyUnknown
+}

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -388,6 +390,7 @@ func testQBFT(t *testing.T, test test) {
 			// - or expect multiple rounds
 			// - or otherwise only the leader of round 1.
 			vChan := make(chan int64, 1)
+			vsChan := make(chan proto.Message, 1)
 
 			if delay, ok := test.ValueDelay[i]; ok {
 				go func() {
@@ -404,7 +407,7 @@ func testQBFT(t *testing.T, test test) {
 				go func() { vChan <- i }()
 			}
 
-			runChan <- Run(ctx, defs, trans, test.Instance, i, vChan)
+			runChan <- Run(ctx, defs, trans, test.Instance, i, vChan, vsChan)
 		}(i)
 	}
 
@@ -562,14 +565,15 @@ func newMsg(typ MsgType, instance int64, source int64, round int64, value int64,
 var _ Msg[int64, int64] = msg{}
 
 type msg struct {
-	msgType  MsgType
-	instance int64
-	peerIdx  int64
-	round    int64
-	value    int64
-	pr       int64
-	pv       int64
-	justify  []msg
+	msgType     MsgType
+	instance    int64
+	peerIdx     int64
+	round       int64
+	value       int64
+	valueSource *anypb.Any
+	pr          int64
+	pv          int64
+	justify     []msg
 }
 
 func (m msg) Type() MsgType {
@@ -590,6 +594,10 @@ func (m msg) Round() int64 {
 
 func (m msg) Value() int64 {
 	return m.value
+}
+
+func (m msg) ValueSource() (*anypb.Any, error) {
+	return m.valueSource, nil
 }
 
 func (m msg) PreparedRound() int64 {
@@ -723,7 +731,7 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 	transport := noopTransport
 	transport.Receive = rChan
 
-	_ = Run(ctx, def, transport, 0, noLeader, InputValue(int64(1)))
+	_ = Run(ctx, def, transport, 0, noLeader, InputValue(int64(1)), InputValueSource(nil))
 }
 
 // noopTransport is a transport that does nothing.
