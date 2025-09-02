@@ -324,6 +324,7 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 			log.Debug(ctx, "Closing canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
 			return nil
 		}
+
 		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
 	}
 
@@ -367,6 +368,7 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 			log.Debug(ctx, "Closing canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
 			return nil
 		}
+
 		return errors.Wrap(err, "close stream", z.Any("protocol", s.Protocol()))
 	}
 

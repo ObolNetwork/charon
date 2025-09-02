@@ -93,6 +93,15 @@ func (m Msg) Value() [32]byte {
 	return m.valueHash
 }
 
+func (m Msg) ValueSource() (*anypb.Any, error) {
+	v, ok := m.values[m.valueHash]
+	if !ok {
+		return nil, errors.New("value not found")
+	}
+
+	return v, nil
+}
+
 func (m Msg) Values() map[[32]byte]*anypb.Any {
 	return m.values
 }
