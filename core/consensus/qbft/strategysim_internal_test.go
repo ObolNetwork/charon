@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -389,6 +390,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 		// Setup unique non-zero value per peer
 		valCh := make(chan [32]byte, 1)
+		valSrcCh := make(chan proto.Message, 1)
 		enqueueValue := func() {
 			var val [32]byte
 
@@ -418,7 +420,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 		log.Debug(ctx, "Starting peer")
 
-		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed)}, p.Idx, valCh)
+		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed)}, p.Idx, valCh, valSrcCh)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return res, err
 		}
