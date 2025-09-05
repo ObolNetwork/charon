@@ -357,7 +357,7 @@ func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey
 	}
 
 	log.Info(ctx, "Cluster Invitation Prepared")
-	log.Info(ctx, "Direct the Node Operators to: "+generateLaunchpadLink(def.ConfigHash, conf.Network)+"to review the cluster configuration and begin the distributed key generation ceremony.")
+	log.Info(ctx, "Direct the Node Operators to: "+generateLaunchpadLink(def.ConfigHash, conf.Network)+" to review the cluster configuration and begin the distributed key generation ceremony.")
 
 	return nil
 }
