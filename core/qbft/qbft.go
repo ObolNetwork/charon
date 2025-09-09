@@ -11,14 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
-	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 )
 
 // Transport abstracts the transport layer between processes in the consensus system.
@@ -36,11 +32,13 @@ type Transport[I any, V comparable] struct {
 
 // Definition defines the consensus system parameters that are external to the qbft algorithm.
 // This remains constant across multiple instances of consensus (calls to Run).
-type Definition[I any, V comparable] struct {
+type Definition[I any, V comparable, C any] struct {
 	// IsLeader is a deterministic leader election function.
 	IsLeader func(instance I, round, process int64) bool
 	// NewTimer returns a new timer channel and stop function for the round.
 	NewTimer func(round int64) (<-chan time.Time, func())
+	// Compare is called when leader proposes value and we compare it with our local value.
+	Compare func(ctx context.Context, qcommit Msg[I, V], inputValueReceivedCh chan struct{}, inputValueSource C) error
 	// Decide is called when consensus has been reached on a value.
 	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
@@ -59,13 +57,13 @@ type Definition[I any, V comparable] struct {
 
 // Quorum returns the quorum count for the system.
 // See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
-func (d Definition[I, V]) Quorum() int {
+func (d Definition[I, V, C]) Quorum() int {
 	return int(math.Ceil(float64(d.Nodes*2) / 3))
 }
 
 // Faulty returns the maximum number of faulty/byzantium nodes supported in the system.
 // See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
-func (d Definition[I, V]) Faulty() int {
+func (d Definition[I, V, C]) Faulty() int {
 	return int(math.Floor(float64(d.Nodes-1) / 3))
 }
 
@@ -170,8 +168,8 @@ func InputValue[V comparable](inputValue V) <-chan V {
 }
 
 // InputValueSource is a convenience function to create a populated input value source channel.
-func InputValueSource(inputValueSource proto.Message) <-chan proto.Message {
-	ch := make(chan proto.Message, 1)
+func InputValueSource[C any](inputValueSource C) <-chan C {
+	ch := make(chan C, 1)
 	ch <- inputValueSource
 
 	return ch
@@ -180,7 +178,8 @@ func InputValueSource(inputValueSource proto.Message) <-chan proto.Message {
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
-func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValueCh <-chan V, inputValueSourceCh <-chan proto.Message) (err error) {
+// The generic type C is the compare value, used to compare leader's proposed value with local value and can be anything.
+func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C], t Transport[I, V], instance I, process int64, inputValueCh <-chan V, inputValueSourceCh <-chan C) (err error) {
 	defer func() {
 		// Panics are used for assertions and sanity checks to reduce lines of code
 		// and to improve readability. Catch them here.
@@ -198,7 +197,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	var (
 		round                 int64 = 1
 		inputValue            V
-		inputValueSource      proto.Message
+		inputValueSource      C
 		ppjCache              []Msg[I, V] // Cached pre-prepare justification for the current round (nil value is unset).
 		inputValueReceivedCh  = make(chan struct{}, 1)
 		preparedRound         int64
@@ -312,10 +311,6 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			inputValueCh = nil // Don't read from this channel again.
 
 		case inputValueSource = <-inputValueSourceCh:
-			if isZeroVal(inputValueSource) {
-				return errors.New("zero input value source not supported")
-			}
-
 			inputValueSourceCh = nil // Don't read from this channel again.
 
 			inputValueReceivedCh <- struct{}{}
@@ -360,7 +355,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				preparedRound = round /* == msg.Round*/
 				preparedValue = msg.Value()
 
-				errCompare := compareLocal(ctx, msg, inputValueReceivedCh, &inputValueSource)
+				errCompare := d.Compare(ctx, msg, inputValueReceivedCh, inputValueSource)
 				if errCompare != nil {
 					log.Warn(ctx, "Compare leader value with local value failed", errCompare)
 					continue
@@ -425,109 +420,6 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	}
 }
 
-func compareLocal[I any, V comparable](ctx context.Context, msg Msg[I, V], inputValueReceivedCh chan struct{}, inputValueSource *proto.Message) error {
-	preparedValueSource, err := msg.ValueSource()
-	if err != nil {
-		return nil //nolint:nilerr // If we can't unmarshal to protobuf, skip.
-	}
-
-	attLeader, err := preparedValueSource.UnmarshalNew()
-	if err != nil {
-		return nil //nolint:nilerr // If we can't unmarshal to proto message, skip.
-	}
-
-	attLeaderUDS, ok := attLeader.(*pbv1.UnsignedDataSet)
-	if !ok {
-		return nil
-	}
-
-	duty, err := core.UnsignedDataSetDutyFromProto(attLeaderUDS)
-	if err != nil {
-		return errors.Wrap(err, "get duty of unsigned data set")
-	}
-
-	switch duty {
-	case core.DutyAttester:
-		if inputValueSource == nil {
-			select {
-			case <-ctx.Done():
-				return errors.New("timeout on waiting for local value")
-			case <-inputValueReceivedCh:
-			}
-		}
-
-		attLocal := *inputValueSource
-
-		attLocalUDS, ok := attLocal.(*pbv1.UnsignedDataSet)
-		if !ok {
-			return errors.New("attLocal to pbv1.UnsignedDataSet")
-		}
-
-		err = attestationChecker(ctx, attLeaderUDS, attLocalUDS)
-		if err != nil {
-			return errors.Wrap(err, "attestation checker failed")
-		}
-	default:
-	}
-
-	return nil
-}
-
-func attestationChecker(ctx context.Context, attLeader *pbv1.UnsignedDataSet, attLocal *pbv1.UnsignedDataSet) error {
-	attLocalUnsignedDataSet, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLocal)
-	if err != nil {
-		return errors.Wrap(err, "attLocal to unsigned data set duty attester")
-	}
-
-	attLeaderUnsignedDataSet, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLeader)
-	if err != nil {
-		return errors.Wrap(err, "attLeader to unsigned data set duty attester")
-	}
-
-	for pk, attLeaderUnsignedData := range attLeaderUnsignedDataSet {
-		localUnsigned, ok := attLocalUnsignedDataSet[pk]
-		if !ok {
-			log.Warn(ctx, "", errors.New("no local attestation found, skipping"), z.Any("pk", pk))
-			continue
-		}
-
-		leaderData, ok := attLeaderUnsignedData.(core.AttestationData)
-		if !ok {
-			log.Warn(ctx, "", errors.New("unable to parse leader unsigned data to attestation data"), z.Any("unsigned_data", attLeaderUnsignedData))
-			continue
-		}
-
-		localAttData, ok := localUnsigned.(core.AttestationData)
-		if !ok {
-			log.Warn(ctx, "", errors.New("unable to parse local unsigned data to attestation data"), z.Any("unsigned_data", localUnsigned))
-			continue
-		}
-
-		missmatch := ""
-		if leaderData.Data.Source.Epoch != localAttData.Data.Source.Epoch {
-			missmatch += "leader attestation source epoch differs from local source epoch;"
-		}
-
-		if leaderData.Data.Source.Root != localAttData.Data.Source.Root {
-			missmatch += "leader attestation source root differs from local source root;"
-		}
-
-		if leaderData.Data.Target.Epoch != localAttData.Data.Target.Epoch {
-			missmatch += "leader attestation target epoch differs from local target epoch;"
-		}
-
-		if leaderData.Data.Target.Root != localAttData.Data.Target.Root {
-			missmatch += "leader attestation target root differs from local target root;"
-		}
-
-		if missmatch != "" {
-			return errors.New(missmatch, z.Any("public_key", pk), z.Any("leader", leaderData.Data), z.Any("local", localAttData.Data))
-		}
-	}
-
-	return nil
-}
-
 // extractRoundMsgs returns all messages from the provided round.
 func extractRoundMsgs[I any, V comparable](buffer map[int64][]Msg[I, V], round int64) []Msg[I, V] {
 	var resp []Msg[I, V]
@@ -544,7 +436,7 @@ func extractRoundMsgs[I any, V comparable](buffer map[int64][]Msg[I, V], round i
 }
 
 // classify returns the rule triggered upon receipt of the last message and its justifications.
-func classify[I any, V comparable](d Definition[I, V], instance I, round, process int64, buffer map[int64][]Msg[I, V], msg Msg[I, V]) (UponRule, []Msg[I, V]) {
+func classify[I any, V comparable, C any](d Definition[I, V, C], instance I, round, process int64, buffer map[int64][]Msg[I, V], msg Msg[I, V]) (UponRule, []Msg[I, V]) {
 	switch msg.Type() {
 	case MsgDecided:
 		return UponJustifiedDecided, msg.Justification()
@@ -622,7 +514,7 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 
 // nextMinRound implements algorithm 3:6 and returns the next minimum round
 // from received round change messages.
-func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], round int64) int64 {
+func nextMinRound[I any, V comparable, C any](d Definition[I, V, C], frc []Msg[I, V], round int64) int64 {
 	// Get all RoundChange messages with round (rj) higher than current round (ri)
 	if len(frc) < d.Faulty()+1 {
 		panic("bug: Frc too short")
@@ -647,7 +539,7 @@ func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], roun
 }
 
 // isJustified returns true if message is justified or if it does not need justification.
-func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
+func isJustified[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V]) bool {
 	//nolint:revive // `case MsgPrepare` and `case MsgCommit` having same result is not an issue, it improves readability.
 	switch msg.Type() {
 	case MsgPrePrepare:
@@ -667,7 +559,7 @@ func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I,
 
 // isJustifiedRoundChange returns true if the ROUND_CHANGE message's
 // prepared round and value is justified.
-func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, V]) bool {
+func isJustifiedRoundChange[I any, V comparable, C any](d Definition[I, V, C], msg Msg[I, V]) bool {
 	if msg.Type() != MsgRoundChange {
 		panic("bug: not a round change message")
 	}
@@ -713,7 +605,7 @@ func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, 
 
 // isJustifiedDecided returns true if the decided message is justified by quorum COMMIT messages
 // of identical round and value.
-func isJustifiedDecided[I any, V comparable](d Definition[I, V], msg Msg[I, V]) bool {
+func isJustifiedDecided[I any, V comparable, C any](d Definition[I, V, C], msg Msg[I, V]) bool {
 	if msg.Type() != MsgDecided {
 		panic("bug: not a decided message")
 	}
@@ -725,7 +617,7 @@ func isJustifiedDecided[I any, V comparable](d Definition[I, V], msg Msg[I, V]) 
 }
 
 // isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
-func isJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
+func isJustifiedPrePrepare[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V]) bool {
 	if msg.Type() != MsgPrePrepare {
 		panic("bug: not a preprepare message")
 	}
@@ -752,7 +644,7 @@ func isJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, 
 
 // containsJustifiedQrc implements algorithm 4:1 and returns true and pv if
 // the messages contains a justified quorum ROUND_CHANGEs (Qrc).
-func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification []Msg[I, V], round int64) (V, bool) {
+func containsJustifiedQrc[I any, V comparable, C any](d Definition[I, V, C], justification []Msg[I, V], round int64) (V, bool) {
 	qrc := filterRoundChange(justification, round)
 	if len(qrc) < d.Quorum() {
 		return zeroVal[V](), false
@@ -802,7 +694,7 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 
 // getSingleJustifiedPrPv extracts the single justified Pr and Pv from quorum
 // PREPARES in list of messages. It expects only one possible combination.
-func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[I, V]) (int64, V, bool) {
+func getSingleJustifiedPrPv[I any, V comparable, C any](d Definition[I, V, C], msgs []Msg[I, V]) (int64, V, bool) {
 	var (
 		pr    int64
 		pv    V
@@ -833,7 +725,7 @@ func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[
 }
 
 // getJustifiedQrc implements algorithm 4:1 and returns a justified quorum ROUND_CHANGEs (Qrc).
-func getJustifiedQrc[I any, V comparable](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
+func getJustifiedQrc[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
 	if qrc, ok := quorumNullPrepared(d, all, round); ok {
 		// Return any quorum null pv ROUND_CHANGE messages as Qrc.
 		return qrc, true
@@ -877,7 +769,7 @@ func getJustifiedQrc[I any, V comparable](d Definition[I, V], all []Msg[I, V], r
 // getFPlus1RoundChanges returns true and Faulty+1 ROUND-CHANGE messages (Frc) with
 // the rounds higher than the provided round. It returns the highest round
 // per process in order to jump furthest.
-func getFPlus1RoundChanges[I any, V comparable](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
+func getFPlus1RoundChanges[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
 	highestBySource := make(map[int64]Msg[I, V])
 
 	for _, msg := range all {
@@ -920,7 +812,7 @@ type preparedKey[I any, V comparable] struct {
 
 // getPrepareQuorums returns all sets of quorum PREPARE messages
 // with identical rounds and values.
-func getPrepareQuorums[I any, V comparable](d Definition[I, V], all []Msg[I, V]) [][]Msg[I, V] {
+func getPrepareQuorums[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V]) [][]Msg[I, V] {
 	sets := make(map[preparedKey[I, V]]map[int64]Msg[I, V]) // map[preparedKey]map[process]Msg
 
 	for _, msg := range all { // Flatten to get PREPARES included as ROUND-CHANGE justifications.
@@ -960,7 +852,7 @@ func getPrepareQuorums[I any, V comparable](d Definition[I, V], all []Msg[I, V])
 
 // quorumNullPrepared implements condition J1 and returns Qrc and true if a quorum
 // of round changes messages (Qrc) for the round have null prepared round and value.
-func quorumNullPrepared[I any, V comparable](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
+func quorumNullPrepared[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
 	var (
 		nullPr int64
 		nullPv V

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -303,7 +302,7 @@ func testQBFT(t *testing.T, test test) {
 	defer cancel()
 
 	isLeader := makeIsLeader(n)
-	defs := Definition[int64, int64]{
+	defs := Definition[int64, int64, int64]{
 		IsLeader: isLeader,
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			d := time.Second
@@ -390,7 +389,7 @@ func testQBFT(t *testing.T, test test) {
 			// - or expect multiple rounds
 			// - or otherwise only the leader of round 1.
 			vChan := make(chan int64, 1)
-			vsChan := make(chan proto.Message, 1)
+			vsChan := make(chan int64, 1)
 
 			if delay, ok := test.ValueDelay[i]; ok {
 				go func() {
@@ -634,7 +633,7 @@ func TestIsJustifiedPrePrepare(t *testing.T) {
 		{msgType: 2, instance: 1, peerIdx: 2, round: 2, value: 2, pr: 0, pv: 0},
 	}}
 
-	def := Definition[int64, int64]{
+	def := Definition[int64, int64, int64]{
 		IsLeader: makeIsLeader(n),
 		Nodes:    n,
 	}
@@ -648,7 +647,7 @@ func TestFormulas(t *testing.T) {
 	assert := func(t *testing.T, n, q, f int) {
 		t.Helper()
 
-		d := Definition[any, int64]{Nodes: n}
+		d := Definition[any, int64, any]{Nodes: n}
 		require.Equalf(t, q, d.Quorum(), "Quorum given N=%d", n)
 		require.Equalf(t, f, d.Faulty(), "Faulty given N=%d", n)
 	}
@@ -731,7 +730,7 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 	transport := noopTransport
 	transport.Receive = rChan
 
-	_ = Run(ctx, def, transport, 0, noLeader, InputValue(int64(1)), InputValueSource(nil))
+	_ = Run(ctx, def, transport, 0, noLeader, InputValue(int64(1)), InputValueSource(int64(2)))
 }
 
 // noopTransport is a transport that does nothing.
@@ -742,7 +741,7 @@ var noopTransport = Transport[int64, int64]{
 }
 
 // noopDef is a definition that does nothing.
-var noopDef = Definition[int64, int64]{
+var noopDef = Definition[int64, int64, int64]{
 	IsLeader:       func(int64, int64, int64) bool { return false },
 	NewTimer:       func(int64) (<-chan time.Time, func()) { return nil, func() {} },
 	LogUponRule:    func(context.Context, int64, int64, int64, Msg[int64, int64], UponRule) {},

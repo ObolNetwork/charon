@@ -39,10 +39,10 @@ type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) e
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
-) qbft.Definition[core.Duty, [32]byte] {
-	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
+) qbft.Definition[core.Duty, [32]byte, proto.Message] {
+	quorum := qbft.Definition[int, int, int]{Nodes: nodes}.Quorum()
 
-	return qbft.Definition[core.Duty, [32]byte]{
+	return qbft.Definition[core.Duty, [32]byte, proto.Message]{
 		// IsLeader is a deterministic leader election function.
 		IsLeader: func(duty core.Duty, round, process int64) bool {
 			return leader(duty, round, nodes) == process
@@ -115,12 +115,113 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			)
 		},
 
+		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
+			attLeaderSource, err := msg.ValueSource()
+			if err != nil {
+				return nil //nolint:nilerr // If we can't unmarshal to protobuf, skip.
+			}
+
+			attLeaderProto, err := attLeaderSource.UnmarshalNew()
+			if err != nil {
+				return nil //nolint:nilerr // If we can't unmarshal to proto message, skip.
+			}
+
+			attLeaderSet, ok := attLeaderProto.(*pbv1.UnsignedDataSet)
+			if !ok {
+				return nil
+			}
+
+			duty, err := core.UnsignedDataSetDutyFromProto(attLeaderSet)
+			if err != nil {
+				return errors.Wrap(err, "get duty of unsigned data set")
+			}
+
+			switch duty {
+			case core.DutyAttester:
+				if inputValueSource == nil {
+					select {
+					case <-ctx.Done():
+						return errors.New("timeout on waiting for local value")
+					case <-inputValueReceivedCh:
+					}
+				}
+
+				attLocalSet, ok := inputValueSource.(*pbv1.UnsignedDataSet)
+				if !ok {
+					return errors.New("inputValueSource to pbv1.UnsignedDataSet")
+				}
+
+				err = attestationChecker(ctx, attLeaderSet, attLocalSet)
+				if err != nil {
+					return errors.Wrap(err, "attestation checker failed")
+				}
+			default:
+			}
+
+			return nil
+		},
+
 		// Nodes is the number of nodes.
 		Nodes: nodes,
 
 		// FIFOLimit caps the max buffered messages per peer.
 		FIFOLimit: instance.RecvBufferSize,
 	}
+}
+
+func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet, attLocalSet *pbv1.UnsignedDataSet) error {
+	attLocalSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLocalSet)
+	if err != nil {
+		return errors.Wrap(err, "attLocal to unsigned data set duty attester")
+	}
+
+	attLeaderSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLeaderSet)
+	if err != nil {
+		return errors.Wrap(err, "attLeader to unsigned data set duty attester")
+	}
+
+	for attLeaderKey, attLeaderData := range attLeaderSetCore {
+		attLocalData, ok := attLocalSetCore[attLeaderKey]
+		if !ok {
+			log.Warn(ctx, "", errors.New("no local attestation found, skipping"), z.Any("pk", attLeaderKey))
+			continue
+		}
+
+		attLeaderAttestationData, ok := attLeaderData.(core.AttestationData)
+		if !ok {
+			log.Warn(ctx, "", errors.New("unable to parse leader unsigned data to attestation data"), z.Any("unsigned_data", attLeaderData))
+			continue
+		}
+
+		attLocalAttestationData, ok := attLocalData.(core.AttestationData)
+		if !ok {
+			log.Warn(ctx, "", errors.New("unable to parse local unsigned data to attestation data"), z.Any("unsigned_data", attLocalData))
+			continue
+		}
+
+		missmatch := ""
+		if attLeaderAttestationData.Data.Source.Epoch != attLocalAttestationData.Data.Source.Epoch {
+			missmatch += "leader attestation source epoch differs from local source epoch;"
+		}
+
+		if attLeaderAttestationData.Data.Source.Root != attLocalAttestationData.Data.Source.Root {
+			missmatch += "leader attestation source root differs from local source root;"
+		}
+
+		if attLeaderAttestationData.Data.Target.Epoch != attLocalAttestationData.Data.Target.Epoch {
+			missmatch += "leader attestation target epoch differs from local target epoch;"
+		}
+
+		if attLeaderAttestationData.Data.Target.Root != attLocalAttestationData.Data.Target.Root {
+			missmatch += "leader attestation target root differs from local target root;"
+		}
+
+		if missmatch != "" {
+			return errors.New(missmatch, z.Any("public_key", attLeaderKey), z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data))
+		}
+	}
+
+	return nil
 }
 
 // NewConsensus returns a new consensus QBFT component.
