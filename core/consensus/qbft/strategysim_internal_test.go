@@ -486,10 +486,10 @@ func gosched() {
 
 func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
-) qbft.Definition[core.Duty, [32]byte] {
-	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
+) qbft.Definition[core.Duty, [32]byte, proto.Message] {
+	quorum := qbft.Definition[int, int, int]{Nodes: nodes}.Quorum()
 
-	return qbft.Definition[core.Duty, [32]byte]{
+	return qbft.Definition[core.Duty, [32]byte, proto.Message]{
 		IsLeader: func(duty core.Duty, round, process int64) bool {
 			return leader(duty, round, nodes) == process
 		},

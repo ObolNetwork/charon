@@ -113,7 +113,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err := qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, instance.GetPeerIdx(), qbft.InputValue([32]byte{1}), qbft.InputValueSource(nil))
+	err := qbft.Run(ctx, def, qt, duty, instance.GetPeerIdx(), qbft.InputValue([32]byte{1}), qbft.InputValueSource(newRandomQBFTProtoMsg(t)))
 	if expectDecided {
 		require.ErrorIs(t, err, context.Canceled)
 	} else {
