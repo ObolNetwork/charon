@@ -496,6 +496,9 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
 			decideCallback(qcommit)
 		},
+		Compare: func(ctx context.Context, qcommit qbft.Msg[core.Duty, [32]byte], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
+			return nil
+		},
 		NewTimer:  roundTimer.Timer,
 		LogUnjust: func(context.Context, core.Duty, int64, qbft.Msg[core.Duty, [32]byte]) {},
 		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
@@ -526,9 +529,6 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 		},
 		// Nodes is the number of nodes.
 		Nodes: nodes,
-		Compare: func(ctx context.Context, qcommit qbft.Msg[core.Duty, [32]byte], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
-			return nil
-		},
 
 		// FIFOLimit caps the max buffered messages per peer.
 		FIFOLimit: instance.RecvBufferSize,

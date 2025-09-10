@@ -77,44 +77,6 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			}
 		},
 
-		NewTimer: roundTimer.Timer,
-
-		// LogUponRule logs upon rules at debug level.
-		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
-			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
-		) {
-			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
-		},
-
-		// LogRoundChange logs round changes at debug level.
-		LogRoundChange: func(ctx context.Context, duty core.Duty, process, round, newRound int64, //nolint:revive // keep process variable name for clarity
-			uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
-		) {
-			fields := []z.Field{
-				z.Any("rule", uponRule),
-				z.I64("round", round),
-				z.I64("new_round", newRound),
-			}
-
-			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
-			for _, step := range steps {
-				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
-			}
-
-			if uponRule == qbft.UponRoundTimeout {
-				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorum)))
-			}
-
-			log.Debug(ctx, "QBFT round changed", fields...)
-		},
-
-		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte]) {
-			log.Warn(ctx, "Unjustified consensus message from peer", nil,
-				z.Any("type", msg.Type()),
-				z.I64("peer", msg.Source()),
-			)
-		},
-
 		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
 			if !compareAttestations {
 				return nil
@@ -162,6 +124,43 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			}
 
 			return nil
+		},
+
+		NewTimer: roundTimer.Timer,
+
+		// LogUponRule logs upon rules at debug level.
+		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
+			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
+		) {
+			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
+		},
+
+		// LogRoundChange logs round changes at debug level.
+		LogRoundChange: func(ctx context.Context, duty core.Duty, process, round, newRound int64, //nolint:revive // keep process variable name for clarity
+			uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
+		) {
+			fields := []z.Field{
+				z.Any("rule", uponRule),
+				z.I64("round", round),
+				z.I64("new_round", newRound),
+			}
+
+			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
+			for _, step := range steps {
+				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
+			}
+			if uponRule == qbft.UponRoundTimeout {
+				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorum)))
+			}
+
+			log.Debug(ctx, "QBFT round changed", fields...)
+		},
+
+		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte]) {
+			log.Warn(ctx, "Unjustified consensus message from peer", nil,
+				z.Any("type", msg.Type()),
+				z.I64("peer", msg.Source()),
+			)
 		},
 
 		// Nodes is the number of nodes.
