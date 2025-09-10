@@ -315,6 +315,9 @@ func testQBFT(t *testing.T, test test) {
 		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64]) {
 			resultChan <- qcommit
 		},
+		Compare: func(ctx context.Context, qcommit Msg[int64, int64], inputValueReceivedCh chan struct{}, inputValueSource int64) error {
+			return nil
+		},
 		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64]) {
 			t.Logf("%s %v@%d change to %d ~= %v", clock.NowStr(), process, round, newRound, rule)
 		},
