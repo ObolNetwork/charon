@@ -63,6 +63,10 @@ const (
 
 	// QUIC enables the QUIC transport protocol in libp2p.
 	QUIC = "quic"
+
+	// ChainSplitHalt compares locally fetched attestation's target and source to leader's proposed target and source attestation.
+	// In case they differ, Charon does not sign the attestation.
+	ChainSplitHalt = "chain_split_halt"
 )
 
 var (
@@ -79,6 +83,7 @@ var (
 		AttestationInclusion: statusAlpha,
 		ProposalTimeout:      statusAlpha,
 		QUIC:                 statusAlpha,
+		ChainSplitHalt:       statusAlpha,
 		// Add all features and there status here.
 	}
 
