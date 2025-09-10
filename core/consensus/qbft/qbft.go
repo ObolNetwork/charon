@@ -38,7 +38,7 @@ type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) e
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
-	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]), compareAttestations bool,
+	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]), compareAttestations bool,
 ) qbft.Definition[core.Duty, [32]byte, proto.Message] {
 	quorum := qbft.Definition[int, int, int]{Nodes: nodes}.Quorum()
 
@@ -49,7 +49,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 		},
 
 		// Decide sends consensus output to subscribers.
-		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			msg, ok := qcommit[0].(Msg)
 			if !ok {
 				log.Error(ctx, "Invalid message type", nil)
@@ -77,18 +77,13 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			}
 		},
 
-		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
+		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
 			if !compareAttestations {
 				return nil
 			}
-			attLeaderSource, err := msg.ValueSource()
+			attLeaderProto, err := msg.ValueSource()
 			if err != nil {
 				return nil //nolint:nilerr // If we can't unmarshal to protobuf, skip.
-			}
-
-			attLeaderProto, err := attLeaderSource.UnmarshalNew()
-			if err != nil {
-				return nil //nolint:nilerr // If we can't unmarshal to proto message, skip.
 			}
 
 			attLeaderSet, ok := attLeaderProto.(*pbv1.UnsignedDataSet)
@@ -130,14 +125,14 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
-			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
+			_ qbft.Msg[core.Duty, [32]byte, proto.Message], uponRule qbft.UponRule,
 		) {
 			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
 		},
 
 		// LogRoundChange logs round changes at debug level.
 		LogRoundChange: func(ctx context.Context, duty core.Duty, process, round, newRound int64, //nolint:revive // keep process variable name for clarity
-			uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
+			uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte, proto.Message],
 		) {
 			fields := []z.Field{
 				z.Any("rule", uponRule),
@@ -156,7 +151,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			log.Debug(ctx, "QBFT round changed", fields...)
 		},
 
-		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte]) {
+		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			log.Warn(ctx, "Unjustified consensus message from peer", nil,
 				z.Any("type", msg.Type()),
 				z.I64("peer", msg.Source()),
@@ -523,7 +518,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.End()
 	}()
 
-	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
+	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 		round := qcommit[0].Round()
 		decided = true
 
@@ -554,7 +549,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback, c.compareAttestations)
 
 	// Create a new transport that handles sending and receiving for this instance.
-	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), newSniffer(int64(def.Nodes), peerIdx))
+	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte, proto.Message]), newSniffer(int64(def.Nodes), peerIdx))
 
 	// Provide sniffed buffer to snifferFunc at the end.
 	defer func() {
@@ -565,7 +560,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	go t.ProcessReceives(ctx, c.getRecvBuffer(duty))
 
 	// Create a qbft transport from the transport
-	qt := qbft.Transport[core.Duty, [32]byte]{
+	qt := qbft.Transport[core.Duty, [32]byte, proto.Message]{
 		Broadcast: t.Broadcast,
 		Receive:   t.RecvBuffer(),
 	}
@@ -755,7 +750,7 @@ type roundStep struct {
 }
 
 // groupRoundMessages groups messages by type and returns which peers were present and missing for each type.
-func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round int64, leader int) []roundStep {
+func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte, proto.Message], peers int, round int64, leader int) []roundStep {
 	// checkPeers returns two slices of peer indexes, one with peers
 	// present with the message type and one with messing peers.
 	checkPeers := func(typ qbft.MsgType) (present []int, missing []int) {
