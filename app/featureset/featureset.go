@@ -66,6 +66,10 @@ const (
 
 	// FetchOnlyCommIdx0 enables querying the beacon node for attestation data only for committee index 0.
 	FetchOnlyCommIdx0 = "fetch_only_commidx_0"
+
+	// ChainSplitHalt compares locally fetched attestation's target and source to leader's proposed target and source attestation.
+	// In case they differ, Charon does not sign the attestation.
+	ChainSplitHalt = "chain_split_halt"
 )
 
 var (
@@ -83,6 +87,7 @@ var (
 		ProposalTimeout:      statusAlpha,
 		QUIC:                 statusAlpha,
 		FetchOnlyCommIdx0:    statusAlpha,
+		ChainSplitHalt:       statusAlpha,
 		// Add all features and there status here.
 	}
 

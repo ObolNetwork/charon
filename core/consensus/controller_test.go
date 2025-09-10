@@ -61,7 +61,7 @@ func TestConsensusController(t *testing.T) {
 	debugger := csmocks.NewDebugger(t)
 	ctx := context.Background()
 
-	controller, err := consensus.NewConsensusController(ctx, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger)
+	controller, err := consensus.NewConsensusController(ctx, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger, false)
 	require.NoError(t, err)
 	require.NotNil(t, controller)
 

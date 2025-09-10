@@ -38,7 +38,7 @@ type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) e
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
-	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
+	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]), compareAttestations bool,
 ) qbft.Definition[core.Duty, [32]byte, proto.Message] {
 	quorum := qbft.Definition[int, int, int]{Nodes: nodes}.Quorum()
 
@@ -116,6 +116,9 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 		},
 
 		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
+			if !compareAttestations {
+				return nil
+			}
 			attLeaderSource, err := msg.ValueSource()
 			if err != nil {
 				return nil //nolint:nilerr // If we can't unmarshal to protobuf, skip.
@@ -226,7 +229,7 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 
 // NewConsensus returns a new consensus QBFT component.
 func NewConsensus(p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance), compareAttestations bool,
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -244,18 +247,19 @@ func NewConsensus(p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 	}
 
 	c := &Consensus{
-		p2pNode:     p2pNode,
-		sender:      sender,
-		peers:       peers,
-		peerLabels:  labels,
-		privkey:     p2pKey,
-		pubkeys:     keys,
-		deadliner:   deadliner,
-		snifferFunc: snifferFunc,
-		gaterFunc:   gaterFunc,
-		dropFilter:  log.Filter(),
-		timerFunc:   timer.GetRoundTimerFunc(),
-		metrics:     metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
+		p2pNode:             p2pNode,
+		sender:              sender,
+		peers:               peers,
+		peerLabels:          labels,
+		privkey:             p2pKey,
+		pubkeys:             keys,
+		deadliner:           deadliner,
+		snifferFunc:         snifferFunc,
+		gaterFunc:           gaterFunc,
+		dropFilter:          log.Filter(),
+		timerFunc:           timer.GetRoundTimerFunc(),
+		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
+		compareAttestations: compareAttestations,
 	}
 	c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 
@@ -265,19 +269,20 @@ func NewConsensus(p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 // Consensus implements core.Consensus & priority.coreConsensus.
 type Consensus struct {
 	// Immutable state
-	p2pNode     host.Host
-	sender      *p2p.Sender
-	peerLabels  []string
-	peers       []p2p.Peer
-	pubkeys     map[int64]*k1.PublicKey
-	privkey     *k1.PrivateKey
-	subs        []subscriber
-	deadliner   core.Deadliner
-	snifferFunc func(*pbv1.SniffedConsensusInstance)
-	gaterFunc   core.DutyGaterFunc
-	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
-	timerFunc   timer.RoundTimerFunc
-	metrics     metrics.ConsensusMetrics
+	p2pNode             host.Host
+	sender              *p2p.Sender
+	peerLabels          []string
+	peers               []p2p.Peer
+	pubkeys             map[int64]*k1.PublicKey
+	privkey             *k1.PrivateKey
+	subs                []subscriber
+	deadliner           core.Deadliner
+	snifferFunc         func(*pbv1.SniffedConsensusInstance)
+	gaterFunc           core.DutyGaterFunc
+	dropFilter          z.Field // Filter buffer overflow errors (possible DDoS)
+	timerFunc           timer.RoundTimerFunc
+	metrics             metrics.ConsensusMetrics
+	compareAttestations bool
 
 	// Mutable state
 	mutable struct {
@@ -547,7 +552,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	}
 
 	// Create a new qbft definition for this instance.
-	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
+	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback, c.compareAttestations)
 
 	// Create a new transport that handles sending and receiving for this instance.
 	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), newSniffer(int64(def.Nodes), peerIdx))

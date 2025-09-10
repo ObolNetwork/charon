@@ -39,11 +39,11 @@ type consensusController struct {
 // NewConsensusController creates a new consensus controller with the default consensus protocol.
 func NewConsensusController(ctx context.Context, p2pNode host.Host, sender *p2p.Sender,
 	peers []p2p.Peer, p2pKey *k1.PrivateKey, deadlineFunc core.DeadlineFunc,
-	gaterFunc core.DutyGaterFunc, debugger Debugger,
+	gaterFunc core.DutyGaterFunc, debugger Debugger, compareAttestations bool,
 ) (core.ConsensusController, error) {
 	qbftDeadliner := core.NewDeadliner(ctx, "consensus.qbft", deadlineFunc)
 
-	defaultConsensus, err := qbft.NewConsensus(p2pNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance)
+	defaultConsensus, err := qbft.NewConsensus(p2pNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance, compareAttestations)
 	if err != nil {
 		return nil, err
 	}

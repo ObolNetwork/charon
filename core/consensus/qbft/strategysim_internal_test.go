@@ -526,6 +526,9 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 		},
 		// Nodes is the number of nodes.
 		Nodes: nodes,
+		Compare: func(ctx context.Context, qcommit qbft.Msg[core.Duty, [32]byte], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
+			return nil
+		},
 
 		// FIFOLimit caps the max buffered messages per peer.
 		FIFOLimit: instance.RecvBufferSize,
