@@ -79,9 +79,9 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 			return nil
 		}}
-	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte]) {}, false)
+	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {}, false)
 
-	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte], len(instance.GetMsgs()))
+	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte, proto.Message], len(instance.GetMsgs()))
 
 	var duty core.Duty
 
@@ -102,10 +102,10 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	}
 
 	// Create a qbft transport from the transport
-	qt := qbft.Transport[core.Duty, [32]byte]{
+	qt := qbft.Transport[core.Duty, [32]byte, proto.Message]{
 		Broadcast: func(context.Context, qbft.MsgType, core.Duty,
 			int64, int64, [32]byte, int64, [32]byte,
-			[]qbft.Msg[core.Duty, [32]byte],
+			[]qbft.Msg[core.Duty, [32]byte, proto.Message],
 		) error {
 			return nil
 		},
