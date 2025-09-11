@@ -4,6 +4,7 @@ package manifest_test
 
 import (
 	"math/rand"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,13 +29,7 @@ const (
 )
 
 func isAnyVersion(version string, list ...string) bool {
-	for _, v := range list {
-		if version == v {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(list, version)
 }
 
 func TestDuplicateENRs(t *testing.T) {
