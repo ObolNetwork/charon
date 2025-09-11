@@ -629,7 +629,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 	ctx = log.WithTopic(ctx, "p2p")
 
 	type connKey struct {
-		PeerName string
+		PeerID   peer.ID
 		Type     string
 		Protocol string
 	}
@@ -670,9 +670,8 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 				streams := make(map[streamKey]int)
 
 				for _, conn := range p2pNode.Network().Conns() {
-					p := PeerName(conn.RemotePeer())
 					cKey := connKey{
-						PeerName: p,
+						PeerID:   conn.RemotePeer(),
 						Type:     addrType(conn.RemoteMultiaddr()),
 						Protocol: addrProtocol(conn.RemoteMultiaddr()),
 					}
@@ -680,7 +679,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 
 					for _, stream := range conn.GetStreams() {
 						sKey := streamKey{
-							PeerName:  p,
+							PeerName:  PeerName(conn.RemotePeer()),
 							Direction: stream.Stat().Direction.String(),
 							Protocol:  string(stream.Protocol()),
 						}
@@ -693,8 +692,13 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 				existing := make(map[string]bool)
 
 				for cKey, count := range counts {
-					peerConnGauge.WithLabelValues(cKey.PeerName, cKey.Type, cKey.Protocol).Set(float64(count))
-					existing[cKey.PeerName+":"+cKey.Type] = true
+					peerName := PeerName(cKey.PeerID)
+					if slices.Contains(peerIDs, cKey.PeerID) {
+						peerConnTypeGauge.WithLabelValues(peerName, cKey.Type, cKey.Protocol).Set(float64(count))
+					} else {
+						relayConnTypeGauge.WithLabelValues(peerName, cKey.Type, cKey.Protocol).Set(float64(count))
+					}
+					existing[peerName+":"+cKey.Type] = true
 				}
 
 				// Ensure zero values for peer/type combinations that have no connections
@@ -702,7 +706,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 					peerName := PeerName(pID)
 					for _, typ := range []string{addrTypeRelay, addrTypeDirect} {
 						if !existing[peerName+":"+typ] {
-							peerConnGauge.WithLabelValues(peerName, typ, protocolNone).Set(0)
+							peerConnTypeGauge.WithLabelValues(peerName, typ, protocolNone).Set(0)
 						}
 					}
 				}

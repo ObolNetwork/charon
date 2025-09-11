@@ -55,10 +55,16 @@ var (
 		Help:      "Connected relays by name",
 	}, []string{"peer"})
 
-	peerConnGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	peerConnTypeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "p2p",
 		Name:      "peer_connection_types",
 		Help:      "Current number of libp2p connections by peer, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections.",
+	}, []string{"peer", "type", "protocol"})
+
+	relayConnTypeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "p2p",
+		Name:      "relay_connection_types",
+		Help:      "Current number of libp2p connections by relay, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections.",
 	}, []string{"peer", "type", "protocol"})
 
 	peerStreamGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
