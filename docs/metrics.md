@@ -91,6 +91,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `p2p_ping_latency_secs` | Histogram | Ping latencies in seconds per peer | `peer` |
 | `p2p_ping_success` | Gauge | Whether the last ping was successful (1) or not (0). Can be used as proxy for connected peers | `peer` |
 | `p2p_reachability_status` | Gauge | Current libp2p reachability status of this node as detected by autonat: unknown(0), public(1) or private(2). |  |
+| `p2p_relay_connection_types` | Gauge | Current number of libp2p connections by relay, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections. | `peer, type, protocol` |
 | `p2p_relay_connections` | Gauge | Connected relays by name | `peer` |
 | `relay_p2p_active_connections` | Gauge | Current number of active connections by peer and cluster | `peer, peer_cluster` |
 | `relay_p2p_connection_total` | Counter | Total number of new connections by peer and cluster | `peer, peer_cluster` |
