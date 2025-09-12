@@ -698,6 +698,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 					} else {
 						relayConnTypeGauge.WithLabelValues(peerName, cKey.Type, cKey.Protocol).Set(float64(count))
 					}
+
 					existing[peerName+":"+cKey.Type] = true
 				}
 
