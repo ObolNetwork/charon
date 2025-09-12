@@ -372,8 +372,29 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 	}
 
 	if value, ok := db.attDuties[aKeyCommIdx0]; ok {
-		if value.String() != attData.Data.String() {
-			return errors.New("clashing attestation data", z.Any("key", aKeyCommIdx0))
+		// When we fetch attestation data with the fetcher, we are doing this in a loop,
+		// which takes variable amount of time, based on the beacon node's performance.
+		// If the beacon node is underperforming it might be that in the middle of this loop it receives a new block.
+		// This will result some attestation datas having the up to date head, while others have an old head.
+		// In a good scenario of well performing beacon node, the heads will be the same and the `value`` and `attData.Data`
+		// will be equal. However, in the scenario explained above, their head will missmatch, resulting in inequality.
+		// That's why we are checking here only if source and target missmatch.
+		if value.Source.String() != attData.Data.Source.String() {
+			return errors.New(
+				"clashing attestation data with hardcoded commidx=0 source",
+				z.Any("key", aKeyCommIdx0),
+				z.Str("existing", value.Source.String()),
+				z.Str("new", attData.Data.Source.String()),
+			)
+		}
+
+		if value.Target.String() != attData.Data.Target.String() {
+			return errors.New(
+				"clashing attestation data with hardcoded commidx=0 target",
+				z.Any("key", aKeyCommIdx0),
+				z.Str("existing", value.Target.String()),
+				z.Str("new", attData.Data.Target.String()),
+			)
 		}
 	} else {
 		db.attDuties[aKeyCommIdx0] = &attData.Data
