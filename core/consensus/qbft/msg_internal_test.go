@@ -10,6 +10,7 @@ import (
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -105,7 +106,7 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 	require.ErrorContains(t, err, "value hash not found in values")
 }
 
-// NewRandomMsgForT returns a random qbft message.
+// newRandomQBFTMsg returns a random qbft message.
 func newRandomQBFTMsg(t *testing.T) *pbv1.QBFTMsg {
 	t.Helper()
 
@@ -122,4 +123,11 @@ func newRandomQBFTMsg(t *testing.T) *pbv1.QBFTMsg {
 		PreparedRound: rand.Int63(),
 		Signature:     nil,
 	}
+}
+
+// newRandomQBFTProtoMsg returns a random qbft proto message.
+func newRandomQBFTProtoMsg(t *testing.T) proto.Message {
+	t.Helper()
+
+	return newRandomQBFTMsg(t)
 }

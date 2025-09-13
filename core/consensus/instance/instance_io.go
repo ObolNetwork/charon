@@ -21,6 +21,7 @@ func NewIO[T any]() *IO[T] {
 		RecvBuffer:  make(chan T, RecvBufferSize),
 		HashCh:      make(chan [32]byte, 1),
 		ValueCh:     make(chan proto.Message, 1),
+		VerifyCh:    make(chan proto.Message, 1),
 		ErrCh:       make(chan error, 1),
 		DecidedAtCh: make(chan time.Time, 1),
 	}
@@ -35,6 +36,7 @@ type IO[T any] struct {
 	RecvBuffer   chan T             // Outer receive buffers.
 	HashCh       chan [32]byte      // Async input hash channel.
 	ValueCh      chan proto.Message // Async input value channel.
+	VerifyCh     chan proto.Message // Async input value channel user for veifying.
 	ErrCh        chan error         // Async output error channel.
 	DecidedAtCh  chan time.Time     // Async output decided timestamp channel.
 }
