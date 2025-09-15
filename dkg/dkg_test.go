@@ -117,6 +117,10 @@ func TestDKG(t *testing.T) {
 			dkgAlgo: "frost",
 			publish: true,
 		},
+		{
+			name:    "pedersen",
+			dkgAlgo: "pedersen",
+		},
 	}
 
 	for _, test := range tests {
