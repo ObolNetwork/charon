@@ -55,6 +55,9 @@ var (
 	justBundleMsg                = path.Join(protocolID, "just_bundle")
 )
 
+// NewBoard creates a new Board instance.
+// Kyber implementation does not pass context to the Board methods, so we have to inject one here.
+// In the future Kyber fork we will address this and fix all logging as well.
 func NewBoard(ctx context.Context, host host.Host, config *Config, bcastComp *bcast.Component) *Board {
 	board := &Board{
 		logCtx:            log.WithTopic(ctx, "pedersen"),
@@ -249,7 +252,7 @@ func (b *Board) handleValidatorPubKeyShareMessage(ctx context.Context, peerID pe
 	select {
 	case b.valPubKeySharesCh <- ppk:
 	case <-ctx.Done():
-		log.Error(ctx, "Dropping validator pubkey share, context done", nil, z.Str("from", peerID.String()))
+		log.Error(b.logCtx, "Dropping validator pubkey share, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
@@ -269,7 +272,7 @@ func (b *Board) handleDealBundleMessage(ctx context.Context, peerID peer.ID, msg
 	select {
 	case b.dealCh <- bundle:
 	case <-ctx.Done():
-		log.Error(ctx, "Dropping deal bundle, context done", nil, z.Str("from", peerID.String()))
+		log.Error(b.logCtx, "Dropping deal bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
@@ -289,7 +292,7 @@ func (b *Board) handleResponseBundleMessage(ctx context.Context, peerID peer.ID,
 	select {
 	case b.responseCh <- bundle:
 	case <-ctx.Done():
-		log.Error(ctx, "Dropping response bundle, context done", nil, z.Str("from", peerID.String()))
+		log.Error(b.logCtx, "Dropping response bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
@@ -309,7 +312,7 @@ func (b *Board) handleJustificationBundleMessage(ctx context.Context, peerID pee
 	select {
 	case b.justificationCh <- bundle:
 	case <-ctx.Done():
-		log.Error(ctx, "Dropping justification bundle, context done", nil, z.Str("from", peerID.String()))
+		log.Error(b.logCtx, "Dropping justification bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
