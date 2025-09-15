@@ -50,7 +50,7 @@ func TestRunDKG(t *testing.T) {
 	)
 
 	nodes := make([]*dkgNode, numNodes)
-	for i := 0; i < numNodes; i++ {
+	for i := range numNodes {
 		nodes[i] = newDKGNode(t, i)
 		peerMap[nodes[i].host.ID()] = nodes[i].idx
 		peers = append(peers, nodes[i].host.ID())

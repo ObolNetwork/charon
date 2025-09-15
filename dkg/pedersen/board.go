@@ -220,7 +220,7 @@ func (b *Board) handleNodePubKeyMessage(ctx context.Context, peerID peer.ID, _ s
 
 	select {
 	case <-ctx.Done():
-		log.Error(b.logCtx, "Dropping node pubkey, context done", nil, z.Str("from", peerID.String()))
+		log.Error(ctx, "Dropping node pubkey, context done", nil, z.Str("from", peerID.String()))
 	default:
 	case b.nodePubKeysCh <- PeerPubKey{
 		PeerID: peerID,
@@ -249,7 +249,7 @@ func (b *Board) handleValidatorPubKeyShareMessage(ctx context.Context, peerID pe
 	select {
 	case b.valPubKeySharesCh <- ppk:
 	case <-ctx.Done():
-		log.Error(b.logCtx, "Dropping validator pubkey share, context done", nil, z.Str("from", peerID.String()))
+		log.Error(ctx, "Dropping validator pubkey share, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
@@ -269,7 +269,7 @@ func (b *Board) handleDealBundleMessage(ctx context.Context, peerID peer.ID, msg
 	select {
 	case b.dealCh <- bundle:
 	case <-ctx.Done():
-		log.Error(b.logCtx, "Dropping deal bundle, context done", nil, z.Str("from", peerID.String()))
+		log.Error(ctx, "Dropping deal bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
@@ -289,7 +289,7 @@ func (b *Board) handleResponseBundleMessage(ctx context.Context, peerID peer.ID,
 	select {
 	case b.responseCh <- bundle:
 	case <-ctx.Done():
-		log.Error(b.logCtx, "Dropping response bundle, context done", nil, z.Str("from", peerID.String()))
+		log.Error(ctx, "Dropping response bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
@@ -309,7 +309,7 @@ func (b *Board) handleJustificationBundleMessage(ctx context.Context, peerID pee
 	select {
 	case b.justificationCh <- bundle:
 	case <-ctx.Done():
-		log.Error(b.logCtx, "Dropping justification bundle, context done", nil, z.Str("from", peerID.String()))
+		log.Error(ctx, "Dropping justification bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
 	return nil, true, nil
