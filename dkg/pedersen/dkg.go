@@ -15,6 +15,7 @@ import (
 	"github.com/drand/kyber/util/random"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -64,7 +65,10 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int, push
 		NewNodes:  nodes,
 		Threshold: config.Threshold,
 		Auth:      drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
+		Log:       newLogger(log.WithTopic(ctx, "pedersen")),
 	}
+
+	log.Info(ctx, "Starting pedersen DKG...")
 
 	for range numVals {
 		// TODO: This phaser implementation is odd, it makes pauses between rounds,
@@ -98,6 +102,8 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int, push
 			}
 		}
 	}
+
+	log.Info(ctx, "Pedersen DKG completed.")
 
 	return nil
 }
