@@ -32,6 +32,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/bcast"
+	"github.com/obolnetwork/charon/dkg/pedersen"
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -267,6 +268,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// register bcast callbacks: node signatures and public shares
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
+	// register pedersen protocol messages
+	pedersenConfig := pedersen.NewConfig(p2pNode.ID(), peerMap, def.Threshold, def.DefinitionHash)
+	pedersenBoard := pedersen.NewBoard(ctx, p2pNode, pedersenConfig, caster)
+
 	log.Info(ctx, "Waiting to connect to all peers...")
 
 	// Improve UX of "context cancelled" errors when sync fails.
@@ -283,8 +288,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	switch def.DKGAlgorithm {
 	case "default", "frost":
-		shares, err = runFrostParallel(ctx, tp, uint32(newValidators), uint32(len(peerMap)),
-			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
+		shares, err = runFrostParallel(ctx, tp, uint32(newValidators), uint32(len(peerMap)), uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
+		if err != nil {
+			return err
+		}
+	case "pedersen":
+		shares, err = runPedersen(ctx, pedersenConfig, pedersenBoard, newValidators)
 		if err != nil {
 			return err
 		}
