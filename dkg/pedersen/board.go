@@ -136,14 +136,8 @@ func (b *Board) BroadcastValidatorPubKeyShare(ctx context.Context, share []byte)
 		PublicKey: share,
 	}
 
-	for peerID := range b.config.PeerMap {
-		if peerID == b.config.ThisPeerID {
-			continue
-		}
-
-		if err := p2p.Send(ctx, b.host, protocol.ID(valPubKeyShareMsg), peerID, msg); err != nil {
-			return errors.Wrap(err, "send validator pubkey share", z.Str("to", peerID.String()))
-		}
+	if err := b.broadcastP2P(ctx, valPubKeyShareMsg, msg); err != nil {
+		log.Error(b.logCtx, "Failed to broadcast val pubkey share", err)
 	}
 
 	b.valPubKeySharesCh <- PeerPubKey{
@@ -162,14 +156,8 @@ func (b *Board) PushDeals(bundle *kdkg.DealBundle) {
 		return
 	}
 
-	for peerID := range b.config.PeerMap {
-		if peerID == b.config.ThisPeerID {
-			continue
-		}
-
-		if err := p2p.Send(b.logCtx, b.host, protocol.ID(dealBundleMsg), peerID, msg); err != nil {
-			log.Error(b.logCtx, "Failed to send deal bundle", err, z.Str("to", peerID.String()))
-		}
+	if err := b.broadcastP2P(b.logCtx, dealBundleMsg, msg); err != nil {
+		log.Error(b.logCtx, "Failed to broadcast deal bundle", err)
 	}
 }
 
@@ -181,14 +169,8 @@ func (b *Board) PushResponses(bundle *kdkg.ResponseBundle) {
 		return
 	}
 
-	for peerID := range b.config.PeerMap {
-		if peerID == b.config.ThisPeerID {
-			continue
-		}
-
-		if err := p2p.Send(b.logCtx, b.host, protocol.ID(respBundleMsg), peerID, msg); err != nil {
-			log.Error(b.logCtx, "Failed to send response bundle", err, z.Str("to", peerID.String()))
-		}
+	if err := b.broadcastP2P(b.logCtx, respBundleMsg, msg); err != nil {
+		log.Error(b.logCtx, "Failed to broadcast response bundle", err)
 	}
 }
 
@@ -200,15 +182,23 @@ func (b *Board) PushJustifications(bundle *kdkg.JustificationBundle) {
 		return
 	}
 
+	if err := b.broadcastP2P(b.logCtx, justBundleMsg, msg); err != nil {
+		log.Error(b.logCtx, "Failed to broadcast justification bundle", err)
+	}
+}
+
+func (b *Board) broadcastP2P(ctx context.Context, msgID string, msg proto.Message) error {
 	for peerID := range b.config.PeerMap {
 		if peerID == b.config.ThisPeerID {
 			continue
 		}
 
-		if err := p2p.Send(b.logCtx, b.host, protocol.ID(justBundleMsg), peerID, msg); err != nil {
-			log.Error(b.logCtx, "Failed to send justification bundle", err, z.Str("to", peerID.String()))
+		if err := p2p.Send(ctx, b.host, protocol.ID(msgID), peerID, msg); err != nil {
+			return errors.Wrap(err, "p2p send", z.Str("msg", msgID), z.Str("to", peerID.String()))
 		}
 	}
+
+	return nil
 }
 
 func (b *Board) handleNodePubKeyMessage(ctx context.Context, peerID peer.ID, _ string, msg proto.Message) error {

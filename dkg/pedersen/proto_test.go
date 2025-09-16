@@ -6,9 +6,7 @@ import (
 	"testing"
 
 	"github.com/drand/kyber"
-	kbls "github.com/drand/kyber-bls12381"
 	kdkg "github.com/drand/kyber/share/dkg"
-	"github.com/drand/kyber/util/random"
 	"github.com/stretchr/testify/require"
 
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
@@ -166,35 +164,4 @@ func TestResponseBundleToProtoAndBack(t *testing.T) {
 	for i := range bundle.Responses {
 		require.Equal(t, bundle.Responses[i], bundle2.Responses[i])
 	}
-}
-
-func testSuite(t *testing.T) kdkg.Suite {
-	t.Helper()
-
-	return kbls.NewBLS12381Suite().G1().(kdkg.Suite)
-}
-
-func randomScalar(t *testing.T) kyber.Scalar {
-	t.Helper()
-
-	return testSuite(t).Scalar().Pick(random.New())
-}
-
-func randomScalarBytes(t *testing.T) []byte {
-	t.Helper()
-
-	scalar := randomScalar(t)
-	b, err := scalar.MarshalBinary()
-	require.NoError(t, err)
-
-	return b
-}
-
-func randomPoint(t *testing.T) kyber.Point {
-	t.Helper()
-
-	private := randomScalar(t)
-	public := testSuite(t).Point().Mul(private, nil)
-
-	return public
 }
