@@ -15,12 +15,6 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-type share struct {
-	pubKey       tbls.PublicKey
-	secretShare  tbls.PrivateKey
-	publicShares map[int]tbls.PublicKey
-}
-
 func TestRunDKG(t *testing.T) {
 	const (
 		threshold = 3
@@ -52,15 +46,10 @@ func TestRunDKG(t *testing.T) {
 
 	for n := range nodes {
 		group.Go(func() error {
-			pushFunc := func(valPubKey tbls.PublicKey, secretShare tbls.PrivateKey, publicShares map[int]tbls.PublicKey) {
-				nodes[n].shares = append(nodes[n].shares, share{
-					pubKey:       valPubKey,
-					secretShare:  secretShare,
-					publicShares: publicShares,
-				})
-			}
+			shares, err := pedersen.RunDKG(gctx, nodes[n].config, nodes[n].board, numVals)
+			nodes[n].shares = shares
 
-			return pedersen.RunDKG(gctx, nodes[n].config, nodes[n].board, numVals, pushFunc)
+			return err
 		})
 	}
 
@@ -85,8 +74,8 @@ func verifyShares(t *testing.T, nodes []*testNode, numVals, threshold int) {
 		for _, node := range nodes {
 			require.Len(t, node.shares, numVals)
 
-			pubKeyShare := node.shares[v].publicShares[node.idx.ShareIdx]
-			sig, err := tbls.Sign(node.shares[v].secretShare, msg)
+			pubKeyShare := node.shares[v].PublicShares[node.idx.ShareIdx]
+			sig, err := tbls.Sign(node.shares[v].SecretShare, msg)
 			require.NoError(t, err)
 
 			err = tbls.Verify(pubKeyShare, msg, sig)
@@ -94,7 +83,7 @@ func verifyShares(t *testing.T, nodes []*testNode, numVals, threshold int) {
 
 			sigs = append(sigs, sig)
 			pshares = append(pshares, pubKeyShare)
-			secrets[node.idx.ShareIdx] = node.shares[v].secretShare
+			secrets[node.idx.ShareIdx] = node.shares[v].SecretShare
 		}
 
 		aggSig, err := tbls.Aggregate(sigs)
@@ -109,7 +98,7 @@ func verifyShares(t *testing.T, nodes []*testNode, numVals, threshold int) {
 		sig, err := tbls.Sign(recSecret, msg)
 		require.NoError(t, err)
 
-		err = tbls.Verify(nodes[0].shares[v].pubKey, msg, sig)
+		err = tbls.Verify(nodes[0].shares[v].PubKey, msg, sig)
 		require.NoError(t, err)
 	}
 }

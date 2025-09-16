@@ -29,7 +29,7 @@ type testNode struct {
 	host   host.Host
 	board  *pedersen.Board
 	config *pedersen.Config
-	shares []share
+	shares []*pedersen.Share
 }
 
 func newTestNode(t *testing.T, index int) *testNode {
