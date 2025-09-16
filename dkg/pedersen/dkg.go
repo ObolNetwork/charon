@@ -7,17 +7,13 @@ import (
 	"crypto/sha256"
 	"time"
 
-	"github.com/drand/kyber"
 	kbls "github.com/drand/kyber-bls12381"
-	"github.com/drand/kyber/share"
 	kdkg "github.com/drand/kyber/share/dkg"
 	drandbls "github.com/drand/kyber/sign/bdn"
-	"github.com/drand/kyber/util/random"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 // High-level protocol overview:
@@ -52,7 +48,7 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int, push
 		return errors.Wrap(err, "broadcast node pubkey")
 	}
 
-	nodes, err := makeNodes(config, board)
+	nodes, err := makeNodes(ctx, config, board)
 	if err != nil {
 		return errors.Wrap(err, "make nodes")
 	}
@@ -108,23 +104,21 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int, push
 	return nil
 }
 
-func makeKeyPair(suite kdkg.Suite) (kyber.Scalar, kyber.Point) {
-	private := suite.Scalar().Pick(random.New())
-	public := suite.Point().Mul(private, nil)
-
-	return private, public
-}
-
-func makeNodes(config *Config, board *Board) ([]kdkg.Node, error) {
+func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, error) {
 	var nodes []kdkg.Node
 
-	for i := 0; i < len(config.PeerMap); i++ {
-		pkd := <-board.IncomingNodePubKeys()
+	pubKeys, err := readPeerPubKeys(ctx, board.IncomingNodePubKeys(), len(config.PeerMap))
+	if err != nil {
+		return nil, errors.Wrap(err, "read peer pubkeys")
+	}
+
+	for i := range pubKeys {
+		pkd := pubKeys[i]
 		index := config.PeerMap[pkd.PeerID].PeerIdx
 
-		public, err := bytesToPoint(config.Suite, pkd.PubKey)
+		public, err := unmarshalPoint(config.Suite, pkd.PubKey)
 		if err != nil {
-			return nil, errors.Wrap(err, "convert public key to point")
+			return nil, errors.Wrap(err, "unmarshal node pubkey")
 		}
 
 		nodes = append(nodes, kdkg.Node{
@@ -137,12 +131,12 @@ func makeNodes(config *Config, board *Board) ([]kdkg.Node, error) {
 }
 
 func processKey(ctx context.Context, config *Config, board *Board, push PushShareFunc, key *kdkg.DistKeyShare) error {
-	secretShare, sharePubKey, err := resultToShareSecretKey(key)
+	secretShare, sharePubKey, err := keyShareToBLS(key)
 	if err != nil {
 		return errors.Wrap(err, "convert result to share secret key")
 	}
 
-	validatorPubKey, err := resultToValidatorPubKey(key, config.Suite)
+	validatorPubKey, err := keyShareToValidatorPubKey(key, config.Suite)
 	if err != nil {
 		return errors.Wrap(err, "convert result to validator pub key")
 	}
@@ -151,10 +145,15 @@ func processKey(ctx context.Context, config *Config, board *Board, push PushShar
 		return errors.Wrap(err, "broadcast share pubkey")
 	}
 
+	valPubKeyShares, err := readPeerPubKeys(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
+	if err != nil {
+		return errors.Wrap(err, "read validator pubkey shares")
+	}
+
 	publicShares := make(map[int]tbls.PublicKey)
 
-	for i := 0; i < len(config.PeerMap); i++ {
-		spk := <-board.IncomingValidatorPubKeyShares()
+	for i := range valPubKeyShares {
+		spk := valPubKeyShares[i]
 		shareIndex := config.PeerMap[spk.PeerID].ShareIdx
 
 		var pk tbls.PublicKey
@@ -167,43 +166,17 @@ func processKey(ctx context.Context, config *Config, board *Board, push PushShar
 	return nil
 }
 
-func bytesToPoint(suite kdkg.Suite, b []byte) (kyber.Point, error) {
-	point := suite.Point()
-	if err := point.UnmarshalBinary(b); err != nil {
-		return nil, errors.Wrap(err, "unmarshal point")
+func readPeerPubKeys(ctx context.Context, ch <-chan PeerPubKey, count int) ([]PeerPubKey, error) {
+	var pubKeys []PeerPubKey
+
+	for range count {
+		select {
+		case pkd := <-ch:
+			pubKeys = append(pubKeys, pkd)
+		case <-ctx.Done():
+			return nil, errors.New("context done")
+		}
 	}
 
-	return point, nil
-}
-
-func resultToShareSecretKey(result *kdkg.DistKeyShare) (tbls.PrivateKey, tbls.PublicKey, error) {
-	privShare := result.PriShare()
-
-	bytsSk, err := privShare.V.MarshalBinary()
-	if err != nil {
-		return tbls.PrivateKey{}, tbls.PublicKey{}, err
-	}
-
-	privKey, err := tblsconv.PrivkeyFromBytes(bytsSk)
-	if err != nil {
-		return tbls.PrivateKey{}, tbls.PublicKey{}, errors.Wrap(err, "convert privkey from bytes")
-	}
-
-	pubKey, err := tbls.SecretToPublicKey(privKey)
-	if err != nil {
-		return tbls.PrivateKey{}, tbls.PublicKey{}, errors.Wrap(err, "derive pubkey from privkey")
-	}
-
-	return privKey, pubKey, nil
-}
-
-func resultToValidatorPubKey(result *kdkg.DistKeyShare, suite kdkg.Suite) (tbls.PublicKey, error) {
-	exp := share.NewPubPoly(suite, suite.Point().Base(), result.Commitments())
-
-	bytsPK, err := exp.Commit().MarshalBinary()
-	if err != nil {
-		return tbls.PublicKey{}, errors.Wrap(err, "marshal validator pubkey")
-	}
-
-	return tblsconv.PubkeyFromBytes(bytsPK)
+	return pubKeys, nil
 }
