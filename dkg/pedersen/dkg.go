@@ -30,27 +30,31 @@ const (
 	phaseDuration = time.Second
 )
 
-// PushShareFunc is a callback function that is called when a new share is created.
-type PushShareFunc func(valPubKey tbls.PublicKey, secretShare tbls.PrivateKey, publicShares map[int]tbls.PublicKey)
+// Share mirrors the dkg.share type and used here to decouple from the outer dkg package.
+type Share struct {
+	PubKey       tbls.PublicKey
+	SecretShare  tbls.PrivateKey
+	PublicShares map[int]tbls.PublicKey
+}
 
 // RunDKG runs the Pedersen DKG protocol using the provided board and configuration.
-func RunDKG(ctx context.Context, config *Config, board *Board, numVals int, push PushShareFunc) error {
+func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]*Share, error) {
 	// Each node generates an ephemeral key pair (BLS) and broadcasts the public key.
 	// This is a prerequisite for the Pedersen DKG protocol.
 	nodePrivateKey, nodePubKey := makeKeyPair(config.Suite)
 
 	pkBytes, err := nodePubKey.MarshalBinary()
 	if err != nil {
-		return errors.Wrap(err, "marshal node public key")
+		return nil, errors.Wrap(err, "marshal node public key")
 	}
 
 	if err := board.BroadcastNodePubKey(ctx, pkBytes); err != nil {
-		return errors.Wrap(err, "broadcast node pubkey")
+		return nil, errors.Wrap(err, "broadcast node pubkey")
 	}
 
 	nodes, err := makeNodes(ctx, config, board)
 	if err != nil {
-		return errors.Wrap(err, "make nodes")
+		return nil, errors.Wrap(err, "make nodes")
 	}
 
 	nonce := sha256.Sum256(config.SessionID)
@@ -66,6 +70,8 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int, push
 
 	log.Info(ctx, "Starting pedersen DKG...")
 
+	shares := make([]*Share, 0, numVals)
+
 	for range numVals {
 		// TODO: This phaser implementation is odd, it makes pauses between rounds,
 		// relying on all other nodes to complete the round in that time.
@@ -80,28 +86,31 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int, push
 			false,
 		)
 		if err != nil {
-			return errors.Wrap(err, "create pedersen DKG protocol")
+			return nil, errors.Wrap(err, "create pedersen DKG protocol")
 		}
 
 		go phaser.Start()
 
 		select {
 		case <-ctx.Done():
-			return errors.New("pedersen DKG context done, protocol aborted")
+			return nil, errors.New("pedersen DKG context done, protocol aborted")
 		case kdkgResult := <-protocol.WaitEnd():
 			if kdkgResult.Error != nil {
-				return errors.Wrap(kdkgResult.Error, "pedersen DKG protocol failed")
+				return nil, errors.Wrap(kdkgResult.Error, "pedersen DKG protocol failed")
 			}
 
-			if err = processKey(ctx, config, board, push, kdkgResult.Result.Key); err != nil {
-				return errors.Wrap(err, "process pedersen DKG key")
+			share, err := processKey(ctx, config, board, kdkgResult.Result.Key)
+			if err != nil {
+				return nil, errors.Wrap(err, "process pedersen DKG key")
 			}
+
+			shares = append(shares, share)
 		}
 	}
 
 	log.Info(ctx, "Pedersen DKG completed.")
 
-	return nil
+	return shares, nil
 }
 
 func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, error) {
@@ -130,24 +139,24 @@ func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, 
 	return nodes, nil
 }
 
-func processKey(ctx context.Context, config *Config, board *Board, push PushShareFunc, key *kdkg.DistKeyShare) error {
+func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.DistKeyShare) (*Share, error) {
 	secretShare, sharePubKey, err := keyShareToBLS(key)
 	if err != nil {
-		return errors.Wrap(err, "convert result to share secret key")
+		return nil, errors.Wrap(err, "convert result to share secret key")
 	}
 
 	validatorPubKey, err := keyShareToValidatorPubKey(key, config.Suite)
 	if err != nil {
-		return errors.Wrap(err, "convert result to validator pub key")
+		return nil, errors.Wrap(err, "convert result to validator pub key")
 	}
 
 	if err := board.BroadcastValidatorPubKeyShare(ctx, sharePubKey[:]); err != nil {
-		return errors.Wrap(err, "broadcast share pubkey")
+		return nil, errors.Wrap(err, "broadcast share pubkey")
 	}
 
 	valPubKeyShares, err := readPeerPubKeys(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
 	if err != nil {
-		return errors.Wrap(err, "read validator pubkey shares")
+		return nil, errors.Wrap(err, "read validator pubkey shares")
 	}
 
 	publicShares := make(map[int]tbls.PublicKey)
@@ -161,9 +170,11 @@ func processKey(ctx context.Context, config *Config, board *Board, push PushShar
 		publicShares[shareIndex] = pk
 	}
 
-	push(validatorPubKey, secretShare, publicShares)
-
-	return nil
+	return &Share{
+		PubKey:       validatorPubKey,
+		SecretShare:  secretShare,
+		PublicShares: publicShares,
+	}, nil
 }
 
 func readPeerPubKeys(ctx context.Context, ch <-chan PeerPubKey, count int) ([]PeerPubKey, error) {
