@@ -5,7 +5,6 @@ package pedersen
 import (
 	"context"
 	"crypto/sha256"
-	"time"
 
 	kbls "github.com/drand/kyber-bls12381"
 	kdkg "github.com/drand/kyber/share/dkg"
@@ -25,10 +24,6 @@ import (
 // 4. Each node broadcasts its share of the validator public key.
 // 5. Each node receives all other nodes' shares of the validator public key.
 // 6. The resulting []share is collected by the caller via the PushShareFunc callback.
-
-const (
-	phaseDuration = time.Second
-)
 
 // Share mirrors the dkg.share type and used here to decouple from the outer dkg package.
 type Share struct {
@@ -52,7 +47,7 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]*
 		return nil, errors.Wrap(err, "broadcast node pubkey")
 	}
 
-	nodes, err := makeNodes(ctx, config, board)
+	nodes, _, err := makeNodes(ctx, config, board)
 	if err != nil {
 		return nil, errors.Wrap(err, "make nodes")
 	}
@@ -77,7 +72,7 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]*
 		// relying on all other nodes to complete the round in that time.
 		// Unfortunately, kyber does not expose any fine-grained control over the protocol.
 		// A better solution would be a signal-based phaser that relies on Board progress.
-		phaser := kdkg.NewTimePhaser(phaseDuration)
+		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
 		protocol, err := kdkg.NewProtocol(
 			dkgConfig,
@@ -113,21 +108,29 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]*
 	return shares, nil
 }
 
-func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, error) {
+func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, map[int][][]byte, error) {
 	var nodes []kdkg.Node
 
-	pubKeys, err := readPeerPubKeys(ctx, board.IncomingNodePubKeys(), len(config.PeerMap))
+	nodePubKeys, err := readBoardChannel(ctx, board.IncomingNodePubKeys(), len(config.PeerMap))
 	if err != nil {
-		return nil, errors.Wrap(err, "read peer pubkeys")
+		return nil, nil, errors.Wrap(err, "read peer pubkeys")
 	}
 
-	for i := range pubKeys {
-		pkd := pubKeys[i]
-		index := config.PeerMap[pkd.PeerID].PeerIdx
+	pubKeyShares := make(map[int][][]byte, 0)
 
-		public, err := unmarshalPoint(config.Suite, pkd.PubKey)
+	for i := range nodePubKeys {
+		ppk := nodePubKeys[i]
+		index := config.PeerMap[ppk.PeerID].PeerIdx
+
+		public, err := unmarshalPoint(config.Suite, ppk.PubKey)
 		if err != nil {
-			return nil, errors.Wrap(err, "unmarshal node pubkey")
+			return nil, nil, errors.Wrap(err, "unmarshal node pubkey")
+		}
+
+		if ppk.PubKeyShares != nil {
+			shares := make([][]byte, len(ppk.PubKeyShares))
+			copy(shares, ppk.PubKeyShares)
+			pubKeyShares[index] = shares
 		}
 
 		nodes = append(nodes, kdkg.Node{
@@ -136,7 +139,7 @@ func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, 
 		})
 	}
 
-	return nodes, nil
+	return nodes, pubKeyShares, nil
 }
 
 func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.DistKeyShare) (*Share, error) {
@@ -154,7 +157,7 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 		return nil, errors.Wrap(err, "broadcast share pubkey")
 	}
 
-	valPubKeyShares, err := readPeerPubKeys(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
+	valPubKeyShares, err := readBoardChannel(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
 	if err != nil {
 		return nil, errors.Wrap(err, "read validator pubkey shares")
 	}
@@ -166,7 +169,7 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 		shareIndex := config.PeerMap[spk.PeerID].ShareIdx
 
 		var pk tbls.PublicKey
-		copy(pk[:], spk.PubKey)
+		copy(pk[:], spk.ValidatorPubKey)
 		publicShares[shareIndex] = pk
 	}
 
@@ -177,8 +180,8 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 	}, nil
 }
 
-func readPeerPubKeys(ctx context.Context, ch <-chan PeerPubKey, count int) ([]PeerPubKey, error) {
-	var pubKeys []PeerPubKey
+func readBoardChannel[T any](ctx context.Context, ch <-chan T, count int) ([]T, error) {
+	var pubKeys []T
 
 	for range count {
 		select {

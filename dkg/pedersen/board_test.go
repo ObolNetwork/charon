@@ -39,14 +39,18 @@ func TestBoard(t *testing.T) {
 		nodes[i].initBoard(t, threshold, peers, peerMap, session[:])
 	}
 
-	t.Run("bcast node pubkey", func(t *testing.T) {
+	t.Run("bcast node pubkeys", func(t *testing.T) {
 		for i := range nodes {
 			board := nodes[i].board
 			pubKey := randomPoint(t)
 			pubKeyBytes, err := pubKey.MarshalBinary()
 			require.NoError(t, err)
 
-			err = board.BroadcastNodePubKey(t.Context(), pubKeyBytes)
+			pubKeyShare := randomPoint(t)
+			pubKeyShareBytes, err := pubKeyShare.MarshalBinary()
+			require.NoError(t, err)
+
+			err = board.BroadcastNodePubKeyWithShares(t.Context(), pubKeyBytes, [][]byte{pubKeyShareBytes})
 			require.NoError(t, err)
 		}
 
@@ -60,6 +64,7 @@ func TestBoard(t *testing.T) {
 				pk, exist := peerPubKeys[ppk.PeerID]
 				if exist {
 					require.Equal(t, pk, ppk.PubKey)
+					require.Len(t, ppk.PubKeyShares, 1)
 				} else {
 					peerPubKeys[ppk.PeerID] = ppk.PubKey
 				}
@@ -89,9 +94,9 @@ func TestBoard(t *testing.T) {
 
 				pk, exist := validatorPubKeyShares[ppk.PeerID]
 				if exist {
-					require.Equal(t, pk, ppk.PubKey)
+					require.Equal(t, pk, ppk.ValidatorPubKey)
 				} else {
-					validatorPubKeyShares[ppk.PeerID] = ppk.PubKey
+					validatorPubKeyShares[ppk.PeerID] = ppk.ValidatorPubKey
 				}
 			}
 		}

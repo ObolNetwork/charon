@@ -4,12 +4,110 @@ package dkg
 
 import (
 	"context"
+	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
+	"github.com/obolnetwork/charon/p2p"
 )
 
-// runPedersen runs the Pedersen DKG protocol using the provided board and configuration.
-func runPedersen(ctx context.Context, config *pedersen.Config, board *pedersen.Board, numVals int) ([]share, error) {
+// ReshareDKGConfig is populated by the cmd
+type ReshareDKGConfig struct {
+	DataDir   string
+	OutputDir string
+	DKG       Config
+}
+
+// RunReshareDKG runs a resharing DKG using the provided lock and existing shares.
+func RunReshareDKG(ctx context.Context, conf *ReshareDKGConfig, lock *cluster.Lock, shares []*pedersen.Share) ([]*pedersen.Share, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.DKG.ExecutionEngineAddr)
+	go eth1Cl.Run(ctx)
+
+	peers, err := lock.Peers()
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := p2p.LoadPrivKey(conf.DataDir)
+	if err != nil {
+		return nil, err
+	}
+
+	pID, err := p2p.PeerIDFromKey(key.PubKey())
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info(ctx, "Starting local P2P networking peer")
+	logPeerSummary(ctx, pID, peers, lock.Operators)
+
+	p2pNode, shutdown, err := setupP2P(ctx, key, conf.DKG, peers, lock.DefinitionHash)
+	if err != nil {
+		return nil, err
+	}
+	defer shutdown()
+
+	peerIDs, err := lock.PeerIDs()
+	if err != nil {
+		return nil, errors.Wrap(err, "get peer IDs")
+	}
+
+	// Register libp2p handlers
+	peerMap := make(map[peer.ID]cluster.NodeIdx)
+	for _, p := range peers {
+		nodeIdx, err := lock.NodeIdx(p.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		peerMap[p.ID] = nodeIdx
+	}
+
+	caster := bcast.New(p2pNode, peerIDs, key)
+
+	// register pedersen protocol messages
+	pedersenReshareConfig := pedersen.NewReshareConfig(lock.Threshold, peerMap)
+	pedersenConfig := pedersen.NewConfig(p2pNode.ID(), peerMap, lock.Threshold, lock.DefinitionHash, pedersenReshareConfig)
+	pedersenBoard := pedersen.NewBoard(ctx, p2pNode, pedersenConfig, caster)
+
+	log.Info(ctx, "Waiting to connect to all peers...")
+
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, p2pNode, key, lock.DefinitionHash, peerIDs, cancel, TestConfig{})
+	if err != nil {
+		return nil, err
+	}
+
+	newShares, err := pedersen.RunReshareDKG(ctx, pedersenConfig, pedersenBoard, shares)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := nextStepSync(ctx); err != nil {
+		return nil, errors.Wrap(err, "sync next step")
+	}
+
+	if err = stopSync(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return nil, errors.Wrap(err, "sync shutdown")
+	}
+
+	log.Debug(ctx, "Graceful shutdown delay", z.Int("seconds", int(conf.DKG.ShutdownDelay.Seconds())))
+	time.Sleep(conf.DKG.ShutdownDelay)
+
+	return newShares, nil
+}
+
+// runPedersenDKG runs the Pedersen DKG protocol using the provided board and configuration.
+func runPedersenDKG(ctx context.Context, config *pedersen.Config, board *pedersen.Board, numVals int) ([]share, error) {
 	shares, err := pedersen.RunDKG(ctx, config, board, numVals)
 	if err != nil {
 		return nil, err

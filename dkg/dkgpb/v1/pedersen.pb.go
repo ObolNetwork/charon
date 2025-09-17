@@ -21,28 +21,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type PubKeyMessage struct {
+type NodePubKeyMessage struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     []byte                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	PublicKey     []byte                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"` // kyber.Point
+	Shares        *NodePubKeyShares      `protobuf:"bytes,3,opt,name=shares,proto3,oneof" json:"shares,omitempty"`                  // for resharing
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PubKeyMessage) Reset() {
-	*x = PubKeyMessage{}
+func (x *NodePubKeyMessage) Reset() {
+	*x = NodePubKeyMessage{}
 	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PubKeyMessage) String() string {
+func (x *NodePubKeyMessage) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PubKeyMessage) ProtoMessage() {}
+func (*NodePubKeyMessage) ProtoMessage() {}
 
-func (x *PubKeyMessage) ProtoReflect() protoreflect.Message {
+func (x *NodePubKeyMessage) ProtoReflect() protoreflect.Message {
 	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -54,21 +55,124 @@ func (x *PubKeyMessage) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PubKeyMessage.ProtoReflect.Descriptor instead.
-func (*PubKeyMessage) Descriptor() ([]byte, []int) {
+// Deprecated: Use NodePubKeyMessage.ProtoReflect.Descriptor instead.
+func (*NodePubKeyMessage) Descriptor() ([]byte, []int) {
 	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *PubKeyMessage) GetSessionId() []byte {
+func (x *NodePubKeyMessage) GetSessionId() []byte {
 	if x != nil {
 		return x.SessionId
 	}
 	return nil
 }
 
-func (x *PubKeyMessage) GetPublicKey() []byte {
+func (x *NodePubKeyMessage) GetPublicKey() []byte {
 	if x != nil {
 		return x.PublicKey
+	}
+	return nil
+}
+
+func (x *NodePubKeyMessage) GetShares() *NodePubKeyShares {
+	if x != nil {
+		return x.Shares
+	}
+	return nil
+}
+
+type NodePubKeyShares struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	PublicKeyShares [][]byte               `protobuf:"bytes,1,rep,name=public_key_shares,json=publicKeyShares,proto3" json:"public_key_shares,omitempty"` // kyber.Point
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *NodePubKeyShares) Reset() {
+	*x = NodePubKeyShares{}
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NodePubKeyShares) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NodePubKeyShares) ProtoMessage() {}
+
+func (x *NodePubKeyShares) ProtoReflect() protoreflect.Message {
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NodePubKeyShares.ProtoReflect.Descriptor instead.
+func (*NodePubKeyShares) Descriptor() ([]byte, []int) {
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *NodePubKeyShares) GetPublicKeyShares() [][]byte {
+	if x != nil {
+		return x.PublicKeyShares
+	}
+	return nil
+}
+
+type ValidatorPubKeyShareMessage struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SessionId      []byte                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PublicKeyShare []byte                 `protobuf:"bytes,2,opt,name=public_key_share,json=publicKeyShare,proto3" json:"public_key_share,omitempty"` // kyber.Point
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ValidatorPubKeyShareMessage) Reset() {
+	*x = ValidatorPubKeyShareMessage{}
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidatorPubKeyShareMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidatorPubKeyShareMessage) ProtoMessage() {}
+
+func (x *ValidatorPubKeyShareMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidatorPubKeyShareMessage.ProtoReflect.Descriptor instead.
+func (*ValidatorPubKeyShareMessage) Descriptor() ([]byte, []int) {
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ValidatorPubKeyShareMessage) GetSessionId() []byte {
+	if x != nil {
+		return x.SessionId
+	}
+	return nil
+}
+
+func (x *ValidatorPubKeyShareMessage) GetPublicKeyShare() []byte {
+	if x != nil {
+		return x.PublicKeyShare
 	}
 	return nil
 }
@@ -86,7 +190,7 @@ type PedersenDealBundle struct {
 
 func (x *PedersenDealBundle) Reset() {
 	*x = PedersenDealBundle{}
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[1]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +202,7 @@ func (x *PedersenDealBundle) String() string {
 func (*PedersenDealBundle) ProtoMessage() {}
 
 func (x *PedersenDealBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[1]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,7 +215,7 @@ func (x *PedersenDealBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PedersenDealBundle.ProtoReflect.Descriptor instead.
 func (*PedersenDealBundle) Descriptor() ([]byte, []int) {
-	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{1}
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PedersenDealBundle) GetDealerIndex() uint32 {
@@ -159,7 +263,7 @@ type PedersenDeal struct {
 
 func (x *PedersenDeal) Reset() {
 	*x = PedersenDeal{}
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[2]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -171,7 +275,7 @@ func (x *PedersenDeal) String() string {
 func (*PedersenDeal) ProtoMessage() {}
 
 func (x *PedersenDeal) ProtoReflect() protoreflect.Message {
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[2]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -184,7 +288,7 @@ func (x *PedersenDeal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PedersenDeal.ProtoReflect.Descriptor instead.
 func (*PedersenDeal) Descriptor() ([]byte, []int) {
-	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{2}
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PedersenDeal) GetShareIndex() uint32 {
@@ -213,7 +317,7 @@ type PedersenResponseBundle struct {
 
 func (x *PedersenResponseBundle) Reset() {
 	*x = PedersenResponseBundle{}
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[3]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -225,7 +329,7 @@ func (x *PedersenResponseBundle) String() string {
 func (*PedersenResponseBundle) ProtoMessage() {}
 
 func (x *PedersenResponseBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[3]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -238,7 +342,7 @@ func (x *PedersenResponseBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PedersenResponseBundle.ProtoReflect.Descriptor instead.
 func (*PedersenResponseBundle) Descriptor() ([]byte, []int) {
-	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{3}
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *PedersenResponseBundle) GetShareIndex() uint32 {
@@ -279,7 +383,7 @@ type PedersenResponse struct {
 
 func (x *PedersenResponse) Reset() {
 	*x = PedersenResponse{}
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[4]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -291,7 +395,7 @@ func (x *PedersenResponse) String() string {
 func (*PedersenResponse) ProtoMessage() {}
 
 func (x *PedersenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[4]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -304,7 +408,7 @@ func (x *PedersenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PedersenResponse.ProtoReflect.Descriptor instead.
 func (*PedersenResponse) Descriptor() ([]byte, []int) {
-	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{4}
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PedersenResponse) GetDealerIndex() uint32 {
@@ -333,7 +437,7 @@ type PedersenJustificationBundle struct {
 
 func (x *PedersenJustificationBundle) Reset() {
 	*x = PedersenJustificationBundle{}
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[5]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -345,7 +449,7 @@ func (x *PedersenJustificationBundle) String() string {
 func (*PedersenJustificationBundle) ProtoMessage() {}
 
 func (x *PedersenJustificationBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[5]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -358,7 +462,7 @@ func (x *PedersenJustificationBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PedersenJustificationBundle.ProtoReflect.Descriptor instead.
 func (*PedersenJustificationBundle) Descriptor() ([]byte, []int) {
-	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{5}
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PedersenJustificationBundle) GetDealerIndex() uint32 {
@@ -399,7 +503,7 @@ type PedersenJustification struct {
 
 func (x *PedersenJustification) Reset() {
 	*x = PedersenJustification{}
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[6]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -411,7 +515,7 @@ func (x *PedersenJustification) String() string {
 func (*PedersenJustification) ProtoMessage() {}
 
 func (x *PedersenJustification) ProtoReflect() protoreflect.Message {
-	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[6]
+	mi := &file_dkg_dkgpb_v1_pedersen_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -424,7 +528,7 @@ func (x *PedersenJustification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PedersenJustification.ProtoReflect.Descriptor instead.
 func (*PedersenJustification) Descriptor() ([]byte, []int) {
-	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{6}
+	return file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PedersenJustification) GetShareIndex() uint32 {
@@ -445,12 +549,20 @@ var File_dkg_dkgpb_v1_pedersen_proto protoreflect.FileDescriptor
 
 const file_dkg_dkgpb_v1_pedersen_proto_rawDesc = "" +
 	"\n" +
-	"\x1bdkg/dkgpb/v1/pedersen.proto\x12\fdkg.dkgpb.v1\"M\n" +
-	"\rPubKeyMessage\x12\x1d\n" +
+	"\x1bdkg/dkgpb/v1/pedersen.proto\x12\fdkg.dkgpb.v1\"\x99\x01\n" +
+	"\x11NodePubKeyMessage\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\fR\tsessionId\x12\x1d\n" +
 	"\n" +
-	"public_key\x18\x02 \x01(\fR\tpublicKey\"\xbe\x01\n" +
+	"public_key\x18\x02 \x01(\fR\tpublicKey\x12;\n" +
+	"\x06shares\x18\x03 \x01(\v2\x1e.dkg.dkgpb.v1.NodePubKeySharesH\x00R\x06shares\x88\x01\x01B\t\n" +
+	"\a_shares\">\n" +
+	"\x10NodePubKeyShares\x12*\n" +
+	"\x11public_key_shares\x18\x01 \x03(\fR\x0fpublicKeyShares\"f\n" +
+	"\x1bValidatorPubKeyShareMessage\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\fR\tsessionId\x12(\n" +
+	"\x10public_key_share\x18\x02 \x01(\fR\x0epublicKeyShare\"\xbe\x01\n" +
 	"\x12PedersenDealBundle\x12!\n" +
 	"\fdealer_index\x18\x01 \x01(\rR\vdealerIndex\x120\n" +
 	"\x05deals\x18\x02 \x03(\v2\x1a.dkg.dkgpb.v1.PedersenDealR\x05deals\x12\x16\n" +
@@ -495,25 +607,28 @@ func file_dkg_dkgpb_v1_pedersen_proto_rawDescGZIP() []byte {
 	return file_dkg_dkgpb_v1_pedersen_proto_rawDescData
 }
 
-var file_dkg_dkgpb_v1_pedersen_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_dkg_dkgpb_v1_pedersen_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_dkg_dkgpb_v1_pedersen_proto_goTypes = []any{
-	(*PubKeyMessage)(nil),               // 0: dkg.dkgpb.v1.PubKeyMessage
-	(*PedersenDealBundle)(nil),          // 1: dkg.dkgpb.v1.PedersenDealBundle
-	(*PedersenDeal)(nil),                // 2: dkg.dkgpb.v1.PedersenDeal
-	(*PedersenResponseBundle)(nil),      // 3: dkg.dkgpb.v1.PedersenResponseBundle
-	(*PedersenResponse)(nil),            // 4: dkg.dkgpb.v1.PedersenResponse
-	(*PedersenJustificationBundle)(nil), // 5: dkg.dkgpb.v1.PedersenJustificationBundle
-	(*PedersenJustification)(nil),       // 6: dkg.dkgpb.v1.PedersenJustification
+	(*NodePubKeyMessage)(nil),           // 0: dkg.dkgpb.v1.NodePubKeyMessage
+	(*NodePubKeyShares)(nil),            // 1: dkg.dkgpb.v1.NodePubKeyShares
+	(*ValidatorPubKeyShareMessage)(nil), // 2: dkg.dkgpb.v1.ValidatorPubKeyShareMessage
+	(*PedersenDealBundle)(nil),          // 3: dkg.dkgpb.v1.PedersenDealBundle
+	(*PedersenDeal)(nil),                // 4: dkg.dkgpb.v1.PedersenDeal
+	(*PedersenResponseBundle)(nil),      // 5: dkg.dkgpb.v1.PedersenResponseBundle
+	(*PedersenResponse)(nil),            // 6: dkg.dkgpb.v1.PedersenResponse
+	(*PedersenJustificationBundle)(nil), // 7: dkg.dkgpb.v1.PedersenJustificationBundle
+	(*PedersenJustification)(nil),       // 8: dkg.dkgpb.v1.PedersenJustification
 }
 var file_dkg_dkgpb_v1_pedersen_proto_depIdxs = []int32{
-	2, // 0: dkg.dkgpb.v1.PedersenDealBundle.deals:type_name -> dkg.dkgpb.v1.PedersenDeal
-	4, // 1: dkg.dkgpb.v1.PedersenResponseBundle.responses:type_name -> dkg.dkgpb.v1.PedersenResponse
-	6, // 2: dkg.dkgpb.v1.PedersenJustificationBundle.justifications:type_name -> dkg.dkgpb.v1.PedersenJustification
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	1, // 0: dkg.dkgpb.v1.NodePubKeyMessage.shares:type_name -> dkg.dkgpb.v1.NodePubKeyShares
+	4, // 1: dkg.dkgpb.v1.PedersenDealBundle.deals:type_name -> dkg.dkgpb.v1.PedersenDeal
+	6, // 2: dkg.dkgpb.v1.PedersenResponseBundle.responses:type_name -> dkg.dkgpb.v1.PedersenResponse
+	8, // 3: dkg.dkgpb.v1.PedersenJustificationBundle.justifications:type_name -> dkg.dkgpb.v1.PedersenJustification
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_dkg_dkgpb_v1_pedersen_proto_init() }
@@ -521,13 +636,14 @@ func file_dkg_dkgpb_v1_pedersen_proto_init() {
 	if File_dkg_dkgpb_v1_pedersen_proto != nil {
 		return
 	}
+	file_dkg_dkgpb_v1_pedersen_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dkg_dkgpb_v1_pedersen_proto_rawDesc), len(file_dkg_dkgpb_v1_pedersen_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

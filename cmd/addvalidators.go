@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app"
@@ -52,6 +53,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 			if err := log.InitLogger(config.DKG.Log); err != nil {
 				return err
 			}
+			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			return runFunc(cmd.Context(), config)
 		},

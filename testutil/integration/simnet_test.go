@@ -307,7 +307,7 @@ func newSimnetExpect(peers int, duties ...core.DutyType) *simnetExpect {
 func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	relayAddr := relay.StartRelay(ctx, t)
 	// NOTE: We can add support for in-memory transport to QBFT.

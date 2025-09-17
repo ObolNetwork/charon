@@ -4,6 +4,7 @@ package pedersen_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -19,11 +20,30 @@ func TestNewConfig(t *testing.T) {
 		"peer3": {PeerIdx: 2, ShareIdx: 3},
 	}
 
-	config := pedersen.NewConfig("peer1", peerMap, 2, []byte("session1"))
+	config := pedersen.NewConfig("peer1", peerMap, 2, []byte("session1"), nil)
+	require.Equal(t, time.Second, config.PhaseDuration)
 	require.EqualValues(t, "peer1", config.ThisPeerID)
 	require.Equal(t, peerMap, config.PeerMap)
 	require.Equal(t, 2, config.Threshold)
 	require.Equal(t, []byte("session1"), config.SessionID)
 	require.Equal(t, 3, config.Nodes())
 	require.NotNil(t, config.Suite)
+
+	peerMap2 := map[peer.ID]cluster.NodeIdx{
+		"peer21": {PeerIdx: 0, ShareIdx: 1},
+		"peer22": {PeerIdx: 1, ShareIdx: 2},
+		"peer23": {PeerIdx: 2, ShareIdx: 3},
+		"peer24": {PeerIdx: 3, ShareIdx: 4},
+	}
+
+	reshareConfig := pedersen.NewReshareConfig(3, peerMap2)
+	require.Equal(t, 3, reshareConfig.NewThreshold)
+	require.Equal(t, peerMap2, reshareConfig.NewPeerMap)
+
+	config2 := pedersen.NewConfig("peer21", peerMap2, 2, []byte("session2"), reshareConfig)
+	require.Equal(t, reshareConfig, config2.Reshare)
+
+	idx, err := config.ThisNodeIndex()
+	require.NoError(t, err)
+	require.Equal(t, 0, idx)
 }

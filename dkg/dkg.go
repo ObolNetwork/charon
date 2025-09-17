@@ -246,7 +246,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		sigValidatorRegistration,
 	}, conf.Timeout)
 
-	// Register Frost libp2p handlers
+	// Register libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
 	for _, p := range peers {
 		nodeIdx, err := def.NodeIdx(p.ID)
@@ -269,7 +269,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
 	// register pedersen protocol messages
-	pedersenConfig := pedersen.NewConfig(p2pNode.ID(), peerMap, def.Threshold, def.DefinitionHash)
+	pedersenConfig := pedersen.NewConfig(p2pNode.ID(), peerMap, def.Threshold, def.DefinitionHash, nil)
 	pedersenBoard := pedersen.NewBoard(ctx, p2pNode, pedersenConfig, caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")
@@ -293,7 +293,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 			return err
 		}
 	case "pedersen":
-		shares, err = runPedersen(ctx, pedersenConfig, pedersenBoard, newValidators)
+		shares, err = runPedersenDKG(ctx, pedersenConfig, pedersenBoard, newValidators)
 		if err != nil {
 			return err
 		}
