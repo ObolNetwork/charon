@@ -53,6 +53,10 @@ func connectTestNodes(t *testing.T, nodes []*testNode) {
 
 	for i := range nodes {
 		for j := range nodes {
+			if i == j {
+				continue
+			}
+
 			nodes[i].host.Peerstore().AddAddrs(nodes[j].host.ID(), nodes[j].host.Addrs(), peerstore.PermanentAddrTTL)
 		}
 	}
@@ -63,7 +67,7 @@ func (n *testNode) initBoard(t *testing.T, threshold int, peers []peer.ID, peerM
 
 	bc := bcast.New(n.host, peers, n.secret)
 	logCtx := log.WithCtx(t.Context(), z.Int("index", n.idx.PeerIdx))
-	n.config = pedersen.NewConfig(n.host.ID(), peerMap, threshold, session)
+	n.config = pedersen.NewConfig(n.host.ID(), peerMap, threshold, session, nil)
 	n.board = pedersen.NewBoard(logCtx, n.host, n.config, bc)
 }
 

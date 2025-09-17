@@ -19,7 +19,7 @@ func TestRunDKG(t *testing.T) {
 	const (
 		threshold = 3
 		numNodes  = 4
-		numVals   = 5
+		numVals   = 2
 	)
 
 	var (

@@ -267,7 +267,7 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 
 	require.NoError(t, def.VerifySignatures(nil))
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	// Start relay.
@@ -573,7 +573,7 @@ func TestSyncFlow(t *testing.T) {
 			pIDs, err := lock.PeerIDs()
 			require.NoError(t, err)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
 			ctx = log.WithTopic(ctx, "test")

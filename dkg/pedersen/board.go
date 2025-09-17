@@ -27,19 +27,25 @@ import (
 type Board struct {
 	logCtx            context.Context
 	host              host.Host
+	sender            *p2p.Sender
 	config            *Config
 	bcastComp         *bcast.Component
 	dealCh            chan kdkg.DealBundle
 	responseCh        chan kdkg.ResponseBundle
 	justificationCh   chan kdkg.JustificationBundle
-	nodePubKeysCh     chan PeerPubKey
-	valPubKeySharesCh chan PeerPubKey
+	nodePubKeysCh     chan NodePubKeys
+	valPubKeySharesCh chan ValidatorPubKeyShare
 }
 
-// PeerPubKey associates a peer ID with a certain public key.
-type PeerPubKey struct {
-	PeerID peer.ID
-	PubKey []byte
+type NodePubKeys struct {
+	PeerID       peer.ID
+	PubKey       []byte
+	PubKeyShares [][]byte
+}
+
+type ValidatorPubKeyShare struct {
+	PeerID          peer.ID
+	ValidatorPubKey []byte
 }
 
 const (
@@ -48,7 +54,7 @@ const (
 
 var (
 	_                 kdkg.Board = (*Board)(nil)
-	nodePubKeyMsg                = path.Join(protocolID, "node_pubkey")
+	nodePubKeysMsg               = path.Join(protocolID, "node_pubkeys")
 	valPubKeyShareMsg            = path.Join(protocolID, "val_pubkey_share")
 	dealBundleMsg                = path.Join(protocolID, "deal_bundle")
 	respBundleMsg                = path.Join(protocolID, "resp_bundle")
@@ -62,36 +68,37 @@ func NewBoard(ctx context.Context, host host.Host, config *Config, bcastComp *bc
 	board := &Board{
 		logCtx:            log.WithTopic(ctx, "pedersen"),
 		host:              host,
+		sender:            new(p2p.Sender),
 		config:            config,
 		bcastComp:         bcastComp,
 		dealCh:            make(chan kdkg.DealBundle),
 		responseCh:        make(chan kdkg.ResponseBundle),
 		justificationCh:   make(chan kdkg.JustificationBundle),
-		nodePubKeysCh:     make(chan PeerPubKey, config.Nodes()),
-		valPubKeySharesCh: make(chan PeerPubKey, config.Nodes()),
+		nodePubKeysCh:     make(chan NodePubKeys, config.Nodes()),
+		valPubKeySharesCh: make(chan ValidatorPubKeyShare, config.Nodes()),
 	}
 
 	// We use bcast for exchanging node public keys only as they are invariant and sent only once.
 	// This will leverage reliable broadcast and deduplication.
-	bcastComp.RegisterMessageIDFuncs(nodePubKeyMsg, board.handleNodePubKeyMessage, checkPubKeyMessage)
+	bcastComp.RegisterMessageIDFuncs(nodePubKeysMsg, board.handleNodePubKeyMessage, checkNodePubKeyMessage)
 
 	// For other messages we use direct p2p messaging.
 	const logTopic = "pedersen"
 	p2p.RegisterHandler(logTopic, host, protocol.ID(dealBundleMsg), func() proto.Message { return new(pb.PedersenDealBundle) }, board.handleDealBundleMessage)
 	p2p.RegisterHandler(logTopic, host, protocol.ID(respBundleMsg), func() proto.Message { return new(pb.PedersenResponseBundle) }, board.handleResponseBundleMessage)
 	p2p.RegisterHandler(logTopic, host, protocol.ID(justBundleMsg), func() proto.Message { return new(pb.PedersenJustificationBundle) }, board.handleJustificationBundleMessage)
-	p2p.RegisterHandler(logTopic, host, protocol.ID(valPubKeyShareMsg), func() proto.Message { return new(pb.PubKeyMessage) }, board.handleValidatorPubKeyShareMessage)
+	p2p.RegisterHandler(logTopic, host, protocol.ID(valPubKeyShareMsg), func() proto.Message { return new(pb.ValidatorPubKeyShareMessage) }, board.handleValidatorPubKeyShareMessage)
 
 	return board
 }
 
 // IncomingNodePubKeys returns a channel that will receive the node public keys as they are received.
-func (b *Board) IncomingNodePubKeys() <-chan PeerPubKey {
+func (b *Board) IncomingNodePubKeys() <-chan NodePubKeys {
 	return b.nodePubKeysCh
 }
 
 // IncomingValidatorPubKeyShares returns a channel that will receive the validator public key shares as they are received.
-func (b *Board) IncomingValidatorPubKeyShares() <-chan PeerPubKey {
+func (b *Board) IncomingValidatorPubKeyShares() <-chan ValidatorPubKeyShare {
 	return b.valPubKeySharesCh
 }
 
@@ -112,18 +119,32 @@ func (b *Board) IncomingJustification() <-chan kdkg.JustificationBundle {
 
 // BroadcastNodePubKey broadcasts a public key and collects the public keys of all peers.
 func (b *Board) BroadcastNodePubKey(ctx context.Context, pubKey []byte) error {
-	msg := &pb.PubKeyMessage{
+	return b.BroadcastNodePubKeyWithShares(ctx, pubKey, nil)
+}
+
+func (b *Board) BroadcastNodePubKeyWithShares(ctx context.Context, pubKey []byte, pubKeyShares [][]byte) error {
+	var shares *pb.NodePubKeyShares
+	if len(pubKeyShares) > 0 {
+		shares = &pb.NodePubKeyShares{
+			PublicKeyShares: pubKeyShares,
+		}
+	}
+
+	msg := &pb.NodePubKeyMessage{
 		SessionId: b.config.SessionID,
 		PublicKey: pubKey,
+		Shares:    shares,
 	}
-	if err := b.bcastComp.Broadcast(ctx, nodePubKeyMsg, msg); err != nil {
-		return errors.Wrap(err, "broadcast node pubkey")
+
+	if err := b.bcastComp.Broadcast(ctx, nodePubKeysMsg, msg); err != nil {
+		return errors.Wrap(err, "broadcast node pubkeys")
 	}
 
 	// bcastComp.Broadcast does not send to self, so we push our own key here.
-	b.nodePubKeysCh <- PeerPubKey{
-		PeerID: b.config.ThisPeerID,
-		PubKey: pubKey,
+	b.nodePubKeysCh <- NodePubKeys{
+		PeerID:       b.config.ThisPeerID,
+		PubKey:       pubKey,
+		PubKeyShares: pubKeyShares,
 	}
 
 	return nil
@@ -131,18 +152,18 @@ func (b *Board) BroadcastNodePubKey(ctx context.Context, pubKey []byte) error {
 
 // BroadcastValidatorPubKeyShare broadcasts a public key and collects the public keys of all peers.
 func (b *Board) BroadcastValidatorPubKeyShare(ctx context.Context, share []byte) error {
-	msg := &pb.PubKeyMessage{
-		SessionId: b.config.SessionID,
-		PublicKey: share,
+	msg := &pb.ValidatorPubKeyShareMessage{
+		SessionId:      b.config.SessionID,
+		PublicKeyShare: share,
 	}
 
 	if err := b.broadcastP2P(ctx, valPubKeyShareMsg, msg); err != nil {
 		log.Error(b.logCtx, "Failed to broadcast val pubkey share", err)
 	}
 
-	b.valPubKeySharesCh <- PeerPubKey{
-		PeerID: b.config.ThisPeerID,
-		PubKey: share,
+	b.valPubKeySharesCh <- ValidatorPubKeyShare{
+		PeerID:          b.config.ThisPeerID,
+		ValidatorPubKey: share,
 	}
 
 	return nil
@@ -193,7 +214,7 @@ func (b *Board) broadcastP2P(ctx context.Context, msgID string, msg proto.Messag
 			continue
 		}
 
-		if err := p2p.Send(ctx, b.host, protocol.ID(msgID), peerID, msg); err != nil {
+		if err := b.sender.SendAsync(ctx, b.host, protocol.ID(msgID), peerID, msg); err != nil {
 			return errors.Wrap(err, "p2p send", z.Str("msg", msgID), z.Str("to", peerID.String()))
 		}
 	}
@@ -202,7 +223,7 @@ func (b *Board) broadcastP2P(ctx context.Context, msgID string, msg proto.Messag
 }
 
 func (b *Board) handleNodePubKeyMessage(ctx context.Context, peerID peer.ID, _ string, msg proto.Message) error {
-	protoMsg, ok := msg.(*pb.PubKeyMessage)
+	protoMsg, ok := msg.(*pb.NodePubKeyMessage)
 	if !ok {
 		return errors.New("pubkey request malformed", z.Str("peer_id", peerID.String()))
 	}
@@ -211,21 +232,26 @@ func (b *Board) handleNodePubKeyMessage(ctx context.Context, peerID peer.ID, _ s
 		return errors.New("validator pubkey share request session ID mismatch", z.Str("peer_id", peerID.String()))
 	}
 
+	ppk := NodePubKeys{
+		PeerID: peerID,
+		PubKey: protoMsg.GetPublicKey(),
+	}
+	if protoMsg.GetShares() != nil {
+		ppk.PubKeyShares = protoMsg.GetShares().GetPublicKeyShares()
+	}
+
 	select {
 	case <-ctx.Done():
 		log.Error(ctx, "Dropping node pubkey, context done", nil, z.Str("from", peerID.String()))
 	default:
-	case b.nodePubKeysCh <- PeerPubKey{
-		PeerID: peerID,
-		PubKey: protoMsg.GetPublicKey(),
-	}:
+	case b.nodePubKeysCh <- ppk:
 	}
 
 	return nil
 }
 
 func (b *Board) handleValidatorPubKeyShareMessage(ctx context.Context, peerID peer.ID, msg proto.Message) (proto.Message, bool, error) {
-	protoMsg, ok := msg.(*pb.PubKeyMessage)
+	protoMsg, ok := msg.(*pb.ValidatorPubKeyShareMessage)
 	if !ok {
 		return nil, false, errors.New("validator pubkey share request malformed", z.Str("peer_id", peerID.String()))
 	}
@@ -234,13 +260,13 @@ func (b *Board) handleValidatorPubKeyShareMessage(ctx context.Context, peerID pe
 		return nil, false, errors.New("validator pubkey share request session ID mismatch", z.Str("peer_id", peerID.String()))
 	}
 
-	ppk := PeerPubKey{
-		PeerID: peerID,
-		PubKey: protoMsg.GetPublicKey(),
+	vpks := ValidatorPubKeyShare{
+		PeerID:          peerID,
+		ValidatorPubKey: protoMsg.GetPublicKeyShare(),
 	}
 
 	select {
-	case b.valPubKeySharesCh <- ppk:
+	case b.valPubKeySharesCh <- vpks:
 	case <-ctx.Done():
 		log.Error(b.logCtx, "Dropping validator pubkey share, context done", nil, z.Str("from", peerID.String()))
 	}
@@ -308,8 +334,8 @@ func (b *Board) handleJustificationBundleMessage(ctx context.Context, peerID pee
 	return nil, true, nil
 }
 
-func checkPubKeyMessage(_ context.Context, peerID peer.ID, msgAny *anypb.Any) error {
-	var msg pb.PubKeyMessage
+func checkNodePubKeyMessage(_ context.Context, peerID peer.ID, msgAny *anypb.Any) error {
+	var msg pb.NodePubKeyMessage
 
 	if err := msgAny.UnmarshalTo(&msg); err != nil {
 		return errors.Wrap(err, "pubkey request malformed", z.Str("peer_id", peerID.String()))

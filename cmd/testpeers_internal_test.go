@@ -42,7 +42,7 @@ func TestPeersTest(t *testing.T) {
 	peer3PrivKey := base64ToPrivKey(t, "GpicOFPB/c/ZKIy1/fOt/4BmEekhFuyxa/SGcjrNe9o=")
 	freeTCPAddr := testutil.AvailableAddr(t)
 	// start local relay
-	relayAddr := relay.StartRelay(context.Background(), t)
+	relayAddr := relay.StartRelay(t.Context(), t)
 
 	tests := []struct {
 		name        string

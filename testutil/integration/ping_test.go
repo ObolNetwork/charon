@@ -75,7 +75,7 @@ type pingTest struct {
 func pingCluster(t *testing.T, test pingTest) {
 	t.Helper()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	relayAddr := relay.StartRelay(ctx, t)
 
