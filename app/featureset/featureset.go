@@ -88,7 +88,7 @@ var (
 		QUIC:                 statusAlpha,
 		FetchOnlyCommIdx0:    statusAlpha,
 		ChainSplitHalt:       statusAlpha,
-		// Add all features and there status here.
+		// Add all features and their status here.
 	}
 
 	// minStatus defines the minimum enabled status.

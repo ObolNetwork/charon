@@ -81,22 +81,27 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			if !compareAttestations {
 				return nil
 			}
-			attLeaderProto, err := msg.ValueSource()
+			attLeaderAnyPbProto, err := msg.ValueSource()
 			if err != nil {
-				return nil //nolint:nilerr // If we can't unmarshal to protobuf, skip.
+				return errors.Wrap(err, "msg no value source", z.Any("msg", msg))
 			}
 
-			attLeaderSet, ok := attLeaderProto.(*pbv1.UnsignedDataSet)
+			attLeaderAnyPb, ok := attLeaderAnyPbProto.(*anypb.Any)
 			if !ok {
-				return nil
+				return errors.New("parse protoMessage to *anypb.Any", z.Any("attLeaderAnyPbProto", attLeaderAnyPbProto))
 			}
 
-			duty, err := core.UnsignedDataSetDutyFromProto(attLeaderSet)
+			attLeaderSetProto, err := attLeaderAnyPb.UnmarshalNew()
 			if err != nil {
-				return errors.Wrap(err, "get duty of unsigned data set")
+				return errors.Wrap(err, "unmarshal *anypb.Any", z.Any("attLeaderAnyPb", attLeaderAnyPb))
 			}
 
-			switch duty {
+			attLeaderSet, ok := attLeaderSetProto.(*pbv1.UnsignedDataSet)
+			if !ok {
+				return errors.New("parse protoMessage to *pbv1.UnsignedDataSet", z.Any("attLeaderSetProto", attLeaderSetProto))
+			}
+
+			switch msg.Instance().Type {
 			case core.DutyAttester:
 				if inputValueSource == nil {
 					select {
