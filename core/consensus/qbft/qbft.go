@@ -81,6 +81,12 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			if !compareAttestations {
 				return nil
 			}
+
+			supportedCompareDuties := []core.DutyType{core.DutyAttester}
+			if !slices.Contains(supportedCompareDuties, msg.Instance().Type) {
+				return nil
+			}
+
 			attLeaderAnyPbProto, err := msg.ValueSource()
 			if err != nil {
 				return errors.Wrap(err, "msg no value source", z.Any("msg", msg))
