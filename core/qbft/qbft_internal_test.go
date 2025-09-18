@@ -357,7 +357,7 @@ func testQBFT(t *testing.T, test test) {
 
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
 
-				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
+				msg := newMsg(typ, instance, source, round, value, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
 
 				bcast(t, broadcast, msg, test.BCastJitterMS, clock)
@@ -541,7 +541,7 @@ func bcast(t *testing.T, broadcast chan Msg[int64, int64, int64], msg Msg[int64,
 }
 
 // newMsg returns a new message to be broadcast.
-func newMsg(typ MsgType, instance int64, source int64, round int64, value int64,
+func newMsg(typ MsgType, instance int64, source int64, round int64, value int64, valueSource int64,
 	pr int64, pv int64, justify []Msg[int64, int64, int64],
 ) Msg[int64, int64, int64] {
 	var msgs []msg
@@ -552,14 +552,15 @@ func newMsg(typ MsgType, instance int64, source int64, round int64, value int64,
 	}
 
 	return msg{
-		msgType:  typ,
-		instance: instance,
-		peerIdx:  source,
-		round:    round,
-		value:    value,
-		pr:       pr,
-		pv:       pv,
-		justify:  msgs,
+		msgType:     typ,
+		instance:    instance,
+		peerIdx:     source,
+		round:       round,
+		value:       value,
+		valueSource: valueSource,
+		pr:          pr,
+		pv:          pv,
+		justify:     msgs,
 	}
 }
 
@@ -640,7 +641,7 @@ func TestIsJustifiedPrePrepare(t *testing.T) {
 		Nodes:    n,
 	}
 
-	ok := isJustifiedPrePrepare[int64, int64](def, instance, preprepare)
+	ok := isJustifiedPrePrepare(def, instance, preprepare, 0)
 	require.True(t, ok)
 }
 

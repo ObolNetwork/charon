@@ -200,6 +200,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		inputValueReceivedCh  = make(chan struct{}, 1)
 		preparedRound         int64
 		preparedValue         V
+		compareFailureRound   int64
 		preparedJustification []Msg[I, V, C]
 		qCommit               []Msg[I, V, C]
 		buffer                = make(map[int64][]Msg[I, V, C])
@@ -323,7 +324,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				break
 			}
 
-			if !isJustified(d, instance, msg) { // Drop unjust messages
+			if !isJustified(d, instance, msg, compareFailureRound) { // Drop unjust messages
 				d.LogUnjust(ctx, instance, process, msg)
 				break
 			}
@@ -349,16 +350,16 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
 
 			case UponQuorumPrepares: // Algorithm 2:4
-				// Only applicable to current round
-				preparedRound = round /* == msg.Round*/
-				preparedValue = msg.Value()
-
 				errCompare := d.Compare(ctx, msg, inputValueReceivedCh, inputValueSource)
 				if errCompare != nil {
 					log.Warn(ctx, "Compare leader value with local value failed", errCompare)
+					compareFailureRound = msg.Round()
 					continue
 				}
 
+				// Only applicable to current round
+				preparedRound = round /* == msg.Round*/
+				preparedValue = msg.Value()
 				preparedJustification = justification
 
 				err = broadcastMsg(MsgCommit, preparedValue, nil)
@@ -386,7 +387,8 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 
 			case UponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round (round > 1)
-				if _, pv, ok := getSingleJustifiedPrPv(d, justification); ok {
+				pr, pv, ok := getSingleJustifiedPrPv(d, justification)
+				if ok && compareFailureRound != pr {
 					// Send pre-prepare using prepared value (not our own input value)
 					err = broadcastMsg(MsgPrePrepare, pv, justification)
 				} else {
@@ -537,11 +539,11 @@ func nextMinRound[I any, V comparable, C any](d Definition[I, V, C], frc []Msg[I
 }
 
 // isJustified returns true if message is justified or if it does not need justification.
-func isJustified[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V, C]) bool {
+func isJustified[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V, C], compareFailureRound int64) bool {
 	//nolint:revive // `case MsgPrepare` and `case MsgCommit` having same result is not an issue, it improves readability.
 	switch msg.Type() {
 	case MsgPrePrepare:
-		return isJustifiedPrePrepare(d, instance, msg)
+		return isJustifiedPrePrepare(d, instance, msg, compareFailureRound)
 	case MsgPrepare:
 		return true
 	case MsgCommit:
@@ -615,7 +617,7 @@ func isJustifiedDecided[I any, V comparable, C any](d Definition[I, V, C], msg M
 }
 
 // isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
-func isJustifiedPrePrepare[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V, C]) bool {
+func isJustifiedPrePrepare[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V, C], compareFailureRound int64) bool {
 	if msg.Type() != MsgPrePrepare {
 		panic("bug: not a preprepare message")
 	}
@@ -624,7 +626,8 @@ func isJustifiedPrePrepare[I any, V comparable, C any](d Definition[I, V, C], in
 		return false
 	}
 
-	if msg.Round() == 1 {
+	// Justified if PrePrepare is the first round OR if our comparison failed previous round.
+	if msg.Round() == 1 || (msg.Round() == compareFailureRound+1) {
 		return true
 	}
 
