@@ -353,7 +353,9 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				errCompare := d.Compare(ctx, msg, inputValueReceivedCh, inputValueSource)
 				if errCompare != nil {
 					log.Warn(ctx, "Compare leader value with local value failed", errCompare)
+
 					compareFailureRound = msg.Round()
+
 					continue
 				}
 
