@@ -5,6 +5,7 @@ package qbft
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
