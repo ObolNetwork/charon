@@ -127,7 +127,7 @@ func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, 
 			return nil, nil, errors.Wrap(err, "unmarshal node pubkey")
 		}
 
-		if ppk.PubKeyShares != nil {
+		if len(ppk.PubKeyShares) > 0 {
 			shares := make([][]byte, len(ppk.PubKeyShares))
 			copy(shares, ppk.PubKeyShares)
 			pubKeyShares[index] = shares

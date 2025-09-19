@@ -1196,7 +1196,7 @@ func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error 
 func logPeerSummary(ctx context.Context, currentPeer peer.ID, peers []p2p.Peer, operators []cluster.Operator) {
 	for i, p := range peers {
 		opts := []z.Field{z.Str("peer", p.Name), z.Int("index", p.Index)}
-		if operators[i].Address != "" {
+		if operators != nil && operators[i].Address != "" {
 			opts = append(opts, z.Str("address", operators[i].Address))
 		}
 

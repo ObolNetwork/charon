@@ -81,10 +81,7 @@ func TestRunReshare(t *testing.T) {
 
 	for n := range nodes {
 		group.Go(func() error {
-			nodes[n].config.Reshare = &pedersen.ReshareConfig{
-				NewThreshold: threshold,
-				NewPeerMap:   nodes[n].config.PeerMap,
-			}
+			nodes[n].config.Reshare = &pedersen.ReshareConfig{TotalShares: numVals, NewThreshold: threshold}
 			shares, err := pedersen.RunReshareDKG(gctx, nodes[n].config, nodes[n].board, oldShares[n])
 			nodes[n].shares = shares
 
