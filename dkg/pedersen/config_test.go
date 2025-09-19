@@ -29,18 +29,14 @@ func TestNewConfig(t *testing.T) {
 	require.Equal(t, 3, config.Nodes())
 	require.NotNil(t, config.Suite)
 
-	peerMap2 := map[peer.ID]cluster.NodeIdx{
-		"peer21": {PeerIdx: 0, ShareIdx: 1},
-		"peer22": {PeerIdx: 1, ShareIdx: 2},
-		"peer23": {PeerIdx: 2, ShareIdx: 3},
-		"peer24": {PeerIdx: 3, ShareIdx: 4},
-	}
+	newPeers := []peer.ID{peer.ID("peer21"), peer.ID("peer22"), peer.ID("peer23"), peer.ID("peer24")}
 
-	reshareConfig := pedersen.NewReshareConfig(3, peerMap2)
+	reshareConfig := pedersen.NewReshareConfig(2, 3, newPeers)
+	require.Equal(t, 2, reshareConfig.TotalShares)
 	require.Equal(t, 3, reshareConfig.NewThreshold)
-	require.Equal(t, peerMap2, reshareConfig.NewPeerMap)
+	require.Equal(t, newPeers, reshareConfig.NewPeers)
 
-	config2 := pedersen.NewConfig("peer21", peerMap2, 2, []byte("session2"), reshareConfig)
+	config2 := pedersen.NewConfig("peer21", peerMap, 2, []byte("session2"), reshareConfig)
 	require.Equal(t, reshareConfig, config2.Reshare)
 
 	idx, err := config.ThisNodeIndex()

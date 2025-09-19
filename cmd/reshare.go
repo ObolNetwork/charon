@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -15,10 +14,8 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/dkg/pedersen"
-	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 )
 
@@ -63,36 +60,15 @@ func runReshare(ctx context.Context, conf dkg.ReshareDKGConfig) error {
 	log.Info(ctx, "Running reshare", z.Str("srcDir", conf.DataDir), z.Str("dstDir", conf.OutputDir))
 
 	// Loading the existing cluster lock file.
-	lockFilePath := filepath.Join(conf.DataDir, clusterLockFile)
-
-	b, err := os.ReadFile(lockFilePath)
+	lock, err := loadLockJSON(ctx, conf.DataDir, conf.DKG)
 	if err != nil {
-		return errors.Wrap(err, "read cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
-	var lock cluster.Lock
-	if err := json.Unmarshal(b, &lock); err != nil {
-		return errors.Wrap(err, "unmarshal cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
-	if err := verifyLock(ctx, lock, conf.DKG); err != nil {
 		return err
 	}
 
 	// Loading the existing cluster keystore.
-	var secrets []tbls.PrivateKey
-
-	keyStorePath := filepath.Join(conf.DataDir, validatorKeysSubDir)
-	log.Info(ctx, "Loading keystore", z.Str("path", keyStorePath))
-
-	privateKeyFiles, err := keystore.LoadFilesUnordered(keyStorePath)
+	secrets, err := loadSecrets(ctx, conf.DataDir)
 	if err != nil {
-		return errors.Wrap(err, "cannot load private key share", z.Str("path", keyStorePath))
-	}
-
-	secrets, err = privateKeyFiles.SequencedKeys()
-	if err != nil {
-		return errors.Wrap(err, "order private key shares")
+		return err
 	}
 
 	if len(secrets) != len(lock.Validators) {
@@ -108,11 +84,6 @@ func runReshare(ctx context.Context, conf dkg.ReshareDKGConfig) error {
 		return err
 	}
 
-	newKeysDir, err := cluster.CreateValidatorKeysDir(conf.OutputDir)
-	if err != nil {
-		return err
-	}
-
 	log.Info(ctx, "Starting reshare ceremony", z.Str("lockHash", app.Hex7(lock.LockHash)))
 
 	// Preparing the existing shares, but without the PublicShares (we don't persist them).
@@ -125,25 +96,12 @@ func runReshare(ctx context.Context, conf dkg.ReshareDKGConfig) error {
 		}
 	}
 
-	newShares, err := dkg.RunReshareDKG(ctx, &conf, &lock, shares)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err := dkg.RunReshareDKG(ctx, &conf, lock, shares); err != nil {
 		return errors.Wrap(err, "run reshare DKG")
 	}
 
-	// Now persisting the new shares to the output directory.
-	var newSecrets []tbls.PrivateKey
-	for _, s := range newShares {
-		newSecrets = append(newSecrets, s.SecretShare)
-	}
-
-	if err = keystore.StoreKeys(newSecrets, newKeysDir); err != nil {
-		return err
-	}
-
 	log.Info(ctx, "Successfully completed reshare ceremony 🎉")
-
 	log.Info(ctx, "IMPORTANT:")
-	log.Info(ctx, "The new validator keys have been written to: "+newKeysDir)
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new validator keys from: "+conf.OutputDir)
 
 	return nil

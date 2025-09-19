@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
@@ -91,22 +90,11 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 		return err
 	}
 
-	log.Info(ctx, "Running add-validators", z.Int("numValidators", conf.NumValidators), z.Str("srcDir", conf.DataDir), z.Str("dstDir", conf.OutputDir))
+	log.Info(ctx, "Running add-validators", z.Int("numValidators", conf.NumValidators), z.Str("dataDir", conf.DataDir), z.Str("outputDir", conf.OutputDir))
 
 	// Loading the existing cluster lock file.
-	lockFilePath := filepath.Join(conf.DataDir, clusterLockFile)
-
-	b, err := os.ReadFile(lockFilePath)
+	lock, err := loadLockJSON(ctx, conf.DataDir, conf.DKG)
 	if err != nil {
-		return errors.Wrap(err, "read cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
-	var lock cluster.Lock
-	if err := json.Unmarshal(b, &lock); err != nil {
-		return errors.Wrap(err, "unmarshal cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
-	if err := verifyLock(ctx, lock, conf.DKG); err != nil {
 		return err
 	}
 
@@ -162,7 +150,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	dkgConfig := conf.DKG
 	dkgConfig.DataDir = conf.OutputDir
 	dkgConfig.AppendConfig = &dkg.AppendConfig{
-		ClusterLock:        &lock,
+		ClusterLock:        lock,
 		SecretShares:       secrets,
 		AddValidators:      conf.NumValidators,
 		Unverified:         conf.Unverified,

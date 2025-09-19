@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"slices"
 
+	"github.com/drand/kyber"
 	kbls "github.com/drand/kyber-bls12381"
 	"github.com/drand/kyber/share"
 	kdkg "github.com/drand/kyber/share/dkg"
@@ -37,15 +39,16 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*
 		return nil, errors.Wrap(err, "marshal node public key")
 	}
 
-	// We need to exchange the longterm public key and the public key shares
-	sharesPubKeys := make([][]byte, len(shares))
+	// We need to exchange the longterm public key and the public key shares (if present)
+	sharesPubKeys := make([][]byte, 0)
+
 	for i := range len(shares) {
 		sharePubKey, err := tbls.SecretToPublicKey(shares[i].SecretShare)
 		if err != nil {
 			return nil, errors.Wrap(err, "tbls secret to public key", z.Int("validator_index", i))
 		}
 
-		sharesPubKeys[i] = sharePubKey[:]
+		sharesPubKeys = append(sharesPubKeys, sharePubKey[:])
 	}
 
 	if err := board.BroadcastNodePubKeyWithShares(ctx, pkBytes, sharesPubKeys); err != nil {
@@ -57,49 +60,72 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*
 		return nil, errors.Wrap(err, "make nodes")
 	}
 
+	slices.SortFunc(nodes, func(a, b kdkg.Node) int {
+		return int(a.Index) - int(b.Index)
+	})
+
 	// Restore pubkey shares from the exchange
 	for i := range len(shares) {
 		shares[i].PublicShares = make(map[int]tbls.PublicKey)
+
 		for n := range nodes {
-			var pk tbls.PublicKey
-			copy(pk[:], pubKeyShares[n][i])
-			shares[i].PublicShares[n+1] = pk
+			if len(pubKeyShares[n]) > 0 {
+				var pk tbls.PublicKey
+				copy(pk[:], pubKeyShares[n][i])
+				shares[i].PublicShares[n+1] = pk
+			}
 		}
 	}
 
 	// Restoring DistKeyShares from Charon shares
-	distKeyShares := make([]*kdkg.DistKeyShare, len(shares))
+	distKeyShares := make([]*kdkg.DistKeyShare, 0)
+
 	for i := range len(shares) {
 		dks, err := restoreDistKeyShare(shares[i], config.Threshold, thisNodeIndex)
 		if err != nil {
 			return nil, errors.Wrap(err, "restore distkeyshare", z.Int("validator_index", i))
 		}
 
-		distKeyShares[i] = dks
+		distKeyShares = append(distKeyShares, dks)
 	}
 
+	oldN := len(nodes) - len(config.Reshare.NewPeers)
 	nonce := sha256.Sum256(config.SessionID)
 	reshareConfig := &kdkg.Config{
 		Longterm:     nodePrivateKey,
 		Nonce:        nonce[:],
 		Suite:        config.Suite,
 		NewNodes:     nodes,
-		OldNodes:     nodes,
+		OldNodes:     nodes[:oldN],
 		Threshold:    config.Reshare.NewThreshold,
 		OldThreshold: config.Threshold,
 		Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
 		Log:          newLogger(log.WithTopic(ctx, "pedersen")),
 	}
 
-	log.Info(ctx, "Starting pedersen reshare...")
+	log.Info(ctx, "Starting pedersen reshare...",
+		z.Int("oldN", oldN), z.Int("newN", len(nodes)),
+		z.Int("oldT", config.Threshold), z.Int("newT", config.Reshare.NewThreshold))
 
-	newShares := make([]*Share, 0, len(shares))
+	newShares := make([]*Share, 0, config.Reshare.TotalShares)
 
-	for shareNum := range shares {
+	for shareNum := range config.Reshare.TotalShares {
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
-		reshareConfig.Share = distKeyShares[shareNum]
-		reshareConfig.PublicCoeffs = nil
+		if len(distKeyShares) > 0 {
+			// Share is to be set by old nodes only
+			reshareConfig.Share = distKeyShares[shareNum]
+			reshareConfig.PublicCoeffs = nil
+		} else {
+			// PublicCoeffs is to be set by new nodes only, but not the Share
+			commits, err := restoreCommits(pubKeyShares, shareNum, config.Threshold)
+			if err != nil {
+				return nil, errors.Wrap(err, "restore commits")
+			}
+
+			reshareConfig.Share = nil
+			reshareConfig.PublicCoeffs = commits
+		}
 
 		protocol, err := kdkg.NewProtocol(
 			reshareConfig,
@@ -187,4 +213,33 @@ func restoreDistKeyShare(keyShare *Share, threshold int, nodeIdx int) (*kdkg.Dis
 	}
 
 	return dks, nil
+}
+
+func restoreCommits(publicShares map[int][][]byte, shareNum, threshold int) ([]kyber.Point, error) {
+	var (
+		suite          = kbls.NewBLS12381Suite()
+		kyberPubShares []*share.PubShare
+	)
+
+	for nodeIdx, pks := range publicShares {
+		v := suite.G1().Point()
+		if err := v.UnmarshalBinary(pks[shareNum]); err != nil {
+			return nil, errors.Wrap(err, "unmarshal pubshare")
+		}
+
+		kyberPubshare := &share.PubShare{
+			I: nodeIdx,
+			V: v,
+		}
+		kyberPubShares = append(kyberPubShares, kyberPubshare)
+	}
+
+	pubPoly, err := share.RecoverPubPoly(suite.G1(), kyberPubShares, threshold, len(publicShares))
+	if err != nil {
+		return nil, errors.Wrap(err, "recover pubpoly")
+	}
+
+	_, commits := pubPoly.Info()
+
+	return commits, nil
 }
