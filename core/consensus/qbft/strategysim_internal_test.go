@@ -496,8 +496,8 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			decideCallback(qcommit)
 		},
-		Compare: func(ctx context.Context, qcommit qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
-			return nil
+		Compare: func(ctx context.Context, qcommit qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueSourceCh <-chan proto.Message, inputValueSource proto.Message, returnErr chan error, returnRes chan proto.Message) {
+			returnErr <- nil
 		},
 		NewTimer:  roundTimer.Timer,
 		LogUnjust: func(context.Context, core.Duty, int64, qbft.Msg[core.Duty, [32]byte, proto.Message]) {},

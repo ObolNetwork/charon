@@ -36,7 +36,7 @@ type Definition[I any, V comparable, C any] struct {
 	// NewTimer returns a new timer channel and stop function for the round.
 	NewTimer func(round int64) (<-chan time.Time, func())
 	// Compare is called when leader proposes value and we compare it with our local value.
-	Compare func(ctx context.Context, qcommit Msg[I, V, C], inputValueReceivedCh chan struct{}, inputValueSource C) error
+	Compare func(ctx context.Context, qcommit Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, returnCh chan error, returnIVS chan C)
 	// Decide is called when consensus has been reached on a value.
 	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V, C])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
@@ -157,6 +157,12 @@ type dedupKey struct {
 	Round    int64
 }
 
+// errors
+var (
+	errCompare = errors.New("compare leader value with local value failed")
+	errTimeout = errors.New("timeout")
+)
+
 // InputValue is a convenience function to create a populated input value channel.
 func InputValue[V comparable](inputValue V) <-chan V {
 	ch := make(chan V, 1)
@@ -197,7 +203,6 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		inputValue            V
 		inputValueSource      C
 		ppjCache              []Msg[I, V, C] // Cached pre-prepare justification for the current round (nil value is unset).
-		inputValueReceivedCh  = make(chan struct{}, 1)
 		preparedRound         int64
 		preparedValue         V
 		compareFailureRound   int64
@@ -309,11 +314,6 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 
 			inputValueCh = nil // Don't read from this channel again.
 
-		case inputValueSource = <-inputValueSourceCh:
-			inputValueSourceCh = nil // Don't read from this channel again.
-
-			inputValueReceivedCh <- struct{}{}
-
 		case msg := <-t.Receive:
 			// Just send Qcommit if consensus already decided
 			if len(qCommit) > 0 {
@@ -350,21 +350,32 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
 
 			case UponQuorumPrepares: // Algorithm 2:4
-				errCompare := d.Compare(ctx, msg, inputValueReceivedCh, inputValueSource)
+				var errCompare error
+
+				inputValueSource, errCompare = compare(ctx, d, msg, inputValueSourceCh, inputValueSource, timerChan)
 				if errCompare != nil {
-					log.Warn(ctx, "Compare leader value with local value failed", errCompare)
+					switch {
+					case errors.Is(errCompare, errCompare):
+						compareFailureRound = msg.Round()
+					case errors.Is(errCompare, errTimeout):
+						// Algorithm 3:1
+						changeRound(round+1, UponRoundTimeout)
 
-					compareFailureRound = msg.Round()
+						stopTimer()
+						timerChan, stopTimer = d.NewTimer(round)
 
-					continue
+						err = broadcastRoundChange()
+					default:
+						err = errors.New("bug: expected only comparison or timeout error")
+					}
+				} else {
+					// Only applicable to current round
+					preparedRound = round /* == msg.Round*/
+					preparedValue = msg.Value()
+					preparedJustification = justification
+
+					err = broadcastMsg(MsgCommit, preparedValue, nil)
 				}
-
-				// Only applicable to current round
-				preparedRound = round /* == msg.Round*/
-				preparedValue = msg.Value()
-				preparedJustification = justification
-
-				err = broadcastMsg(MsgCommit, preparedValue, nil)
 
 			case UponQuorumCommits, UponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
@@ -418,6 +429,32 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 
 		if err != nil { // Errors are considered fatal.
 			return err
+		}
+	}
+}
+
+func compare[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C], msg Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, timerChan <-chan time.Time) (C, error) {
+	compareReturn := make(chan error, 1)
+	compareIVS := make(chan C, 1)
+
+	ctxCompare, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	go d.Compare(ctxCompare, msg, inputValueSourceCh, inputValueSource, compareReturn, compareIVS)
+
+	for {
+		select {
+		case err := <-compareReturn:
+			if err != nil {
+				log.Warn(ctx, errCompare.Error(), err)
+				return inputValueSource, errCompare
+			}
+
+			return inputValueSource, nil
+		case inputValueSource = <-compareIVS:
+		case <-timerChan:
+			log.Warn(ctx, "", errors.New("timeout on waiting for data used for comparing local and leader proposed data"))
+			return inputValueSource, errTimeout
 		}
 	}
 }

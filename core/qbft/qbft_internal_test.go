@@ -314,8 +314,8 @@ func testQBFT(t *testing.T, test test) {
 		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
 			resultChan <- qcommit
 		},
-		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueReceivedCh chan struct{}, inputValueSource int64) error {
-			return nil
+		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnErr chan error, returnRes chan int64) {
+			returnErr <- nil
 		},
 		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64, int64]) {
 			t.Logf("%s %v@%d change to %d ~= %v", clock.NowStr(), process, round, newRound, rule)
@@ -825,13 +825,17 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
 			resultChan <- qcommit
 		},
-		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueReceivedCh chan struct{}, inputValueSource int64) error {
+		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnCh chan error, returnIVS chan int64) {
 			vs, _ := qcommit.ValueSource()
-			if vs != inputValueSource {
-				return errors.New("missmatch", z.I64("leadervalue", vs), z.I64("localvalue", inputValueSource))
+			if inputValueSource == 0 {
+				inputValueSource = <-inputValueSourceCh
+				returnIVS <- inputValueSource
 			}
-
-			return nil
+			if vs != inputValueSource {
+				returnCh <- errors.New("missmatch", z.I64("leadervalue", vs), z.I64("localvalue", inputValueSource))
+				return
+			}
+			returnCh <- nil
 		},
 		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64, int64]) {
 			t.Logf("%s %v@%d change to %d ~= %v", clock.NowStr(), process, round, newRound, rule)

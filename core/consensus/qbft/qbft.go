@@ -78,34 +78,40 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			}
 		},
 
-		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueReceivedCh chan struct{}, inputValueSource proto.Message) error {
+		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueSourceCh <-chan proto.Message, inputValueSource proto.Message, returnErrCh chan error, returnProtoCh chan proto.Message) {
 			if !compareAttestations {
-				return nil
+				returnErrCh <- nil
+				return
 			}
 
 			supportedCompareDuties := []core.DutyType{core.DutyAttester}
 			if !slices.Contains(supportedCompareDuties, msg.Instance().Type) {
-				return nil
+				returnErrCh <- nil
+				return
 			}
 
 			attLeaderAnyPbProto, err := msg.ValueSource()
 			if err != nil {
-				return errors.Wrap(err, "msg no value source", z.Any("msg", msg))
+				returnErrCh <- errors.Wrap(err, "msg no value source", z.Any("msg", msg))
+				return
 			}
 
 			attLeaderAnyPb, ok := attLeaderAnyPbProto.(*anypb.Any)
 			if !ok {
-				return errors.New("parse protoMessage to *anypb.Any", z.Any("attLeaderAnyPbProto", attLeaderAnyPbProto))
+				returnErrCh <- errors.New("parse protoMessage to *anypb.Any", z.Any("attLeaderAnyPbProto", attLeaderAnyPbProto))
+				return
 			}
 
 			attLeaderSetProto, err := attLeaderAnyPb.UnmarshalNew()
 			if err != nil {
-				return errors.Wrap(err, "unmarshal *anypb.Any", z.Any("attLeaderAnyPb", attLeaderAnyPb))
+				returnErrCh <- errors.Wrap(err, "unmarshal *anypb.Any", z.Any("attLeaderAnyPb", attLeaderAnyPb))
+				return
 			}
 
 			attLeaderSet, ok := attLeaderSetProto.(*pbv1.UnsignedDataSet)
 			if !ok {
-				return errors.New("parse protoMessage to *pbv1.UnsignedDataSet", z.Any("attLeaderSetProto", attLeaderSetProto))
+				returnErrCh <- errors.New("parse protoMessage to *pbv1.UnsignedDataSet", z.Any("attLeaderSetProto", attLeaderSetProto))
+				return
 			}
 
 			switch msg.Instance().Type {
@@ -113,24 +119,27 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 				if inputValueSource == nil {
 					select {
 					case <-ctx.Done():
-						return errors.New("timeout on waiting for local value")
-					case <-inputValueReceivedCh:
+						returnErrCh <- errors.New("timeout on waiting for local value")
+						return
+					case inputValueSource = <-inputValueSourceCh:
+						returnProtoCh <- inputValueSource
 					}
 				}
 
 				attLocalSet, ok := inputValueSource.(*pbv1.UnsignedDataSet)
 				if !ok {
-					return errors.New("inputValueSource to pbv1.UnsignedDataSet")
+					returnErrCh <- errors.New("inputValueSource to pbv1.UnsignedDataSet")
+					return
 				}
 
 				err = attestationChecker(ctx, attLeaderSet, attLocalSet)
 				if err != nil {
-					return errors.Wrap(err, "attestation checker failed")
+					returnErrCh <- errors.Wrap(err, "attestation checker failed")
+					return
 				}
 			default:
 			}
-
-			return nil
+			returnErrCh <- nil
 		},
 
 		NewTimer: roundTimer.Timer,
