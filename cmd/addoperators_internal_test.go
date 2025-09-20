@@ -191,9 +191,7 @@ func verifyClusterValidators(t *testing.T, clusterDir string, numNodes, numVals 
 
 	for i := range numNodes {
 		ndir := nodeDir(clusterDir, i)
-		lock, err := loadLockJSON(t.Context(), ndir, dkg.Config{
-			NoVerify: true,
-		})
+		lock, err := loadLockJSON(t.Context(), ndir, dkg.Config{})
 		require.NoError(t, err)
 		require.Len(t, lock.Operators, numNodes)
 
