@@ -40,7 +40,7 @@ func newReshareCmd(runFunc func(context.Context, dkg.ReshareDKGConfig) error) *c
 
 	// Bind `reshare` flags.
 	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The source charon folder with existing cluster data (lock, validator_keys, etc.).")
-	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "reshared_validator_keys", "The destination folder for the new validator keys. Must be empty.")
+	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty.")
 
 	// Bind `dkg` flags.
 	bindNoVerifyFlag(cmd.Flags(), &config.DKG.NoVerify)
@@ -81,6 +81,10 @@ func runReshare(ctx context.Context, conf dkg.ReshareDKGConfig) error {
 
 	// Creating dst directory for the new validator keys.
 	if err := app.CreateNewEmptyDir(conf.OutputDir); err != nil {
+		return err
+	}
+
+	if err := app.CopyFile(filepath.Join(conf.DataDir, enrPrivateKeyFile), filepath.Join(conf.OutputDir, enrPrivateKeyFile)); err != nil {
 		return err
 	}
 

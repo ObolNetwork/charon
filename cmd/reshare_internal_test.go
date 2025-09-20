@@ -18,7 +18,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/relay"
@@ -81,21 +80,7 @@ func TestRunReshare(t *testing.T) {
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
 
-	for n := 0; n < conf.NumNodes; n++ {
-		nd := nodeDir(dstDir, n)
-		require.True(t, app.FileExists(nd))
-
-		keystoreDir := filepath.Join(nd, validatorKeysSubDir)
-		require.True(t, app.FileExists(keystoreDir))
-
-		kf, err := keystore.LoadFilesUnordered(keystoreDir)
-		require.NoError(t, err)
-		require.Len(t, kf, conf.NumDVs)
-
-		secrets, err := kf.SequencedKeys()
-		require.NoError(t, err)
-		require.Len(t, secrets, conf.NumDVs)
-	}
+	verifyClusterValidators(t, dstDir, conf.NumNodes, conf.NumDVs)
 }
 
 func TestNewReshareCmd(t *testing.T) {

@@ -242,8 +242,11 @@ func RunReshareDKG(ctx context.Context, conf *ReshareDKGConfig, lock *cluster.Lo
 	defer shutdown()
 
 	peerIDs, peerMap := buildPeerMap(peers)
+	nodeIdx := peerMap[pID]
 
+	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{sigLock}, sigExchangeTimeout)
 	caster := bcast.New(p2pNode, peerIDs, key)
+	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
 	// register pedersen protocol messages
 	pedersenReshareConfig := pedersen.NewReshareConfig(len(lock.Validators), lock.Threshold, nil)
@@ -266,7 +269,92 @@ func RunReshareDKG(ctx context.Context, conf *ReshareDKGConfig, lock *cluster.Lo
 		return errors.Wrap(err, "sync next step")
 	}
 
+	// Updating the lock.
+	newDef := lock.Definition
+	newDef.Creator = cluster.Creator{}
+
+	enrs := make([]string, len(newDef.Operators))
+	for i := range newDef.Operators {
+		enrs[i] = newDef.Operators[i].ENR
+	}
+
+	newDef.Operators = make([]cluster.Operator, len(enrs))
+	for i, enr := range enrs {
+		newDef.Operators[i] = cluster.Operator{
+			ENR: enr,
+		}
+	}
+
+	newDef, err = newDef.SetDefinitionHashes()
+	if err != nil {
+		return errors.Wrap(err, "set definition hashes")
+	}
+
+	newLock := cluster.Lock{
+		Definition: newDef,
+		Validators: lock.Validators,
+	}
+
+	cshares := copyToShares(newShares)
+	for vi := range lock.Validators {
+		msg := msgFromShare(cshares[vi])
+		lock.Validators[vi].PubShares = msg.PubShares
+	}
+
+	newLock, err = newLock.SetLockHash()
+	if err != nil {
+		return errors.Wrap(err, "set lock hash")
+	}
+
+	lockHashSig, err := signLockHash(nodeIdx.ShareIdx, cshares, newLock.LockHash)
+	if err != nil {
+		return err
+	}
+
+	if err := nextStepSync(ctx); err != nil {
+		return errors.Wrap(err, "sync next step")
+	}
+
+	peerSigs, err := ex.exchange(ctx, sigLock, lockHashSig)
+	if err != nil {
+		return err
+	}
+
+	pubkeyToShares := make(map[core.PubKey]share)
+	for _, sh := range cshares {
+		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
+		if err != nil {
+			return err
+		}
+
+		pubkeyToShares[pk] = sh
+	}
+
+	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, newLock.LockHash)
+	if err != nil {
+		return err
+	}
+
+	if err := tbls.VerifyAggregate(aggPkLockHash, aggSigLockHash, newLock.LockHash); err != nil {
+		return errors.Wrap(err, "verify multisignature")
+	}
+
+	newLock.SignatureAggregate = aggSigLockHash[:]
+
+	newLock.NodeSignatures, err = nodeSigCaster.exchange(ctx, key, newLock.LockHash)
+	if err != nil {
+		return errors.Wrap(err, "k1 lock hash signature exchange")
+	}
+
+	if err := newLock.VerifySignatures(eth1Cl); err != nil {
+		return errors.Wrap(err, "invalid lock file signatures")
+	}
+
 	if err = storeKeys(newShares, conf.OutputDir); err != nil {
+		return err
+	}
+
+	if err = writeLock(conf.OutputDir, newLock); err != nil {
 		return err
 	}
 
