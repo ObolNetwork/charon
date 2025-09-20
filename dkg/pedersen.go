@@ -13,12 +13,17 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
+)
+
+const (
+	sigExchangeTimeout = 30 * time.Second
 )
 
 type ReshareDKGConfig struct {
@@ -68,8 +73,11 @@ func RunAddOperatorsDKG(ctx context.Context, conf *AddOperatorsDKGConfig, lock *
 
 	peerIDs, peerMap := buildPeerMap(peers)
 	newPeerIDs := peerIDs[len(lock.Operators):]
+	nodeIdx := peerMap[pID]
 
+	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{sigLock}, sigExchangeTimeout)
 	caster := bcast.New(p2pNode, peerIDs, key)
+	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
 	// register pedersen protocol messages
 	totalShares := len(lock.Validators)
@@ -93,28 +101,101 @@ func RunAddOperatorsDKG(ctx context.Context, conf *AddOperatorsDKGConfig, lock *
 		return errors.Wrap(err, "sync next step")
 	}
 
+	// Updating the lock.
+	newDef := lock.Definition
+	newDef.Threshold = conf.NewThreshold
+	newDef.Creator = cluster.Creator{}
+
+	enrs := make([]string, len(newDef.Operators)+len(conf.NewENRs))
+	for i := range newDef.Operators {
+		enrs[i] = newDef.Operators[i].ENR
+	}
+
+	for i, newENR := range conf.NewENRs {
+		enrs[len(newDef.Operators)+i] = newENR
+	}
+
+	newDef.Operators = make([]cluster.Operator, len(enrs))
+	for i, enr := range enrs {
+		newDef.Operators[i] = cluster.Operator{
+			ENR: enr,
+		}
+	}
+
+	newDef, err = newDef.SetDefinitionHashes()
+	if err != nil {
+		return errors.Wrap(err, "set definition hashes")
+	}
+
+	newLock := cluster.Lock{
+		Definition: newDef,
+		Validators: lock.Validators,
+	}
+
+	cshares := copyToShares(newShares)
+	for vi := range lock.Validators {
+		msg := msgFromShare(cshares[vi])
+		lock.Validators[vi].PubShares = msg.PubShares
+	}
+
+	newLock, err = newLock.SetLockHash()
+	if err != nil {
+		return errors.Wrap(err, "set lock hash")
+	}
+
+	lockHashSig, err := signLockHash(nodeIdx.ShareIdx, cshares, newLock.LockHash)
+	if err != nil {
+		return err
+	}
+
+	if err := nextStepSync(ctx); err != nil {
+		return errors.Wrap(err, "sync next step")
+	}
+
+	peerSigs, err := ex.exchange(ctx, sigLock, lockHashSig)
+	if err != nil {
+		return err
+	}
+
+	pubkeyToShares := make(map[core.PubKey]share)
+	for _, sh := range cshares {
+		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
+		if err != nil {
+			return err
+		}
+
+		pubkeyToShares[pk] = sh
+	}
+
+	aggSigLockHash, aggPkLockHash, err := aggLockHashSig(peerSigs, pubkeyToShares, newLock.LockHash)
+	if err != nil {
+		return err
+	}
+
+	if err := tbls.VerifyAggregate(aggPkLockHash, aggSigLockHash, newLock.LockHash); err != nil {
+		return errors.Wrap(err, "verify multisignature")
+	}
+
+	newLock.SignatureAggregate = aggSigLockHash[:]
+
+	newLock.NodeSignatures, err = nodeSigCaster.exchange(ctx, key, newLock.LockHash)
+	if err != nil {
+		return errors.Wrap(err, "k1 lock hash signature exchange")
+	}
+
+	if err := newLock.VerifySignatures(eth1Cl); err != nil {
+		return errors.Wrap(err, "invalid lock file signatures")
+	}
+
+	if err := nextStepSync(ctx); err != nil {
+		return errors.Wrap(err, "sync next step")
+	}
+
 	if err = storeKeys(newShares, conf.OutputDir); err != nil {
 		return err
 	}
 
-	// Reset lock signatures and update the configuration
-	lock.NodeSignatures = nil
-
-	lock.SignatureAggregate = nil
-	for o := range lock.Operators {
-		lock.Operators[o] = cluster.Operator{
-			ENR: lock.Operators[o].ENR,
-		}
-	}
-
-	for _, newENR := range conf.NewENRs {
-		lock.Operators = append(lock.Operators, cluster.Operator{
-			ENR: newENR,
-		})
-	}
-
-	lock.Threshold = conf.NewThreshold
-	if err = writeLock(conf.OutputDir, *lock); err != nil {
+	if err = writeLock(conf.OutputDir, newLock); err != nil {
 		return err
 	}
 
