@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
@@ -174,6 +175,26 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	}
 
 	return nil
+}
+
+func loadLockJSON(ctx context.Context, dataDir string, conf dkg.Config) (*cluster.Lock, error) {
+	lockFilePath := filepath.Join(dataDir, clusterLockFile)
+
+	b, err := os.ReadFile(lockFilePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "read cluster-lock.json", z.Str("path", lockFilePath))
+	}
+
+	var lock cluster.Lock
+	if err := json.Unmarshal(b, &lock); err != nil {
+		return nil, errors.Wrap(err, "unmarshal cluster-lock.json", z.Str("path", lockFilePath))
+	}
+
+	if err := verifyLock(ctx, lock, conf); err != nil {
+		return nil, err
+	}
+
+	return &lock, nil
 }
 
 func verifyLock(ctx context.Context, lock cluster.Lock, conf dkg.Config) error {

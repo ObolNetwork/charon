@@ -56,23 +56,22 @@ func TestRunReshare(t *testing.T) {
 	var eg errgroup.Group
 
 	for i := 0; i < conf.NumNodes; i++ {
-		conf := dkg.ReshareDKGConfig{
-			DataDir:   nodeDir(conf.ClusterDir, i),
-			OutputDir: nodeDir(dstDir, i),
-			DKG: dkg.Config{
-				P2P: p2p.Config{
-					Relays:   []string{relayAddr},
-					TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-				},
-				Log:           log.DefaultConfig(),
-				ShutdownDelay: 1 * time.Second,
-				NoVerify:      true,
+		outputDir := nodeDir(dstDir, i)
+		config := dkg.Config{
+			DataDir: nodeDir(conf.ClusterDir, i),
+			P2P: p2p.Config{
+				Relays:   []string{relayAddr},
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
+			Log:           log.DefaultConfig(),
+			ShutdownDelay: time.Second,
+			Timeout:       time.Minute,
+			NoVerify:      true,
 		}
 
 		eg.Go(func() error {
 			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
-			return runReshare(peerCtx, conf)
+			return runReshare(peerCtx, outputDir, config)
 		})
 	}
 
@@ -103,31 +102,31 @@ func TestValidateReshareConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name   string
-		conf   dkg.ReshareDKGConfig
-		numOps int
-		errMsg string
+		name      string
+		outputDir string
+		config    dkg.Config
+		numOps    int
+		errMsg    string
 	}{
 		{
-			name: "output dir is required",
-			conf: dkg.ReshareDKGConfig{
-				OutputDir: "",
-			},
-			errMsg: "output-dir is required",
+			name:      "output dir is required",
+			outputDir: "",
+			config:    dkg.Config{},
+			errMsg:    "output-dir is required",
 		},
 		{
-			name: "data dir is required",
-			conf: dkg.ReshareDKGConfig{
-				OutputDir: ".",
-				DataDir:   "",
+			name:      "data dir is required",
+			outputDir: ".",
+			config: dkg.Config{
+				DataDir: "",
 			},
 			errMsg: "data-dir is required",
 		},
 		{
-			name: "missing lock file",
-			conf: dkg.ReshareDKGConfig{
-				DataDir:   ".",
-				OutputDir: ".",
+			name:      "missing lock file",
+			outputDir: ".",
+			config: dkg.Config{
+				DataDir: ".",
 			},
 			errMsg: "data-dir must contain a cluster-lock.json file",
 		},
@@ -135,7 +134,7 @@ func TestValidateReshareConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateReshareConfig(t.Context(), &tt.conf)
+			err := validateReshareConfig(t.Context(), tt.outputDir, tt.config)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -149,19 +148,19 @@ func TestValidateReshareConfig(t *testing.T) {
 		err := os.WriteFile(filepath.Join(srcDir, clusterLockFile), []byte("{}"), 0o444)
 		require.NoError(t, err)
 
-		cfg := dkg.ReshareDKGConfig{
-			DataDir:   srcDir,
-			OutputDir: ".",
+		outputDir := "."
+		config := dkg.Config{
+			DataDir: srcDir,
 		}
 
-		err = validateReshareConfig(t.Context(), &cfg)
+		err = validateReshareConfig(t.Context(), outputDir, config)
 		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
 
 		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
 		err = app.CreateNewEmptyDir(validatorKeysDir)
 		require.NoError(t, err)
 
-		err = validateReshareConfig(t.Context(), &cfg)
+		err = validateReshareConfig(t.Context(), outputDir, config)
 		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
 	})
 }
