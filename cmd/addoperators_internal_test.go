@@ -90,24 +90,25 @@ func TestRunAddOperators(t *testing.T) {
 	var eg errgroup.Group
 
 	for i := range newN {
-		conf := dkg.AddOperatorsDKGConfig{
-			DataDir:   nodeDir(conf.ClusterDir, i),
+		config := dkg.AddOperatorsConfig{
 			OutputDir: nodeDir(dstDir, i),
 			NewENRs:   newENRs,
-			DKG: dkg.Config{
-				P2P: p2p.Config{
-					Relays:   []string{relayAddr},
-					TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-				},
-				Log:           log.DefaultConfig(),
-				ShutdownDelay: 1 * time.Second,
-				NoVerify:      true,
+		}
+		dkgConfig := dkg.Config{
+			DataDir: nodeDir(conf.ClusterDir, i),
+			P2P: p2p.Config{
+				Relays:   []string{relayAddr},
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
 			},
+			Log:           log.DefaultConfig(),
+			ShutdownDelay: time.Second,
+			Timeout:       30 * time.Second,
+			NoVerify:      true,
 		}
 
 		eg.Go(func() error {
 			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
-			return runAddOperators(peerCtx, conf)
+			return runAddOperators(peerCtx, config, dkgConfig)
 		})
 	}
 
@@ -132,21 +133,22 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name   string
-		conf   dkg.AddOperatorsDKGConfig
-		numOps int
-		errMsg string
+		name      string
+		cmdConfig dkg.AddOperatorsConfig
+		dkgConfig dkg.Config
+		numOps    int
+		errMsg    string
 	}{
 		{
 			name: "missing new operator enrs",
-			conf: dkg.AddOperatorsDKGConfig{
+			cmdConfig: dkg.AddOperatorsConfig{
 				OutputDir: ".",
 			},
 			errMsg: "new-operator-enrs is required",
 		},
 		{
 			name: "output dir is required",
-			conf: dkg.AddOperatorsDKGConfig{
+			cmdConfig: dkg.AddOperatorsConfig{
 				OutputDir: "",
 				NewENRs:   []string{"enr:-IS4QH"},
 			},
@@ -154,19 +156,20 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 		},
 		{
 			name: "data dir is required",
-			conf: dkg.AddOperatorsDKGConfig{
+			cmdConfig: dkg.AddOperatorsConfig{
 				OutputDir: ".",
-				DataDir:   "",
 				NewENRs:   []string{"enr:-IS4QH"},
 			},
 			errMsg: "data-dir is required",
 		},
 		{
 			name: "missing lock file",
-			conf: dkg.AddOperatorsDKGConfig{
-				DataDir:   ".",
+			cmdConfig: dkg.AddOperatorsConfig{
 				OutputDir: ".",
 				NewENRs:   []string{"enr:-IS4QH"},
+			},
+			dkgConfig: dkg.Config{
+				DataDir: ".",
 			},
 			errMsg: "data-dir must contain a cluster-lock.json file",
 		},
@@ -174,7 +177,7 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateAddOperatorsConfig(&tt.conf)
+			err := validateAddOperatorsConfig(&tt.cmdConfig, &tt.dkgConfig)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -194,6 +197,7 @@ func verifyClusterValidators(t *testing.T, clusterDir string, numNodes, numVals 
 		lock, err := loadLockJSON(t.Context(), ndir, dkg.Config{})
 		require.NoError(t, err)
 		require.Len(t, lock.Operators, numNodes)
+		require.Len(t, lock.Validators, numVals)
 
 		keystoreDir := filepath.Join(ndir, validatorKeysSubDir)
 		require.True(t, app.FileExists(keystoreDir))
