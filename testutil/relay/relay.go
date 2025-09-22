@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/p2p"
@@ -23,13 +22,11 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 
 	dir := t.TempDir()
 
-	addrCh := make(chan string, 1)
+	addr := testutil.AvailableAddr(t).String()
+
 	errChan := make(chan error, 1)
 
 	go func() {
-		addr := testutil.AvailableAddr(t).String()
-		addrCh <- addr
-
 		err := relay.Run(parentCtx, relay.Config{
 			DataDir:  dir,
 			HTTPAddr: addr,
@@ -41,7 +38,7 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 			MaxResPerPeer: 8,
 			MaxConns:      1024,
 		})
-		if err != nil && !errors.Is(err, context.Canceled) {
+		if err != nil {
 			log.Warn(parentCtx, "Relay stopped with error", err)
 		} else {
 			log.Info(parentCtx, "Relay stopped without error")
@@ -50,11 +47,10 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 		errChan <- err
 	}()
 
-	addr := <-addrCh
 	endpoint := "http://" + addr
 
-	// Wait up to 15s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 15*time.Second)
+	// Wait up to 10s for bootnode to become available.
+	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
 	defer cancel()
 
 	isUp := make(chan struct{})
