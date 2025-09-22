@@ -28,7 +28,7 @@ func TestRunReshare(t *testing.T) {
 	// Then it runs reshare on each node in parallel.
 	conf := clusterConfig{
 		ClusterDir:        t.TempDir(),
-		Name:              "test_cluster",
+		Name:              t.Name(),
 		NumNodes:          4,
 		Threshold:         3,
 		NumDVs:            3,

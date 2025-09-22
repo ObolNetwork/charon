@@ -40,7 +40,7 @@ func TestRunAddOperators(t *testing.T) {
 	// This test creates a solo cluster 4/3, then add-operators adds 3 new operators.
 	conf := clusterConfig{
 		ClusterDir:        clusterDir,
-		Name:              "test_cluster",
+		Name:              t.Name(),
 		NumNodes:          oldN,
 		Threshold:         oldT,
 		NumDVs:            numVals,

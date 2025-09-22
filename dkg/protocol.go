@@ -97,6 +97,8 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 				SecretShare: secrets[i],
 			}
 		}
+
+		log.Debug(ctx, "Private key shares loaded", z.Int("numShares", len(protocolCtx.Shares)))
 	}
 
 	protocolCtx.ETH1Client = eth1wrap.NewDefaultEthClientRunner(config.ExecutionEngineAddr)

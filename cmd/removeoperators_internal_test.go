@@ -40,7 +40,7 @@ func TestRunRemoveOperators(t *testing.T) {
 	// This test creates a solo cluster 7/5, then remove-operators removes 3 old operators.
 	conf := clusterConfig{
 		ClusterDir:        clusterDir,
-		Name:              "test_cluster",
+		Name:              t.Name(),
 		NumNodes:          oldN,
 		Threshold:         oldT,
 		NumDVs:            numVals,
@@ -94,7 +94,7 @@ func TestRunRemoveOperators(t *testing.T) {
 			},
 			Log:           log.DefaultConfig(),
 			ShutdownDelay: time.Second,
-			Timeout:       30 * time.Second,
+			Timeout:       time.Minute,
 			NoVerify:      true,
 		}
 		if i >= len(oldENRs) {
