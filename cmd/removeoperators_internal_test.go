@@ -24,8 +24,6 @@ import (
 )
 
 func TestRunRemoveOperators(t *testing.T) {
-	t.SkipNow()
-
 	const (
 		oldN    = 7
 		oldT    = 5
