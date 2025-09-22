@@ -12,17 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMakeKeyPair(t *testing.T) {
+func TestRandomKeyPair(t *testing.T) {
 	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
-	private, public := makeKeyPair(suite)
+	private, public := randomKeyPair(suite)
 
 	require.NotNil(t, private)
 	require.NotNil(t, public)
+
+	private2, public2 := randomKeyPair(suite)
+	require.NotEqual(t, private, private2)
+	require.NotEqual(t, public, public2)
 }
 
 func TestUnmarshalPoint(t *testing.T) {
 	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
-	_, public := makeKeyPair(suite)
+	_, public := randomKeyPair(suite)
 	publicBytes, err := public.MarshalBinary()
 	require.NoError(t, err)
 
@@ -44,7 +48,7 @@ func TestUnmarshalPoint(t *testing.T) {
 
 func TestKeyShareToValidatorPubKey(t *testing.T) {
 	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
-	private, public := makeKeyPair(suite)
+	private, public := randomKeyPair(suite)
 
 	t.Run("valid input", func(t *testing.T) {
 		dkgResult := &kdkg.DistKeyShare{
@@ -64,7 +68,7 @@ func TestKeyShareToValidatorPubKey(t *testing.T) {
 
 func TestKeyShareToBLS(t *testing.T) {
 	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
-	private, public := makeKeyPair(suite)
+	private, public := randomKeyPair(suite)
 
 	t.Run("valid input", func(t *testing.T) {
 		dkgResult := &kdkg.DistKeyShare{

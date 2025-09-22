@@ -87,7 +87,10 @@ func TestRunAddOperators(t *testing.T) {
 	dstDir := t.TempDir()
 	relayAddr := relay.StartRelay(ctx, t)
 
-	var eg errgroup.Group
+	var (
+		eg       errgroup.Group
+		nodeDirs []string
+	)
 
 	for i := range newN {
 		config := dkg.AddOperatorsConfig{
@@ -106,6 +109,8 @@ func TestRunAddOperators(t *testing.T) {
 			NoVerify:      true,
 		}
 
+		nodeDirs = append(nodeDirs, config.OutputDir)
+
 		eg.Go(func() error {
 			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
 			return runAddOperators(peerCtx, config, dkgConfig)
@@ -116,7 +121,7 @@ func TestRunAddOperators(t *testing.T) {
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
 
-	verifyClusterValidators(t, dstDir, newN, numVals)
+	verifyClusterValidators(t, numVals, nodeDirs)
 }
 
 func TestNewAddOperatorsCmd(t *testing.T) {
@@ -187,13 +192,14 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 	}
 }
 
-func verifyClusterValidators(t *testing.T, clusterDir string, numNodes, numVals int) {
+func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) {
 	t.Helper()
 
+	numNodes := len(nodeDirs)
 	clusterSecrets := make([][]tbls.PrivateKey, numNodes)
 
 	for i := range numNodes {
-		ndir := nodeDir(clusterDir, i)
+		ndir := nodeDirs[i]
 		lock, err := loadLockJSON(t.Context(), ndir, dkg.Config{})
 		require.NoError(t, err)
 		require.Len(t, lock.Operators, numNodes)

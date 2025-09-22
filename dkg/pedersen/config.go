@@ -34,14 +34,16 @@ type ReshareConfig struct {
 	TotalShares  int
 	NewThreshold int
 	NewPeers     []peer.ID
+	OldPeers     []peer.ID
 }
 
 // NewReshareConfig creates a new ReshareConfig instance.
-func NewReshareConfig(totalShares, newThreshold int, newPeers []peer.ID) *ReshareConfig {
+func NewReshareConfig(totalShares, newThreshold int, newPeers, oldPeers []peer.ID) *ReshareConfig {
 	return &ReshareConfig{
 		TotalShares:  totalShares,
 		NewThreshold: newThreshold,
 		NewPeers:     newPeers,
+		OldPeers:     oldPeers,
 	}
 }
 

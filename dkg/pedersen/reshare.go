@@ -32,7 +32,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*
 	}
 
 	// Generating longterm keypair for DKG. The longterm key is used to sign messages only.
-	nodePrivateKey, nodePubKey := makeKeyPair(config.Suite)
+	nodePrivateKey, nodePubKey := randomKeyPair(config.Suite)
 
 	pkBytes, err := nodePubKey.MarshalBinary()
 	if err != nil {
@@ -89,14 +89,33 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*
 		distKeyShares = append(distKeyShares, dks)
 	}
 
+	// The new nodes are always appended to the old nodes slice
+	// The old nodes can be indices within the existing nodes slice
 	oldN := len(nodes) - len(config.Reshare.NewPeers)
+	oldNodes := nodes[:oldN]
+	newNodes := make([]kdkg.Node, len(nodes))
+	copy(newNodes, nodes)
+
+	thisIsOldNode := false
+
+	for _, oid := range config.Reshare.OldPeers {
+		idx := config.PeerMap[oid]
+		if idx.PeerIdx == thisNodeIndex {
+			thisIsOldNode = true
+		}
+
+		newNodes = slices.DeleteFunc(newNodes, func(n kdkg.Node) bool {
+			return n.Index == kdkg.Index(idx.PeerIdx)
+		})
+	}
+
 	nonce := sha256.Sum256(config.SessionID)
 	reshareConfig := &kdkg.Config{
 		Longterm:     nodePrivateKey,
 		Nonce:        nonce[:],
 		Suite:        config.Suite,
-		NewNodes:     nodes,
-		OldNodes:     nodes[:oldN],
+		NewNodes:     newNodes,
+		OldNodes:     oldNodes,
 		Threshold:    config.Reshare.NewThreshold,
 		OldThreshold: config.Threshold,
 		Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
@@ -104,8 +123,9 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*
 	}
 
 	log.Info(ctx, "Starting pedersen reshare...",
-		z.Int("oldN", oldN), z.Int("newN", len(nodes)),
-		z.Int("oldT", config.Threshold), z.Int("newT", config.Reshare.NewThreshold))
+		z.Int("oldN", len(oldNodes)), z.Int("newN", len(newNodes)),
+		z.Int("oldT", config.Threshold), z.Int("newT", config.Reshare.NewThreshold),
+		z.Bool("removed", thisIsOldNode))
 
 	newShares := make([]*Share, 0, config.Reshare.TotalShares)
 
@@ -143,22 +163,38 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*
 		case <-ctx.Done():
 			return nil, errors.New("pedersen reshare context done, protocol aborted")
 		case kdkgResult := <-protocol.WaitEnd():
-			if kdkgResult.Error != nil {
-				return nil, errors.Wrap(kdkgResult.Error, "pedersen reshare protocol failed")
-			}
+			if thisIsOldNode {
+				if err := broadcastNoneKey(ctx, config, board); err != nil {
+					return nil, err
+				}
+			} else {
+				if kdkgResult.Error != nil {
+					return nil, errors.Wrap(kdkgResult.Error, "pedersen reshare protocol failed", z.Bool("thisIsOldNode", thisIsOldNode))
+				}
 
-			newShare, err := processKey(ctx, config, board, kdkgResult.Result.Key)
-			if err != nil {
-				return nil, errors.Wrap(err, "process pedersen reshare key")
-			}
+				newShare, err := processKey(ctx, config, board, kdkgResult.Result.Key)
+				if err != nil {
+					return nil, errors.Wrap(err, "process pedersen reshare key")
+				}
 
-			newShares = append(newShares, newShare)
+				newShares = append(newShares, newShare)
+			}
 		}
 	}
 
 	log.Info(ctx, "Pedersen reshare completed.")
 
 	return newShares, nil
+}
+
+func broadcastNoneKey(ctx context.Context, config *Config, board *Board) error {
+	if err := board.BroadcastValidatorPubKeyShare(ctx, []byte{}); err != nil {
+		return errors.Wrap(err, "broadcast none pubkey")
+	}
+
+	_, err := readBoardChannel(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
+
+	return err
 }
 
 func restoreDistKeyShare(keyShare *Share, threshold int, nodeIdx int) (*kdkg.DistKeyShare, error) {

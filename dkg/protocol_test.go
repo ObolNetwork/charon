@@ -98,7 +98,7 @@ func (p *testProtocol) PostInit(context.Context, *dkg.ProtocolContext) error {
 	return nil
 }
 
-func (p *testProtocol) Steps() []dkg.ProtocolStep {
+func (p *testProtocol) Steps(*dkg.ProtocolContext) []dkg.ProtocolStep {
 	return []dkg.ProtocolStep{
 		&someStep{p: p},
 		&someStep{p: p},
