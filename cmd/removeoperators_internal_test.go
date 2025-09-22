@@ -80,29 +80,32 @@ func TestRunRemoveOperators(t *testing.T) {
 	)
 
 	for i := range oldN {
-		config := dkg.RemoveOperatorsConfig{
-			OutputDir: nodeDir(dstDir, i),
-			OldENRs:   oldENRs,
-		}
-
-		dkgConfig := dkg.Config{
-			DataDir: nodeDir(conf.ClusterDir, i),
-			P2P: p2p.Config{
-				Relays:           []string{relayAddr},
-				TCPAddrs:         []string{testutil.AvailableAddr(t).String()},
-				DisableReuseport: true,
-			},
-			Log:           log.DefaultConfig(),
-			ShutdownDelay: time.Second,
-			Timeout:       time.Minute,
-			NoVerify:      true,
-		}
+		outputDir := nodeDir(dstDir, i)
 		if i >= len(oldENRs) {
-			nodeDirs = append(nodeDirs, config.OutputDir)
+			nodeDirs = append(nodeDirs, outputDir)
 		}
 
 		eg.Go(func() error {
+			config := dkg.RemoveOperatorsConfig{
+				OutputDir: outputDir,
+				OldENRs:   oldENRs,
+			}
+
+			dkgConfig := dkg.Config{
+				DataDir: nodeDir(conf.ClusterDir, i),
+				P2P: p2p.Config{
+					Relays:           []string{relayAddr},
+					TCPAddrs:         []string{testutil.AvailableAddr(t).String()},
+					DisableReuseport: true,
+				},
+				Log:           log.DefaultConfig(),
+				ShutdownDelay: time.Second,
+				Timeout:       time.Minute,
+				NoVerify:      true,
+			}
+
 			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
+
 			return runRemoveOperators(peerCtx, config, dkgConfig)
 		})
 	}
