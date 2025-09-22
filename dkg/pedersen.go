@@ -14,12 +14,22 @@ type AddOperatorsConfig struct {
 	NewThreshold int
 }
 
+type RemoveOperatorsConfig struct {
+	OutputDir    string
+	OldENRs      []string
+	NewThreshold int
+}
+
 func RunReshareProtocol(ctx context.Context, outputDir string, dkgConfig Config) error {
 	return RunProtocol(ctx, newReshareProtocol(outputDir), dkgConfig)
 }
 
 func RunAddOperatorsProtocol(ctx context.Context, config AddOperatorsConfig, dkgConfig Config) error {
 	return RunProtocol(ctx, newAddOperatorsProtocol(config), dkgConfig)
+}
+
+func RunRemoveOperatorsProtocol(ctx context.Context, config RemoveOperatorsConfig, dkgConfig Config) error {
+	return RunProtocol(ctx, newRemoveOperatorsProtocol(config), dkgConfig)
 }
 
 // runPedersenDKG runs the Pedersen DKG protocol using the provided board and configuration.

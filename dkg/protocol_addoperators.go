@@ -8,6 +8,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
@@ -17,6 +18,7 @@ type addOperatorsProtocol struct {
 	outputDir    string
 	newENRs      []string
 	newThreshold int
+	allENRs      []string
 	config       *pedersen.Config
 	board        *pedersen.Board
 }
@@ -69,18 +71,28 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 		p.newThreshold = newT
 	}
 
+	for _, operator := range pctx.Lock.Operators {
+		p.allENRs = append(p.allENRs, operator.ENR)
+	}
+
+	p.allENRs = append(p.allENRs, p.newENRs...)
+
+	pctx.SigExchanger = newExchanger(pctx.ThisNode, pctx.ThisNodeIdx.PeerIdx, pctx.PeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
+	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey)
+	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
+
 	newPeerIDs := pctx.PeerIDs[len(pctx.Lock.Operators):]
-	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), p.newThreshold, newPeerIDs)
+	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), p.newThreshold, newPeerIDs, nil)
 	p.config = pedersen.NewConfig(pctx.ThisPeerID, pctx.PeerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, reshareConfig)
 	p.board = pedersen.NewBoard(ctx, pctx.ThisNode, p.config, pctx.Caster)
 
 	return nil
 }
 
-func (p *addOperatorsProtocol) Steps() []ProtocolStep {
+func (p *addOperatorsProtocol) Steps(*ProtocolContext) []ProtocolStep {
 	return []ProtocolStep{
 		&reshareProtocolStep{config: p.config, board: p.board},
-		&updateLockProtocolStep{newThreshold: p.newThreshold, addOperators: p.newENRs},
+		&updateLockProtocolStep{threshold: p.newThreshold, operators: p.allENRs},
 		&updateNodeSignaturesProtocolStep{},
 		&writeArtifactsProtocolStep{outputDir: p.outputDir},
 	}

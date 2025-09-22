@@ -30,11 +30,13 @@ func TestNewConfig(t *testing.T) {
 	require.NotNil(t, config.Suite)
 
 	newPeers := []peer.ID{peer.ID("peer21"), peer.ID("peer22"), peer.ID("peer23"), peer.ID("peer24")}
+	oldPeers := []peer.ID{peer.ID("peer2"), peer.ID("peer3")}
 
-	reshareConfig := pedersen.NewReshareConfig(2, 3, newPeers)
+	reshareConfig := pedersen.NewReshareConfig(2, 3, newPeers, oldPeers)
 	require.Equal(t, 2, reshareConfig.TotalShares)
 	require.Equal(t, 3, reshareConfig.NewThreshold)
 	require.Equal(t, newPeers, reshareConfig.NewPeers)
+	require.Equal(t, oldPeers, reshareConfig.OldPeers)
 
 	config2 := pedersen.NewConfig("peer21", peerMap, 2, []byte("session2"), reshareConfig)
 	require.Equal(t, reshareConfig, config2.Reshare)

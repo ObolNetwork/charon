@@ -13,7 +13,7 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
-func makeKeyPair(suite kdkg.Suite) (kyber.Scalar, kyber.Point) {
+func randomKeyPair(suite kdkg.Suite) (kyber.Scalar, kyber.Point) {
 	private := suite.Scalar().Pick(random.New())
 	public := suite.Point().Mul(private, nil)
 

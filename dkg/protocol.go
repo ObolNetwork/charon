@@ -35,7 +35,7 @@ const (
 type Protocol interface {
 	GetPeers(*cluster.Lock) ([]p2p.Peer, error)
 	PostInit(context.Context, *ProtocolContext) error
-	Steps() []ProtocolStep
+	Steps(*ProtocolContext) []ProtocolStep
 }
 
 // ProtocolStep is a single step in a DKG protocol.
@@ -51,6 +51,7 @@ type ProtocolContext struct {
 	ThisPeerID    peer.ID
 	ThisNodeIdx   cluster.NodeIdx
 	ThisNode      host.Host
+	Peers         []p2p.Peer
 	PeerIDs       []peer.ID
 	PeerMap       map[peer.ID]cluster.NodeIdx
 	SigExchanger  *exchanger
@@ -120,23 +121,20 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 		return err
 	}
 
+	if err := verifyPeerDuplicates(peers); err != nil {
+		return err
+	}
+
 	thisNode, shutdown, err := setupP2P(ctx, enrPrivateKey, config, peers, lock.DefinitionHash)
 	if err != nil {
 		return err
 	}
 	defer shutdown()
 
+	protocolCtx.Peers = peers
 	protocolCtx.PeerIDs, protocolCtx.PeerMap = buildPeerMap(peers)
 	protocolCtx.ThisNodeIdx = protocolCtx.PeerMap[thisPeerID]
 	protocolCtx.ThisNode = thisNode
-
-	protocolCtx.SigExchanger = newExchanger(thisNode, protocolCtx.ThisNodeIdx.PeerIdx, protocolCtx.PeerIDs, []sigType{
-		sigLock,
-		sigDepositData,
-		sigValidatorRegistration,
-	}, config.Timeout)
-	protocolCtx.Caster = bcast.New(thisNode, protocolCtx.PeerIDs, enrPrivateKey)
-	protocolCtx.NodeSigCaster = newNodeSigBcast(peers, protocolCtx.ThisNodeIdx, protocolCtx.Caster)
 
 	logPeerSummary(ctx, thisPeerID, peers, lock.Operators)
 
@@ -151,7 +149,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 		return err
 	}
 
-	for _, step := range protocol.Steps() {
+	for _, step := range protocol.Steps(protocolCtx) {
 		if err := step.Run(ctx, protocolCtx); err != nil {
 			return err
 		}
@@ -236,4 +234,18 @@ func buildPeerMap(peers []p2p.Peer) ([]peer.ID, map[peer.ID]cluster.NodeIdx) {
 	}
 
 	return peerIDs, peerMap
+}
+
+func verifyPeerDuplicates(peers []p2p.Peer) error {
+	peerSet := make(map[peer.ID]struct{})
+
+	for _, p := range peers {
+		if _, exists := peerSet[p.ID]; exists {
+			return errors.New("duplicate peer ID found", z.Str("peerID", p.ID.String()))
+		}
+
+		peerSet[p.ID] = struct{}{}
+	}
+
+	return nil
 }

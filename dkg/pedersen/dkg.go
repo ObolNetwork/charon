@@ -5,6 +5,7 @@ package pedersen
 import (
 	"context"
 	"crypto/sha256"
+	"sort"
 
 	kbls "github.com/drand/kyber-bls12381"
 	kdkg "github.com/drand/kyber/share/dkg"
@@ -36,7 +37,7 @@ type Share struct {
 func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]*Share, error) {
 	// Each node generates an ephemeral key pair (BLS) and broadcasts the public key.
 	// This is a prerequisite for the Pedersen DKG protocol.
-	nodePrivateKey, nodePubKey := makeKeyPair(config.Suite)
+	nodePrivateKey, nodePubKey := randomKeyPair(config.Suite)
 
 	pkBytes, err := nodePubKey.MarshalBinary()
 	if err != nil {
@@ -162,15 +163,29 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 		return nil, errors.Wrap(err, "read validator pubkey shares")
 	}
 
-	publicShares := make(map[int]tbls.PublicKey)
+	oldShareIndices := make([]int, 0)
+	oldShareRevMap := make(map[int][]byte)
 
 	for i := range valPubKeyShares {
 		spk := valPubKeyShares[i]
-		shareIndex := config.PeerMap[spk.PeerID].ShareIdx
+		if len(spk.ValidatorPubKey) == 0 {
+			// This is an old node that does not participate in the resharing, skip.
+			continue
+		}
 
+		shareIndex := config.PeerMap[spk.PeerID].ShareIdx
+		oldShareIndices = append(oldShareIndices, shareIndex)
+		oldShareRevMap[shareIndex] = spk.ValidatorPubKey
+	}
+
+	sort.Ints(oldShareIndices)
+
+	publicShares := make(map[int]tbls.PublicKey)
+
+	for i, oi := range oldShareIndices {
 		var pk tbls.PublicKey
-		copy(pk[:], spk.ValidatorPubKey)
-		publicShares[shareIndex] = pk
+		copy(pk[:], oldShareRevMap[oi])
+		publicShares[i+1] = pk
 	}
 
 	return &Share{

@@ -13,25 +13,33 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/relay"
 )
 
-func TestRunReshare(t *testing.T) {
-	// This test creates a solo cluster with all charon data for all nodes.
-	// Then it runs reshare on each node in parallel.
+func TestRunRemoveOperators(t *testing.T) {
+	const (
+		oldN    = 7
+		oldT    = 5
+		newN    = 4
+		numVals = 3
+	)
+
+	clusterDir := t.TempDir()
+
+	// This test creates a solo cluster 7/5, then remove-operators removes 3 old operators.
 	conf := clusterConfig{
-		ClusterDir:        t.TempDir(),
+		ClusterDir:        clusterDir,
 		Name:              "test_cluster",
-		NumNodes:          4,
-		Threshold:         3,
-		NumDVs:            3,
+		NumNodes:          oldN,
+		Threshold:         oldT,
+		NumDVs:            numVals,
 		Network:           eth2util.Holesky.Name,
 		TargetGasLimit:    36000000,
 		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
@@ -48,7 +56,20 @@ func TestRunReshare(t *testing.T) {
 
 	entries, err := os.ReadDir(conf.ClusterDir)
 	require.NoError(t, err)
-	require.Len(t, entries, 4)
+	require.Len(t, entries, oldN)
+
+	// Creating new nodes with just ENRs and lock files.
+	oldENRs := make([]string, oldN-newN)
+	for i := range oldENRs {
+		ndir := nodeDir(conf.ClusterDir, i)
+		key, err := p2p.LoadPrivKey(ndir)
+		require.NoError(t, err)
+
+		er, err := enr.New(key)
+		require.NoError(t, err)
+
+		oldENRs[i] = er.String()
+	}
 
 	dstDir := t.TempDir()
 	relayAddr := relay.StartRelay(ctx, t)
@@ -58,9 +79,13 @@ func TestRunReshare(t *testing.T) {
 		nodeDirs []string
 	)
 
-	for i := 0; i < conf.NumNodes; i++ {
-		outputDir := nodeDir(dstDir, i)
-		config := dkg.Config{
+	for i := range oldN {
+		config := dkg.RemoveOperatorsConfig{
+			OutputDir: nodeDir(dstDir, i),
+			OldENRs:   oldENRs,
+		}
+
+		dkgConfig := dkg.Config{
 			DataDir: nodeDir(conf.ClusterDir, i),
 			P2P: p2p.Config{
 				Relays:   []string{relayAddr},
@@ -68,15 +93,16 @@ func TestRunReshare(t *testing.T) {
 			},
 			Log:           log.DefaultConfig(),
 			ShutdownDelay: time.Second,
-			Timeout:       time.Minute,
+			Timeout:       30 * time.Second,
 			NoVerify:      true,
 		}
-
-		nodeDirs = append(nodeDirs, outputDir)
+		if i >= len(oldENRs) {
+			nodeDirs = append(nodeDirs, config.OutputDir)
+		}
 
 		eg.Go(func() error {
 			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
-			return runReshare(peerCtx, outputDir, config)
+			return runRemoveOperators(peerCtx, config, dkgConfig)
 		})
 	}
 
@@ -84,53 +110,51 @@ func TestRunReshare(t *testing.T) {
 	testutil.SkipIfBindErr(t, err)
 	testutil.RequireNoError(t, err)
 
-	verifyClusterValidators(t, conf.NumDVs, nodeDirs)
+	verifyClusterValidators(t, numVals, nodeDirs)
 }
 
-func TestNewReshareCmd(t *testing.T) {
-	cmd := newReshareCmd(runReshare)
+func TestNewRemoveOperatorsCmd(t *testing.T) {
+	cmd := newRemoveOperatorsCmd(runRemoveOperators)
 	require.NotNil(t, cmd)
-	require.Equal(t, "reshare", cmd.Use)
-	require.Equal(t, "Reshare existing validator keys", cmd.Short)
+	require.Equal(t, "remove-operators", cmd.Use)
+	require.Equal(t, "Remove operators from the cluster", cmd.Short)
 	require.Empty(t, cmd.Flags().Args())
 }
 
-func TestValidateReshareConfig(t *testing.T) {
+func TestValidateRemoveOperatorsConfig(t *testing.T) {
 	realDir := t.TempDir()
 	err := os.WriteFile(filepath.Join(realDir, clusterLockFile), []byte("{}"), 0o444)
 	require.NoError(t, err)
 
-	validatorKeysDir := filepath.Join(realDir, validatorKeysSubDir)
-	err = app.CreateNewEmptyDir(validatorKeysDir)
-	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(validatorKeysDir, "keystore-0.json"), []byte("{}"), 0o444)
-	require.NoError(t, err)
-
 	tests := []struct {
 		name      string
-		outputDir string
-		config    dkg.Config
+		cmdConfig dkg.RemoveOperatorsConfig
+		dkgConfig dkg.Config
 		numOps    int
 		errMsg    string
 	}{
 		{
-			name:      "output dir is required",
-			outputDir: "",
-			config:    dkg.Config{},
-			errMsg:    "output-dir is required",
+			name: "missing old operator enrs",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir: ".",
+			},
+			errMsg: "old-operator-enrs is required",
 		},
 		{
-			name:      "data dir is required",
-			outputDir: ".",
-			config: dkg.Config{
-				DataDir: "",
+			name: "data dir is required",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir: ".",
+				OldENRs:   []string{"enr:-IS4QH"},
 			},
 			errMsg: "data-dir is required",
 		},
 		{
-			name:      "missing lock file",
-			outputDir: ".",
-			config: dkg.Config{
+			name: "missing lock file",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir: ".",
+				OldENRs:   []string{"enr:-IS4QH"},
+			},
+			dkgConfig: dkg.Config{
 				DataDir: ".",
 			},
 			errMsg: "data-dir must contain a cluster-lock.json file",
@@ -139,7 +163,7 @@ func TestValidateReshareConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateReshareConfig(t.Context(), tt.outputDir, tt.config)
+			err := validateRemoveOperatorsConfig(&tt.cmdConfig, &tt.dkgConfig)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -147,25 +171,4 @@ func TestValidateReshareConfig(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("empty validator_keys dir", func(t *testing.T) {
-		srcDir := t.TempDir()
-		err := os.WriteFile(filepath.Join(srcDir, clusterLockFile), []byte("{}"), 0o444)
-		require.NoError(t, err)
-
-		outputDir := "."
-		config := dkg.Config{
-			DataDir: srcDir,
-		}
-
-		err = validateReshareConfig(t.Context(), outputDir, config)
-		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
-
-		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
-		err = app.CreateNewEmptyDir(validatorKeysDir)
-		require.NoError(t, err)
-
-		err = validateReshareConfig(t.Context(), outputDir, config)
-		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
-	})
 }
