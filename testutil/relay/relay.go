@@ -4,13 +4,13 @@ package relay
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/p2p"
