@@ -95,12 +95,15 @@ func WithStdOut(w io.Writer) func(*options) {
 
 // WithOTLPTracer returns an option to configure an OpenTelemetry exporter for tracing
 // telemetry to be sent to an OpenTelemetry Collector via gRPC.
-func WithOTLPTracer(addr string, headers map[string]string) func(*options) {
+func WithOTLPTracer(addr string, headers map[string]string, insecure bool) func(*options) {
 	return func(o *options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
 			opts := []otlptracegrpc.Option{
-				otlptracegrpc.WithInsecure(),
 				otlptracegrpc.WithEndpoint(addr),
+			}
+
+			if insecure {
+				opts = append(opts, otlptracegrpc.WithInsecure())
 			}
 
 			if len(headers) > 0 {

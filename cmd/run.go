@@ -83,6 +83,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.JaegerService, "jaeger-service", "", "[DISABLED] Service name used for jaeger tracing.")
 	cmd.Flags().StringVar(&config.OTLPAddress, "otlp-address", "", "Listening address for OTLP gRPC tracing backend.")
 	cmd.Flags().StringSliceVar(&config.OTLPHeaders, "otlp-headers", nil, "Comma separated list of headers formatted as header=value, to include in OTLP requests.")
+	cmd.Flags().BoolVar(&config.OTLPInsecure, "otlp-insecure", false, "Use insecure connection (no TLS) when connecting to OTLP endpoint.")
 	cmd.Flags().StringVar(&config.OTLPServiceName, "otlp-service-name", "charon", "Service name used for OTLP gRPC tracing.")
 	cmd.Flags().BoolVar(&config.SimnetBMock, "simnet-beacon-mock", false, "Enables an internal mock beacon node for running a simnet.")
 	cmd.Flags().BoolVar(&config.SimnetVMock, "simnet-validator-mock", false, "Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.")

@@ -187,6 +187,7 @@ Flags:
       --no-verify                                Disables cluster definition and lock file verification.
       --otlp-address string                      Listening address for OTLP gRPC tracing backend.
       --otlp-headers strings                     Comma separated list of headers formatted as header=value, to include in OTLP requests.
+      --otlp-insecure                            Use insecure connection (no TLS) when connecting to OTLP endpoint.
       --otlp-service-name string                 Service name used for OTLP gRPC tracing. (default "charon")
       --p2p-disable-reuseport                    Disables TCP port reuse for outgoing libp2p connections.
       --p2p-external-hostname string             The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
