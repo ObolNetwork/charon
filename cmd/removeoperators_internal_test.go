@@ -117,7 +117,7 @@ func TestNewRemoveOperatorsCmd(t *testing.T) {
 	cmd := newRemoveOperatorsCmd(runRemoveOperators)
 	require.NotNil(t, cmd)
 	require.Equal(t, "remove-operators", cmd.Use)
-	require.Equal(t, "Remove operators from the cluster", cmd.Short)
+	require.Equal(t, "Remove operators from an existing distributed validator cluster", cmd.Short)
 	require.Empty(t, cmd.Flags().Args())
 }
 

@@ -135,8 +135,7 @@ func Test_runSubmitPartialExit(t *testing.T) {
 func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string, all bool) {
 	t.Helper()
 
-	ctx := t.Context()
-	ctx = log.WithCtx(ctx, z.Str("test_case", t.Name()))
+	ctx := log.WithCtx(t.Context(), z.Str("test_case", t.Name()))
 
 	valAmt := 100
 	operatorAmt := 4

@@ -50,6 +50,7 @@ func New() *cobra.Command {
 			newAddValidatorsCmd(runAddValidators),
 			newReshareCmd(runReshare),
 			newAddOperatorsCmd(runAddOperators),
+			newRemoveOperatorsCmd(runRemoveOperators),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
 				newTestPeersCmd(runTestPeers),
