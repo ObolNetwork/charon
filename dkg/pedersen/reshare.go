@@ -20,7 +20,7 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-// RunReshareDKG runs the Pedersen reshare protocol for the existig keys.
+// RunReshareDKG runs the Pedersen reshare protocol for the existing keys.
 func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*Share) ([]*Share, error) {
 	if config.Reshare == nil {
 		return nil, errors.New("reshare config is nil")
