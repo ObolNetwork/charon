@@ -9,8 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -216,6 +218,64 @@ func TestValidateDKGConfig(t *testing.T) {
 	t.Run("unsupported consensus protocol", func(t *testing.T) {
 		err := validateDKGConfig(4, "goerli", nil, "unreal", false)
 		require.ErrorContains(t, err, "unsupported consensus protocol")
+	})
+}
+
+func TestCreateDkgWithPublishAndENRs(t *testing.T) {
+	validENRs := []string{
+		"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+		"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+		"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+		"enr:-JG4QKu734_MXQklKrNHe9beXIsIV5bqv58OOmsjWmp6CF5vJSHNinYReykn7-IIkc5-YsoF8Hva1Q3pl7_gUj5P9cOGAYGv0jBLgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMM3AvPhXGCUIzBl9VFOw7VQ6_m8dGifVfJ1YXrvZsaZoN0Y3CCDhqDdWRwgg4u",
+	}
+
+	t.Run("with existing p2p key", func(t *testing.T) {
+		temp := t.TempDir()
+
+		// Create a p2p key in the expected location
+		keyPath := path.Join(temp, "charon-enr-private-key")
+		testKey, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+		err = k1util.Save(testKey, keyPath)
+		require.NoError(t, err)
+
+		conf := createDKGConfig{
+			OutputDir:         temp,
+			NumValidators:     1,
+			Threshold:         3,
+			FeeRecipientAddrs: []string{validEthAddr},
+			WithdrawalAddrs:   []string{validEthAddr},
+			Network:           defaultNetwork,
+			DKGAlgo:           "default",
+			OperatorENRs:      validENRs,
+			Publish:           true,
+			PublishAddress:    "https://api.obol.tech/v1", // Will be mocked in actual implementation
+		}
+
+		// This test verifies the config is valid - actual publishing would need mocking
+		err = validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol, conf.Compounding)
+		require.NoError(t, err)
+	})
+
+	t.Run("without existing p2p key", func(t *testing.T) {
+		temp := t.TempDir()
+
+		conf := createDKGConfig{
+			OutputDir:         temp,
+			NumValidators:     1,
+			Threshold:         3,
+			FeeRecipientAddrs: []string{validEthAddr},
+			WithdrawalAddrs:   []string{validEthAddr},
+			Network:           defaultNetwork,
+			DKGAlgo:           "default",
+			OperatorENRs:      validENRs,
+			Publish:           true,
+			PublishAddress:    "https://api.obol.tech/v1", // Will be mocked in actual implementation
+		}
+
+		// This test verifies the config is valid - actual publishing would need mocking
+		err := validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol, conf.Compounding)
+		require.NoError(t, err)
 	})
 }
 

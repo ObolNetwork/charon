@@ -25,6 +25,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 type createDKGConfig struct {
@@ -77,7 +78,10 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 		}
 
 		if config.Publish {
-			mustMarkFlagRequired(cmd, "operator-addresses")
+			// Allow either operator-addresses or operator-enrs when publishing
+			if len(config.OperatorENRs) == 0 && len(config.OperatorsAddresses) == 0 {
+				return errors.New("either --operator-enrs or --operator-addresses is required when using --publish")
+			}
 		} else {
 			mustMarkFlagRequired(cmd, "operator-enrs")
 		}
@@ -198,10 +202,18 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	// Populate creator field
 	if conf.Publish {
-		// Temporary creator address
-		privKey, err = k1.GeneratePrivateKey()
+		// Auto-p2p-key approach: try to load existing key, generate if not found
+		keyPath := p2p.KeyPath(conf.OutputDir)
+		privKey, err = p2p.LoadPrivKey(conf.OutputDir)
 		if err != nil {
-			return errors.Wrap(err, "generate private key")
+			// Generate temporary creator key if no existing p2p key
+			log.Debug(ctx, "No existing p2p key found, generating temporary key for creator", z.Str("path", keyPath))
+			privKey, err = k1.GeneratePrivateKey()
+			if err != nil {
+				return errors.Wrap(err, "generate private key")
+			}
+		} else {
+			log.Info(ctx, "Using existing p2p key for creator signature", z.Str("path", keyPath))
 		}
 
 		creator = cluster.Creator{
@@ -356,8 +368,18 @@ func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey
 		return errors.Wrap(err, "publish cluster definition")
 	}
 
-	log.Info(ctx, "Cluster Invitation Prepared")
-	log.Info(ctx, "Direct the Node Operators to: "+generateLaunchpadLink(def.ConfigHash, conf.Network)+" to review the cluster configuration and begin the distributed key generation ceremony.")
+	// Different output messages based on whether ENRs or addresses were provided
+	if len(def.Operators) > 0 && def.Operators[0].ENR != "" {
+		// ENRs were provided, operators can run DKG directly
+		log.Info(ctx, "Cluster Definition Published")
+		definitionURL := fmt.Sprintf("%s/definition/%#x", conf.PublishAddress, def.ConfigHash)
+		log.Info(ctx, "Operators can run the following command from folders containing their private keys:")
+		log.Info(ctx, fmt.Sprintf("charon dkg --definition-file %s", definitionURL))
+	} else {
+		// Addresses were provided, operators need to use launchpad
+		log.Info(ctx, "Cluster Invitation Prepared")
+		log.Info(ctx, "Direct the Node Operators to: "+generateLaunchpadLink(def.ConfigHash, conf.Network)+" to review the cluster configuration and begin the distributed key generation ceremony.")
+	}
 
 	return nil
 }
