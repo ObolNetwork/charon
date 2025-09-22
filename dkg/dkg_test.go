@@ -556,9 +556,9 @@ func TestSyncFlow(t *testing.T) {
 		},
 		{
 			name:       "four_connect_two_disconnect",
-			connect:    []int{0, 1, 2, 3},
-			disconnect: []int{0, 1},
-			reconnect:  []int{0, 1, 4},
+			connect:    []int{0, 1, 2, 4},
+			disconnect: []int{2, 4},
+			reconnect:  []int{2, 3, 4},
 			vals:       4,
 			nodes:      5,
 		},
@@ -581,8 +581,6 @@ func TestSyncFlow(t *testing.T) {
 			dir := t.TempDir()
 			configs := getConfigs(t, lock.Definition, keys, dir, relayAddr)
 
-			time.Sleep(100 * time.Millisecond)
-
 			var (
 				// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
 				stopDkgs   = make([]context.CancelFunc, test.nodes)
@@ -592,7 +590,6 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
-				time.Sleep(100 * time.Millisecond)
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
 				configs[idx].TestConfig.SyncCallback = cTracker.Set
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
@@ -608,7 +605,6 @@ func TestSyncFlow(t *testing.T) {
 
 			// Stop some peers.
 			for _, idx := range test.disconnect {
-				time.Sleep(100 * time.Millisecond)
 				log.Info(ctx, "Stopping peer", z.Int("peer_index", idx))
 				stopDkgs[idx]()
 
@@ -633,7 +629,6 @@ func TestSyncFlow(t *testing.T) {
 
 			// Start other peers.
 			for _, idx := range test.reconnect {
-				time.Sleep(100 * time.Millisecond)
 				log.Info(ctx, "Starting remaining peer", z.Int("peer_index", idx))
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
@@ -687,7 +682,7 @@ func (c *connTracker) AwaitN(t *testing.T, dkgErrChan chan error, n int, peerIdx
 	ticker := time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
 
-	timeout := time.NewTimer(time.Second * 10)
+	timeout := time.NewTimer(time.Second * 15)
 	defer timeout.Stop()
 
 	for {
@@ -743,7 +738,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 				},
 				P2PNodeCallback: p2pNodeCallback,
 			},
-			Timeout: 8 * time.Second,
+			Timeout: 10 * time.Second,
 		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 

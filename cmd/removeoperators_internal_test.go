@@ -31,7 +31,11 @@ func TestRunRemoveOperators(t *testing.T) {
 		numVals = 3
 	)
 
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
 	clusterDir := t.TempDir()
+	relayAddr := relay.StartRelay(ctx, t)
 
 	// This test creates a solo cluster 7/5, then remove-operators removes 3 old operators.
 	conf := clusterConfig{
@@ -47,9 +51,6 @@ func TestRunRemoveOperators(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
 
 	err := runCreateCluster(ctx, &buf, conf)
 	require.NoError(t, err)
@@ -72,7 +73,6 @@ func TestRunRemoveOperators(t *testing.T) {
 	}
 
 	dstDir := t.TempDir()
-	relayAddr := relay.StartRelay(ctx, t)
 
 	var (
 		eg       errgroup.Group
@@ -88,8 +88,9 @@ func TestRunRemoveOperators(t *testing.T) {
 		dkgConfig := dkg.Config{
 			DataDir: nodeDir(conf.ClusterDir, i),
 			P2P: p2p.Config{
-				Relays:   []string{relayAddr},
-				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+				Relays:           []string{relayAddr},
+				TCPAddrs:         []string{testutil.AvailableAddr(t).String()},
+				DisableReuseport: true,
 			},
 			Log:           log.DefaultConfig(),
 			ShutdownDelay: time.Second,
