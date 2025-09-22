@@ -25,8 +25,8 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 
 	cmd := &cobra.Command{
 		Use:   "remove-operators",
-		Short: "Remove operators from the cluster",
-		Long:  `Removes operators from the cluster, leaving all validators intact.`,
+		Short: "Remove operators from an existing distributed validator cluster",
+		Long:  `Removes operators from an existing distributed validator cluster, leaving all validators intact.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(dkgConfig.Log); err != nil {

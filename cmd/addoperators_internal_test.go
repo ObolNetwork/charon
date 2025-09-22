@@ -128,7 +128,7 @@ func TestNewAddOperatorsCmd(t *testing.T) {
 	cmd := newAddOperatorsCmd(runAddOperators)
 	require.NotNil(t, cmd)
 	require.Equal(t, "add-operators", cmd.Use)
-	require.Equal(t, "Add new operators to the existing cluster", cmd.Short)
+	require.Equal(t, "Add new operators to an existing distributed validator cluster", cmd.Short)
 	require.Empty(t, cmd.Flags().Args())
 }
 
