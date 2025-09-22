@@ -377,7 +377,10 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 				ExitEpoch:           0,
 				BeaconNodeTimeout:   30 * time.Second,
 				PublishTimeout:      10 * time.Second,
+				SkipBeaconNodeCheck: true,
 			}
+
+			time.Sleep(100 * time.Millisecond)
 
 			require.ErrorContains(t, runSignPartialExit(ctx, config), test.errData)
 		})

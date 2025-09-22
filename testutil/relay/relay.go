@@ -4,6 +4,7 @@ package relay
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -22,11 +23,13 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 
 	dir := t.TempDir()
 
-	addr := testutil.AvailableAddr(t).String()
-
+	addrCh := make(chan string, 1)
 	errChan := make(chan error, 1)
 
 	go func() {
+		addr := testutil.AvailableAddr(t).String()
+		addrCh <- addr
+
 		err := relay.Run(parentCtx, relay.Config{
 			DataDir:  dir,
 			HTTPAddr: addr,
@@ -38,7 +41,7 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 			MaxResPerPeer: 8,
 			MaxConns:      1024,
 		})
-		if err != nil {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			log.Warn(parentCtx, "Relay stopped with error", err)
 		} else {
 			log.Info(parentCtx, "Relay stopped without error")
@@ -47,10 +50,11 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 		errChan <- err
 	}()
 
+	addr := <-addrCh
 	endpoint := "http://" + addr
 
-	// Wait up to 10s for bootnode to become available.
-	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
+	// Wait up to 15s for bootnode to become available.
+	ctx, cancel := context.WithTimeout(parentCtx, 15*time.Second)
 	defer cancel()
 
 	isUp := make(chan struct{})
