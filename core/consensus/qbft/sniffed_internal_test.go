@@ -26,7 +26,7 @@ import (
 
 var sniffedFile = flag.String("sniffed-file", "", "path to sniffed file")
 
-// TestSniffedInstances simulates all the instances in the sniffed file.
+// TestSniffedFile simulates all the instances in the sniffed file.
 func TestSniffedFile(t *testing.T) {
 	if *sniffedFile == "" {
 		t.Skip("no sniffed file provided")
@@ -113,7 +113,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err := qbft.Run(ctx, def, qt, duty, instance.GetPeerIdx(), qbft.InputValue([32]byte{1}), qbft.InputValueSource(newRandomQBFTProtoMsg(t)))
+	err := qbft.Run(ctx, def, qt, duty, instance.GetPeerIdx(), qbft.InputValue([32]byte{1}), qbft.InputValueSource(proto.Message(newRandomQBFTMsg(t))))
 	if expectDecided {
 		require.ErrorIs(t, err, context.Canceled)
 	} else {

@@ -93,13 +93,13 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 
 			attLeaderAnyPbProto, err := msg.ValueSource()
 			if err != nil {
-				returnErrCh <- errors.Wrap(err, "msg no value source", z.Any("msg", msg))
+				returnErrCh <- errors.Wrap(err, "msg has no value source", z.Any("msg", msg))
 				return
 			}
 
 			attLeaderAnyPb, ok := attLeaderAnyPbProto.(*anypb.Any)
 			if !ok {
-				returnErrCh <- errors.New("parse protoMessage to *anypb.Any", z.Any("attLeaderAnyPbProto", attLeaderAnyPbProto))
+				returnErrCh <- errors.New("protoMessage interface to *anypb.Any struct", z.Any("attLeaderAnyPbProto", attLeaderAnyPbProto))
 				return
 			}
 
@@ -111,7 +111,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 
 			attLeaderSet, ok := attLeaderSetProto.(*pbv1.UnsignedDataSet)
 			if !ok {
-				returnErrCh <- errors.New("parse protoMessage to *pbv1.UnsignedDataSet", z.Any("attLeaderSetProto", attLeaderSetProto))
+				returnErrCh <- errors.New("protoMessage interface to *pbv1.UnsignedDataSet struct", z.Any("attLeaderSetProto", attLeaderSetProto))
 				return
 			}
 
@@ -139,6 +139,8 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 					return
 				}
 			default:
+				returnErrCh <- errors.New("bug: checking not supported duty", z.Any("duty", msg.Instance().Type))
+				return
 			}
 			returnErrCh <- nil
 		},
@@ -216,25 +218,25 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 			return errors.New("unable to parse local unsigned data to core attestation data", z.Any("data", attLocalData))
 		}
 
-		missmatch := ""
+		mismatch := ""
 		if attLeaderAttestationData.Data.Source.Epoch != attLocalAttestationData.Data.Source.Epoch {
-			missmatch += "leader attestation source epoch differs from local source epoch;"
+			mismatch += "leader attestation source epoch differs from local source epoch;"
 		}
 
 		if attLeaderAttestationData.Data.Source.Root != attLocalAttestationData.Data.Source.Root {
-			missmatch += "leader attestation source root differs from local source root;"
+			mismatch += "leader attestation source root differs from local source root;"
 		}
 
 		if attLeaderAttestationData.Data.Target.Epoch != attLocalAttestationData.Data.Target.Epoch {
-			missmatch += "leader attestation target epoch differs from local target epoch;"
+			mismatch += "leader attestation target epoch differs from local target epoch;"
 		}
 
 		if attLeaderAttestationData.Data.Target.Root != attLocalAttestationData.Data.Target.Root {
-			missmatch += "leader attestation target root differs from local target root;"
+			mismatch += "leader attestation target root differs from local target root;"
 		}
 
-		if missmatch != "" {
-			return errors.New(missmatch, z.Any("public_key", attLeaderKey), z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data))
+		if mismatch != "" {
+			return errors.New(mismatch, z.Any("public_key", attLeaderKey), z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data))
 		}
 	}
 

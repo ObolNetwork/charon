@@ -351,14 +351,14 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
 
 			case UponQuorumPrepares: // Algorithm 2:4
-				var errCompare error
+				var errC error
 
-				inputValueSource, errCompare = compare(ctx, d, msg, inputValueSourceCh, inputValueSource, timerChan)
-				if errCompare != nil {
+				inputValueSource, errC = compare(ctx, d, msg, inputValueSourceCh, inputValueSource, timerChan)
+				if errC != nil {
 					switch {
-					case errors.Is(errCompare, errCompare):
+					case errors.Is(errC, errCompare):
 						compareFailureRound = msg.Round()
-					case errors.Is(errCompare, errTimeout):
+					case errors.Is(errC, errTimeout):
 						// As compare function is blocking on waiting local data, round might timeout in the meantime.
 						// If this happens, we trigger round change.
 						// Algorithm 3:1
