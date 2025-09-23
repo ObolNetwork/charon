@@ -82,7 +82,10 @@ func (n *TestNode) InitBoard(t *testing.T, threshold int, peers []peer.ID, peerM
 func TestSuite(t *testing.T) kdkg.Suite {
 	t.Helper()
 
-	return kbls.NewBLS12381Suite().G1().(kdkg.Suite)
+	s, ok := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
+	require.True(t, ok)
+
+	return s
 }
 
 func RandomScalar(t *testing.T) kyber.Scalar {
