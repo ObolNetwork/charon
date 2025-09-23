@@ -46,6 +46,7 @@ type createDKGConfig struct {
 	Publish             bool
 	PublishAddress      string
 	OperatorsAddresses  []string
+	AutoP2PKey          bool
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -114,6 +115,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().BoolVar(&config.Publish, "publish", false, "Creates an invitation to the DKG ceremony on the DV Launchpad. Terms and conditions apply.")
 	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech/v1", "The URL to publish the cluster to.")
 	cmd.Flags().StringSliceVar(&config.OperatorsAddresses, "operator-addresses", nil, "Comma-separated list of each operator's Ethereum address.")
+	cmd.Flags().BoolVar(&config.AutoP2PKey, "auto-p2p-key", false, "Automatically load or create a p2p key for signing as creator. If a key exists in the default location (.charon/charon-enr-private-key), it will be used. Otherwise, a temporary key will be generated.")
 }
 
 func mustMarkFlagRequired(cmd *cobra.Command, flag string) {
@@ -202,18 +204,26 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	// Populate creator field
 	if conf.Publish {
-		// Auto-p2p-key approach: try to load existing key, generate if not found
-		keyPath := p2p.KeyPath(conf.OutputDir)
-		privKey, err = p2p.LoadPrivKey(conf.OutputDir)
-		if err != nil {
-			// Generate temporary creator key if no existing p2p key
-			log.Debug(ctx, "No existing p2p key found, generating temporary key for creator", z.Str("path", keyPath))
+		if conf.AutoP2PKey {
+			// Auto-p2p-key approach: try to load existing key, generate if not found
+			keyPath := p2p.KeyPath(conf.OutputDir)
+			privKey, err = p2p.LoadPrivKey(conf.OutputDir)
+			if err != nil {
+				// Generate temporary creator key if no existing p2p key
+				log.Debug(ctx, "No existing p2p key found, generating temporary key for creator", z.Str("path", keyPath))
+				privKey, err = k1.GeneratePrivateKey()
+				if err != nil {
+					return errors.Wrap(err, "generate private key")
+				}
+			} else {
+				log.Info(ctx, "Using existing p2p key for creator signature", z.Str("path", keyPath))
+			}
+		} else {
+			// Generate a new temporary key for creator when not using auto-p2p-key
 			privKey, err = k1.GeneratePrivateKey()
 			if err != nil {
 				return errors.Wrap(err, "generate private key")
 			}
-		} else {
-			log.Info(ctx, "Using existing p2p key for creator signature", z.Str("path", keyPath))
 		}
 
 		creator = cluster.Creator{

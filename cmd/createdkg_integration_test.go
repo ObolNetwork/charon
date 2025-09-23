@@ -26,7 +26,7 @@ func TestCreateDKGPublishWithENRs(t *testing.T) {
 		"enr:-JG4QKu734_MXQklKrNHe9beXIsIV5bqv58OOmsjWmp6CF5vJSHNinYReykn7-IIkc5-YsoF8Hva1Q3pl7_gUj5P9cOGAYGv0jBLgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMM3AvPhXGCUIzBl9VFOw7VQ6_m8dGifVfJ1YXrvZsaZoN0Y3CCDhqDdWRwgg4u",
 	}
 
-	t.Run("command accepts operator-enrs with publish", func(t *testing.T) {
+	t.Run("command accepts operator-enrs with publish and auto-p2p-key", func(t *testing.T) {
 		outputDir := testutil.CreateTempCharonDir(t)
 
 		// Build the command arguments
@@ -38,6 +38,7 @@ func TestCreateDKGPublishWithENRs(t *testing.T) {
 			"--output-dir=" + outputDir,
 			"--publish",
 			"--publish-address=https://api.obol.tech/v1", // Would need mocking for actual publishing
+			"--auto-p2p-key", // Use the auto-p2p-key flag
 		}
 
 		// Create the command - this tests that the validation accepts the flags
@@ -60,6 +61,7 @@ func TestCreateDKGPublishWithENRs(t *testing.T) {
 		// Verify the help text shows our command accepts these flags together
 		require.Contains(t, output, "--operator-enrs")
 		require.Contains(t, output, "--publish")
+		require.Contains(t, output, "--auto-p2p-key")
 	})
 
 	t.Run("verify output file structure for local ENR creation", func(t *testing.T) {

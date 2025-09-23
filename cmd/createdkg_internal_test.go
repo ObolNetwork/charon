@@ -229,7 +229,7 @@ func TestCreateDkgWithPublishAndENRs(t *testing.T) {
 		"enr:-JG4QKu734_MXQklKrNHe9beXIsIV5bqv58OOmsjWmp6CF5vJSHNinYReykn7-IIkc5-YsoF8Hva1Q3pl7_gUj5P9cOGAYGv0jBLgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMM3AvPhXGCUIzBl9VFOw7VQ6_m8dGifVfJ1YXrvZsaZoN0Y3CCDhqDdWRwgg4u",
 	}
 
-	t.Run("with existing p2p key", func(t *testing.T) {
+	t.Run("with existing p2p key and auto-p2p-key flag", func(t *testing.T) {
 		temp := t.TempDir()
 
 		// Create a p2p key in the expected location
@@ -250,6 +250,7 @@ func TestCreateDkgWithPublishAndENRs(t *testing.T) {
 			OperatorENRs:      validENRs,
 			Publish:           true,
 			PublishAddress:    "https://api.obol.tech/v1", // Will be mocked in actual implementation
+			AutoP2PKey:        true, // Enable auto-p2p-key
 		}
 
 		// This test verifies the config is valid - actual publishing would need mocking
@@ -257,7 +258,7 @@ func TestCreateDkgWithPublishAndENRs(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("without existing p2p key", func(t *testing.T) {
+	t.Run("without existing p2p key but with auto-p2p-key flag", func(t *testing.T) {
 		temp := t.TempDir()
 
 		conf := createDKGConfig{
@@ -271,6 +272,29 @@ func TestCreateDkgWithPublishAndENRs(t *testing.T) {
 			OperatorENRs:      validENRs,
 			Publish:           true,
 			PublishAddress:    "https://api.obol.tech/v1", // Will be mocked in actual implementation
+			AutoP2PKey:        true, // Enable auto-p2p-key
+		}
+
+		// This test verifies the config is valid - actual publishing would need mocking
+		err := validateDKGConfig(len(conf.OperatorENRs), conf.Network, conf.DepositAmounts, conf.ConsensusProtocol, conf.Compounding)
+		require.NoError(t, err)
+	})
+
+	t.Run("publish without auto-p2p-key flag", func(t *testing.T) {
+		temp := t.TempDir()
+
+		conf := createDKGConfig{
+			OutputDir:         temp,
+			NumValidators:     1,
+			Threshold:         3,
+			FeeRecipientAddrs: []string{validEthAddr},
+			WithdrawalAddrs:   []string{validEthAddr},
+			Network:           defaultNetwork,
+			DKGAlgo:           "default",
+			OperatorENRs:      validENRs,
+			Publish:           true,
+			PublishAddress:    "https://api.obol.tech/v1",
+			AutoP2PKey:        false, // Explicitly disable auto-p2p-key
 		}
 
 		// This test verifies the config is valid - actual publishing would need mocking
