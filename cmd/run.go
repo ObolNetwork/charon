@@ -35,6 +35,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *co
 			if err := log.InitLogger(conf.Log); err != nil {
 				return err
 			}
+
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printLicense(cmd.Context())

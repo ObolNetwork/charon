@@ -28,6 +28,7 @@ this command at the same time.`,
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}
+
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printLicense(cmd.Context())

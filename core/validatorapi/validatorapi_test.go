@@ -1243,6 +1243,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			},
 			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
 				parsed := unsignedBlock.(*eth2capella.BlindedBeaconBlock)
+
 				return &eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionCapella,
 					Capella: &eth2capella.SignedBlindedBeaconBlock{
@@ -1272,6 +1273,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			},
 			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
 				parsed := unsignedBlock.(*eth2deneb.BlindedBeaconBlock)
+
 				return &eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionDeneb,
 					Deneb: &eth2deneb.SignedBlindedBeaconBlock{
@@ -1301,6 +1303,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			},
 			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
 				parsed := unsignedBlock.(*eth2electra.BlindedBeaconBlock)
+
 				return &eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionElectra,
 					Electra: &eth2electra.SignedBlindedBeaconBlock{
@@ -1330,6 +1333,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 			},
 			signedBlockFunc: func(unsignedBlock any, s [96]byte) *eth2api.VersionedSignedBlindedProposal {
 				parsed := unsignedBlock.(*eth2electra.BlindedBeaconBlock)
+
 				return &eth2api.VersionedSignedBlindedProposal{
 					Version: eth2spec.DataVersionFulu,
 					Fulu: &eth2electra.SignedBlindedBeaconBlock{

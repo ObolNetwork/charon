@@ -100,6 +100,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			for _, step := range steps {
 				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
 			}
+
 			if uponRule == qbft.UponRoundTimeout {
 				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorum)))
 			}

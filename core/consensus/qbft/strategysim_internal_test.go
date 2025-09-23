@@ -509,9 +509,11 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 			for _, step := range steps {
 				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
 			}
+
 			if uponRule == qbft.UponRoundTimeout {
 				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorum)))
 			}
+
 			log.Debug(ctx, "QBFT round changed", fields...)
 		},
 		// LogUponRule logs upon rules at debug level.

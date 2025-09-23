@@ -103,6 +103,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 
 	lockFile := fmt.Sprintf("/compose/node%d/cluster-lock.json", index)
 
+	//nolint:revive // tls not required for testing.
 	p2pRelayAddr := "http://relay:3640/enr"
 	if conf.ExternalRelay != "" {
 		p2pRelayAddr = conf.ExternalRelay
@@ -130,6 +131,7 @@ func newNodeEnvs(index int, conf Config, vcType VCType) []kv {
 	}
 
 	// Define run config
+	//nolint:revive // tls not required for testing.
 	return append(kvs,
 		kv{"otlp-address", "tempo:4317"},
 		kv{"otlp-service-name", fmt.Sprintf("node%d", index)},

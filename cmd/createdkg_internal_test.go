@@ -275,6 +275,7 @@ func TestDKGCLI(t *testing.T) {
 			},
 			cleanup: func(t *testing.T) {
 				t.Helper()
+
 				err := os.RemoveAll(".charon")
 				require.NoError(t, err)
 			},

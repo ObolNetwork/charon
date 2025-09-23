@@ -24,6 +24,7 @@ func newRelayCmd(runFunc func(context.Context, relay.Config) error) *cobra.Comma
 			if err := log.InitLogger(config.LogConfig); err != nil {
 				return err
 			}
+
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printLicense(cmd.Context())

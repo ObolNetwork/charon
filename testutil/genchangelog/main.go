@@ -410,6 +410,7 @@ func prFromLog(l log) (pullRequest, bool) {
 	}
 
 	pr.Category, ok = getFirstMatch(categoryRegex, l.Body)
+	//nolint:revive // `if !ok` and `else if categoryOrder[pr.Category] == 0` having same result is not an issue, it improves readability.
 	if !ok {
 		return pr, true
 	} else if skippedCategories[pr.Category] {

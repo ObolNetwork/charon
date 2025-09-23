@@ -571,6 +571,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			if err != nil {
 				return nil, err
 			}
+
 			valIdx := eth2p0.ValidatorIndex(0)
 			commBits := bitfield.NewBitvector64()
 			commBits.SetBitAt(0, true)
@@ -636,6 +637,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			if err != nil {
 				return 0, errors.Wrap(err, "getting spec")
 			}
+
 			slotsPerEpoch, ok := respSpec.Data["SLOTS_PER_EPOCH"].(uint64)
 			if !ok {
 				return 0, errors.New("fetch slots per epoch")

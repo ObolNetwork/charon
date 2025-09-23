@@ -34,7 +34,8 @@ func TestRetryer(t *testing.T) {
 				if attempt == 0 {
 					return context.Canceled
 				}
-				return nil //nolint:nlreturn
+
+				return nil
 			},
 			ExpectBackoffs: 1,
 		},
@@ -51,7 +52,8 @@ func TestRetryer(t *testing.T) {
 				if attempt < 5 {
 					return context.Canceled
 				}
-				return nil //nolint:nlreturn
+
+				return nil
 			},
 			ExpectBackoffs: 5,
 		},
@@ -61,7 +63,8 @@ func TestRetryer(t *testing.T) {
 				if attempt == 0 {
 					return context.Canceled
 				}
-				return nil //nolint:nlreturn
+
+				return nil
 			},
 			TimeoutCount:   1,
 			ExpectBackoffs: 1,

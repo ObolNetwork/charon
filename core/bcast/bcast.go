@@ -51,6 +51,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		}
 	}()
 
+	//nolint:revive // `case core.DutyRandao` and `case core.DutyPrepareAggregator` having same result is not an issue, it improves readability.
 	switch duty.Type {
 	case core.DutyAttester:
 		atts, err := setToAttestations(set)

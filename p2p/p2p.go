@@ -42,7 +42,7 @@ const (
 	NodeTypeQUIC
 )
 
-// NewP2PNode returns a started libp2p host.
+// NewNode returns a started libp2p host.
 func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
 	filterPrivateAddrs bool, nodeType NodeType, opts ...libp2p.Option,
 ) (host.Host, error) {

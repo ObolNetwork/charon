@@ -42,9 +42,11 @@ func TestForkJoin(t *testing.T) {
 				if i == 0 {
 					return 0, testErr
 				}
+
 				if i > n/2 {
 					require.Fail(t, "not failed fast")
 				}
+
 				<-ctx.Done() // This will hang if not failing fast
 
 				return 0, ctx.Err()

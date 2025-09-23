@@ -317,6 +317,7 @@ func isMainOrGnosis(network string) bool {
 func generateLaunchpadLink(configHash []byte, network string) string {
 	var networkLink string
 
+	//nolint:revive // `case "mainnet"` and `default` having same result is not an issue, it improves readability.
 	switch network {
 	case "mainnet":
 		networkLink = ""

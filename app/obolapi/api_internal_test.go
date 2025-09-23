@@ -62,7 +62,9 @@ func TestHttpPost(t *testing.T) {
 
 				data, err := io.ReadAll(r.Body)
 				require.NoError(t, err)
+
 				defer r.Body.Close()
+
 				require.JSONEq(t, string(data), `{"test_body_key": "test_body_value"}`)
 
 				w.WriteHeader(http.StatusOK)
