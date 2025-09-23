@@ -82,10 +82,13 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 		return id == pctx.ThisPeerID
 	})
 
+	// The broadcaster is created for all nodes, because it is used by the board and the node signature caster.
+	// Unfortunately, the broadcaster does not support flexible peer lists to change recipients on the fly.
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey)
-
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
+
 	if nodeIdx >= 0 {
+		// SigExchanger is only created for nodes remaining in the cluster, because old nodes do not participate in signing.
 		pctx.SigExchanger = newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
 		pctx.ThisNodeIdx = cluster.NodeIdx{PeerIdx: nodeIdx, ShareIdx: nodeIdx + 1}
 		p.oldNode = false

@@ -12,6 +12,7 @@ import (
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/pedersen"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -23,7 +24,7 @@ func TestRunReshare(t *testing.T) {
 		numVals   = 2
 	)
 
-	oldShares := make([][]*pedersen.Share, numNodes)
+	oldShares := make([][]share.Share, numNodes)
 	oldSecrets := [][]string{
 		{
 			"698bf874afad4b65057c63e4b75485dd4c08af60b7d32fd7aa5e70bfce619c35",
@@ -48,9 +49,9 @@ func TestRunReshare(t *testing.T) {
 	}
 
 	for n := range numNodes {
-		oldShares[n] = make([]*pedersen.Share, numVals)
+		oldShares[n] = make([]share.Share, numVals)
 		for v := range numVals {
-			oldShares[n][v] = &pedersen.Share{
+			oldShares[n][v] = share.Share{
 				SecretShare: tbls.PrivateKey(mustDecodeHex(t, oldSecrets[n][v])),
 				PubKey:      tbls.PublicKey(mustDecodeHex(t, oldPubKeys[v])),
 			}
@@ -96,7 +97,7 @@ func TestRunReshare(t *testing.T) {
 	verifyDiff(t, nodes, oldShares, numVals)
 }
 
-func verifyDiff(t *testing.T, nodes []*testNode, oldShares [][]*pedersen.Share, numVals int) {
+func verifyDiff(t *testing.T, nodes []*testNode, oldShares [][]share.Share, numVals int) {
 	t.Helper()
 
 	for n := range nodes {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 )
 
@@ -20,7 +21,7 @@ func TestRestoreDistKeyShare(t *testing.T) {
 	pks3 := mustDecodeHex(t, "a6819bff560512e6f5f12140c2ec57c5a8b6f2b2c46f3e39e347a2b4719ebe4b54ffa0add31284e135abaf952186f696")
 	pks4 := mustDecodeHex(t, "b875e70aab2aebf248a5d9f9e1fb8116a8d23306fd00d401bfddfd656396b69f5a35c77f0db277cf6d0fc047d14ad1e3")
 
-	share := &Share{
+	share := share.Share{
 		PubKey:      tbls.PublicKey(valPubKey),
 		SecretShare: tbls.PrivateKey(secretShare),
 		PublicShares: map[int]tbls.PublicKey{

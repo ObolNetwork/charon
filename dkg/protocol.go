@@ -19,7 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
-	"github.com/obolnetwork/charon/dkg/pedersen"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
@@ -31,10 +31,18 @@ const (
 	clusterLockFile     = "cluster-lock.json"
 )
 
-// Protocol is a generic interface for DKG protocols.
+// Protocol is a generic interface for DKG protocols such as add/remove operators.
 type Protocol interface {
+	// GetPeers returns the peers participating in the protocol.
+	// Typically, this is all peers in the cluster lock.
 	GetPeers(*cluster.Lock) ([]p2p.Peer, error)
+
+	// PostInit is called after the protocol context has been initialized but before any steps are run.
+	// It can be used to set up any protocol-specific state in the context, or p2p services.
 	PostInit(context.Context, *ProtocolContext) error
+
+	// Steps returns the steps of the protocol, where each step is an action.
+	// The steps are run sequentially, with a synchronization point between each step.
 	Steps(*ProtocolContext) []ProtocolStep
 }
 
@@ -45,22 +53,27 @@ type ProtocolStep interface {
 
 // ProtocolContext is mutable context propagated across protocol steps.
 type ProtocolContext struct {
+	// The fields populated by the protocol runnner, before PostInit is called.
 	Config        Config
+	Lock          *cluster.Lock
+	Shares        []share.Share // May be nil if validator_keys dir does not exist.
 	ETH1Client    eth1wrap.EthClientRunner
 	ENRPrivateKey *k1.PrivateKey
 	ThisPeerID    peer.ID
 	ThisNodeIdx   cluster.NodeIdx
 	ThisNode      host.Host
-	Peers         []p2p.Peer
+	Peers         []p2p.Peer // Initially populated from GetPeers result.
 	PeerIDs       []peer.ID
 	PeerMap       map[peer.ID]cluster.NodeIdx
+
+	// The fields populated by the protocol in PostInit, before any steps are run.
+	// Note that any fields of the structure can be modified by the protocol in PostInit.
 	SigExchanger  *exchanger
 	Caster        *bcast.Component
 	NodeSigCaster *nodeSigBcast
-	Lock          *cluster.Lock
-	Shares        []*pedersen.Share
 }
 
+// RunProtocol runs the given DKG protocol with the provided configuration.
 func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -90,9 +103,9 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 
 		log.Info(ctx, "Loaded private key shares", z.Int("numKeys", len(secrets)))
 
-		protocolCtx.Shares = make([]*pedersen.Share, len(secrets))
+		protocolCtx.Shares = make([]share.Share, len(secrets))
 		for i := range protocolCtx.Shares {
-			protocolCtx.Shares[i] = &pedersen.Share{
+			protocolCtx.Shares[i] = share.Share{
 				PubKey:      tbls.PublicKey(lock.Validators[i].PubKey),
 				SecretShare: secrets[i],
 			}

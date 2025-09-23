@@ -34,6 +34,8 @@ func newAddOperatorsProtocol(config AddOperatorsConfig) *addOperatorsProtocol {
 }
 
 func (p *addOperatorsProtocol) GetPeers(lock *cluster.Lock) ([]p2p.Peer, error) {
+	// In add-operators protocol, both existing and new operators participate,
+	// therefore we combine the peers from the existing lock with the new ENRs.
 	peers, err := lock.Peers()
 	if err != nil {
 		return nil, err

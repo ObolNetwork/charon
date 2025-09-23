@@ -13,6 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 )
 
@@ -26,15 +27,8 @@ import (
 // 5. Each node receives all other nodes' shares of the validator public key.
 // 6. The resulting []share is collected by the caller via the PushShareFunc callback.
 
-// Share mirrors the dkg.share type and used here to decouple from the outer dkg package.
-type Share struct {
-	PubKey       tbls.PublicKey
-	SecretShare  tbls.PrivateKey
-	PublicShares map[int]tbls.PublicKey
-}
-
 // RunDKG runs the Pedersen DKG protocol using the provided board and configuration.
-func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]*Share, error) {
+func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]share.Share, error) {
 	// Each node generates an ephemeral key pair (BLS) and broadcasts the public key.
 	// This is a prerequisite for the Pedersen DKG protocol.
 	nodePrivateKey, nodePubKey := randomKeyPair(config.Suite)
@@ -66,7 +60,7 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]*
 
 	log.Info(ctx, "Starting pedersen DKG...")
 
-	shares := make([]*Share, 0, numVals)
+	shares := make([]share.Share, 0, numVals)
 
 	for range numVals {
 		// TODO: This phaser implementation is odd, it makes pauses between rounds,
@@ -143,24 +137,24 @@ func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, 
 	return nodes, pubKeyShares, nil
 }
 
-func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.DistKeyShare) (*Share, error) {
+func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.DistKeyShare) (share.Share, error) {
 	secretShare, sharePubKey, err := keyShareToBLS(key)
 	if err != nil {
-		return nil, errors.Wrap(err, "convert result to share secret key")
+		return share.Share{}, errors.Wrap(err, "convert result to share secret key")
 	}
 
 	validatorPubKey, err := keyShareToValidatorPubKey(key, config.Suite)
 	if err != nil {
-		return nil, errors.Wrap(err, "convert result to validator pub key")
+		return share.Share{}, errors.Wrap(err, "convert result to validator pub key")
 	}
 
 	if err := board.BroadcastValidatorPubKeyShare(ctx, sharePubKey[:]); err != nil {
-		return nil, errors.Wrap(err, "broadcast share pubkey")
+		return share.Share{}, errors.Wrap(err, "broadcast share pubkey")
 	}
 
 	valPubKeyShares, err := readBoardChannel(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
 	if err != nil {
-		return nil, errors.Wrap(err, "read validator pubkey shares")
+		return share.Share{}, errors.Wrap(err, "read validator pubkey shares")
 	}
 
 	oldShareIndices := make([]int, 0)
@@ -188,7 +182,7 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 		publicShares[i+1] = pk
 	}
 
-	return &Share{
+	return share.Share{
 		PubKey:       validatorPubKey,
 		SecretShare:  secretShare,
 		PublicShares: publicShares,

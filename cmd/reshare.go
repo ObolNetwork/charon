@@ -33,6 +33,7 @@ func newReshareCmd(runFunc func(context.Context, string, dkg.Config) error) *cob
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}
+
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			return runFunc(cmd.Context(), outputDir, config)

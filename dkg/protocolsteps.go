@@ -13,16 +13,20 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/pedersen"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 )
 
+// noopProtocolStep is a no-op implementation of ProtocolStep.
+// A node can decide to do nothing for a step, but still synchronize with other nodes.
 type noopProtocolStep struct{}
 
 func (*noopProtocolStep) Run(context.Context, *ProtocolContext) error {
 	return nil
 }
 
+// reshareProtocolStep runs a resharing DKG to update key shares while keeping the same public key.
 type reshareProtocolStep struct {
 	config *pedersen.Config
 	board  *pedersen.Board
@@ -39,6 +43,7 @@ func (s *reshareProtocolStep) Run(ctx context.Context, pctx *ProtocolContext) er
 	return nil
 }
 
+// ignoreNodeSignaturesProtocolStep is used by nodes excluded from the cluster after DKG.
 type ignoreNodeSignaturesProtocolStep struct{}
 
 func (*ignoreNodeSignaturesProtocolStep) Run(ctx context.Context, pctx *ProtocolContext) error {
@@ -52,6 +57,7 @@ func (*ignoreNodeSignaturesProtocolStep) Run(ctx context.Context, pctx *Protocol
 	return err
 }
 
+// updateLockProtocolStep updates the cluster lock with new operators, threshold and validators.
 type updateLockProtocolStep struct {
 	threshold int
 	operators []string
@@ -95,9 +101,8 @@ func (s *updateLockProtocolStep) Run(ctx context.Context, pctx *ProtocolContext)
 	}
 
 	// Validators pub shares are updated due to the new key shares
-	cshares := copyToShares(pctx.Shares)
 	for vi := range pctx.Lock.Validators {
-		msg := msgFromShare(cshares[vi])
+		msg := share.MsgFromShare(pctx.Shares[vi])
 		newLock.Validators[vi].PubShares = msg.PubShares
 	}
 
@@ -106,7 +111,7 @@ func (s *updateLockProtocolStep) Run(ctx context.Context, pctx *ProtocolContext)
 		return errors.Wrap(err, "set lock hash")
 	}
 
-	lockHashSig, err := signLockHash(pctx.ThisNodeIdx.ShareIdx, cshares, newLock.LockHash)
+	lockHashSig, err := signLockHash(pctx.ThisNodeIdx.ShareIdx, pctx.Shares, newLock.LockHash)
 	if err != nil {
 		return err
 	}
@@ -117,8 +122,8 @@ func (s *updateLockProtocolStep) Run(ctx context.Context, pctx *ProtocolContext)
 		return err
 	}
 
-	pubkeyToShares := make(map[core.PubKey]share)
-	for _, sh := range cshares {
+	pubkeyToShares := make(map[core.PubKey]share.Share)
+	for _, sh := range pctx.Shares {
 		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 		if err != nil {
 			return err
@@ -142,6 +147,7 @@ func (s *updateLockProtocolStep) Run(ctx context.Context, pctx *ProtocolContext)
 	return nil
 }
 
+// updateNodeSignaturesProtocolStep updates the cluster lock with node signatures over the lock hash.
 type updateNodeSignaturesProtocolStep struct{}
 
 func (*updateNodeSignaturesProtocolStep) Run(ctx context.Context, pctx *ProtocolContext) error {
@@ -155,6 +161,8 @@ func (*updateNodeSignaturesProtocolStep) Run(ctx context.Context, pctx *Protocol
 	return pctx.Lock.VerifySignatures(pctx.ETH1Client)
 }
 
+// writeArtifactsProtocolStep writes the DKG artifacts to the given output directory:
+// the enr private key, the cluster lock and the private key shares.
 type writeArtifactsProtocolStep struct {
 	outputDir string
 }
@@ -168,7 +176,7 @@ func (s *writeArtifactsProtocolStep) Run(ctx context.Context, pctx *ProtocolCont
 		return err
 	}
 
-	if err := storeKeys(pctx.Shares, s.outputDir); err != nil {
+	if err := storeKeys(s.outputDir, pctx.Shares); err != nil {
 		return err
 	}
 
@@ -181,7 +189,7 @@ func (s *writeArtifactsProtocolStep) Run(ctx context.Context, pctx *ProtocolCont
 	return nil
 }
 
-func storeKeys(shares []*pedersen.Share, outputDir string) error {
+func storeKeys(outputDir string, shares []share.Share) error {
 	var newSecrets []tbls.PrivateKey
 	for _, s := range shares {
 		newSecrets = append(newSecrets, s.SecretShare)

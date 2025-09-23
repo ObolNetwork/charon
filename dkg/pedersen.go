@@ -4,8 +4,6 @@ package dkg
 
 import (
 	"context"
-
-	"github.com/obolnetwork/charon/dkg/pedersen"
 )
 
 type AddOperatorsConfig struct {
@@ -30,28 +28,4 @@ func RunAddOperatorsProtocol(ctx context.Context, config AddOperatorsConfig, dkg
 
 func RunRemoveOperatorsProtocol(ctx context.Context, config RemoveOperatorsConfig, dkgConfig Config) error {
 	return RunProtocol(ctx, newRemoveOperatorsProtocol(config), dkgConfig)
-}
-
-// runPedersenDKG runs the Pedersen DKG protocol using the provided board and configuration.
-func runPedersenDKG(ctx context.Context, config *pedersen.Config, board *pedersen.Board, numVals int) ([]share, error) {
-	shares, err := pedersen.RunDKG(ctx, config, board, numVals)
-	if err != nil {
-		return nil, err
-	}
-
-	return copyToShares(shares), nil
-}
-
-func copyToShares(in []*pedersen.Share) (out []share) {
-	out = make([]share, 0, len(in))
-
-	for i := range in {
-		out = append(out, share{
-			PubKey:       in[i].PubKey,
-			SecretShare:  in[i].SecretShare,
-			PublicShares: in[i].PublicShares,
-		})
-	}
-
-	return out
 }

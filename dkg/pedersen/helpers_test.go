@@ -20,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -29,7 +30,7 @@ type testNode struct {
 	host   host.Host
 	board  *pedersen.Board
 	config *pedersen.Config
-	shares []*pedersen.Share
+	shares []share.Share
 }
 
 func newTestNode(t *testing.T, index int) *testNode {
