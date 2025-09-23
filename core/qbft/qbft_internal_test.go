@@ -756,7 +756,10 @@ type testChainSplit struct {
 	ValueSource map[int64]int64 // Use different value source for certain processes (used for chain-split-halt feature).
 	DecideRound int             // Deterministic consensus at specific round.
 	PreparedVal int             // If prepared value decided, as opposed to leader's value.
+	ShouldHalt  bool            // If halt is expected (no consensus reachead).
 }
+
+var errChainSplitHalt = errors.New("chain split halt")
 
 func TestChainSplit(t *testing.T) {
 	t.Run("same value", func(t *testing.T) {
@@ -768,6 +771,7 @@ func TestChainSplit(t *testing.T) {
 				3: 1,
 				4: 1,
 			},
+			PreparedVal: 1,
 		})
 	})
 
@@ -780,6 +784,7 @@ func TestChainSplit(t *testing.T) {
 				3: 1,
 				4: 1,
 			},
+			PreparedVal: 1,
 		})
 	})
 
@@ -792,6 +797,19 @@ func TestChainSplit(t *testing.T) {
 				3: 1,
 				4: 1,
 			},
+			PreparedVal: 1,
+		})
+	})
+
+	t.Run("no consensus - halt", func(t *testing.T) {
+		testQBFTChainSplit(t, testChainSplit{
+			ValueSource: map[int64]int64{
+				1: 1,
+				2: 1,
+				3: 3,
+				4: 3,
+			},
+			ShouldHalt: true,
 		})
 	})
 }
@@ -862,6 +880,10 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 				pr int64, pv int64, justify []Msg[int64, int64, int64],
 			) error {
 				if round > maxRound {
+					if test.ShouldHalt {
+						return errChainSplitHalt
+					}
+
 					return errors.New("max round reach")
 				}
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
@@ -942,7 +964,7 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 
 			cancel()
 		case err := <-runChan:
-			if !decided {
+			if !decided && !errors.Is(err, errChainSplitHalt) {
 				require.Fail(t, "unexpected run error", err)
 			}
 
