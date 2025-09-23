@@ -88,6 +88,7 @@ type Config struct {
 	JaegerService               string
 	OTLPAddress                 string
 	OTLPHeaders                 []string
+	OTLPInsecure                bool
 	OTLPServiceName             string
 	SimnetBMock                 bool
 	SimnetVMock                 bool
@@ -1127,7 +1128,7 @@ func wireTracing(life *lifecycle.Manager, conf Config, clusterHash []byte) error
 	}
 
 	stopTracer, err := tracer.Init(
-		tracer.WithOTLPTracer(conf.OTLPAddress, otlpHeaders),
+		tracer.WithOTLPTracer(conf.OTLPAddress, otlpHeaders, conf.OTLPInsecure),
 		tracer.WithServiceName(conf.OTLPServiceName),
 		tracer.WithNamespaceName(Hex7(clusterHash)),
 	)
