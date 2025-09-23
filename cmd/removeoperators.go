@@ -32,6 +32,7 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 			if err := log.InitLogger(dkgConfig.Log); err != nil {
 				return err
 			}
+
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			return runFunc(cmd.Context(), config, dkgConfig)

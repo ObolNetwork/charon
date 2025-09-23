@@ -53,6 +53,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 			if err := log.InitLogger(config.DKG.Log); err != nil {
 				return err
 			}
+
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			return runFunc(cmd.Context(), config)

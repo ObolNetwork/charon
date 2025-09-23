@@ -10,18 +10,19 @@ import (
 
 	"github.com/drand/kyber"
 	kbls "github.com/drand/kyber-bls12381"
-	"github.com/drand/kyber/share"
+	kshare "github.com/drand/kyber/share"
 	kdkg "github.com/drand/kyber/share/dkg"
 	drandbls "github.com/drand/kyber/sign/bdn"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 )
 
-// RunReshareDKG runs the Pedersen reshare protocol for the existing keys.
-func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*Share) ([]*Share, error) {
+// RunReshareDKG runs the core reshare protocol for add/remove operators or just reshare.
+func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []share.Share) ([]share.Share, error) {
 	if config.Reshare == nil {
 		return nil, errors.New("reshare config is nil")
 	}
@@ -127,7 +128,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []*
 		z.Int("oldT", config.Threshold), z.Int("newT", config.Reshare.NewThreshold),
 		z.Bool("removed", thisIsOldNode))
 
-	newShares := make([]*Share, 0, config.Reshare.TotalShares)
+	newShares := make([]share.Share, 0, config.Reshare.TotalShares)
 
 	for shareNum := range config.Reshare.TotalShares {
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
@@ -197,10 +198,10 @@ func broadcastNoneKey(ctx context.Context, config *Config, board *Board) error {
 	return err
 }
 
-func restoreDistKeyShare(keyShare *Share, threshold int, nodeIdx int) (*kdkg.DistKeyShare, error) {
+func restoreDistKeyShare(keyShare share.Share, threshold int, nodeIdx int) (*kdkg.DistKeyShare, error) {
 	var (
 		suite          = kbls.NewBLS12381Suite()
-		kyberPubShares []*share.PubShare
+		kyberPubShares []*kshare.PubShare
 	)
 
 	for shareIdx, pks := range keyShare.PublicShares {
@@ -209,14 +210,14 @@ func restoreDistKeyShare(keyShare *Share, threshold int, nodeIdx int) (*kdkg.Dis
 			return nil, errors.Wrap(err, "unmarshal pubshare")
 		}
 
-		kyberPubshare := &share.PubShare{
+		kyberPubshare := &kshare.PubShare{
 			I: shareIdx - 1,
 			V: v,
 		}
 		kyberPubShares = append(kyberPubShares, kyberPubshare)
 	}
 
-	pubPoly, err := share.RecoverPubPoly(suite.G1(), kyberPubShares, threshold, len(keyShare.PublicShares))
+	pubPoly, err := kshare.RecoverPubPoly(suite.G1(), kyberPubShares, threshold, len(keyShare.PublicShares))
 	if err != nil {
 		return nil, errors.Wrap(err, "recover pubpoly")
 	}
@@ -228,7 +229,7 @@ func restoreDistKeyShare(keyShare *Share, threshold int, nodeIdx int) (*kdkg.Dis
 		return nil, errors.Wrap(err, "unmarshal secret share")
 	}
 
-	privShare := &share.PriShare{
+	privShare := &kshare.PriShare{
 		I: nodeIdx,
 		V: v,
 	}
@@ -254,7 +255,7 @@ func restoreDistKeyShare(keyShare *Share, threshold int, nodeIdx int) (*kdkg.Dis
 func restoreCommits(publicShares map[int][][]byte, shareNum, threshold int) ([]kyber.Point, error) {
 	var (
 		suite          = kbls.NewBLS12381Suite()
-		kyberPubShares []*share.PubShare
+		kyberPubShares []*kshare.PubShare
 	)
 
 	for nodeIdx, pks := range publicShares {
@@ -263,14 +264,14 @@ func restoreCommits(publicShares map[int][][]byte, shareNum, threshold int) ([]k
 			return nil, errors.Wrap(err, "unmarshal pubshare")
 		}
 
-		kyberPubshare := &share.PubShare{
+		kyberPubshare := &kshare.PubShare{
 			I: nodeIdx,
 			V: v,
 		}
 		kyberPubShares = append(kyberPubShares, kyberPubshare)
 	}
 
-	pubPoly, err := share.RecoverPubPoly(suite.G1(), kyberPubShares, threshold, len(publicShares))
+	pubPoly, err := kshare.RecoverPubPoly(suite.G1(), kyberPubShares, threshold, len(publicShares))
 	if err != nil {
 		return nil, errors.Wrap(err, "recover pubpoly")
 	}
