@@ -37,11 +37,13 @@ import (
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
+var supportedCompareDuties = []core.DutyType{core.DutyAttester}
+
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
 	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]), compareAttestations bool,
 ) qbft.Definition[core.Duty, [32]byte, proto.Message] {
-	quorum := qbft.Definition[int, int, int]{Nodes: nodes}.Quorum()
+	quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
 
 	return qbft.Definition[core.Duty, [32]byte, proto.Message]{
 		// IsLeader is a deterministic leader election function.
@@ -84,7 +86,6 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 				return
 			}
 
-			supportedCompareDuties := []core.DutyType{core.DutyAttester}
 			if !slices.Contains(supportedCompareDuties, msg.Instance().Type) {
 				returnErrCh <- nil
 				return
@@ -207,14 +208,12 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 
 		attLeaderAttestationData, ok := attLeaderData.(core.AttestationData)
 		if !ok {
-			log.Warn(ctx, "", errors.New("unable to parse leader unsigned data to attestation data"), z.Any("unsigned_data", attLeaderData))
-			continue
+			return errors.New("unable to parse leader unsigned data to core attestation data", z.Any("data", attLeaderData))
 		}
 
 		attLocalAttestationData, ok := attLocalData.(core.AttestationData)
 		if !ok {
-			log.Warn(ctx, "", errors.New("unable to parse local unsigned data to attestation data"), z.Any("unsigned_data", attLocalData))
-			continue
+			return errors.New("unable to parse local unsigned data to core attestation data", z.Any("data", attLocalData))
 		}
 
 		missmatch := ""
@@ -418,10 +417,12 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return errors.New("input channel full")
 	}
 
-	select {
-	case inst.VerifyCh <- value:
-	default:
-		return errors.New("input channel full")
+	if c.compareAttestations {
+		select {
+		case inst.VerifyCh <- value:
+		default:
+			return errors.New("input channel full")
+		}
 	}
 
 	// Instrument consensus duration using decidedAt output.

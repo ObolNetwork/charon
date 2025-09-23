@@ -36,7 +36,7 @@ type IO[T any] struct {
 	RecvBuffer   chan T             // Outer receive buffers.
 	HashCh       chan [32]byte      // Async input hash channel.
 	ValueCh      chan proto.Message // Async input value channel.
-	VerifyCh     chan proto.Message // Async input value channel user for veifying.
+	VerifyCh     chan proto.Message // Async input value channel used for comparing local value to leader value during consensus.
 	ErrCh        chan error         // Async output error channel.
 	DecidedAtCh  chan time.Time     // Async output decided timestamp channel.
 }

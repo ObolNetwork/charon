@@ -111,7 +111,7 @@ type Msg[I any, V comparable, C any] interface {
 	Round() int64
 	// Value being proposed, usually a hash.
 	Value() V
-	// ValueSource being proposed.
+	// ValueSource being proposed, usually the value that was hashed and is returned in Value().
 	ValueSource() (C, error)
 	// PreparedRound is the justified prepared round.
 	PreparedRound() int64
@@ -359,6 +359,8 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 					case errors.Is(errCompare, errCompare):
 						compareFailureRound = msg.Round()
 					case errors.Is(errCompare, errTimeout):
+						// As compare function is blocking on waiting local data, round might timeout in the meantime.
+						// If this happens, we trigger round change.
 						// Algorithm 3:1
 						changeRound(round+1, UponRoundTimeout)
 
@@ -614,8 +616,6 @@ func isJustifiedRoundChange[I any, V comparable, C any](d Definition[I, V, C], m
 	pv := msg.PreparedValue()
 
 	if len(prepares) == 0 {
-		// If no justification, ensure null prepared round and value.
-		// return pr == 0 && isZeroVal(pv)
 		return true
 	}
 
@@ -670,7 +670,7 @@ func isJustifiedPrePrepare[I any, V comparable, C any](d Definition[I, V, C], in
 		return false
 	}
 
-	// Justified if PrePrepare is the first round OR if our comparison failed previous round.
+	// Justified if PrePrepare is the first round OR if comparison failed previous round.
 	if msg.Round() == 1 || (msg.Round() == compareFailureRound+1) {
 		return true
 	}
