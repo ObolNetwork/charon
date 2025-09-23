@@ -14,6 +14,19 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// AddOperatorsConfig contains the configuration for the add-operators protocol.
+// Typically populated from command line flags.
+type AddOperatorsConfig struct {
+	OutputDir    string
+	NewENRs      []string
+	NewThreshold int
+}
+
+// RunAddOperatorsProtocol runs the add-operators DKG protocol.
+func RunAddOperatorsProtocol(ctx context.Context, config AddOperatorsConfig, dkgConfig Config) error {
+	return RunProtocol(ctx, newAddOperatorsProtocol(config), dkgConfig)
+}
+
 type addOperatorsProtocol struct {
 	outputDir    string
 	newENRs      []string

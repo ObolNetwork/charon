@@ -23,7 +23,9 @@ import (
 
 func TestRunProtocol(t *testing.T) {
 	const (
-		numNodes = 4
+		numValidators = 3
+		numNodes      = 7
+		threshold     = 5
 	)
 
 	clusterDir := t.TempDir()
@@ -33,8 +35,8 @@ func TestRunProtocol(t *testing.T) {
 		"create", "cluster",
 		"--cluster-dir", clusterDir,
 		"--nodes", strconv.Itoa(numNodes),
-		"--threshold", "3",
-		"--num-validators", "3",
+		"--threshold", strconv.Itoa(threshold),
+		"--num-validators", strconv.Itoa(numValidators),
 		"--network", eth2util.Holesky.Name,
 		"--fee-recipient-addresses", "0x0000000000000000000000000000000000000000",
 		"--withdrawal-addresses", "0x0000000000000000000000000000000000000000",

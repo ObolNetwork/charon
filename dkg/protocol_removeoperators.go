@@ -17,6 +17,19 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// RemoveOperatorsConfig contains the configuration for the remove-operators protocol.
+// Typically populated from command line flags.
+type RemoveOperatorsConfig struct {
+	OutputDir    string
+	OldENRs      []string
+	NewThreshold int
+}
+
+// RunRemoveOperatorsProtocol runs the remove-operators DKG protocol.
+func RunRemoveOperatorsProtocol(ctx context.Context, config RemoveOperatorsConfig, dkgConfig Config) error {
+	return RunProtocol(ctx, newRemoveOperatorsProtocol(config), dkgConfig)
+}
+
 type removeOperatorsProtocol struct {
 	outputDir    string
 	oldENRs      []string

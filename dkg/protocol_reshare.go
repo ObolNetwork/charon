@@ -11,6 +11,11 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// RunReshareProtocol runs the reshare DKG protocol (same operators set).
+func RunReshareProtocol(ctx context.Context, outputDir string, dkgConfig Config) error {
+	return RunProtocol(ctx, newReshareProtocol(outputDir), dkgConfig)
+}
+
 type reshareProtocol struct {
 	outputDir string
 	config    *pedersen.Config
