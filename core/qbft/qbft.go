@@ -36,7 +36,8 @@ type Definition[I any, V comparable, C any] struct {
 	// NewTimer returns a new timer channel and stop function for the round.
 	NewTimer func(round int64) (<-chan time.Time, func())
 	// Compare is called when leader proposes value and we compare it with our local value.
-	Compare func(ctx context.Context, qcommit Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, returnCh chan error, returnIVS chan C)
+	// Compare is an opt-in feature that should instantly return nil on returnErr channel if it is not turned on.
+	Compare func(ctx context.Context, qcommit Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, returnErr chan error, returnValue chan C)
 	// Decide is called when consensus has been reached on a value.
 	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V, C])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
@@ -434,24 +435,28 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 }
 
 func compare[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C], msg Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, timerChan <-chan time.Time) (C, error) {
-	compareReturn := make(chan error, 1)
-	compareIVS := make(chan C, 1)
+	compareErr := make(chan error, 1)
+	compareValue := make(chan C, 1)
 
 	ctxCompare, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go d.Compare(ctxCompare, msg, inputValueSourceCh, inputValueSource, compareReturn, compareIVS)
+	// d.Compare has 2 roles:
+	// 1. Read from the inputValueSourceCh (if inputValueSource is empty). If it read from the channel, it returns the value on compareValue channel.
+	// 2. Compare the value read from inputValueSourceCh (or inputValueSource if it is not empty) to the value proposed by the leader.
+	// If comparison or any other unexpected error occurs, the error is returned on compareErr channel.
+	go d.Compare(ctxCompare, msg, inputValueSourceCh, inputValueSource, compareErr, compareValue)
 
 	for {
 		select {
-		case err := <-compareReturn:
+		case err := <-compareErr:
 			if err != nil {
 				log.Warn(ctx, errCompare.Error(), err)
 				return inputValueSource, errCompare
 			}
 
 			return inputValueSource, nil
-		case inputValueSource = <-compareIVS:
+		case inputValueSource = <-compareValue:
 		case <-timerChan:
 			log.Warn(ctx, "", errors.New("timeout on waiting for data used for comparing local and leader proposed data"))
 			return inputValueSource, errTimeout
