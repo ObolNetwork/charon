@@ -37,8 +37,8 @@ func TestDealBundleToProtoAndBack(t *testing.T) {
 			},
 		},
 		Public: []kyber.Point{
-			randomPoint(t),
-			randomPoint(t),
+			pedersen.RandomPoint(t),
+			pedersen.RandomPoint(t),
 		},
 		SessionID: []byte("sessionID"),
 		Signature: []byte{13, 14, 15},
@@ -47,7 +47,7 @@ func TestDealBundleToProtoAndBack(t *testing.T) {
 	protoBundle, err := pedersen.DealBundleToProto(bundle)
 	require.NoError(t, err)
 
-	bundle2, err := pedersen.DealBundleFromProto(protoBundle, testSuite(t))
+	bundle2, err := pedersen.DealBundleFromProto(protoBundle, pedersen.TestSuite(t))
 	require.NoError(t, err)
 	require.Equal(t, bundle.SessionID, bundle2.SessionID)
 	require.Equal(t, bundle.Signature, bundle2.Signature)
@@ -73,14 +73,14 @@ func TestDealBundleToProtoAndBack(t *testing.T) {
 func TestJustificationToProtoAndBack(t *testing.T) {
 	just1, err := pedersen.JustificationFromProto(&pb.PedersenJustification{
 		ShareIndex: 1,
-		Share:      randomScalarBytes(t),
-	}, testSuite(t))
+		Share:      pedersen.RandomScalarBytes(t),
+	}, pedersen.TestSuite(t))
 	require.NoError(t, err)
 
 	protoJust, err := pedersen.JustificationToProto(just1)
 	require.NoError(t, err)
 
-	just2, err := pedersen.JustificationFromProto(protoJust, testSuite(t))
+	just2, err := pedersen.JustificationFromProto(protoJust, pedersen.TestSuite(t))
 	require.NoError(t, err)
 	require.Equal(t, just1, just2)
 }
@@ -91,11 +91,11 @@ func TestJustificationBundleToProtoAndBack(t *testing.T) {
 		Justifications: []kdkg.Justification{
 			{
 				ShareIndex: 1,
-				Share:      randomScalar(t),
+				Share:      pedersen.RandomScalar(t),
 			},
 			{
 				ShareIndex: 2,
-				Share:      randomScalar(t),
+				Share:      pedersen.RandomScalar(t),
 			},
 		},
 		SessionID: []byte("sessionID"),
@@ -105,7 +105,7 @@ func TestJustificationBundleToProtoAndBack(t *testing.T) {
 	bundleProto, err := pedersen.JustificationBundleToProto(bundle)
 	require.NoError(t, err)
 
-	bundle2, err := pedersen.JustificationBundleFromProto(bundleProto, testSuite(t))
+	bundle2, err := pedersen.JustificationBundleFromProto(bundleProto, pedersen.TestSuite(t))
 	require.NoError(t, err)
 	require.Equal(t, bundle.SessionID, bundle2.SessionID)
 	require.Equal(t, bundle.Signature, bundle2.Signature)
