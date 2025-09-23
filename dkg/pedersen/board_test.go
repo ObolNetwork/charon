@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/dkg/pedersen"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -26,27 +27,27 @@ func TestBoard(t *testing.T) {
 		session = testutil.RandomArray32()
 	)
 
-	nodes := make([]*testNode, numNodes)
+	nodes := make([]*pedersen.TestNode, numNodes)
 	for i := range numNodes {
-		nodes[i] = newTestNode(t, i)
-		peerMap[nodes[i].host.ID()] = nodes[i].idx
-		peers = append(peers, nodes[i].host.ID())
+		nodes[i] = pedersen.NewTestNode(t, i)
+		peerMap[nodes[i].NodeHost.ID()] = nodes[i].NodeIdx
+		peers = append(peers, nodes[i].NodeHost.ID())
 	}
 
-	connectTestNodes(t, nodes)
+	pedersen.ConnectTestNodes(t, nodes)
 
 	for i := range nodes {
-		nodes[i].initBoard(t, threshold, peers, peerMap, session[:])
+		nodes[i].InitBoard(t, threshold, peers, peerMap, session[:])
 	}
 
 	t.Run("bcast node pubkeys", func(t *testing.T) {
 		for i := range nodes {
-			board := nodes[i].board
-			pubKey := randomPoint(t)
+			board := nodes[i].Board
+			pubKey := pedersen.RandomPoint(t)
 			pubKeyBytes, err := pubKey.MarshalBinary()
 			require.NoError(t, err)
 
-			pubKeyShare := randomPoint(t)
+			pubKeyShare := pedersen.RandomPoint(t)
 			pubKeyShareBytes, err := pubKeyShare.MarshalBinary()
 			require.NoError(t, err)
 
@@ -57,7 +58,7 @@ func TestBoard(t *testing.T) {
 		peerPubKeys := make(map[peer.ID][]byte)
 
 		for i := range nodes {
-			board := nodes[i].board
+			board := nodes[i].Board
 			for range nodes { // each board should receive n pubkeys
 				ppk := <-board.IncomingNodePubKeys()
 
@@ -76,8 +77,8 @@ func TestBoard(t *testing.T) {
 
 	t.Run("bcast validator pubkey share", func(t *testing.T) {
 		for i := range nodes {
-			board := nodes[i].board
-			pubKey := randomPoint(t)
+			board := nodes[i].Board
+			pubKey := pedersen.RandomPoint(t)
 			pubKeyBytes, err := pubKey.MarshalBinary()
 			require.NoError(t, err)
 
@@ -88,7 +89,7 @@ func TestBoard(t *testing.T) {
 		validatorPubKeyShares := make(map[peer.ID][]byte)
 
 		for i := range nodes {
-			board := nodes[i].board
+			board := nodes[i].Board
 			for range nodes { // each board should receive n pubkeys
 				ppk := <-board.IncomingValidatorPubKeyShares()
 
@@ -115,17 +116,17 @@ func TestBoard(t *testing.T) {
 					},
 				},
 				Public: []kyber.Point{
-					randomPoint(t),
+					pedersen.RandomPoint(t),
 				},
 				SessionID: []byte("sessionID"),
 				Signature: []byte{13, 14, 15},
 			}
 
-			nodes[i].board.PushDeals(&dealBundle)
+			nodes[i].Board.PushDeals(&dealBundle)
 		}
 
 		for i := range nodes {
-			received := <-nodes[i].board.IncomingDeal()
+			received := <-nodes[i].Board.IncomingDeal()
 			require.Len(t, received.Deals, 1)
 			require.NotEqual(t, uint32(i), received.DealerIndex)
 			require.Equal(t, []byte("sessionID"), received.SessionID)
@@ -133,8 +134,8 @@ func TestBoard(t *testing.T) {
 		}
 
 		for i := range nodes {
-			require.Empty(t, nodes[i].board.IncomingResponse())
-			require.Empty(t, nodes[i].board.IncomingJustification())
+			require.Empty(t, nodes[i].Board.IncomingResponse())
+			require.Empty(t, nodes[i].Board.IncomingJustification())
 		}
 	})
 
@@ -152,11 +153,11 @@ func TestBoard(t *testing.T) {
 				Signature: []byte{23, 24, 25},
 			}
 
-			nodes[i].board.PushResponses(&responseBundle)
+			nodes[i].Board.PushResponses(&responseBundle)
 		}
 
 		for i := range nodes {
-			received := <-nodes[i].board.IncomingResponse()
+			received := <-nodes[i].Board.IncomingResponse()
 			require.Len(t, received.Responses, 1)
 			require.NotEqual(t, uint32(i), received.ShareIndex)
 			require.Equal(t, []byte("sessionID"), received.SessionID)
@@ -164,8 +165,8 @@ func TestBoard(t *testing.T) {
 		}
 
 		for i := range nodes {
-			require.Empty(t, nodes[i].board.IncomingDeal())
-			require.Empty(t, nodes[i].board.IncomingJustification())
+			require.Empty(t, nodes[i].Board.IncomingDeal())
+			require.Empty(t, nodes[i].Board.IncomingJustification())
 		}
 	})
 
@@ -176,18 +177,18 @@ func TestBoard(t *testing.T) {
 				Justifications: []kdkg.Justification{
 					{
 						ShareIndex: 1,
-						Share:      randomScalar(t),
+						Share:      pedersen.RandomScalar(t),
 					},
 				},
 				SessionID: []byte("sessionID"),
 				Signature: []byte{33, 34, 35},
 			}
 
-			nodes[i].board.PushJustifications(&justificationBundle)
+			nodes[i].Board.PushJustifications(&justificationBundle)
 		}
 
 		for i := range nodes {
-			received := <-nodes[i].board.IncomingJustification()
+			received := <-nodes[i].Board.IncomingJustification()
 			require.Len(t, received.Justifications, 1)
 			require.NotEqual(t, uint32(i), received.DealerIndex)
 			require.Equal(t, []byte("sessionID"), received.SessionID)
@@ -195,8 +196,8 @@ func TestBoard(t *testing.T) {
 		}
 
 		for i := range nodes {
-			require.Empty(t, nodes[i].board.IncomingDeal())
-			require.Empty(t, nodes[i].board.IncomingResponse())
+			require.Empty(t, nodes[i].Board.IncomingDeal())
+			require.Empty(t, nodes[i].Board.IncomingResponse())
 		}
 	})
 }

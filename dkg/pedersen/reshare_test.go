@@ -3,7 +3,6 @@
 package pedersen_test
 
 import (
-	"encoding/hex"
 	"testing"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -52,8 +51,8 @@ func TestRunReshare(t *testing.T) {
 		oldShares[n] = make([]share.Share, numVals)
 		for v := range numVals {
 			oldShares[n][v] = share.Share{
-				SecretShare: tbls.PrivateKey(mustDecodeHex(t, oldSecrets[n][v])),
-				PubKey:      tbls.PublicKey(mustDecodeHex(t, oldPubKeys[v])),
+				SecretShare: tbls.PrivateKey(pedersen.MustDecodeHex(t, oldSecrets[n][v])),
+				PubKey:      tbls.PublicKey(pedersen.MustDecodeHex(t, oldPubKeys[v])),
 			}
 		}
 	}
@@ -61,30 +60,30 @@ func TestRunReshare(t *testing.T) {
 	var (
 		peers   []peer.ID
 		peerMap = make(map[peer.ID]cluster.NodeIdx)
-		nodes   = make([]*testNode, numNodes)
+		nodes   = make([]*pedersen.TestNode, numNodes)
 	)
 
 	for i := range numNodes {
-		nodes[i] = newTestNode(t, i)
-		peerMap[nodes[i].host.ID()] = nodes[i].idx
-		peers = append(peers, nodes[i].host.ID())
+		nodes[i] = pedersen.NewTestNode(t, i)
+		peerMap[nodes[i].NodeHost.ID()] = nodes[i].NodeIdx
+		peers = append(peers, nodes[i].NodeHost.ID())
 	}
 
-	connectTestNodes(t, nodes)
+	pedersen.ConnectTestNodes(t, nodes)
 
 	session := testutil.RandomArray32()
 
 	for i := range nodes {
-		nodes[i].initBoard(t, threshold, peers, peerMap, session[:])
+		nodes[i].InitBoard(t, threshold, peers, peerMap, session[:])
 	}
 
 	group, gctx := errgroup.WithContext(t.Context())
 
 	for n := range nodes {
 		group.Go(func() error {
-			nodes[n].config.Reshare = &pedersen.ReshareConfig{TotalShares: numVals, NewThreshold: threshold}
-			shares, err := pedersen.RunReshareDKG(gctx, nodes[n].config, nodes[n].board, oldShares[n])
-			nodes[n].shares = shares
+			nodes[n].Config.Reshare = &pedersen.ReshareConfig{TotalShares: numVals, NewThreshold: threshold}
+			shares, err := pedersen.RunReshareDKG(gctx, nodes[n].Config, nodes[n].Board, oldShares[n])
+			nodes[n].Shares = shares
 
 			return err
 		})
@@ -93,32 +92,6 @@ func TestRunReshare(t *testing.T) {
 	err := group.Wait()
 	require.NoError(t, err, "Reshare failed on one or more nodes")
 
-	verifyShares(t, nodes, numVals, threshold)
-	verifyDiff(t, nodes, oldShares, numVals)
-}
-
-func verifyDiff(t *testing.T, nodes []*testNode, oldShares [][]share.Share, numVals int) {
-	t.Helper()
-
-	for n := range nodes {
-		dkgNodeShares := oldShares[n]
-		reshareNodeShares := nodes[n].shares
-
-		for v := range numVals {
-			// Validator public keys should be the same after resharing
-			require.Equal(t, dkgNodeShares[v].PubKey, reshareNodeShares[v].PubKey)
-
-			// The secret shares should be different, because of resharing
-			require.NotEqual(t, dkgNodeShares[v].SecretShare, reshareNodeShares[v].SecretShare)
-		}
-	}
-}
-
-func mustDecodeHex(t *testing.T, str string) []byte {
-	t.Helper()
-
-	b, err := hex.DecodeString(str)
-	require.NoError(t, err)
-
-	return b
+	pedersen.VerifyShares(t, nodes, numVals, threshold)
+	pedersen.VerifyDiff(t, nodes, oldShares, numVals)
 }
