@@ -28,30 +28,23 @@ import (
 const badStr = "bad"
 
 func Test_runBcastFullExitCmd(t *testing.T) {
-	t.Parallel()
 	t.Run("main flow from api", func(t *testing.T) {
-		t.Parallel()
 		testRunBcastFullExitCmdFlow(t, false, false)
 	})
 	t.Run("main flow from file", func(t *testing.T) {
-		t.Parallel()
 		testRunBcastFullExitCmdFlow(t, true, false)
 	})
 	t.Run("main flow from api for all", func(t *testing.T) {
-		t.Parallel()
 		testRunBcastFullExitCmdFlow(t, false, true)
 	})
 	t.Run("main flow from file for all", func(t *testing.T) {
-		t.Parallel()
 		testRunBcastFullExitCmdFlow(t, true, true)
 	})
 	t.Run("main flow from api for all with already exited validator", func(t *testing.T) {
-		t.Parallel()
 		testRunBcastFullExitCmdFlow(t, false, false)
 		testRunBcastFullExitCmdFlow(t, false, true)
 	})
 	t.Run("main flow from file for all with already exited validator", func(t *testing.T) {
-		t.Parallel()
 		testRunBcastFullExitCmdFlow(t, true, false)
 		testRunBcastFullExitCmdFlow(t, true, true)
 	})
@@ -208,8 +201,6 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 }
 
 func Test_runBcastFullExitCmd_Config(t *testing.T) {
-	t.Parallel()
-
 	type test struct {
 		name                   string
 		noIdentity             bool
@@ -271,8 +262,6 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			ctx := context.Background()
 
 			valAmt := 100
