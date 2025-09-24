@@ -142,6 +142,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 				returnErrCh <- errors.New("bug: checking not supported duty", z.Any("duty", msg.Instance().Type))
 				return
 			}
+
 			returnErrCh <- nil
 		},
 
@@ -168,6 +169,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			for _, step := range steps {
 				fields = append(fields, z.Str(step.Type.String(), fmtStepPeers(step)))
 			}
+
 			if uponRule == qbft.UponRoundTimeout {
 				fields = append(fields, z.Str("timeout_reason", timeoutReason(steps, round, quorum)))
 			}

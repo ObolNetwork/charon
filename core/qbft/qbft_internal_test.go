@@ -845,14 +845,17 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 		},
 		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnCh chan error, returnIVS chan int64) {
 			vs, _ := qcommit.ValueSource()
+
 			if inputValueSource == 0 {
 				inputValueSource = <-inputValueSourceCh
 				returnIVS <- inputValueSource
 			}
+
 			if vs != inputValueSource {
 				returnCh <- errors.New("missmatch", z.I64("leadervalue", vs), z.I64("localvalue", inputValueSource))
 				return
 			}
+
 			returnCh <- nil
 		},
 		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64, int64]) {
@@ -860,6 +863,7 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 		},
 		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64, int64], rule UponRule) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
+
 			if round > maxRound {
 				cancel()
 			}
@@ -886,9 +890,12 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 
 					return errors.New("max round reach")
 				}
+
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
+
 				msg := newMsg(typ, instance, source, round, value, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
+
 				bcast(t, broadcast, msg, 0, clock)
 
 				return nil
