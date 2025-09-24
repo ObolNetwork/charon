@@ -239,7 +239,7 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 6) // two files per validator
 
-	l, err := LoadAndVerifyClusterLock(t.Context(), step.outputDir, Config{NoVerify: true})
+	l, err := LoadAndVerifyClusterLock(t.Context(), Config{DataDir: step.outputDir, NoVerify: true})
 	require.NoError(t, err)
 	require.Equal(t, lock, *l)
 }

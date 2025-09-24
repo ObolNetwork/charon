@@ -20,8 +20,9 @@ func TestNewConfig(t *testing.T) {
 		"peer3": {PeerIdx: 2, ShareIdx: 3},
 	}
 
-	config := pedersen.NewConfig("peer1", peerMap, 2, []byte("session1"), nil)
-	require.Equal(t, 3*time.Second, config.PhaseDuration)
+	phaseDuration := 3 * time.Second
+	config := pedersen.NewConfig("peer1", peerMap, 2, []byte("session1"), phaseDuration, nil)
+	require.Equal(t, phaseDuration, config.PhaseDuration)
 	require.EqualValues(t, "peer1", config.ThisPeerID)
 	require.Equal(t, peerMap, config.PeerMap)
 	require.Equal(t, 2, config.Threshold)
@@ -38,7 +39,7 @@ func TestNewConfig(t *testing.T) {
 	require.Equal(t, newPeers, reshareConfig.NewPeers)
 	require.Equal(t, oldPeers, reshareConfig.OldPeers)
 
-	config2 := pedersen.NewConfig("peer21", peerMap, 2, []byte("session2"), reshareConfig)
+	config2 := pedersen.NewConfig("peer21", peerMap, 2, []byte("session2"), phaseDuration, reshareConfig)
 	require.Equal(t, reshareConfig, config2.Reshare)
 
 	idx, err := config.ThisNodeIndex()

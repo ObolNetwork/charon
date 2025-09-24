@@ -54,7 +54,7 @@ func newReshareCmd(runFunc func(context.Context, string, dkg.Config) error) *cob
 }
 
 func runReshare(ctx context.Context, outputDir string, config dkg.Config) error {
-	if err := validateReshareConfig(ctx, outputDir, config); err != nil {
+	if err := validateReshareConfig(outputDir, config); err != nil {
 		return err
 	}
 
@@ -66,12 +66,12 @@ func runReshare(ctx context.Context, outputDir string, config dkg.Config) error 
 
 	log.Info(ctx, "Successfully completed reshare ceremony 🎉")
 	log.Info(ctx, "IMPORTANT:")
-	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new validator keys from: "+outputDir)
+	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+outputDir)
 
 	return nil
 }
 
-func validateReshareConfig(ctx context.Context, outputDir string, config dkg.Config) (err error) {
+func validateReshareConfig(outputDir string, config dkg.Config) (err error) {
 	if outputDir == "" {
 		return errors.New("output-dir is required")
 	}
@@ -86,14 +86,15 @@ func validateReshareConfig(ctx context.Context, outputDir string, config dkg.Con
 	}
 
 	validatorKeysDir := filepath.Join(config.DataDir, validatorKeysSubDir)
-
 	keyFiles, err := os.ReadDir(validatorKeysDir)
 
 	validatorKeysDirPresent := err == nil && len(keyFiles) > 0
 	if !validatorKeysDirPresent {
-		log.Error(ctx, "The validator_keys directory is empty.", nil)
-
 		return errors.New("data-dir must contain a non-empty validator_keys directory")
+	}
+
+	if config.Timeout < time.Minute {
+		return errors.New("timeout must be at least 1 minute")
 	}
 
 	return nil

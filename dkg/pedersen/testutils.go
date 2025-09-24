@@ -5,6 +5,7 @@ package pedersen
 import (
 	"encoding/hex"
 	"testing"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/drand/kyber"
@@ -75,7 +76,7 @@ func (n *TestNode) InitBoard(t *testing.T, threshold int, peers []peer.ID, peerM
 
 	bc := bcast.New(n.NodeHost, peers, n.NodeSecret)
 	logCtx := log.WithCtx(t.Context(), z.Int("index", n.NodeIdx.PeerIdx))
-	n.Config = NewConfig(n.NodeHost.ID(), peerMap, threshold, session, nil)
+	n.Config = NewConfig(n.NodeHost.ID(), peerMap, threshold, session, 3*time.Second, nil)
 	n.Board = NewBoard(logCtx, n.NodeHost, n.Config, bc)
 }
 
