@@ -182,8 +182,9 @@ func TestUpdateNodeSignaturesProtocolStep(t *testing.T) {
 			nodeSigCaster := newNodeSigBcast(allPeers, cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1}, caster)
 
 			step := &updateNodeSignaturesProtocolStep{}
+			lockCopy := lock
 			pctx := &ProtocolContext{
-				Lock:          &lock,
+				Lock:          &lockCopy,
 				ENRPrivateKey: nodeKeys[n],
 				ThisNodeIdx:   cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1},
 				NodeSigCaster: nodeSigCaster,
@@ -238,7 +239,7 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 6) // two files per validator
 
-	l, err := loadAndVerifyClusterLock(t.Context(), step.outputDir, Config{NoVerify: true})
+	l, err := LoadAndVerifyClusterLock(t.Context(), step.outputDir, Config{NoVerify: true})
 	require.NoError(t, err)
 	require.Equal(t, lock, *l)
 }
@@ -246,9 +247,7 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 func valKeysToSharesNode0(t *testing.T, valKeys [][]tbls.PrivateKey, vals []cluster.DistValidator) []share.Share {
 	t.Helper()
 
-	var (
-		shares []share.Share
-	)
+	var shares []share.Share
 
 	for vi, sh := range valKeys {
 		pubKey, err := vals[vi].PublicKey()

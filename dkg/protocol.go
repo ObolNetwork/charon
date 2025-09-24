@@ -78,7 +78,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	lock, err := loadAndVerifyClusterLock(ctx, config.DataDir, config)
+	lock, err := LoadAndVerifyClusterLock(ctx, config.DataDir, config)
 	if err != nil {
 		return errors.Wrap(err, "load cluster lock")
 	}
@@ -90,7 +90,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 
 	validatorKeysDir := filepath.Join(config.DataDir, validatorKeysSubDir)
 	if _, err := os.Stat(validatorKeysDir); err == nil || !os.IsNotExist(err) {
-		secrets, err := loadSecrets(ctx, config.DataDir)
+		secrets, err := LoadSecrets(config.DataDir)
 		if err != nil {
 			return errors.Wrap(err, "load secrets")
 		}
@@ -183,7 +183,8 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 	return nil
 }
 
-func loadAndVerifyClusterLock(ctx context.Context, dataDir string, conf Config) (*cluster.Lock, error) {
+// LoadAndVerifyClusterLock loads the cluster lock from the given data directory and verifies its hashes and signatures.
+func LoadAndVerifyClusterLock(ctx context.Context, dataDir string, conf Config) (*cluster.Lock, error) {
 	lockFilePath := filepath.Join(dataDir, clusterLockFile)
 
 	b, err := os.ReadFile(lockFilePath)
@@ -217,11 +218,11 @@ func loadAndVerifyClusterLock(ctx context.Context, dataDir string, conf Config) 
 	return &lock, nil
 }
 
-func loadSecrets(ctx context.Context, dataDir string) ([]tbls.PrivateKey, error) {
+// LoadSecrets loads the private key shares from the validator keys subdirectory in the given data directory.
+func LoadSecrets(dataDir string) ([]tbls.PrivateKey, error) {
 	var secrets []tbls.PrivateKey
 
 	keyStorePath := filepath.Join(dataDir, validatorKeysSubDir)
-	log.Info(ctx, "Loading keystore", z.Str("path", keyStorePath))
 
 	privateKeyFiles, err := keystore.LoadFilesUnordered(keyStorePath)
 	if err != nil {
