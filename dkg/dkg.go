@@ -270,7 +270,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
 	// register pedersen protocol messages
-	pedersenConfig := pedersen.NewConfig(p2pNode.ID(), peerMap, def.Threshold, def.DefinitionHash, nil)
+	phaseDuration := conf.Timeout / time.Duration(12) // 5 seconds per phase for default 1 minute DKG timeout
+	pedersenConfig := pedersen.NewConfig(p2pNode.ID(), peerMap, def.Threshold, def.DefinitionHash, phaseDuration, nil)
 	pedersenBoard := pedersen.NewBoard(ctx, p2pNode, pedersenConfig, caster)
 
 	log.Info(ctx, "Waiting to connect to all peers...")

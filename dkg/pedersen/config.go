@@ -13,20 +13,16 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 )
 
-const (
-	phaseDuration = 3 * time.Second
-)
-
 var DefaultSuite = kbls.NewBLS12381Suite().G1().(kdkg.Suite)
 
 // Config holds the immutable configuration for the Pedersen DKG protocol.
 type Config struct {
-	PhaseDuration time.Duration
 	Suite         kdkg.Suite
 	ThisPeerID    peer.ID
 	PeerMap       map[peer.ID]cluster.NodeIdx
 	Threshold     int
 	SessionID     []byte
+	PhaseDuration time.Duration
 	Reshare       *ReshareConfig
 }
 
@@ -48,7 +44,7 @@ func NewReshareConfig(totalShares, newThreshold int, newPeers, oldPeers []peer.I
 }
 
 // NewConfig creates a new Config instance for BLS12-381.
-func NewConfig(thisPeerID peer.ID, peerMap map[peer.ID]cluster.NodeIdx, threshold int, sessionID []byte, reshare *ReshareConfig) *Config {
+func NewConfig(thisPeerID peer.ID, peerMap map[peer.ID]cluster.NodeIdx, threshold int, sessionID []byte, phaseDuration time.Duration, reshare *ReshareConfig) *Config {
 	return &Config{
 		PhaseDuration: phaseDuration,
 		Suite:         DefaultSuite,

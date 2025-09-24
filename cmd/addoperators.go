@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"time"
 
 	libp2plog "github.com/ipfs/go-log/v2"
@@ -15,6 +16,8 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/dkg"
+	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dkg.Config) error) *cobra.Command {
@@ -55,7 +58,7 @@ func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dk
 }
 
 func runAddOperators(ctx context.Context, config dkg.AddOperatorsConfig, dkgConfig dkg.Config) error {
-	if err := validateAddOperatorsConfig(&config, &dkgConfig); err != nil {
+	if err := validateAddOperatorsConfig(ctx, &config, &dkgConfig); err != nil {
 		return err
 	}
 
@@ -72,7 +75,7 @@ func runAddOperators(ctx context.Context, config dkg.AddOperatorsConfig, dkgConf
 	return nil
 }
 
-func validateAddOperatorsConfig(config *dkg.AddOperatorsConfig, dkgConfig *dkg.Config) error {
+func validateAddOperatorsConfig(ctx context.Context, config *dkg.AddOperatorsConfig, dkgConfig *dkg.Config) error {
 	if config.OutputDir == "" {
 		return errors.New("output-dir is required")
 	}
@@ -90,5 +93,70 @@ func validateAddOperatorsConfig(config *dkg.AddOperatorsConfig, dkgConfig *dkg.C
 		return errors.New("data-dir must contain a cluster-lock.json file")
 	}
 
+	if dkgConfig.Timeout < time.Minute {
+		return errors.New("timeout must be at least 1 minute")
+	}
+
+	if hasDuplicateENRs(config.NewENRs) {
+		return errors.New("new-operator-enrs contains duplicate ENRs")
+	}
+
+	lock, err := dkg.LoadAndVerifyClusterLock(ctx, *dkgConfig)
+	if err != nil {
+		return err
+	}
+
+	key, err := p2p.LoadPrivKey(dkgConfig.DataDir)
+	if err != nil {
+		return err
+	}
+
+	r, err := enr.New(key)
+	if err != nil {
+		return err
+	}
+
+	thisENR := r.String()
+	isNewOperator := slices.Contains(config.NewENRs, thisENR)
+
+	for _, o := range lock.Operators {
+		if slices.Contains(config.NewENRs, o.ENR) {
+			return errors.New("new-operator-enrs contains an existing operator", z.Str("enr", o.ENR))
+		}
+	}
+
+	newN := len(lock.Operators) + len(config.NewENRs)
+	newT := newN - (newN-1)/3
+
+	if config.NewThreshold != 0 {
+		if config.NewThreshold >= newN || config.NewThreshold < newT {
+			return errors.New("new-threshold is invalid", z.Int("recommendedThreshold", newT))
+		}
+	}
+
+	if !isNewOperator {
+		secrets, err := dkg.LoadSecrets(dkgConfig.DataDir)
+		if err != nil {
+			return err
+		}
+
+		if len(secrets) != lock.NumValidators {
+			return errors.New("the number of secret keys does not match the number of validators in the cluster lock")
+		}
+	}
+
 	return nil
+}
+
+func hasDuplicateENRs(enrs []string) bool {
+	seen := make(map[string]struct{})
+	for _, e := range enrs {
+		if _, ok := seen[e]; ok {
+			return true
+		}
+
+		seen[e] = struct{}{}
+	}
+
+	return false
 }

@@ -42,7 +42,7 @@ func TestRemoveOperatorsProtocol(t *testing.T) {
 	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
 	dstClusterDir := t.TempDir()
 
-	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), nodeDir(srcClusterDir, 0), dkg.Config{})
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), dkg.Config{DataDir: nodeDir(srcClusterDir, 0)})
 	require.NoError(t, err)
 
 	oldENRs := []string{
@@ -322,7 +322,7 @@ func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) {
 	clusterSecrets := make([][]tbls.PrivateKey, numNodes)
 
 	for i, ndir := range nodeDirs {
-		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), ndir, dkg.Config{})
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), dkg.Config{DataDir: ndir})
 		require.NoError(t, err, "nodeDir: %s", ndir)
 		require.Len(t, lock.Operators, numNodes)
 		require.Len(t, lock.Validators, numVals)

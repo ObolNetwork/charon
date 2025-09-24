@@ -78,7 +78,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	lock, err := LoadAndVerifyClusterLock(ctx, config.DataDir, config)
+	lock, err := LoadAndVerifyClusterLock(ctx, config)
 	if err != nil {
 		return errors.Wrap(err, "load cluster lock")
 	}
@@ -183,9 +183,9 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 	return nil
 }
 
-// LoadAndVerifyClusterLock loads the cluster lock from the given data directory and verifies its hashes and signatures.
-func LoadAndVerifyClusterLock(ctx context.Context, dataDir string, conf Config) (*cluster.Lock, error) {
-	lockFilePath := filepath.Join(dataDir, clusterLockFile)
+// LoadAndVerifyClusterLock loads the cluster lock from disk and verifies its hashes and signatures.
+func LoadAndVerifyClusterLock(ctx context.Context, conf Config) (*cluster.Lock, error) {
+	lockFilePath := filepath.Join(conf.DataDir, clusterLockFile)
 
 	b, err := os.ReadFile(lockFilePath)
 	if err != nil {

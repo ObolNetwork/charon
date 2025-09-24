@@ -6,10 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/dkg"
+	"github.com/obolnetwork/charon/p2p"
 )
 
 func TestNewAddOperatorsCmd(t *testing.T) {
@@ -22,7 +24,12 @@ func TestNewAddOperatorsCmd(t *testing.T) {
 
 func TestValidateAddOperatorsConfig(t *testing.T) {
 	realDir := t.TempDir()
-	err := os.WriteFile(filepath.Join(realDir, clusterLockFile), []byte("{}"), 0o444)
+	lock := mustLoadTestLockFile(t, "testdata/test_cluster_lock.json")
+	lockBytes, err := lock.MarshalJSON()
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(realDir, clusterLockFile), lockBytes, 0o444)
+	require.NoError(t, err)
+	_, err = p2p.NewSavedPrivKey(realDir)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -66,11 +73,73 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 			},
 			errMsg: "data-dir must contain a cluster-lock.json file",
 		},
+		{
+			name: "timeout too low",
+			cmdConfig: dkg.AddOperatorsConfig{
+				OutputDir: ".",
+				NewENRs:   []string{"enr:-IS4QH"},
+			},
+			dkgConfig: dkg.Config{
+				DataDir: realDir,
+				Timeout: time.Second,
+			},
+			errMsg: "timeout must be at least 1 minute",
+		},
+		{
+			name: "new operator enr matches existing",
+			cmdConfig: dkg.AddOperatorsConfig{
+				OutputDir: ".",
+				NewENRs:   []string{lock.Operators[0].ENR},
+			},
+			dkgConfig: dkg.Config{
+				DataDir: realDir,
+				Timeout: time.Minute,
+			},
+			errMsg: "new-operator-enrs contains an existing operator",
+		},
+		{
+			name: "duplicate new operator enrs",
+			cmdConfig: dkg.AddOperatorsConfig{
+				OutputDir: ".",
+				NewENRs:   []string{"enr:-IS4QH", "enr:-IS4QH"},
+			},
+			dkgConfig: dkg.Config{
+				DataDir: realDir,
+				Timeout: time.Minute,
+			},
+			errMsg: "new-operator-enrs contains duplicate ENRs",
+		},
+		{
+			name: "new threshold too low",
+			cmdConfig: dkg.AddOperatorsConfig{
+				OutputDir:    ".",
+				NewENRs:      []string{"enr:-IS4QH"},
+				NewThreshold: 1,
+			},
+			dkgConfig: dkg.Config{
+				DataDir: realDir,
+				Timeout: time.Minute,
+			},
+			errMsg: "new-threshold is invalid",
+		},
+		{
+			name: "new threshold too high",
+			cmdConfig: dkg.AddOperatorsConfig{
+				OutputDir:    ".",
+				NewENRs:      []string{"enr:-IS4QH"},
+				NewThreshold: 10,
+			},
+			dkgConfig: dkg.Config{
+				DataDir: realDir,
+				Timeout: time.Minute,
+			},
+			errMsg: "new-threshold is invalid",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateAddOperatorsConfig(&tt.cmdConfig, &tt.dkgConfig)
+			err := validateAddOperatorsConfig(t.Context(), &tt.cmdConfig, &tt.dkgConfig)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {

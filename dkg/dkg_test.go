@@ -238,7 +238,7 @@ func TestAppendDKG(t *testing.T) {
 			secretShares[j] = append(secretShares[j], secret)
 		}
 
-		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), dataDir, dkg.Config{})
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), dkg.Config{DataDir: dataDir})
 		require.NoError(t, err)
 		require.Equal(t, lock.NumValidators, totalVals)
 		require.Len(t, lock.Validators, totalVals)

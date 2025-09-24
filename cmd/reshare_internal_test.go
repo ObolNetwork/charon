@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -61,11 +62,20 @@ func TestValidateReshareConfig(t *testing.T) {
 			},
 			errMsg: "data-dir must contain a cluster-lock.json file",
 		},
+		{
+			name:      "timeout too low",
+			outputDir: ".",
+			config: dkg.Config{
+				DataDir: realDir,
+				Timeout: time.Second,
+			},
+			errMsg: "timeout must be at least 1 minute",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateReshareConfig(t.Context(), tt.outputDir, tt.config)
+			err := validateReshareConfig(tt.outputDir, tt.config)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -84,14 +94,14 @@ func TestValidateReshareConfig(t *testing.T) {
 			DataDir: srcDir,
 		}
 
-		err = validateReshareConfig(t.Context(), outputDir, config)
+		err = validateReshareConfig(outputDir, config)
 		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
 
 		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
 		err = app.CreateNewEmptyDir(validatorKeysDir)
 		require.NoError(t, err)
 
-		err = validateReshareConfig(t.Context(), outputDir, config)
+		err = validateReshareConfig(outputDir, config)
 		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
 	})
 }
