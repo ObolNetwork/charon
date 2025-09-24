@@ -89,9 +89,9 @@ func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
 }
 
 func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
-	cl, err := loadClusterManifest("", config.LockFilePath)
+	cl, err := loadClusterLock(config.LockFilePath)
 	if err != nil {
-		return nil, errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
+		return nil, err
 	}
 
 	beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(config.BeaconNodeHeaders)

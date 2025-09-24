@@ -4,13 +4,14 @@ package cmd
 
 import (
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 )
 
-// loadClusterManifest loads cluster manifest from disk.
-func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Cluster, error) {
+// loadClusterLock loads cluster lock from disk.
+func loadClusterLock(lockFilePath string) (*manifestpb.Cluster, error) {
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil {
 			return errors.Wrap(err, "cluster lock hash verification failed")
@@ -23,9 +24,9 @@ func loadClusterManifest(manifestFilePath, lockFilePath string) (*manifestpb.Clu
 		return nil
 	}
 
-	cluster, err := manifest.LoadCluster(manifestFilePath, lockFilePath, verifyLock)
+	cluster, err := manifest.LoadCluster("", lockFilePath, verifyLock)
 	if err != nil {
-		return nil, errors.Wrap(err, "load cluster manifest from disk")
+		return nil, errors.Wrap(err, "load cluster lock", z.Str("path", lockFilePath))
 	}
 
 	return cluster, nil

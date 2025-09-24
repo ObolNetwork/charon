@@ -24,13 +24,10 @@ import (
 )
 
 func Test_runDeleteExit(t *testing.T) {
-	t.Parallel()
 	t.Run("full flow", func(t *testing.T) {
-		t.Parallel()
 		testRunDeleteExitFullFlow(t, false)
 	})
 	t.Run("full flow all", func(t *testing.T) {
-		t.Parallel()
 		testRunDeleteExitFullFlow(t, true)
 	})
 }

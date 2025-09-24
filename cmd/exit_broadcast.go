@@ -124,9 +124,9 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key")
 	}
 
-	cl, err := loadClusterManifest("", config.LockFilePath)
+	cl, err := loadClusterLock(config.LockFilePath)
 	if err != nil {
-		return errors.Wrap(err, "load cluster lock", z.Str("lock_file_path", config.LockFilePath))
+		return err
 	}
 
 	beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(config.BeaconNodeHeaders)

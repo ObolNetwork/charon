@@ -3,7 +3,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -57,8 +56,6 @@ func writeAllLockData(
 }
 
 func Test_runSubmitPartialExit(t *testing.T) {
-	t.Parallel()
-
 	t.Run("main flow with bad pubkey", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(
 			t,
@@ -137,10 +134,8 @@ func Test_runSubmitPartialExit(t *testing.T) {
 
 func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string, all bool) {
 	t.Helper()
-	t.Parallel()
 
-	ctx := context.Background()
-
+	ctx := t.Context()
 	ctx = log.WithCtx(ctx, z.Str("test_case", t.Name()))
 
 	valAmt := 100
@@ -251,8 +246,6 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCh
 }
 
 func Test_runSubmitPartialExit_Config(t *testing.T) {
-	t.Parallel()
-
 	type test struct {
 		name                   string
 		noIdentity             bool
@@ -315,9 +308,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
+			ctx := t.Context()
 
 			valAmt := 100
 			operatorAmt := 4
@@ -358,9 +349,9 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 				beaconMock, err := beaconmock.New(t.Context())
 				require.NoError(t, err)
 
-				defer func() {
+				t.Cleanup(func() {
 					require.NoError(t, beaconMock.Close())
-				}()
+				})
 
 				bnURL = beaconMock.Address()
 			}

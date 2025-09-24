@@ -210,7 +210,7 @@ func TestExitListCLI(t *testing.T) {
 	}{
 		{
 			name:        "check flags",
-			expectedErr: "load cluster lock: load cluster manifest from disk: load dag from disk: no file found",
+			expectedErr: "load cluster lock: load dag from disk: no file found",
 			flags: []string{
 				"--lock-file=test",
 				"--beacon-node-endpoints=test1,test2",

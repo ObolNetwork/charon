@@ -25,13 +25,10 @@ import (
 )
 
 func Test_runFetchExit(t *testing.T) {
-	t.Parallel()
 	t.Run("full flow", func(t *testing.T) {
-		t.Parallel()
 		testRunFetchExitFullFlow(t, false)
 	})
 	t.Run("full flow all", func(t *testing.T) {
-		t.Parallel()
 		testRunFetchExitFullFlow(t, true)
 	})
 	t.Run("bad out dir", Test_runFetchExitBadOutDir)
@@ -152,8 +149,6 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 }
 
 func Test_runFetchExitBadOutDir(t *testing.T) {
-	t.Parallel()
-
 	config := exitConfig{
 		FetchedExitPath: "bad",
 	}
