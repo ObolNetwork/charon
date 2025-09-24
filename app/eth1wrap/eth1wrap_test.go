@@ -118,8 +118,8 @@ func TestClientRun(t *testing.T) {
 		createFaultyClient := func() eth1wrap.EthClient {
 			mockEth1Client := mocks.NewEthClient(t)
 			mockEth1Client.On("BlockNumber", mock.Anything).Return(uint64(0),
-				errors.New("connection lost")).Once()
-			mockEth1Client.On("Close").Return().Once()
+				errors.New("connection lost")).Maybe()
+			mockEth1Client.On("Close").Return().Maybe()
 
 			return mockEth1Client
 		}
