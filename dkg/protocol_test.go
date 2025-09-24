@@ -167,7 +167,8 @@ func TestRunProtocol(t *testing.T) {
 
 		config := dkg.Config{
 			DataDir:       ndir,
-			ShutdownDelay: time.Second,
+			ShutdownDelay: 5 * time.Second,
+			Timeout:       time.Minute,
 			P2P: p2p.Config{
 				Relays:   []string{relayAddr},
 				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
