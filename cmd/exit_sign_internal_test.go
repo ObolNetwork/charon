@@ -135,7 +135,8 @@ func Test_runSubmitPartialExit(t *testing.T) {
 func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCheck bool, valPubkey string, valIndex uint64, errString string, all bool) {
 	t.Helper()
 
-	ctx := log.WithCtx(t.Context(), z.Str("test_case", t.Name()))
+	ctx := t.Context()
+	ctx = log.WithCtx(ctx, z.Str("test_case", t.Name()))
 
 	valAmt := 100
 	operatorAmt := 4
@@ -377,10 +378,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 				ExitEpoch:           0,
 				BeaconNodeTimeout:   30 * time.Second,
 				PublishTimeout:      10 * time.Second,
-				SkipBeaconNodeCheck: true,
 			}
-
-			time.Sleep(100 * time.Millisecond)
 
 			require.ErrorContains(t, runSignPartialExit(ctx, config), test.errData)
 		})
