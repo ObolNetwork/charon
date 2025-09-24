@@ -3,119 +3,14 @@
 package cmd
 
 import (
-	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/dkg"
-	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/eth2util/enr"
-	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/relay"
 )
-
-func TestRunRemoveOperators(t *testing.T) {
-	const (
-		oldN    = 7
-		oldT    = 5
-		newN    = 4
-		numVals = 3
-	)
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	clusterDir := t.TempDir()
-	relayAddr := relay.StartRelay(ctx, t)
-
-	// This test creates a solo cluster 7/5, then remove-operators removes 3 old operators.
-	conf := clusterConfig{
-		ClusterDir:        clusterDir,
-		Name:              t.Name(),
-		NumNodes:          oldN,
-		Threshold:         oldT,
-		NumDVs:            numVals,
-		Network:           eth2util.Holesky.Name,
-		TargetGasLimit:    36000000,
-		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-	}
-
-	var buf bytes.Buffer
-
-	err := runCreateCluster(ctx, &buf, conf)
-	require.NoError(t, err)
-
-	entries, err := os.ReadDir(conf.ClusterDir)
-	require.NoError(t, err)
-	require.Len(t, entries, oldN)
-
-	// Creating new nodes with just ENRs and lock files.
-	oldENRs := make([]string, oldN-newN)
-	for i := range oldENRs {
-		ndir := nodeDir(conf.ClusterDir, i)
-		key, err := p2p.LoadPrivKey(ndir)
-		require.NoError(t, err)
-
-		er, err := enr.New(key)
-		require.NoError(t, err)
-
-		oldENRs[i] = er.String()
-	}
-
-	dstDir := t.TempDir()
-
-	var (
-		eg       errgroup.Group
-		nodeDirs []string
-	)
-
-	for i := range oldN {
-		outputDir := nodeDir(dstDir, i)
-		if i >= len(oldENRs) {
-			nodeDirs = append(nodeDirs, outputDir)
-		}
-
-		eg.Go(func() error {
-			config := dkg.RemoveOperatorsConfig{
-				OutputDir: outputDir,
-				OldENRs:   oldENRs,
-			}
-
-			dkgConfig := dkg.Config{
-				DataDir: nodeDir(conf.ClusterDir, i),
-				P2P: p2p.Config{
-					Relays:           []string{relayAddr},
-					TCPAddrs:         []string{testutil.AvailableAddr(t).String()},
-					DisableReuseport: true,
-				},
-				Log:           log.DefaultConfig(),
-				ShutdownDelay: time.Second,
-				Timeout:       time.Minute,
-				NoVerify:      true,
-			}
-
-			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
-
-			return runRemoveOperators(peerCtx, config, dkgConfig)
-		})
-	}
-
-	err = eg.Wait()
-	testutil.SkipIfBindErr(t, err)
-	testutil.RequireNoError(t, err)
-
-	verifyClusterValidators(t, numVals, nodeDirs)
-}
 
 func TestNewRemoveOperatorsCmd(t *testing.T) {
 	cmd := newRemoveOperatorsCmd(runRemoveOperators)

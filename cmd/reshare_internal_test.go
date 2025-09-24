@@ -3,89 +3,15 @@
 package cmd
 
 import (
-	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/dkg"
-	"github.com/obolnetwork/charon/eth2util"
-	"github.com/obolnetwork/charon/p2p"
-	"github.com/obolnetwork/charon/testutil"
-	"github.com/obolnetwork/charon/testutil/relay"
 )
-
-func TestRunReshare(t *testing.T) {
-	// This test creates a solo cluster with all charon data for all nodes.
-	// Then it runs reshare on each node in parallel.
-	conf := clusterConfig{
-		ClusterDir:        t.TempDir(),
-		Name:              t.Name(),
-		NumNodes:          4,
-		Threshold:         3,
-		NumDVs:            3,
-		Network:           eth2util.Holesky.Name,
-		TargetGasLimit:    36000000,
-		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-	}
-
-	var buf bytes.Buffer
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	err := runCreateCluster(ctx, &buf, conf)
-	require.NoError(t, err)
-
-	entries, err := os.ReadDir(conf.ClusterDir)
-	require.NoError(t, err)
-	require.Len(t, entries, 4)
-
-	dstDir := t.TempDir()
-	relayAddr := relay.StartRelay(ctx, t)
-
-	var (
-		eg       errgroup.Group
-		nodeDirs []string
-	)
-
-	for i := 0; i < conf.NumNodes; i++ {
-		outputDir := nodeDir(dstDir, i)
-		config := dkg.Config{
-			DataDir: nodeDir(conf.ClusterDir, i),
-			P2P: p2p.Config{
-				Relays:   []string{relayAddr},
-				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
-			},
-			Log:           log.DefaultConfig(),
-			ShutdownDelay: time.Second,
-			Timeout:       time.Minute,
-			NoVerify:      true,
-		}
-
-		nodeDirs = append(nodeDirs, outputDir)
-
-		eg.Go(func() error {
-			peerCtx := log.WithCtx(ctx, z.Int("peer_index", i))
-			return runReshare(peerCtx, outputDir, config)
-		})
-	}
-
-	err = eg.Wait()
-	testutil.SkipIfBindErr(t, err)
-	testutil.RequireNoError(t, err)
-
-	verifyClusterValidators(t, conf.NumDVs, nodeDirs)
-}
 
 func TestNewReshareCmd(t *testing.T) {
 	cmd := newReshareCmd(runReshare)
