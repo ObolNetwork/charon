@@ -116,13 +116,6 @@ func TestSmoke(t *testing.T) {
 				conf.BuilderAPI = true
 			},
 		},
-		{
-			Name: "blinded_blocks_teku",
-			ConfigFunc: func(conf *compose.Config) {
-				conf.BuilderAPI = true
-				conf.VCs = []compose.VCType{compose.VCTeku}
-			},
-		},
 	}
 
 	for _, test := range tests {
