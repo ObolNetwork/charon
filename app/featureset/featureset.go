@@ -63,6 +63,9 @@ const (
 
 	// QUIC enables the QUIC transport protocol in libp2p.
 	QUIC = "quic"
+
+	// FetchOnlyCommIdx0 enables querying the beacon node for attestation data only for committee index 0.
+	FetchOnlyCommIdx0 = "fetch_only_commidx_0"
 )
 
 var (
@@ -79,6 +82,7 @@ var (
 		AttestationInclusion: statusAlpha,
 		ProposalTimeout:      statusAlpha,
 		QUIC:                 statusAlpha,
+		FetchOnlyCommIdx0:    statusAlpha,
 		// Add all features and there status here.
 	}
 
