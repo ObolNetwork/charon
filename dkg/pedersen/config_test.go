@@ -21,7 +21,7 @@ func TestNewConfig(t *testing.T) {
 	}
 
 	config := pedersen.NewConfig("peer1", peerMap, 2, []byte("session1"), nil)
-	require.Equal(t, time.Second, config.PhaseDuration)
+	require.Equal(t, 3*time.Second, config.PhaseDuration)
 	require.EqualValues(t, "peer1", config.ThisPeerID)
 	require.Equal(t, peerMap, config.PeerMap)
 	require.Equal(t, 2, config.Threshold)
