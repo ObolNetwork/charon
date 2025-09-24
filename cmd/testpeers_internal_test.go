@@ -40,8 +40,7 @@ func TestPeersTest(t *testing.T) {
 	peer1PrivKey := base64ToPrivKey(t, "GCc1IKup3kKVxSd9iSu8iX5hc37coxAXasYpGFd/cwo=")
 	peer2PrivKey := base64ToPrivKey(t, "9PhpdrWEDJugHgoXhpbk2KqR4Gj5QZP/YNxNeJ3Q2+A=")
 	peer3PrivKey := base64ToPrivKey(t, "GpicOFPB/c/ZKIy1/fOt/4BmEekhFuyxa/SGcjrNe9o=")
-	freeTCPAddr := testutil.AvailableAddr(t)
-	// start local relay
+
 	relayAddr := relay.StartRelay(t.Context(), t)
 
 	tests := []struct {
@@ -67,12 +66,8 @@ func TestPeersTest(t *testing.T) {
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
 				},
 				Log:                     log.DefaultConfig(),
-				LoadTestDuration:        2 * time.Second,
+				LoadTestDuration:        time.Second,
 				DirectConnectionTimeout: time.Second,
-				P2P: p2p.Config{
-					TCPAddrs: []string{freeTCPAddr.String()},
-					Relays:   []string{relayAddr},
-				},
 			},
 			expected: testCategoryResult{
 				CategoryName: peersTestCategory,
@@ -127,16 +122,12 @@ func TestPeersTest(t *testing.T) {
 					OutputJSON: "",
 					Quiet:      true,
 					TestCases:  nil,
-					Timeout:    3 * time.Second,
+					Timeout:    5 * time.Second,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
-				},
-				P2P: p2p.Config{
-					TCPAddrs: []string{freeTCPAddr.String()},
-					Relays:   []string{relayAddr},
 				},
 				Log: log.DefaultConfig(),
 			},
@@ -178,10 +169,6 @@ func TestPeersTest(t *testing.T) {
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
 				},
-				P2P: p2p.Config{
-					TCPAddrs: []string{freeTCPAddr.String()},
-					Relays:   []string{relayAddr},
-				},
 				Log: log.DefaultConfig(),
 			},
 			expected:    testCategoryResult{},
@@ -200,10 +187,6 @@ func TestPeersTest(t *testing.T) {
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
-				},
-				P2P: p2p.Config{
-					TCPAddrs: []string{freeTCPAddr.String()},
-					Relays:   []string{relayAddr},
 				},
 				Log: log.DefaultConfig(),
 			},
@@ -230,16 +213,12 @@ func TestPeersTest(t *testing.T) {
 				testConfig: testConfig{
 					OutputJSON: "./write-to-file-test.json.tmp",
 					Quiet:      false,
-					Timeout:    3 * time.Second,
+					Timeout:    5 * time.Second,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
-				},
-				P2P: p2p.Config{
-					TCPAddrs: []string{freeTCPAddr.String()},
-					Relays:   []string{relayAddr},
 				},
 				Log: log.DefaultConfig(),
 			},
@@ -279,16 +258,12 @@ func TestPeersTest(t *testing.T) {
 				testConfig: testConfig{
 					Publish: true,
 					Quiet:   false,
-					Timeout: 3 * time.Second,
+					Timeout: 5 * time.Second,
 				},
 				ENRs: []string{
 					"enr:-HW4QBHlcyD3fYWUMADiOv4OxODaL5wJG0a7P7d_ltu4VZe1MibZ1N-twFaoaq0BoCtXcY71etxLJGeEZT5p3XCO6GOAgmlkgnY0iXNlY3AyNTZrMaEDI2HRUlVBag__njkOWEEQRLlC9ylIVCrIXOuNBSlrx6o",
 					"enr:-HW4QDwUF804f4WhUjwcp4JJ-PrRH0glQZv8s2cVHlBRPJ3SYcYO-dvJGsKhztffrski5eujJkl8oAc983MZy6-PqF2AgmlkgnY0iXNlY3AyNTZrMaECPEPryjkmUBnQFyjmMw9rl7DVtKL0243nN5iepqsvKDw",
 					"enr:-HW4QPSBgUTag8oZs3zIsgWzlBUrSgT8pgZmFJa7HWwKXUcRLlISa68OJtp-JTzhUXsJ2vSGwKGACn0OTatWdJATxn-AgmlkgnY0iXNlY3AyNTZrMaECA3R_ffXLXCLJsfEwf6xeoAFgWnDIOdq8kS0Yqkhwbr0",
-				},
-				P2P: p2p.Config{
-					TCPAddrs: []string{freeTCPAddr.String()},
-					Relays:   []string{relayAddr},
 				},
 				Log: log.DefaultConfig(),
 			},
@@ -317,10 +292,14 @@ func TestPeersTest(t *testing.T) {
 			expectedErr: "",
 		},
 	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
 			conf := test.config
+
+			conf.P2P.Relays = []string{relayAddr}
+			conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
+
 			temp := t.TempDir()
 			_, err := p2p.NewSavedPrivKey(temp)
 			require.NoError(t, err)
@@ -339,7 +318,7 @@ func TestPeersTest(t *testing.T) {
 
 			var buf bytes.Buffer
 
-			_, err = runTestPeers(ctx, &buf, conf)
+			_, err = runTestPeers(t.Context(), &buf, conf)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	phaseDuration = time.Second
+	phaseDuration = 3 * time.Second
 )
 
 var DefaultSuite = kbls.NewBLS12381Suite().G1().(kdkg.Suite)
