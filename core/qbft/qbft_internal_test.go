@@ -293,15 +293,15 @@ func testQBFT(t *testing.T, test test) {
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
 		clock       = new(fakeClock)
-		receives    = make(map[int64]chan Msg[int64, int64])
-		broadcast   = make(chan Msg[int64, int64])
-		resultChan  = make(chan []Msg[int64, int64], n)
+		receives    = make(map[int64]chan Msg[int64, int64, int64])
+		broadcast   = make(chan Msg[int64, int64, int64])
+		resultChan  = make(chan []Msg[int64, int64, int64], n)
 		runChan     = make(chan error, n)
 	)
 	defer cancel()
 
 	isLeader := makeIsLeader(n)
-	defs := Definition[int64, int64]{
+	defs := Definition[int64, int64, int64]{
 		IsLeader: isLeader,
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			d := time.Second
@@ -311,20 +311,23 @@ func testQBFT(t *testing.T, test test) {
 
 			return clock.NewTimer(d)
 		},
-		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
 			resultChan <- qcommit
 		},
-		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64]) {
+		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnErr chan error, returnRes chan int64) {
+			returnErr <- nil
+		},
+		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64, int64]) {
 			t.Logf("%s %v@%d change to %d ~= %v", clock.NowStr(), process, round, newRound, rule)
 		},
-		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64], rule UponRule) {
+		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64, int64], rule UponRule) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
 
 			if round > maxRound {
 				cancel()
 			}
 		},
-		LogUnjust: func(_ context.Context, instance int64, process int64, msg Msg[int64, int64]) {
+		LogUnjust: func(_ context.Context, instance int64, process int64, msg Msg[int64, int64, int64]) {
 			if test.Fuzz {
 				return // Ignore unjust messages when fuzzing.
 			}
@@ -337,11 +340,11 @@ func testQBFT(t *testing.T, test test) {
 	}
 
 	for i := int64(1); i <= n; i++ {
-		receive := make(chan Msg[int64, int64], 1000)
+		receive := make(chan Msg[int64, int64, int64], 1000)
 		receives[i] = receive
-		trans := Transport[int64, int64]{
+		trans := Transport[int64, int64, int64]{
 			Broadcast: func(ctx context.Context, typ MsgType, instance int64, source int64, round int64, value int64,
-				pr int64, pv int64, justify []Msg[int64, int64],
+				pr int64, pv int64, justify []Msg[int64, int64, int64],
 			) error {
 				if round > maxRound {
 					return errors.New("max round reach")
@@ -354,7 +357,7 @@ func testQBFT(t *testing.T, test test) {
 
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
 
-				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
+				msg := newMsg(typ, instance, source, round, value, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
 
 				bcast(t, broadcast, msg, test.BCastJitterMS, clock)
@@ -388,6 +391,7 @@ func testQBFT(t *testing.T, test test) {
 			// - or expect multiple rounds
 			// - or otherwise only the leader of round 1.
 			vChan := make(chan int64, 1)
+			vsChan := make(chan int64, 1)
 
 			if delay, ok := test.ValueDelay[i]; ok {
 				go func() {
@@ -404,7 +408,7 @@ func testQBFT(t *testing.T, test test) {
 				go func() { vChan <- i }()
 			}
 
-			runChan <- Run(ctx, defs, trans, test.Instance, i, vChan)
+			runChan <- Run(ctx, defs, trans, test.Instance, i, vChan, vsChan)
 		}(i)
 	}
 
@@ -413,7 +417,7 @@ func testQBFT(t *testing.T, test test) {
 	}
 
 	var (
-		results = make(map[int64]Msg[int64, int64])
+		results = make(map[int64]Msg[int64, int64, int64])
 		count   int
 		decided bool
 		done    int
@@ -489,7 +493,7 @@ func testQBFT(t *testing.T, test test) {
 }
 
 // fuzz broadcasts random messages from the peer every 100ms (10/round).
-func fuzz(ctx context.Context, clock *fakeClock, broadcast chan Msg[int64, int64], instance, peerIdx int64) {
+func fuzz(ctx context.Context, clock *fakeClock, broadcast chan Msg[int64, int64, int64], instance, peerIdx int64) {
 	for {
 		timer, stop := clock.NewTimer(time.Millisecond * 100)
 		select {
@@ -517,7 +521,7 @@ func randomMsg(instance, peerIdx int64) msg {
 }
 
 // bcast delays the message broadcast by between 1x and 2x jitterMS and drops messages.
-func bcast(t *testing.T, broadcast chan Msg[int64, int64], msg Msg[int64, int64], jitterMS int, clock *fakeClock) {
+func bcast(t *testing.T, broadcast chan Msg[int64, int64, int64], msg Msg[int64, int64, int64], jitterMS int, clock *fakeClock) {
 	t.Helper()
 
 	if jitterMS == 0 {
@@ -537,9 +541,9 @@ func bcast(t *testing.T, broadcast chan Msg[int64, int64], msg Msg[int64, int64]
 }
 
 // newMsg returns a new message to be broadcast.
-func newMsg(typ MsgType, instance int64, source int64, round int64, value int64,
-	pr int64, pv int64, justify []Msg[int64, int64],
-) Msg[int64, int64] {
+func newMsg(typ MsgType, instance int64, source int64, round int64, value int64, valueSource int64,
+	pr int64, pv int64, justify []Msg[int64, int64, int64],
+) Msg[int64, int64, int64] {
 	var msgs []msg
 	for _, j := range justify {
 		m := j.(msg)
@@ -548,28 +552,30 @@ func newMsg(typ MsgType, instance int64, source int64, round int64, value int64,
 	}
 
 	return msg{
-		msgType:  typ,
-		instance: instance,
-		peerIdx:  source,
-		round:    round,
-		value:    value,
-		pr:       pr,
-		pv:       pv,
-		justify:  msgs,
+		msgType:     typ,
+		instance:    instance,
+		peerIdx:     source,
+		round:       round,
+		value:       value,
+		valueSource: valueSource,
+		pr:          pr,
+		pv:          pv,
+		justify:     msgs,
 	}
 }
 
-var _ Msg[int64, int64] = msg{}
+var _ Msg[int64, int64, int64] = msg{}
 
 type msg struct {
-	msgType  MsgType
-	instance int64
-	peerIdx  int64
-	round    int64
-	value    int64
-	pr       int64
-	pv       int64
-	justify  []msg
+	msgType     MsgType
+	instance    int64
+	peerIdx     int64
+	round       int64
+	value       int64
+	valueSource int64
+	pr          int64
+	pv          int64
+	justify     []msg
 }
 
 func (m msg) Type() MsgType {
@@ -592,6 +598,10 @@ func (m msg) Value() int64 {
 	return m.value
 }
 
+func (m msg) ValueSource() (int64, error) {
+	return m.valueSource, nil
+}
+
 func (m msg) PreparedRound() int64 {
 	return m.pr
 }
@@ -600,8 +610,8 @@ func (m msg) PreparedValue() int64 {
 	return m.pv
 }
 
-func (m msg) Justification() []Msg[int64, int64] {
-	var resp []Msg[int64, int64]
+func (m msg) Justification() []Msg[int64, int64, int64] {
+	var resp []Msg[int64, int64, int64]
 	for _, msg := range m.justify {
 		resp = append(resp, msg)
 	}
@@ -626,12 +636,12 @@ func TestIsJustifiedPrePrepare(t *testing.T) {
 		{msgType: 2, instance: 1, peerIdx: 2, round: 2, value: 2, pr: 0, pv: 0},
 	}}
 
-	def := Definition[int64, int64]{
+	def := Definition[int64, int64, int64]{
 		IsLeader: makeIsLeader(n),
 		Nodes:    n,
 	}
 
-	ok := isJustifiedPrePrepare[int64, int64](def, instance, preprepare)
+	ok := isJustifiedPrePrepare(def, instance, preprepare, 0)
 	require.True(t, ok)
 }
 
@@ -640,7 +650,7 @@ func TestFormulas(t *testing.T) {
 	assert := func(t *testing.T, n, q, f int) {
 		t.Helper()
 
-		d := Definition[any, int64]{Nodes: n}
+		d := Definition[any, int64, any]{Nodes: n}
 		require.Equalf(t, q, d.Quorum(), "Quorum given N=%d", n)
 		require.Equalf(t, f, d.Faulty(), "Faulty given N=%d", n)
 	}
@@ -686,7 +696,7 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 		leader   = 2
 	)
 
-	newPreprepare := func(round int64) Msg[int64, int64] {
+	newPreprepare := func(round int64) Msg[int64, int64, int64] {
 		return msg{
 			msgType: MsgPrePrepare,
 			peerIdx: leader,
@@ -699,7 +709,7 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 	def.IsLeader = func(_ int64, _ int64, process int64) bool {
 		return process == leader
 	}
-	def.LogUponRule = func(ctx context.Context, instance int64, process, round int64, msg Msg[int64, int64], uponRule UponRule) {
+	def.LogUponRule = func(ctx context.Context, instance int64, process, round int64, msg Msg[int64, int64, int64], uponRule UponRule) {
 		log.Info(ctx, "UponRule", z.Str("rule", uponRule.String()), z.I64("round", msg.Round()))
 		require.Equal(t, uponRule, UponJustifiedPrePrepare)
 
@@ -715,7 +725,7 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 		require.Fail(t, "unexpected round", "round=%d", round)
 	}
 
-	rChan := make(chan Msg[int64, int64], 2)
+	rChan := make(chan Msg[int64, int64, int64], 2)
 	rChan <- newPreprepare(1)
 
 	rChan <- newPreprepare(2)
@@ -723,21 +733,255 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 	transport := noopTransport
 	transport.Receive = rChan
 
-	_ = Run(ctx, def, transport, 0, noLeader, InputValue(int64(1)))
+	_ = Run(ctx, def, transport, 0, noLeader, InputValue(int64(1)), InputValueSource(int64(2)))
 }
 
 // noopTransport is a transport that does nothing.
-var noopTransport = Transport[int64, int64]{
-	Broadcast: func(context.Context, MsgType, int64, int64, int64, int64, int64, int64, []Msg[int64, int64]) error {
+var noopTransport = Transport[int64, int64, int64]{
+	Broadcast: func(context.Context, MsgType, int64, int64, int64, int64, int64, int64, []Msg[int64, int64, int64]) error {
 		return nil
 	},
 }
 
 // noopDef is a definition that does nothing.
-var noopDef = Definition[int64, int64]{
+var noopDef = Definition[int64, int64, int64]{
 	IsLeader:       func(int64, int64, int64) bool { return false },
 	NewTimer:       func(int64) (<-chan time.Time, func()) { return nil, func() {} },
-	LogUponRule:    func(context.Context, int64, int64, int64, Msg[int64, int64], UponRule) {},
-	LogRoundChange: func(context.Context, int64, int64, int64, int64, UponRule, []Msg[int64, int64]) {},
-	LogUnjust:      func(context.Context, int64, int64, Msg[int64, int64]) {},
+	LogUponRule:    func(context.Context, int64, int64, int64, Msg[int64, int64, int64], UponRule) {},
+	LogRoundChange: func(context.Context, int64, int64, int64, int64, UponRule, []Msg[int64, int64, int64]) {},
+	LogUnjust:      func(context.Context, int64, int64, Msg[int64, int64, int64]) {},
+}
+
+type testChainSplit struct {
+	ValueSource map[int64]int64 // Use different value source for certain processes (used for chain-split-halt feature).
+	DecideRound int             // Deterministic consensus at specific round.
+	PreparedVal int             // If prepared value decided, as opposed to leader's value.
+	ShouldHalt  bool            // If halt is expected (no consensus reachead).
+}
+
+var errChainSplitHalt = errors.New("chain split halt")
+
+func TestChainSplit(t *testing.T) {
+	t.Run("same value", func(t *testing.T) {
+		testQBFTChainSplit(t, testChainSplit{
+			DecideRound: 1,
+			ValueSource: map[int64]int64{
+				1: 1,
+				2: 1,
+				3: 1,
+				4: 1,
+			},
+			PreparedVal: 1,
+		})
+	})
+
+	t.Run("non-leader peer has different value", func(t *testing.T) {
+		testQBFTChainSplit(t, testChainSplit{
+			DecideRound: 1,
+			ValueSource: map[int64]int64{
+				1: 1,
+				2: 3,
+				3: 1,
+				4: 1,
+			},
+			PreparedVal: 1,
+		})
+	})
+
+	t.Run("first leader has different value, second leader succeeds", func(t *testing.T) {
+		testQBFTChainSplit(t, testChainSplit{
+			DecideRound: 2,
+			ValueSource: map[int64]int64{
+				1: 3,
+				2: 1,
+				3: 1,
+				4: 1,
+			},
+			PreparedVal: 1,
+		})
+	})
+
+	t.Run("no consensus - halt", func(t *testing.T) {
+		testQBFTChainSplit(t, testChainSplit{
+			ValueSource: map[int64]int64{
+				1: 1,
+				2: 1,
+				3: 3,
+				4: 3,
+			},
+			ShouldHalt: true,
+		})
+	})
+}
+
+func testQBFTChainSplit(t *testing.T, test testChainSplit) {
+	t.Helper()
+
+	const (
+		n         = 4
+		maxRound  = 10
+		fifoLimit = 100
+	)
+
+	var (
+		ctx, cancel            = context.WithCancel(context.Background())
+		clock                  = new(fakeClock)
+		receiveChannelsPerNode = make(map[int64]chan Msg[int64, int64, int64])
+		broadcast              = make(chan Msg[int64, int64, int64])
+		resultChan             = make(chan []Msg[int64, int64, int64], n)
+		runChan                = make(chan error, n)
+		instance               = int64(0)
+	)
+	defer cancel()
+
+	isLeader := makeIsLeader(n)
+	defs := Definition[int64, int64, int64]{
+		IsLeader: isLeader,
+		NewTimer: func(round int64) (<-chan time.Time, func()) {
+			return clock.NewTimer(time.Duration(math.Pow(2, float64(round-1))) * time.Second)
+		},
+		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
+			resultChan <- qcommit
+		},
+		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnCh chan error, returnIVS chan int64) {
+			vs, _ := qcommit.ValueSource()
+
+			if inputValueSource == 0 {
+				inputValueSource = <-inputValueSourceCh
+				returnIVS <- inputValueSource
+			}
+
+			if vs != inputValueSource {
+				returnCh <- errors.New("missmatch", z.I64("leadervalue", vs), z.I64("localvalue", inputValueSource))
+				return
+			}
+
+			returnCh <- nil
+		},
+		LogRoundChange: func(ctx context.Context, instance int64, process, round, newRound int64, rule UponRule, msgs []Msg[int64, int64, int64]) {
+			t.Logf("%s %v@%d change to %d ~= %v", clock.NowStr(), process, round, newRound, rule)
+		},
+		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64, int64], rule UponRule) {
+			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
+
+			if round > maxRound {
+				cancel()
+			}
+		},
+		LogUnjust: func(_ context.Context, instance int64, process int64, msg Msg[int64, int64, int64]) {
+			t.Logf("Unjust: %#v", msg)
+		},
+		Nodes:     n,
+		FIFOLimit: fifoLimit,
+	}
+
+	// Start each charon node
+	for i := int64(1); i <= n; i++ {
+		receive := make(chan Msg[int64, int64, int64], 1000)
+		receiveChannelsPerNode[i] = receive
+		transport := Transport[int64, int64, int64]{
+			Broadcast: func(ctx context.Context, typ MsgType, instance int64, source int64, round int64, value int64,
+				pr int64, pv int64, justify []Msg[int64, int64, int64],
+			) error {
+				if round > maxRound {
+					if test.ShouldHalt {
+						return errChainSplitHalt
+					}
+
+					return errors.New("max round reach")
+				}
+
+				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
+
+				msg := newMsg(typ, instance, source, round, value, value, pr, pv, justify)
+				receive <- msg // Always send to self first (no jitter, no drops).
+
+				bcast(t, broadcast, msg, 0, clock)
+
+				return nil
+			},
+			Receive: receive,
+		}
+
+		go func(i int64) {
+			// Only enqueue input values for instances that:
+			// - have a value delay
+			// - or expect multiple rounds
+			// - or otherwise only the leader of round 1.
+			vChan := make(chan int64, 1)
+			vsChan := make(chan int64, 1)
+
+			go func() {
+				vChan <- test.ValueSource[i]
+
+				vsChan <- test.ValueSource[i]
+			}()
+
+			runChan <- Run(ctx, defs, transport, instance, i, vChan, vsChan)
+		}(i)
+	}
+
+	var (
+		results = make(map[int64]Msg[int64, int64, int64])
+		count   int
+		decided bool
+		done    int
+	)
+
+	for {
+		select {
+		case msg := <-broadcast:
+			for target, out := range receiveChannelsPerNode {
+				if target == msg.Source() {
+					continue // Do not broadcast to self, we sent to self already.
+				}
+
+				out <- msg
+
+				if rand.Float64() < 0.1 { // Send 10% messages twice
+					out <- msg
+				}
+			}
+		case qCommit := <-resultChan:
+			for _, commit := range qCommit {
+				// Ensure that all results are the same
+				for _, previous := range results {
+					require.Equal(t, previous.Value(), commit.Value(), "commit values")
+				}
+
+				require.EqualValues(t, test.DecideRound, commit.Round(), "wrong decide round")
+
+				if test.PreparedVal != 0 { // Check prepared value if set
+					require.EqualValues(t, test.PreparedVal, commit.Value(), "wrong prepared value")
+				}
+
+				results[commit.Source()] = commit
+			}
+
+			count++
+			if count != n {
+				continue
+			}
+
+			round := qCommit[0].Round()
+			t.Logf("Got all results in round %d after %s: %#v", round, clock.SinceT0(), results)
+
+			// Trigger shutdown
+			decided = true
+
+			cancel()
+		case err := <-runChan:
+			if !decided && !errors.Is(err, errChainSplitHalt) {
+				require.Fail(t, "unexpected run error", err)
+			}
+
+			done++
+			if done == n {
+				return
+			}
+		default:
+			time.Sleep(time.Microsecond)
+			clock.Advance(time.Millisecond * 1)
+		}
+	}
 }

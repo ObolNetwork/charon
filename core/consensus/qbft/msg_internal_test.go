@@ -105,7 +105,7 @@ func TestPartialLegacyNewMsg(t *testing.T) {
 	require.ErrorContains(t, err, "value hash not found in values")
 }
 
-// NewRandomMsgForT returns a random qbft message.
+// newRandomQBFTMsg returns a random qbft message.
 func newRandomQBFTMsg(t *testing.T) *pbv1.QBFTMsg {
 	t.Helper()
 

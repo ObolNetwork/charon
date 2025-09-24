@@ -10,6 +10,7 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/k1util"
@@ -29,7 +30,7 @@ func TestDebugRoundChange(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		msgs   []qbft.Msg[core.Duty, [32]byte]
+		msgs   []qbft.Msg[core.Duty, [32]byte, proto.Message]
 		round  int64
 		leader int
 	}{
@@ -43,7 +44,7 @@ func TestDebugRoundChange(t *testing.T) {
 		},
 		{
 			name: "quorum",
-			msgs: []qbft.Msg[core.Duty, [32]byte]{
+			msgs: []qbft.Msg[core.Duty, [32]byte, proto.Message]{
 				m(0, qbft.MsgRoundChange),
 				m(1, qbft.MsgRoundChange),
 				m(2, qbft.MsgRoundChange),
@@ -111,6 +112,10 @@ func (t testMsg) Value() [32]byte {
 	panic("implement me")
 }
 
+func (t testMsg) ValueSource() (proto.Message, error) {
+	panic("implement me")
+}
+
 func (t testMsg) PreparedRound() int64 {
 	panic("implement me")
 }
@@ -119,7 +124,7 @@ func (t testMsg) PreparedValue() [32]byte {
 	panic("implement me")
 }
 
-func (t testMsg) Justification() []qbft.Msg[core.Duty, [32]byte] {
+func (t testMsg) Justification() []qbft.Msg[core.Duty, [32]byte, proto.Message] {
 	panic("implement me")
 }
 

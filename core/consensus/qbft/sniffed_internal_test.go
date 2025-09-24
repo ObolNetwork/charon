@@ -26,7 +26,7 @@ import (
 
 var sniffedFile = flag.String("sniffed-file", "", "path to sniffed file")
 
-// TestSniffedInstances simulates all the instances in the sniffed file.
+// TestSniffedFile simulates all the instances in the sniffed file.
 func TestSniffedFile(t *testing.T) {
 	if *sniffedFile == "" {
 		t.Skip("no sniffed file provided")
@@ -79,9 +79,9 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 			return nil
 		}}
-	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte]) {})
+	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {}, false)
 
-	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte], len(instance.GetMsgs()))
+	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte, proto.Message], len(instance.GetMsgs()))
 
 	var duty core.Duty
 
@@ -102,10 +102,10 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	}
 
 	// Create a qbft transport from the transport
-	qt := qbft.Transport[core.Duty, [32]byte]{
+	qt := qbft.Transport[core.Duty, [32]byte, proto.Message]{
 		Broadcast: func(context.Context, qbft.MsgType, core.Duty,
 			int64, int64, [32]byte, int64, [32]byte,
-			[]qbft.Msg[core.Duty, [32]byte],
+			[]qbft.Msg[core.Duty, [32]byte, proto.Message],
 		) error {
 			return nil
 		},
@@ -113,7 +113,7 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 	}
 
 	// Run the algo, blocking until the context is cancelled.
-	err := qbft.Run[core.Duty, [32]byte](ctx, def, qt, duty, instance.GetPeerIdx(), qbft.InputValue([32]byte{1}))
+	err := qbft.Run(ctx, def, qt, duty, instance.GetPeerIdx(), qbft.InputValue([32]byte{1}), qbft.InputValueSource(proto.Message(newRandomQBFTMsg(t))))
 	if expectDecided {
 		require.ErrorIs(t, err, context.Canceled)
 	} else {

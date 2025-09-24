@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -358,7 +359,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 	var (
 		peerIDs    []peerID
-		transports []qbft.Transport[core.Duty, [32]byte]
+		transports []qbft.Transport[core.Duty, [32]byte, proto.Message]
 	)
 	for peerIdx := range conf.latencyPerPeer {
 		peerIDs = append(peerIDs, peerID{Idx: peerIdx, OK: true})
@@ -375,7 +376,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 		def := newSimDefinition(
 			len(conf.latencyPerPeer),
 			conf.roundTimerFunc(clock),
-			func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
+			func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 				res = result{
 					PeerIdx:  p.Idx,
 					Decided:  true,
@@ -389,6 +390,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 		// Setup unique non-zero value per peer
 		valCh := make(chan [32]byte, 1)
+		valSrcCh := make(chan proto.Message, 1)
 		enqueueValue := func() {
 			var val [32]byte
 
@@ -418,7 +420,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 		log.Debug(ctx, "Starting peer")
 
-		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed)}, p.Idx, valCh)
+		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed)}, p.Idx, valCh, valSrcCh)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return res, err
 		}
@@ -483,21 +485,24 @@ func gosched() {
 }
 
 func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
-	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
-) qbft.Definition[core.Duty, [32]byte] {
-	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
+	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]),
+) qbft.Definition[core.Duty, [32]byte, proto.Message] {
+	quorum := qbft.Definition[int, int, int]{Nodes: nodes}.Quorum()
 
-	return qbft.Definition[core.Duty, [32]byte]{
+	return qbft.Definition[core.Duty, [32]byte, proto.Message]{
 		IsLeader: func(duty core.Duty, round, process int64) bool {
 			return leader(duty, round, nodes) == process
 		},
-		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			decideCallback(qcommit)
 		},
+		Compare: func(ctx context.Context, qcommit qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueSourceCh <-chan proto.Message, inputValueSource proto.Message, returnErr chan error, returnRes chan proto.Message) {
+			returnErr <- nil
+		},
 		NewTimer:  roundTimer.Timer,
-		LogUnjust: func(context.Context, core.Duty, int64, qbft.Msg[core.Duty, [32]byte]) {},
+		LogUnjust: func(context.Context, core.Duty, int64, qbft.Msg[core.Duty, [32]byte, proto.Message]) {},
 		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
-			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
+			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte, proto.Message],
 		) {
 			fields := []z.Field{
 				z.Any("rule", uponRule),
@@ -518,7 +523,7 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 		},
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
-			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
+			_ qbft.Msg[core.Duty, [32]byte, proto.Message], uponRule qbft.UponRule,
 		) {
 			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
 		},
@@ -538,7 +543,7 @@ type result struct {
 }
 
 type tuple struct {
-	Msg    qbft.Msg[core.Duty, [32]byte]
+	Msg    qbft.Msg[core.Duty, [32]byte, proto.Message]
 	To     int64
 	Arrive time.Time
 }
@@ -566,7 +571,7 @@ type transportSimulator struct {
 	instances map[int64]*transportInstance
 }
 
-func (s *transportSimulator) enqueue(msg qbft.Msg[core.Duty, [32]byte]) {
+func (s *transportSimulator) enqueue(msg qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -612,7 +617,7 @@ func (s *transportSimulator) processBuffer() {
 	s.buffer = remaining
 }
 
-func (s *transportSimulator) instance(peerIdx int64) qbft.Transport[core.Duty, [32]byte] {
+func (s *transportSimulator) instance(peerIdx int64) qbft.Transport[core.Duty, [32]byte, proto.Message] {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -621,12 +626,12 @@ func (s *transportSimulator) instance(peerIdx int64) qbft.Transport[core.Duty, [
 		inst = &transportInstance{
 			transportSimulator: s,
 			peerIdx:            peerIdx,
-			receive:            make(chan qbft.Msg[core.Duty, [32]byte], 1000),
+			receive:            make(chan qbft.Msg[core.Duty, [32]byte, proto.Message], 1000),
 		}
 		s.instances[peerIdx] = inst
 	}
 
-	return qbft.Transport[core.Duty, [32]byte]{
+	return qbft.Transport[core.Duty, [32]byte, proto.Message]{
 		Broadcast: inst.Broadcast,
 		Receive:   inst.Receive(),
 	}
@@ -636,12 +641,12 @@ type transportInstance struct {
 	*transportSimulator
 
 	peerIdx int64
-	receive chan qbft.Msg[core.Duty, [32]byte]
+	receive chan qbft.Msg[core.Duty, [32]byte, proto.Message]
 }
 
 func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 	duty core.Duty, source int64, round int64, value [32]byte,
-	pr int64, pv [32]byte, justification []qbft.Msg[core.Duty, [32]byte],
+	pr int64, pv [32]byte, justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
 ) error {
 	dummy, _ := anypb.New(timestamppb.Now())
 	values := map[[32]byte]*anypb.Any{
@@ -683,7 +688,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 	return nil
 }
 
-func (i *transportInstance) Receive() <-chan qbft.Msg[core.Duty, [32]byte] {
+func (i *transportInstance) Receive() <-chan qbft.Msg[core.Duty, [32]byte, proto.Message] {
 	return i.receive
 }
 

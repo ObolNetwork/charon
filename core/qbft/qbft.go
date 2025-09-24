@@ -12,37 +12,41 @@ import (
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 )
 
 // Transport abstracts the transport layer between processes in the consensus system.
-type Transport[I any, V comparable] struct {
+type Transport[I any, V comparable, C any] struct {
 	// Broadcast sends a message with the provided fields to all other
 	// processes in the system (including this process).
 	//
 	// Note that a non-nil error exits the algorithm.
-	Broadcast func(ctx context.Context, typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justification []Msg[I, V]) error
+	Broadcast func(ctx context.Context, typ MsgType, instance I, source int64, round int64, value V, pr int64, pv V, justification []Msg[I, V, C]) error
 
 	// Receive returns a stream of messages received
 	// from other processes in the system (including this process).
-	Receive <-chan Msg[I, V]
+	Receive <-chan Msg[I, V, C]
 }
 
 // Definition defines the consensus system parameters that are external to the qbft algorithm.
 // This remains constant across multiple instances of consensus (calls to Run).
-type Definition[I any, V comparable] struct {
+type Definition[I any, V comparable, C any] struct {
 	// IsLeader is a deterministic leader election function.
 	IsLeader func(instance I, round, process int64) bool
 	// NewTimer returns a new timer channel and stop function for the round.
 	NewTimer func(round int64) (<-chan time.Time, func())
+	// Compare is called when leader proposes value and we compare it with our local value.
+	// Compare is an opt-in feature that should instantly return nil on returnErr channel if it is not turned on.
+	Compare func(ctx context.Context, qcommit Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, returnErr chan error, returnValue chan C)
 	// Decide is called when consensus has been reached on a value.
-	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V])
+	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V, C])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
-	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V], uponRule UponRule)
+	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V, C], uponRule UponRule)
 	// LogRoundChange allows debug logging of round changes.
 	// It includes the rule that triggered it and all received round messages.
-	LogRoundChange func(ctx context.Context, instance I, process, round, newRound int64, uponRule UponRule, msgs []Msg[I, V])
+	LogRoundChange func(ctx context.Context, instance I, process, round, newRound int64, uponRule UponRule, msgs []Msg[I, V, C])
 	// LogUnjust allows debug logging of unjust messages.
-	LogUnjust func(ctx context.Context, instance I, process int64, msg Msg[I, V])
+	LogUnjust func(ctx context.Context, instance I, process int64, msg Msg[I, V, C])
 
 	// Nodes is the total number of nodes/processes participating in consensus.
 	Nodes int
@@ -52,13 +56,13 @@ type Definition[I any, V comparable] struct {
 
 // Quorum returns the quorum count for the system.
 // See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
-func (d Definition[I, V]) Quorum() int {
+func (d Definition[I, V, C]) Quorum() int {
 	return int(math.Ceil(float64(d.Nodes*2) / 3))
 }
 
 // Faulty returns the maximum number of faulty/byzantium nodes supported in the system.
 // See IBFT 2.0 paper for correct formula: https://arxiv.org/pdf/1909.10194.pdf
-func (d Definition[I, V]) Faulty() int {
+func (d Definition[I, V, C]) Faulty() int {
 	return int(math.Floor(float64(d.Nodes-1) / 3))
 }
 
@@ -96,7 +100,7 @@ var typeLabels = map[MsgType]string{
 }
 
 // Msg defines the inter process messages.
-type Msg[I any, V comparable] interface {
+type Msg[I any, V comparable, C any] interface {
 	// Type of the message.
 	Type() MsgType
 	// Instance identifies the consensus instance.
@@ -105,14 +109,16 @@ type Msg[I any, V comparable] interface {
 	Source() int64
 	// Round the message pertains to.
 	Round() int64
-	// Value being proposed.
+	// Value being proposed, usually a hash.
 	Value() V
+	// ValueSource being proposed, usually the value that was hashed and is returned in Value().
+	ValueSource() (C, error)
 	// PreparedRound is the justified prepared round.
 	PreparedRound() int64
 	// PreparedValue is the justified prepared value.
 	PreparedValue() V
 	// Justification is the set of messages that explicitly justifies this message.
-	Justification() []Msg[I, V]
+	Justification() []Msg[I, V, C]
 }
 
 // UponRule defines the event based rules that are triggered when messages are received.
@@ -152,6 +158,12 @@ type dedupKey struct {
 	Round    int64
 }
 
+// errors
+var (
+	errCompare = errors.New("compare leader value with local value failed")
+	errTimeout = errors.New("timeout")
+)
+
 // InputValue is a convenience function to create a populated input value channel.
 func InputValue[V comparable](inputValue V) <-chan V {
 	ch := make(chan V, 1)
@@ -160,10 +172,19 @@ func InputValue[V comparable](inputValue V) <-chan V {
 	return ch
 }
 
+// InputValueSource is a convenience function to create a populated input value source channel.
+func InputValueSource[C any](inputValueSource C) <-chan C {
+	ch := make(chan C, 1)
+	ch <- inputValueSource
+
+	return ch
+}
+
 // Run executes the consensus algorithm until the context closed.
 // The generic type I is the instance of consensus and can be anything.
 // The generic type V is the arbitrary data value being proposed; it only requires an Equal method.
-func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transport[I, V], instance I, process int64, inputValueCh <-chan V) (err error) {
+// The generic type C is the compare value, used to compare leader's proposed value with local value and can be anything.
+func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C], t Transport[I, V, C], instance I, process int64, inputValueCh <-chan V, inputValueSourceCh <-chan C) (err error) {
 	defer func() {
 		// Panics are used for assertions and sanity checks to reduce lines of code
 		// and to improve readability. Catch them here.
@@ -181,12 +202,14 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	var (
 		round                 int64 = 1
 		inputValue            V
-		ppjCache              []Msg[I, V] // Cached pre-prepare justification for the current round (nil value is unset).
+		inputValueSource      C
+		ppjCache              []Msg[I, V, C] // Cached pre-prepare justification for the current round (nil value is unset).
 		preparedRound         int64
 		preparedValue         V
-		preparedJustification []Msg[I, V]
-		qCommit               []Msg[I, V]
-		buffer                = make(map[int64][]Msg[I, V])
+		compareFailureRound   int64
+		preparedJustification []Msg[I, V, C]
+		qCommit               []Msg[I, V, C]
+		buffer                = make(map[int64][]Msg[I, V, C])
 		dedupRules            = make(map[dedupKey]bool)
 		timerChan             <-chan time.Time
 		stopTimer             func()
@@ -195,7 +218,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// === Helpers ==
 
 	// broadcastMsg broadcasts a non-ROUND-CHANGE message for current round.
-	broadcastMsg := func(typ MsgType, value V, justification []Msg[I, V]) error {
+	broadcastMsg := func(typ MsgType, value V, justification []Msg[I, V, C]) error {
 		return t.Broadcast(ctx, typ, instance, process, round,
 			value, 0, zeroVal[V](), justification)
 	}
@@ -209,7 +232,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// broadcastOwnPrePrepare broadcasts a PRE-PREPARE message with current state
 	// and our own input value if present, otherwise it caches the justification
 	// to be used when the input value becomes available.
-	broadcastOwnPrePrepare := func(justification []Msg[I, V]) error {
+	broadcastOwnPrePrepare := func(justification []Msg[I, V, C]) error {
 		if justification == nil {
 			panic("bug: justification must not be nil")
 		} else if ppjCache != nil {
@@ -226,7 +249,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	}
 
 	// bufferMsg adds the message to each process' FIFO queue.
-	bufferMsg := func(msg Msg[I, V]) {
+	bufferMsg := func(msg Msg[I, V, C]) {
 		fifo := buffer[msg.Source()]
 
 		fifo = append(fifo, msg)
@@ -266,7 +289,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 	{ // Algorithm 1:11
 		if d.IsLeader(instance, round, process) { // Note round==1 at this point.
-			err := broadcastOwnPrePrepare([]Msg[I, V]{}) // Empty justification since round==1
+			err := broadcastOwnPrePrepare([]Msg[I, V, C]{}) // Empty justification since round==1
 			if err != nil {
 				return err
 			}
@@ -302,7 +325,7 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				break
 			}
 
-			if !isJustified(d, instance, msg) { // Drop unjust messages
+			if !isJustified(d, instance, msg, compareFailureRound) { // Drop unjust messages
 				d.LogUnjust(ctx, instance, process, msg)
 				break
 			}
@@ -328,12 +351,34 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
 
 			case UponQuorumPrepares: // Algorithm 2:4
-				// Only applicable to current round
-				preparedRound = round /* == msg.Round*/
-				preparedValue = msg.Value()
-				preparedJustification = justification
+				var errC error
 
-				err = broadcastMsg(MsgCommit, preparedValue, nil)
+				inputValueSource, errC = compare(ctx, d, msg, inputValueSourceCh, inputValueSource, timerChan)
+				if errC != nil {
+					switch {
+					case errors.Is(errC, errCompare):
+						compareFailureRound = msg.Round()
+					case errors.Is(errC, errTimeout):
+						// As compare function is blocking on waiting local data, round might timeout in the meantime.
+						// If this happens, we trigger round change.
+						// Algorithm 3:1
+						changeRound(round+1, UponRoundTimeout)
+
+						stopTimer()
+						timerChan, stopTimer = d.NewTimer(round)
+
+						err = broadcastRoundChange()
+					default:
+						err = errors.New("bug: expected only comparison or timeout error")
+					}
+				} else {
+					// Only applicable to current round
+					preparedRound = round /* == msg.Round*/
+					preparedValue = msg.Value()
+					preparedJustification = justification
+
+					err = broadcastMsg(MsgCommit, preparedValue, nil)
+				}
 
 			case UponQuorumCommits, UponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
@@ -358,7 +403,8 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			case UponQuorumRoundChanges: // Algorithm 3:11
 				// Only applicable to current round (round > 1)
-				if _, pv, ok := getSingleJustifiedPrPv(d, justification); ok {
+				pr, pv, ok := getSingleJustifiedPrPv(d, justification)
+				if ok && compareFailureRound != pr {
 					// Send pre-prepare using prepared value (not our own input value)
 					err = broadcastMsg(MsgPrePrepare, pv, justification)
 				} else {
@@ -390,9 +436,39 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	}
 }
 
+func compare[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C], msg Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, timerChan <-chan time.Time) (C, error) {
+	compareErr := make(chan error, 1)
+	compareValue := make(chan C, 1)
+
+	ctxCompare, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// d.Compare has 2 roles:
+	// 1. Read from the inputValueSourceCh (if inputValueSource is empty). If it read from the channel, it returns the value on compareValue channel.
+	// 2. Compare the value read from inputValueSourceCh (or inputValueSource if it is not empty) to the value proposed by the leader.
+	// If comparison or any other unexpected error occurs, the error is returned on compareErr channel.
+	go d.Compare(ctxCompare, msg, inputValueSourceCh, inputValueSource, compareErr, compareValue)
+
+	for {
+		select {
+		case err := <-compareErr:
+			if err != nil {
+				log.Warn(ctx, errCompare.Error(), err)
+				return inputValueSource, errCompare
+			}
+
+			return inputValueSource, nil
+		case inputValueSource = <-compareValue:
+		case <-timerChan:
+			log.Warn(ctx, "", errors.New("timeout on waiting for data used for comparing local and leader proposed data"))
+			return inputValueSource, errTimeout
+		}
+	}
+}
+
 // extractRoundMsgs returns all messages from the provided round.
-func extractRoundMsgs[I any, V comparable](buffer map[int64][]Msg[I, V], round int64) []Msg[I, V] {
-	var resp []Msg[I, V]
+func extractRoundMsgs[I any, V comparable, C any](buffer map[int64][]Msg[I, V, C], round int64) []Msg[I, V, C] {
+	var resp []Msg[I, V, C]
 
 	for _, msgs := range buffer {
 		for _, msg := range msgs {
@@ -406,7 +482,7 @@ func extractRoundMsgs[I any, V comparable](buffer map[int64][]Msg[I, V], round i
 }
 
 // classify returns the rule triggered upon receipt of the last message and its justifications.
-func classify[I any, V comparable](d Definition[I, V], instance I, round, process int64, buffer map[int64][]Msg[I, V], msg Msg[I, V]) (UponRule, []Msg[I, V]) {
+func classify[I any, V comparable, C any](d Definition[I, V, C], instance I, round, process int64, buffer map[int64][]Msg[I, V, C], msg Msg[I, V, C]) (UponRule, []Msg[I, V, C]) {
 	switch msg.Type() {
 	case MsgDecided:
 		return UponJustifiedDecided, msg.Justification()
@@ -484,7 +560,7 @@ func classify[I any, V comparable](d Definition[I, V], instance I, round, proces
 
 // nextMinRound implements algorithm 3:6 and returns the next minimum round
 // from received round change messages.
-func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], round int64) int64 {
+func nextMinRound[I any, V comparable, C any](d Definition[I, V, C], frc []Msg[I, V, C], round int64) int64 {
 	// Get all RoundChange messages with round (rj) higher than current round (ri)
 	if len(frc) < d.Faulty()+1 {
 		panic("bug: Frc too short")
@@ -509,11 +585,11 @@ func nextMinRound[I any, V comparable](d Definition[I, V], frc []Msg[I, V], roun
 }
 
 // isJustified returns true if message is justified or if it does not need justification.
-func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
+func isJustified[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V, C], compareFailureRound int64) bool {
 	//nolint:revive // `case MsgPrepare` and `case MsgCommit` having same result is not an issue, it improves readability.
 	switch msg.Type() {
 	case MsgPrePrepare:
-		return isJustifiedPrePrepare(d, instance, msg)
+		return isJustifiedPrePrepare(d, instance, msg, compareFailureRound)
 	case MsgPrepare:
 		return true
 	case MsgCommit:
@@ -529,7 +605,7 @@ func isJustified[I any, V comparable](d Definition[I, V], instance I, msg Msg[I,
 
 // isJustifiedRoundChange returns true if the ROUND_CHANGE message's
 // prepared round and value is justified.
-func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, V]) bool {
+func isJustifiedRoundChange[I any, V comparable, C any](d Definition[I, V, C], msg Msg[I, V, C]) bool {
 	if msg.Type() != MsgRoundChange {
 		panic("bug: not a round change message")
 	}
@@ -540,8 +616,7 @@ func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, 
 	pv := msg.PreparedValue()
 
 	if len(prepares) == 0 {
-		// If no justification, ensure null prepared round and value.
-		return pr == 0 && isZeroVal(pv)
+		return true
 	}
 
 	// No need to check for all possible combinations, since justified should only contain a one.
@@ -550,7 +625,7 @@ func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, 
 		return false
 	}
 
-	uniq := uniqSource[I, V]()
+	uniq := uniqSource[I, V, C]()
 	for _, prepare := range prepares {
 		if !uniq(prepare) {
 			return false
@@ -574,7 +649,7 @@ func isJustifiedRoundChange[I any, V comparable](d Definition[I, V], msg Msg[I, 
 
 // isJustifiedDecided returns true if the decided message is justified by quorum COMMIT messages
 // of identical round and value.
-func isJustifiedDecided[I any, V comparable](d Definition[I, V], msg Msg[I, V]) bool {
+func isJustifiedDecided[I any, V comparable, C any](d Definition[I, V, C], msg Msg[I, V, C]) bool {
 	if msg.Type() != MsgDecided {
 		panic("bug: not a decided message")
 	}
@@ -586,7 +661,7 @@ func isJustifiedDecided[I any, V comparable](d Definition[I, V], msg Msg[I, V]) 
 }
 
 // isJustifiedPrePrepare returns true if the PRE-PREPARE message is justified.
-func isJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, msg Msg[I, V]) bool {
+func isJustifiedPrePrepare[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V, C], compareFailureRound int64) bool {
 	if msg.Type() != MsgPrePrepare {
 		panic("bug: not a preprepare message")
 	}
@@ -595,7 +670,8 @@ func isJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, 
 		return false
 	}
 
-	if msg.Round() == 1 {
+	// Justified if PrePrepare is the first round OR if comparison failed previous round.
+	if msg.Round() == 1 || (msg.Round() == compareFailureRound+1) {
 		return true
 	}
 
@@ -613,7 +689,7 @@ func isJustifiedPrePrepare[I any, V comparable](d Definition[I, V], instance I, 
 
 // containsJustifiedQrc implements algorithm 4:1 and returns true and pv if
 // the messages contains a justified quorum ROUND_CHANGEs (Qrc).
-func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification []Msg[I, V], round int64) (V, bool) {
+func containsJustifiedQrc[I any, V comparable, C any](d Definition[I, V, C], justification []Msg[I, V, C], round int64) (V, bool) {
 	qrc := filterRoundChange(justification, round)
 	if len(qrc) < d.Quorum() {
 		return zeroVal[V](), false
@@ -663,12 +739,12 @@ func containsJustifiedQrc[I any, V comparable](d Definition[I, V], justification
 
 // getSingleJustifiedPrPv extracts the single justified Pr and Pv from quorum
 // PREPARES in list of messages. It expects only one possible combination.
-func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[I, V]) (int64, V, bool) {
+func getSingleJustifiedPrPv[I any, V comparable, C any](d Definition[I, V, C], msgs []Msg[I, V, C]) (int64, V, bool) {
 	var (
 		pr    int64
 		pv    V
 		count int
-		uniq  = uniqSource[I, V]()
+		uniq  = uniqSource[I, V, C]()
 	)
 
 	for _, msg := range msgs {
@@ -694,7 +770,7 @@ func getSingleJustifiedPrPv[I any, V comparable](d Definition[I, V], msgs []Msg[
 }
 
 // getJustifiedQrc implements algorithm 4:1 and returns a justified quorum ROUND_CHANGEs (Qrc).
-func getJustifiedQrc[I any, V comparable](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
+func getJustifiedQrc[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V, C], round int64) ([]Msg[I, V, C], bool) {
 	if qrc, ok := quorumNullPrepared(d, all, round); ok {
 		// Return any quorum null pv ROUND_CHANGE messages as Qrc.
 		return qrc, true
@@ -705,11 +781,11 @@ func getJustifiedQrc[I any, V comparable](d Definition[I, V], all []Msg[I, V], r
 	for _, prepares := range getPrepareQuorums(d, all) {
 		// See if we have quorum ROUND-CHANGE with HIGHEST_PREPARED(qrc) == prepares.Round.
 		var (
-			qrc                []Msg[I, V]
+			qrc                []Msg[I, V, C]
 			hasHighestPrepared bool
 			pr                 = prepares[0].Round()
 			pv                 = prepares[0].Value()
-			uniq               = uniqSource[I, V]()
+			uniq               = uniqSource[I, V, C]()
 		)
 		for _, rc := range roundChanges {
 			if rc.PreparedRound() > pr {
@@ -738,8 +814,8 @@ func getJustifiedQrc[I any, V comparable](d Definition[I, V], all []Msg[I, V], r
 // getFPlus1RoundChanges returns true and Faulty+1 ROUND-CHANGE messages (Frc) with
 // the rounds higher than the provided round. It returns the highest round
 // per process in order to jump furthest.
-func getFPlus1RoundChanges[I any, V comparable](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
-	highestBySource := make(map[int64]Msg[I, V])
+func getFPlus1RoundChanges[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V, C], round int64) ([]Msg[I, V, C], bool) {
+	highestBySource := make(map[int64]Msg[I, V, C])
 
 	for _, msg := range all {
 		if msg.Type() != MsgRoundChange {
@@ -765,7 +841,7 @@ func getFPlus1RoundChanges[I any, V comparable](d Definition[I, V], all []Msg[I,
 		return nil, false
 	}
 
-	var resp []Msg[I, V]
+	var resp []Msg[I, V, C]
 	for _, msg := range highestBySource {
 		resp = append(resp, msg)
 	}
@@ -774,26 +850,26 @@ func getFPlus1RoundChanges[I any, V comparable](d Definition[I, V], all []Msg[I,
 }
 
 // preparedKey defines the round and value of set of identical PREPARE messages.
-type preparedKey[I any, V comparable] struct {
+type preparedKey[I any, V comparable, C any] struct {
 	round int64
 	value V
 }
 
 // getPrepareQuorums returns all sets of quorum PREPARE messages
 // with identical rounds and values.
-func getPrepareQuorums[I any, V comparable](d Definition[I, V], all []Msg[I, V]) [][]Msg[I, V] {
-	sets := make(map[preparedKey[I, V]]map[int64]Msg[I, V]) // map[preparedKey]map[process]Msg
+func getPrepareQuorums[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V, C]) [][]Msg[I, V, C] {
+	sets := make(map[preparedKey[I, V, C]]map[int64]Msg[I, V, C]) // map[preparedKey]map[process]Msg
 
 	for _, msg := range all { // Flatten to get PREPARES included as ROUND-CHANGE justifications.
 		if msg.Type() != MsgPrepare {
 			continue
 		}
 
-		key := preparedKey[I, V]{round: msg.Round(), value: msg.Value()}
+		key := preparedKey[I, V, C]{round: msg.Round(), value: msg.Value()}
 
 		msgs, ok := sets[key]
 		if !ok {
-			msgs = make(map[int64]Msg[I, V])
+			msgs = make(map[int64]Msg[I, V, C])
 		}
 
 		msgs[msg.Source()] = msg
@@ -801,14 +877,14 @@ func getPrepareQuorums[I any, V comparable](d Definition[I, V], all []Msg[I, V])
 	}
 
 	// Return all quorums
-	var quorums [][]Msg[I, V]
+	var quorums [][]Msg[I, V, C]
 
 	for _, msgs := range sets {
 		if len(msgs) < d.Quorum() {
 			continue
 		}
 
-		var quorum []Msg[I, V]
+		var quorum []Msg[I, V, C]
 		for _, msg := range msgs {
 			quorum = append(quorum, msg)
 		}
@@ -821,7 +897,7 @@ func getPrepareQuorums[I any, V comparable](d Definition[I, V], all []Msg[I, V])
 
 // quorumNullPrepared implements condition J1 and returns Qrc and true if a quorum
 // of round changes messages (Qrc) for the round have null prepared round and value.
-func quorumNullPrepared[I any, V comparable](d Definition[I, V], all []Msg[I, V], round int64) ([]Msg[I, V], bool) {
+func quorumNullPrepared[I any, V comparable, C any](d Definition[I, V, C], all []Msg[I, V, C], round int64) ([]Msg[I, V, C], bool) {
 	var (
 		nullPr int64
 		nullPv V
@@ -833,21 +909,21 @@ func quorumNullPrepared[I any, V comparable](d Definition[I, V], all []Msg[I, V]
 }
 
 // filterByRoundAndValue returns the messages matching the type and value.
-func filterByRoundAndValue[I any, V comparable](msgs []Msg[I, V], typ MsgType, round int64, value V) []Msg[I, V] {
+func filterByRoundAndValue[I any, V comparable, C any](msgs []Msg[I, V, C], typ MsgType, round int64, value V) []Msg[I, V, C] {
 	return filterMsgs(msgs, typ, round, &value, nil, nil)
 }
 
 // filterRoundChange returns all round change messages for the provided round.
-func filterRoundChange[I any, V comparable](msgs []Msg[I, V], round int64) []Msg[I, V] {
+func filterRoundChange[I any, V comparable, C any](msgs []Msg[I, V, C], round int64) []Msg[I, V, C] {
 	return filterMsgs(msgs, MsgRoundChange, round, nil, nil, nil)
 }
 
 // filterMsgs returns one message per process matching the provided type and round
 // and optional value, pr, pv.
-func filterMsgs[I any, V comparable](msgs []Msg[I, V], typ MsgType, round int64, value *V, pr *int64, pv *V) []Msg[I, V] {
+func filterMsgs[I any, V comparable, C any](msgs []Msg[I, V, C], typ MsgType, round int64, value *V, pr *int64, pv *V) []Msg[I, V, C] {
 	var (
-		resp []Msg[I, V]
-		uniq = uniqSource[I, V]()
+		resp []Msg[I, V, C]
+		uniq = uniqSource[I, V, C]()
 	)
 
 	for _, msg := range msgs {
@@ -892,8 +968,8 @@ func isZeroVal[V comparable](v V) bool {
 
 // flatten returns the buffer as a list containing all the buffered messages
 // as well as all their justifications.
-func flatten[I any, V comparable](buffer map[int64][]Msg[I, V]) []Msg[I, V] {
-	var resp []Msg[I, V]
+func flatten[I any, V comparable, C any](buffer map[int64][]Msg[I, V, C]) []Msg[I, V, C] {
+	var resp []Msg[I, V, C]
 
 	for _, msgs := range buffer {
 		for _, msg := range msgs {
@@ -911,7 +987,7 @@ func flatten[I any, V comparable](buffer map[int64][]Msg[I, V]) []Msg[I, V] {
 }
 
 // uniqSource returns a function that returns true if the message is from a unique source.
-func uniqSource[I any, V comparable](msgs ...Msg[I, V]) func(Msg[I, V]) bool {
+func uniqSource[I any, V comparable, C any](msgs ...Msg[I, V, C]) func(Msg[I, V, C]) bool {
 	dedup := make(map[int64]bool)
 	for _, msg := range msgs {
 		if dedup[msg.Source()] {
@@ -921,7 +997,7 @@ func uniqSource[I any, V comparable](msgs ...Msg[I, V]) func(Msg[I, V]) bool {
 		dedup[msg.Source()] = true
 	}
 
-	return func(msg Msg[I, V]) bool {
+	return func(msg Msg[I, V, C]) bool {
 		if dedup[msg.Source()] {
 			return false
 		}

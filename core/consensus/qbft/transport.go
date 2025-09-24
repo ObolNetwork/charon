@@ -27,7 +27,7 @@ type transport struct {
 	// Immutable state
 	broadcaster broadcaster
 	privkey     *k1.PrivateKey
-	recvBuffer  chan qbft.Msg[core.Duty, [32]byte] // Instance inner receive buffer.
+	recvBuffer  chan qbft.Msg[core.Duty, [32]byte, proto.Message] // Instance inner receive buffer.
 	sniffer     *sniffer
 
 	// Mutable state
@@ -38,7 +38,7 @@ type transport struct {
 
 // newTransport creates a new qbftTransport.
 func newTransport(broadcaster broadcaster, privkey *k1.PrivateKey, valueCh <-chan proto.Message,
-	recvBuffer chan qbft.Msg[core.Duty, [32]byte], sniffer *sniffer,
+	recvBuffer chan qbft.Msg[core.Duty, [32]byte, proto.Message], sniffer *sniffer,
 ) *transport {
 	return &transport{
 		broadcaster: broadcaster,
@@ -92,7 +92,7 @@ func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 // Broadcast creates a msg and sends it to all peers (including self).
 func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, valueHash [32]byte, pr int64, pvHash [32]byte,
-	justification []qbft.Msg[core.Duty, [32]byte],
+	justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
 ) error {
 	// Get all hashes
 	var hashes [][32]byte
@@ -169,7 +169,7 @@ func (t *transport) SnifferInstance() *pbv1.SniffedConsensusInstance {
 }
 
 // RecvBuffer returns the inner receive buffer.
-func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte] {
+func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte, proto.Message] {
 	return t.recvBuffer
 }
 
@@ -177,7 +177,7 @@ func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte] {
 // and wrapping that in a msg type.
 func createMsg(typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, vHash [32]byte, pr int64, pvHash [32]byte,
-	values map[[32]byte]*anypb.Any, justification []qbft.Msg[core.Duty, [32]byte],
+	values map[[32]byte]*anypb.Any, justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
 	privkey *k1.PrivateKey,
 ) (Msg, error) {
 	pbMsg := &pbv1.QBFTMsg{
