@@ -24,21 +24,21 @@ import (
 )
 
 const (
-	// 1 ETH in Gwei.
+	// OneEthInGwei is 1 ETH in Gwei.
 	OneEthInGwei = 1000000000
 )
 
 var (
-	// Minimum allowed deposit amount (1ETH).
+	// MinDepositAmount is minimum allowed deposit amount (1ETH).
 	MinDepositAmount = eth2p0.Gwei(1000000000)
 
-	// Default deposit amount (32ETH).
+	// DefaultDepositAmount is default deposit amount (32ETH).
 	DefaultDepositAmount = eth2p0.Gwei(32000000000)
 
-	// Maximum allowed deposit amount when compounding is enabled.
+	// MaxCompoundingDepositAmount is maximum allowed deposit amount when compounding is enabled.
 	MaxCompoundingDepositAmount = eth2p0.Gwei(2048000000000)
 
-	// Maximum allowed deposit amount when compounding is disabled.
+	// MaxStandardDepositAmount is maximum allowed deposit amount when compounding is disabled.
 	MaxStandardDepositAmount = eth2p0.Gwei(32000000000)
 
 	// Withdrawal prefixes.

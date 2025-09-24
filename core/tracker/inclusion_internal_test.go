@@ -120,8 +120,10 @@ func TestDuplicateAttData(t *testing.T) {
 			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
 				zeroComm := bitfield.NewBitvector64()
 				zeroComm.SetBitAt(0, true)
+
 				oneComm := bitfield.NewBitvector64()
 				oneComm.SetBitAt(1, true)
+
 				twoComm := bitfield.NewBitvector64()
 				twoComm.SetBitAt(2, true)
 
@@ -146,8 +148,10 @@ func TestDuplicateAttData(t *testing.T) {
 				zeroTwoComm := bitfield.NewBitvector64()
 				zeroTwoComm.SetBitAt(0, true)
 				zeroTwoComm.SetBitAt(2, true)
+
 				oneComm := bitfield.NewBitvector64()
 				oneComm.SetBitAt(1, true)
+
 				complexAttestationAggBits := slices.Concat(aggBits1, aggBits2)
 
 				return []*eth2spec.VersionedAttestation{
@@ -169,8 +173,10 @@ func TestDuplicateAttData(t *testing.T) {
 			attestationsFunc: func(attData *eth2p0.AttestationData, aggBits1 bitfield.Bitlist, aggBits2 bitfield.Bitlist, aggBits3 bitfield.Bitlist) []*eth2spec.VersionedAttestation {
 				zeroComm := bitfield.NewBitvector64()
 				zeroComm.SetBitAt(0, true)
+
 				oneComm := bitfield.NewBitvector64()
 				oneComm.SetBitAt(1, true)
+
 				twoComm := bitfield.NewBitvector64()
 				twoComm.SetBitAt(2, true)
 

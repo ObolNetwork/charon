@@ -1,7 +1,5 @@
 // Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-// Command verifypr provides a tool to verify charon PRs against the template defined in docs/contributing.md.
-//
 //nolint:revive,cyclop
 package main
 

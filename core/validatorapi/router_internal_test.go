@@ -108,6 +108,7 @@ func TestRawRouter(t *testing.T) {
 			ProxyHandler: func(w http.ResponseWriter, r *http.Request) {
 				b, err := httputil.DumpRequest(r, false)
 				require.NoError(t, err)
+
 				_, _ = w.Write(b)
 			},
 		}
@@ -936,6 +937,7 @@ func TestRouter(t *testing.T) {
 		handler := testHandler{
 			ValidatorsFunc: func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
 				res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
 				for _, pubkey := range opts.PubKeys {
 					idx++
 					res[idx] = &eth2v1.Validator{

@@ -319,6 +319,7 @@ func testQBFT(t *testing.T, test test) {
 		},
 		LogUponRule: func(_ context.Context, instance int64, process, round int64, msg Msg[int64, int64], rule UponRule) {
 			t.Logf("%s %d => %v@%d -> %v@%d ~= %v", clock.NowStr(), msg.Source(), msg.Type(), msg.Round(), process, round, rule)
+
 			if round > maxRound {
 				cancel()
 			}
@@ -327,6 +328,7 @@ func testQBFT(t *testing.T, test test) {
 			if test.Fuzz {
 				return // Ignore unjust messages when fuzzing.
 			}
+
 			t.Logf("Unjust: %#v", msg)
 			cancel()
 		},
@@ -344,14 +346,17 @@ func testQBFT(t *testing.T, test test) {
 				if round > maxRound {
 					return errors.New("max round reach")
 				}
+
 				if typ == MsgCommit && int(round) <= test.CommitsAfter {
 					t.Logf("%s %v dropping early commit for round %d", clock.NowStr(), source, round)
 					return nil
 				}
 
 				t.Logf("%s %v => %v@%d", clock.NowStr(), source, typ, round)
+
 				msg := newMsg(typ, instance, source, round, value, pr, pv, justify)
 				receive <- msg // Always send to self first (no jitter, no drops).
+
 				bcast(t, broadcast, msg, test.BCastJitterMS, clock)
 
 				return nil

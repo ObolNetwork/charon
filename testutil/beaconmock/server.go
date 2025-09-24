@@ -96,6 +96,7 @@ func newHTTPServer(addr string, optionalHandlers map[string]http.HandlerFunc, ov
 			}
 
 			version := eth2spec.DataVersionBellatrix
+
 			resp, err := json.Marshal(signedBlockResponseJSON{
 				Version: &version,
 				Data:    testutil.RandomBellatrixSignedBeaconBlock(),

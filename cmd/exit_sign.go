@@ -35,6 +35,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 			if err := log.InitLogger(config.Log); err != nil {
 				return err
 			}
+
 			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())

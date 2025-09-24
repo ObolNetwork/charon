@@ -35,6 +35,7 @@ func startAlertCollector(ctx context.Context, dir string) chan string {
 		time.Sleep(time.Second * 10)
 
 		for ; ctx.Err() == nil; time.Sleep(iterSleep) { // Sleep for iterSleep before next iteration.
+			//nolint:revive // tls not required for testing.
 			cmd := exec.CommandContext(ctx, "docker", "compose", "exec", "-T", "curl", "curl", "-s", "http://prometheus:9090/api/v1/rules?type=alert")
 			cmd.Dir = dir
 

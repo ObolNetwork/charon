@@ -846,7 +846,7 @@ func VersionedBlindedSSZValueForT(t *testing.T, value any, version eth2util.Data
 	return resp
 }
 
-// VersionedBlindedSSZValueForT exposes the value method of a type for testing purposes.
+// VersionedSSZValueForT exposes the value method of a type for testing purposes.
 func VersionedSSZValueForT(t *testing.T, value any, version eth2util.DataVersion) sszType {
 	t.Helper()
 

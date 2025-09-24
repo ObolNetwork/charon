@@ -39,16 +39,21 @@ func NewMemExFunc(expectedPeers int) func() core.ParSigEx {
 			getSubs: func() []sub {
 				// Wait for all expected peers to be registered.
 				t0 := time.Now()
+
 				for {
 					mu.Lock()
+
 					if len(subs) == expectedPeers {
 						mu.Unlock()
 						break
 					}
+
 					mu.Unlock()
+
 					if time.Since(t0) > 10*time.Second {
 						panic("timeout waiting for all peers to register")
 					}
+
 					time.Sleep(time.Millisecond)
 				}
 
@@ -56,10 +61,12 @@ func NewMemExFunc(expectedPeers int) func() core.ParSigEx {
 				defer mu.Unlock()
 
 				var others []sub // Get other peer's subscriptions.
+
 				for index, s := range subs {
 					if index == i {
 						continue
 					}
+
 					others = append(others, s...)
 				}
 

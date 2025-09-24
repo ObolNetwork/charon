@@ -201,6 +201,7 @@ func TestInfraTest(t *testing.T) {
 			expectedErr: "",
 			cleanup: func(t *testing.T, p string) {
 				t.Helper()
+
 				err := os.Remove(p)
 				require.NoError(t, err)
 			},

@@ -104,7 +104,7 @@ func NewIncreasingRoundTimerWithDuty(duty core.Duty) RoundTimer {
 	}
 }
 
-// NewIncreasingRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty and custom clock.
+// NewIncreasingRoundTimerWithDutyAndClock returns a new eager double linear round timer type for a specific duty and custom clock.
 func NewIncreasingRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
 	return &increasingRoundTimer{
 		clock: clock,

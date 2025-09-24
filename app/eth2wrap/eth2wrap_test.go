@@ -64,6 +64,7 @@ func TestMulti(t *testing.T) {
 			name: "cl1 error, cl2 ok",
 			handle: func(cl1, cl2 chan *eth2v1.PeerCount, _ context.CancelFunc) {
 				close(cl1)
+
 				cl2 <- &eth2v1.PeerCount{Connected: 99}
 			},
 			expRes: &eth2api.Response[*eth2v1.PeerCount]{Data: &eth2v1.PeerCount{Connected: 99}},
@@ -90,6 +91,7 @@ func TestMulti(t *testing.T) {
 				cl2 <- &eth2v1.PeerCount{Connected: 99}
 
 				time.Sleep(time.Millisecond)
+
 				cl1 <- &eth2v1.PeerCount{Connected: 98} // This might flap?
 			},
 			expRes: &eth2api.Response[*eth2v1.PeerCount]{Data: &eth2v1.PeerCount{Connected: 99}},
