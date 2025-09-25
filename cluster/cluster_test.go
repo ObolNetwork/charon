@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -313,11 +314,5 @@ func TestDefinitionPeers(t *testing.T) {
 }
 
 func isAnyVersion(version string, list ...string) bool {
-	for _, v := range list {
-		if version == v {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(list, version)
 }

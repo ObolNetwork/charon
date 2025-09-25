@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1104,11 +1105,5 @@ func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- struct{}
 }
 
 func isAnyVersion(version string, versions ...string) bool {
-	for _, v := range versions {
-		if version == v {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(versions, version)
 }
