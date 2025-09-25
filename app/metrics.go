@@ -130,12 +130,9 @@ func initStartupMetrics(peerName string, threshold, numOperators, numValidators 
 	versionGauge.WithLabelValues(version.Version.String()).Set(1)
 	peerNameGauge.WithLabelValues(peerName).Set(1)
 
-	fs := []string{}
 	for _, f := range featureset.CustomEnabledAll() {
-		fs = append(fs, string(f))
+		featureFlagsGauge.WithLabelValues(string(f)).Set(1)
 	}
-
-	featureFlagsGauge.WithLabelValues(fs...).Set(1)
 
 	thresholdGauge.Set(float64(threshold))
 	operatorsGauge.Set(float64(numOperators))
