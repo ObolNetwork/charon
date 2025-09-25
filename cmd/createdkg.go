@@ -77,7 +77,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 		}
 
 		if config.Publish {
-			mustMarkFlagRequired(cmd, "operator-addresses")
+			cmd.MarkFlagsOneRequired("operator-addresses", "operator-enrs")
 		} else {
 			mustMarkFlagRequired(cmd, "operator-enrs")
 		}
