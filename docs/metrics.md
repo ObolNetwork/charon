@@ -42,6 +42,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_start_time_secs` | Gauge | Gauge set to the app start time of the binary in unix seconds |  |
 | `app_validator_stack_params` | Gauge | Parameters for each component of the validator stack in which this Charon instance is deployed into | `component, cli_parameters` |
 | `app_version` | Gauge | Constant gauge with label set to current app version | `version` |
+| `app_feature_flags` | Gauge | Constant gauge with labels set to custom feature flags set at start | `feature_flags` |
 | `cluster_network` | Gauge | Constant gauge with label set to the current network (chain) | `network` |
 | `cluster_operators` | Gauge | Number of operators in the cluster lock |  |
 | `cluster_threshold` | Gauge | Aggregation threshold in the cluster lock |  |

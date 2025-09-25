@@ -5,6 +5,7 @@ package app
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/version"
 )
@@ -68,6 +69,12 @@ var (
 			"4 if quorum peers are not connected.",
 	})
 
+	featureFlagsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Name:      "feature_flags",
+		Help:      "Constant gauge with custom enabled feature flags",
+	}, []string{"feature_flags"})
+
 	beaconNodePeerCountGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "beacon_node",
@@ -122,6 +129,13 @@ func initStartupMetrics(peerName string, threshold, numOperators, numValidators 
 	gitGauge.WithLabelValues(hash).Set(1)
 	versionGauge.WithLabelValues(version.Version.String()).Set(1)
 	peerNameGauge.WithLabelValues(peerName).Set(1)
+
+	fs := []string{}
+	for _, f := range featureset.CustomEnabledAll() {
+		fs = append(fs, string(f))
+	}
+
+	featureFlagsGauge.WithLabelValues(fs...).Set(1)
 
 	thresholdGauge.Set(float64(threshold))
 	operatorsGauge.Set(float64(numOperators))
