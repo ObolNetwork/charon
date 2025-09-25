@@ -169,8 +169,6 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 			return err
 		}
 
-		time.Sleep(100 * time.Millisecond)
-
 		if err := nextStepSync(ctx); err != nil {
 			return errors.Wrap(err, "sync next step")
 		}
