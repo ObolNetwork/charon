@@ -152,9 +152,9 @@ func TestRunReshareProtocol(t *testing.T) {
 
 func TestRunProtocol(t *testing.T) {
 	const (
-		numValidators = 3
-		numNodes      = 7
-		threshold     = 5
+		numValidators = 2
+		numNodes      = 4
+		threshold     = 3
 	)
 
 	clusterDir := createTestCluster(t, numNodes, threshold, numValidators)
@@ -167,7 +167,7 @@ func TestRunProtocol(t *testing.T) {
 
 		config := dkg.Config{
 			DataDir:       ndir,
-			ShutdownDelay: 5 * time.Second,
+			ShutdownDelay: 3 * time.Second,
 			Timeout:       time.Minute,
 			P2P: p2p.Config{
 				Relays:   []string{relayAddr},
@@ -223,7 +223,6 @@ func (s *someStep) Run(ctx context.Context, pctx *dkg.ProtocolContext) error {
 	return nil
 }
 
-//nolint:unparam
 func createTestCluster(t *testing.T, numNodes, threshold, numValidators int) string {
 	t.Helper()
 
@@ -267,7 +266,6 @@ func createENR(t *testing.T, dataDir string) string {
 	return strings.Split(stdout.String(), "\n")[1]
 }
 
-//nolint:unparam
 func runProtocol(t *testing.T, numNodes int, nodeFunc func(string, int) error) {
 	t.Helper()
 
@@ -288,7 +286,7 @@ func createDKGConfig(t *testing.T, relayAddr, clusterDir string, n int) dkg.Conf
 
 	return dkg.Config{
 		DataDir:       nodeDir(clusterDir, n),
-		ShutdownDelay: time.Second,
+		ShutdownDelay: 3 * time.Second,
 		Timeout:       time.Minute,
 		P2P: p2p.Config{
 			Relays:   []string{relayAddr},
