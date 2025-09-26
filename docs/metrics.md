@@ -24,6 +24,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_eth2_latency_seconds` | Histogram | Latency in seconds for eth2 beacon node requests | `endpoint` |
 | `app_eth2_requests_total` | Counter | Total number of requests sent to eth2 beacon node | `endpoint` |
 | `app_eth2_using_fallback` | Gauge | Indicates if client is using fallback (1) or primary (0) beacon node |  |
+| `app_feature_flags` | Gauge | Constant gauge with custom enabled feature flags | `feature_flags` |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
 | `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name` |
 | `app_health_metrics_high_cardinality` | Gauge | Metrics with high cardinality by name. | `name` |
@@ -42,7 +43,6 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_start_time_secs` | Gauge | Gauge set to the app start time of the binary in unix seconds |  |
 | `app_validator_stack_params` | Gauge | Parameters for each component of the validator stack in which this Charon instance is deployed into | `component, cli_parameters` |
 | `app_version` | Gauge | Constant gauge with label set to current app version | `version` |
-| `app_feature_flags` | Gauge | Constant gauge with labels set to custom feature flags set at start | `feature_flags` |
 | `cluster_network` | Gauge | Constant gauge with label set to the current network (chain) | `network` |
 | `cluster_operators` | Gauge | Number of operators in the cluster lock |  |
 | `cluster_threshold` | Gauge | Aggregation threshold in the cluster lock |  |
