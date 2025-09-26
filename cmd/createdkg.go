@@ -367,8 +367,8 @@ func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey
 		log.Info(ctx, "Direct the Node Operators to: "+generateLaunchpadLink(def.ConfigHash, conf.Network)+" to review the cluster configuration and begin the distributed key generation ceremony.")
 	} else {
 		log.Info(ctx, "Distributed Key Generation configuration created. Run one of the following commands from the directories where the associated .charon/charon-enr-private-key(s) that match these ENRs are: "+
-			"(Without docker): `charon dkg --definition-file=https://api.obol.tech/dv/"+generateAPILink(def.ConfigHash)+"` "+
-			"(With docker): `docker run --rm --it -v \"$(pwd):/opt/charon/.charon\" obolnetwork/charon:latest dkg --definition-file=https://api.obol.tech/dv/"+generateAPILink(def.ConfigHash)+"`")
+			"(Without docker): `charon dkg --definition-file="+generateAPILink(def.ConfigHash)+"` "+
+			"(With docker): `docker run --rm --it -v \"$(pwd):/opt/charon/.charon\" obolnetwork/charon:latest dkg --definition-file="+generateAPILink(def.ConfigHash)+"`")
 	}
 
 	return nil
