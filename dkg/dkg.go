@@ -163,7 +163,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// This DKG only supports a few specific config versions.
 	if def.Version != "v1.6.0" && def.Version != "v1.7.0" && def.Version != "v1.8.0" && def.Version != "v1.9.0" && def.Version != "v1.10.0" {
-		return errors.New("only v1.6.0, v1.7.0 and v1.8.0 cluster definition versions supported")
+		return errors.New("only v1.6.0 and newer cluster definition versions supported")
 	}
 
 	if err := validateKeymanagerFlags(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {

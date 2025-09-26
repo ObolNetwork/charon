@@ -2,7 +2,10 @@
 
 package cluster
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 const (
 	currentVersion = v1_10
@@ -40,13 +43,7 @@ var supportedVersions = map[string]bool{
 }
 
 func isAnyVersion(version string, versions ...string) bool {
-	for _, v := range versions {
-		if version == v {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(versions, version)
 }
 
 func isV1x3(version string) bool {
