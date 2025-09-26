@@ -1387,7 +1387,7 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 	}
 }
 
-// createProposeBlockResponse constructs proposeBlockV3Response object for given block.
+// createAggregateAttestation constructs aggregateAttestationV2Response object for given block.
 func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggregateAttestationV2Response, error) {
 	res := aggregateAttestationV2Response{Version: aggAtt.Version.String()}
 
