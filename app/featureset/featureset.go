@@ -104,3 +104,19 @@ func Enabled(feature Feature) bool {
 
 	return state[feature] >= minStatus
 }
+
+// CustomEnabledAll returns all custom enabled features.
+func CustomEnabledAll() []Feature {
+	initMu.Lock()
+	defer initMu.Unlock()
+
+	customEnabledFeatures := []Feature{}
+
+	for f, s := range state {
+		if s > statusStable {
+			customEnabledFeatures = append(customEnabledFeatures, f)
+		}
+	}
+
+	return customEnabledFeatures
+}

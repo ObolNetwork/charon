@@ -24,6 +24,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_eth2_latency_seconds` | Histogram | Latency in seconds for eth2 beacon node requests | `endpoint` |
 | `app_eth2_requests_total` | Counter | Total number of requests sent to eth2 beacon node | `endpoint` |
 | `app_eth2_using_fallback` | Gauge | Indicates if client is using fallback (1) or primary (0) beacon node |  |
+| `app_feature_flags` | Gauge | Constant gauge with custom enabled feature flags | `feature_flags` |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
 | `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name` |
 | `app_health_metrics_high_cardinality` | Gauge | Metrics with high cardinality by name. | `name` |
