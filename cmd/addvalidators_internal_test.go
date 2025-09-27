@@ -46,7 +46,7 @@ func TestRunAddValidators(t *testing.T) {
 	// Two sub-tests are run: with the `--unverified` flag and without.
 	conf := clusterConfig{
 		ClusterDir:        t.TempDir(),
-		Name:              "test_cluster",
+		Name:              t.Name(),
 		NumNodes:          4,
 		Threshold:         3,
 		NumDVs:            3,

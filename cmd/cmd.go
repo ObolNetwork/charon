@@ -48,6 +48,9 @@ func New() *cobra.Command {
 		newCombineCmd(newCombineFunc),
 		newAlphaCmd(
 			newAddValidatorsCmd(runAddValidators),
+			newReshareCmd(runReshare),
+			newAddOperatorsCmd(runAddOperators),
+			newRemoveOperatorsCmd(runRemoveOperators),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
 				newTestPeersCmd(runTestPeers),
