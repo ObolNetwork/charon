@@ -12,12 +12,12 @@ import (
 )
 
 var (
-	minLighthouseVersion, _ = version.Parse("v7.0.0")
-	minTekuVersion, _       = version.Parse("v25.4.1")
-	minLodestarVersion, _   = version.Parse("v1.29.0")
-	minNimbusVersion, _     = version.Parse("v25.4.0")
-	minPrysmVersion, _      = version.Parse("v6.0.0")
-	minGrandineVersion, _   = version.Parse("v1.1.0")
+	minLighthouseVersion, _ = version.Parse("v8.0.0-rc.0")
+	minTekuVersion, _       = version.Parse("v25.9.3")
+	minLodestarVersion, _   = version.Parse("v1.35.0-rc.1")
+	minNimbusVersion, _     = version.Parse("v25.9.2")
+	minPrysmVersion, _      = version.Parse("v6.1.0")
+	minGrandineVersion, _   = version.Parse("v2.0.0.rc0")
 
 	minimumBeaconNodeVersion = map[string]version.SemVer{
 		"Lighthouse": minLighthouseVersion,
