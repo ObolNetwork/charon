@@ -45,7 +45,7 @@ func newRecreatePrivateKeysCmd(runFunc func(context.Context, string, dkg.Config)
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
-	bindP2PFlags(cmd, &config.P2P)
+	bindP2PFlags(cmd, &config.P2P, defaultAlphaRelay)
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindEth1Flag(cmd.Flags(), &config.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)

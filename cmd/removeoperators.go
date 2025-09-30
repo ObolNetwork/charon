@@ -48,7 +48,7 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
-	bindP2PFlags(cmd, &dkgConfig.P2P)
+	bindP2PFlags(cmd, &dkgConfig.P2P, defaultAlphaRelay)
 	bindLogFlags(cmd.Flags(), &dkgConfig.Log)
 	bindEth1Flag(cmd.Flags(), &dkgConfig.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &dkgConfig.ShutdownDelay)
