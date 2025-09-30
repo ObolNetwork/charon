@@ -14,11 +14,11 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 )
 
-func TestNewReshareCmd(t *testing.T) {
-	cmd := newReshareCmd(runReshare)
+func TestNewRecreatePrivateKeysCmd(t *testing.T) {
+	cmd := newRecreatePrivateKeysCmd(runRecreatePrivateKeys)
 	require.NotNil(t, cmd)
-	require.Equal(t, "reshare", cmd.Use)
-	require.Equal(t, "Reshare existing validator keys", cmd.Short)
+	require.Equal(t, "recreate-private-keys", cmd.Use)
+	require.Equal(t, "Create new private key shares to replace existing validator private key shares", cmd.Short)
 	require.Empty(t, cmd.Flags().Args())
 }
 

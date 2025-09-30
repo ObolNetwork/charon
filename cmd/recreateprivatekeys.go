@@ -18,16 +18,16 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 )
 
-func newReshareCmd(runFunc func(context.Context, string, dkg.Config) error) *cobra.Command {
+func newRecreatePrivateKeysCmd(runFunc func(context.Context, string, dkg.Config) error) *cobra.Command {
 	var (
 		config    dkg.Config
 		outputDir string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "reshare",
-		Short: "Reshare existing validator keys",
-		Long:  `Reshares the existing validator keys retaining the same validator identities.`,
+		Use:   "recreate-private-keys",
+		Short: "Create new private key shares to replace existing validator private key shares",
+		Long:  `Creates new private key shares to replace the existing validator private keys while retaining the same operator identities.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(config.Log); err != nil {
@@ -53,7 +53,7 @@ func newReshareCmd(runFunc func(context.Context, string, dkg.Config) error) *cob
 	return cmd
 }
 
-func runReshare(ctx context.Context, outputDir string, config dkg.Config) error {
+func runRecreatePrivateKeys(ctx context.Context, outputDir string, config dkg.Config) error {
 	if err := validateReshareConfig(outputDir, config); err != nil {
 		return err
 	}
