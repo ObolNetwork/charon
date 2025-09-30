@@ -47,10 +47,12 @@ func New() *cobra.Command {
 		),
 		newCombineCmd(newCombineFunc),
 		newAlphaCmd(
-			newAddValidatorsCmd(runAddValidators),
-			newRecreatePrivateKeysCmd(runRecreatePrivateKeys),
-			newAddOperatorsCmd(runAddOperators),
-			newRemoveOperatorsCmd(runRemoveOperators),
+			newEditCmd(
+				newAddValidatorsCmd(runAddValidators),
+				newRecreatePrivateKeysCmd(runRecreatePrivateKeys),
+				newAddOperatorsCmd(runAddOperators),
+				newRemoveOperatorsCmd(runRemoveOperators),
+			),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
 				newTestPeersCmd(runTestPeers),

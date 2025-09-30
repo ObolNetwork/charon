@@ -29,7 +29,7 @@ func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dk
 	cmd := &cobra.Command{
 		Use:   "add-operators",
 		Short: "Add new operators to an existing distributed validator cluster",
-		Long:  `Adds new operators to an existing distributed validator cluster, leaving all validators intact.`,
+		Long:  `Adds new operators to an existing distributed validator cluster, keeping validator public keys unchanged.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			if err := log.InitLogger(dkgConfig.Log); err != nil {
