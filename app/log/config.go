@@ -319,13 +319,18 @@ func newStructuredLogger(format string, level zapcore.Level, color bool, ws zapc
 		opt(&encConfig)
 	}
 
-	var encoder zapcore.Encoder
+	var (
+		encoder zapcore.Encoder
+		pretty  bool
+	)
 
 	switch format {
 	case "logfmt":
 		encoder = zaplogfmt.NewEncoder(encConfig)
+		pretty = true
 	case "json":
 		encoder = zapcore.NewJSONEncoder(encConfig)
+		pretty = false
 	default:
 		return nil, errors.New("invalid logger format; not console, logfmt or json", z.Str("format", format))
 	}
@@ -333,6 +338,7 @@ func newStructuredLogger(format string, level zapcore.Level, color bool, ws zapc
 	structured := structuredEncoder{
 		Encoder:        encoder,
 		consoleEncoder: newConsoleEncoder(false, color, false),
+		pretty:         pretty,
 	}
 
 	return zap.New(
@@ -396,15 +402,19 @@ type structuredEncoder struct {
 	zapcore.Encoder
 
 	consoleEncoder zapcore.Encoder
+
+	pretty bool
 }
 
 func (e structuredEncoder) EncodeEntry(ent zapcore.Entry, fields []zap.Field) (*buffer.Buffer, error) {
-	pretty, err := e.consoleEncoder.EncodeEntry(ent, append([]zap.Field(nil), fields...))
-	if err != nil {
-		return nil, err
-	}
+	if e.pretty {
+		pretty, err := e.consoleEncoder.EncodeEntry(ent, append([]zap.Field(nil), fields...))
+		if err != nil {
+			return nil, err
+		}
 
-	fields = append(fields, zap.String("pretty", pretty.String()))
+		fields = append(fields, zap.String("pretty", pretty.String()))
+	}
 
 	for i, f := range fields {
 		if f.Key == keyStack {
