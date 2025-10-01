@@ -4,8 +4,8 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
 	"time"
 
@@ -14,7 +14,6 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -34,7 +33,9 @@ const (
 type addValidatorsConfig struct {
 	NumValidators     int
 	Unverified        bool
-	DataDir           string
+	PrivateKeyPath    string
+	LockFilePath      string
+	ValidatorKeysDir  string
 	OutputDir         string
 	DKG               dkg.Config
 	WithdrawalAddrs   []string
@@ -62,7 +63,9 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 
 	// Bind `add-validator` flags.
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of new validators to generate and add to the existing cluster.")
-	cmd.Flags().StringVar(&config.DataDir, "data-dir", ".charon", "The source charon folder with existing cluster data (lock, validator_keys, etc.).")
+	cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
+	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new (combined) cluster data. Must be empty.")
 	cmd.Flags().BoolVar(&config.Unverified, "unverified", false,
 		"If charon has no access to the existing validator keys, this flag allows the addition to proceed, but skips hashing and signing the new cluster lock data. charon run must be started with --no-verify flag.")
@@ -92,10 +95,10 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 		return err
 	}
 
-	log.Info(ctx, "Running add-validators", z.Int("numValidators", conf.NumValidators), z.Str("dataDir", conf.DataDir), z.Str("outputDir", conf.OutputDir))
+	log.Info(ctx, "Starting add-validators ceremony", z.Int("numValidators", conf.NumValidators), z.Str("outputDir", conf.OutputDir))
 
 	// Loading the existing cluster lock file.
-	lock, err := loadLockJSON(ctx, conf.DataDir, conf.DKG)
+	lock, err := dkg.LoadAndVerifyClusterLock(ctx, conf.LockFilePath, conf.DKG.ExecutionEngineAddr, conf.DKG.NoVerify)
 	if err != nil {
 		return err
 	}
@@ -104,12 +107,11 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	var secrets []tbls.PrivateKey
 
 	if !conf.Unverified {
-		keyStorePath := filepath.Join(conf.DataDir, validatorKeysSubDir)
-		log.Info(ctx, "Loading keystore", z.Str("path", keyStorePath))
+		log.Info(ctx, "Loading keystore", z.Str("path", conf.ValidatorKeysDir))
 
-		privateKeyFiles, err := keystore.LoadFilesUnordered(keyStorePath)
+		privateKeyFiles, err := keystore.LoadFilesUnordered(conf.ValidatorKeysDir)
 		if err != nil {
-			return errors.Wrap(err, "cannot load private key share", z.Str("path", keyStorePath))
+			return errors.Wrap(err, "cannot load private key share", z.Str("path", conf.ValidatorKeysDir))
 		}
 
 		secrets, err = privateKeyFiles.SequencedKeys()
@@ -122,9 +124,11 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	// Loading the existing deposit data files.
 	// In DKG ceremony we will merge the existing deposit data files with the new ones.
-	depositData, err := deposit.ReadDepositDataFiles(conf.DataDir)
+	maybeDataDir := path.Dir(conf.LockFilePath)
+
+	depositData, err := deposit.ReadDepositDataFiles(maybeDataDir)
 	if err != nil {
-		return errors.Wrap(err, "read deposit data files", z.Str("path", conf.DataDir))
+		return errors.Wrap(err, "read deposit data files", z.Str("path", maybeDataDir))
 	}
 
 	log.Info(ctx, "Loaded deposit data files", z.Int("numFiles", len(depositData)))
@@ -135,7 +139,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 		return err
 	}
 
-	if err := app.CopyFile(filepath.Join(conf.DataDir, enrPrivateKeyFile), filepath.Join(conf.OutputDir, enrPrivateKeyFile)); err != nil {
+	if err := app.CopyFile(conf.PrivateKeyPath, filepath.Join(conf.OutputDir, enrPrivateKeyFile)); err != nil {
 		return err
 	}
 
@@ -178,48 +182,6 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 	return nil
 }
 
-func loadLockJSON(ctx context.Context, dataDir string, conf dkg.Config) (*cluster.Lock, error) {
-	lockFilePath := filepath.Join(dataDir, clusterLockFile)
-
-	b, err := os.ReadFile(lockFilePath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
-	var lock cluster.Lock
-	if err := json.Unmarshal(b, &lock); err != nil {
-		return nil, errors.Wrap(err, "unmarshal cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
-	if err := verifyLock(ctx, lock, conf); err != nil {
-		return nil, err
-	}
-
-	return &lock, nil
-}
-
-func verifyLock(ctx context.Context, lock cluster.Lock, conf dkg.Config) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-	go eth1Cl.Run(ctx)
-
-	if err := lock.VerifyHashes(); err != nil && !conf.NoVerify {
-		return errors.Wrap(err, "cluster lock hashes verification failed. Run with --no-verify to bypass verification at own risk")
-	} else if err != nil && conf.NoVerify {
-		log.Warn(ctx, "Ignoring failed cluster lock hashes verification due to --no-verify flag", err)
-	}
-
-	if err := lock.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
-		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
-	} else if err != nil && conf.NoVerify {
-		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
-	}
-
-	return nil
-}
-
 func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error) {
 	if config.NumValidators <= 0 {
 		return errors.New("num-validators must be greater than 0")
@@ -229,18 +191,15 @@ func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error
 		return errors.New("output-dir is required")
 	}
 
-	if !app.FileExists(config.DataDir) {
-		return errors.New("data-dir is required")
+	if !app.FileExists(config.PrivateKeyPath) {
+		return errors.New("private-key-file is required")
 	}
 
-	lockFile := filepath.Join(config.DataDir, clusterLockFile)
-	if !app.FileExists(lockFile) {
-		return errors.New("data-dir must contain a cluster-lock.json file")
+	if !app.FileExists(config.LockFilePath) {
+		return errors.New("lock-file is required")
 	}
 
-	validatorKeysDir := filepath.Join(config.DataDir, validatorKeysSubDir)
-
-	keyFiles, err := os.ReadDir(validatorKeysDir)
+	keyFiles, err := os.ReadDir(config.ValidatorKeysDir)
 
 	validatorKeysDirPresent := err == nil && len(keyFiles) > 0
 	if validatorKeysDirPresent && config.Unverified {
