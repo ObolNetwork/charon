@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -54,17 +54,18 @@ type ProtocolStep interface {
 // ProtocolContext is mutable context propagated across protocol steps.
 type ProtocolContext struct {
 	// The fields populated by the protocol runnner, before PostInit is called.
-	Config        Config
-	Lock          *cluster.Lock
-	Shares        []share.Share // May be nil if validator_keys dir does not exist.
-	ETH1Client    eth1wrap.EthClientRunner
-	ENRPrivateKey *k1.PrivateKey
-	ThisPeerID    peer.ID
-	ThisNodeIdx   cluster.NodeIdx
-	ThisNode      host.Host
-	Peers         []p2p.Peer // Initially populated from GetPeers result.
-	PeerIDs       []peer.ID
-	PeerMap       map[peer.ID]cluster.NodeIdx
+	Config         Config
+	PrivateKeyPath string
+	Lock           *cluster.Lock
+	Shares         []share.Share // May be nil if validator_keys dir does not exist.
+	ETH1Client     eth1wrap.EthClientRunner
+	ENRPrivateKey  *k1.PrivateKey
+	ThisPeerID     peer.ID
+	ThisNodeIdx    cluster.NodeIdx
+	ThisNode       host.Host
+	Peers          []p2p.Peer // Initially populated from GetPeers result.
+	PeerIDs        []peer.ID
+	PeerMap        map[peer.ID]cluster.NodeIdx
 
 	// The fields populated by the protocol in PostInit, before any steps are run.
 	// Note that any fields of the structure can be modified by the protocol in PostInit.
@@ -74,23 +75,23 @@ type ProtocolContext struct {
 }
 
 // RunProtocol runs the given DKG protocol with the provided configuration.
-func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
+func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKeyPath, validatorKeysDir string, config Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	lock, err := LoadAndVerifyClusterLock(ctx, config)
+	lock, err := LoadAndVerifyClusterLock(ctx, lockFilePath, config.ExecutionEngineAddr, config.NoVerify)
 	if err != nil {
 		return errors.Wrap(err, "load cluster lock")
 	}
 
 	protocolCtx := &ProtocolContext{
-		Config: config,
-		Lock:   lock,
+		Config:         config,
+		Lock:           lock,
+		PrivateKeyPath: privateKeyPath,
 	}
 
-	validatorKeysDir := filepath.Join(config.DataDir, validatorKeysSubDir)
 	if _, err := os.Stat(validatorKeysDir); err == nil || !os.IsNotExist(err) {
-		secrets, err := LoadSecrets(config.DataDir)
+		secrets, err := LoadSecrets(validatorKeysDir)
 		if err != nil {
 			return errors.Wrap(err, "load secrets")
 		}
@@ -117,7 +118,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 	protocolCtx.ETH1Client = eth1wrap.NewDefaultEthClientRunner(config.ExecutionEngineAddr)
 	go protocolCtx.ETH1Client.Run(ctx)
 
-	enrPrivateKey, err := p2p.LoadPrivKey(config.DataDir)
+	enrPrivateKey, err := LoadPrivKey(privateKeyPath)
 	if err != nil {
 		return err
 	}
@@ -184,9 +185,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, config Config) error {
 }
 
 // LoadAndVerifyClusterLock loads the cluster lock from disk and verifies its hashes and signatures.
-func LoadAndVerifyClusterLock(ctx context.Context, conf Config) (*cluster.Lock, error) {
-	lockFilePath := filepath.Join(conf.DataDir, clusterLockFile)
-
+func LoadAndVerifyClusterLock(ctx context.Context, lockFilePath, executionEngineAddr string, noVerify bool) (*cluster.Lock, error) {
 	b, err := os.ReadFile(lockFilePath)
 	if err != nil {
 		return nil, errors.Wrap(err, "read cluster-lock.json", z.Str("path", lockFilePath))
@@ -200,18 +199,18 @@ func LoadAndVerifyClusterLock(ctx context.Context, conf Config) (*cluster.Lock, 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
 	go eth1Cl.Run(ctx)
 
-	if err := lock.VerifyHashes(); err != nil && !conf.NoVerify {
+	if err := lock.VerifyHashes(); err != nil && !noVerify {
 		return nil, errors.Wrap(err, "cluster lock hashes verification failed. Run with --no-verify to bypass verification at own risk")
-	} else if err != nil && conf.NoVerify {
+	} else if err != nil && noVerify {
 		log.Warn(ctx, "Ignoring failed cluster lock hashes verification due to --no-verify flag", err)
 	}
 
-	if err := lock.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
+	if err := lock.VerifySignatures(eth1Cl); err != nil && !noVerify {
 		return nil, errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
-	} else if err != nil && conf.NoVerify {
+	} else if err != nil && noVerify {
 		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}
 
@@ -219,14 +218,12 @@ func LoadAndVerifyClusterLock(ctx context.Context, conf Config) (*cluster.Lock, 
 }
 
 // LoadSecrets loads the private key shares from the validator keys subdirectory in the given data directory.
-func LoadSecrets(dataDir string) ([]tbls.PrivateKey, error) {
+func LoadSecrets(validatorKeysDir string) ([]tbls.PrivateKey, error) {
 	var secrets []tbls.PrivateKey
 
-	keyStorePath := filepath.Join(dataDir, validatorKeysSubDir)
-
-	privateKeyFiles, err := keystore.LoadFilesUnordered(keyStorePath)
+	privateKeyFiles, err := keystore.LoadFilesUnordered(validatorKeysDir)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot load private key share", z.Str("path", keyStorePath))
+		return nil, errors.Wrap(err, "cannot load private key share", z.Str("path", validatorKeysDir))
 	}
 
 	secrets, err = privateKeyFiles.SequencedKeys()
@@ -235,6 +232,16 @@ func LoadSecrets(dataDir string) ([]tbls.PrivateKey, error) {
 	}
 
 	return secrets, nil
+}
+
+// LoadPrivKey loads a secp256k1 private key from the given file path.
+func LoadPrivKey(privateKeyPath string) (*k1.PrivateKey, error) {
+	key, err := k1util.Load(privateKeyPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "load priv key")
+	}
+
+	return key, nil
 }
 
 func buildPeerMap(peers []p2p.Peer) ([]peer.ID, map[peer.ID]cluster.NodeIdx) {

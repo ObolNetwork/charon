@@ -214,13 +214,11 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	shares := valKeysToSharesNode0(t, valKeys, lock.Validators)
 
 	pctx := &ProtocolContext{
-		Config: Config{
-			DataDir: dataDir,
-		},
-		Lock:          &lock,
-		ENRPrivateKey: nodeKeys[0],
-		Shares:        shares,
-		ThisNodeIdx:   cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1},
+		Lock:           &lock,
+		PrivateKeyPath: p2p.KeyPath(dataDir),
+		ENRPrivateKey:  nodeKeys[0],
+		Shares:         shares,
+		ThisNodeIdx:    cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1},
 	}
 	err = step.Run(t.Context(), pctx)
 
@@ -239,7 +237,8 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, entries, 6) // two files per validator
 
-	l, err := LoadAndVerifyClusterLock(t.Context(), Config{DataDir: step.outputDir, NoVerify: true})
+	lockFilePath := filepath.Join(step.outputDir, clusterLockFile)
+	l, err := LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
 	require.NoError(t, err)
 	require.Equal(t, lock, *l)
 }

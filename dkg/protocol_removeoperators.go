@@ -20,14 +20,22 @@ import (
 // RemoveOperatorsConfig contains the configuration for the remove-operators protocol.
 // Typically populated from command line flags.
 type RemoveOperatorsConfig struct {
-	OutputDir    string
-	OldENRs      []string
-	NewThreshold int
+	PrivateKeyPath   string
+	LockFilePath     string
+	ValidatorKeysDir string
+	OutputDir        string
+	OldENRs          []string
+	NewThreshold     int
 }
 
 // RunRemoveOperatorsProtocol runs the remove-operators DKG protocol.
 func RunRemoveOperatorsProtocol(ctx context.Context, config RemoveOperatorsConfig, dkgConfig Config) error {
-	return RunProtocol(ctx, newRemoveOperatorsProtocol(config), dkgConfig)
+	return RunProtocol(ctx,
+		newRemoveOperatorsProtocol(config),
+		config.LockFilePath,
+		config.PrivateKeyPath,
+		config.ValidatorKeysDir,
+		dkgConfig)
 }
 
 type removeOperatorsProtocol struct {

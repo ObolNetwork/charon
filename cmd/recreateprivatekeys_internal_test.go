@@ -26,6 +26,8 @@ func TestValidateReshareConfig(t *testing.T) {
 	realDir := t.TempDir()
 	err := os.WriteFile(filepath.Join(realDir, clusterLockFile), []byte("{}"), 0o444)
 	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(realDir, enrPrivateKeyFile), []byte("{}"), 0o444)
+	require.NoError(t, err)
 
 	validatorKeysDir := filepath.Join(realDir, validatorKeysSubDir)
 	err = app.CreateNewEmptyDir(validatorKeysDir)
@@ -34,40 +36,39 @@ func TestValidateReshareConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name      string
-		outputDir string
-		config    dkg.Config
-		numOps    int
-		errMsg    string
+		name   string
+		config dkg.ReshareConfig
+		numOps int
+		errMsg string
 	}{
 		{
-			name:      "output dir is required",
-			outputDir: "",
-			config:    dkg.Config{},
-			errMsg:    "output-dir is required",
+			name:   "output dir is required",
+			config: dkg.ReshareConfig{},
+			errMsg: "output-dir is required",
 		},
 		{
-			name:      "data dir is required",
-			outputDir: ".",
-			config: dkg.Config{
-				DataDir: "",
+			name:   "lock-file is required",
+			config: dkg.ReshareConfig{OutputDir: "."},
+			errMsg: "lock-file is required",
+		},
+		{
+			name: "private-key-file is required",
+			config: dkg.ReshareConfig{
+				OutputDir:    ".",
+				LockFilePath: filepath.Join(realDir, clusterLockFile),
 			},
-			errMsg: "data-dir is required",
+			errMsg: "private-key-file is required",
 		},
 		{
-			name:      "missing lock file",
-			outputDir: ".",
-			config: dkg.Config{
-				DataDir: ".",
-			},
-			errMsg: "data-dir must contain a cluster-lock.json file",
-		},
-		{
-			name:      "timeout too low",
-			outputDir: ".",
-			config: dkg.Config{
-				DataDir: realDir,
-				Timeout: time.Second,
+			name: "timeout too low",
+			config: dkg.ReshareConfig{
+				OutputDir:        ".",
+				LockFilePath:     filepath.Join(realDir, clusterLockFile),
+				PrivateKeyPath:   filepath.Join(realDir, enrPrivateKeyFile),
+				ValidatorKeysDir: validatorKeysDir,
+				DKGConfig: dkg.Config{
+					Timeout: time.Second,
+				},
 			},
 			errMsg: "timeout must be at least 1 minute",
 		},
@@ -75,7 +76,7 @@ func TestValidateReshareConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateReshareConfig(tt.outputDir, tt.config)
+			err := validateReshareConfig(tt.config)
 			if tt.errMsg != "" {
 				require.Equal(t, tt.errMsg, err.Error())
 			} else {
@@ -88,20 +89,27 @@ func TestValidateReshareConfig(t *testing.T) {
 		srcDir := t.TempDir()
 		err := os.WriteFile(filepath.Join(srcDir, clusterLockFile), []byte("{}"), 0o444)
 		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(srcDir, enrPrivateKeyFile), []byte("{}"), 0o444)
+		require.NoError(t, err)
 
-		outputDir := "."
-		config := dkg.Config{
-			DataDir: srcDir,
+		config := dkg.ReshareConfig{
+			OutputDir:      ".",
+			LockFilePath:   filepath.Join(srcDir, clusterLockFile),
+			PrivateKeyPath: filepath.Join(srcDir, enrPrivateKeyFile),
+			DKGConfig: dkg.Config{
+				Timeout: time.Minute,
+			},
 		}
 
-		err = validateReshareConfig(outputDir, config)
-		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
+		err = validateReshareConfig(config)
+		require.Equal(t, "validator-keys-dir is required", err.Error())
 
 		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
 		err = app.CreateNewEmptyDir(validatorKeysDir)
 		require.NoError(t, err)
 
-		err = validateReshareConfig(outputDir, config)
-		require.Equal(t, "data-dir must contain a non-empty validator_keys directory", err.Error())
+		config.ValidatorKeysDir = validatorKeysDir
+		err = validateReshareConfig(config)
+		require.Equal(t, "validator-keys-dir must be a non-empty directory", err.Error())
 	})
 }

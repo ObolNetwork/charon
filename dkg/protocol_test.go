@@ -29,7 +29,8 @@ import (
 )
 
 const (
-	clusterLockFile = "cluster-lock.json"
+	clusterLockFile  = "cluster-lock.json"
+	validatorKeysDir = "validator_keys"
 )
 
 func TestRemoveOperatorsProtocol(t *testing.T) {
@@ -42,7 +43,8 @@ func TestRemoveOperatorsProtocol(t *testing.T) {
 	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
 	dstClusterDir := t.TempDir()
 
-	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), dkg.Config{DataDir: nodeDir(srcClusterDir, 0)})
+	lockFilePath := path.Join(nodeDir(srcClusterDir, 0), clusterLockFile)
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
 	require.NoError(t, err)
 
 	oldENRs := []string{
@@ -56,10 +58,14 @@ func TestRemoveOperatorsProtocol(t *testing.T) {
 	defer cancel()
 
 	runProtocol(t, numNodes, func(relayAddr string, n int) error {
-		dkgConfig := createDKGConfig(t, relayAddr, srcClusterDir, n)
+		dkgConfig := createDKGConfig(t, relayAddr)
+		ndir := nodeDir(srcClusterDir, n)
 		removeConfig := dkg.RemoveOperatorsConfig{
-			OutputDir: nodeDir(dstClusterDir, n),
-			OldENRs:   oldENRs,
+			LockFilePath:     path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:   p2p.KeyPath(ndir),
+			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
+			OutputDir:        nodeDir(dstClusterDir, n),
+			OldENRs:          oldENRs,
 		}
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
@@ -102,11 +108,15 @@ func TestRunAddOperatorsProtocol(t *testing.T) {
 	defer cancel()
 
 	runProtocol(t, totalNodes, func(relayAddr string, n int) error {
-		dkgConfig := createDKGConfig(t, relayAddr, srcClusterDir, n)
+		dkgConfig := createDKGConfig(t, relayAddr)
+		ndir := nodeDir(srcClusterDir, n)
 		addConfig := dkg.AddOperatorsConfig{
-			OutputDir:    nodeDir(dstClusterDir, n),
-			NewThreshold: newThreshold,
-			NewENRs:      enrs,
+			LockFilePath:     path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:   p2p.KeyPath(ndir),
+			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
+			OutputDir:        nodeDir(dstClusterDir, n),
+			NewThreshold:     newThreshold,
+			NewENRs:          enrs,
 		}
 
 		err := dkg.RunAddOperatorsProtocol(ctx, addConfig, dkgConfig)
@@ -135,10 +145,19 @@ func TestRunReshareProtocol(t *testing.T) {
 	defer cancel()
 
 	runProtocol(t, numNodes, func(relayAddr string, n int) error {
-		dkgConfig := createDKGConfig(t, relayAddr, srcClusterDir, n)
+		dkgConfig := createDKGConfig(t, relayAddr)
 		outputDir := nodeDir(dstClusterDir, n)
+		dataDir := nodeDir(srcClusterDir, n)
 
-		err := dkg.RunReshareProtocol(ctx, outputDir, dkgConfig)
+		reshareConfig := dkg.ReshareConfig{
+			DKGConfig:        dkgConfig,
+			PrivateKeyPath:   p2p.KeyPath(dataDir),
+			LockFilePath:     path.Join(dataDir, clusterLockFile),
+			ValidatorKeysDir: path.Join(dataDir, validatorKeysDir),
+			OutputDir:        outputDir,
+		}
+
+		err := dkg.RunReshareProtocol(ctx, reshareConfig)
 		if err != nil {
 			cancel()
 			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
@@ -166,7 +185,6 @@ func TestRunProtocol(t *testing.T) {
 		ndir := nodeDir(clusterDir, n)
 
 		config := dkg.Config{
-			DataDir:       ndir,
 			ShutdownDelay: 3 * time.Second,
 			Timeout:       time.Minute,
 			P2P: p2p.Config{
@@ -179,7 +197,11 @@ func TestRunProtocol(t *testing.T) {
 			stepsCounterCh <- protocol.stepCounter
 		}()
 
-		return dkg.RunProtocol(t.Context(), protocol, config)
+		lockFilePath := path.Join(ndir, clusterLockFile)
+		privateKeyPath := p2p.KeyPath(ndir)
+		validatorKeysDir := path.Join(ndir, validatorKeysDir)
+
+		return dkg.RunProtocol(t.Context(), protocol, lockFilePath, privateKeyPath, validatorKeysDir, config)
 	})
 
 	for range numNodes {
@@ -281,11 +303,10 @@ func runProtocol(t *testing.T, numNodes int, nodeFunc func(string, int) error) {
 	require.NoError(t, eg.Wait())
 }
 
-func createDKGConfig(t *testing.T, relayAddr, clusterDir string, n int) dkg.Config {
+func createDKGConfig(t *testing.T, relayAddr string) dkg.Config {
 	t.Helper()
 
 	return dkg.Config{
-		DataDir:       nodeDir(clusterDir, n),
 		ShutdownDelay: 3 * time.Second,
 		Timeout:       time.Minute,
 		P2P: p2p.Config{
@@ -321,12 +342,13 @@ func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) {
 	clusterSecrets := make([][]tbls.PrivateKey, numNodes)
 
 	for i, ndir := range nodeDirs {
-		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), dkg.Config{DataDir: ndir})
+		lockFilePath := path.Join(ndir, clusterLockFile)
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
 		require.NoError(t, err, "nodeDir: %s", ndir)
 		require.Len(t, lock.Operators, numNodes)
 		require.Len(t, lock.Validators, numVals)
 
-		secrets, err := dkg.LoadSecrets(ndir)
+		secrets, err := dkg.LoadSecrets(path.Join(ndir, validatorKeysDir))
 		require.NoError(t, err)
 		require.Len(t, secrets, numVals)
 

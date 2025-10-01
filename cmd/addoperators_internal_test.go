@@ -3,15 +3,15 @@
 package cmd
 
 import (
-	"os"
-	"path/filepath"
+	"bytes"
+	"path"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/dkg"
-	"github.com/obolnetwork/charon/p2p"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 func TestNewAddOperatorsCmd(t *testing.T) {
@@ -23,13 +23,25 @@ func TestNewAddOperatorsCmd(t *testing.T) {
 }
 
 func TestValidateAddOperatorsConfig(t *testing.T) {
-	realDir := t.TempDir()
-	lock := mustLoadTestLockFile(t, "testdata/test_cluster_lock.json")
-	lockBytes, err := lock.MarshalJSON()
+	srcDir := t.TempDir()
+	conf := clusterConfig{
+		ClusterDir:        srcDir,
+		Name:              t.Name(),
+		NumNodes:          4,
+		Threshold:         3,
+		NumDVs:            3,
+		Network:           eth2util.Holesky.Name,
+		TargetGasLimit:    36000000,
+		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+	}
+
+	var buf bytes.Buffer
+
+	err := runCreateCluster(t.Context(), &buf, conf)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(realDir, clusterLockFile), lockBytes, 0o444)
-	require.NoError(t, err)
-	_, err = p2p.NewSavedPrivKey(realDir)
+
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(nodeDir(srcDir, 0), clusterLockFile), "", true)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -40,6 +52,11 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 		errMsg    string
 	}{
 		{
+			name:      "output dir is required",
+			cmdConfig: dkg.AddOperatorsConfig{},
+			errMsg:    "output-dir is required",
+		},
+		{
 			name: "missing new operator enrs",
 			cmdConfig: dkg.AddOperatorsConfig{
 				OutputDir: ".",
@@ -47,77 +64,62 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 			errMsg: "new-operator-enrs is required",
 		},
 		{
-			name: "output dir is required",
-			cmdConfig: dkg.AddOperatorsConfig{
-				OutputDir: "",
-				NewENRs:   []string{"enr:-IS4QH"},
-			},
-			errMsg: "output-dir is required",
-		},
-		{
-			name: "data dir is required",
+			name: "lock-file is required",
 			cmdConfig: dkg.AddOperatorsConfig{
 				OutputDir: ".",
 				NewENRs:   []string{"enr:-IS4QH"},
 			},
-			errMsg: "data-dir is required",
-		},
-		{
-			name: "missing lock file",
-			cmdConfig: dkg.AddOperatorsConfig{
-				OutputDir: ".",
-				NewENRs:   []string{"enr:-IS4QH"},
-			},
-			dkgConfig: dkg.Config{
-				DataDir: ".",
-			},
-			errMsg: "data-dir must contain a cluster-lock.json file",
+			errMsg: "lock-file does not exist",
 		},
 		{
 			name: "timeout too low",
 			cmdConfig: dkg.AddOperatorsConfig{
-				OutputDir: ".",
-				NewENRs:   []string{"enr:-IS4QH"},
+				OutputDir:      ".",
+				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				NewENRs:        []string{"enr:-IS4QH"},
 			},
 			dkgConfig: dkg.Config{
-				DataDir: realDir,
 				Timeout: time.Second,
 			},
 			errMsg: "timeout must be at least 1 minute",
 		},
 		{
-			name: "new operator enr matches existing",
-			cmdConfig: dkg.AddOperatorsConfig{
-				OutputDir: ".",
-				NewENRs:   []string{lock.Operators[0].ENR},
-			},
-			dkgConfig: dkg.Config{
-				DataDir: realDir,
-				Timeout: time.Minute,
-			},
-			errMsg: "new-operator-enrs contains an existing operator",
-		},
-		{
 			name: "duplicate new operator enrs",
 			cmdConfig: dkg.AddOperatorsConfig{
-				OutputDir: ".",
-				NewENRs:   []string{"enr:-IS4QH", "enr:-IS4QH"},
+				OutputDir:      ".",
+				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				NewENRs:        []string{"enr:-IS4QH", "enr:-IS4QH"},
 			},
 			dkgConfig: dkg.Config{
-				DataDir: realDir,
 				Timeout: time.Minute,
 			},
 			errMsg: "new-operator-enrs contains duplicate ENRs",
 		},
 		{
-			name: "new threshold too low",
+			name: "new operator enr matches existing",
 			cmdConfig: dkg.AddOperatorsConfig{
-				OutputDir:    ".",
-				NewENRs:      []string{"enr:-IS4QH"},
-				NewThreshold: 1,
+				OutputDir:      ".",
+				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				NewENRs:        []string{lock.Operators[0].ENR},
 			},
 			dkgConfig: dkg.Config{
-				DataDir: realDir,
+				Timeout: time.Minute,
+			},
+			errMsg: "new-operator-enrs contains an existing operator",
+		},
+		{
+			name: "new threshold too low",
+			cmdConfig: dkg.AddOperatorsConfig{
+				OutputDir:      ".",
+				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				NewENRs:        []string{"enr:-IS4QH"},
+				NewThreshold:   1,
+			},
+			dkgConfig: dkg.Config{
 				Timeout: time.Minute,
 			},
 			errMsg: "new-threshold is invalid",
@@ -125,12 +127,13 @@ func TestValidateAddOperatorsConfig(t *testing.T) {
 		{
 			name: "new threshold too high",
 			cmdConfig: dkg.AddOperatorsConfig{
-				OutputDir:    ".",
-				NewENRs:      []string{"enr:-IS4QH"},
-				NewThreshold: 10,
+				OutputDir:      ".",
+				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				NewENRs:        []string{"enr:-IS4QH"},
+				NewThreshold:   10,
 			},
 			dkgConfig: dkg.Config{
-				DataDir: realDir,
 				Timeout: time.Minute,
 			},
 			errMsg: "new-threshold is invalid",

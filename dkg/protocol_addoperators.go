@@ -17,14 +17,22 @@ import (
 // AddOperatorsConfig contains the configuration for the add-operators protocol.
 // Typically populated from command line flags.
 type AddOperatorsConfig struct {
-	OutputDir    string
-	NewENRs      []string
-	NewThreshold int
+	PrivateKeyPath   string
+	LockFilePath     string
+	ValidatorKeysDir string
+	OutputDir        string
+	NewENRs          []string
+	NewThreshold     int
 }
 
 // RunAddOperatorsProtocol runs the add-operators DKG protocol.
 func RunAddOperatorsProtocol(ctx context.Context, config AddOperatorsConfig, dkgConfig Config) error {
-	return RunProtocol(ctx, newAddOperatorsProtocol(config), dkgConfig)
+	return RunProtocol(ctx,
+		newAddOperatorsProtocol(config),
+		config.LockFilePath,
+		config.PrivateKeyPath,
+		config.ValidatorKeysDir,
+		dkgConfig)
 }
 
 type addOperatorsProtocol struct {

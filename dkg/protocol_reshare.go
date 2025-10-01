@@ -11,9 +11,23 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// ReshareConfig is the configuration for the reshare DKG protocol (same operators set).
+type ReshareConfig struct {
+	DKGConfig        Config
+	PrivateKeyPath   string
+	LockFilePath     string
+	ValidatorKeysDir string
+	OutputDir        string
+}
+
 // RunReshareProtocol runs the reshare DKG protocol (same operators set).
-func RunReshareProtocol(ctx context.Context, outputDir string, dkgConfig Config) error {
-	return RunProtocol(ctx, newReshareProtocol(outputDir), dkgConfig)
+func RunReshareProtocol(ctx context.Context, config ReshareConfig) error {
+	return RunProtocol(ctx,
+		newReshareProtocol(config.OutputDir),
+		config.LockFilePath,
+		config.PrivateKeyPath,
+		config.ValidatorKeysDir,
+		config.DKGConfig)
 }
 
 type reshareProtocol struct {

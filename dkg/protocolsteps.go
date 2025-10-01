@@ -172,7 +172,7 @@ func (s *writeArtifactsProtocolStep) Run(ctx context.Context, pctx *ProtocolCont
 		return err
 	}
 
-	if err := app.CopyFile(filepath.Join(pctx.Config.DataDir, enrPrivateKeyFile), filepath.Join(s.outputDir, enrPrivateKeyFile)); err != nil {
+	if err := app.CopyFile(pctx.PrivateKeyPath, filepath.Join(s.outputDir, enrPrivateKeyFile)); err != nil {
 		return err
 	}
 

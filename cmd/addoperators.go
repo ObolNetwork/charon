@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"context"
-	"path/filepath"
 	"slices"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util/enr"
-	"github.com/obolnetwork/charon/p2p"
 )
 
 const (
@@ -46,7 +44,9 @@ func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dk
 		},
 	}
 
-	cmd.Flags().StringVar(&dkgConfig.DataDir, "data-dir", ".charon", "The source charon folder with existing cluster data (lock, validator_keys, etc.). The new operators will only have the lock and enr private key files.")
+	cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
+	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty.")
 	cmd.Flags().StringSliceVar(&config.NewENRs, "new-operator-enrs", nil, "Comma-separated list of the new operators to be added (Charon ENR addresses).")
 	cmd.Flags().IntVar(&config.NewThreshold, "new-threshold", 0, "Optional override of the new threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security. All operators must use the same value.")
@@ -66,7 +66,7 @@ func runAddOperators(ctx context.Context, config dkg.AddOperatorsConfig, dkgConf
 		return err
 	}
 
-	log.Info(ctx, "Starting add-operators ceremony", z.Str("dataDir", dkgConfig.DataDir), z.Str("outputDir", config.OutputDir))
+	log.Info(ctx, "Starting add-operators ceremony", z.Str("lockFilePath", config.LockFilePath), z.Str("outputDir", config.OutputDir))
 
 	if err := dkg.RunAddOperatorsProtocol(ctx, config, dkgConfig); err != nil {
 		return errors.Wrap(err, "run add operators protocol")
@@ -88,13 +88,8 @@ func validateAddOperatorsConfig(ctx context.Context, config *dkg.AddOperatorsCon
 		return errors.New("new-operator-enrs is required")
 	}
 
-	if !app.FileExists(dkgConfig.DataDir) {
-		return errors.New("data-dir is required")
-	}
-
-	lockFile := filepath.Join(dkgConfig.DataDir, clusterLockFile)
-	if !app.FileExists(lockFile) {
-		return errors.New("data-dir must contain a cluster-lock.json file")
+	if !app.FileExists(config.LockFilePath) {
+		return errors.New("lock-file does not exist")
 	}
 
 	if dkgConfig.Timeout < time.Minute {
@@ -105,12 +100,12 @@ func validateAddOperatorsConfig(ctx context.Context, config *dkg.AddOperatorsCon
 		return errors.New("new-operator-enrs contains duplicate ENRs")
 	}
 
-	lock, err := dkg.LoadAndVerifyClusterLock(ctx, *dkgConfig)
+	lock, err := dkg.LoadAndVerifyClusterLock(ctx, config.LockFilePath, dkgConfig.ExecutionEngineAddr, dkgConfig.NoVerify)
 	if err != nil {
 		return err
 	}
 
-	key, err := p2p.LoadPrivKey(dkgConfig.DataDir)
+	key, err := dkg.LoadPrivKey(config.PrivateKeyPath)
 	if err != nil {
 		return err
 	}
@@ -139,7 +134,7 @@ func validateAddOperatorsConfig(ctx context.Context, config *dkg.AddOperatorsCon
 	}
 
 	if !isNewOperator {
-		secrets, err := dkg.LoadSecrets(dkgConfig.DataDir)
+		secrets, err := dkg.LoadSecrets(config.ValidatorKeysDir)
 		if err != nil {
 			return err
 		}

@@ -229,8 +229,10 @@ func TestAppendDKG(t *testing.T) {
 
 	for i := range nodes {
 		dataDir := path.Join(dstDir, fmt.Sprintf("node%d", i))
+		secretsDir := path.Join(dataDir, "validator_keys")
+		lockPath := path.Join(dataDir, "cluster-lock.json")
 
-		secrets, err := dkg.LoadSecrets(dataDir)
+		secrets, err := dkg.LoadSecrets(secretsDir)
 		require.NoError(t, err)
 		require.Len(t, secrets, totalVals)
 
@@ -238,7 +240,7 @@ func TestAppendDKG(t *testing.T) {
 			secretShares[j] = append(secretShares[j], secret)
 		}
 
-		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), dkg.Config{DataDir: dataDir})
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockPath, "", false)
 		require.NoError(t, err)
 		require.Equal(t, lock.NumValidators, totalVals)
 		require.Len(t, lock.Validators, totalVals)

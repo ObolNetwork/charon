@@ -4,7 +4,6 @@ package cmd
 
 import (
 	"context"
-	"path/filepath"
 	"slices"
 	"time"
 
@@ -41,7 +40,9 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 		},
 	}
 
-	cmd.Flags().StringVar(&dkgConfig.DataDir, "data-dir", ".charon", "The source charon folder with existing cluster data (lock, validator_keys, etc.).")
+	cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
+	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty. Optional for removed operators.")
 	cmd.Flags().StringSliceVar(&config.OldENRs, "operator-enrs-to-remove", nil, "Comma-separated list of operators to be removed (Charon ENR addresses).")
 	cmd.Flags().IntVar(&config.NewThreshold, "new-threshold", 0, "Optional override of the new threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security. All operators must use the same value.")
@@ -61,7 +62,7 @@ func runRemoveOperators(ctx context.Context, config dkg.RemoveOperatorsConfig, d
 		return err
 	}
 
-	log.Info(ctx, "Starting remove-operators ceremony", z.Str("dataDir", dkgConfig.DataDir), z.Str("outputDir", config.OutputDir))
+	log.Info(ctx, "Starting remove-operators ceremony", z.Str("lockFilePath", config.LockFilePath), z.Str("outputDir", config.OutputDir))
 
 	if err := dkg.RunRemoveOperatorsProtocol(ctx, config, dkgConfig); err != nil {
 		return errors.Wrap(err, "run remove operators protocol")
@@ -79,13 +80,8 @@ func validateRemoveOperatorsConfig(ctx context.Context, config *dkg.RemoveOperat
 		return errors.New("old-operator-enrs is required")
 	}
 
-	if !app.FileExists(dkgConfig.DataDir) {
-		return errors.New("data-dir is required")
-	}
-
-	lockFile := filepath.Join(dkgConfig.DataDir, clusterLockFile)
-	if !app.FileExists(lockFile) {
-		return errors.New("data-dir must contain a cluster-lock.json file")
+	if !app.FileExists(config.LockFilePath) {
+		return errors.New("lock-file does not exist")
 	}
 
 	if dkgConfig.Timeout < time.Minute {
@@ -96,7 +92,7 @@ func validateRemoveOperatorsConfig(ctx context.Context, config *dkg.RemoveOperat
 		return errors.New("old-operator-enrs contains duplicate ENRs")
 	}
 
-	lock, err := dkg.LoadAndVerifyClusterLock(ctx, *dkgConfig)
+	lock, err := dkg.LoadAndVerifyClusterLock(ctx, config.LockFilePath, dkgConfig.ExecutionEngineAddr, dkgConfig.NoVerify)
 	if err != nil {
 		return err
 	}
@@ -117,7 +113,7 @@ func validateRemoveOperatorsConfig(ctx context.Context, config *dkg.RemoveOperat
 		}
 	}
 
-	secrets, err := dkg.LoadSecrets(dkgConfig.DataDir)
+	secrets, err := dkg.LoadSecrets(config.ValidatorKeysDir)
 	if err != nil {
 		return err
 	}
