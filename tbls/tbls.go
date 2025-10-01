@@ -29,7 +29,7 @@ type Implementation interface {
 	// GenerateSecretKey generates a secret key and returns its compressed serialized representation.
 	GenerateSecretKey() (PrivateKey, error)
 
-	// GenerateInsecureKey generates a insecure deterministic secret key using the provided random number generator
+	// GenerateInsecureKey generates an insecure deterministic secret key using the provided random number generator
 	// and returns its compressed serialized representation.
 	GenerateInsecureKey(t *testing.T, random io.Reader) (PrivateKey, error)
 
@@ -81,7 +81,7 @@ func GenerateSecretKey() (PrivateKey, error) {
 	return impl.GenerateSecretKey()
 }
 
-// GenerateInsecureKey generates a insecure deterministic secret key using the provided random number generator
+// GenerateInsecureKey generates an insecure deterministic secret key using the provided random number generator
 // and returns its compressed serialized representation.
 func GenerateInsecureKey(t *testing.T, random io.Reader) (PrivateKey, error) {
 	t.Helper()
