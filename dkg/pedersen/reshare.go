@@ -119,6 +119,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		OldNodes:     oldNodes,
 		Threshold:    config.Reshare.NewThreshold,
 		OldThreshold: config.Threshold,
+		FastSync:     true,
 		Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
 		Log:          newLogger(log.WithTopic(ctx, "pedersen")),
 	}

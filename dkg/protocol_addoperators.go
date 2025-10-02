@@ -106,7 +106,7 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 
 	newPeerIDs := pctx.PeerIDs[len(pctx.Lock.Operators):]
 	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), p.newThreshold, newPeerIDs, nil)
-	p.config = pedersen.NewConfig(pctx.ThisPeerID, pctx.PeerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, pctx.Config.Timeout/12, reshareConfig)
+	p.config = pedersen.NewConfig(pctx.ThisPeerID, pctx.PeerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, pctx.Config.Timeout/6, reshareConfig)
 	p.board = pedersen.NewBoard(ctx, pctx.ThisNode, p.config, pctx.Caster)
 
 	return nil

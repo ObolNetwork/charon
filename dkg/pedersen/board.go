@@ -180,6 +180,10 @@ func (b *Board) PushDeals(bundle *kdkg.DealBundle) {
 	if err := b.broadcastP2P(b.logCtx, dealBundleMsg, msg); err != nil {
 		log.Error(b.logCtx, "Failed to broadcast deal bundle", err)
 	}
+
+	go func() {
+		b.dealCh <- *bundle
+	}()
 }
 
 // PushResponses implements the kdkg.Board interface.
@@ -193,6 +197,10 @@ func (b *Board) PushResponses(bundle *kdkg.ResponseBundle) {
 	if err := b.broadcastP2P(b.logCtx, respBundleMsg, msg); err != nil {
 		log.Error(b.logCtx, "Failed to broadcast response bundle", err)
 	}
+
+	go func() {
+		b.responseCh <- *bundle
+	}()
 }
 
 // PushJustifications implements the kdkg.Board interface.
@@ -206,6 +214,10 @@ func (b *Board) PushJustifications(bundle *kdkg.JustificationBundle) {
 	if err := b.broadcastP2P(b.logCtx, justBundleMsg, msg); err != nil {
 		log.Error(b.logCtx, "Failed to broadcast justification bundle", err)
 	}
+
+	go func() {
+		b.justificationCh <- *bundle
+	}()
 }
 
 func (b *Board) broadcastP2P(ctx context.Context, msgID string, msg proto.Message) error {

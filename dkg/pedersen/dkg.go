@@ -54,6 +54,7 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 		Suite:     config.Suite,
 		NewNodes:  nodes,
 		Threshold: config.Threshold,
+		FastSync:  true,
 		Auth:      drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
 		Log:       newLogger(log.WithTopic(ctx, "pedersen")),
 	}
@@ -63,10 +64,6 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 	shares := make([]share.Share, 0, numVals)
 
 	for range numVals {
-		// TODO: This phaser implementation is odd, it makes pauses between rounds,
-		// relying on all other nodes to complete the round in that time.
-		// Unfortunately, kyber does not expose any fine-grained control over the protocol.
-		// A better solution would be a signal-based phaser that relies on Board progress.
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
 		protocol, err := kdkg.NewProtocol(

@@ -128,7 +128,6 @@ func TestBoard(t *testing.T) {
 		for i := range nodes {
 			received := <-nodes[i].Board.IncomingDeal()
 			require.Len(t, received.Deals, 1)
-			require.NotEqual(t, uint32(i), received.DealerIndex)
 			require.Equal(t, []byte("sessionID"), received.SessionID)
 			require.Equal(t, []byte{13, 14, 15}, received.Signature)
 		}
@@ -159,7 +158,6 @@ func TestBoard(t *testing.T) {
 		for i := range nodes {
 			received := <-nodes[i].Board.IncomingResponse()
 			require.Len(t, received.Responses, 1)
-			require.NotEqual(t, uint32(i), received.ShareIndex)
 			require.Equal(t, []byte("sessionID"), received.SessionID)
 			require.Equal(t, []byte{23, 24, 25}, received.Signature)
 		}
@@ -190,7 +188,6 @@ func TestBoard(t *testing.T) {
 		for i := range nodes {
 			received := <-nodes[i].Board.IncomingJustification()
 			require.Len(t, received.Justifications, 1)
-			require.NotEqual(t, uint32(i), received.DealerIndex)
 			require.Equal(t, []byte("sessionID"), received.SessionID)
 			require.Equal(t, []byte{33, 34, 35}, received.Signature)
 		}

@@ -54,7 +54,7 @@ func (p *reshareProtocol) PostInit(ctx context.Context, pctx *ProtocolContext) e
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
 
 	pedersenReshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), pctx.Lock.Threshold, nil, nil)
-	p.config = pedersen.NewConfig(pctx.ThisPeerID, pctx.PeerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, pctx.Config.Timeout/12, pedersenReshareConfig)
+	p.config = pedersen.NewConfig(pctx.ThisPeerID, pctx.PeerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, pctx.Config.Timeout/6, pedersenReshareConfig)
 	p.board = pedersen.NewBoard(ctx, pctx.ThisNode, p.config, pctx.Caster)
 
 	return nil
