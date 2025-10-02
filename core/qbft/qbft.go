@@ -348,9 +348,6 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
-				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
-
-			case UponQuorumPrepares: // Algorithm 2:4
 				var errC error
 
 				inputValueSource, errC = compare(ctx, d, msg, inputValueSourceCh, inputValueSource, timerChan)
@@ -372,13 +369,15 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 						err = errors.New("bug: expected only comparison or timeout error")
 					}
 				} else {
-					// Only applicable to current round
-					preparedRound = round /* == msg.Round*/
-					preparedValue = msg.Value()
-					preparedJustification = justification
-
-					err = broadcastMsg(MsgCommit, preparedValue, nil)
+					err = broadcastMsg(MsgPrepare, msg.Value(), nil)
 				}
+			case UponQuorumPrepares: // Algorithm 2:4
+				// Only applicable to current round
+				preparedRound = round /* == msg.Round*/
+				preparedValue = msg.Value()
+				preparedJustification = justification
+
+				err = broadcastMsg(MsgCommit, preparedValue, nil)
 
 			case UponQuorumCommits, UponJustifiedDecided: // Algorithm 2:8
 				// Applicable to any round (since can be justified)
@@ -616,7 +615,7 @@ func isJustifiedRoundChange[I any, V comparable, C any](d Definition[I, V, C], m
 	pv := msg.PreparedValue()
 
 	if len(prepares) == 0 {
-		return true
+		return pr == 0 && isZeroVal(pv)
 	}
 
 	// No need to check for all possible combinations, since justified should only contain a one.
