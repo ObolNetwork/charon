@@ -414,7 +414,7 @@ func TestOneError(t *testing.T) {
 func TestOneTimeout(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Start an timeout server.
+	// Start a timeout server.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-ctx.Done()
 	}))
