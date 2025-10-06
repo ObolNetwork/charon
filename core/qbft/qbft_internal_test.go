@@ -724,6 +724,9 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 
 		require.Fail(t, "unexpected round", "round=%d", round)
 	}
+	def.Compare = func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnErr chan error, returnValue chan int64) {
+		returnErr <- nil
+	}
 
 	rChan := make(chan Msg[int64, int64, int64], 2)
 	rChan <- newPreprepare(1)
