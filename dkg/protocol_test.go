@@ -33,7 +33,60 @@ const (
 	validatorKeysDir = "validator_keys"
 )
 
-func TestRemoveOperatorsProtocol(t *testing.T) {
+func TestRemoveOperatorsProtocol_BelowF(t *testing.T) {
+	const (
+		numValidators = 3
+		numNodes      = 7
+		threshold     = 5
+	)
+
+	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
+	dstClusterDir := t.TempDir()
+
+	lockFilePath := path.Join(nodeDir(srcClusterDir, 0), clusterLockFile)
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
+	require.NoError(t, err)
+
+	// We are removing 2 operators, which is <= f (which is 2 for 7 nodes).
+	oldENRs := []string{
+		lock.Operators[0].ENR,
+		lock.Operators[3].ENR,
+	}
+	oldIndices := []int{0, 3}
+	outputNodeDirs := getNodeDirs(dstClusterDir, numNodes, 0, 3)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	runProtocol(t, numNodes, func(relayAddr string, n int) error {
+		if slices.Contains(oldIndices, n) {
+			// Removed nodes do not run the protocol.
+			return nil
+		}
+
+		dkgConfig := createDKGConfig(t, relayAddr)
+		ndir := nodeDir(srcClusterDir, n)
+		removeConfig := dkg.RemoveOperatorsConfig{
+			LockFilePath:     path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:   p2p.KeyPath(ndir),
+			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
+			OutputDir:        nodeDir(dstClusterDir, n),
+			RemovingENRs:     oldENRs,
+		}
+
+		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
+		if err != nil {
+			cancel()
+			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
+		}
+
+		return err
+	})
+
+	verifyClusterValidators(t, numValidators, outputNodeDirs)
+}
+
+func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
 	const (
 		numValidators = 3
 		numNodes      = 7
@@ -57,7 +110,14 @@ func TestRemoveOperatorsProtocol(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
+	participating := []int{0, 1, 2, 5, 6} // 0 is old but participating
+
 	runProtocol(t, numNodes, func(relayAddr string, n int) error {
+		if !slices.Contains(participating, n) {
+			// Non-participating nodes do not run the protocol.
+			return nil
+		}
+
 		dkgConfig := createDKGConfig(t, relayAddr)
 		ndir := nodeDir(srcClusterDir, n)
 		removeConfig := dkg.RemoveOperatorsConfig{
@@ -65,7 +125,14 @@ func TestRemoveOperatorsProtocol(t *testing.T) {
 			PrivateKeyPath:   p2p.KeyPath(ndir),
 			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
 			OutputDir:        nodeDir(dstClusterDir, n),
-			OldENRs:          oldENRs,
+			RemovingENRs:     oldENRs,
+			ParticipatingENRs: []string{
+				lock.Operators[0].ENR, // to be removed, but participating
+				lock.Operators[1].ENR, // staying
+				lock.Operators[2].ENR, // staying
+				lock.Operators[5].ENR, // staying
+				lock.Operators[6].ENR, // staying
+			},
 		}
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
@@ -321,7 +388,7 @@ func nodeDir(clusterDir string, i int) string {
 	return fmt.Sprintf("%s/node%d", clusterDir, i)
 }
 
-func getNodeDirs(clusterDir string, numNodes int, skip ...int) []string {
+func getNodeDirs(clusterDir string, numNodes int, skip ...int) []string { //nolint:unparam
 	dirs := make([]string, 0)
 
 	for i := range numNodes {
@@ -335,7 +402,7 @@ func getNodeDirs(clusterDir string, numNodes int, skip ...int) []string {
 	return dirs
 }
 
-func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) {
+func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) { //nolint:unparam
 	t.Helper()
 
 	numNodes := len(nodeDirs)

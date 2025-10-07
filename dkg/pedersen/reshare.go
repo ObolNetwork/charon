@@ -69,11 +69,12 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 	for i := range len(shares) {
 		shares[i].PublicShares = make(map[int]tbls.PublicKey)
 
-		for n := range nodes {
-			if len(pubKeyShares[n]) > 0 {
+		for _, node := range nodes {
+			nodeIdx := int(node.Index)
+			if len(pubKeyShares[nodeIdx]) > 0 {
 				var pk tbls.PublicKey
-				copy(pk[:], pubKeyShares[n][i])
-				shares[i].PublicShares[n+1] = pk
+				copy(pk[:], pubKeyShares[nodeIdx][i])
+				shares[i].PublicShares[nodeIdx+1] = pk
 			}
 		}
 	}

@@ -20,7 +20,7 @@ func TestRestoreDistKeyShare(t *testing.T) {
 	pks3 := MustDecodeHex(t, "a6819bff560512e6f5f12140c2ec57c5a8b6f2b2c46f3e39e347a2b4719ebe4b54ffa0add31284e135abaf952186f696")
 	pks4 := MustDecodeHex(t, "b875e70aab2aebf248a5d9f9e1fb8116a8d23306fd00d401bfddfd656396b69f5a35c77f0db277cf6d0fc047d14ad1e3")
 
-	share := share.Share{
+	sshare := share.Share{
 		PubKey:      tbls.PublicKey(valPubKey),
 		SecretShare: tbls.PrivateKey(secretShare),
 		PublicShares: map[int]tbls.PublicKey{
@@ -31,8 +31,26 @@ func TestRestoreDistKeyShare(t *testing.T) {
 		},
 	}
 
-	dks, err := restoreDistKeyShare(share, 3, 0)
+	dks, err := restoreDistKeyShare(sshare, 3, 0)
 	require.NoError(t, err)
 	require.Equal(t, 0, dks.Share.I)
 	require.Len(t, dks.Commits, 3)
+
+	t.Run("threshold", func(t *testing.T) {
+		// Any 3 shares (threshold) should reconstruct the public key.
+		delete(sshare.PublicShares, 2)
+
+		dks, err := restoreDistKeyShare(sshare, 3, 0)
+		require.NoError(t, err)
+		require.Equal(t, 0, dks.Share.I)
+		require.Len(t, dks.Commits, 3)
+	})
+
+	t.Run("not enough shares", func(t *testing.T) {
+		// Only 2 shares are left, which is below threshold.
+		delete(sshare.PublicShares, 3)
+
+		_, err := restoreDistKeyShare(sshare, 3, 0)
+		require.Error(t, err)
+	})
 }

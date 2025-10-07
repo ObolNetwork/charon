@@ -13,19 +13,19 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
-	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 )
 
 // RemoveOperatorsConfig contains the configuration for the remove-operators protocol.
 // Typically populated from command line flags.
 type RemoveOperatorsConfig struct {
-	PrivateKeyPath   string
-	LockFilePath     string
-	ValidatorKeysDir string
-	OutputDir        string
-	OldENRs          []string
-	NewThreshold     int
+	PrivateKeyPath    string
+	LockFilePath      string
+	ValidatorKeysDir  string
+	OutputDir         string
+	RemovingENRs      []string
+	ParticipatingENRs []string
+	NewThreshold      int
 }
 
 // RunRemoveOperatorsProtocol runs the remove-operators DKG protocol.
@@ -39,32 +39,73 @@ func RunRemoveOperatorsProtocol(ctx context.Context, config RemoveOperatorsConfi
 }
 
 type removeOperatorsProtocol struct {
-	outputDir    string
-	oldENRs      []string
-	operators    []string
-	newThreshold int
-	oldNode      bool
-	config       *pedersen.Config
-	board        *pedersen.Board
+	outputDir     string
+	oldENRs       []string
+	operators     []string
+	participating []string
+	newThreshold  int
+	oldNode       bool
+	config        *pedersen.Config
+	board         *pedersen.Board
 }
 
 var _ Protocol = (*removeOperatorsProtocol)(nil)
 
 func newRemoveOperatorsProtocol(config RemoveOperatorsConfig) *removeOperatorsProtocol {
 	return &removeOperatorsProtocol{
-		outputDir:    config.OutputDir,
-		oldENRs:      config.OldENRs,
-		newThreshold: config.NewThreshold,
-		oldNode:      true,
+		outputDir:     config.OutputDir,
+		oldENRs:       config.RemovingENRs,
+		newThreshold:  config.NewThreshold,
+		participating: config.ParticipatingENRs,
+		oldNode:       false,
 	}
 }
 
-func (*removeOperatorsProtocol) GetPeers(lock *cluster.Lock) ([]p2p.Peer, error) {
-	return lock.Peers()
+func (p *removeOperatorsProtocol) GetPeers(lock *cluster.Lock) ([]p2p.Peer, error) {
+	allPeers, err := lock.Peers()
+	if err != nil {
+		return nil, err
+	}
+
+	enrIndexMap := make(map[string]int, len(lock.Operators))
+	for i, op := range lock.Operators {
+		enrIndexMap[op.ENR] = i
+	}
+
+	peers := make([]p2p.Peer, 0)
+
+	if len(p.participating) > 0 {
+		for _, enr := range p.participating {
+			index, found := enrIndexMap[enr]
+			if !found {
+				return nil, errors.New("participating ENR not found among lock operators", z.Str("enr", enr))
+			}
+
+			peers = append(peers, allPeers[index])
+		}
+	} else {
+		for index, op := range lock.Operators {
+			found := slices.Contains(p.oldENRs, op.ENR)
+			if found {
+				continue
+			}
+
+			peers = append(peers, allPeers[index])
+		}
+	}
+
+	return peers, nil
 }
 
 func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolContext) error {
-	newN := len(pctx.PeerIDs) - len(p.oldENRs)
+	allPeers, err := pctx.Lock.Peers()
+	if err != nil {
+		return err
+	}
+
+	_, peerMap := buildPeerMap(allPeers)
+
+	newN := len(allPeers) - len(p.oldENRs)
 	newT := newN - (newN-1)/3
 
 	if p.newThreshold != 0 {
@@ -75,48 +116,46 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 		p.newThreshold = newT
 	}
 
-	newPeerIDs := make([]peer.ID, 0)
 	oldPeerIDs := make([]peer.ID, 0)
+	newPeerIDs := make([]peer.ID, 0)
 
-	for i, operator := range pctx.Lock.Operators {
-		if slices.Contains(p.oldENRs, operator.ENR) {
-			oldPeerIDs = append(oldPeerIDs, pctx.PeerIDs[i])
-
-			continue
+	for i, op := range pctx.Lock.Operators {
+		isOld := slices.Contains(p.oldENRs, op.ENR)
+		if isOld {
+			oldPeerIDs = append(oldPeerIDs, allPeers[i].ID)
+		} else {
+			newPeerIDs = append(newPeerIDs, allPeers[i].ID)
+			p.operators = append(p.operators, op.ENR)
 		}
 
-		record, err := enr.Parse(operator.ENR)
-		if err != nil {
-			return errors.Wrap(err, "decode enr", z.Str("enr", operator.ENR))
+		if pctx.ThisPeerID == allPeers[i].ID && isOld {
+			p.oldNode = true
 		}
 
-		peer, err := p2p.NewPeerFromENR(record, i)
-		if err != nil {
-			return err
+		participating := slices.ContainsFunc(pctx.Peers, func(p p2p.Peer) bool {
+			return p.ID == allPeers[i].ID
+		})
+		if !participating {
+			delete(peerMap, allPeers[i].ID)
 		}
-
-		newPeerIDs = append(newPeerIDs, peer.ID)
-		p.operators = append(p.operators, operator.ENR)
 	}
 
-	nodeIdx := slices.IndexFunc(newPeerIDs, func(id peer.ID) bool {
-		return id == pctx.ThisPeerID
-	})
-
-	// The broadcaster is created for all nodes, because it is used by the board and the node signature caster.
-	// Unfortunately, the broadcaster does not support flexible peer lists to change recipients on the fly.
+	// The broadcaster is created for all participating nodes, because it is used by the board and the node signature caster.
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey)
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
 
-	if nodeIdx >= 0 {
+	if !p.oldNode {
 		// SigExchanger is only created for nodes remaining in the cluster, because old nodes do not participate in signing.
+		nodeIdx := slices.Index(newPeerIDs, pctx.ThisPeerID)
+		pctx.ThisNodeIdx = cluster.NodeIdx{
+			PeerIdx:  nodeIdx,
+			ShareIdx: nodeIdx + 1,
+		}
 		pctx.SigExchanger = newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
-		pctx.ThisNodeIdx = cluster.NodeIdx{PeerIdx: nodeIdx, ShareIdx: nodeIdx + 1}
-		p.oldNode = false
 	}
 
 	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), p.newThreshold, nil, oldPeerIDs)
-	p.config = pedersen.NewConfig(pctx.ThisPeerID, pctx.PeerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, pctx.Config.Timeout/6, reshareConfig)
+	p.config = pedersen.NewConfig(pctx.ThisPeerID, peerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, pctx.Config.Timeout/6, reshareConfig)
 	p.board = pedersen.NewBoard(ctx, pctx.ThisNode, p.config, pctx.Caster)
 
 	return nil

@@ -44,9 +44,10 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty. Optional for removed operators.")
-	cmd.Flags().StringSliceVar(&config.OldENRs, "operator-enrs-to-remove", nil, "Comma-separated list of operators to be removed (Charon ENR addresses).")
+	cmd.Flags().StringSliceVar(&config.RemovingENRs, "operator-enrs-to-remove", nil, "Comma-separated list of operators to be removed (Charon ENR addresses).")
 	cmd.Flags().IntVar(&config.NewThreshold, "new-threshold", 0, "Optional override of the new threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security. All operators must use the same value.")
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
+	cmd.Flags().StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony. Required if --operator-enrs-to-remove specifies more than F ENRs.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
 	bindP2PFlags(cmd, &dkgConfig.P2P, defaultAlphaRelay)
@@ -76,8 +77,8 @@ func runRemoveOperators(ctx context.Context, config dkg.RemoveOperatorsConfig, d
 }
 
 func validateRemoveOperatorsConfig(ctx context.Context, config *dkg.RemoveOperatorsConfig, dkgConfig *dkg.Config) error {
-	if len(config.OldENRs) == 0 {
-		return errors.New("old-operator-enrs is required")
+	if len(config.RemovingENRs) == 0 {
+		return errors.New("operator-enrs-to-remove is required")
 	}
 
 	if !app.FileExists(config.LockFilePath) {
@@ -88,8 +89,12 @@ func validateRemoveOperatorsConfig(ctx context.Context, config *dkg.RemoveOperat
 		return errors.New("timeout must be at least 1 minute")
 	}
 
-	if hasDuplicateENRs(config.OldENRs) {
-		return errors.New("old-operator-enrs contains duplicate ENRs")
+	if hasDuplicateENRs(config.RemovingENRs) {
+		return errors.New("operator-enrs-to-remove contains duplicate ENRs")
+	}
+
+	if hasDuplicateENRs(config.ParticipatingENRs) {
+		return errors.New("participating-operator-enrs contains duplicate ENRs")
 	}
 
 	lock, err := dkg.LoadAndVerifyClusterLock(ctx, config.LockFilePath, dkgConfig.ExecutionEngineAddr, dkgConfig.NoVerify)
@@ -98,13 +103,40 @@ func validateRemoveOperatorsConfig(ctx context.Context, config *dkg.RemoveOperat
 	}
 
 	ok := slices.ContainsFunc(lock.Operators, func(o cluster.Operator) bool {
-		return slices.Contains(config.OldENRs, o.ENR)
+		return slices.Contains(config.RemovingENRs, o.ENR)
 	})
 	if !ok {
-		return errors.New("old-operator-enrs contains a non-existing operator")
+		return errors.New("operator-enrs-to-remove contains a non-existing operator")
 	}
 
-	newN := len(lock.Operators) - len(config.OldENRs)
+	if len(config.ParticipatingENRs) > 0 {
+		ok := slices.ContainsFunc(lock.Operators, func(o cluster.Operator) bool {
+			return slices.Contains(config.ParticipatingENRs, o.ENR)
+		})
+		if !ok {
+			return errors.New("participating-operator-enrs contains a non-existing operator")
+		}
+	}
+
+	f := len(lock.Operators) - lock.Threshold
+	if len(config.RemovingENRs) > f && len(config.ParticipatingENRs) == 0 {
+		return errors.New("participating-operator-enrs is required when removing more than F operators")
+	}
+
+	if len(config.RemovingENRs) > f && len(config.ParticipatingENRs) < lock.Threshold {
+		return errors.New("not enough participating operators to complete the protocol, need at least threshold participants")
+	}
+
+	thisENR, err := dkg.LoadMyENR(config.PrivateKeyPath)
+	if err != nil {
+		return err
+	}
+
+	if slices.Contains(config.RemovingENRs, thisENR) && !slices.Contains(config.ParticipatingENRs, thisENR) {
+		return errors.New("enrs being removed cannot participate unless specified in participating-operator-enrs")
+	}
+
+	newN := len(lock.Operators) - len(config.RemovingENRs)
 	newT := newN - (newN-1)/3
 
 	if config.NewThreshold != 0 {

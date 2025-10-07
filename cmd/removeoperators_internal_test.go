@@ -52,17 +52,17 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name: "old-operator-enrs is required",
+			name: "operator-enrs-to-remove is required",
 			cmdConfig: dkg.RemoveOperatorsConfig{
 				OutputDir: ".",
 			},
-			errMsg: "old-operator-enrs is required",
+			errMsg: "operator-enrs-to-remove is required",
 		},
 		{
 			name: "lock-file does not exist",
 			cmdConfig: dkg.RemoveOperatorsConfig{
-				OutputDir: ".",
-				OldENRs:   []string{"enr:-IS4QH"},
+				OutputDir:    ".",
+				RemovingENRs: []string{"enr:-IS4QH"},
 			},
 			errMsg: "lock-file does not exist",
 		},
@@ -72,7 +72,7 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 				OutputDir:      ".",
 				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
 				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
-				OldENRs:        []string{"enr:-IS4QH"},
+				RemovingENRs:   []string{"enr:-IS4QH"},
 			},
 			dkgConfig: dkg.Config{
 				Timeout: time.Second,
@@ -85,12 +85,26 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 				OutputDir:      ".",
 				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
 				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
-				OldENRs:        []string{"enr:-IS4QH"},
+				RemovingENRs:   []string{"enr:-IS4QH"},
 			},
 			dkgConfig: dkg.Config{
 				Timeout: time.Minute,
 			},
-			errMsg: "old-operator-enrs contains a non-existing operator",
+			errMsg: "operator-enrs-to-remove contains a non-existing operator",
+		},
+		{
+			name: "participating operator enr does not exist",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir:         ".",
+				LockFilePath:      path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath:    path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				RemovingENRs:      []string{lock.Operators[0].ENR},
+				ParticipatingENRs: []string{"enr:-IS4QH"},
+			},
+			dkgConfig: dkg.Config{
+				Timeout: time.Minute,
+			},
+			errMsg: "participating-operator-enrs contains a non-existing operator",
 		},
 		{
 			name: "new threshold too low",
@@ -98,7 +112,7 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 				OutputDir:      ".",
 				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
 				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
-				OldENRs:        []string{lock.Operators[0].ENR},
+				RemovingENRs:   []string{lock.Operators[1].ENR},
 				NewThreshold:   1,
 			},
 			dkgConfig: dkg.Config{
@@ -112,7 +126,7 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 				OutputDir:      ".",
 				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
 				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
-				OldENRs:        []string{lock.Operators[0].ENR},
+				RemovingENRs:   []string{lock.Operators[1].ENR},
 				NewThreshold:   10,
 			},
 			dkgConfig: dkg.Config{
@@ -126,7 +140,7 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 				OutputDir:      ".",
 				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
 				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
-				OldENRs:        []string{lock.Operators[0].ENR},
+				RemovingENRs:   []string{lock.Operators[1].ENR},
 			},
 			dkgConfig: dkg.Config{
 				Timeout: time.Minute,
@@ -139,12 +153,66 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 				OutputDir:      ".",
 				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
 				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
-				OldENRs:        []string{lock.Operators[0].ENR, lock.Operators[0].ENR},
+				RemovingENRs:   []string{lock.Operators[0].ENR, lock.Operators[0].ENR},
 			},
 			dkgConfig: dkg.Config{
 				Timeout: time.Minute,
 			},
-			errMsg: "old-operator-enrs contains duplicate ENRs",
+			errMsg: "operator-enrs-to-remove contains duplicate ENRs",
+		},
+		{
+			name: "participating operator enrs contains duplicate",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir:         ".",
+				LockFilePath:      path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath:    path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				RemovingENRs:      []string{lock.Operators[0].ENR},
+				ParticipatingENRs: []string{lock.Operators[0].ENR, lock.Operators[0].ENR},
+			},
+			dkgConfig: dkg.Config{
+				Timeout: time.Minute,
+			},
+			errMsg: "participating-operator-enrs contains duplicate ENRs",
+		},
+		{
+			name: "participating-operator-enrs is required",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir:      ".",
+				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				RemovingENRs:   []string{lock.Operators[0].ENR, lock.Operators[1].ENR, lock.Operators[2].ENR},
+			},
+			dkgConfig: dkg.Config{
+				Timeout: time.Minute,
+			},
+			errMsg: "participating-operator-enrs is required when removing more than F operators",
+		},
+		{
+			name: "not enough participating operators",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir:         ".",
+				LockFilePath:      path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath:    path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				RemovingENRs:      []string{lock.Operators[0].ENR, lock.Operators[1].ENR, lock.Operators[2].ENR},
+				ParticipatingENRs: []string{lock.Operators[0].ENR, lock.Operators[1].ENR},
+			},
+			dkgConfig: dkg.Config{
+				Timeout: time.Minute,
+			},
+			errMsg: "not enough participating operators to complete the protocol, need at least threshold participants",
+		},
+		{
+			name: "removed participant",
+			cmdConfig: dkg.RemoveOperatorsConfig{
+				OutputDir:      ".",
+				LockFilePath:   path.Join(nodeDir(srcDir, 0), clusterLockFile),
+				PrivateKeyPath: path.Join(nodeDir(srcDir, 0), enrPrivateKeyFile),
+				RemovingENRs:   []string{lock.Operators[0].ENR, lock.Operators[1].ENR},
+			},
+			dkgConfig: dkg.Config{
+				Timeout: time.Minute,
+			},
+			errMsg: "enrs being removed cannot participate unless specified in participating-operator-enrs",
 		},
 	}
 

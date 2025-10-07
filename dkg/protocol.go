@@ -20,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/share"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
@@ -147,12 +148,12 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 	}
 	defer shutdown()
 
+	logPeerSummary(ctx, thisPeerID, peers, lock.Operators)
+
 	protocolCtx.Peers = peers
 	protocolCtx.PeerIDs, protocolCtx.PeerMap = buildPeerMap(peers)
 	protocolCtx.ThisNodeIdx = protocolCtx.PeerMap[thisPeerID]
 	protocolCtx.ThisNode = thisNode
-
-	logPeerSummary(ctx, thisPeerID, peers, lock.Operators)
 
 	if err := protocol.PostInit(ctx, protocolCtx); err != nil {
 		return errors.Wrap(err, "protocol post init")
@@ -242,6 +243,21 @@ func LoadPrivKey(privateKeyPath string) (*k1.PrivateKey, error) {
 	}
 
 	return key, nil
+}
+
+// LoadMyENR loads private key and returns the ENR.
+func LoadMyENR(privateKeyPath string) (string, error) {
+	key, err := LoadPrivKey(privateKeyPath)
+	if err != nil {
+		return "", err
+	}
+
+	rec, err := enr.New(key)
+	if err != nil {
+		return "", errors.Wrap(err, "create ENR")
+	}
+
+	return rec.String(), nil
 }
 
 func buildPeerMap(peers []p2p.Peer) ([]peer.ID, map[peer.ID]cluster.NodeIdx) {
