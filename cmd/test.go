@@ -67,7 +67,7 @@ func newTestCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "test",
 		Short: "Subcommands provide test suites to evaluate a cluster setup",
-		Long:  `Subcommands provide test suites to evaluate a cluster setup. The full validator stack can be tested - charon peers, consensus layer, validator client, MEV. Current machine's infra can be examined as well.`,
+		Long:  "Subcommands provide test suites to evaluate a cluster setup. The full validator stack can be tested - charon peers, consensus layer, validator client, MEV. Current machine's infra can be examined as well.",
 	}
 
 	root.AddCommand(cmds...)
