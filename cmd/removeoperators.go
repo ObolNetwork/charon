@@ -47,7 +47,7 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 	cmd.Flags().StringSliceVar(&config.RemovingENRs, "operator-enrs-to-remove", nil, "Comma-separated list of operators to be removed (Charon ENR addresses).")
 	cmd.Flags().IntVar(&config.NewThreshold, "new-threshold", 0, "Optional override of the new threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security. All operators must use the same value.")
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
-	cmd.Flags().StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony. Required if --operator-enrs-to-remove specifies more than F ENRs.")
+	cmd.Flags().StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony. Required if --operator-enrs-to-remove specifies more operators to remove than the fault tolerance of the current cluster.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
 	bindP2PFlags(cmd, &dkgConfig.P2P, defaultAlphaRelay)
