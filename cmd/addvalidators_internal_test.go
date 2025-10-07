@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -46,7 +47,7 @@ func TestRunAddValidators(t *testing.T) {
 	// Two sub-tests are run: with the `--unverified` flag and without.
 	conf := clusterConfig{
 		ClusterDir:        t.TempDir(),
-		Name:              "test_cluster",
+		Name:              t.Name(),
 		NumNodes:          4,
 		Threshold:         3,
 		NumDVs:            3,
@@ -87,8 +88,12 @@ func TestRunAddValidators(t *testing.T) {
 		var eg errgroup.Group
 
 		for i := 0; i < conf.NumNodes; i++ {
+			ddir := nodeDir(conf.ClusterDir, i)
+
 			addConf := addValidatorsConfig{
-				DataDir:           nodeDir(conf.ClusterDir, i),
+				PrivateKeyPath:    path.Join(ddir, enrPrivateKeyFile),
+				LockFilePath:      path.Join(ddir, clusterLockFile),
+				ValidatorKeysDir:  path.Join(ddir, validatorKeysSubDir),
 				OutputDir:         nodeDir(dstDir, i),
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
@@ -211,8 +216,12 @@ func TestRunAddValidatorsInvalidLock(t *testing.T) {
 	err := runCreateCluster(t.Context(), &buf, conf)
 	require.NoError(t, err)
 
+	ddir := nodeDir(conf.ClusterDir, 0)
+
 	addConf := addValidatorsConfig{
-		DataDir:           nodeDir(conf.ClusterDir, 0),
+		PrivateKeyPath:    path.Join(ddir, enrPrivateKeyFile),
+		LockFilePath:      path.Join(ddir, clusterLockFile),
+		ValidatorKeysDir:  path.Join(ddir, validatorKeysSubDir),
 		OutputDir:         nodeDir(dstDir, 0),
 		NumValidators:     2,
 		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
@@ -250,6 +259,8 @@ func TestValidateConfigAddValidators(t *testing.T) {
 	realDir := t.TempDir()
 	err := os.WriteFile(filepath.Join(realDir, clusterLockFile), []byte("{}"), 0o444)
 	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(realDir, enrPrivateKeyFile), []byte("{}"), 0o444)
+	require.NoError(t, err)
 
 	validatorKeysDir := filepath.Join(realDir, validatorKeysSubDir)
 	err = app.CreateNewEmptyDir(validatorKeysDir)
@@ -279,28 +290,29 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			errMsg: "output-dir is required",
 		},
 		{
-			name: "data dir is required",
+			name: "private-key-file is required",
 			conf: addValidatorsConfig{
 				OutputDir:     ".",
-				DataDir:       "",
 				NumValidators: 1,
 			},
-			errMsg: "data-dir is required",
+			errMsg: "private-key-file is required",
 		},
 		{
-			name: "missing lock file",
+			name: "lock-file is required",
 			conf: addValidatorsConfig{
-				DataDir:       ".",
-				OutputDir:     ".",
-				NumValidators: 1,
+				PrivateKeyPath: path.Join(realDir, enrPrivateKeyFile),
+				OutputDir:      ".",
+				NumValidators:  1,
 			},
-			errMsg: "data-dir must contain a cluster-lock.json file",
+			errMsg: "lock-file is required",
 		},
 		{
 			name: "addrs length mismatch",
 			conf: addValidatorsConfig{
-				DataDir:           realDir,
 				OutputDir:         ".",
+				PrivateKeyPath:    path.Join(realDir, enrPrivateKeyFile),
+				LockFilePath:      path.Join(realDir, clusterLockFile),
+				ValidatorKeysDir:  validatorKeysDir,
 				NumValidators:     1,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr},
@@ -310,8 +322,10 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "single addr for all validators",
 			conf: addValidatorsConfig{
-				DataDir:           realDir,
 				OutputDir:         ".",
+				PrivateKeyPath:    path.Join(realDir, enrPrivateKeyFile),
+				LockFilePath:      path.Join(realDir, clusterLockFile),
+				ValidatorKeysDir:  validatorKeysDir,
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr},
@@ -320,8 +334,10 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "count and addrs mismatch",
 			conf: addValidatorsConfig{
-				DataDir:           realDir,
 				OutputDir:         ".",
+				PrivateKeyPath:    path.Join(realDir, enrPrivateKeyFile),
+				LockFilePath:      path.Join(realDir, clusterLockFile),
+				ValidatorKeysDir:  validatorKeysDir,
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
@@ -331,8 +347,10 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "both --unverified flag for non empty validator_keys dir",
 			conf: addValidatorsConfig{
-				DataDir:           realDir,
 				OutputDir:         ".",
+				PrivateKeyPath:    path.Join(realDir, enrPrivateKeyFile),
+				LockFilePath:      path.Join(realDir, clusterLockFile),
+				ValidatorKeysDir:  validatorKeysDir,
 				NumValidators:     2,
 				Unverified:        true,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
@@ -343,8 +361,10 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		{
 			name: "multiple addrs for multiple validators",
 			conf: addValidatorsConfig{
-				DataDir:           realDir,
 				OutputDir:         ".",
+				PrivateKeyPath:    path.Join(realDir, enrPrivateKeyFile),
+				LockFilePath:      path.Join(realDir, clusterLockFile),
+				ValidatorKeysDir:  validatorKeysDir,
 				NumValidators:     2,
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
@@ -367,9 +387,13 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		srcDir := t.TempDir()
 		err := os.WriteFile(filepath.Join(srcDir, clusterLockFile), []byte("{}"), 0o444)
 		require.NoError(t, err)
+		err = os.WriteFile(filepath.Join(srcDir, enrPrivateKeyFile), []byte("{}"), 0o444)
+		require.NoError(t, err)
 
 		cfg := addValidatorsConfig{
-			DataDir:           srcDir,
+			LockFilePath:      path.Join(srcDir, clusterLockFile),
+			PrivateKeyPath:    path.Join(srcDir, enrPrivateKeyFile),
+			ValidatorKeysDir:  path.Join(srcDir, validatorKeysDir),
 			OutputDir:         ".",
 			NumValidators:     2,
 			WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
@@ -392,36 +416,6 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 		cfg.DKG.KeymanagerAddr = "http://localhost:1234"
 		err = validateConfig(t.Context(), &cfg)
-		require.NoError(t, err)
-	})
-}
-
-func TestVerifyLock(t *testing.T) {
-	lock := mustLoadTestLockFile(t, "testdata/test_cluster_lock.json")
-
-	err := verifyLock(t.Context(), lock, dkg.Config{NoVerify: true})
-	require.NoError(t, err)
-
-	err = verifyLock(t.Context(), lock, dkg.Config{NoVerify: false})
-	require.NoError(t, err)
-
-	t.Run("invalid lock hash", func(t *testing.T) {
-		lock2 := lock
-		lock2.LockHash = []byte("invalid")
-		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: false})
-		require.ErrorContains(t, err, "cluster lock hashes verification failed")
-
-		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: true})
-		require.NoError(t, err)
-	})
-
-	t.Run("invalid lock signature", func(t *testing.T) {
-		lock2 := lock
-		lock2.SignatureAggregate = []byte("invalid")
-		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: false})
-		require.ErrorContains(t, err, "cluster lock signature verification failed")
-
-		err = verifyLock(t.Context(), lock2, dkg.Config{NoVerify: true})
 		require.NoError(t, err)
 	})
 }

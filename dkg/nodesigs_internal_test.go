@@ -82,11 +82,21 @@ func TestSigsExchange(t *testing.T) {
 	var eg errgroup.Group
 	for i := range n {
 		eg.Go(func() error {
-			res, err := nsigs[i].exchange(
-				ctx,
-				secrets[i],
-				bytes.Repeat([]byte{42}, 32),
+			var (
+				res [][]byte
+				err error
 			)
+
+			if i == 0 {
+				res, err = nsigs[i].exchange(ctx, nil, nil)
+			} else {
+				res, err = nsigs[i].exchange(
+					ctx,
+					secrets[i],
+					bytes.Repeat([]byte{42}, 32),
+				)
+			}
+
 			if err != nil {
 				return err
 			}
@@ -99,8 +109,12 @@ func TestSigsExchange(t *testing.T) {
 
 	require.NoError(t, eg.Wait())
 
-	for _, result := range results {
-		require.Len(t, result, n)
+	for i, result := range results {
+		if i == 0 {
+			require.Empty(t, result)
+		} else {
+			require.Len(t, result, n-1)
+		}
 
 		for idx, sig := range result {
 			require.NotEmpty(t, sig, "index: %v", idx)
@@ -264,5 +278,21 @@ func TestSigsCallbacks(t *testing.T) {
 		)
 
 		require.NoError(t, err)
+	})
+
+	t.Run("broadcast none data", func(t *testing.T) {
+		msg := &dkgpb.MsgNodeSig{
+			Signature: noneData,
+			PeerIndex: uint32(2),
+		}
+
+		err := ns.broadcastCallback(context.Background(),
+			peers[2],
+			"",
+			msg,
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, noneData, ns.sigs[2])
 	})
 }
