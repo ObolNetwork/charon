@@ -335,7 +335,7 @@ func generateLaunchpadLink(configHash []byte, network string) string {
 }
 
 func generateAPILink(configHash []byte) string {
-	return "https://api.obol.tech/dv/" + fmt.Sprintf("%#x", configHash)
+	return "https://api.obol.tech/v1/definition/" + fmt.Sprintf("%#x", configHash)
 }
 
 func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey *k1.PrivateKey, def cluster.Definition) error {
