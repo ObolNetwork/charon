@@ -335,7 +335,7 @@ func generateLaunchpadLink(configHash []byte, network string) string {
 }
 
 func generateAPILink(configHash []byte) string {
-	return "https://api.obol.tech/dv/" + fmt.Sprintf("%#x", configHash)
+	return "https://api.obol.tech/v1/definition/" + fmt.Sprintf("%#x", configHash)
 }
 
 func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey *k1.PrivateKey, def cluster.Definition) error {
@@ -368,7 +368,7 @@ func publishPartialDefinition(ctx context.Context, conf createDKGConfig, privKey
 	} else {
 		log.Info(ctx, "Distributed Key Generation configuration created. Run one of the following commands from the directories where the associated .charon/charon-enr-private-key(s) that match these ENRs are: "+
 			"(Without docker): `charon dkg --definition-file="+generateAPILink(def.ConfigHash)+"` "+
-			"(With docker): `docker run --rm --it -v \"$(pwd):/opt/charon/.charon\" obolnetwork/charon:latest dkg --definition-file="+generateAPILink(def.ConfigHash)+"`")
+			"(With docker): `docker run --rm -v \"$(pwd)/.charon:/opt/charon/.charon\" obolnetwork/charon:latest dkg --definition-file="+generateAPILink(def.ConfigHash)+"`")
 	}
 
 	return nil
