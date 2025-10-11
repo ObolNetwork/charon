@@ -322,8 +322,7 @@ func TestNoopClient(t *testing.T) {
 	t.Run("noop run", func(t *testing.T) {
 		client := eth1wrap.NewDefaultEthClientRunner("")
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		ctx := t.Context()
 
 		// does nothing and immediately returns
 		require.Eventually(t, func() bool {

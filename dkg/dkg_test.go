@@ -569,8 +569,7 @@ func TestSyncFlow(t *testing.T) {
 			pIDs, err := lock.PeerIDs()
 			require.NoError(t, err)
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			ctx = log.WithTopic(ctx, "test")
 			relayAddr := relay.StartRelay(ctx, t)
