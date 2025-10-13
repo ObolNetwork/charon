@@ -761,8 +761,7 @@ func TestTargetGasLimit(t *testing.T) {
 // TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test
 // keymanager servers. These shares are then combined to create the combined share which is then compared to the original secret that was split.
 func TestKeymanager(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	const testAuthToken = "api-token-test"
 
@@ -873,8 +872,7 @@ func TestKeymanager(t *testing.T) {
 
 // TestPublish tests support for uploading the cluster lockfile to obol-api.
 func TestPublish(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	result := make(chan struct{}, 1) // Buffered channel
 	defer close(result)
