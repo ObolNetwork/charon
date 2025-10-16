@@ -12,6 +12,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -47,7 +48,7 @@ type fTransport interface {
 
 // runFrostParallel runs numValidators Frost DKG processes in parallel (sharing transport rounds)
 // and returns a list of shares (one for each distributed validator).
-func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNodes, threshold, shareIdx uint32, dgkCtx string) ([]share, error) {
+func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNodes, threshold, shareIdx uint32, dgkCtx string) ([]share.Share, error) {
 	validators, err := newFrostParticipants(numValidators, numNodes, threshold, shareIdx, dgkCtx)
 	if err != nil {
 		return nil, err
@@ -203,7 +204,7 @@ func getRound2Inputs(
 func makeShares(
 	validators map[uint32]*frost.DkgParticipant,
 	r2Result map[msgKey]frost.Round2Bcast,
-) ([]share, error) {
+) ([]share.Share, error) {
 	// Get set of public shares for each validator.
 	pubShares := make(map[uint32]map[int]tbls.PublicKey) // map[ValIdx]map[SourceID]tbls.PublicKey
 
@@ -231,7 +232,7 @@ func makeShares(
 	sort.Ints(vIdxs)
 
 	// Construct DKG result shares.
-	var shares []share
+	var shares []share.Share
 
 	for _, vIdx := range vIdxs {
 		v := validators[uint32(vIdx)]
@@ -246,7 +247,7 @@ func makeShares(
 			return nil, err
 		}
 
-		shares = append(shares, share{
+		shares = append(shares, share.Share{
 			PubKey:       pubkey,
 			SecretShare:  secretShare,
 			PublicShares: pubShares[uint32(vIdx)],
