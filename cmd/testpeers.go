@@ -451,12 +451,10 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, p2pNode host.H
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
-			wg.Add(1)
 
-			go func() {
+			wg.Go(func() {
 				pingPeerContinuously(pingCtx, p2pNode, peer, testResCh)
-				wg.Done()
-			}()
+			})
 		case <-pingCtx.Done():
 		}
 	}
