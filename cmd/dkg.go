@@ -78,5 +78,5 @@ func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
 }
 
 func bindEth1Flag(flags *pflag.FlagSet, executionEngineAddr *string) {
-	flags.StringVar(executionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
+	flags.StringVar(executionEngineAddr, "execution-client-rpc-endpoint", "", "Optional address of an execution engine JSON-RPC API. Used to validate smart contract signatures for Node Operators in the cluster.")
 }

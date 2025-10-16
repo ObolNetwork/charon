@@ -20,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keymanager"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -97,7 +98,7 @@ func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientR
 }
 
 // writeKeysToKeymanager writes validator private keyshares for the node to the provided keymanager address.
-func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string, shares []share) error {
+func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string, shares []share.Share) error {
 	var (
 		keystores []keystore.Keystore
 		passwords []string
@@ -125,7 +126,7 @@ func writeKeysToKeymanager(ctx context.Context, keymanagerURL, authToken string,
 }
 
 // writeKeysToDisk writes validator private keyshares for the node to disk.
-func writeKeysToDisk(conf Config, shares []share) error {
+func writeKeysToDisk(conf Config, shares []share.Share) error {
 	var secrets []tbls.PrivateKey
 	for _, s := range shares {
 		secrets = append(secrets, s.SecretShare)

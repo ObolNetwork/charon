@@ -3,7 +3,9 @@
 package dkg
 
 import (
+	"bytes"
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,7 +16,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/bcast"
@@ -23,6 +24,8 @@ import (
 )
 
 const nodeSigMsgID = "/charon/dkg/node_sig"
+
+var noneData = []byte{0xde, 0xad, 0xbe, 0xef}
 
 func nodeSigMsgIDs() []string {
 	return []string{nodeSigMsgID}
@@ -94,9 +97,13 @@ func (n *nodeSigBcast) allSigs() ([][]byte, bool) {
 		}
 	}
 
+	sigs := slices.DeleteFunc(n.sigs, func(sig []byte) bool {
+		return bytes.Equal(sig, noneData)
+	})
+
 	// make a hard copy of the signatures
-	ret := make([][]byte, len(n.sigs))
-	copy(ret, n.sigs)
+	ret := make([][]byte, len(sigs))
+	copy(ret, sigs)
 
 	return ret, true
 }
@@ -117,21 +124,34 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ strin
 		return errors.New("invalid node sig type")
 	}
 
-	sig := nodeSig.GetSignature()
 	msgPeerIdx := int(nodeSig.GetPeerIndex())
+
+	sig := nodeSig.GetSignature()
+	if bytes.Equal(sig, noneData) {
+		// For certain protocols we allow exchanging nil signatures.
+		n.setSig(noneData, msgPeerIdx)
+
+		return nil
+	}
 
 	if (msgPeerIdx == n.nodeIdx.PeerIdx) || (msgPeerIdx < 0 || msgPeerIdx >= len(n.peers)) {
 		return errors.New("invalid peer index")
 	}
 
-	peerPubk, err := n.peers[msgPeerIdx].PublicKey()
-	if err != nil {
-		return errors.Wrap(err, "get peer public key")
-	}
-
 	lockHash, err := n.lockHash(ctx)
 	if err != nil {
 		return errors.Wrap(err, "lock hash wait")
+	}
+
+	if bytes.Equal(lockHash, noneData) {
+		n.setSig(noneData, msgPeerIdx)
+
+		return nil
+	}
+
+	peerPubk, err := n.peers[msgPeerIdx].PublicKey()
+	if err != nil {
+		return errors.Wrap(err, "get peer public key")
 	}
 
 	verified, err := k1util.Verify65(peerPubk, lockHash, sig)
@@ -159,14 +179,25 @@ func (*nodeSigBcast) checkMessage(_ context.Context, peerID peer.ID, msgAny *any
 }
 
 // exchange exchanges K1 signatures over lock file hashes with the peers pointed by lh.bcastFunc.
+// To exchange a nil signature, pass a nil key.
 func (n *nodeSigBcast) exchange(
 	ctx context.Context,
 	key *k1.PrivateKey,
 	lockHash []byte,
 ) ([][]byte, error) {
-	localSig, err := k1util.Sign(key, lockHash)
-	if err != nil {
-		return nil, errors.Wrap(err, "k1 lock hash signature")
+	var (
+		localSig []byte
+		err      error
+	)
+
+	if key != nil {
+		localSig, err = k1util.Sign(key, lockHash)
+		if err != nil {
+			return nil, errors.Wrap(err, "k1 lock hash signature")
+		}
+	} else {
+		localSig = noneData
+		lockHash = noneData
 	}
 
 	go func() {
@@ -177,8 +208,6 @@ func (n *nodeSigBcast) exchange(
 		Signature: localSig,
 		PeerIndex: uint32(n.nodeIdx.PeerIdx),
 	}
-
-	log.Debug(ctx, "Exchanging node signatures")
 
 	if err := n.bcastFunc(ctx, nodeSigMsgID, bcastData); err != nil {
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
