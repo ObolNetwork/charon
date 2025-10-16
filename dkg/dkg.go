@@ -32,6 +32,8 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/bcast"
+	"github.com/obolnetwork/charon/dkg/pedersen"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -245,7 +247,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		sigValidatorRegistration,
 	}, conf.Timeout)
 
-	// Register Frost libp2p handlers
+	// Register libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
 	for _, p := range peers {
 		nodeIdx, err := def.NodeIdx(p.ID)
@@ -267,6 +269,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// register bcast callbacks: node signatures and public shares
 	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
 
+	// register pedersen protocol messages
+	phaseDuration := conf.Timeout / time.Duration(6) // 10 seconds per phase for default 1 minute DKG timeout
+	pedersenConfig := pedersen.NewConfig(p2pNode.ID(), peerMap, def.Threshold, def.DefinitionHash, phaseDuration, nil)
+	pedersenBoard := pedersen.NewBoard(ctx, p2pNode, pedersenConfig, caster)
+
 	log.Info(ctx, "Waiting to connect to all peers...")
 
 	// Improve UX of "context cancelled" errors when sync fails.
@@ -279,12 +286,16 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
 
-	var shares []share
+	var shares []share.Share
 
 	switch def.DKGAlgorithm {
 	case "default", "frost":
-		shares, err = runFrostParallel(ctx, tp, uint32(newValidators), uint32(len(peerMap)),
-			uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
+		shares, err = runFrostParallel(ctx, tp, uint32(newValidators), uint32(len(peerMap)), uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
+		if err != nil {
+			return err
+		}
+	case "pedersen":
+		shares, err = pedersen.RunDKG(ctx, pedersenConfig, pedersenBoard, newValidators)
 		if err != nil {
 			return err
 		}
@@ -297,7 +308,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	var existingShares []share
+	var existingShares []share.Share
 
 	// Updating definition object when appending validators.
 	if conf.AppendConfig != nil {
@@ -597,7 +608,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 }
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
-func signAndAggLockHash(ctx context.Context, existingShares, newShares []share, def cluster.Definition,
+func signAndAggLockHash(ctx context.Context, existingShares, newShares []share.Share, def cluster.Definition,
 	nodeIdx cluster.NodeIdx, ex *exchanger, depositDatas [][]eth2p0.DepositData,
 	valRegs []core.VersionedSignedValidatorRegistration, appendConfig *AppendConfig,
 ) (cluster.Lock, error) {
@@ -657,7 +668,7 @@ func signAndAggLockHash(ctx context.Context, existingShares, newShares []share, 
 			return cluster.Lock{}, err
 		}
 
-		pubkeyToShares := make(map[core.PubKey]share)
+		pubkeyToShares := make(map[core.PubKey]share.Share)
 		for _, sh := range allShares {
 			pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 			if err != nil {
@@ -686,7 +697,7 @@ func signAndAggLockHash(ctx context.Context, existingShares, newShares []share, 
 }
 
 // signAndAggDepositData returns the deposit datas for each DV after signing, exchange and aggregation of partial signatures.
-func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share,
+func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share.Share,
 	withdrawalAddresses []string, network string, nodeIdx cluster.NodeIdx,
 	depositAmounts []eth2p0.Gwei, compounding bool,
 ) ([][]eth2p0.DepositData, error) {
@@ -718,7 +729,7 @@ func signAndAggDepositData(ctx context.Context, ex *exchanger, shares []share,
 func signAndAggValidatorRegistrations(
 	ctx context.Context,
 	ex *exchanger,
-	shares []share,
+	shares []share.Share,
 	feeRecipients []string,
 	targetGasLimit uint64,
 	nodeIdx cluster.NodeIdx,
@@ -744,7 +755,7 @@ func signAndAggValidatorRegistrations(
 
 // aggLockHashSig returns the aggregated multi signature of the lock hash
 // signed by all the private key shares of all the distributed validators.
-func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share, hash []byte) (tbls.Signature, []tbls.PublicKey, error) {
+func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.PubKey]share.Share, hash []byte) (tbls.Signature, []tbls.PublicKey, error) {
 	var (
 		sigs    []tbls.Signature
 		pubkeys []tbls.PublicKey
@@ -790,7 +801,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 }
 
 // signLockHash returns a partially signed dataset containing signatures of the lock hash.
-func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedDataSet, error) {
+func signLockHash(shareIdx int, shares []share.Share, hash []byte) (core.ParSignedDataSet, error) {
 	set := make(core.ParSignedDataSet)
 	for _, share := range shares {
 		pk, err := core.PubKeyFromBytes(share.PubKey[:])
@@ -810,7 +821,7 @@ func signLockHash(shareIdx int, shares []share, hash []byte) (core.ParSignedData
 }
 
 // signDepositMsgs returns a partially signed dataset containing signatures of the deposit message signing root.
-func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei, compounding bool) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
+func signDepositMsgs(shares []share.Share, shareIdx int, withdrawalAddresses []string, network string, amount eth2p0.Gwei, compounding bool) (core.ParSignedDataSet, map[core.PubKey]eth2p0.DepositMessage, error) {
 	msgs := make(map[core.PubKey]eth2p0.DepositMessage)
 	set := make(core.ParSignedDataSet)
 
@@ -857,7 +868,7 @@ func signDepositMsgs(shares []share, shareIdx int, withdrawalAddresses []string,
 }
 
 // signValidatorRegistrations returns a partially signed dataset containing signatures of the validator registrations signing root.
-func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []string, gasLimit uint64, forkVersion []byte) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
+func signValidatorRegistrations(shares []share.Share, shareIdx int, feeRecipients []string, gasLimit uint64, forkVersion []byte) (core.ParSignedDataSet, map[core.PubKey]core.VersionedSignedValidatorRegistration, error) {
 	msgs := make(map[core.PubKey]core.VersionedSignedValidatorRegistration)
 	set := make(core.ParSignedDataSet)
 
@@ -908,7 +919,7 @@ func signValidatorRegistrations(shares []share, shareIdx int, feeRecipients []st
 }
 
 // aggDepositData returns the threshold aggregated deposit datas per DV.
-func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
+func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share.Share,
 	msgs map[core.PubKey]eth2p0.DepositMessage, network string,
 ) ([]eth2p0.DepositData, error) {
 	pubkeyToPubShares := make(map[core.PubKey]map[int]tbls.PublicKey)
@@ -992,7 +1003,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share,
 // aggValidatorRegistrations returns the threshold aggregated validator registrations per DV.
 func aggValidatorRegistrations(
 	data map[core.PubKey][]core.ParSignedData,
-	shares []share,
+	shares []share.Share,
 	msgs map[core.PubKey]core.VersionedSignedValidatorRegistration,
 	forkVersion []byte,
 ) ([]core.VersionedSignedValidatorRegistration, error) {
@@ -1076,7 +1087,7 @@ func aggValidatorRegistrations(
 
 // createDistValidators returns a slice of distributed validators from the provided
 // shares and deposit datas.
-func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration) ([]cluster.DistValidator, error) {
+func createDistValidators(shares []share.Share, depositDatas [][]eth2p0.DepositData, valRegs []core.VersionedSignedValidatorRegistration) ([]cluster.DistValidator, error) {
 	depositDatasMap := make(map[tbls.PublicKey][]eth2p0.DepositData)
 
 	for amountIndex := range depositDatas {
@@ -1090,7 +1101,7 @@ func createDistValidators(shares []share, depositDatas [][]eth2p0.DepositData, v
 	var dvs []cluster.DistValidator
 
 	for _, s := range shares {
-		msg := msgFromShare(s)
+		msg := share.MsgFromShare(s)
 		regIdx := -1
 
 		for i, reg := range valRegs {
@@ -1187,7 +1198,7 @@ func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error 
 func logPeerSummary(ctx context.Context, currentPeer peer.ID, peers []p2p.Peer, operators []cluster.Operator) {
 	for i, p := range peers {
 		opts := []z.Field{z.Str("peer", p.Name), z.Int("index", p.Index)}
-		if operators[i].Address != "" {
+		if operators != nil && i < len(operators) && operators[i].Address != "" {
 			opts = append(opts, z.Str("address", operators[i].Address))
 		}
 
@@ -1290,12 +1301,12 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 	}, nil
 }
 
-func getExistingShares(conf *AppendConfig) ([]share, error) {
+func getExistingShares(conf *AppendConfig) ([]share.Share, error) {
 	if conf == nil {
 		return nil, nil
 	}
 
-	var shares []share
+	var shares []share.Share
 
 	for i, secretShare := range conf.SecretShares {
 		dvPubKey, err := conf.ClusterLock.Validators[i].PublicKey()
@@ -1310,7 +1321,7 @@ func getExistingShares(conf *AppendConfig) ([]share, error) {
 			publicShares[idx+1] = tblsPublicKey
 		}
 
-		shares = append(shares, share{
+		shares = append(shares, share.Share{
 			PubKey:       dvPubKey,
 			SecretShare:  secretShare,
 			PublicShares: publicShares,

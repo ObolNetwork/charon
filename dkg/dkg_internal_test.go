@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls"
@@ -41,7 +42,7 @@ func TestInvalidSignatures(t *testing.T) {
 		pubshares[idx] = pubkey
 	}
 
-	shares := share{
+	shares := share.Share{
 		PubKey:       pubkey,
 		SecretShare:  secretShares[0],
 		PublicShares: pubshares,
@@ -73,7 +74,7 @@ func TestInvalidSignatures(t *testing.T) {
 
 	_, err = aggDepositData(
 		map[core.PubKey][]core.ParSignedData{corePubkey: getSigs([]byte("any digest"))},
-		[]share{shares},
+		[]share.Share{shares},
 		map[core.PubKey]eth2p0.DepositMessage{corePubkey: msg},
 		eth2util.Goerli.Name,
 	)
@@ -82,7 +83,7 @@ func TestInvalidSignatures(t *testing.T) {
 	// Aggregate and verify cluster lock hash signatures
 	lockMsg := []byte("cluster lock hash")
 
-	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(lockMsg)}, map[core.PubKey]share{corePubkey: shares}, lockMsg)
+	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(lockMsg)}, map[core.PubKey]share.Share{corePubkey: shares}, lockMsg)
 	require.EqualError(t, err, "invalid lock hash partial signature from peer: signature not verified")
 }
 
@@ -110,7 +111,7 @@ func TestValidSignatures(t *testing.T) {
 		pubshares[idx] = pubkey
 	}
 
-	shares := share{
+	shares := share.Share{
 		PubKey:       pubkey,
 		SecretShare:  secret,
 		PublicShares: pubshares,
@@ -146,7 +147,7 @@ func TestValidSignatures(t *testing.T) {
 
 	_, err = aggDepositData(
 		map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(sigRoot[:])},
-		[]share{shares},
+		[]share.Share{shares},
 		map[core.PubKey]eth2p0.DepositMessage{corePubkey: msg},
 		network,
 	)
@@ -155,7 +156,7 @@ func TestValidSignatures(t *testing.T) {
 	// Aggregate and verify cluster lock hash signatures
 	lockMsg := []byte("cluster lock hash")
 
-	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(lockMsg)}, map[core.PubKey]share{corePubkey: shares}, lockMsg)
+	_, _, err = aggLockHashSig(map[core.PubKey][]core.ParSignedData{corePubkey: getSigs(lockMsg)}, map[core.PubKey]share.Share{corePubkey: shares}, lockMsg)
 	require.NoError(t, err)
 }
 

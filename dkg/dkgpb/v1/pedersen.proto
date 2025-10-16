@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package dkg.dkgpb.v1;
+
+option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
+
+message NodePubKeyMessage {
+  bytes session_id = 1;
+  bytes public_key = 2; // kyber.Point
+  optional NodePubKeyShares shares = 3; // for resharing
+}
+
+message NodePubKeyShares {
+  repeated bytes public_key_shares = 1; // kyber.Point
+}
+
+message ValidatorPubKeyShareMessage {
+  bytes session_id = 1;
+  bytes public_key_share = 2; // kyber.Point
+}
+
+// Below are the Pedersen DTOs for DKG messages:
+// github.com/drand/kyber@v1.3.1/share/dkg/structs.go
+
+message PedersenDealBundle {
+  uint32 dealer_index = 1;
+  repeated PedersenDeal deals = 2;
+  repeated bytes public = 3; // kyber.Point
+  bytes session_id = 4;
+  bytes signature = 5;
+}
+
+message PedersenDeal {
+  uint32 share_index = 1;
+  bytes encrypted_share = 2;
+}
+
+message PedersenResponseBundle {
+  uint32 share_index = 1;
+  repeated PedersenResponse responses = 2;
+  bytes session_id = 3;
+  bytes signature = 4;
+}
+
+message PedersenResponse {
+  uint32 dealer_index = 1;
+  bool status = 2;
+}
+
+message PedersenJustificationBundle {
+  uint32 dealer_index = 1;
+  repeated PedersenJustification justifications = 2;
+  bytes session_id = 3;
+  bytes signature = 4;
+}
+
+message PedersenJustification {
+  uint32 share_index = 1;
+  bytes share = 2; // kyber.Scalar
+}

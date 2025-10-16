@@ -7,6 +7,8 @@ require (
 	github.com/attestantio/go-eth2-client v0.27.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
+	github.com/drand/kyber v1.3.1
+	github.com/drand/kyber-bls12381 v0.3.3
 	github.com/ethereum/go-ethereum v1.16.5
 	github.com/ferranbt/fastssz v1.0.0
 	github.com/golang/snappy v1.0.0
@@ -149,6 +151,7 @@ require (
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jdx/go-netrc v1.0.0 // indirect
 	github.com/jinzhu/copier v0.4.0 // indirect
+	github.com/kilic/bls12-381 v0.1.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
