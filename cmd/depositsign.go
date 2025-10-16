@@ -36,7 +36,7 @@ func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *
 	cmd := &cobra.Command{
 		Use:   "sign",
 		Short: "Sign a new partial deposit.",
-		Long:  "Sign, broadcast and fetch partial validator deposit messages using a remote API.",
+		Long:  "Sign a new partial validator deposit messages using a remote API.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)

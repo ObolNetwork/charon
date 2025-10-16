@@ -13,10 +13,14 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 const (
 	submitPartialDepositTmpl = "/deposit_data/partial_deposits/" + lockHashPath + "/" + shareIndexPath
+	fetchFullDepositTmpl     = "/deposit_data/" + lockHashPath + "/" + valPubkeyPath
 )
 
 // submitPartialDepositURL returns the partial deposit Obol API URL for a given lock hash.
@@ -27,6 +31,16 @@ func submitPartialDepositURL(lockHash string, shareIndex uint64) string {
 		shareIndexPath,
 		strconv.FormatUint(shareIndex, 10),
 	).Replace(submitPartialDepositTmpl)
+}
+
+// fetchFullDepositURL returns the full deposit Obol API URL for a given validator public key.
+func fetchFullDepositURL(valPubkey, lockHash string) string {
+	return strings.NewReplacer(
+		valPubkeyPath,
+		valPubkey,
+		lockHashPath,
+		lockHash,
+	).Replace(fetchFullDepositTmpl)
 }
 
 // PostPartialDeposits POSTs the set of msg's to the Obol API, for a given lock hash.
@@ -43,7 +57,8 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 
 	u.Path = path
 
-	data, err := json.Marshal(depositBlobs)
+	apiDepositWrap := PartialDepositRequest{PartialDepositData: depositBlobs}
+	data, err := json.Marshal(apiDepositWrap)
 	if err != nil {
 		return errors.Wrap(err, "json marshal error")
 	}
@@ -57,4 +72,84 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 	}
 
 	return nil
+}
+
+// GetFullDeposit gets the full deposit message for a given validator public key, lock hash and share index.
+// It respects the timeout specified in the Client instance.
+func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte) ([]eth2p0.DepositData, error) {
+	valPubkeyBytes, err := from0x(valPubkey, 48) // public key is 48 bytes long
+	if err != nil {
+		return []eth2p0.DepositData{}, errors.Wrap(err, "validator pubkey to bytes")
+	}
+
+	path := fetchFullDepositURL(valPubkey, "0x"+hex.EncodeToString(lockHash))
+
+	u, err := url.ParseRequestURI(c.baseURL)
+	if err != nil {
+		return []eth2p0.DepositData{}, errors.Wrap(err, "bad Obol API url")
+	}
+
+	u.Path = path
+
+	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
+	defer cancel()
+
+	respBody, err := httpGet(ctx, u, map[string]string{})
+	if err != nil {
+		return []eth2p0.DepositData{}, errors.Wrap(err, "http Obol API GET request")
+	}
+
+	defer respBody.Close()
+
+	var dr FullDepositResponse
+	if err := json.NewDecoder(respBody).Decode(&dr); err != nil {
+		return []eth2p0.DepositData{}, errors.Wrap(err, "json unmarshal error")
+	}
+
+	withdrawalCredentialsBytes, err := hex.DecodeString(strings.TrimPrefix(dr.WithdrawalCredentials, "0x"))
+	if err != nil {
+		return []eth2p0.DepositData{}, errors.Wrap(err, "validator pubkey to bytes")
+	}
+
+	// do aggregation
+	fullDeposits := []eth2p0.DepositData{}
+	for _, am := range dr.Amounts {
+		rawSignatures := make(map[int]tbls.Signature)
+		for sigIdx, sigStr := range am.Partials {
+			if len(sigStr.PartialDepositSignature) == 0 {
+				// ignore, the associated share index didn't push a partial signature yet
+				continue
+			}
+
+			if len(sigStr.PartialDepositSignature) < 2 {
+				return []eth2p0.DepositData{}, errors.New("signature string has invalid size", z.Int("size", len(sigStr.PartialDepositSignature)))
+			}
+
+			sigBytes, err := from0x(sigStr.PartialDepositSignature, 96) // a signature is 96 bytes long
+			if err != nil {
+				return []eth2p0.DepositData{}, errors.Wrap(err, "partial signature unmarshal")
+			}
+
+			sig, err := tblsconv.SignatureFromBytes(sigBytes)
+			if err != nil {
+				return []eth2p0.DepositData{}, errors.Wrap(err, "invalid partial signature")
+			}
+
+			rawSignatures[sigIdx+1] = sig
+		}
+
+		fullSig, err := tbls.ThresholdAggregate(rawSignatures)
+		if err != nil {
+			return []eth2p0.DepositData{}, errors.Wrap(err, "partial signatures threshold aggregate")
+		}
+
+		fullDeposits = append(fullDeposits, eth2p0.DepositData{
+			PublicKey:             eth2p0.BLSPubKey(valPubkeyBytes),
+			WithdrawalCredentials: withdrawalCredentialsBytes,
+			Amount:                eth2p0.Gwei(am.Amount),
+			Signature:             eth2p0.BLSSignature(fullSig),
+		})
+	}
+
+	return fullDeposits, nil
 }

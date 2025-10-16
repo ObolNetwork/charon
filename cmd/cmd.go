@@ -66,6 +66,7 @@ func New() *cobra.Command {
 		),
 		newDepositCmd(
 			newDepositSignCmd(runDepositSign),
+			newDepositFetchCmd(runDepositFetch),
 		),
 		newUnsafeCmd(newRunCmd(app.Run, true)),
 	)
