@@ -175,7 +175,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 
 				exit, err := fetchFullExit(valCtx, "", config, cl, identityKey, validatorPubKeyHex)
 				if err != nil {
-					if errors.Is(err, obolapi.ErrNoExit) {
+					if errors.Is(err, obolapi.ErrNoValue) {
 						log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
 						continue
 					}
