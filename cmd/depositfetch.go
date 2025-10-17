@@ -83,7 +83,7 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 		}
 	}
 
-	path := ""
+	var path string
 	if config.DepositDataDir == defaultDepositDataDir {
 		path = strings.Replace(config.DepositDataDir, "<TIMESTAMP>", time.Now().Format(time.RFC3339), 1)
 	} else {
@@ -98,12 +98,12 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 	for amount, depositDatas := range depositDatas {
 		file := path + "/deposit-data-" + fmt.Sprintf("%v", amount/deposit.OneEthInGwei) + "eth.json"
 
-		depositDatasJson, err := json.Marshal(depositDatas)
+		depositDataJSON, err := json.Marshal(depositDatas)
 		if err != nil {
 			return errors.Wrap(err, "signed deposit data marshal")
 		}
 
-		if err := os.WriteFile(file, depositDatasJson, 0o755); err != nil {
+		if err := os.WriteFile(file, depositDataJSON, 0o600); err != nil {
 			return errors.Wrap(err, "store signed full deposit message")
 		}
 

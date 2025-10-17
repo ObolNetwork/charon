@@ -58,6 +58,7 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 	u.Path = path
 
 	apiDepositWrap := PartialDepositRequest{PartialDepositData: depositBlobs}
+
 	data, err := json.Marshal(apiDepositWrap)
 	if err != nil {
 		return errors.Wrap(err, "json marshal error")
@@ -113,8 +114,10 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 
 	// do aggregation
 	fullDeposits := []eth2p0.DepositData{}
+
 	for _, am := range dr.Amounts {
 		rawSignatures := make(map[int]tbls.Signature)
+
 		for sigIdx, sigStr := range am.Partials {
 			if len(sigStr.PartialDepositSignature) == 0 {
 				// ignore, the associated share index didn't push a partial signature yet
