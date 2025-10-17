@@ -112,7 +112,7 @@ func runDeleteExit(ctx context.Context, config exitConfig) error {
 
 			err := oAPI.DeletePartialExit(valCtx, validatorPubKeyHex, cl.GetInitialMutationHash(), shareIdx, identityKey)
 			if err != nil {
-				if errors.Is(err, obolapi.ErrNoExit) {
+				if errors.Is(err, obolapi.ErrNoValue) {
 					log.Warn(ctx, fmt.Sprintf("partial exit data from Obol API for validator %v not available (exit may not have been submitted)", validatorPubKeyHex), nil)
 					continue
 				}
