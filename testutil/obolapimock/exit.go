@@ -12,28 +12,19 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
-	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
-	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 )
 
 const (
-	lockHashPath   = "{lock_hash}"
-	valPubkeyPath  = "{validator_pubkey}"
-	shareIndexPath = "{share_index}"
-
 	expPartialExits = "/exp/partial_exits"
 	expExit         = "/exp/exit"
 
@@ -42,58 +33,11 @@ const (
 	fetchFullExitTmpl     = "/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
 )
 
-type contextKey string
-
-const (
-	tokenContextKey contextKey = "token"
-)
-
-type tsError struct {
-	Message string
-}
-
-func writeErr(wr http.ResponseWriter, status int, msg string) {
-	resp, err := json.Marshal(tsError{Message: msg})
-	if err != nil {
-		panic(err) // never happens
-	}
-
-	wr.WriteHeader(status)
-	_, _ = wr.Write(resp)
-}
-
 // exitBlob represents an Obol API ExitBlob with its share index.
 type exitBlob struct {
 	obolapi.ExitBlob
 
 	shareIdx uint64
-}
-
-// testServer is a mock implementation (but that actually does cryptography) of the Obol API side,
-// which will handle storing and recollecting partial signatures.
-type testServer struct {
-	// for convenience, this thing handles one request at a time
-	lock sync.Mutex
-
-	// store the partial exits by the validator pubkey
-	partialExits map[string][]exitBlob
-
-	// store the lock file by its lock hash
-	lockFiles map[string]cluster.Lock
-
-	// drop one partial signature when returning the full set
-	dropOnePsig bool
-
-	// Beacon node client, needed to verify exits.
-	beacon eth2wrap.Client
-}
-
-// addLockFiles adds a set of lock files to ts.
-func (ts *testServer) addLockFiles(lock cluster.Lock) {
-	ts.lock.Lock()
-	defer ts.lock.Unlock()
-
-	ts.lockFiles["0x"+hex.EncodeToString(lock.LockHash)] = lock
 }
 
 func (ts *testServer) HandleSubmitPartialExit(writer http.ResponseWriter, request *http.Request) {
@@ -380,104 +324,6 @@ func (ts *testServer) partialExitsMatch(newOne obolapi.ExitBlob) bool {
 	last := ts.partialExits[newOne.PublicKey][exitsLen-1]
 
 	return *last.SignedExitMessage.Message == *newOne.SignedExitMessage.Message
-}
-
-// verifyIdentitySignature verifies that sig for hash has been created with operator's identity key.
-func verifyIdentitySignature(operator cluster.Operator, sig, hash []byte) error {
-	opENR, err := enr.Parse(operator.ENR)
-	if err != nil {
-		return errors.Wrap(err, "operator enr")
-	}
-
-	verified, err := k1util.Verify65(opENR.PubKey, hash, sig)
-	if err != nil {
-		return errors.Wrap(err, "k1 signature verify")
-	}
-
-	if !verified {
-		return errors.New("identity signature verification failed")
-	}
-
-	return nil
-}
-
-// cleanTmpl cleans tmpl from '{' and '}', used in path definitions.
-func cleanTmpl(tmpl string) string {
-	return strings.NewReplacer(
-		"{",
-		"",
-		"}",
-		"").Replace(tmpl)
-}
-
-// MockServer returns an Obol API mock test server.
-// It returns a http.Handler to be served over HTTP, and a function to add cluster lock files to its database.
-func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lock cluster.Lock)) {
-	ts := testServer{
-		lock:         sync.Mutex{},
-		partialExits: map[string][]exitBlob{},
-		lockFiles:    map[string]cluster.Lock{},
-		dropOnePsig:  dropOnePsig,
-		beacon:       beacon,
-	}
-
-	router := mux.NewRouter()
-
-	getFull := router.PathPrefix(expExit).Subrouter()
-	getFull.Use(authMiddleware)
-	getFull.HandleFunc(fetchFullExitTmpl, ts.HandleGetFullExit).Methods(http.MethodGet)
-
-	deletePartial := router.PathPrefix(expPartialExits).Subrouter()
-	deletePartial.Use(authMiddleware)
-	deletePartial.HandleFunc(deletePartialExitTmpl, ts.HandleDeletePartialExit).Methods(http.MethodDelete)
-
-	router.HandleFunc(expPartialExits+submitPartialExitTmpl, ts.HandleSubmitPartialExit).Methods(http.MethodPost)
-
-	return router, ts.addLockFiles
-}
-
-func authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bearer := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer")
-
-		bearer = strings.TrimSpace(bearer)
-		if bearer == "" {
-			writeErr(w, http.StatusUnauthorized, "missing authorization header")
-			return
-		}
-
-		bearerBytes, err := from0x(bearer, 65)
-		if err != nil {
-			writeErr(w, http.StatusBadRequest, "bearer token must be hex-encoded")
-			return
-		}
-
-		r = r.WithContext(context.WithValue(r.Context(), tokenContextKey, bearerBytes))
-
-		// compare the return-value to the authMW
-		next.ServeHTTP(w, r)
-	})
-}
-
-// from0x decodes hex-encoded data and expects it to be exactly of len(length).
-// Accepts both 0x-prefixed strings or not.
-func from0x(data string, length int) ([]byte, error) {
-	if data == "" {
-		return nil, errors.New("empty data")
-	}
-
-	b, err := hex.DecodeString(strings.TrimPrefix(data, "0x"))
-	if err != nil {
-		return nil, errors.Wrap(err, "decode hex")
-	} else if len(b) != length {
-		return nil, errors.Wrap(err,
-			"invalid hex length",
-			z.Int("expect", length),
-			z.Int("actual", len(b)),
-		)
-	}
-
-	return b, nil
 }
 
 // sigDataForExit returns the hash tree root for the given exit message, at the given exit epoch.

@@ -32,7 +32,7 @@ const (
 	fetchFullExitTmpl     = "/exp/exit/" + lockHashPath + "/" + shareIndexPath + "/" + valPubkeyPath
 )
 
-var ErrNoExit = errors.New("no exit for the given validator public key")
+var ErrNoValue = errors.New("no value for the given validator public key")
 
 // bearerString returns the bearer token authentication string given a token.
 func bearerString(data []byte) string {
