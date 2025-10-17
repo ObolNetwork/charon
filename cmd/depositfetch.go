@@ -90,6 +90,11 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 		path = config.DepositDataDir
 	}
 
+	err = os.MkdirAll(path, 0o755)
+	if err != nil && !os.IsExist(err) {
+		return errors.Wrap(err, "create deposit data dir")
+	}
+
 	for amount, depositDatas := range depositDatas {
 		file := path + "/deposit-data-" + fmt.Sprintf("%v", amount/deposit.OneEthInGwei) + "eth.json"
 
@@ -98,7 +103,7 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 			return errors.Wrap(err, "signed deposit data marshal")
 		}
 
-		if err := os.WriteFile(file, depositDatasJson, 0o600); err != nil {
+		if err := os.WriteFile(file, depositDatasJson, 0o755); err != nil {
 			return errors.Wrap(err, "store signed full deposit message")
 		}
 
