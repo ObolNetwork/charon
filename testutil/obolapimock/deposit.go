@@ -100,21 +100,26 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 				}
 			}
 		}
+
 		if len(publicKeyShare) == 0 {
 			writeErr(writer, http.StatusBadRequest, "cannot find public key in lock file: "+err.Error())
 			return
 		}
+
 		if err := tbls.Verify(publicKeyShare, signedDepositsRoot[:], tbls.Signature(depositData.Signature)); err != nil {
 			writeErr(writer, http.StatusBadRequest, "cannot verify signature: "+err.Error())
 			return
 		}
 
 		existingDeposit, ok := ts.partialDeposits[depositData.PublicKey.String()]
+
 		amounts := []obolapi.Amount{}
 		if ok {
 			amounts = existingDeposit.Amounts
 		}
+
 		amtFound := false
+
 		for idx, amt := range amounts {
 			if amt.Amount == uint64(depositData.Amount) {
 				amt.Partials = append(amt.Partials, obolapi.Partial{
@@ -125,6 +130,7 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 				amtFound = true
 			}
 		}
+
 		existingDeposit.Amounts = amounts
 
 		if !amtFound {
@@ -141,14 +147,14 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 			ts.partialDeposits[depositData.PublicKey.String()] = depositBlob{
 				FullDepositResponse: obolapi.FullDepositResponse{
 					PublicKey:             depositData.PublicKey.String(),
-					WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials[:]),
+					WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
 					Amounts:               amounts,
 				},
 				shareIdx: shareIndex,
 			}
 		}
-
 	}
+
 	writer.WriteHeader(http.StatusCreated)
 }
 
@@ -174,11 +180,13 @@ func (ts *testServer) HandleGetFullDeposit(writer http.ResponseWriter, request *
 	}
 
 	amountsWithEnoughPartials := []obolapi.Amount{}
+
 	for _, pd := range partialDeposits.Amounts {
 		if len(pd.Partials) >= lock.Threshold {
 			amountsWithEnoughPartials = append(amountsWithEnoughPartials, pd)
 		}
 	}
+
 	if len(amountsWithEnoughPartials) == 0 {
 		writeErr(writer, http.StatusUnauthorized, "not enough partial deposits for any amount")
 		return
