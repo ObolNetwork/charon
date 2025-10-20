@@ -65,7 +65,7 @@ func TestDepositFetchValid(t *testing.T) {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
 
 		config := depositConfig{
-			ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
+			ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex(), lock.Validators[1].PublicKeyHex()},
 			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
 			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
 			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
@@ -75,8 +75,8 @@ func TestDepositFetchValid(t *testing.T) {
 
 		signConfig := depositSignConfig{
 			depositConfig:       config,
-			WithdrawalAddresses: []string{"0x0100000000000000000000000000000000000000000000000000000000001234"},
-			DepositAmounts:      []int{32},
+			WithdrawalAddresses: []string{"0x0100000000000000000000000000000000000000000000000000000000001234", "0x0100000000000000000000000000000000000000000000000000000000001235"},
+			DepositAmounts:      []int{32, 1},
 		}
 
 		require.NoError(t, runDepositSign(ctx, signConfig), "operator index submit deposit sign: %v", idx)
@@ -85,7 +85,7 @@ func TestDepositFetchValid(t *testing.T) {
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 	config := depositConfig{
-		ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
+		ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex(), lock.Validators[1].PublicKeyHex()},
 		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
 		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
 		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
@@ -95,7 +95,7 @@ func TestDepositFetchValid(t *testing.T) {
 
 	fetchConfig := depositFetchConfig{
 		depositConfig:  config,
-		DepositDataDir: filepath.Join(baseDir, "deposit-data-<TIMESTAMP>"),
+		DepositDataDir: filepath.Join(baseDir, "deposit_data"),
 	}
 
 	err = runDepositFetch(ctx, fetchConfig)

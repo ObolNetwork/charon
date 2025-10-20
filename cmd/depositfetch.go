@@ -4,8 +4,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -17,6 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 )
 
@@ -95,19 +94,16 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 		return errors.Wrap(err, "create deposit data dir")
 	}
 
-	for amount, depositDatas := range depositDatas {
-		file := path + "/deposit-data-" + fmt.Sprintf("%v", amount/deposit.OneEthInGwei) + "eth.json"
+	network, err := eth2util.ForkVersionToNetwork(cl.GetForkVersion())
+	if err != nil {
+		return err
+	}
 
-		depositDataJSON, err := json.Marshal(depositDatas)
+	for _, depositDatas := range depositDatas {
+		err = deposit.WriteDepositDataFile(depositDatas, network, path)
 		if err != nil {
-			return errors.Wrap(err, "signed deposit data marshal")
+			return err
 		}
-
-		if err := os.WriteFile(file, depositDataJSON, 0o600); err != nil {
-			return errors.Wrap(err, "store signed full deposit message")
-		}
-
-		log.Info(ctx, "Stored signed deposit message", z.Str("path", path))
 	}
 
 	return nil
