@@ -377,8 +377,8 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 		// If the beacon node is underperforming it might be that in the middle of this loop it receives a new block.
 		// This will result some attestation datas having the up to date head, while others have an old head.
 		// In a good scenario of well performing beacon node, the heads will be the same and the `value`` and `attData.Data`
-		// will be equal. However, in the scenario explained above, their head will missmatch, resulting in inequality.
-		// That's why we are checking here only if source and target missmatch.
+		// will be equal. However, in the scenario explained above, their head will mismatch, resulting in inequality.
+		// That's why we are checking here only if source and target mismatch.
 		if value.Source.String() != attData.Data.Source.String() {
 			return errors.New(
 				"clashing attestation data with hardcoded commidx=0 source",

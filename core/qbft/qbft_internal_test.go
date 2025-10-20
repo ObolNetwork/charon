@@ -855,7 +855,7 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 			}
 
 			if vs != inputValueSource {
-				returnCh <- errors.New("missmatch", z.I64("leadervalue", vs), z.I64("localvalue", inputValueSource))
+				returnCh <- errors.New("mismatch", z.I64("leadervalue", vs), z.I64("localvalue", inputValueSource))
 				return
 			}
 
