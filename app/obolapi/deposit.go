@@ -78,7 +78,7 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 // GetFullDeposit gets the full deposit message for a given validator public key, lock hash and share index.
 // It respects the timeout specified in the Client instance.
 func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte) ([]eth2p0.DepositData, error) {
-	valPubkeyBytes, err := from0x(valPubkey, 48) // public key is 48 bytes long
+	valPubkeyBytes, err := from0x(valPubkey, len(eth2p0.BLSPubKey{}))
 	if err != nil {
 		return []eth2p0.DepositData{}, errors.Wrap(err, "validator pubkey to bytes")
 	}
@@ -109,7 +109,7 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 
 	withdrawalCredentialsBytes, err := hex.DecodeString(strings.TrimPrefix(dr.WithdrawalCredentials, "0x"))
 	if err != nil {
-		return []eth2p0.DepositData{}, errors.Wrap(err, "validator pubkey to bytes")
+		return []eth2p0.DepositData{}, errors.Wrap(err, "withdrawal credentials to bytes")
 	}
 
 	// do aggregation

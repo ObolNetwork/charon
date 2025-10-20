@@ -76,7 +76,7 @@ func TestDepositFetchValid(t *testing.T) {
 		signConfig := depositSignConfig{
 			depositConfig:       config,
 			WithdrawalAddresses: []string{"0x0100000000000000000000000000000000000000000000000000000000001234", "0x0100000000000000000000000000000000000000000000000000000000001235"},
-			DepositAmounts:      []int{32, 1},
+			DepositAmounts:      []uint{32, 1},
 		}
 
 		require.NoError(t, runDepositSign(ctx, signConfig), "operator index submit deposit sign: %v", idx)

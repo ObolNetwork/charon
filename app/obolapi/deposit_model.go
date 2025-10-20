@@ -4,9 +4,6 @@ package obolapi
 
 import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
-
-	"github.com/obolnetwork/charon/app/errors"
 )
 
 type PartialDepositRequest struct {
@@ -30,45 +27,4 @@ type Amount struct {
 type Partial struct {
 	PartialPublicKey        string `json:"partial_public_key"`
 	PartialDepositSignature string `json:"partial_deposit_signature"`
-}
-
-// FullDepositAuthBlob represents the data required by Obol API to download the full deposit blobs.
-type FullDepositAuthBlob struct {
-	LockHash        []byte
-	ValidatorPubkey []byte
-	ShareIndex      uint64
-}
-
-func (f FullDepositAuthBlob) GetTree() (*ssz.Node, error) {
-	node, err := ssz.ProofTree(f)
-	if err != nil {
-		return nil, errors.Wrap(err, "proof tree")
-	}
-
-	return node, nil
-}
-
-func (f FullDepositAuthBlob) HashTreeRoot() ([32]byte, error) {
-	hash, err := ssz.HashWithDefaultHasher(f)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash with default hasher")
-	}
-
-	return hash, nil
-}
-
-func (f FullDepositAuthBlob) HashTreeRootWith(hh ssz.HashWalker) error {
-	indx := hh.Index()
-
-	hh.PutBytes(f.LockHash)
-
-	if err := putBytesN(hh, f.ValidatorPubkey, sszLenPubKey); err != nil {
-		return errors.Wrap(err, "validator pubkey ssz")
-	}
-
-	hh.PutUint64(f.ShareIndex)
-
-	hh.Merkleize(indx)
-
-	return nil
 }

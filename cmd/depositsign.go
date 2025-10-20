@@ -27,7 +27,7 @@ type depositSignConfig struct {
 	depositConfig
 
 	WithdrawalAddresses []string
-	DepositAmounts      []int
+	DepositAmounts      []uint
 }
 
 func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *cobra.Command {
@@ -56,7 +56,7 @@ func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *
 
 func bindDepositSignFlags(cmd *cobra.Command, config *depositSignConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddresses, "withdrawal-addresses", []string{}, "Withdrawal addresses for which the new deposits will be signed. Either a single address for all keys or one per key should be specified.")
-	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", []int{32}, "artial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
+	cmd.Flags().UintSliceVar(&config.DepositAmounts, "deposit-amounts", []uint{32}, "artial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 }
 
 func runDepositSign(ctx context.Context, config depositSignConfig) error {
@@ -137,11 +137,11 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 	for i, pubkey := range pubkeys {
 		for _, amount := range config.DepositAmounts {
 			if !cl.GetCompounding() && (amount < 1 || amount > 32) {
-				return errors.New("deposit amount must be between 1 and 32 ETH", z.Int("amount", amount))
+				return errors.New("deposit amount must be between 1 and 32 ETH", z.U64("amount", uint64(amount)))
 			}
 
 			if cl.GetCompounding() && (amount < 1 || amount > 2048) {
-				return errors.New("deposit amount must be between 1 and 2048 ETH", z.Int("amount", amount))
+				return errors.New("deposit amount must be between 1 and 2048 ETH", z.U64("amount", uint64(amount)))
 			}
 
 			depositMsg := eth2p0.DepositMessage{
