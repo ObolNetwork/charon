@@ -220,7 +220,7 @@ func (h *synthWrapper) SubmitBlindedProposal(ctx context.Context, opts *eth2api.
 // SubmitProposal submits a beacon block or swallows it if marked as synthetic.
 func (h *synthWrapper) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
 	if IsSyntheticProposal(opts.Proposal) {
-		log.Debug(ctx, "Ignoring synthetic beacon block (already on-chain)")
+		log.Debug(ctx, "Ignoring synthetic beacon block proposal")
 		return nil
 	}
 
