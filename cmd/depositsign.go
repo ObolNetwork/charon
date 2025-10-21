@@ -35,8 +35,8 @@ func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *
 
 	cmd := &cobra.Command{
 		Use:   "sign",
-		Short: "Sign a new partial deposit.",
-		Long:  "Sign a new partial validator deposit messages using a remote API.",
+		Short: "Sign a new partial deposit message.",
+		Long:  "Signs new partial validator deposit messages using a remote API.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)
@@ -55,8 +55,8 @@ func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *
 }
 
 func bindDepositSignFlags(cmd *cobra.Command, config *depositSignConfig) {
-	cmd.Flags().StringSliceVar(&config.WithdrawalAddresses, "withdrawal-addresses", []string{}, "Withdrawal addresses for which the new deposits will be signed. Either a single address for all keys or one per key should be specified.")
-	cmd.Flags().UintSliceVar(&config.DepositAmounts, "deposit-amounts", []uint{32}, "artial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
+	cmd.Flags().StringSliceVar(&config.WithdrawalAddresses, "withdrawal-addresses", []string{}, "[REQUIRED] Withdrawal addresses for which the new deposits will be signed. Either a single address for all specified validator-public-keys or one address per key should be specified.")
+	cmd.Flags().UintSliceVar(&config.DepositAmounts, "deposit-amounts", []uint{32}, "Comma separated list of partial deposit amounts (integers) in ETH.")
 }
 
 func runDepositSign(ctx context.Context, config depositSignConfig) error {

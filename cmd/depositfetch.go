@@ -32,8 +32,8 @@ func newDepositFetchCmd(runFunc func(context.Context, depositFetchConfig) error)
 
 	cmd := &cobra.Command{
 		Use:   "fetch",
-		Short: "Fetch a full deposit.",
-		Long:  "Fetch a full validator deposit messages using a remote API.",
+		Short: "Fetch a full deposit message.",
+		Long:  "Fetch full validator deposit messages using a remote API.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)
