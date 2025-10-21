@@ -3,7 +3,10 @@
 package eth2wrap
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"net/http"
 )
 
 // NewMultiForT creates a new mutil client for testing.
@@ -116,6 +119,49 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 		incError(label)
 		err = wrapError(ctx, err, label)
 	}
+
+	return res0, err
+}
+
+func (m multi) ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+	// Duplicate the request body so each backend gets an independent reader
+	// req.Clone(ctx) does NOT clone the body reader
+	var bodyBytes []byte
+	var hasBody bool
+	if req.Body != nil {
+		b, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		// Close the original body
+		_ = req.Body.Close()
+		bodyBytes = b
+		hasBody = true
+		// Replace with reusable reader for safety
+		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		req.ContentLength = int64(len(bodyBytes))
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+		}
+	}
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*http.Response, error) {
+			cloned := req.Clone(ctx)
+			if hasBody {
+				cloned.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+				cloned.ContentLength = int64(len(bodyBytes))
+				cloned.GetBody = func() (io.ReadCloser, error) {
+					return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+				}
+			} else {
+				cloned.Body = nil
+			}
+			res, err := args.client.ProxyRequest(ctx, cloned)
+			return res, err
+		},
+		nil, nil,
+	)
 
 	return res0, err
 }

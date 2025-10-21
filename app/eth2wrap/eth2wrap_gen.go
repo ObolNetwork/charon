@@ -6,6 +6,7 @@ package eth2wrap
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -24,6 +25,8 @@ type Client interface {
 	SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
 
 	SetForkVersion(forkVersion [4]byte)
+
+	ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error)
 
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter

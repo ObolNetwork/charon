@@ -205,8 +205,8 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	}
 	output, err := runForkJoin(clients)
 
-	// Call fallback nodes when request to beacon node timeout or if it's syncing
-	if err != nil && len(fallbacks) != 0 && (isTimeoutError(err) || isSyncingError(err)) {
+	// Call fallback nodes when request to beacon node timeout or if it's syncing or beacon node is unreachable
+	if err != nil && len(fallbacks) != 0 && (isTimeoutError(err) || isSyncingError(err) || isBadGateway(err)) {
 		usingFallbackGauge.Set(1)
 		return runForkJoin(fallbacks)
 	}
@@ -226,6 +226,12 @@ func isTimeoutError(err error) bool {
 func isSyncingError(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "syncing")
+}
+
+// isBadGateway returns true if error message contains known strings for connectivity issues.
+func isBadGateway(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "connect: connection refused") || strings.Contains(msg, "connect: no route to host") || strings.Contains(msg, "net/http: abort Handler")
 }
 
 type empty struct{}

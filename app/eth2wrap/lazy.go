@@ -4,6 +4,7 @@ package eth2wrap
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -164,4 +165,13 @@ func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidator
 	if cl, ok := l.getClient(); ok {
 		cl.SetValidatorCache(valCache)
 	}
+}
+
+func (l *lazy) ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.ProxyRequest(ctx, req)
 }

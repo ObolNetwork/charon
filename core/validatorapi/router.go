@@ -11,10 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	stdlog "log"
+	"maps"
 	"math"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"slices"
 	"strconv"
@@ -1612,62 +1611,73 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	}
 }
 
-// addressProvider provides the address of the active beacon node.
-type addressProvider interface {
-	Address() string
-}
-
-// proxyHandler returns a reverse proxy handler.
-// Proxied requests use the provided context, so are cancelled when the context is cancelled.
-func proxyHandler(ctx context.Context, addrProvider addressProvider) http.HandlerFunc {
+func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(addrProvider)
-		if err != nil {
-			ctx := log.WithTopic(r.Context(), "vapi")
-			log.Error(ctx, "Failed to determine target beacon node address for proxying. Check beacon node configuration", err)
-			writeError(ctx, w, "proxy", err)
+		ctx := r.Context()
+		ctx = log.WithTopic(ctx, "vapi")
+		ctx = log.WithCtx(ctx, z.Str("vapi_proxy_method", r.Method), z.Str("vapi_proxy_path", r.URL.Path))
+		ctx = withCtxDuration(ctx)
+		ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 
-			return
-		}
-		// Get address for active beacon node
-		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-		// Extend default proxy director with basic auth and host header.
-		defaultDirector := proxy.Director
-		proxy.Director = func(req *http.Request) {
-			if targetURL.User != nil {
-				password, _ := targetURL.User.Password()
-				req.SetBasicAuth(targetURL.User.Username(), password)
+		defer func() {
+			if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				observeProxyAPILatency(r.URL.Path)()
+				observeAPILatency("proxy")()
 			}
 
-			req.Host = targetURL.Host
-			defaultDirector(req)
+			cancel()
+		}()
+
+		// Send request to eth2wrap logic
+		// If using multi, will clone the response and proxy to each available BN
+		res, err := eth2Cl.ProxyRequest(ctx, r)
+		if err != nil {
+			writeError(ctx, w, r.URL.Path, err)
+			return
 		}
-		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
 
-		// Use provided context for proxied requests, so long running
-		// requests are cancelled when this context is cancelled (soft shutdown).
-		clonedReq := r.Clone(ctx)
+		// Copy headers from upstream (already filtered by ReverseProxy in httpwrap)
+		maps.Copy(w.Header(), res.Header)
 
-		log.Debug(ctx, "Proxying request to beacon node", z.Str("method", clonedReq.Method), z.Str("path", clonedReq.URL.Path))
+		// If trailers expected, declare them before writing headers.
+		if res.Trailer != nil && len(res.Trailer) > 0 {
+			for k := range res.Trailer {
+				w.Header().Add("Trailer", k)
+			}
+		}
 
-		defer observeProxyAPILatency(clonedReq.URL.Path)()
-		defer observeAPILatency("proxy")()
+		if res.StatusCode/100 != 2 {
+			incAPIErrors("proxy", res.StatusCode)
+		}
 
-		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
+		w.WriteHeader(res.StatusCode)
+
+		// For HEAD, do not write a body.
+		if r.Method == http.MethodHead {
+			if res.Body != nil {
+				_, _ = io.Copy(io.Discard, res.Body)
+				_ = res.Body.Close()
+			}
+			return
+		}
+
+		if res.Body != nil {
+			_, err = io.Copy(w, res.Body)
+			if err != nil {
+				log.Error(ctx, "Failed writing api response", err)
+			}
+			_ = res.Body.Close()
+		}
+
+		// Set trailer values after the body if present.
+		if res.Trailer != nil && len(res.Trailer) > 0 {
+			for k, vv := range res.Trailer {
+				for _, v := range vv {
+					w.Header().Add(k, v)
+				}
+			}
+		}
 	}
-}
-
-// getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
-	addr := addrProvider.Address()
-
-	targetURL, err := url.ParseRequestURI(addr)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
-	}
-
-	return targetURL, nil
 }
 
 // writeError writes a http json error response object.
@@ -1861,28 +1871,6 @@ func hexQuery(query url.Values, name string) ([]byte, bool, error) {
 	}
 
 	return resp, true, nil
-}
-
-// writeFlusher is copied from /net/http/httputil/reverseproxy.go.
-// It is required to flush streaming responses.
-type writeFlusher interface {
-	http.ResponseWriter
-	http.Flusher
-}
-
-// proxyResponseWriter wraps the writeFlusher interface and instruments errors.
-type proxyResponseWriter struct {
-	writeFlusher
-}
-
-func (w proxyResponseWriter) WriteHeader(statusCode int) {
-	if statusCode/100 == 2 {
-		// 2XX isn't an error
-		return
-	}
-
-	incAPIErrors("proxy", statusCode)
-	w.writeFlusher.WriteHeader(statusCode)
 }
 
 // getValidatorIDs returns validator IDs as "id" array query parameters.
