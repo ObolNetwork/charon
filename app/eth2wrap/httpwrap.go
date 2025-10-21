@@ -96,22 +96,11 @@ func (h *httpAdapter) Validators(ctx context.Context, opts *api.ValidatorsOpts) 
 	*api.Response[map[eth2p0.ValidatorIndex]*apiv1.Validator],
 	error,
 ) {
-	var cancel func()
-
-	reqCtx := ctx
-
 	maxValAmt := max(len(opts.PubKeys), len(opts.Indices))
+	timeout := time.Duration(max(200, maxValAmt)*50) * time.Millisecond
 
-	if maxValAmt > 200 {
-		reqTimeout := time.Duration(50*maxValAmt) * time.Millisecond
-		reqCtx, cancel = context.WithTimeout(reqCtx, reqTimeout)
-	}
-
-	defer func() {
-		if cancel != nil {
-			cancel()
-		}
-	}()
+	reqCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	return h.Service.Validators(reqCtx, opts)
 }

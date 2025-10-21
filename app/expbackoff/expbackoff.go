@@ -125,9 +125,13 @@ func NewWithReset(ctx context.Context, opts ...func(*Config)) (backoff func(), r
 			return
 		}
 
+		// Use after() for testability, which defaults to time.After in production
+		// but can be mocked for tests
+		afterChan := after(Backoff(conf, retries))
+
 		select {
 		case <-ctx.Done():
-		case <-after(Backoff(conf, retries)):
+		case <-afterChan:
 		}
 
 		retries++
@@ -156,9 +160,7 @@ func Backoff(config Config, retries int) time.Duration {
 		retries--
 	}
 
-	if backoff > maxVal {
-		backoff = maxVal
-	}
+	backoff = min(backoff, maxVal)
 	// Randomize backoff delays so that if a cluster of requests start at
 	// the same time, they won't operate in lockstep.
 	backoff *= 1 + config.Jitter*(randFloat()*2-1)

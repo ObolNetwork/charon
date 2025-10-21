@@ -245,7 +245,6 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
-
 			wg.Go(func() {
 				pingValidatorContinuously(pingCtx, conf.APIAddress, testResCh)
 			})

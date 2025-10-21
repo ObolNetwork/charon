@@ -65,12 +65,16 @@ func (l *lazy) getOrCreateClient(ctx context.Context) (Client, error) {
 	}
 
 	// Try until we get the provider lock or the context is cancelled.
-	for !l.providerMu.TryLock() {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
 
-		time.Sleep(time.Millisecond) // Don't spin.
+	for !l.providerMu.TryLock() {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			// Try again
+		}
 	}
 	defer l.providerMu.Unlock()
 

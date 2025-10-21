@@ -162,7 +162,7 @@ func New[I, O any](rootCtx context.Context, work Work[I, O], opts ...Option) (Fo
 		wg         sync.WaitGroup
 		zero       O
 		input      = make(chan I, options.inputBuf)
-		results    = make(chan Result[I, O])
+		results    = make(chan Result[I, O], options.workers)
 		dropOutput = make(chan struct{})
 		done       = make(chan struct{})
 	)

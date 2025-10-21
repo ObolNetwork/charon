@@ -175,7 +175,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-	go eth1Cl.Run(ctx)
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartEth1Client, lifecycle.HookFuncCtx(eth1Cl.Run))
 
 	cluster, err := loadClusterManifest(ctx, conf, eth1Cl)
 	if err != nil {

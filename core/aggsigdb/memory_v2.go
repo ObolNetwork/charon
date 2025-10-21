@@ -4,7 +4,6 @@ package aggsigdb
 
 import (
 	"context"
-	"runtime"
 	"sync"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -19,6 +18,7 @@ type MemDBV2 struct {
 	keysByDuty map[core.Duty][]memDBKey // Key index by duty for fast deletion.
 	deadliner  core.Deadliner
 	closed     chan struct{}
+	notify     chan struct{} // Notification channel for data availability
 }
 
 // NewMemDBV2 creates a basic memory based AggSigDB.
@@ -27,6 +27,7 @@ func NewMemDBV2(deadliner core.Deadliner) *MemDBV2 {
 		// data, keysByDuty are okay to use without explicit initialization
 		deadliner:  deadliner,
 		closed:     make(chan struct{}),
+		notify:     make(chan struct{}, 1), // Buffered channel for non-blocking sends
 		data:       map[memDBKey]core.SignedData{},
 		keysByDuty: map[core.Duty][]memDBKey{},
 	}
@@ -75,6 +76,13 @@ func (m *MemDBV2) Store(ctx context.Context, duty core.Duty, set core.SignedData
 		}
 	}
 
+	// Notify waiters that new data is available
+	select {
+	case m.notify <- struct{}{}:
+	default:
+		// Channel already has a pending notification
+	}
+
 	return nil
 }
 
@@ -102,17 +110,24 @@ func (m *MemDBV2) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey)
 
 	for {
 		data, err := query()
-		if err != nil {
-			if !errors.Is(err, errMustLoop) {
-				return nil, err
-			}
-
-			runtime.Gosched() // yield to runtime to avoid trashing
-
-			continue
+		if err == nil {
+			return data, nil
 		}
 
-		return data, nil
+		if !errors.Is(err, errMustLoop) {
+			return nil, err
+		}
+
+		// Wait for notification or context cancellation
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-m.closed:
+			return nil, ErrStopped
+		case <-m.notify:
+			// New data available, try again
+			continue
+		}
 	}
 }
 

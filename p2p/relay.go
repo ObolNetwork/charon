@@ -113,7 +113,10 @@ func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 
 		ctx = log.WithTopic(ctx, "p2p")
 
-		for ctx.Err() == nil {
+		ticker := time.NewTicker(routedAddrTTL * 9 / 10)
+		defer ticker.Stop()
+
+		for {
 			for _, pID := range peers {
 				if pID == p2pNode.ID() {
 					// Skip self
@@ -139,7 +142,7 @@ func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(routedAddrTTL * 9 / 10):
+			case <-ticker.C:
 			}
 		}
 	}

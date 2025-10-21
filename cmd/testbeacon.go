@@ -484,7 +484,6 @@ func beaconPingLoadTest(ctx context.Context, conf *testBeaconConfig, target stri
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
-
 			wg.Go(func() {
 				pingBeaconContinuously(pingCtx, target, testResCh)
 			})

@@ -63,23 +63,28 @@ func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
-	for ctx.Err() == nil {
-		var resolved bool
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
 
-		for _, node := range resp {
-			if _, ok := node.Peer(); ok {
-				resolved = true
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, errors.Wrap(ctx.Err(), "timeout resolving bootnode ENR")
+		case <-ticker.C:
+			var resolved bool
+
+			for _, node := range resp {
+				if _, ok := node.Peer(); ok {
+					resolved = true
+					break
+				}
+			}
+
+			if resolved {
+				return resp, nil
 			}
 		}
-
-		if resolved {
-			return resp, nil
-		}
-
-		time.Sleep(time.Second * 1)
 	}
-
-	return nil, errors.Wrap(ctx.Err(), "timeout resolving bootnode ENR")
 }
 
 // resolveRelay continuously resolves the relay multiaddrs from the HTTP url and returns

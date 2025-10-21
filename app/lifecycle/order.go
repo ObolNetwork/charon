@@ -15,6 +15,7 @@ type OrderStop int
 const (
 	StartTracker OrderStart = iota
 	StartPrivkeyLock
+	StartEth1Client
 	StartAggSigDB
 	StartRelay
 	StartMonitoringAPI

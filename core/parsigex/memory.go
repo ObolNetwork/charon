@@ -38,23 +38,29 @@ func NewMemExFunc(expectedPeers int) func() core.ParSigEx {
 
 			getSubs: func() []sub {
 				// Wait for all expected peers to be registered.
-				t0 := time.Now()
+				timeout := time.NewTimer(10 * time.Second)
+				defer timeout.Stop()
+
+				ticker := time.NewTicker(time.Millisecond)
+				defer ticker.Stop()
 
 				for {
 					mu.Lock()
 
-					if len(subs) == expectedPeers {
-						mu.Unlock()
-						break
-					}
+					ready := len(subs) == expectedPeers
 
 					mu.Unlock()
 
-					if time.Since(t0) > 10*time.Second {
-						panic("timeout waiting for all peers to register")
+					if ready {
+						break
 					}
 
-					time.Sleep(time.Millisecond)
+					select {
+					case <-timeout.C:
+						panic("timeout waiting for all peers to register")
+					case <-ticker.C:
+						continue
+					}
 				}
 
 				mu.Lock()
