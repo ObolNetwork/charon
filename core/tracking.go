@@ -65,7 +65,7 @@ func WithTracking(tracker Tracker, inclusion InclusionChecker) WireOption {
 		w.BroadcasterBroadcast = func(ctx context.Context, duty Duty, set SignedDataSet) error {
 			// Check inclusion even if we fail to broadcast, since peers may succeed.
 			if err := inclusion.Submitted(duty, set); err != nil {
-				log.Error(ctx, "Bug: failed to submit duty to inclusion checker", err)
+				log.Error(ctx, "Bug: Failed to submit duty to inclusion checker. This is an internal error that should not occur. Please report this issue with logs", err)
 			}
 
 			err := clone.BroadcasterBroadcast(ctx, duty, set)

@@ -266,7 +266,7 @@ func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		sub, err := p2pNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
 		if err != nil {
-			log.Error(ctx, "Subscribe libp2p events", err)
+			log.Error(ctx, "Failed to subscribe to libp2p events", err)
 			return
 		}
 
@@ -423,7 +423,7 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 
 	forceQUICConn := func(ctx context.Context) {
 		if !isQUICEnabled(p2pNode) {
-			log.Debug(ctx, "Node doesn't have feature QUIC enabled")
+			log.Debug(ctx, "QUIC feature not enabled on this node")
 			return // doesn't support QUIC
 		}
 
@@ -443,7 +443,7 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 			}
 
 			if hasDirectQUICConn(conns) {
-				log.Debug(ctx, "Already has direct QUIC connection to peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
+				log.Debug(ctx, "Direct QUIC connection to peer already established", z.Str("peer", PeerName(p)), z.Any("conns", conns))
 
 				// Remove unwanted TCP connections
 				for _, conn := range conns {
@@ -451,9 +451,9 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 					if isTCPAddr(addr) {
 						err := conn.Close()
 						if err != nil {
-							log.Debug(ctx, "Failed to closed redundant TCP connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+							log.Debug(ctx, "Failed to close redundant TCP connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
 						} else {
-							log.Debug(ctx, "Closed redundant TCP connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
+							log.Debug(ctx, "Successfully closed redundant TCP connection", z.Str("peer", PeerName(p)), z.Any("addr", addr))
 						}
 					}
 				}
@@ -476,11 +476,11 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 			}
 
 			if len(quicAddrs) == 0 {
-				log.Debug(ctx, "No knonw QUIC addresses to peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
+				log.Debug(ctx, "No known QUIC addresses for peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
 				continue // no known QUIC addresses
 			}
 
-			log.Debug(ctx, "Trying to upgrade to QUIC connection with peer", z.Str("peer", PeerName(p)))
+			log.Debug(ctx, "Attempting to upgrade connection to QUIC with peer", z.Str("peer", PeerName(p)))
 
 			// To maximize change of connectia via QUIC clear peerstore of TCP addresses
 			originalPeerstore := slices.Clone(p2pNode.Peerstore().Addrs(p))
@@ -538,15 +538,15 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 					if isQUICAddr(addr) {
 						connectedViaQUIC = true
 
-						log.Debug(ctx, "Upgraded connection to QUIC", z.Str("peer", PeerName(p)), z.Any("closing_period", t1.Sub(t0)), z.Any("connecting_period", t2.Sub(t1)), z.Any("addr", addr), z.Any("direction", conn.Stat().Direction))
+						log.Debug(ctx, "Successfully upgraded connection to QUIC", z.Str("peer", PeerName(p)), z.Any("closing_period", t1.Sub(t0)), z.Any("connecting_period", t2.Sub(t1)), z.Any("addr", addr), z.Any("direction", conn.Stat().Direction))
 					} else if isTCPAddr(addr) {
-						log.Debug(ctx, "Connected via TCP after upgrade to QUIC connection", z.Str("peer", PeerName(p)), z.Any("addr", addr), z.Any("direction", conn.Stat().Direction))
+						log.Debug(ctx, "Connected via TCP after attempting QUIC upgrade", z.Str("peer", PeerName(p)), z.Any("addr", addr), z.Any("direction", conn.Stat().Direction))
 					}
 				}
 			}
 
 			if !connectedViaQUIC {
-				log.Debug(ctx, "Failed to establish direct connection via QUIC to peer", z.Str("peer", PeerName(p)), z.Any("closing_period", t1.Sub(t0)), z.Any("connecting_period", t2.Sub(t1)), z.Any("conns", p2pNode.Network().ConnsToPeer(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)))
+				log.Debug(ctx, "Failed to establish direct QUIC connection to peer", z.Str("peer", PeerName(p)), z.Any("closing_period", t1.Sub(t0)), z.Any("connecting_period", t2.Sub(t1)), z.Any("conns", p2pNode.Network().ConnsToPeer(p)), z.Any("peerstore", p2pNode.Peerstore().Addrs(p)))
 				recordUpgradeFailure(p)
 			} else {
 				clearUpgradeBackoff(p)

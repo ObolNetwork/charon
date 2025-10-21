@@ -92,7 +92,7 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func
 	for ctx.Err() == nil {
 		addrs, err := queryRelayAddrs(ctx, rawURL, backoff, lockHashHex)
 		if err != nil {
-			log.Error(ctx, "Failed resolving relay addresses from URL", err, z.Str("url", rawURL))
+			log.Error(ctx, "Failed to resolve relay addresses from URL. Check that the URL is correct, the relay service is running, and network connectivity is available", err, z.Str("url", rawURL))
 			return
 		}
 
@@ -109,9 +109,9 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func
 
 			infos, err := peer.AddrInfosFromP2pAddrs(addrs...)
 			if err != nil {
-				log.Error(ctx, "Failed resolving relay ID from addresses", err, z.Any("addrs", addrs))
+				log.Error(ctx, "Failed to resolve relay peer ID from the provided addresses. Verify the relay is properly configured and addresses are valid", err, z.Any("addrs", addrs))
 			} else if len(infos) != 1 {
-				log.Error(ctx, "Failed resolving a single relay ID from addresses", nil, z.Int("n", len(infos)))
+				log.Error(ctx, "Configuration error: Expected a single relay peer ID but found multiple. Check relay configuration for duplicate or conflicting addresses", nil, z.Int("n", len(infos)), z.Any("addrs", addrs))
 			} else {
 				p := NewRelayPeer(infos[0])
 				log.Info(ctx, "Resolved new relay",

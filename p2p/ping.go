@@ -170,7 +170,7 @@ func newPingLogger(p2pNode host.Host, p peer.ID) func(context.Context, ping.Resu
 		msgs, ok := dialErrMsgs(result.Error)
 		if !ok { // Unexpected non-dial reason...
 			if prevSuccess {
-				log.Warn(ctx, "Peer ping failing", nil, z.Str("peer", PeerName(p)), z.Str("error", result.Error.Error()))
+				log.Warn(ctx, "Peer ping failed. Check network connectivity and firewall settings", nil, z.Str("peer", PeerName(p)), z.Str("error", result.Error.Error()))
 			}
 
 			prevSuccess = false
@@ -203,14 +203,14 @@ func newPingLogger(p2pNode host.Host, p peer.ID) func(context.Context, ping.Resu
 			opts = append(opts, z.Str(addr, msg))
 		}
 
-		log.Warn(ctx, "Peer not connected", nil, opts...)
+		log.Warn(ctx, "Peer not connected. Check network connectivity, firewall rules, and ensure peer addresses are reachable", nil, opts...)
 	}
 }
 
 func resolveBackoffMsgs(ctx context.Context, p2pNode host.Host, p peer.ID) map[string]string {
 	net, ok := p2pNode.Network().(*swarm.Swarm)
 	if !ok {
-		log.Error(ctx, "Not a swarm network", nil)
+		log.Error(ctx, "Internal error: Failed to access libp2p swarm network. This indicates a critical p2p subsystem failure", nil)
 		return nil
 	}
 
@@ -224,7 +224,7 @@ func resolveBackoffMsgs(ctx context.Context, p2pNode host.Host, p peer.ID) map[s
 
 	msgs, ok := dialErrMsgs(err)
 	if !ok { // Some other error
-		log.Warn(ctx, "Peer dial failing", nil, z.Str("peer", PeerName(p)), z.Str("error", err.Error()))
+		log.Warn(ctx, "Peer dial failed. Verify peer is online and network path is clear", nil, z.Str("peer", PeerName(p)), z.Str("error", err.Error()))
 		return nil
 	}
 

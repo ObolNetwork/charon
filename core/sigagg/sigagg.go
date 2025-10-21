@@ -65,7 +65,7 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core
 		output[pubkey] = signed
 	}
 
-	log.Debug(ctx, "Threshold aggregated partial signatures")
+	log.Debug(ctx, "Successfully aggregated partial signatures to reach threshold")
 
 	// Call subscriptions.
 	for _, sub := range a.subs {

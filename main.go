@@ -21,7 +21,7 @@ func main() {
 	cancel()
 
 	if err != nil {
-		log.Error(ctx, "Fatal error", err)
+		log.Error(ctx, "Application failed to start", err)
 		os.Exit(1)
 	}
 }

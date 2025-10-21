@@ -339,7 +339,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 	err := runCreateCluster(context.Background(), &buf, conf)
 	if err != nil {
-		log.Error(context.Background(), "", err)
+		log.Error(context.Background(), "runCreateCluster error in test", err)
 	}
 
 	if expectedErr != "" {
@@ -822,7 +822,7 @@ func TestKeymanager(t *testing.T) {
 
 		err = runCreateCluster(context.Background(), &buf, conf)
 		if err != nil {
-			log.Error(context.Background(), "", err)
+			log.Error(context.Background(), "runCreateCluster error in TestKeymanager/all_successful", err)
 		}
 
 		require.NoError(t, err)
@@ -852,7 +852,7 @@ func TestKeymanager(t *testing.T) {
 
 		err = runCreateCluster(context.Background(), &buf, conf)
 		if err != nil {
-			log.Error(context.Background(), "", err)
+			log.Error(context.Background(), "runCreateCluster error in TestKeymanager/some_unsuccessful", err)
 		}
 
 		require.ErrorContains(t, err, "cannot ping address")
@@ -906,7 +906,7 @@ func TestPublish(t *testing.T) {
 
 		err := runCreateCluster(context.Background(), &buf, conf)
 		if err != nil {
-			log.Error(context.Background(), "", err)
+			log.Error(context.Background(), "runCreateCluster error in TestPublish/upload_successful", err)
 		}
 
 		require.NoError(t, err)

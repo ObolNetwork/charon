@@ -589,7 +589,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 		return err
 	}
 
-	log.Debug(ctx, "Beacon proposal submitted by validator client", z.Str("block_version", opts.Proposal.Version.String()))
+	log.Debug(ctx, "Beacon block proposal received from validator client", z.Str("block_version", opts.Proposal.Version.String()))
 
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
@@ -656,7 +656,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		return err
 	}
 
-	log.Debug(ctx, "Blinded beacon block submitted by validator client")
+	log.Debug(ctx, "Blinded beacon block received from validator client")
 
 	set := core.ParSignedDataSet{pubkey: signedData}
 	for _, sub := range c.subs {
@@ -684,8 +684,8 @@ func (c Component) submitRegistration(ctx context.Context, registration *eth2api
 	}
 
 	if _, ok := c.getPubShareFunc(eth2Pubkey); !ok {
-		log.Debug(ctx, "Swallowing non-dv registration, "+
-			"this is a known limitation for many validator clients", z.Any("pubkey", pubkey), c.swallowRegFilter)
+		log.Debug(ctx, "Ignoring validator registration for non-distributed validator. "+
+			"This is expected behavior for many validator clients", z.Any("pubkey", pubkey), c.swallowRegFilter)
 
 		return nil
 	}

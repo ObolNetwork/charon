@@ -82,7 +82,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		// - another charon node at version v1.3.2, v1.4.2 or newer
 		// this (expensive) code block will not be triggered.
 		if checkValIdxs {
-			log.Warn(ctx, "There is a charon node in the cluster at one of the following versions: v1.3.0, v1.3.1, v1.4.0 or v1.4.1. Please update, as it causes performance degradation.", errors.New("peer version causes slowdown"))
+			log.Warn(ctx, "One or more cluster nodes are running outdated Charon versions (v1.3.0, v1.3.1, v1.4.0, or v1.4.1) which cause performance degradation. Please coordinate with operators to upgrade all nodes to v1.3.2, v1.4.2, or newer", errors.New("peer version causes slowdown"))
 
 			if len(atts) == 0 {
 				return errors.New("no attestations")

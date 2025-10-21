@@ -780,7 +780,7 @@ func (a VersionedAttestation) Signature() Signature {
 	sig, err := a.VersionedAttestation.Signature()
 	// This should never happen as if data is signed it should have data and signature in the object
 	if err != nil {
-		log.Error(context.Background(), "get attestation signature", err)
+		log.Error(context.Background(), "Failed to get attestation signature", err)
 		return []byte{}
 	}
 
