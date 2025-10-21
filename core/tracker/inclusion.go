@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
 	"strconv"
 	"sync"
@@ -661,6 +662,12 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 
 	eth2Resp, err := a.eth2Cl.SignedBeaconBlock(ctx, &eth2api.SignedBeaconBlockOpts{Block: strconv.FormatUint(slot, 10)})
 	if err != nil {
+		// 404 means no block was proposed for this slot, which is not an error condition
+		if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
+			a.checkBlockFunc(ctx, slot, false)
+			return nil
+		}
+
 		return err
 	}
 
@@ -681,6 +688,11 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, attDuties []*eth2v1.AttesterDuty) error {
 	attsResp, err := a.eth2Cl.BeaconBlockAttestations(ctx, &eth2api.BeaconBlockAttestationsOpts{Block: strconv.FormatUint(slot, 10)})
 	if err != nil {
+		// 404 means no block was proposed for this slot, which is not an error condition
+		if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
+			return nil
+		}
+
 		return err
 	} else if len(attsResp.Data) == 0 {
 		return nil // No block for this slot
