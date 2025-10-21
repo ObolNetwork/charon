@@ -43,11 +43,6 @@ func newDepositFetchCmd(runFunc func(context.Context, depositFetchConfig) error)
 	bindDepositFlags(cmd, &config.depositConfig)
 	bindDepositFetchFlags(cmd, &config)
 
-	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
-		mustMarkFlagRequired(cmd, "withdrawal-addresses")
-		return nil
-	})
-
 	return cmd
 }
 
