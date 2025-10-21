@@ -231,7 +231,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				peerCompatibleGauge.WithLabelValues(name).Set(0) // Set to false
 
 				// Log as error since user action required
-				log.Error(ctx, "Peer is running an incompatible Charon version. Please coordinate with the operator to upgrade or downgrade to a compatible version", err,
+				log.Error(ctx, "Peer is running an incompatible Charon version. Please coordinate with the peer to upgrade or downgrade to a compatible version", err,
 					z.Str("peer", name),
 					z.Str("peer_version", resp.GetCharonVersion()),
 					z.Any("supported_versions", version.Supported()),

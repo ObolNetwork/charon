@@ -103,7 +103,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	if val, ok := s.states.Load(peerID); ok {
 		state, ok = val.(*peerState)
 		if !ok {
-			log.Warn(ctx, "Internal error: Type assertion failed for peer state. This indicates a bug in peer state management", err, z.Str("peer", PeerName(peerID)))
+			log.Warn(ctx, "Internal error: Type assertion failed for peer state. This indicates a bug in peer state management and should be reported", err, z.Str("peer", PeerName(peerID)))
 			return
 		}
 	}

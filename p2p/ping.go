@@ -210,7 +210,7 @@ func newPingLogger(p2pNode host.Host, p peer.ID) func(context.Context, ping.Resu
 func resolveBackoffMsgs(ctx context.Context, p2pNode host.Host, p peer.ID) map[string]string {
 	net, ok := p2pNode.Network().(*swarm.Swarm)
 	if !ok {
-		log.Error(ctx, "Internal error: Failed to access libp2p swarm network. This indicates a critical p2p subsystem failure", nil)
+		log.Error(ctx, "Internal error: Failed to access libp2p swarm network. This indicates a critical p2p subsystem failure that should be reported", nil)
 		return nil
 	}
 
