@@ -84,16 +84,16 @@ func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 	//nolint:revive // enforce-switch-style: the list is exhaustive and there is no need for default
 	switch status {
 	case VersionFormatError:
-		log.Warn(ctx, "Failed to parse beacon node version string due to unexpected format",
+		log.Warn(ctx, "Failed to parse beacon node version string due to unexpected format. This may indicate an unsupported or custom beacon node build",
 			nil, z.Str("input", bnVersion))
 	case VersionUnknownClient:
-		log.Warn(ctx, "Unknown beacon node client not in supported client list",
+		log.Warn(ctx, "Unknown beacon node client detected. The client is not in the supported client list and may cause compatibility issues",
 			nil, z.Str("client", bnVersion))
 	case VersionTooOld:
-		log.Warn(ctx, "Beacon node client version is below the minimum supported version. Please upgrade your beacon node.",
+		log.Warn(ctx, "Beacon node client version is below the minimum supported version. Please upgrade your beacon node to ensure compatibility and security",
 			nil, z.Str("client_version", currentVersion), z.Str("minimum_required", minVersion))
 	case VersionIncompatible:
-		log.Warn(ctx, "Beacon node client version is known to be incompatible. Please upgrade or downgrade your beacon node.",
+		log.Warn(ctx, "Beacon node client version is known to be incompatible with Charon. Please upgrade or downgrade your beacon node to a compatible version",
 			nil, z.Str("client_version", currentVersion))
 	case VersionOK:
 		// Do nothing

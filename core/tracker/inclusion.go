@@ -254,7 +254,7 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, slot uint64, found bool)
 
 			proposal, ok := sub.Data.(core.VersionedSignedProposal)
 			if !ok {
-				log.Error(ctx, "Submission data has wrong type", nil, z.Str("type", fmt.Sprintf("%T", sub.Data)))
+				log.Error(ctx, "Internal error: Submission data type mismatch. This indicates a bug in duty type handling", nil, z.Str("got_type", fmt.Sprintf("%T", sub.Data)), z.Str("expected_type", "core.VersionedSignedProposal"))
 				continue
 			}
 
@@ -321,7 +321,7 @@ func (i *inclusionCore) CheckBlockAndAtts(ctx context.Context, block block) {
 
 			proposal, ok := sub.Data.(core.VersionedSignedProposal)
 			if !ok {
-				log.Error(ctx, "Submission data has wrong type", nil, z.Str("type", fmt.Sprintf("%T", sub.Data)))
+				log.Error(ctx, "Internal error: Submission data type mismatch. This indicates a bug in duty type handling", nil, z.Str("got_type", fmt.Sprintf("%T", sub.Data)), z.Str("expected_type", "core.VersionedSignedProposal"))
 				continue
 			}
 
@@ -473,7 +473,7 @@ func reportMissed(ctx context.Context, sub submission) {
 	case core.DutyProposer:
 		proposal, ok := sub.Data.(core.VersionedSignedProposal)
 		if !ok {
-			log.Error(ctx, "Submission data has wrong type", nil, z.Str("type", fmt.Sprintf("%T", sub.Data)))
+			log.Error(ctx, "Internal error: Submission data type mismatch. This indicates a bug in duty type handling", nil, z.Str("got_type", fmt.Sprintf("%T", sub.Data)), z.Str("expected_type", "core.VersionedSignedProposal"))
 		} else {
 			msg := "Broadcasted block never included on-chain"
 			if proposal.Blinded {

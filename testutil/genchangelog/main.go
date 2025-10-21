@@ -125,7 +125,7 @@ func main() {
 
 	err := run(ctx, *rangeFlag, *outputFlag, token)
 	if err != nil {
-		applog.Error(context.Background(), "Run error", err)
+		applog.Error(context.Background(), "Failed to generate changelog", err)
 		os.Exit(1)
 	}
 }

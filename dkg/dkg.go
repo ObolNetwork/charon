@@ -122,7 +122,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		// Start it async
 		go func() {
 			if err := lockSvc.Run(); err != nil {
-				log.Error(ctx, "Error locking private key file", err)
+				log.Error(ctx, "Failed to acquire lock on private key file. Another process may be using it or file permissions may be incorrect", err)
 			}
 		}()
 
@@ -520,7 +520,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		go func() {
 			err := client.Run(ctx)
 			if err != nil && !errors.Is(err, context.Canceled) { // Only log and fail if this peer errored.
-				log.Error(ctx, "Sync failed to peer", err)
+				log.Error(ctx, "Failed to sync with peer during DKG. Check network connectivity and peer availability", err)
 				onFailure()
 			}
 		}()

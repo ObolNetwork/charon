@@ -432,7 +432,7 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 
 	if _, err = w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
-		log.Error(ctx, "Failed writing api response", err)
+		log.Error(ctx, "Failed to write API response to client. Connection may have been closed", err)
 	}
 }
 
@@ -1625,7 +1625,7 @@ func proxyHandler(ctx context.Context, addrProvider addressProvider) http.Handle
 		targetURL, err := getBeaconNodeAddress(addrProvider)
 		if err != nil {
 			ctx := log.WithTopic(r.Context(), "vapi")
-			log.Error(ctx, "Proxy target beacon node address", err)
+			log.Error(ctx, "Failed to determine target beacon node address for proxying. Check beacon node configuration", err)
 			writeError(ctx, w, "proxy", err)
 
 			return

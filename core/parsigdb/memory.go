@@ -89,7 +89,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 		if err != nil {
 			return err
 		} else if !ok {
-			log.Debug(ctx, "Partial signed data ignored since duplicate")
+			log.Debug(ctx, "Ignoring duplicate partial signature")
 
 			continue
 		}

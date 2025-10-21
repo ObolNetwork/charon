@@ -72,7 +72,7 @@ func newDockerCmd(use string, short string, runFunc compose.RunFunc) *cobra.Comm
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		_, err := compose.NewRunnerFunc(use, *dir, *up, runFunc)(cmd.Context())
 		if err != nil {
-			log.Error(cmd.Context(), "Fatal error", err)
+			log.Error(cmd.Context(), "Docker command failed", err)
 		}
 
 		return err
@@ -91,7 +91,7 @@ func newAutoCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 			err := compose.Auto(cmd.Context(), conf)
 			if err != nil {
-				log.Error(cmd.Context(), "auto command fatal error", err)
+				log.Error(cmd.Context(), "'auto' command failed", err)
 				return err
 			}
 
@@ -169,7 +169,7 @@ func newNewCmd() *cobra.Command {
 
 		ctx := log.WithTopic(cmd.Context(), "new")
 		if err := compose.New(ctx, *dir, conf); err != nil {
-			log.Error(ctx, "Fatal error", err)
+			log.Error(ctx, "'new' command failed", err)
 			return err
 		}
 

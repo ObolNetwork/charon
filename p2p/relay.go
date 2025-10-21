@@ -128,7 +128,7 @@ func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 
 					relayAddrs, err := multiAddrsViaRelay(relay, pID)
 					if err != nil {
-						log.Error(ctx, "Failed discovering peer address", err)
+						log.Error(ctx, "Failed to create multi-address for peer via relay", err)
 						continue
 					}
 

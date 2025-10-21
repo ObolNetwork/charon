@@ -127,7 +127,7 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 	for pubkey, tuple := range r.tuples {
 		ethPk, err := pubkey.ToETH2()
 		if err != nil {
-			log.Error(ctx, "Can't convert pubkey to eth2 format", err)
+			log.Error(ctx, "Failed to convert pubkey to eth2 format", err)
 			continue
 		}
 
@@ -152,7 +152,7 @@ func (r *Recaster) SlotTicked(ctx context.Context, slot core.Slot) error {
 		for _, sub := range clonedSubs {
 			err := sub(dutyCtx, duty, set)
 			if err != nil {
-				log.Error(dutyCtx, "Rebroadcast duty error (will retry next epoch)", err)
+				log.Error(dutyCtx, "Failed to rebroadcast duty. Will retry in the next epoch", err)
 				incRegCounter(duty, recastErrors)
 			}
 

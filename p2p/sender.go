@@ -103,7 +103,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	if val, ok := s.states.Load(peerID); ok {
 		state, ok = val.(*peerState)
 		if !ok {
-			log.Warn(ctx, "Type assertion peer state failing", err, z.Str("peer", PeerName(peerID)))
+			log.Warn(ctx, "Internal error: Type assertion failed for peer state. This indicates a bug in peer state management and should be reported", err, z.Str("peer", PeerName(peerID)))
 			return
 		}
 	}
@@ -137,7 +137,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 	} else if failure && (state.buffer.len() == 1 || !state.failing.Load()) {
 		// First attempt failed or state changed to failing
 		if _, ok := dialErrMsgs(err); !ok { // Only log non-dial errors
-			log.Warn(ctx, "P2P sending failing", err, z.Str("peer", PeerName(peerID)))
+			log.Warn(ctx, "P2P message sending failed to peer. Check network connectivity and peer availability", err, z.Str("peer", PeerName(peerID)))
 		}
 
 		state.failing.Store(true)

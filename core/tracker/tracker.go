@@ -523,7 +523,7 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 
 		if !aggregationSupported && duty.Type == core.DutyAggregator && step == fetcher && reason == reasonZeroAggregatorSelections {
 			if !loggedNoAggregator {
-				log.Warn(ctx, "Ignoring attestation aggregation failures since VCs do not seem to support beacon committee selection aggregation", nil)
+				log.Warn(ctx, "Validator client does not support beacon committee selection aggregation. Attestation aggregation duties will be ignored. This is expected for some validator clients", nil)
 			}
 
 			loggedNoAggregator = true
@@ -533,7 +533,7 @@ func newUnsupportedIgnorer() func(ctx context.Context, duty core.Duty, failed bo
 
 		if !contributionSupported && duty.Type == core.DutySyncContribution && step == fetcher && reason == reasonSyncContributionZeroPrepares {
 			if !loggedNoContribution {
-				log.Warn(ctx, "Ignoring sync contribution failures since VCs do not seem to support sync committee selection aggregation", nil)
+				log.Warn(ctx, "Validator client does not support sync committee selection aggregation. Sync contribution duties will be ignored. This is expected for some validator clients", nil)
 			}
 
 			loggedNoContribution = true

@@ -43,7 +43,7 @@ func startAlertCollector(ctx context.Context, dir string) chan string {
 			if ctx.Err() != nil {
 				return
 			} else if err != nil {
-				log.Error(ctx, "Exec curl alerts", err, z.Str("out", string(out)))
+				log.Error(ctx, "Failed to execute curl command to get alerts", err, z.Str("out", string(out)))
 				continue
 			}
 

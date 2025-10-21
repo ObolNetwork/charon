@@ -195,7 +195,7 @@ func (ts *testServer) HandleGetFullExit(writer http.ResponseWriter, request *htt
 
 	authToken, ok := request.Context().Value(tokenContextKey).([]byte)
 	if !ok {
-		log.Error(request.Context(), "received context without token, that's impossible!", nil)
+		log.Error(request.Context(), "Internal error: context is missing authorization token", nil)
 		return
 	}
 
@@ -292,7 +292,7 @@ func (ts *testServer) HandleDeletePartialExit(writer http.ResponseWriter, reques
 
 	authToken, ok := request.Context().Value(tokenContextKey).([]byte)
 	if !ok {
-		log.Error(request.Context(), "received context without token, that's impossible!", nil)
+		log.Error(request.Context(), "Internal error: context is missing authorization token", nil)
 		return
 	}
 

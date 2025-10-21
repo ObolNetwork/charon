@@ -828,7 +828,7 @@ func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int
 
 		err := clients[i].ImportKeystores(ctx, keystores, passwords)
 		if err != nil {
-			log.Error(ctx, "Failed to import keys", err, z.Str("addr", conf.KeymanagerAddrs[i]))
+			log.Error(ctx, "Failed to import validator keys to keymanager. Check keymanager API connectivity and authentication", err, z.Str("addr", conf.KeymanagerAddrs[i]))
 			return err
 		}
 

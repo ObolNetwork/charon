@@ -106,7 +106,7 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 		// TODO(corver): Call this async
 		err := sub(ctx, duty, set)
 		if err != nil {
-			log.Error(ctx, "Subscribe error", err)
+			log.Error(ctx, "Partial signature exchange subscriber encountered an error while processing the partial signature set", err)
 		}
 	}
 

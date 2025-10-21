@@ -160,7 +160,7 @@ func (s *Scheduler) emitCoreSlot(ctx context.Context, slot core.Slot) {
 		go func(sub func(context.Context, core.Slot) error) {
 			err := sub(ctx, slot)
 			if err != nil {
-				log.Error(ctx, "Emit scheduled slot event", err, z.U64("slot", slot.Slot))
+				log.Error(ctx, "Failed to emit scheduled slot event", err, z.U64("slot", slot.Slot))
 			}
 		}(sub)
 	}
@@ -255,12 +255,12 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			for _, sub := range s.dutySubs {
 				clone, err := defSet.Clone() // Clone for each subscriber.
 				if err != nil {
-					log.Error(dutyCtx, "Cloning duty definition set", err)
+					log.Error(dutyCtx, "Failed to clone duty definition set", err)
 					return
 				}
 
 				if err := sub(dutyCtx, duty, clone); err != nil {
-					log.Error(dutyCtx, "Trigger duty subscriber error", err, z.U64("slot", slot.Slot))
+					log.Error(dutyCtx, "Failed to trigger duty subscriber", err, z.U64("slot", slot.Slot))
 				}
 			}
 		}()
@@ -377,7 +377,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 		pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected attester duty", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
+			log.Warn(ctx, "Received attester duty for unknown validator. The validator may not be part of this cluster. Ignoring. If edit command was recently executed, Charon and/or VC might have not been restarted or not read the new keys properly", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
 			continue
 		}
 
@@ -405,7 +405,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 	}
 
 	if len(remaining) > 0 {
-		log.Warn(ctx, "Missing attester duties", nil,
+		log.Warn(ctx, "Missing attester duties from beacon node. Some validators did not receive duty assignments. Check beacon node sync status and validator activation", nil,
 			z.U64("slot", slot.Slot),
 			z.U64("epoch", slot.Epoch()),
 			z.Any("validator_indexes", remaining),
@@ -446,7 +446,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 		pubkey, ok := vals.PubKeyFromIndex(proDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected proposer duty", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
+			log.Warn(ctx, "Received proposer duty for unknown validator. The validator may not be part of this cluster. Ignoring", nil, z.U64("vidx", uint64(proDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
 			continue
 		}
 
@@ -495,7 +495,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 
 		pubkey, ok := vals.PubKeyFromIndex(vIdx)
 		if !ok {
-			log.Warn(ctx, "Ignoring unexpected sync committee duty", nil, z.U64("vidx", uint64(vIdx)), z.U64("slot", slot.Slot))
+			log.Warn(ctx, "Received sync committee duty for unknown validator. The validator may not be part of this cluster. Ignoring", nil, z.U64("vidx", uint64(vIdx)), z.U64("slot", slot.Slot))
 			continue
 		}
 
@@ -731,7 +731,7 @@ func waitChainStart(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 	for i := 0; ctx.Err() == nil; i++ {
 		genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
 		if err != nil {
-			log.Error(ctx, "Failure getting genesis", err)
+			log.Error(ctx, "Failed to fetch genesis information from beacon node. Check beacon node connectivity and API availability", err)
 			clock.Sleep(expbackoff.Backoff(expbackoff.FastConfig, i))
 
 			continue
@@ -757,7 +757,7 @@ func waitBeaconSync(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork
 	for i := 0; ctx.Err() == nil; i++ {
 		eth2Resp, err := eth2Cl.NodeSyncing(ctx, &eth2api.NodeSyncingOpts{})
 		if err != nil {
-			log.Error(ctx, "Failure getting sync state", err)
+			log.Error(ctx, "Failed to fetch sync state from beacon node. Check beacon node connectivity and ensure it is synced", err)
 			clock.Sleep(expbackoff.Backoff(expbackoff.FastConfig, i))
 
 			continue

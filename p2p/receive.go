@@ -66,13 +66,13 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 
 		writeFunc, ok := o.writersByProtocol[s.Protocol()]
 		if !ok {
-			log.Error(ctx, "LibP2P no writer for protocol", nil)
+			log.Error(ctx, "No writer registered for protocol. This may indicate an unsupported or misconfigured p2p protocol", nil, z.Any("protocol", s.Protocol()))
 			return
 		}
 
 		readFunc, ok := o.readersByProtocol[s.Protocol()]
 		if !ok {
-			log.Error(ctx, "LibP2P no reader for protocol", nil)
+			log.Error(ctx, "No reader registered for protocol. This may indicate an unsupported or misconfigured p2p protocol", nil, z.Any("protocol", s.Protocol()))
 			return
 		}
 
@@ -82,10 +82,10 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		if IsRelayError(err) {
 			return // Ignore relay errors.
 		} else if netErr := net.Error(nil); errors.As(err, &netErr) && netErr.Timeout() {
-			log.Error(ctx, "LibP2P read timeout", err, z.Any("duration", time.Since(t0)))
+			log.Error(ctx, "Timeout reading p2p message from peer. This may indicate network latency issues or unresponsive peer", err, z.Any("duration", time.Since(t0)))
 			return
 		} else if err != nil {
-			log.Error(ctx, "LibP2P read request", err, z.Any("duration", time.Since(t0)))
+			log.Error(ctx, "Failed to read p2p request from peer. Check network connectivity and peer health", err, z.Any("duration", time.Since(t0)))
 			return
 		} else if err := protonil.Check(req); err != nil {
 			log.Warn(ctx, "LibP2P received invalid proto", err)
@@ -94,7 +94,7 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 
 		resp, ok, err := handlerFunc(ctx, s.Conn().RemotePeer(), req)
 		if err != nil {
-			log.Error(ctx, "LibP2P handle stream error", err, z.Any("duration", time.Since(t0)))
+			log.Error(ctx, "P2P stream handler encountered an error. The request could not be processed", err, z.Any("duration", time.Since(t0)))
 			return
 		}
 
@@ -105,7 +105,7 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		if err := writeFunc(s).WriteMsg(resp); IsRelayError(err) {
 			return // Ignore relay errors.
 		} else if err != nil {
-			log.Error(ctx, "LibP2P write response", err)
+			log.Error(ctx, "Failed to write p2p response to peer. Connection may have been closed", err)
 			return
 		}
 	})

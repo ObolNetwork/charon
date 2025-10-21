@@ -76,7 +76,7 @@ func reportMetrics(ctx context.Context, config Config) {
 
 		stats, err := getNetworkStatistics(ctx, config.RatedEndpoint, config.RatedAuth, network)
 		if err != nil {
-			log.Error(ctx, "Getting network statistics", err, z.Str("network", network))
+			log.Error(ctx, "Failed to get network statistics", err, z.Str("network", network))
 			continue
 		}
 
@@ -90,7 +90,7 @@ func reportMetrics(ctx context.Context, config Config) {
 
 			stats, err = getNodeOperatorStatistics(ctx, config.RatedEndpoint, config.RatedAuth, nodeOperator, network)
 			if err != nil {
-				log.Error(ctx, "Getting node operator statistics", err, z.Str("network", network), z.Str("node_operator", nodeOperator))
+				log.Error(ctx, "Failed to get node operator statistics", err, z.Str("network", network), z.Str("node_operator", nodeOperator))
 				continue
 			}
 

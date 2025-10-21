@@ -133,13 +133,13 @@ func startReadyChecker(ctx context.Context, p2pNode host.Host, eth2Cl eth2wrap.C
 	go func() {
 		genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 		if err != nil {
-			log.Error(ctx, "Failed to fetch genesis time", err)
+			log.Error(ctx, "Failed to fetch genesis time from beacon node. Check beacon node connectivity and ensure it is synced", err)
 			return
 		}
 
 		slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 		if err != nil {
-			log.Error(ctx, "Failed to fetch slots config", err)
+			log.Error(ctx, "Failed to fetch slot configuration from beacon node. Check beacon node connectivity and ensure it is synced", err)
 			return
 		}
 
@@ -274,7 +274,7 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 	setNodeVersion := func() {
 		eth2Resp, err := eth2Cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 		if err != nil {
-			log.Error(ctx, "Failed to get beacon node version", err)
+			log.Error(ctx, "Failed to fetch beacon node version. Check beacon node connectivity and API availability", err)
 			return
 		}
 

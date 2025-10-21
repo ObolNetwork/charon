@@ -201,7 +201,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			if err != nil {
 				return // Logging handled by send func.
 			} else if resp.GetSentAt() == nil || resp.GetStartedAt() == nil {
-				log.Error(ctx, "Invalid peerinfo response", err, z.Str("peer", p2p.PeerName(peerID)))
+				log.Error(ctx, "Received invalid peerinfo response from peer (missing timestamps). This may indicate the peer is running incompatible software or experiencing network issues. Check peer connectivity and version compatibility", err, z.Str("peer", p2p.PeerName(peerID)))
 				return
 			}
 
@@ -231,7 +231,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 				peerCompatibleGauge.WithLabelValues(name).Set(0) // Set to false
 
 				// Log as error since user action required
-				log.Error(ctx, "Invalid peer version", err,
+				log.Error(ctx, "Peer is running an incompatible Charon version. Please coordinate with the peer to upgrade or downgrade to a compatible version", err,
 					z.Str("peer", name),
 					z.Str("peer_version", resp.GetCharonVersion()),
 					z.Any("supported_versions", version.Supported()),

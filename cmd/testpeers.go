@@ -451,7 +451,6 @@ func peerPingLoadTest(ctx context.Context, conf *testPeersConfig, p2pNode host.H
 	for pingCtx.Err() == nil {
 		select {
 		case <-ticker.C:
-
 			wg.Go(func() {
 				pingPeerContinuously(pingCtx, p2pNode, peer, testResCh)
 			})
@@ -923,7 +922,7 @@ func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peer
 	return tcpNode, func() {
 		err := tcpNode.Close()
 		if err != nil && !errors.Is(err, context.Canceled) {
-			log.Error(ctx, "Close TCP node", err)
+			log.Error(ctx, "Failed to close TCP node", err)
 		}
 	}, nil
 }

@@ -359,7 +359,7 @@ func wrapHandler(handler func(ctx context.Context) (response []byte, err error))
 
 		response, err := handler(ctx)
 		if err != nil {
-			log.Error(ctx, "Handler error", err, z.Str("path", r.URL.Path))
+			log.Error(ctx, "HTTP handler error", err, z.Str("path", r.URL.Path))
 			w.WriteHeader(http.StatusInternalServerError)
 
 			return

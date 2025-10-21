@@ -55,19 +55,19 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			msg, ok := qcommit[0].(Msg)
 			if !ok {
-				log.Error(ctx, "Invalid message type", nil)
+				log.Error(ctx, "Internal error: Invalid message type in qcommit. This indicates a consensus protocol bug that should be reported", nil, z.Str("got_type", fmt.Sprintf("%T", qcommit[0])))
 				return
 			}
 
 			anyValue, ok := msg.Values()[msg.Value()]
 			if !ok {
-				log.Error(ctx, "Invalid value hash", nil)
+				log.Error(ctx, "Internal error: Consensus value hash not found in values map. This indicates state inconsistency in the QBFT protocol and should be reported", nil)
 				return
 			}
 
 			value, err := anyValue.UnmarshalNew()
 			if err != nil {
-				log.Error(ctx, "Invalid any value", err)
+				log.Error(ctx, "Internal error: Failed to unmarshal consensus value. This indicates a serialization issue in the QBFT protocol and should be reported", err)
 				return
 			}
 
