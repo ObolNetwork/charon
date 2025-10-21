@@ -65,7 +65,7 @@ func TestProxyShutdown(t *testing.T) {
 
 	// Start a proxy server that will proxy to the target server.
 	ctx, cancel := context.WithCancel(context.Background())
-	proxy := httptest.NewServer(proxyHandler(ctx, addr(target.URL)))
+	proxy := httptest.NewServer(proxyHandler(ctx, eth2wrap.NewHTTPAdapterForT(t, target.URL, nil, time.Second)))
 
 	// Make a request to the proxy server, this will block until the proxy is shutdown.
 	errCh := make(chan error, 1)

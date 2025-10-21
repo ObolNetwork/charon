@@ -1611,9 +1611,26 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	}
 }
 
+// mergeContext returns a new context that is derived from mainCtx, but will be cancelled
+// as soon as either mainCtx or reqCtx is cancelled.
+func mergeContext(mainCtx, reqCtx context.Context) context.Context {
+	mergedCtx, cancel := context.WithCancel(mainCtx)
+	go func() {
+		select {
+		case <-mainCtx.Done():
+			cancel()
+		case <-reqCtx.Done():
+			cancel()
+		}
+		cancel()
+	}()
+
+	return mergedCtx
+}
+
 func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+		r = r.WithContext(mergeContext(ctx, r.Context()))
 		ctx = log.WithTopic(ctx, "vapi")
 		ctx = log.WithCtx(ctx, z.Str("vapi_proxy_method", r.Method), z.Str("vapi_proxy_path", r.URL.Path))
 		ctx = withCtxDuration(ctx)
