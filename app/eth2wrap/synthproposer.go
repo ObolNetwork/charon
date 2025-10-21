@@ -210,7 +210,7 @@ func fraction(transactions []bellatrix.Transaction) []bellatrix.Transaction {
 // SubmitBlindedProposal submits a blinded beacon block proposal or swallows it if marked as synthetic.
 func (h *synthWrapper) SubmitBlindedProposal(ctx context.Context, opts *eth2api.SubmitBlindedProposalOpts) error {
 	if IsSyntheticBlindedBlock(opts.Proposal) {
-		log.Debug(ctx, "Ignoring synthetic blinded beacon proposal (already on-chain)")
+		log.Debug(ctx, "Ignoring synthetic blinded beacon proposal")
 		return nil
 	}
 

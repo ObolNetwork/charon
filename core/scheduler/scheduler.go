@@ -377,7 +377,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 		pubkey, ok := vals.PubKeyFromIndex(attDuty.ValidatorIndex)
 		if !ok {
-			log.Warn(ctx, "Received attester duty for unknown validator. The validator may not be part of this cluster. Ignoring", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
+			log.Warn(ctx, "Received attester duty for unknown validator. Ignoring", nil, z.U64("vidx", uint64(attDuty.ValidatorIndex)), z.U64("slot", slot.Slot))
 			continue
 		}
 

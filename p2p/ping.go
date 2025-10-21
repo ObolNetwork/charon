@@ -224,7 +224,7 @@ func resolveBackoffMsgs(ctx context.Context, p2pNode host.Host, p peer.ID) map[s
 
 	msgs, ok := dialErrMsgs(err)
 	if !ok { // Some other error
-		log.Warn(ctx, "Peer dial failed. Verify peer is online and network path is clear", nil, z.Str("peer", PeerName(p)), z.Str("error", err.Error()))
+		log.Warn(ctx, "Peer dial failed. Verify peer is online.", nil, z.Str("peer", PeerName(p)), z.Str("error", err.Error()))
 		return nil
 	}
 
