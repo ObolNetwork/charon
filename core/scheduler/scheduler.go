@@ -58,6 +58,7 @@ func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled bool) (*S
 		quit:          make(chan struct{}),
 		duties:        make(map[core.Duty]core.DutyDefinitionSet),
 		dutiesByEpoch: make(map[uint64][]core.Duty),
+		epochResolved: make(map[uint64]chan struct{}),
 		clock:         clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
@@ -85,6 +86,7 @@ type Scheduler struct {
 	slotSubs        []func(context.Context, core.Slot) error
 	builderEnabled  bool
 	schedSlotFunc   schedSlotFunc
+	epochResolved   map[uint64]chan struct{} // Notification channels for epoch resolution
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -182,12 +184,14 @@ func (s *Scheduler) GetDutyDefinition(ctx context.Context, duty core.Duty) (core
 
 	// This has to be very rare event, when the requested epoch is being resolved.
 	// We wait for the epoch to be resolved before returning the duty definition.
-	for s.isResolvingEpoch(epoch) {
-		if ctx.Err() != nil {
+	if s.isResolvingEpoch(epoch) {
+		ch := s.getEpochResolvedChan(epoch)
+		select {
+		case <-ctx.Done():
 			return nil, errors.Wrap(ctx.Err(), "context cancelled while waiting for epoch to resolve")
+		case <-ch:
+			// Epoch resolved, continue
 		}
-
-		time.Sleep(100 * time.Millisecond)
 	}
 
 	if !s.isEpochResolved(epoch) {
@@ -569,6 +573,35 @@ func (s *Scheduler) setResolvedEpoch(epoch uint64) {
 	defer s.dutiesMutex.Unlock()
 
 	s.resolvedEpoch = epoch
+
+	// Notify waiters that epoch is resolved
+	if ch, ok := s.epochResolved[epoch]; ok {
+		close(ch)
+		delete(s.epochResolved, epoch)
+	}
+}
+
+// getEpochResolvedChan returns a channel that will be closed when the epoch is resolved.
+func (s *Scheduler) getEpochResolvedChan(epoch uint64) <-chan struct{} {
+	s.dutiesMutex.Lock()
+	defer s.dutiesMutex.Unlock()
+
+	// If already resolved, return closed channel
+	if s.resolvedEpoch != math.MaxInt64 && s.resolvedEpoch >= epoch {
+		ch := make(chan struct{})
+		close(ch)
+
+		return ch
+	}
+
+	// Create or reuse notification channel
+	ch, ok := s.epochResolved[epoch]
+	if !ok {
+		ch = make(chan struct{})
+		s.epochResolved[epoch] = ch
+	}
+
+	return ch
 }
 
 func (s *Scheduler) setResolvingEpoch(epoch uint64) {

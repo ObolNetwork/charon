@@ -12,27 +12,28 @@ func _() {
 	var x [1]struct{}
 	_ = x[StartTracker-0]
 	_ = x[StartPrivkeyLock-1]
-	_ = x[StartAggSigDB-2]
-	_ = x[StartRelay-3]
-	_ = x[StartMonitoringAPI-4]
-	_ = x[StartDebugAPI-5]
-	_ = x[StartValidatorAPI-6]
-	_ = x[StartP2PPing-7]
-	_ = x[StartP2PRouters-8]
-	_ = x[StartForceDirectConns-9]
-	_ = x[StartForceQUICConns-10]
-	_ = x[StartP2PConsensus-11]
-	_ = x[StartSimulator-12]
-	_ = x[StartScheduler-13]
-	_ = x[StartP2PEventCollector-14]
-	_ = x[StartPeerInfo-15]
-	_ = x[StartParSigDB-16]
-	_ = x[StartStackSnipe-17]
+	_ = x[StartEth1Client-2]
+	_ = x[StartAggSigDB-3]
+	_ = x[StartRelay-4]
+	_ = x[StartMonitoringAPI-5]
+	_ = x[StartDebugAPI-6]
+	_ = x[StartValidatorAPI-7]
+	_ = x[StartP2PPing-8]
+	_ = x[StartP2PRouters-9]
+	_ = x[StartForceDirectConns-10]
+	_ = x[StartForceQUICConns-11]
+	_ = x[StartP2PConsensus-12]
+	_ = x[StartSimulator-13]
+	_ = x[StartScheduler-14]
+	_ = x[StartP2PEventCollector-15]
+	_ = x[StartPeerInfo-16]
+	_ = x[StartParSigDB-17]
+	_ = x[StartStackSnipe-18]
 }
 
-const _OrderStart_name = "TrackerPrivkeyLockAggSigDBRelayMonitoringAPIDebugAPIValidatorAPIP2PPingP2PRoutersForceDirectConnsForceQUICConnsP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDBStackSnipe"
+const _OrderStart_name = "TrackerPrivkeyLockEth1ClientAggSigDBRelayMonitoringAPIDebugAPIValidatorAPIP2PPingP2PRoutersForceDirectConnsForceQUICConnsP2PConsensusSimulatorSchedulerP2PEventCollectorPeerInfoParSigDBStackSnipe"
 
-var _OrderStart_index = [...]uint8{0, 7, 18, 26, 31, 44, 52, 64, 71, 81, 97, 111, 123, 132, 141, 158, 166, 174, 184}
+var _OrderStart_index = [...]uint8{0, 7, 18, 28, 36, 41, 54, 62, 74, 81, 91, 107, 121, 133, 142, 151, 168, 176, 184, 194}
 
 func (i OrderStart) String() string {
 	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {

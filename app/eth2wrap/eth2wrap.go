@@ -359,7 +359,7 @@ func (s *bestSelector) Increment(address string) {
 	defer s.mu.Unlock()
 
 	if time.Since(s.start) > s.period { // Reset counters after period.
-		s.counts = make(map[string]int)
+		clear(s.counts)
 		s.start = time.Now()
 	}
 

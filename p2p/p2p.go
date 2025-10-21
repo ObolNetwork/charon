@@ -33,7 +33,11 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-var activationThreshOnce = sync.Once{}
+var setActivationThreshold = sync.OnceFunc(func() {
+	// Use own observed addresses as soon as a single relay reports it.
+	// Since there are probably no other directly connected peers to do so.
+	identify.ActivationThresh = 1
+})
 
 type NodeType int
 
@@ -46,11 +50,7 @@ const (
 func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
 	filterPrivateAddrs bool, nodeType NodeType, opts ...libp2p.Option,
 ) (host.Host, error) {
-	activationThreshOnce.Do(func() {
-		// Use own observed addresses as soon as a single relay reports it.
-		// Since there are probably no other directly connected peers to do so.
-		identify.ActivationThresh = 1
-	})
+	setActivationThreshold()
 
 	var libP2POpts []any // libp2p.Transport requires empty interface options.
 	if cfg.DisableReuseport {
@@ -656,6 +656,11 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 		quit:   quit,
 	})
 
+	// Pre-allocate maps for reuse in ticker loop
+	counts := make(map[connKey]int)
+	streams := make(map[streamKey]int)
+	existing := make(map[string]bool)
+
 	go func() {
 		defer close(quit)
 		defer ticker.Stop()
@@ -666,8 +671,8 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 				return
 			case <-ticker.C:
 				// Instrument connection and stream counts.
-				counts := make(map[connKey]int)
-				streams := make(map[streamKey]int)
+				clear(counts)
+				clear(streams)
 
 				for _, conn := range p2pNode.Network().Conns() {
 					cKey := connKey{
@@ -689,7 +694,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 
 				peerStreamGauge.Reset() // Reset stream gauge to clear previously set protocols.
 
-				existing := make(map[string]bool)
+				clear(existing)
 
 				for cKey, count := range counts {
 					peerName := PeerName(cKey.PeerID)

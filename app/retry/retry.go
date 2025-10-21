@@ -46,10 +46,10 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) *Retryer[T] {
 		return context.WithDeadline(ctx, timeout)
 	}
 
-	backoffProvider := func() func(int) <-chan time.Time {
-		return func(iteration int) <-chan time.Time {
+	backoffProvider := func() func(int) *time.Timer {
+		return func(iteration int) *time.Timer {
 			delay := delayForIteration(iteration)
-			return time.After(delay)
+			return time.NewTimer(delay)
 		}
 	}
 
@@ -60,7 +60,7 @@ func New[T any](timeoutFunc func(T) (time.Time, bool)) *Retryer[T] {
 func NewForT[T any](
 	_ *testing.T,
 	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
-	backoffProvider func() func(int) <-chan time.Time,
+	backoffProvider func() func(int) *time.Timer,
 ) *Retryer[T] {
 	return newInternal(ctxTimeoutFunc, backoffProvider)
 }
@@ -73,7 +73,7 @@ func delayForIteration(iteration int) time.Duration {
 
 func newInternal[T any](
 	ctxTimeoutFunc func(context.Context, T) (context.Context, context.CancelFunc),
-	backoffProvider func() func(int) <-chan time.Time,
+	backoffProvider func() func(int) *time.Timer,
 ) *Retryer[T] {
 	// Create a fresh context used as parent of all async contexts
 	ctx, cancel := context.WithCancel(context.Background())
@@ -94,7 +94,7 @@ type Retryer[T any] struct {
 	asyncCtx        context.Context
 	asyncCancel     context.CancelFunc
 	ctxTimeoutFunc  func(context.Context, T) (context.Context, context.CancelFunc)
-	backoffProvider func() func(int) <-chan time.Time
+	backoffProvider func() func(int) *time.Timer
 
 	mu       sync.Mutex
 	shutdown chan struct{}
@@ -156,10 +156,18 @@ func (r *Retryer[T]) DoAsync(parent context.Context, t T, topic, name string, fn
 		if ctx.Err() == nil {
 			log.Warn(ctx, "Temporary failure (will retry) calling "+label, err)
 
+			timer := backoffFunc(i)
 			select {
-			case <-backoffFunc(i):
+			case <-timer.C:
 			case <-ctx.Done():
+				if !timer.Stop() {
+					<-timer.C
+				}
 			case <-r.shutdown:
+				if !timer.Stop() {
+					<-timer.C
+				}
+
 				return
 			}
 		}
@@ -242,6 +250,7 @@ func (r *Retryer[T]) Shutdown(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			log.Error(ctx, "Retryer shutdown timeout waiting for active asyncs to complete", nil, z.Str("active", r.fmtActive()))
+			return
 		case <-checkDoneTicker.C:
 		}
 	}
