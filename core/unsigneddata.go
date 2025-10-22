@@ -501,7 +501,7 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		if raw.Blinded {
-			return errors.New("phase0 block is not blinded")
+			return errors.New("phase0 blocks do not support blinding")
 		}
 
 		block := new(eth2p0.BeaconBlock)
@@ -512,7 +512,7 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		resp.Phase0 = block
 	case eth2spec.DataVersionAltair:
 		if raw.Blinded {
-			return errors.New("altair block is not blinded")
+			return errors.New("altair blocks do not support blinding")
 		}
 
 		block := new(altair.BeaconBlock)
