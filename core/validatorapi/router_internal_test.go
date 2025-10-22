@@ -49,12 +49,6 @@ const (
 	infoLevel        = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
 
-type addr string
-
-func (a addr) Address() string {
-	return string(a)
-}
-
 func TestProxyShutdown(t *testing.T) {
 	// Start a server that will block until the request is cancelled.
 	serving := make(chan struct{})

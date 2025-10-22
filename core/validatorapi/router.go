@@ -1657,7 +1657,7 @@ func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc 
 		maps.Copy(w.Header(), res.Header)
 
 		// If trailers expected, declare them before writing headers.
-		if res.Trailer != nil && len(res.Trailer) > 0 {
+		if len(res.Trailer) > 0 {
 			for k := range res.Trailer {
 				w.Header().Add("Trailer", k)
 			}
@@ -1687,7 +1687,7 @@ func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc 
 		}
 
 		// Set trailer values after the body if present.
-		if res.Trailer != nil && len(res.Trailer) > 0 {
+		if len(res.Trailer) > 0 {
 			for k, vv := range res.Trailer {
 				for _, v := range vv {
 					w.Header().Add(k, v)

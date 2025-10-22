@@ -27,6 +27,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -687,12 +688,23 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
 		},
 		ProxyRequestFunc: func(ctx context.Context, req *http.Request) (*http.Response, error) {
-			// Return a simple mock response for proxy requests
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       http.NoBody,
-				Header:     make(http.Header),
-			}, nil
+			// Forward the request to the mock HTTP server
+			addr := "http://" + httpServer.Addr
+
+			// Clone the request with the new target URL
+			proxyReq := req.Clone(ctx)
+			proxyReq.URL.Scheme = "http"
+			proxyReq.URL.Host = httpServer.Addr
+			proxyReq.RequestURI = "" // Must be cleared for client requests
+
+			// Make the request to the mock server
+			client := &http.Client{}
+			resp, err := client.Do(proxyReq)
+			if err != nil {
+				return nil, errors.Wrap(err, "proxy to mock server", z.Str("addr", addr))
+			}
+
+			return resp, nil
 		},
 	}
 }

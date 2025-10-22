@@ -7,6 +7,8 @@ import (
 	"context"
 	"io"
 	"net/http"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // NewMultiForT creates a new mutil client for testing.
@@ -131,7 +133,7 @@ func (m multi) ProxyRequest(ctx context.Context, req *http.Request) (*http.Respo
 	if req.Body != nil {
 		b, err := io.ReadAll(req.Body)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "read request body")
 		}
 		// Close the original body
 		_ = req.Body.Close()

@@ -165,13 +165,13 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 	rp.ErrorLog = stdlog.New(io.Discard, "", 0)
 
 	// Capture writer buffers headers/status/body.
-	cap := newResponseCapture()
+	captureWriter := newResponseCapture()
 
 	// Ensure reverse proxy errors don't panic the process when used outside the server pipeline.
 	var proxyErr error
-	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+	rp.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
 		proxyErr = err
-		if !cap.wroteHeader {
+		if !captureWriter.wroteHeader {
 			w.WriteHeader(http.StatusBadGateway)
 		}
 	}
@@ -194,35 +194,35 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 				}
 			}
 		}()
-		rp.ServeHTTP(cap, req)
+		rp.ServeHTTP(captureWriter, req)
 	}()
 
 	if abortedByHandler {
 		return nil, errors.Wrap(http.ErrAbortHandler, "reverse proxy panicked",
-			z.Int("status_code", cap.status),
+			z.Int("status_code", captureWriter.status),
 			z.Str("url", targetURL.String()),
-			z.Str("body", cap.body.String()),
+			z.Str("body", captureWriter.body.String()),
 		)
 	} else if abortedUnexpected {
 		return nil, errors.New("reverse proxy panicked with unexpected error",
-			z.Int("status_code", cap.status),
+			z.Int("status_code", captureWriter.status),
 			z.Str("url", targetURL.String()),
-			z.Str("body", cap.body.String()),
+			z.Str("body", captureWriter.body.String()),
 		)
 	} else if proxyErr != nil {
 		return nil, errors.Wrap(proxyErr, "proxy error",
-			z.Int("status_code", cap.status),
+			z.Int("status_code", captureWriter.status),
 			z.Str("url", targetURL.String()),
-			z.Str("body", cap.body.String()),
+			z.Str("body", captureWriter.body.String()),
 		)
 	}
 
 	// Synthesize an *http.Response from the captured result for the router to mirror
-	bodyBytes := cap.body.Bytes()
+	bodyBytes := captureWriter.body.Bytes()
 	res := &http.Response{
-		StatusCode:    cap.status,
-		Status:        http.StatusText(cap.status),
-		Header:        cap.header.Clone(),
+		StatusCode:    captureWriter.status,
+		Status:        http.StatusText(captureWriter.status),
+		Header:        captureWriter.header.Clone(),
 		Body:          io.NopCloser(bytes.NewReader(bodyBytes)),
 		ContentLength: int64(len(bodyBytes)),
 		Request:       req,
@@ -257,9 +257,13 @@ func (c *responseCapture) Write(p []byte) (int, error) {
 	if !c.wroteHeader {
 		c.WriteHeader(http.StatusOK)
 	}
-	return c.body.Write(p)
+	n, err := c.body.Write(p)
+	if err != nil {
+		return n, errors.Wrap(err, "write to capture buffer")
+	}
+	return n, nil
 }
 
 // Flush implements http.Flusher for compatibility with ReverseProxy flush calls
 // No need for Flush implementation since we buffer the entire response to memory
-func (c *responseCapture) Flush() {}
+func (_ *responseCapture) Flush() {}

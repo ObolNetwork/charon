@@ -15,6 +15,7 @@ import (
 )
 
 func CreateTestHTTPRequest(t *testing.T, method, path string, body []byte) *http.Request {
+	t.Helper()
 	req, err := http.NewRequest(method, "http://localhost:5050"+path, nil)
 	require.NoError(t, err)
 	return req

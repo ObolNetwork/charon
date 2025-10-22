@@ -241,6 +241,8 @@ func isBadGateway(err error) bool {
 			switch *errno {
 			case syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.EHOSTDOWN, syscall.EHOSTUNREACH, syscall.ENETDOWN, syscall.ENETUNREACH:
 				return true
+			default:
+				// Ignore other errno values
 			}
 		}
 		if errors.Is(current, http.ErrAbortHandler) {
@@ -259,7 +261,6 @@ func isBadGateway(err error) bool {
 		if errors.As(current, &netErr) {
 			return true
 		}
-
 	}
 
 	return false
