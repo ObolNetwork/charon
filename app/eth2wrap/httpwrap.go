@@ -142,12 +142,20 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", h.address))
 	}
 
-	// Build a reverse proxy for the target
-	rp := httputil.NewSingleHostReverseProxy(targetURL)
+	log.Debug(ctx, "Proxying request to beacon node", z.Str("url", targetURL.Host))
 
+	return ProxyHTTPRequest(ctx, targetURL, req, h.headers)
+}
+
+// ProxyHTTPRequest performs an HTTP proxy request using a reverse proxy and returns the response.
+// This is a shared helper to avoid code duplication between httpAdapter and beaconmock.
+func ProxyHTTPRequest(ctx context.Context, targetURL *url.URL, req *http.Request, headers map[string]string) (*http.Response, error) {
+	rp := httputil.NewSingleHostReverseProxy(targetURL)
+	rp.ErrorLog = stdlog.New(io.Discard, "", 0)
+
+	// Apply custom director for auth and headers
 	defaultDirector := rp.Director
 	rp.Director = func(outReq *http.Request) {
-		// Let the default director rewrite the request (scheme/host/path)
 		defaultDirector(outReq)
 
 		// Basic auth if present in target URL
@@ -157,12 +165,10 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 		}
 
 		// Apply headers (override or add)
-		// This includes headers from eth2http.Service and Charon added headers
-		for k, v := range h.headers {
+		for k, v := range headers {
 			outReq.Header.Set(k, v)
 		}
 	}
-	rp.ErrorLog = stdlog.New(io.Discard, "", 0)
 
 	// Capture writer buffers headers/status/body.
 	captureWriter := newResponseCapture()
@@ -176,11 +182,6 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 		}
 	}
 
-	log.Debug(ctx, "Proxying request to beacon node", z.Str("url", targetURL.Host))
-
-	// proxy.ServeHTTP can panic without being internally handled
-	// we catch specifically ErrAbortHandler error, any other error is unexpected
-	// https://github.com/golang/go/issues/56228
 	var abortedByHandler, abortedUnexpected bool
 	func() {
 		defer func() {
@@ -266,4 +267,4 @@ func (c *responseCapture) Write(p []byte) (int, error) {
 
 // Flush implements http.Flusher for compatibility with ReverseProxy flush calls
 // No need for Flush implementation since we buffer the entire response to memory
-func (_ *responseCapture) Flush() {}
+func (*responseCapture) Flush() {}
