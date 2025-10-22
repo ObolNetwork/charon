@@ -281,7 +281,7 @@ func incRequest(endpoint string) {
 func wrapError(ctx context.Context, err error, label string, fields ...z.Field) error {
 	// Decompose go-eth2-client http errors
 	if apiErr := new(eth2api.Error); errors.As(err, &apiErr) {
-		err = errors.New("nok http response",
+		err = errors.Wrap(err, "nok http response",
 			z.Int("status_code", apiErr.StatusCode),
 			z.Str("endpoint", apiErr.Endpoint),
 			z.Str("method", apiErr.Method),

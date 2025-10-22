@@ -96,6 +96,13 @@ func inclSupported() map[core.DutyType]bool {
 	return inclSupported
 }
 
+// is404Error returns true if the error is a 404 (Not Found) error from the beacon node.
+// It checks if the error chain contains an eth2api.Error with a 404 status code.
+func is404Error(err error) bool {
+	var apiErr *eth2api.Error
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+}
+
 // Submitted is called when a duty is submitted to the beacon node.
 // It adds the duty to the list of submitted duties.
 func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.SignedData, delay time.Duration) (err error) {
@@ -663,7 +670,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 	eth2Resp, err := a.eth2Cl.SignedBeaconBlock(ctx, &eth2api.SignedBeaconBlockOpts{Block: strconv.FormatUint(slot, 10)})
 	if err != nil {
 		// 404 means no block was proposed for this slot, which is not an error condition
-		if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
+		if is404Error(err) {
 			a.checkBlockFunc(ctx, slot, false)
 			return nil
 		}
@@ -689,7 +696,7 @@ func (a *InclusionChecker) checkBlockAndAtts(ctx context.Context, slot uint64, a
 	attsResp, err := a.eth2Cl.BeaconBlockAttestations(ctx, &eth2api.BeaconBlockAttestationsOpts{Block: strconv.FormatUint(slot, 10)})
 	if err != nil {
 		// 404 means no block was proposed for this slot, which is not an error condition
-		if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
+		if is404Error(err) {
 			return nil
 		}
 
