@@ -1393,7 +1393,7 @@ func TestSubmittedProposals(t *testing.T) {
 				Version: eth2spec.DataVersionDeneb,
 			},
 		}, 1*time.Millisecond)
-		require.ErrorContains(t, err, "could not determine if proposal was synthetic or not")
+		require.ErrorContains(t, err, "determine if proposal was synthetic")
 
 		// Blinded
 		err = ic.Submitted(core.NewProposerDuty(42), testutil.RandomCorePubKey(t), core.VersionedSignedProposal{
@@ -1402,6 +1402,6 @@ func TestSubmittedProposals(t *testing.T) {
 				Version: eth2spec.DataVersionDeneb,
 			},
 		}, 1*time.Millisecond)
-		require.ErrorContains(t, err, "could not determine if proposal was synthetic or not")
+		require.ErrorContains(t, err, "determine if proposal was synthetic")
 	})
 }

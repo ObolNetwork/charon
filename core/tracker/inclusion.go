@@ -170,7 +170,7 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 
 		defer func() {
 			if r := recover(); r != nil {
-				err = errors.New("could not determine if proposal was synthetic or not",
+				err = errors.New("determine if proposal was synthetic",
 					z.Str("proposal", fmt.Sprintf("%+v", block)),
 					z.Bool("blinded", block.Blinded),
 				)

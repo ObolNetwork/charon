@@ -170,7 +170,7 @@ func NewVerifier(eth2Cl eth2wrap.Client) func(context.Context, core.PubKey, core
 
 		err = core.VerifyEth2SignedData(ctx, eth2Cl, eth2Signed, tblsPubkey)
 		if err != nil {
-			return errors.Wrap(err, "aggregate signature verification failed")
+			return errors.Wrap(err, "verify aggregate signature")
 		}
 
 		return nil

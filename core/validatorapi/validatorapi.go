@@ -343,7 +343,7 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 
 		pubkey, err = c.pubKeyByAttFunc(ctx, slot, uint64(attCommitteeIndex), uint64(valIdx))
 		if err != nil {
-			return errors.Wrap(err, "failed to find pubkey", z.U64("slot", slot),
+			return errors.Wrap(err, "find pubkey", z.U64("slot", slot),
 				z.U64("commIdx", uint64(attCommitteeIndex)), z.U64("valIdx", uint64(valIdx)))
 		}
 
@@ -454,12 +454,12 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.VersionedProposal) error {
 	ourPropIdx, err := prop.ProposerIndex()
 	if err != nil {
-		return errors.Wrap(err, "cannot fetch validator index from dutydb proposal")
+		return errors.Wrap(err, "fetch validator index from dutydb proposal")
 	}
 
 	vcPropIdx, err := opts.Proposal.ProposerIndex()
 	if err != nil {
-		return errors.Wrap(err, "cannot fetch validator index from VC proposal")
+		return errors.Wrap(err, "fetch validator index from VC proposal")
 	}
 
 	if ourPropIdx != vcPropIdx {

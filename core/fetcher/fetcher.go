@@ -156,7 +156,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 
 			eth2AttData = eth2Resp.Data
 			if eth2AttData == nil {
-				return nil, errors.New("attestation data cannot be nil")
+				return nil, errors.New("attestation data is nil")
 			}
 
 			dataByCommIdx[commIdx] = eth2AttData
