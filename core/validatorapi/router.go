@@ -1653,7 +1653,7 @@ func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc 
 			return
 		}
 
-		// Copy headers from upstream (already filtered by ReverseProxy in httpwrap)
+		// Copy headers from upstream (already filtered by ProxyRequest in httpwrap)
 		maps.Copy(w.Header(), res.Header)
 
 		// If trailers expected, declare them before writing headers.

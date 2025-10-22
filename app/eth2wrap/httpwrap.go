@@ -185,27 +185,27 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 	func() {
 		defer func() {
 			if rec := recover(); rec != nil {
+				aborted = true
 				if rec == http.ErrAbortHandler {
-					// ReverseProxy used abort to stop handler; treat as failure without panicking
-					aborted = true
-					return
+					log.Warn(ctx, "Reverse proxy panicked with ErrAbortHandler", http.ErrAbortHandler)
+				} else {
+					log.Warn(ctx, "Reverse proxy panicked with unexpected error", nil, z.Any("rec", rec))
 				}
-				log.Warn(ctx, "ReverseProxy unexpected panic", nil, z.Any("rec", rec))
 			}
 		}()
 		rp.ServeHTTP(cap, req)
 	}()
 
 	if aborted {
-		return nil, errors.Wrap(http.ErrAbortHandler, "reverse proxy panicked",
+		return nil, errors.New("reverse proxy panicked",
 			z.Int("status_code", cap.status),
 			z.Str("url", targetURL.String()),
 			z.Str("body", cap.body.String()),
 		)
 	}
-	// Consider only 2xx as success; otherwise return an error so multi can try other backends/fallbacks
-	if cap.status < 200 || cap.status >= 300 {
-		return nil, errors.Wrap(proxyErr, "nok http response",
+
+	if proxyErr != nil {
+		return nil, errors.Wrap(proxyErr, "proxy error",
 			z.Int("status_code", cap.status),
 			z.Str("url", targetURL.String()),
 			z.Str("body", cap.body.String()),

@@ -90,7 +90,7 @@ func TestRouterIntegration(t *testing.T) {
 		t.Skip("Skipping integration test since BEACON_URL not found")
 	}
 
-	r, err := NewRouter(context.Background(), Handler(nil), testBeaconAddr{addr: beaconURL}, true)
+	r, err := NewRouter(context.Background(), Handler(nil), eth2wrap.NewHTTPAdapterForT(t, beaconURL, nil, time.Second), true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -703,7 +703,8 @@ func TestRouter(t *testing.T) {
 		proxy := httptest.NewServer(h.newBeaconHandler(t))
 		defer proxy.Close()
 
-		r, err := NewRouter(ctx, h, testBeaconAddr{addr: proxy.URL}, true)
+		eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+		r, err := NewRouter(ctx, h, eth2Client, true)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(r)
@@ -1519,7 +1520,8 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+	r, err := NewRouter(ctx, handler, eth2Client, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1610,7 +1612,8 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
-			r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+			eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+			r, err := NewRouter(ctx, handler, eth2Client, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -1702,7 +1705,8 @@ func TestSubmitAttestations(t *testing.T) {
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
-			r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+			eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+			r, err := NewRouter(ctx, handler, eth2Client, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -2047,7 +2051,8 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 
 	ctx := context.Background()
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+	r, err := NewRouter(ctx, handler, eth2Client, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -2075,7 +2080,8 @@ func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Co
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL}, builderEnabled)
+	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+	r, err := NewRouter(context.Background(), handler, eth2Client, builderEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -2253,15 +2259,4 @@ func nest(data any, nests ...string) any {
 	}
 
 	return res
-}
-
-// testBeaconAddr implements eth2client.Service only returning an address.
-type testBeaconAddr struct {
-	eth2wrap.Client
-
-	addr string
-}
-
-func (t testBeaconAddr) Address() string {
-	return t.addr
 }
