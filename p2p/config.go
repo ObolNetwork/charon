@@ -129,7 +129,7 @@ func resolveListenUDPAddr(addr string) (*net.UDPAddr, error) {
 // multiAddrFromIPUDPPort returns a multiaddr composed of the provided ip (v4 or v6) and udp port.
 func multiAddrFromIPUDPPort(ip net.IP, port int) (ma.Multiaddr, error) {
 	if ip.To4() == nil && ip.To16() == nil {
-		return nil, errors.New("ip address must be IPv4 or IPv6")
+		return nil, errors.New("invalid IP address format")
 	}
 
 	var typ string
@@ -150,7 +150,7 @@ func multiAddrFromIPUDPPort(ip net.IP, port int) (ma.Multiaddr, error) {
 // multiAddrFromIPTCPPort returns a multiaddr composed of the provided ip (v4 or v6) and tcp port.
 func multiAddrFromIPTCPPort(ip net.IP, port int) (ma.Multiaddr, error) {
 	if ip.To4() == nil && ip.To16() == nil {
-		return nil, errors.New("ip address must be IPv4 or IPv6")
+		return nil, errors.New("invalid IP address format")
 	}
 
 	var typ string
