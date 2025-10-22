@@ -110,13 +110,13 @@ func TestImportKeystores(t *testing.T) {
 
 		cl := keymanager.New(srv.URL, testAuthToken)
 		err := cl.ImportKeystores(ctx, keystores, passwords)
-		require.ErrorContains(t, err, "failed posting keys")
+		require.ErrorContains(t, err, "post keys to keymanager failed")
 	})
 
 	t.Run("mismatching lengths", func(t *testing.T) {
 		cl := keymanager.New("", testAuthToken)
 		err := cl.ImportKeystores(ctx, keystores, []string{})
-		require.ErrorContains(t, err, "lengths of keystores and passwords don't match")
+		require.ErrorContains(t, err, "keystores and passwords length mismatch")
 	})
 
 	t.Run("malformed keymanager base URL", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestVerifyConnection(t *testing.T) {
 	t.Run("cannot ping address", func(t *testing.T) {
 		cl := keymanager.New("1.1.1.1", testAuthToken)
 		require.Error(t, cl.VerifyConnection(ctx))
-		require.ErrorContains(t, cl.VerifyConnection(ctx), "cannot ping address")
+		require.ErrorContains(t, cl.VerifyConnection(ctx), "ping address")
 	})
 
 	t.Run("invalid address", func(t *testing.T) {

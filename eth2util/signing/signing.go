@@ -92,7 +92,7 @@ func VerifyAggregateAndProofSelection(ctx context.Context, eth2Cl eth2wrap.Clien
 
 	sigRoot, err := eth2util.SlotHashRoot(slot)
 	if err != nil {
-		return errors.Wrap(err, "cannot get hash root of slot")
+		return errors.Wrap(err, "get hash root of slot")
 	}
 
 	selectionProof, err := agg.SelectionProof()

@@ -143,7 +143,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 	if err != nil {
 		return nil, errors.Wrap(err, "parse relay url")
 	} else if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return nil, errors.New("invalid relay url")
+		return nil, errors.New("relay url scheme must be http or https")
 	}
 
 	var (
@@ -223,7 +223,7 @@ func multiAddrFromENRStr(enrStr string) ([]ma.Multiaddr, error) {
 
 	ip, ok := r.IP()
 	if !ok {
-		return nil, errors.New("enr does not have an IP")
+		return nil, errors.New("enr missing IP address")
 	}
 
 	id, err := PeerIDFromKey(r.PubKey)
@@ -254,7 +254,7 @@ func multiAddrFromENRStr(enrStr string) ([]ma.Multiaddr, error) {
 	}
 
 	if len(addrs) == 0 {
-		return nil, errors.New("enr does not have TCP nor UDP port")
+		return nil, errors.New("enr missing TCP and UDP ports")
 	}
 
 	return addrs, nil

@@ -107,7 +107,7 @@ func resolveListenTCPAddr(addr string) (*net.TCPAddr, error) {
 	}
 
 	if tcpAddr.IP == nil {
-		return nil, errors.New("p2p bind TCP IP not specified")
+		return nil, errors.New("p2p TCP bind IP not specified")
 	}
 
 	return tcpAddr, nil
@@ -120,7 +120,7 @@ func resolveListenUDPAddr(addr string) (*net.UDPAddr, error) {
 	}
 
 	if udpAddr.IP == nil {
-		return nil, errors.New("p2p bind UDP IP not specified")
+		return nil, errors.New("p2p UDP bind IP not specified")
 	}
 
 	return udpAddr, nil
@@ -129,7 +129,7 @@ func resolveListenUDPAddr(addr string) (*net.UDPAddr, error) {
 // multiAddrFromIPUDPPort returns a multiaddr composed of the provided ip (v4 or v6) and udp port.
 func multiAddrFromIPUDPPort(ip net.IP, port int) (ma.Multiaddr, error) {
 	if ip.To4() == nil && ip.To16() == nil {
-		return nil, errors.New("invalid UDP ip address")
+		return nil, errors.New("ip address must be IPv4 or IPv6")
 	}
 
 	var typ string
@@ -150,7 +150,7 @@ func multiAddrFromIPUDPPort(ip net.IP, port int) (ma.Multiaddr, error) {
 // multiAddrFromIPTCPPort returns a multiaddr composed of the provided ip (v4 or v6) and tcp port.
 func multiAddrFromIPTCPPort(ip net.IP, port int) (ma.Multiaddr, error) {
 	if ip.To4() == nil && ip.To16() == nil {
-		return nil, errors.New("invalid TCP ip address")
+		return nil, errors.New("ip address must be IPv4 or IPv6")
 	}
 
 	var typ string
