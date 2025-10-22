@@ -364,5 +364,5 @@ func generateInsecureSecret(t *testing.T, random io.Reader) (bls.SecretKey, erro
 		return p, nil
 	}
 
-	return bls.SecretKey{}, errors.New("generate insecure key")
+	return bls.SecretKey{}, errors.New("insecure key generation failed after maximum attempts")
 }
