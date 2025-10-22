@@ -51,7 +51,7 @@ func newClient(addr string, header http.Header) (*client, error) {
 
 	u, err := url.Parse(prefixedAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse bn addr", z.Str("addr", addr))
+		return nil, errors.Wrap(err, "parse beacon node address", z.Str("addr", addr))
 	}
 
 	u.Path = "/eth/v1/events"
@@ -79,7 +79,7 @@ func newClientForT(addr, path string) (*client, error) {
 
 	u, err := url.Parse(prefixedAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse bn addr", z.Str("addr", addr))
+		return nil, errors.Wrap(err, "parse beacon node address", z.Str("addr", addr))
 	}
 
 	u.Path = path
@@ -175,7 +175,7 @@ func (c *client) connect(ctx context.Context, eventFn EventHandler) error {
 			}
 		}
 	default:
-		return errors.New("bad response status code", z.Int("status_code", resp.StatusCode))
+		return errors.New("invalid response status code", z.Int("status_code", resp.StatusCode))
 	}
 }
 

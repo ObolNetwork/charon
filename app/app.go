@@ -289,7 +289,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	sender := new(p2p.Sender)
 
 	if len(conf.Nickname) > 32 {
-		return errors.New("nickname can not exceed 32 characters")
+		return errors.New("nickname cannot exceed 32 characters")
 	}
 
 	wirePeerInfo(life, p2pNode, peerIDs, cluster.GetInitialMutationHash(), sender, conf.BuilderAPI, conf.Nickname)

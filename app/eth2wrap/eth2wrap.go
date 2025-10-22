@@ -74,7 +74,7 @@ var (
 // and fallback as alternatives when all clients fail.
 func Instrument(clients []Client, fallback []Client) (Client, error) {
 	if len(clients) == 0 {
-		return nil, errors.New("clients empty")
+		return nil, errors.New("no clients provided")
 	}
 
 	return newMulti(clients, fallback), nil

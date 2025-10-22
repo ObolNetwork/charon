@@ -98,7 +98,7 @@ func (p UnsignedPartialExitRequest) HashTreeRootWith(hh ssz.HashWalker) error {
 	indx := hh.Index()
 
 	if err := p.PartialExits.HashTreeRootWith(hh); err != nil {
-		return errors.Wrap(err, "hash tree root with")
+		return errors.Wrap(err, "hash tree root")
 	}
 
 	hh.PutUint64(p.ShareIdx)

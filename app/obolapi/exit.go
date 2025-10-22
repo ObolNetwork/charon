@@ -80,7 +80,7 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return errors.Wrap(err, "bad Obol API url")
+		return errors.Wrap(err, "parse Obol API URL")
 	}
 
 	u.Path = path
@@ -110,7 +110,7 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 		Signature:                  signature,
 	})
 	if err != nil {
-		return errors.Wrap(err, "json marshal error")
+		return errors.Wrap(err, "marshal json")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
@@ -136,7 +136,7 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "bad Obol API url")
+		return ExitBlob{}, errors.Wrap(err, "parse Obol API URL")
 	}
 
 	u.Path = path
@@ -170,7 +170,7 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 
 	var er FullExitResponse
 	if err := json.NewDecoder(respBody).Decode(&er); err != nil {
-		return ExitBlob{}, errors.Wrap(err, "json unmarshal error")
+		return ExitBlob{}, errors.Wrap(err, "unmarshal json")
 	}
 
 	// do aggregation
@@ -201,12 +201,12 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 
 	fullSig, err := tbls.ThresholdAggregate(rawSignatures)
 	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "partial signatures threshold aggregate")
+		return ExitBlob{}, errors.Wrap(err, "threshold aggregate partial signatures")
 	}
 
 	epochUint64, err := strconv.ParseUint(er.Epoch, 10, 64)
 	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "epoch parsing")
+		return ExitBlob{}, errors.Wrap(err, "parse epoch")
 	}
 
 	return ExitBlob{
@@ -233,7 +233,7 @@ func (c Client) DeletePartialExit(ctx context.Context, valPubkey string, lockHas
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return errors.Wrap(err, "bad Obol API url")
+		return errors.Wrap(err, "parse Obol API URL")
 	}
 
 	u.Path = path

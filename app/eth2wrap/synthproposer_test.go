@@ -447,7 +447,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 			Graffiti:     graff,
 		}
 		_, err = eth2Cl.Proposal(ctx, opts1)
-		require.ErrorContains(t, err, "no proposal found to base synthetic proposal on")
+		require.ErrorContains(t, err, "no signed block for synthetic proposal")
 
 		// SignedBeaconBlock will be called for previous slots starting from duty.Slot-1 upto slot 0 (exclusive).
 		require.Equal(t, timesCalled, int(duty.Slot)-1)
