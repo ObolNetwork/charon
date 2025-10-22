@@ -231,7 +231,7 @@ func isSyncingError(err error) bool {
 // isBadGateway returns true if error message contains known strings for connectivity issues.
 func isBadGateway(err error) bool {
 	msg := err.Error()
-	return strings.Contains(msg, "connect: connection refused") || strings.Contains(msg, "connect: no route to host") || strings.Contains(msg, "net/http: abort Handler")
+	return strings.Contains(msg, "connect: connection refused") || strings.Contains(msg, "connect: no route to host") || strings.Contains(msg, "net/http: abort Handler") || strings.Contains(msg, "server misbehaving")
 }
 
 type empty struct{}
