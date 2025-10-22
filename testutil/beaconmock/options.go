@@ -686,6 +686,14 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
 		},
+		ProxyRequestFunc: func(ctx context.Context, req *http.Request) (*http.Response, error) {
+			// Return a simple mock response for proxy requests
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       http.NoBody,
+				Header:     make(http.Header),
+			}, nil
+		},
 	}
 }
 

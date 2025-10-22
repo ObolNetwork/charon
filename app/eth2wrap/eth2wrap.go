@@ -6,9 +6,11 @@ package eth2wrap
 import (
 	"context"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -228,10 +230,39 @@ func isSyncingError(err error) bool {
 	return strings.Contains(msg, "syncing")
 }
 
-// isBadGateway returns true if error message contains known strings for connectivity issues.
+// isBadGateway returns true when the error indicates a connectivity or upstream gateway issue.
 func isBadGateway(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "connect: connection refused") || strings.Contains(msg, "connect: no route to host") || strings.Contains(msg, "net/http: abort Handler") || strings.Contains(msg, "server misbehaving")
+	if err == nil {
+		return false
+	}
+
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		if errno := new(syscall.Errno); errors.As(current, errno) {
+			switch *errno {
+			case syscall.ECONNREFUSED, syscall.ECONNRESET, syscall.EHOSTDOWN, syscall.EHOSTUNREACH, syscall.ENETDOWN, syscall.ENETUNREACH:
+				return true
+			}
+		}
+		if errors.Is(current, http.ErrAbortHandler) {
+			return true
+		}
+
+		var apiErr *eth2api.Error
+		if errors.As(current, &apiErr) {
+			switch apiErr.StatusCode {
+			case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+				return true
+			}
+		}
+
+		var netErr net.Error
+		if errors.As(current, &netErr) {
+			return true
+		}
+
+	}
+
+	return false
 }
 
 type empty struct{}

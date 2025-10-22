@@ -181,14 +181,15 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 	// proxy.ServeHTTP can panic without being internally handled
 	// we catch specifically ErrAbortHandler error, any other error is unexpected
 	// https://github.com/golang/go/issues/56228
-	var aborted bool
+	var abortedByHandler, abortedUnexpected bool
 	func() {
 		defer func() {
 			if rec := recover(); rec != nil {
-				aborted = true
 				if rec == http.ErrAbortHandler {
+					abortedByHandler = true
 					log.Warn(ctx, "Reverse proxy panicked with ErrAbortHandler", http.ErrAbortHandler)
 				} else {
+					abortedUnexpected = true
 					log.Warn(ctx, "Reverse proxy panicked with unexpected error", nil, z.Any("rec", rec))
 				}
 			}
@@ -196,15 +197,19 @@ func (h *httpAdapter) ProxyRequest(ctx context.Context, req *http.Request) (*htt
 		rp.ServeHTTP(cap, req)
 	}()
 
-	if aborted {
-		return nil, errors.New("reverse proxy panicked",
+	if abortedByHandler {
+		return nil, errors.Wrap(http.ErrAbortHandler, "reverse proxy panicked",
 			z.Int("status_code", cap.status),
 			z.Str("url", targetURL.String()),
 			z.Str("body", cap.body.String()),
 		)
-	}
-
-	if proxyErr != nil {
+	} else if abortedUnexpected {
+		return nil, errors.New("reverse proxy panicked with unexpected error",
+			z.Int("status_code", cap.status),
+			z.Str("url", targetURL.String()),
+			z.Str("body", cap.body.String()),
+		)
+	} else if proxyErr != nil {
 		return nil, errors.Wrap(proxyErr, "proxy error",
 			z.Int("status_code", cap.status),
 			z.Str("url", targetURL.String()),
