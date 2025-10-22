@@ -146,10 +146,15 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 			return []eth2p0.DepositData{}, errors.Wrap(err, "partial signatures threshold aggregate")
 		}
 
+		amountUint, err := strconv.ParseUint(am.Amount, 10, 64)
+		if err != nil {
+			return []eth2p0.DepositData{}, errors.Wrap(err, "parse amount to uint")
+		}
+
 		fullDeposits = append(fullDeposits, eth2p0.DepositData{
 			PublicKey:             eth2p0.BLSPubKey(valPubkeyBytes),
 			WithdrawalCredentials: withdrawalCredentialsBytes,
-			Amount:                eth2p0.Gwei(am.Amount),
+			Amount:                eth2p0.Gwei(amountUint),
 			Signature:             eth2p0.BLSSignature(fullSig),
 		})
 	}

@@ -121,7 +121,7 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 		amtFound := false
 
 		for idx, amt := range amounts {
-			if amt.Amount == uint64(depositData.Amount) {
+			if amt.Amount == strconv.FormatUint(uint64(depositData.Amount), 10) {
 				amt.Partials = append(amt.Partials, obolapi.Partial{
 					PartialDepositSignature: depositData.Signature.String(),
 					PartialPublicKey:        "",
@@ -135,7 +135,7 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 
 		if !amtFound {
 			amounts = append(amounts, obolapi.Amount{
-				Amount: uint64(depositData.Amount),
+				Amount: strconv.FormatUint(uint64(depositData.Amount), 10),
 				Partials: []obolapi.Partial{
 					{
 						PartialDepositSignature: depositData.Signature.String(),

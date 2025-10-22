@@ -20,7 +20,7 @@ type FullDepositResponse struct {
 }
 
 type Amount struct {
-	Amount   uint64    `json:"amount"`
+	Amount   string    `json:"amount"`
 	Partials []Partial `json:"partials"`
 }
 
