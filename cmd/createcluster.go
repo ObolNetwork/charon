@@ -1154,8 +1154,8 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	return cl.LaunchpadURLForLock(lock), nil
 }
 
-// nolint: revive // Not really confusing here as they are passed as arguments as well.
 // validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
+// nolint: revive // Not really confusing here as they are passed as arguments as well.
 func validateAddresses(numVals int, feeRecipientAddrs []string, withdrawalAddrs []string) ([]string, []string, error) {
 	if len(feeRecipientAddrs) != numVals && len(feeRecipientAddrs) != 1 {
 		return nil, nil, errors.New("mismatching --num-validators and --fee-recipient-addresses",

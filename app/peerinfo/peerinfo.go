@@ -267,7 +267,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 	}
 }
 
-// instrumentPeerVersion instruments the peer version.
+// supportedPeerVersion instruments the peer version.
 func supportedPeerVersion(peerVersion string, supported []version.SemVer) error {
 	peerSemVer, err := version.Parse(peerVersion)
 	if err != nil {

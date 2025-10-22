@@ -43,7 +43,7 @@ const (
 
 var versionExtractRegex = regexp.MustCompile(`^([^/]+)/v?([0-9]+\.[0-9]+\.[0-9]+)`)
 
-// CheckBeaconNodeVersionStatus checks the version of the beacon node client against the minimum required version and possible incompatible versions.
+// checkBeaconNodeVersionStatus checks the version of the beacon node client against the minimum required version and possible incompatible versions.
 // It returns the status of the version check as an enum, the current version, and the minimum required version.
 func checkBeaconNodeVersionStatus(bnVersion string) (beaconNodeVersionStatus BeaconNodeVersionStatus, clVer string, minVer string) {
 	matches := versionExtractRegex.FindStringSubmatch(bnVersion)

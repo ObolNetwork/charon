@@ -70,7 +70,7 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 	return resp, nil
 }
 
-// hashLegaacy hashes a legacy definition.
+// hashDefinitionLegacy hashes a legacy definition.
 func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) error {
 	vaddrs, err := d.LegacyValidatorAddresses()
 	if err != nil {
@@ -555,7 +555,7 @@ func hashLockV1x3orLater(l Lock, hh ssz.HashWalker) error {
 	return nil
 }
 
-// getDefinitionHashFunc returns the function to hash a definition based on the provided version.
+// getValidatorHashFunc returns the function to hash a validator based on the provided version.
 func getValidatorHashFunc(version string) (func(DistValidator, ssz.HashWalker, string) error, error) {
 	if isAnyVersion(version, v1_3, v1_4) {
 		return hashValidatorV1x3Or4, nil
