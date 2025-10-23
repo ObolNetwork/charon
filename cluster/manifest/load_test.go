@@ -75,7 +75,7 @@ func TestLoadManifest(t *testing.T) {
 			name:           "mismatching cluster hashes",
 			manifestFile:   manifestFile,
 			legacyLockFile: "testdata/lock2.json",
-			errorMsg:       "manifest and legacy cluster hashes don't match",
+			errorMsg:       "manifest and legacy cluster hashes mismatch",
 		},
 	}
 

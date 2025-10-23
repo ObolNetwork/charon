@@ -120,7 +120,7 @@ func (c *Component) newPeerK1Verifier() func(string, *anypb.Any, [][]byte) error
 			}
 
 			if ok, err := k1util.Verify65(pubkey, hash, sig); err != nil {
-				return errors.Wrap(err, "verify failed")
+				return errors.Wrap(err, "verify signature")
 			} else if !ok {
 				return errors.New("invalid signature")
 			}

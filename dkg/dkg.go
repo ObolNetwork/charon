@@ -196,7 +196,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if network == eth2util.Mainnet.Name && conf.HasTestConfig() {
-		return errors.New("cannot use test flags on mainnet")
+		return errors.New("test flags not supported on mainnet")
 	}
 
 	peers, err := def.Peers()
@@ -1175,16 +1175,16 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock, 
 // validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
 func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error {
 	if addr != "" && authToken == "" {
-		return errors.New("--keymanager-address provided but --keymanager-auth-token absent. Please fix configuration flags")
+		return errors.New("--keymanager-address provided but --keymanager-auth-token not set, fix configuration flags")
 	}
 
 	if addr == "" && authToken != "" {
-		return errors.New("--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags")
+		return errors.New("--keymanager-auth-token provided but --keymanager-address not set, fix configuration flags")
 	}
 
 	keymanagerURL, err := url.Parse(addr)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
+		return errors.Wrap(err, "parse keymanager address", z.Str("addr", addr))
 	}
 
 	if keymanagerURL.Scheme == "http" {

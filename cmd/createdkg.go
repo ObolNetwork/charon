@@ -67,12 +67,12 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 
 		if thresholdPresent {
 			if config.Threshold < minThreshold {
-				return errors.New("threshold must be greater than 1", z.Int("threshold", config.Threshold), z.Int("min", minThreshold))
+				return errors.New("threshold below minimum", z.Int("threshold", config.Threshold), z.Int("min", minThreshold))
 			}
 
 			if config.Threshold > len(config.OperatorENRs) {
-				return errors.New("threshold cannot be greater than number of operators",
-					z.Int("threshold", config.Threshold), z.Int("operators", len(config.OperatorENRs)))
+				return errors.New("threshold exceeds number of nodes",
+					z.Int("threshold", config.Threshold), z.Int("nodes", len(config.OperatorENRs)))
 			}
 		}
 

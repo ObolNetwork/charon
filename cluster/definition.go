@@ -120,19 +120,19 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 	}
 
 	if len(depositAmounts) > 1 && !SupportPartialDeposits(def.Version) {
-		return Definition{}, errors.New("the version does not support partial deposits", z.Str("version", def.Version))
+		return Definition{}, errors.New("version does not support partial deposits", z.Str("version", def.Version))
 	}
 
 	if def.TargetGasLimit != 0 && !supportTargetGasLimit(def.Version) {
-		return Definition{}, errors.New("the version does not support custom target gas limit", z.Str("version", def.Version))
+		return Definition{}, errors.New("version does not support custom target gas limit", z.Str("version", def.Version))
 	}
 
 	if def.Compounding && !supportCompounding(def.Version) {
-		return Definition{}, errors.New("the version does not support compounding", z.Str("version", def.Version))
+		return Definition{}, errors.New("version does not support compounding", z.Str("version", def.Version))
 	}
 
 	if def.TargetGasLimit == 0 && supportTargetGasLimit(def.Version) {
-		return Definition{}, errors.New("target gas limit should be set", z.Str("version", def.Version))
+		return Definition{}, errors.New("target gas limit not set", z.Str("version", def.Version))
 	}
 
 	return def.SetDefinitionHashes()

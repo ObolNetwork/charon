@@ -86,7 +86,7 @@ func TestBindRunFlagsValidation(t *testing.T) {
 		{
 			Name: "too long nickname",
 			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--nickname", "thisnicknameiswaytoolongandshouldfail"),
-			Err:  "flag 'nickname' can not exceed 32 characters",
+			Err:  "--nickname exceeds 32 character limit",
 		},
 		{
 			Name: "valid nickname",

@@ -1745,7 +1745,7 @@ func getCurrentSlot(ctx context.Context, target string) (int, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		return 0, errors.New("post failed", z.Int("status", resp.StatusCode))
+		return 0, errors.New("post request failed", z.Int("status", resp.StatusCode))
 	}
 
 	type syncingResponseData struct {

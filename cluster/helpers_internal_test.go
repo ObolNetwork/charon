@@ -156,7 +156,7 @@ func TestCreateValidatorKeysDir(t *testing.T) {
 	err = os.WriteFile(path.Join(dir, "file"), []byte("data"), 0o644)
 	require.NoError(t, err)
 	_, err = CreateValidatorKeysDir(tmp)
-	require.ErrorContains(t, err, "directory not empty")
+	require.ErrorContains(t, err, "non-empty directory")
 
 	t.Run("mkdir error", func(t *testing.T) {
 		// Parent directory does not exist

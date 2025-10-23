@@ -176,18 +176,18 @@ func TestValidateKeymanagerFlags(t *testing.T) {
 		{
 			name:   "Address provided but auth token absent",
 			addr:   "https://keymanager@example.com",
-			errMsg: "--keymanager-address provided but --keymanager-auth-token absent. Please fix configuration flags",
+			errMsg: "--keymanager-address provided but --keymanager-auth-token not set, fix configuration flags",
 		},
 		{
 			name:      "Auth token provided by address absent",
 			authToken: "keymanager-auth-token",
-			errMsg:    "--keymanager-auth-token provided but --keymanager-address absent. Please fix configuration flags",
+			errMsg:    "--keymanager-auth-token provided but --keymanager-address not set, fix configuration flags",
 		},
 		{
 			name:      "Malformed address provided",
 			addr:      "https://keymanager@example.com:-80",
 			authToken: "keymanager-auth-token",
-			errMsg:    "failed to parse keymanager addr",
+			errMsg:    "parse keymanager address",
 		},
 	}
 

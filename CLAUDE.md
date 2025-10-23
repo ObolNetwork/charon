@@ -59,6 +59,19 @@ go install tool  # e.g., go install github.com/bufbuild/buf/cmd/buf
 
 ## Architecture
 
+### Knowledge Base
+- See [README.md](README.md) for high-level overview
+- See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation
+- See [docs/goguidelines.md](docs/goguidelines.md) for Go coding guidelines
+- See [docs/configuration.md](docs/configuration.md) for configuration options
+- See [docs/dkg.md](docs/dkg.md) for Distributed Key Generation details
+- See [docs/consensus.md](docs/consensus.md) for consensus design details
+- See [docs/metrics.md](docs/metrics.md) for metrics documentation
+- See [docs/reasons.md](docs/reasons.md) for error reason codes
+- See [docs/structure.md](docs/structure.md) for package structure overview
+- See [docs/contributing.md](docs/contributing.md) for contribution guidelines
+- See [public product documentation](https://docs.obol.org/next)
+
 ### Core Workflow Components
 The heart of Charon is the **core workflow**, which processes validator duties through a series of components. Each duty (attestation, block proposal, etc.) flows through these stages:
 

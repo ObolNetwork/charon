@@ -226,7 +226,7 @@ func (l Lock) verifyNodeSignatures() error {
 		if err != nil {
 			return errors.Wrap(err, "node signature check")
 		} else if !verified {
-			return errors.New("node signature verification failed",
+			return errors.New("invalid node signature",
 				z.Int("peer_index", idx),
 			)
 		}

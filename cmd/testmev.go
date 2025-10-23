@@ -79,11 +79,11 @@ func newTestMEVCmd(runFunc func(context.Context, io.Writer, testMEVConfig) (test
 		beaconNodeEndpoint := cmd.Flags().Lookup("beacon-node-endpoint").Value.String()
 
 		if loadTest == "true" && beaconNodeEndpoint == "" {
-			return errors.New("beacon-node-endpoint should be specified when load-test is")
+			return errors.New("beacon-node-endpoint required when load-test enabled")
 		}
 
 		if loadTest == "false" && beaconNodeEndpoint != "" {
-			return errors.New("beacon-node-endpoint should be used only when load-test is")
+			return errors.New("beacon-node-endpoint only supported when load-test enabled")
 		}
 
 		return nil

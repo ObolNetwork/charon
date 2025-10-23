@@ -145,7 +145,7 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 			dkgConfig: dkg.Config{
 				Timeout: time.Minute,
 			},
-			errMsg: "cannot load private key share: no keys found",
+			errMsg: "load private key share: no keys found",
 		},
 		{
 			name: "old operator enrs contains duplicate",

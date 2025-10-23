@@ -115,7 +115,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 		}
 
 		if len(config.Nickname) > 32 {
-			return errors.New("flag 'nickname' can not exceed 32 characters")
+			return errors.New("--nickname exceeds 32 character limit")
 		}
 
 		if len(config.JaegerAddr) > 0 || len(config.JaegerService) > 0 {

@@ -84,7 +84,7 @@ func CreateValidatorKeysDir(parentDir string) (string, error) {
 		return vkdir, nil
 	}
 
-	return "", errors.New("directory not empty", z.Str("path", vkdir))
+	return "", errors.New("non-empty directory", z.Str("path", vkdir))
 }
 
 // generateUUID returns a random UUID.

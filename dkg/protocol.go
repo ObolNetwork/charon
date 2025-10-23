@@ -204,13 +204,13 @@ func LoadAndVerifyClusterLock(ctx context.Context, lockFilePath, executionEngine
 	go eth1Cl.Run(ctx)
 
 	if err := lock.VerifyHashes(); err != nil && !noVerify {
-		return nil, errors.Wrap(err, "cluster lock hashes verification failed. Run with --no-verify to bypass verification at own risk")
+		return nil, errors.Wrap(err, "verify cluster lock hashes (run with --no-verify to bypass verification at own risk)")
 	} else if err != nil && noVerify {
 		log.Warn(ctx, "Ignoring failed cluster lock hashes verification due to --no-verify flag", err)
 	}
 
 	if err := lock.VerifySignatures(eth1Cl); err != nil && !noVerify {
-		return nil, errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
+		return nil, errors.Wrap(err, "verify cluster lock signatures (run with --no-verify to bypass verification at own risk)")
 	} else if err != nil && noVerify {
 		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}
@@ -224,7 +224,7 @@ func LoadSecrets(validatorKeysDir string) ([]tbls.PrivateKey, error) {
 
 	privateKeyFiles, err := keystore.LoadFilesUnordered(validatorKeysDir)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot load private key share", z.Str("path", validatorKeysDir))
+		return nil, errors.Wrap(err, "load private key share", z.Str("path", validatorKeysDir))
 	}
 
 	secrets, err = privateKeyFiles.SequencedKeys()

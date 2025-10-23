@@ -281,7 +281,7 @@ func (ts *testServer) HandleGetFullExit(writer http.ResponseWriter, request *htt
 	}
 
 	if err := json.NewEncoder(writer).Encode(ret); err != nil {
-		writeErr(writer, http.StatusInternalServerError, errors.Wrap(err, "cannot marshal exit message").Error())
+		writeErr(writer, http.StatusInternalServerError, errors.Wrap(err, "marshal exit message").Error())
 		return
 	}
 }

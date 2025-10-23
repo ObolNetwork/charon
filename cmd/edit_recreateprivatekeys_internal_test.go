@@ -110,6 +110,6 @@ func TestValidateReshareConfig(t *testing.T) {
 
 		config.ValidatorKeysDir = validatorKeysDir
 		err = validateReshareConfig(config)
-		require.Equal(t, "validator-keys-dir must be a non-empty directory", err.Error())
+		require.Equal(t, "validator-keys-dir empty", err.Error())
 	})
 }

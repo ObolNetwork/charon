@@ -164,7 +164,7 @@ func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.
 	select {
 	case e.sigDatasChan <- ret:
 	case <-ctx.Done():
-		return errors.Wrap(ctx.Err(), "failed to feed collected sig data")
+		return errors.Wrap(ctx.Err(), "feed collected sig data")
 	}
 
 	return nil

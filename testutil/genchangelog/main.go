@@ -482,7 +482,7 @@ func getLatestTags(ctx context.Context, n int) ([]string, error) {
 	for _, tag := range rawTags {
 		versionInfo, err := version.Parse(tag)
 		if err != nil {
-			return nil, errors.Wrap(err, "can't parse tag version")
+			return nil, errors.Wrap(err, "parse tag version")
 		}
 
 		if versionInfo.PreRelease() {
@@ -496,12 +496,12 @@ func getLatestTags(ctx context.Context, n int) ([]string, error) {
 
 	latestTag, err := version.Parse(rawTags[len(rawTags)-1])
 	if err != nil {
-		return nil, errors.Wrap(err, "can't parse latest raw tag version")
+		return nil, errors.Wrap(err, "parse latest raw tag version")
 	}
 
 	filteredLatestTag, err := version.Parse(ret[len(ret)-1])
 	if err != nil {
-		return nil, errors.Wrap(err, "can't parse latest filtered tag version")
+		return nil, errors.Wrap(err, "parse latest filtered tag version")
 	}
 
 	// We only do this check in a pre-release: edge case in which

@@ -146,7 +146,7 @@ func Auto(ctx context.Context, conf AutoConfig) error {
 	}
 
 	if !alertSuccess {
-		return errors.New("alerts couldn't be polled")
+		return errors.New("could not poll alerts")
 	} else if len(alertMsgs) > 0 {
 		return errors.New("alerts detected", z.Any("alerts", alertMsgs))
 	}
