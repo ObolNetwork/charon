@@ -248,7 +248,7 @@ func leftPad(b []byte, l int) []byte {
 	return b
 }
 
-// putByteList appends b as a ssz fixed size byte array of length n.
+// putBytesN appends b as a ssz fixed size byte array of length n.
 func putBytesN(h ssz.HashWalker, b []byte, n int) error {
 	if len(b) > n {
 		return errors.New("bytes too long", z.Int("n", n), z.Int("l", len(b)))

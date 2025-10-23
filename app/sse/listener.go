@@ -264,7 +264,7 @@ func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 	}
 }
 
-// Compute delay between start of the slot and receiving the event.
+// computeDelay computes the delay between start of the slot and receiving the event.
 func (p *listener) computeDelay(slot uint64, eventTS time.Time, delayOKFunc func(delay time.Duration) bool) (time.Duration, bool) {
 	slotStartTime := p.genesisTime.Add(time.Duration(slot) * p.slotDuration)
 	delay := eventTS.Sub(slotStartTime)

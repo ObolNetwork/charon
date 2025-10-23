@@ -668,7 +668,7 @@ func marshalSSZVersionedBlindedTo(dst []byte, version eth2util.DataVersion, blin
 	return dst, nil
 }
 
-// marshalSSZVersionedTo marshals a versioned object to a target array.
+// marshalSSZVersionedValidatorIdxTo marshals a versioned validator index object to a target array.
 func marshalSSZVersionedValidatorIdxTo(dst []byte, version eth2util.DataVersion, valIdx eth2p0.ValidatorIndex, valFunc func(eth2util.DataVersion) (sszType, error)) ([]byte, error) {
 	// Field (0) 'Version'
 	dst = ssz.MarshalUint64(dst, version.ToUint64())

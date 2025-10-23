@@ -256,7 +256,7 @@ func topicProposalToProto(p TopicProposal) (*pbv1.PriorityTopicProposal, error) 
 	}, nil
 }
 
-// topicProposalToProto returns a topic proposal from the proto version.
+// topicResultFromProto returns a topic result from the proto version.
 func topicResultFromProto(p *pbv1.PriorityTopicResult) (TopicResult, error) {
 	if p == nil {
 		return TopicResult{}, errors.New("priority topic result proto cannot be nil")

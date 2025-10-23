@@ -162,8 +162,8 @@ func to0xHex(b []byte) string {
 	return fmt.Sprintf("%#x", b)
 }
 
+// from0xHex returns bytes represented by the hex string.
 // nolint: unparam
-// to0xHex returns bytes represented by the hex string.
 func from0xHex(s string, length int) ([]byte, error) {
 	if s == "" {
 		return nil, nil

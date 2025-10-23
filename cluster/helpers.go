@@ -218,7 +218,7 @@ func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 	return nil
 }
 
-// putByteList appends b as a ssz fixed size byte array of length n.
+// putBytesN appends b as a ssz fixed size byte array of length n.
 func putBytesN(h ssz.HashWalker, b []byte, n int) error {
 	if len(b) > n {
 		return errors.New("bytes too long", z.Int("n", n), z.Int("l", len(b)))
@@ -259,7 +259,7 @@ func to0xHex(b []byte) string {
 	return fmt.Sprintf("%#x", b)
 }
 
-// to0xHex returns bytes represented by the hex string.
+// from0xHex returns bytes represented by the hex string.
 func from0xHex(s string, length int) ([]byte, error) {
 	if s == "" {
 		return nil, nil

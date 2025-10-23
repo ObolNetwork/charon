@@ -66,7 +66,7 @@ func Run(ctx context.Context, config Config) error {
 	}
 }
 
-// report the validator effectiveness metrics for prometheus.
+// reportMetrics reports the validator effectiveness metrics for prometheus.
 func reportMetrics(ctx context.Context, config Config) {
 	for _, network := range config.Networks {
 		networkLabels := prometheus.Labels{
