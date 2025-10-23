@@ -442,3 +442,136 @@ func TestBlockInclusion(t *testing.T) {
 		require.Empty(t, missed)
 	})
 }
+
+func TestInclusion404Handling(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("checkBlock handles 404 error gracefully", func(t *testing.T) {
+		bmock, err := beaconmock.New(ctx)
+		require.NoError(t, err)
+
+		// Mock SignedBeaconBlock to return a 404 error
+		bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
+			return nil, &eth2api.Error{
+				StatusCode: 404,
+				Method:     "GET",
+				Endpoint:   "/eth/v2/beacon/blocks/" + blockID,
+				Data:       []byte(`{"code":404,"message":"NOT_FOUND: beacon block not found"}`),
+			}
+		}
+
+		// Wrap beaconmock with eth2wrap to get proper error handling
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
+		require.NoError(t, err)
+
+		var (
+			checkBlockCalled bool
+			foundBlock       bool
+		)
+
+		noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
+
+		incl, err := NewInclusion(ctx, eth2Cl, noopTrackerInclFunc)
+		require.NoError(t, err)
+
+		// Override checkBlockFunc to capture the result
+		incl.checkBlockFunc = func(ctx context.Context, slot uint64, found bool) {
+			checkBlockCalled = true
+			foundBlock = found
+		}
+
+		// Call checkBlock with a slot that will trigger the 404
+		err = incl.checkBlock(ctx, 12345, nil)
+		require.NoError(t, err, "checkBlock should not return an error for 404")
+		require.True(t, checkBlockCalled, "checkBlockFunc should have been called")
+		require.False(t, foundBlock, "block should be marked as not found")
+	})
+
+	t.Run("checkBlockAndAtts handles 404 error gracefully", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.AttestationInclusion)
+
+		bmock, err := beaconmock.New(ctx)
+		require.NoError(t, err)
+
+		// Mock BeaconBlockAttestations to return a 404 error
+		bmock.BeaconBlockAttestationsFunc = func(ctx context.Context, opts *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
+			return nil, &eth2api.Error{
+				StatusCode: 404,
+				Method:     "GET",
+				Endpoint:   "/eth/v1/beacon/blocks/" + opts.Block + "/attestations",
+				Data:       []byte(`{"code":404,"message":"NOT_FOUND: beacon block not found"}`),
+			}
+		}
+
+		// Wrap beaconmock with eth2wrap to get proper error handling
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
+		require.NoError(t, err)
+
+		noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
+
+		incl, err := NewInclusion(ctx, eth2Cl, noopTrackerInclFunc)
+		require.NoError(t, err)
+
+		// Call checkBlockAndAtts with a slot that will trigger the 404
+		err = incl.checkBlockAndAtts(ctx, 12345, nil)
+		require.NoError(t, err, "checkBlockAndAtts should not return an error for 404")
+	})
+
+	t.Run("checkBlock returns error for non-404 errors", func(t *testing.T) {
+		bmock, err := beaconmock.New(ctx)
+		require.NoError(t, err)
+
+		// Mock SignedBeaconBlock to return a 500 error
+		bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
+			return nil, &eth2api.Error{
+				StatusCode: 500,
+				Method:     "GET",
+				Endpoint:   "/eth/v2/beacon/blocks/" + blockID,
+				Data:       []byte(`{"code":500,"message":"Internal server error"}`),
+			}
+		}
+
+		// Wrap beaconmock with eth2wrap to get proper error handling
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
+		require.NoError(t, err)
+
+		noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
+
+		incl, err := NewInclusion(ctx, eth2Cl, noopTrackerInclFunc)
+		require.NoError(t, err)
+
+		// Call checkBlock with a slot that will trigger the 500 error
+		err = incl.checkBlock(ctx, 12345, nil)
+		require.Error(t, err, "checkBlock should return an error for non-404 errors")
+	})
+
+	t.Run("checkBlockAndAtts returns error for non-404 errors", func(t *testing.T) {
+		featureset.EnableForT(t, featureset.AttestationInclusion)
+
+		bmock, err := beaconmock.New(ctx)
+		require.NoError(t, err)
+
+		// Mock BeaconBlockAttestations to return a 500 error
+		bmock.BeaconBlockAttestationsFunc = func(ctx context.Context, opts *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
+			return nil, &eth2api.Error{
+				StatusCode: 500,
+				Method:     "GET",
+				Endpoint:   "/eth/v1/beacon/blocks/" + opts.Block + "/attestations",
+				Data:       []byte(`{"code":500,"message":"Internal server error"}`),
+			}
+		}
+
+		// Wrap beaconmock with eth2wrap to get proper error handling
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
+		require.NoError(t, err)
+
+		noopTrackerInclFunc := func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {}
+
+		incl, err := NewInclusion(ctx, eth2Cl, noopTrackerInclFunc)
+		require.NoError(t, err)
+
+		// Call checkBlockAndAtts with a slot that will trigger the 500 error
+		err = incl.checkBlockAndAtts(ctx, 12345, nil)
+		require.Error(t, err, "checkBlockAndAtts should return an error for non-404 errors")
+	})
+}

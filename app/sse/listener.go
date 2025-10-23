@@ -214,7 +214,7 @@ func (p *listener) handleBlockGossipEvent(ctx context.Context, event *event, add
 		z.Str("delay", delay.String()),
 		z.Str("block", blockGossip.Block))
 
-	sseBlockGossipHistogram.WithLabelValues(addr).Observe(float64(delay))
+	sseBlockGossipHistogram.WithLabelValues(addr).Observe(delay.Seconds())
 
 	return nil
 }
@@ -245,7 +245,7 @@ func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr stri
 		z.Str("delay", delay.String()),
 		z.Str("block", block.Block))
 
-	sseBlockHistogram.WithLabelValues(addr).Observe(float64(delay))
+	sseBlockHistogram.WithLabelValues(addr).Observe(delay.Seconds())
 
 	return nil
 }

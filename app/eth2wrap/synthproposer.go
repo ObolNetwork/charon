@@ -23,7 +23,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 )
 
 const (
@@ -124,7 +123,9 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 
 		signed, err := h.SignedBeaconBlock(ctx, opts)
 		if err != nil {
-			if z.ContainsField(err, z.Int("status_code", http.StatusNotFound)) {
+			// Check if error is a 404 (block not found)
+			var apiErr *eth2api.Error
+			if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
 				continue
 			}
 
