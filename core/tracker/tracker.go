@@ -287,7 +287,7 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 	case zero:
 		failedErr = errors.New("no events for duty") // This should never happen.
 	default:
-		failedErr = errors.New("duty at step", z.Int("step", int(failedStep))) // This should never happen.
+		failedErr = errors.New("duty failed at step", z.Int("step", int(failedStep))) // This should never happen.
 	}
 
 	return true, failedStep, reason, failedErr
