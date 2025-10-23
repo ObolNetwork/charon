@@ -132,7 +132,7 @@ func TestCompareDirectories(t *testing.T) {
 				return dir1, dir2
 			},
 			expectError: true,
-			errorMsg:    "stat extracted file",
+			errorMsg:    "file should exist in extracted content",
 		},
 		{
 			name: "different_content",
@@ -175,7 +175,7 @@ func TestCompareDirectories(t *testing.T) {
 				return dir1, dir2
 			},
 			expectError: true,
-			errorMsg:    "stat extracted directory",
+			errorMsg:    "directory should exist in extracted content",
 		},
 		{
 			name: "file_vs_directory",

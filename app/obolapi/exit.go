@@ -110,7 +110,7 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 		Signature:                  signature,
 	})
 	if err != nil {
-		return errors.Wrap(err, "marshal json")
+		return errors.Wrap(err, "marshal PartialExitRequest to JSON")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
@@ -170,7 +170,7 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 
 	var er FullExitResponse
 	if err := json.NewDecoder(respBody).Decode(&er); err != nil {
-		return ExitBlob{}, errors.Wrap(err, "unmarshal json")
+		return ExitBlob{}, errors.Wrap(err, "unmarshal FullExitResponse from JSON")
 	}
 
 	// do aggregation

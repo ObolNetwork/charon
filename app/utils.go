@@ -223,7 +223,7 @@ func CompareDirectories(originalDir, extractedDir string) error {
 			// Check if directory exists in extracted content
 			extractedInfo, err := os.Stat(extractedPath)
 			if err != nil {
-				return errors.Wrap(err, "stat extracted directory", z.Str("path", relPath))
+				return errors.Wrap(err, "directory should exist in extracted content", z.Str("path", relPath))
 			}
 
 			if !extractedInfo.IsDir() {
@@ -236,7 +236,7 @@ func CompareDirectories(originalDir, extractedDir string) error {
 		// Compare file contents
 		extractedInfo, err := os.Stat(extractedPath)
 		if err != nil {
-			return errors.Wrap(err, "stat extracted file", z.Str("path", relPath))
+			return errors.Wrap(err, "file should exist in extracted content", z.Str("path", relPath))
 		}
 
 		if info.Size() != extractedInfo.Size() {
