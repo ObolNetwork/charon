@@ -257,7 +257,7 @@ func TestDKGCLI(t *testing.T) {
 			withdrawal:   withdrawalArg,
 			outputDir:    outputDirArg,
 			threshold:    "--threshold=4",
-			expectedErr:  "threshold exceeds number of operators",
+			expectedErr:  "threshold exceeds number of nodes",
 		},
 		{
 			name:         "no threshold provided",

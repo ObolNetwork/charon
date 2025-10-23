@@ -1175,11 +1175,11 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock, 
 // validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
 func validateKeymanagerFlags(ctx context.Context, addr, authToken string) error {
 	if addr != "" && authToken == "" {
-		return errors.New("--keymanager-address provided but --keymanager-auth-token not set, please fix configuration flags")
+		return errors.New("--keymanager-address provided but --keymanager-auth-token not set, fix configuration flags")
 	}
 
 	if addr == "" && authToken != "" {
-		return errors.New("--keymanager-auth-token provided but --keymanager-address not set, please fix configuration flags")
+		return errors.New("--keymanager-auth-token provided but --keymanager-address not set, fix configuration flags")
 	}
 
 	keymanagerURL, err := url.Parse(addr)

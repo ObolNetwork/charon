@@ -192,7 +192,7 @@ func TestCreateCluster(t *testing.T) {
 				NumDVs:    1,
 				Network:   defaultNetwork,
 			},
-			expectedErr: "--num-validators not supported with --split-existing-keys, please fix configuration flags",
+			expectedErr: "--num-validators not supported with --split-existing-keys, fix configuration flags",
 		},
 		{
 			Name: "goerli",
@@ -946,7 +946,7 @@ func TestClusterCLI(t *testing.T) {
 			feeRecipient:  feeRecipientArg,
 			withdrawal:    withdrawalArg,
 			threshold:     "--threshold=5",
-			expectedErr:   "threshold exceeds number of operators",
+			expectedErr:   "threshold exceeds number of nodes",
 		},
 		{
 			name:          "no threshold provided",

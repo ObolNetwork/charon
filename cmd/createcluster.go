@@ -121,8 +121,8 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 			}
 
 			if conf.Threshold > conf.NumNodes {
-				return errors.New("threshold exceeds number of operators",
-					z.Int("threshold", conf.Threshold), z.Int("operators", conf.NumNodes))
+				return errors.New("threshold exceeds number of nodes",
+					z.Int("threshold", conf.Threshold), z.Int("nodes", conf.NumNodes))
 			}
 		}
 
@@ -411,7 +411,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 
 	if conf.SplitKeys {
 		if conf.NumDVs != 0 {
-			return errors.New("--num-validators not supported with --split-existing-keys, please fix configuration flags")
+			return errors.New("--num-validators not supported with --split-existing-keys, fix configuration flags")
 		}
 	} else {
 		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
