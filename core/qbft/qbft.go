@@ -459,7 +459,7 @@ func compare[I any, V comparable, C any](ctx context.Context, d Definition[I, V,
 			return inputValueSource, nil
 		case inputValueSource = <-compareValue:
 		case <-timerChan:
-			log.Warn(ctx, "", errors.New("timeout on waiting for data used for comparing local and leader proposed data"))
+			log.Warn(ctx, "", errors.New("timeout waiting for local data, used for comparing with leader's proposed data"))
 			return inputValueSource, errTimeout
 		}
 	}

@@ -360,7 +360,7 @@ func TestVersionedProposal(t *testing.T) {
 				Phase0:  testutil.RandomPhase0BeaconBlock(),
 				Blinded: true,
 			},
-			err: "phase0 block cannot be blinded",
+			err: "phase0 blocks do not support blinding",
 		},
 		{
 			name: "altair",
@@ -376,7 +376,7 @@ func TestVersionedProposal(t *testing.T) {
 				Altair:  testutil.RandomAltairBeaconBlock(),
 				Blinded: true,
 			},
-			err: "altair block cannot be blinded",
+			err: "altair blocks do not support blinding",
 		},
 		{
 			name: "bellatrix",

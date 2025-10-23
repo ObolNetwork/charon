@@ -187,7 +187,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 			blinded, err = block.ToBlinded()
 			if err != nil {
-				return errors.Wrap(err, "cannot broadcast, expected blinded proposal")
+				return errors.Wrap(err, "convert to blinded proposal")
 			}
 
 			err = b.eth2Cl.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
@@ -461,7 +461,7 @@ func resolveActiveValidatorsIndices(ctx context.Context, eth2Cl eth2wrap.Client,
 
 	for index, val := range eth2Resp {
 		if val == nil || val.Validator == nil {
-			return nil, errors.New("validator data cannot be nil")
+			return nil, errors.New("validator data is nil")
 		}
 
 		// Check for active validators for the given epoch.

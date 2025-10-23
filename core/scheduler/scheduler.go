@@ -355,7 +355,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 	// Check if any of the attester duties returned are nil.
 	for _, duty := range attDuties {
 		if duty == nil {
-			return errors.New("attester duty cannot be nil")
+			return errors.New("attester duty is nil")
 		}
 	}
 
@@ -436,7 +436,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 	// Check if any of the proposer duties returned are nil.
 	for _, duty := range proDuties {
 		if duty == nil {
-			return errors.New("proposer duty cannot be nil")
+			return errors.New("proposer duty is nil")
 		}
 	}
 
@@ -490,7 +490,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 	// Check if any of the sync committee duties returned are nil.
 	for _, duty := range duties {
 		if duty == nil {
-			return errors.New("sync committee duty cannot be nil")
+			return errors.New("sync committee duty is nil")
 		}
 	}
 
@@ -671,7 +671,7 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 	}
 
 	if slotDuration == 0 {
-		return nil, errors.New("slot duration cannot be zero")
+		return nil, errors.New("slot duration is zero")
 	}
 
 	currentSlot := func() core.Slot {
@@ -734,7 +734,7 @@ func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client, submit
 
 	for index, val := range eth2Resp {
 		if val == nil || val.Validator == nil {
-			return nil, errors.New("validator data cannot be nil")
+			return nil, errors.New("validator data is nil")
 		}
 
 		pubkey, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
