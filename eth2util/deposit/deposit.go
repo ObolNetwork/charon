@@ -339,7 +339,7 @@ func WriteDepositDataFile(depositDatas []eth2p0.DepositData, network string, dat
 		}
 
 		if depositDatas[0].Amount != dd.Amount {
-			return errors.New("deposit datas has different amount", z.Int("index", i))
+			return errors.New("deposit data amounts differ", z.Int("index", i))
 		}
 	}
 
@@ -379,7 +379,7 @@ func GetDepositFilePath(dataDir string, amount eth2p0.Gwei) string {
 func ReadDepositDataFiles(clusterDir string) ([][]eth2p0.DepositData, error) {
 	files, err := filepath.Glob(path.Join(clusterDir, "deposit-data*.json"))
 	if err != nil || len(files) == 0 {
-		return nil, errors.Wrap(err, "finding deposit-data files")
+		return nil, errors.Wrap(err, "find deposit-data files")
 	}
 
 	var depositDatas [][]eth2p0.DepositData

@@ -231,7 +231,7 @@ func TestWriteDepositDataFile(t *testing.T) {
 	t.Run("not equal amounts", func(t *testing.T) {
 		depositDatas[1].Amount /= 2
 		err := deposit.WriteDepositDataFile(depositDatas, eth2util.Goerli.Name, dir)
-		require.ErrorContains(t, err, "deposit datas has different amount")
+		require.ErrorContains(t, err, "deposit data amounts differ")
 	})
 }
 
@@ -239,7 +239,7 @@ func TestReadDepositDataFiles_Errors(t *testing.T) {
 	t.Run("no files found", func(t *testing.T) {
 		dir := t.TempDir()
 		_, err := deposit.ReadDepositDataFiles(dir)
-		require.ErrorContains(t, err, "finding deposit-data files")
+		require.ErrorContains(t, err, "find deposit-data files")
 	})
 
 	t.Run("invalid json in file", func(t *testing.T) {

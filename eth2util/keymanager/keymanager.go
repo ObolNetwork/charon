@@ -36,7 +36,7 @@ type Client struct {
 // See https://ethereum.github.io/keymanager-APIs/#/Local%20Key%20Manager/importKeystores.
 func (c Client) ImportKeystores(ctx context.Context, keystores []keystore.Keystore, passwords []string) error {
 	if len(keystores) != len(passwords) {
-		return errors.New("lengths of keystores and passwords don't match",
+		return errors.New("keystores and passwords length mismatch",
 			z.Int("keystores", len(keystores)), z.Int("passwords", len(passwords)))
 	}
 
@@ -69,7 +69,7 @@ func (c Client) VerifyConnection(ctx context.Context) error {
 
 	conn, err := d.DialContext(ctx, "tcp", keymanagerURL.Host)
 	if err != nil {
-		return errors.Wrap(err, "cannot ping address", z.Str("addr", c.baseURL))
+		return errors.Wrap(err, "ping address", z.Str("addr", c.baseURL))
 	}
 
 	_ = conn.Close()
@@ -115,7 +115,7 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 	_ = resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		return errors.New("failed posting keys", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
+		return errors.New("post keys to keymanager failed", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
 	}
 
 	return nil

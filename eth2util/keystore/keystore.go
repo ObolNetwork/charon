@@ -291,7 +291,7 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 	}
 
 	if len(ret) != len(cl.GetValidators()) {
-		return nil, errors.New("amount of key shares don't match amount of validator public keys")
+		return nil, errors.New("key shares and validator public keys count mismatch")
 	}
 
 	return ret, nil

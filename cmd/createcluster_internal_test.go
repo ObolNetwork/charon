@@ -855,7 +855,7 @@ func TestKeymanager(t *testing.T) {
 			log.Error(context.Background(), "runCreateCluster error in TestKeymanager/some_unsuccessful", err)
 		}
 
-		require.ErrorContains(t, err, "cannot ping address")
+		require.ErrorContains(t, err, "ping address")
 	})
 
 	t.Run("lengths don't match", func(t *testing.T) {

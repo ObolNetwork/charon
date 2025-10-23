@@ -10,6 +10,8 @@ import (
 	v2 "github.com/obolnetwork/charon/tbls"
 )
 
+var errInvalidDataLength = errors.New("invalid data length")
+
 // SigFromCore converts a core workflow Signature type into a tbls.Signature.
 func SigFromCore(sig core.Signature) (v2.Signature, error) {
 	return SignatureFromBytes(sig)
@@ -33,7 +35,7 @@ func PubkeyToETH2(pk v2.PublicKey) (eth2p0.BLSPubKey, error) {
 // Returns an error if the data isn't of the expected length.
 func PrivkeyFromBytes(data []byte) (v2.PrivateKey, error) {
 	if len(data) != len(v2.PrivateKey{}) {
-		return v2.PrivateKey{}, errors.New("data is not of the correct length")
+		return v2.PrivateKey{}, errInvalidDataLength
 	}
 
 	return *(*v2.PrivateKey)(data), nil
@@ -43,7 +45,7 @@ func PrivkeyFromBytes(data []byte) (v2.PrivateKey, error) {
 // Returns an error if the data isn't of the expected length.
 func PubkeyFromBytes(data []byte) (v2.PublicKey, error) {
 	if len(data) != len(v2.PublicKey{}) {
-		return v2.PublicKey{}, errors.New("data is not of the correct length")
+		return v2.PublicKey{}, errInvalidDataLength
 	}
 
 	return *(*v2.PublicKey)(data), nil
@@ -64,7 +66,7 @@ func PubkeyFromCore(pk core.PubKey) (v2.PublicKey, error) {
 // Returns an error if the data isn't of the expected length.
 func SignatureFromBytes(data []byte) (v2.Signature, error) {
 	if len(data) != len(v2.Signature{}) {
-		return v2.Signature{}, errors.New("data is not of the correct length")
+		return v2.Signature{}, errInvalidDataLength
 	}
 
 	return *(*v2.Signature)(data), nil

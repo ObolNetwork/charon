@@ -51,7 +51,7 @@ func (v DataVersion) MarshalJSON() ([]byte, error) {
 
 	b, err := json.Marshal(val)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal data version")
+		return nil, errors.Wrap(err, "marshal data version")
 	}
 
 	return b, nil
@@ -62,7 +62,7 @@ func (v DataVersion) MarshalJSON() ([]byte, error) {
 func (v *DataVersion) UnmarshalJSON(input []byte) error {
 	var intVal int
 	if err := json.Unmarshal(input, &intVal); err != nil {
-		return errors.Wrap(err, "failed to unmarshal data version")
+		return errors.Wrap(err, "unmarshal data version")
 	}
 
 	for version, val := range dataVersionValues {
@@ -172,7 +172,7 @@ func (v BuilderVersion) MarshalJSON() ([]byte, error) {
 
 	b, err := json.Marshal(val)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal builder version")
+		return nil, errors.Wrap(err, "marshal builder version")
 	}
 
 	return b, nil
@@ -183,7 +183,7 @@ func (v BuilderVersion) MarshalJSON() ([]byte, error) {
 func (v *BuilderVersion) UnmarshalJSON(input []byte) error {
 	var intVal int
 	if err := json.Unmarshal(input, &intVal); err != nil {
-		return errors.Wrap(err, "failed to unmarshal builder version")
+		return errors.Wrap(err, "unmarshal builder version")
 	}
 
 	for version, val := range builderVersionValues {
