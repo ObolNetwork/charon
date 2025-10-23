@@ -90,7 +90,7 @@ func validateReshareConfig(config dkg.ReshareConfig) (err error) {
 
 	validatorKeysDirPresent := err == nil && len(keyFiles) > 0
 	if !validatorKeysDirPresent {
-		return errors.New("validator-keys-dir must be a non-empty directory")
+		return errors.New("validator-keys-dir empty")
 	}
 
 	if config.DKGConfig.Timeout < time.Minute {

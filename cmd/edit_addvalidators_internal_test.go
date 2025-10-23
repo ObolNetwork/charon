@@ -279,7 +279,7 @@ func TestValidateConfigAddValidators(t *testing.T) {
 			conf: addValidatorsConfig{
 				NumValidators: 0,
 			},
-			errMsg: "num-validators must be greater than 0",
+			errMsg: "num-validators not set",
 		},
 		{
 			name: "output dir is required",
@@ -401,14 +401,14 @@ func TestValidateConfigAddValidators(t *testing.T) {
 		}
 
 		err = validateConfig(t.Context(), &cfg)
-		require.Equal(t, "data-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
+		require.Equal(t, "validator_keys directory empty or --unverified flag required", err.Error())
 
 		validatorKeysDir := filepath.Join(srcDir, validatorKeysSubDir)
 		err = app.CreateNewEmptyDir(validatorKeysDir)
 		require.NoError(t, err)
 
 		err = validateConfig(t.Context(), &cfg)
-		require.Equal(t, "data-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set", err.Error())
+		require.Equal(t, "validator_keys directory empty or --unverified flag required", err.Error())
 
 		cfg.Unverified = true
 		err = validateConfig(t.Context(), &cfg)

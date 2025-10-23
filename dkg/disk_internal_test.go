@@ -132,7 +132,7 @@ func TestCheckClearDataDir(t *testing.T) {
 			"dataDir doesn't exist",
 			func(rootDir string, dataDir string) {},
 			func(err error) {
-				require.ErrorContains(t, err, "data directory doesn't exist, cannot continue")
+				require.ErrorContains(t, err, "data directory does not exist, cannot continue")
 			},
 		},
 		{
@@ -147,7 +147,7 @@ func TestCheckClearDataDir(t *testing.T) {
 				)
 			},
 			func(err error) {
-				require.ErrorContains(t, err, "data directory already exists and is a file, cannot continue")
+				require.ErrorContains(t, err, "data directory is a file, cannot continue")
 			},
 		},
 		{

@@ -46,7 +46,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	if !filepath.IsAbs(outputDir) {
 		fp, err := filepath.Abs(outputDir)
 		if err != nil {
-			return errors.Wrap(err, "cannot make full path from relative output path")
+			return errors.Wrap(err, "make full path from relative output path")
 		}
 
 		outputDir = fp
@@ -55,7 +55,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	if !filepath.IsAbs(inputDir) {
 		fp, err := filepath.Abs(inputDir)
 		if err != nil {
-			return errors.Wrap(err, "cannot make full path from relative input path")
+			return errors.Wrap(err, "make full path from relative input path")
 		}
 
 		inputDir = fp
@@ -71,7 +71,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 
 	cluster, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify, eth1Cl)
 	if err != nil {
-		return errors.Wrap(err, "cannot open manifest file")
+		return errors.Wrap(err, "open manifest file")
 	}
 
 	privkeys := make(map[int][]tbls.PrivateKey)
@@ -81,7 +81,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 
 		keyFiles, err := keystore.LoadFilesUnordered(pkp)
 		if err != nil {
-			return errors.Wrap(err, "cannot load private key share", z.Str("path", pkp))
+			return errors.Wrap(err, "load private key share", z.Str("path", pkp))
 		}
 
 		secrets, err := keyFiles.SequencedKeys()
@@ -117,7 +117,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 
 		secret, err := tbls.RecoverSecret(shares, uint(len(cluster.GetOperators())), uint(cluster.GetThreshold()))
 		if err != nil {
-			return errors.Wrap(err, "cannot recover private key share", z.Int("validator_index", valIdx))
+			return errors.Wrap(err, "recover private key share", z.Int("validator_index", valIdx))
 		}
 
 		// require that the generated secret pubkey matches what's in the lockfile for the valIdx validator
@@ -155,25 +155,25 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	if force {
 		matches, err := filepath.Glob(filepath.Join(outputDir, "keystore-*.json"))
 		if err != nil {
-			return errors.Wrap(err, "can't match keystore files")
+			return errors.Wrap(err, "match keystore files")
 		}
 
 		passMatches, err := filepath.Glob(filepath.Join(outputDir, "keystore-*.txt"))
 		if err != nil {
-			return errors.Wrap(err, "can't match keystore password files")
+			return errors.Wrap(err, "match keystore password files")
 		}
 
 		matches = append(matches, passMatches...)
 
 		for _, match := range matches {
 			if err := os.RemoveAll(match); err != nil {
-				return errors.Wrap(err, "can't remove existing keystore file")
+				return errors.Wrap(err, "remove existing keystore file")
 			}
 		}
 	}
 
 	if err := o.keyStoreFunc(combinedKeys, outputDir); err != nil {
-		return errors.Wrap(err, "cannot store keystore")
+		return errors.Wrap(err, "store keystore")
 	}
 
 	return nil
@@ -206,7 +206,7 @@ func shareIdxByPubkeys(cluster *manifestpb.Cluster, secrets []tbls.PrivateKey, v
 
 		shareIdx, pubkFound := pubkMap[pubkey]
 		if !pubkFound {
-			return nil, errors.New("can't find secret key share",
+			return nil, errors.New("secret key share not found",
 				z.Int("validator_index", valIndex),
 			)
 		}
@@ -239,7 +239,7 @@ type options struct {
 func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wrap.EthClientRunner) (*manifestpb.Cluster, []string, error) {
 	root, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "can't read directory")
+		return nil, nil, errors.Wrap(err, "read directory")
 	}
 
 	var (
@@ -291,13 +291,13 @@ func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wra
 
 func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool, eth1Cl eth1wrap.EthClientRunner) error {
 	if err := lock.VerifyHashes(); err != nil && !noverify {
-		return errors.Wrap(err, "cluster lock hash verification failed. Run with --no-verify to bypass verification at own risk")
+		return errors.Wrap(err, "verify cluster lock hashes (run with --no-verify to bypass verification at own risk)")
 	} else if err != nil && noverify {
 		log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
 	}
 
 	if err := lock.VerifySignatures(eth1Cl); err != nil && !noverify {
-		return errors.Wrap(err, "cluster lock signature verification failed. Run with --no-verify to bypass verification at own risk")
+		return errors.Wrap(err, "verify cluster lock signatures (run with --no-verify to bypass verification at own risk)")
 	} else if err != nil && noverify {
 		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
 	}

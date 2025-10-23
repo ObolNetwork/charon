@@ -156,3 +156,4 @@ keys/
 coverage.out
 cli-reference.txt
 changelog.md
+.claude/

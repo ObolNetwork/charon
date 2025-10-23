@@ -111,7 +111,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 		privateKeyFiles, err := keystore.LoadFilesUnordered(conf.ValidatorKeysDir)
 		if err != nil {
-			return errors.Wrap(err, "cannot load private key share", z.Str("path", conf.ValidatorKeysDir))
+			return errors.Wrap(err, "load private key share", z.Str("path", conf.ValidatorKeysDir))
 		}
 
 		secrets, err = privateKeyFiles.SequencedKeys()
@@ -184,7 +184,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error) {
 	if config.NumValidators <= 0 {
-		return errors.New("num-validators must be greater than 0")
+		return errors.New("num-validators not set")
 	}
 
 	if config.OutputDir == "" {
@@ -211,7 +211,7 @@ func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error
 	if !validatorKeysDirPresent && !config.Unverified {
 		log.Error(ctx, "The validator_keys directory is empty. Consider using the --unverified flag.", nil)
 
-		return errors.New("data-dir must contain a non-empty validator_keys directory, or the --unverified flag must be set")
+		return errors.New("validator_keys directory empty or --unverified flag required")
 	}
 
 	if !validatorKeysDirPresent && len(config.DKG.KeymanagerAddr) == 0 {

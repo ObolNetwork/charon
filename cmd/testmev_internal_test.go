@@ -301,7 +301,7 @@ func TestMEVTestFlags(t *testing.T) {
 		{
 			name:        "no beacon node endpoint flag on load test",
 			args:        []string{"mev", "--endpoints=\"test.endpoint\"", "--load-test"},
-			expectedErr: "beacon-node-endpoint should be specified when load-test is",
+			expectedErr: "beacon-node-endpoint required when load-test enabled",
 		},
 	}
 

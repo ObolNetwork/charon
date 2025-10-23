@@ -192,7 +192,7 @@ func TestCreateCluster(t *testing.T) {
 				NumDVs:    1,
 				Network:   defaultNetwork,
 			},
-			expectedErr: "can't specify --num-validators with --split-existing-keys. Please fix configuration flags",
+			expectedErr: "--num-validators not supported with --split-existing-keys, please fix configuration flags",
 		},
 		{
 			Name: "goerli",
@@ -522,7 +522,7 @@ func TestValidateDef(t *testing.T) {
 		def := definition
 		def.NumValidators = 0
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
-		require.ErrorContains(t, err, "cannot create cluster with zero validators, specify at least one")
+		require.ErrorContains(t, err, "--num-validators not set, specify at least one")
 	})
 
 	t.Run("invalid hash", func(t *testing.T) {
@@ -729,7 +729,7 @@ func TestTargetGasLimit(t *testing.T) {
 				FeeRecipientAddrs: []string{zeroAddress},
 				InsecureKeys:      true,
 			},
-			expectedErrMsg: "target gas limit should be set",
+			expectedErrMsg: "target gas limit not set",
 		},
 	}
 
@@ -936,7 +936,7 @@ func TestClusterCLI(t *testing.T) {
 			feeRecipient:  feeRecipientArg,
 			withdrawal:    withdrawalArg,
 			threshold:     "--threshold=1",
-			expectedErr:   "threshold must be greater than 1",
+			expectedErr:   "threshold below minimum",
 		},
 		{
 			name:          "threshold above maximum",
@@ -946,7 +946,7 @@ func TestClusterCLI(t *testing.T) {
 			feeRecipient:  feeRecipientArg,
 			withdrawal:    withdrawalArg,
 			threshold:     "--threshold=5",
-			expectedErr:   "threshold cannot be greater than number of operators",
+			expectedErr:   "threshold exceeds number of operators",
 		},
 		{
 			name:          "no threshold provided",

@@ -64,9 +64,9 @@ func LoadDAG(manifestFile, legacyLockFile string, lockCallback func(cluster.Lock
 		return nil, errors.New("no file found", z.Str("lock-file", legacyLockFile), z.Str("manifest-file", manifestFile))
 	case !errors.Is(errLegacy, os.ErrNotExist):
 		// Return legacy lock error as it exists but failed to load.
-		return nil, errors.Wrap(errLegacy, "couldn't load cluster from legacy lock file")
+		return nil, errors.Wrap(errLegacy, "load cluster from legacy lock file")
 	default:
-		return nil, errors.Wrap(errManifest, "couldn't load cluster from manifest file")
+		return nil, errors.Wrap(errManifest, "load cluster from manifest file")
 	}
 }
 
@@ -126,7 +126,7 @@ func clusterHashesMatch(dagManifest, dagLegacy *manifestpb.SignedMutationList) e
 	}
 
 	if !bytes.Equal(hashManifest, hashLegacy) {
-		return errors.New("manifest and legacy cluster hashes don't match",
+		return errors.New("manifest and legacy cluster hashes mismatch",
 			z.Str("manifest_hash", hex.EncodeToString(hashManifest)),
 			z.Str("legacy_hash", hex.EncodeToString(hashLegacy)))
 	}

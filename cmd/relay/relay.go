@@ -230,7 +230,7 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 			if tcpNetAddr == nil && isTCPAddr(addr) {
 				netAddr, err := manet.ToNetAddr(addr)
 				if err != nil {
-					return nil, errors.Wrap(err, "failed to convert tcp multiaddr to net addr")
+					return nil, errors.Wrap(err, "convert tcp multiaddr to net addr")
 				}
 
 				tcpAddr, ok := netAddr.(*net.TCPAddr)
@@ -253,7 +253,7 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 
 				netAddr, err := manet.ToNetAddr(stripped)
 				if err != nil {
-					return nil, errors.Wrap(err, "failed to convert udp multiaddr to net addr")
+					return nil, errors.Wrap(err, "convert udp multiaddr to net addr")
 				}
 
 				udpAddr, ok := netAddr.(*net.UDPAddr)
@@ -335,7 +335,7 @@ func newMultiaddrHandler(p2pNode host.Host) func(ctx context.Context) ([]byte, e
 	return func(context.Context) ([]byte, error) {
 		p2pAddr, err := ma.NewMultiaddr(fmt.Sprintf("/p2p/%s", p2pNode.ID()))
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to create p2p multiaddr")
+			return nil, errors.Wrap(err, "create p2p multiaddr")
 		}
 
 		var addrs []ma.Multiaddr

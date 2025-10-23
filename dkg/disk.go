@@ -69,13 +69,13 @@ func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientR
 
 	// Verify
 	if err := def.VerifyHashes(); err != nil && !conf.NoVerify {
-		return cluster.Definition{}, errors.Wrap(err, "cluster definition hashes verification failed. Run with --no-verify to bypass verification at own risk")
+		return cluster.Definition{}, errors.Wrap(err, "verify cluster definition hashes (run with --no-verify to bypass at own risk)")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition hashes verification due to --no-verify flag", err)
 	}
 
 	if err := def.VerifySignatures(eth1Cl); err != nil && !conf.NoVerify {
-		return cluster.Definition{}, errors.Wrap(err, "cluster definition signature verification failed. Run with --no-verify to bypass verification at own risk")
+		return cluster.Definition{}, errors.Wrap(err, "verify cluster definition signatures (run with --no-verify to bypass at own risk)")
 	} else if err != nil && conf.NoVerify {
 		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
 	}
@@ -167,15 +167,15 @@ func checkClearDataDir(dataDir string) error {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return errors.Wrap(err, "error while retrieving data directory info", z.Str("data-dir", dataDir))
 	} else if err != nil && errors.Is(err, fs.ErrNotExist) {
-		return errors.New("data directory doesn't exist, cannot continue", z.Str("data-dir", dataDir))
+		return errors.New("data directory does not exist, cannot continue", z.Str("data-dir", dataDir))
 	} else if err == nil && !info.IsDir() {
-		return errors.New("data directory already exists and is a file, cannot continue", z.Str("data-dir", dataDir))
+		return errors.New("data directory is a file, cannot continue", z.Str("data-dir", dataDir))
 	}
 
 	// get a listing of dataDir
 	dirContent, err := os.ReadDir(dataDir)
 	if err != nil {
-		return errors.Wrap(err, "cannot list contents of data directory", z.Str("data-dir", dataDir))
+		return errors.Wrap(err, "list contents of data directory", z.Str("data-dir", dataDir))
 	}
 
 	disallowedEntities := map[string]struct{}{

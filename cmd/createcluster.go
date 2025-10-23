@@ -117,11 +117,11 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 
 		if thresholdPresent {
 			if conf.Threshold < minThreshold {
-				return errors.New("threshold must be greater than 1", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
+				return errors.New("threshold below minimum", z.Int("threshold", conf.Threshold), z.Int("min", minThreshold))
 			}
 
 			if conf.Threshold > conf.NumNodes {
-				return errors.New("threshold cannot be greater than number of operators",
+				return errors.New("threshold exceeds number of operators",
 					z.Int("threshold", conf.Threshold), z.Int("operators", conf.NumNodes))
 			}
 		}
@@ -401,7 +401,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	for _, addr := range conf.KeymanagerAddrs {
 		keymanagerURL, err := url.ParseRequestURI(addr)
 		if err != nil {
-			return errors.Wrap(err, "failed to parse keymanager addr", z.Str("addr", addr))
+			return errors.Wrap(err, "parse keymanager address", z.Str("addr", addr))
 		}
 
 		if keymanagerURL.Scheme == httpScheme {
@@ -411,7 +411,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 
 	if conf.SplitKeys {
 		if conf.NumDVs != 0 {
-			return errors.New("can't specify --num-validators with --split-existing-keys. Please fix configuration flags")
+			return errors.New("--num-validators not supported with --split-existing-keys, please fix configuration flags")
 		}
 	} else {
 		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
@@ -985,7 +985,7 @@ func nodeDir(clusterDir string, i int) string {
 // validateDef returns an error if the provided cluster definition is invalid.
 func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition, eth1Cl eth1wrap.EthClientRunner) error {
 	if def.NumValidators == 0 {
-		return errors.New("cannot create cluster with zero validators, specify at least one")
+		return errors.New("--num-validators not set, specify at least one")
 	}
 
 	if len(def.Operators) < minNodes {
@@ -998,7 +998,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 
 	if len(def.DepositAmounts) > 0 {
 		if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
-			return errors.Wrap(err, "deposit amounts verification failed")
+			return errors.Wrap(err, "verify deposit amounts")
 		}
 	}
 

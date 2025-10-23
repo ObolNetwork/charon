@@ -238,7 +238,7 @@ func pullLatest(ctx context.Context) error {
 func BuildLocal(ctx context.Context) error {
 	repo, ok := os.LookupEnv("CHARON_REPO")
 	if !ok || repo == "" {
-		return errors.New("cannot build local charon binary; CHARON_REPO env var, the path to the charon repo, is not set")
+		return errors.New("env var CHARON_REPO not set, the path to the charon repo is required to build local charon binary")
 	}
 
 	log.Info(ctx, "Building `obolnetwork/charon:local` docker container", z.Str("repo", repo))

@@ -14,11 +14,11 @@ import (
 func loadClusterLock(lockFilePath string) (*manifestpb.Cluster, error) {
 	verifyLock := func(lock cluster.Lock) error {
 		if err := lock.VerifyHashes(); err != nil {
-			return errors.Wrap(err, "cluster lock hash verification failed")
+			return errors.Wrap(err, "verify cluster lock hashes")
 		}
 
 		if err := lock.VerifySignatures(nil); err != nil {
-			return errors.Wrap(err, "cluster lock signature verification failed")
+			return errors.Wrap(err, "verify cluster lock signatures")
 		}
 
 		return nil
