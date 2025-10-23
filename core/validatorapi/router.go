@@ -1895,7 +1895,7 @@ func getQueryArrayParameter(query url.Values, param string) []string {
 	var resp []string
 
 	for _, csv := range query[param] {
-		for _, id := range strings.Split(csv, ",") {
+		for id := range strings.SplitSeq(csv, ",") {
 			resp = append(resp, strings.TrimSpace(id))
 		}
 	}

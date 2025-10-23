@@ -484,7 +484,7 @@ func formatZapStack(zapStack string) string {
 		prevFunc string
 	)
 
-	for _, line := range strings.Split(zapStack, "\n") {
+	for line := range strings.SplitSeq(zapStack, "\n") {
 		if strings.HasPrefix(line, "\t") {
 			const sep = "charon/" // Note that this only works if source built in a folder named 'charon'.
 
