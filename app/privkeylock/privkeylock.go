@@ -25,11 +25,11 @@ func New(path, command string) (Service, error) {
 	if errors.Is(err, os.ErrNotExist) { //nolint:revive // Empty block is fine.
 		// No file, we will create it in run
 	} else if err != nil {
-		return Service{}, errors.Wrap(err, "cannot read private key lock file", z.Str("path", path))
+		return Service{}, errors.Wrap(err, "read private key lock file", z.Str("path", path))
 	} else {
 		var meta metadata
 		if err := json.Unmarshal(content, &meta); err != nil {
-			return Service{}, errors.Wrap(err, "cannot decode private key lock file content", z.Str("path", path))
+			return Service{}, errors.Wrap(err, "decode private key lock file", z.Str("path", path))
 		}
 
 		if time.Since(meta.Timestamp) <= staleDuration {
@@ -74,7 +74,7 @@ func (s Service) Run() error {
 		select {
 		case <-s.quit:
 			if err := os.Remove(s.path); err != nil {
-				return errors.Wrap(err, "deleting private key lock file failed")
+				return errors.Wrap(err, "delete private key lock file")
 			}
 
 			return nil
@@ -104,12 +104,12 @@ type metadata struct {
 func writeFile(path, command string, now time.Time) error {
 	b, err := json.Marshal(metadata{Command: command, Timestamp: now})
 	if err != nil {
-		return errors.Wrap(err, "cannot marshal private key lock file")
+		return errors.Wrap(err, "marshal private key lock file")
 	}
 
 	//nolint:gosec // Readable and writable for all users is fine for this file.
 	if err := os.WriteFile(path, b, 0o666); err != nil {
-		return errors.Wrap(err, "cannot write private key lock file", z.Str("path", path))
+		return errors.Wrap(err, "write private key lock file", z.Str("path", path))
 	}
 
 	return nil

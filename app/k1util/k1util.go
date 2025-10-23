@@ -167,7 +167,7 @@ func to32Scalar(b []byte) (*k1.ModNScalar, error) {
 	if overflow := s.SetByteSlice(b); overflow {
 		return nil, errors.New("scalar overflow")
 	} else if s.IsZero() {
-		return nil, errors.New("zero overflow")
+		return nil, errors.New("zero scalar")
 	}
 
 	return &s, nil

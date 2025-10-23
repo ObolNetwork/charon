@@ -43,7 +43,7 @@ func NewDefaultEthClientRunner(addr string) EthClientRunner {
 		func(ctx context.Context, url string) (EthClient, error) {
 			cl, err := ethclient.DialContext(ctx, url)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to connect to eth1 client")
+				return nil, errors.Wrap(err, "connect to eth1 client")
 			}
 
 			return cl, nil
@@ -53,7 +53,7 @@ func NewDefaultEthClientRunner(addr string) EthClientRunner {
 
 			erc1271, err := erc1271.NewErc1271(addr, cl)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to create binding to ERC1271 contract")
+				return nil, errors.Wrap(err, "create binding to ERC1271 contract")
 			}
 
 			return erc1271, nil

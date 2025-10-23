@@ -16,7 +16,7 @@ const (
 func (c Client) PostTestResult(ctx context.Context, jsonTestResult []byte) error {
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return errors.Wrap(err, "bad Obol API url")
+		return errors.Wrap(err, "parse Obol API URL")
 	}
 
 	u.Path += postTestPath

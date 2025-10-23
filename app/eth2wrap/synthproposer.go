@@ -138,7 +138,7 @@ func (h *synthWrapper) syntheticProposal(ctx context.Context, slot eth2p0.Slot, 
 	}
 
 	if signedBlock == nil {
-		return nil, errors.New("no proposal found to base synthetic proposal on")
+		return nil, errors.New("no signed block for synthetic proposal")
 	}
 
 	// Convert signed proposal into unsigned proposal with synthetic graffiti and correct slot.

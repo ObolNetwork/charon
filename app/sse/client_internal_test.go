@@ -303,7 +303,7 @@ func TestClientError409(t *testing.T) {
 
 	err = client.start(ctx, eventHandler)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "bad response status code")
+	require.ErrorContains(t, err, "invalid response status code")
 }
 
 func TestClientEventHandlerErrorPropagation(t *testing.T) {

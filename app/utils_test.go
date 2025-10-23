@@ -146,7 +146,7 @@ func TestCompareDirectories(t *testing.T) {
 				return dir1, dir2
 			},
 			expectError: true,
-			errorMsg:    "file contents should match",
+			errorMsg:    "file content mismatch",
 		},
 		{
 			name: "different_sizes",
@@ -160,7 +160,7 @@ func TestCompareDirectories(t *testing.T) {
 				return dir1, dir2
 			},
 			expectError: true,
-			errorMsg:    "file sizes should match",
+			errorMsg:    "file size mismatch",
 		},
 		{
 			name: "missing_directory",
@@ -189,7 +189,7 @@ func TestCompareDirectories(t *testing.T) {
 				return dir1, dir2
 			},
 			expectError: true,
-			errorMsg:    "file sizes should match",
+			errorMsg:    "file size mismatch",
 		},
 		{
 			name: "directory_vs_file",
@@ -203,7 +203,7 @@ func TestCompareDirectories(t *testing.T) {
 				return dir1, dir2
 			},
 			expectError: true,
-			errorMsg:    "should be a directory",
+			errorMsg:    "path is not a directory",
 		},
 		{
 			name: "complex_structure",

@@ -121,7 +121,7 @@ func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, Compl
 
 	for _, val := range vals {
 		if val == nil || val.Validator == nil {
-			return nil, nil, errors.New("validator data cannot be nil")
+			return nil, nil, errors.New("validator data is nil")
 		}
 
 		if !val.Status.IsActive() {
@@ -168,7 +168,7 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 
 	for _, val := range complete {
 		if val == nil || val.Validator == nil {
-			return nil, nil, refreshedBySlot, errors.New("validator data cannot be nil")
+			return nil, nil, refreshedBySlot, errors.New("validator data is nil")
 		}
 
 		if !val.Status.IsActive() {

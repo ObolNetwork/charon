@@ -85,7 +85,7 @@ func WithStdOut(w io.Writer) func(*options) {
 		o.expFunc = func() (sdktrace.SpanExporter, error) {
 			ex, err := stdouttrace.New(stdouttrace.WithWriter(w))
 			if err != nil {
-				return nil, errors.Wrap(err, "stdouttrace error")
+				return nil, errors.Wrap(err, "create stdout trace exporter")
 			}
 
 			return ex, nil

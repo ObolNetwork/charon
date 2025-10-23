@@ -117,7 +117,7 @@ func Check(msg proto.Message) error {
 	}
 
 	if checked != fields.Len() {
-		return errors.New("unexpected number of field checked, this should never happen")
+		return errors.New("unexpected number of fields checked, this should never happen")
 	}
 
 	return nil

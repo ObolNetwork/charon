@@ -85,7 +85,7 @@ func launchpadURLPath(lock cluster.Lock) string {
 func httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string]string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), bytes.NewReader(body))
 	if err != nil {
-		return errors.Wrap(err, "new POST request with ctx")
+		return errors.Wrap(err, "create POST request")
 	}
 
 	req.Header.Add("Content-Type", "application/json")
@@ -115,7 +115,7 @@ func httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string
 func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "new GET request with ctx")
+		return nil, errors.Wrap(err, "create GET request")
 	}
 
 	for key, val := range headers {
@@ -134,7 +134,7 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
-			return nil, errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))
+			return nil, errors.Wrap(err, "read GET response", z.Int("status", res.StatusCode))
 		}
 
 		return nil, errors.New("http GET failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
@@ -146,7 +146,7 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 func httpDelete(ctx context.Context, url *url.URL, headers map[string]string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url.String(), nil)
 	if err != nil {
-		return errors.Wrap(err, "new DELETE request with ctx")
+		return errors.Wrap(err, "create DELETE request")
 	}
 
 	for key, val := range headers {

@@ -227,7 +227,7 @@ func CompareDirectories(originalDir, extractedDir string) error {
 			}
 
 			if !extractedInfo.IsDir() {
-				return errors.New("should be a directory", z.Str("path", relPath))
+				return errors.New("path is not a directory", z.Str("path", relPath))
 			}
 
 			return nil
@@ -240,7 +240,7 @@ func CompareDirectories(originalDir, extractedDir string) error {
 		}
 
 		if info.Size() != extractedInfo.Size() {
-			return errors.New("file sizes should match", z.Str("path", relPath))
+			return errors.New("file size mismatch", z.Str("path", relPath))
 		}
 
 		// Read and compare file contents
@@ -255,7 +255,7 @@ func CompareDirectories(originalDir, extractedDir string) error {
 		}
 
 		if !bytes.Equal(originalContent, extractedContent) {
-			return errors.New("file contents should match", z.Str("path", relPath))
+			return errors.New("file content mismatch", z.Str("path", relPath))
 		}
 
 		return nil
