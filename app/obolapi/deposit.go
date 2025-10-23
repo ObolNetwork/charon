@@ -77,7 +77,7 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 
 // GetFullDeposit gets the full deposit message for a given validator public key, lock hash and share index.
 // It respects the timeout specified in the Client instance.
-func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte) ([]eth2p0.DepositData, error) {
+func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte, threshold int) ([]eth2p0.DepositData, error) {
 	valPubkeyBytes, err := from0x(valPubkey, len(eth2p0.BLSPubKey{}))
 	if err != nil {
 		return []eth2p0.DepositData{}, errors.Wrap(err, "validator pubkey to bytes")
@@ -117,6 +117,15 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 
 	for _, am := range dr.Amounts {
 		rawSignatures := make(map[int]tbls.Signature)
+
+		if len(am.Partials) < threshold {
+			submittedPubKeys := []string{}
+			for _, sigStr := range am.Partials {
+				submittedPubKeys = append(submittedPubKeys, sigStr.PartialPublicKey)
+			}
+
+			return []eth2p0.DepositData{}, errors.New("not enough partial signatures to meet threshold", z.Any("submitted_public_keys", submittedPubKeys), z.Int("submitted_public_keys_length", len(submittedPubKeys)), z.Int("required_threshold", threshold))
+		}
 
 		for sigIdx, sigStr := range am.Partials {
 			if len(sigStr.PartialDepositSignature) == 0 {
