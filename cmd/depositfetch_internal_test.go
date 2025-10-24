@@ -101,3 +101,51 @@ func TestDepositFetchValid(t *testing.T) {
 	err = runDepositFetch(ctx, fetchConfig)
 	require.NoError(t, err)
 }
+
+func TestDepositFetchCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+
+		flags []string
+	}{
+		{
+			name:        "correct flags",
+			expectedErr: "load cluster lock: load dag from disk: no file found",
+			flags: []string{
+				"--validator-public-keys=test",
+				"--private-key-file=test",
+				"--validator-keys-dir=test",
+				"--lock-file=test",
+				"--publish-address=test",
+				"--publish-timeout=1ms",
+			},
+		},
+		{
+			name:        "missing validator public keys",
+			expectedErr: "required flag(s) \"validator-public-keys\" not set",
+			flags: []string{
+				"--private-key-file=test",
+				"--validator-keys-dir=test",
+				"--lock-file=test",
+				"--publish-address=test",
+				"--publish-timeout=1ms",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newDepositCmd(newDepositFetchCmd(runDepositFetch))
+			cmd.SetArgs(append([]string{"fetch"}, test.flags...))
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

@@ -81,3 +81,65 @@ func TestDepositSignValid(t *testing.T) {
 
 	require.NoError(t, runDepositSign(ctx, signConfig), "operator index submit deposit sign: %v", idx)
 }
+
+func TestDepositSignCLI(t *testing.T) {
+	tests := []struct {
+		name        string
+		expectedErr string
+
+		flags []string
+	}{
+		{
+			name:        "correct flags",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--validator-public-keys=test",
+				"--withdrawal-addresses=test",
+				"--private-key-file=test",
+				"--validator-keys-dir=test",
+				"--lock-file=test",
+				"--publish-address=test",
+				"--publish-timeout=1ms",
+			},
+		},
+		{
+			name:        "missing validator public keys",
+			expectedErr: "required flag(s) \"validator-public-keys\" not set",
+			flags: []string{
+				"--withdrawal-addresses=test",
+				"--private-key-file=test",
+				"--validator-keys-dir=test",
+				"--lock-file=test",
+				"--publish-address=test",
+				"--publish-timeout=1ms",
+			},
+		},
+		{
+			name:        "missing withdrawal addresses",
+			expectedErr: "required flag(s) \"withdrawal-addresses\" not set",
+			flags: []string{
+				"--validator-public-keys=test",
+				"--private-key-file=test",
+				"--validator-keys-dir=test",
+				"--lock-file=test",
+				"--publish-address=test",
+				"--publish-timeout=1ms",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := newDepositCmd(newDepositSignCmd(runDepositSign))
+			cmd.SetArgs(append([]string{"sign"}, test.flags...))
+
+			err := cmd.Execute()
+			if test.expectedErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
