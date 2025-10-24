@@ -257,6 +257,7 @@ func getThresholdMatching(typ core.DutyType, sigs []core.ParSignedData, threshol
 
 	if typ == core.DutySignature {
 		// Signatures do not support message roots.
+		// We know len(sigs) >= threshold from the check above, so slicing is safe.
 		// Return exactly threshold number of signatures.
 		return sigs[:threshold], true, nil
 	}
