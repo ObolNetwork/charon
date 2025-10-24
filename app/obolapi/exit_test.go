@@ -26,7 +26,7 @@ import (
 
 const exitEpoch = eth2p0.Epoch(194048)
 
-func TestAPIFlow(t *testing.T) {
+func TestAPIExit(t *testing.T) {
 	kn := 4
 
 	beaconMock, err := beaconmock.New(t.Context())
@@ -118,7 +118,7 @@ func TestAPIFlow(t *testing.T) {
 	}
 }
 
-func TestAPIFlowMissingSig(t *testing.T) {
+func TestAPIExitMissingSig(t *testing.T) {
 	kn := 4
 
 	beaconMock, err := beaconmock.New(t.Context())
