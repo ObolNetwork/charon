@@ -29,11 +29,6 @@ func newDepositCmd(cmds ...*cobra.Command) *cobra.Command {
 
 	root.AddCommand(cmds...)
 
-	wrapPreRunE(root, func(cmd *cobra.Command, _ []string) error {
-		mustMarkFlagRequired(cmd, "validator-public-keys")
-		return nil
-	})
-
 	return root
 }
 

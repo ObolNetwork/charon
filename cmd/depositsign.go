@@ -48,6 +48,7 @@ func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "withdrawal-addresses")
+		mustMarkFlagRequired(cmd, "validator-public-keys")
 		return nil
 	})
 
