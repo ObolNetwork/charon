@@ -39,6 +39,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"net/http"
 {{- range .Imports}}
 	{{.}}
 {{- end}}
@@ -52,6 +53,8 @@ type Client interface {
     SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
 
 	SetForkVersion(forkVersion [4]byte)
+
+	ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error)
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}

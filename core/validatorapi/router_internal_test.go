@@ -49,12 +49,6 @@ const (
 	infoLevel        = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
 
-type addr string
-
-func (a addr) Address() string {
-	return string(a)
-}
-
 func TestProxyShutdown(t *testing.T) {
 	// Start a server that will block until the request is cancelled.
 	serving := make(chan struct{})
@@ -65,7 +59,7 @@ func TestProxyShutdown(t *testing.T) {
 
 	// Start a proxy server that will proxy to the target server.
 	ctx, cancel := context.WithCancel(context.Background())
-	proxy := httptest.NewServer(proxyHandler(ctx, addr(target.URL)))
+	proxy := httptest.NewServer(proxyHandler(ctx, eth2wrap.NewHTTPAdapterForT(t, target.URL, nil, time.Second)))
 
 	// Make a request to the proxy server, this will block until the proxy is shutdown.
 	errCh := make(chan error, 1)
@@ -90,7 +84,7 @@ func TestRouterIntegration(t *testing.T) {
 		t.Skip("Skipping integration test since BEACON_URL not found")
 	}
 
-	r, err := NewRouter(context.Background(), Handler(nil), testBeaconAddr{addr: beaconURL}, true)
+	r, err := NewRouter(context.Background(), Handler(nil), eth2wrap.NewHTTPAdapterForT(t, beaconURL, nil, time.Second), true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -703,7 +697,8 @@ func TestRouter(t *testing.T) {
 		proxy := httptest.NewServer(h.newBeaconHandler(t))
 		defer proxy.Close()
 
-		r, err := NewRouter(ctx, h, testBeaconAddr{addr: proxy.URL}, true)
+		eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+		r, err := NewRouter(ctx, h, eth2Client, true)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(r)
@@ -1519,7 +1514,8 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+	r, err := NewRouter(ctx, handler, eth2Client, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1610,7 +1606,8 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
-			r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+			eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+			r, err := NewRouter(ctx, handler, eth2Client, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -1702,7 +1699,8 @@ func TestSubmitAttestations(t *testing.T) {
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
-			r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+			eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+			r, err := NewRouter(ctx, handler, eth2Client, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -2047,7 +2045,8 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 
 	ctx := context.Background()
 
-	r, err := NewRouter(ctx, handler, testBeaconAddr{addr: proxy.URL}, true)
+	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+	r, err := NewRouter(ctx, handler, eth2Client, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -2075,7 +2074,8 @@ func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Co
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	r, err := NewRouter(context.Background(), handler, testBeaconAddr{addr: proxy.URL}, builderEnabled)
+	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
+	r, err := NewRouter(context.Background(), handler, eth2Client, builderEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -2253,15 +2253,4 @@ func nest(data any, nests ...string) any {
 	}
 
 	return res
-}
-
-// testBeaconAddr implements eth2client.Service only returning an address.
-type testBeaconAddr struct {
-	eth2wrap.Client
-
-	addr string
-}
-
-func (t testBeaconAddr) Address() string {
-	return t.addr
 }

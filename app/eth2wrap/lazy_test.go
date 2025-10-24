@@ -4,6 +4,7 @@ package eth2wrap_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -73,4 +74,16 @@ func TestLazy_SetValidatorCache(t *testing.T) {
 
 	l := eth2wrap.NewLazyForT(client)
 	l.SetValidatorCache(valCache)
+}
+
+func TestLazy_ProxyRequest(t *testing.T) {
+	client := mocks.NewClient(t)
+	client.On("ProxyRequest", mock.Anything, mock.Anything).Return(nil, nil).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	req, err := http.NewRequest("GET", "", nil)
+	require.NoError(t, err)
+	_, err = l.ProxyRequest(t.Context(), req)
+	require.NoError(t, err)
 }

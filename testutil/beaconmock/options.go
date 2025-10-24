@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strconv"
@@ -685,6 +686,14 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
+		},
+		ProxyRequestFunc: func(ctx context.Context, req *http.Request) (*http.Response, error) {
+			targetURL, err := url.Parse("http://" + httpServer.Addr)
+			if err != nil {
+				return nil, errors.Wrap(err, "parse mock server address")
+			}
+
+			return eth2wrap.ProxyHTTPRequest(ctx, targetURL, req, nil)
 		},
 	}
 }
