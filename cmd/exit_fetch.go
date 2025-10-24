@@ -129,7 +129,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.GetInitialMutationHash(), shareIdx, identityKey)
 			if err != nil {
-				if errors.Is(err, obolapi.ErrNoExit) {
+				if errors.Is(err, obolapi.ErrNoValue) {
 					log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
 					continue
 				}
