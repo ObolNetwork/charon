@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1829,9 +1828,7 @@ func generateSimulationValues(s []time.Duration, endpoint string) SimulationValu
 
 	sorted := make([]time.Duration, len(s))
 	copy(sorted, s)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i] < sorted[j]
-	})
+	slices.Sort(sorted)
 	minVal := sorted[0]
 	maxVal := sorted[len(s)-1]
 	medianVal := sorted[len(s)/2]

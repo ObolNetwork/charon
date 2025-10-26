@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -759,9 +760,7 @@ func quorumDecidedDuration(results []result) time.Duration {
 		panic("not enough durations")
 	}
 
-	sort.Slice(durations, func(i, j int) bool {
-		return durations[i] < durations[j]
-	})
+	slices.Sort(durations)
 
 	return durations[q-1]
 }

@@ -10,7 +10,6 @@ import (
 	"math/big"
 	"net/http"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -368,9 +367,7 @@ func WithDeterministicProposerDuties(factor int) Option {
 
 			valIdxs := vals.Indices()
 
-			sort.Slice(valIdxs, func(i, j int) bool {
-				return valIdxs[i] < valIdxs[j]
-			})
+			slices.Sort(valIdxs)
 
 			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
 			if err != nil {
