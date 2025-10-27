@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"math/big"
+	"net/http"
 	"runtime"
 	"testing"
 	"time"
@@ -1365,6 +1366,10 @@ func (c Component) verifyPartialSig(ctx context.Context, parSig core.ParSignedDa
 	}
 
 	return core.VerifyEth2SignedData(ctx, c.eth2Cl, eth2Signed, pubshare)
+}
+
+func (c Component) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
+	return c.eth2Cl.Proxy(ctx, req)
 }
 
 // wrapResponse wraps the provided data into an API Response and returns the response.

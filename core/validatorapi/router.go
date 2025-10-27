@@ -39,7 +39,6 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -70,6 +69,7 @@ type Handler interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
+	eth2client.ProxyProvider
 	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
@@ -88,7 +88,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEnabled bool) (*mux.Router, error) {
+func NewRouter(ctx context.Context, h Handler, builderEnabled bool) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name      string
@@ -318,7 +318,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 	}
 
 	// Everything else is proxied
-	r.PathPrefix("/").Handler(proxyHandler(ctx, eth2Cl))
+	r.PathPrefix("/").Handler(proxy(h))
 
 	return r, nil
 }
@@ -1611,26 +1611,9 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	}
 }
 
-// mergeContext returns a new context that is derived from mainCtx, but will be cancelled
-// as soon as either mainCtx or reqCtx is cancelled.
-func mergeContext(mainCtx, reqCtx context.Context) context.Context {
-	mergedCtx, cancel := context.WithCancel(mainCtx)
-	go func() {
-		select {
-		case <-mainCtx.Done():
-			cancel()
-		case <-reqCtx.Done():
-			cancel()
-		}
-		cancel()
-	}()
-
-	return mergedCtx
-}
-
-func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc {
+func proxy(p eth2client.ProxyProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r = r.WithContext(mergeContext(ctx, r.Context()))
+		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
 		ctx = log.WithCtx(ctx, z.Str("vapi_proxy_method", r.Method), z.Str("vapi_proxy_path", r.URL.Path))
 		ctx = withCtxDuration(ctx)
@@ -1645,12 +1628,14 @@ func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc 
 			cancel()
 		}()
 
-		// Send request to eth2wrap logic
-		// If using multi, will clone the response and proxy to each available BN
-		res, err := eth2Cl.ProxyRequest(ctx, r)
+		res, err := p.Proxy(ctx, r)
 		if err != nil {
 			writeError(ctx, w, r.URL.Path, err)
 			return
+		}
+
+		if res.StatusCode/100 != 2 {
+			incAPIErrors("proxy", res.StatusCode)
 		}
 
 		// Copy headers from upstream (already filtered by ProxyRequest in httpwrap)
@@ -1661,10 +1646,6 @@ func proxyHandler(ctx context.Context, eth2Cl eth2wrap.Client) http.HandlerFunc 
 			for k := range res.Trailer {
 				w.Header().Add("Trailer", k)
 			}
-		}
-
-		if res.StatusCode/100 != 2 {
-			incAPIErrors("proxy", res.StatusCode)
 		}
 
 		w.WriteHeader(res.StatusCode)

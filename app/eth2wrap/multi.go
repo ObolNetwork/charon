@@ -125,7 +125,7 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 	return res0, err
 }
 
-func (m multi) ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
 	// Duplicate the request body so each backend gets an independent reader
 	// req.Clone(ctx) does NOT clone the body reader
 	var bodyBytes []byte
@@ -159,7 +159,7 @@ func (m multi) ProxyRequest(ctx context.Context, req *http.Request) (*http.Respo
 			} else {
 				cloned.Body = nil
 			}
-			res, err := args.client.ProxyRequest(ctx, cloned)
+			res, err := args.client.Proxy(ctx, cloned)
 			return res, err
 		},
 		nil, nil,

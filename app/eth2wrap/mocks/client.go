@@ -551,12 +551,12 @@ func (_m *Client) Name() string {
 	return r0
 }
 
-// ProxyRequest provides a mock function with given fields: ctx, req
-func (_m *Client) ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+// Proxy provides a mock function with given fields: ctx, req
+func (_m *Client) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
 	ret := _m.Called(ctx, req)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ProxyRequest")
+		panic("no return value specified for Proxy")
 	}
 
 	var r0 *http.Response

@@ -221,7 +221,7 @@ type Mock struct {
 	SubmitProposalPreparationsFunc         func(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error
 	ForkScheduleFunc                       func(context.Context, *eth2api.ForkScheduleOpts) ([]*eth2p0.Fork, error)
 	NodeVersionFunc                        func(context.Context, *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
-	ProxyRequestFunc                       func(context.Context, *http.Request) (*http.Response, error)
+	ProxyFunc                              func(context.Context, *http.Request) (*http.Response, error)
 }
 
 func (m Mock) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
@@ -447,8 +447,8 @@ func (m Mock) NodeVersion(ctx context.Context, opts *eth2api.NodeVersionOpts) (*
 	return m.NodeVersionFunc(ctx, opts)
 }
 
-func (m Mock) ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
-	return m.ProxyRequestFunc(ctx, req)
+func (m Mock) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
+	return m.ProxyFunc(ctx, req)
 }
 
 func (Mock) SetForkVersion([4]byte) {

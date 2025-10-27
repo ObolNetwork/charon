@@ -54,13 +54,12 @@ type Client interface {
 
 	SetForkVersion(forkVersion [4]byte)
 
-	ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error)
-
     {{range .Providers}} eth2client.{{.}}
     {{end -}}
 }
 
 {{range .Methods}}
+	{{- if ne .Name "Proxy"}}
 	{{.Doc}}
     {{- if not .Latency}}// Note this endpoint is cached in go-eth2-client.
     {{end -}}
@@ -83,6 +82,7 @@ type Client interface {
 
 		return {{.ResultNames}}
 	}
+	{{- end}}
 {{end}}
 
 {{range .Methods}}
@@ -138,6 +138,7 @@ type Client interface {
 		"ValidatorRegistrationsSubmitter":       {Latency: true, Log: false},
 		"VoluntaryExitSubmitter":                {Latency: true, Log: false},
 		"SetForkVersion":                        {Latency: true, Log: false},
+		"ProxyProvider":                         {Latency: false, Log: false},
 	}
 
 	// addImport indicates which types need hardcoded imports.
@@ -243,8 +244,9 @@ func run(_ context.Context) error {
 	pkgs, err := packages.Load(
 		&packages.Config{
 			Mode: packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedTypes,
+			Dir:  "/home/diogo/dev/work/go-eth2-client",
 		},
-		"github.com/attestantio/go-eth2-client",
+		".",
 	)
 	if err != nil {
 		return errors.Wrap(err, "load package")

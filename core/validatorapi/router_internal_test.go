@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
-	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -49,61 +48,19 @@ const (
 	infoLevel        = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
 
-func TestProxyShutdown(t *testing.T) {
-	// Start a server that will block until the request is cancelled.
-	serving := make(chan struct{})
-	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		close(serving)
-		<-r.Context().Done()
-	}))
-
-	// Start a proxy server that will proxy to the target server.
-	ctx, cancel := context.WithCancel(context.Background())
-	proxy := httptest.NewServer(proxyHandler(ctx, eth2wrap.NewHTTPAdapterForT(t, target.URL, nil, time.Second)))
-
-	// Make a request to the proxy server, this will block until the proxy is shutdown.
-	errCh := make(chan error, 1)
-
-	go func() {
-		_, err := http.Get(proxy.URL)
-		errCh <- err
-	}()
-
-	// Wait for the target server is serving the request.
-	<-serving
-	// Shutdown the proxy server.
-	cancel()
-	// Wait for the request to complete.
-	err := <-errCh
-	require.NoError(t, err)
-}
-
-func TestRouterIntegration(t *testing.T) {
-	beaconURL, ok := os.LookupEnv("BEACON_URL")
-	if !ok {
-		t.Skip("Skipping integration test since BEACON_URL not found")
-	}
-
-	r, err := NewRouter(context.Background(), Handler(nil), eth2wrap.NewHTTPAdapterForT(t, beaconURL, nil, time.Second), true)
-	require.NoError(t, err)
-
-	server := httptest.NewServer(r)
-	defer server.Close()
-
-	resp, err := http.Get(server.URL + "/eth/v1/node/version")
-	require.NoError(t, err)
-
-	require.Equal(t, 200, resp.StatusCode)
-}
-
 func TestRawRouter(t *testing.T) {
 	t.Run("proxy", func(t *testing.T) {
 		handler := testHandler{
-			ProxyHandler: func(w http.ResponseWriter, r *http.Request) {
+			ProxyFunc: func(ctx context.Context, r *http.Request) (*http.Response, error) {
 				b, err := httputil.DumpRequest(r, false)
 				require.NoError(t, err)
 
-				_, _ = w.Write(b)
+				resp := &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(b)),
+				}
+
+				return resp, nil
 			},
 		}
 
@@ -694,11 +651,7 @@ func TestRouter(t *testing.T) {
 
 		h := testHandler{}
 
-		proxy := httptest.NewServer(h.newBeaconHandler(t))
-		defer proxy.Close()
-
-		eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
-		r, err := NewRouter(ctx, h, eth2Client, true)
+		r, err := NewRouter(ctx, h, true)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(r)
@@ -1505,17 +1458,25 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 		vIdxC = 3
 	)
 
-	handler := testHandler{
-		BeaconCommitteeSelectionsFunc: func(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error) {
-			return wrapResponse(opts.Selections), nil
-		},
-	}
-
+	handler := testHandler{}
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
-	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
-	r, err := NewRouter(ctx, handler, eth2Client, true)
+	handler.BeaconCommitteeSelectionsFunc = func(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error) {
+		return wrapResponse(opts.Selections), nil
+	}
+	// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+	handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
+		if err != nil {
+			return nil, err
+		}
+		proxyReq.Header = req.Header
+		client := &http.Client{}
+		return client.Do(proxyReq)
+	}
+
+	r, err := NewRouter(ctx, handler, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1595,19 +1556,26 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 
 			agg := test.versionedSignedAggregateAndProof
 
-			handler := testHandler{
-				SubmitAggregateAttestationsFunc: func(_ context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
-					require.Equal(t, agg, aggregateAndProofs.SignedAggregateAndProofs[0])
-
-					return nil
-				},
-			}
-
+			handler := testHandler{}
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
-			eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
-			r, err := NewRouter(ctx, handler, eth2Client, true)
+			handler.SubmitAggregateAttestationsFunc = func(_ context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error {
+				require.Equal(t, agg, aggregateAndProofs.SignedAggregateAndProofs[0])
+				return nil
+			}
+			// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
+				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
+				if err != nil {
+					return nil, err
+				}
+				proxyReq.Header = req.Header
+				client := &http.Client{}
+				return client.Do(proxyReq)
+			}
+
+			r, err := NewRouter(ctx, handler, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -1665,42 +1633,50 @@ func TestSubmitAttestations(t *testing.T) {
 
 			att := test.versionedAttestation
 
-			handler := testHandler{
-				SubmitAttestationsFunc: func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
-					switch attestations.Attestations[0].Version {
-					case eth2spec.DataVersionPhase0:
-						require.Equal(t, att, attestations.Attestations[0])
-					case eth2spec.DataVersionAltair:
-						require.Equal(t, att, attestations.Attestations[0])
-					case eth2spec.DataVersionBellatrix:
-						require.Equal(t, att, attestations.Attestations[0])
-					case eth2spec.DataVersionCapella:
-						require.Equal(t, att, attestations.Attestations[0])
-					case eth2spec.DataVersionDeneb:
-						require.Equal(t, att, attestations.Attestations[0])
-					case eth2spec.DataVersionElectra:
-						// we don't check for aggregation bits post-electra, as it uses SingleAttestation structure which does not include them aggregation bits
-						require.Equal(t, att.Electra.Data, attestations.Attestations[0].Electra.Data)
-						require.Equal(t, att.Electra.Signature, attestations.Attestations[0].Electra.Signature)
-						require.Equal(t, att.Electra.CommitteeBits, attestations.Attestations[0].Electra.CommitteeBits)
-					case eth2spec.DataVersionFulu:
-						// we don't check for aggregation bits post-electra, as it uses SingleAttestation structure which does not include them aggregation bits
-						require.Equal(t, att.Fulu.Data, attestations.Attestations[0].Fulu.Data)
-						require.Equal(t, att.Fulu.Signature, attestations.Attestations[0].Fulu.Signature)
-						require.Equal(t, att.Fulu.CommitteeBits, attestations.Attestations[0].Fulu.CommitteeBits)
-					default:
-						require.Fail(t, "unknown version")
-					}
-
-					return nil
-				},
-			}
-
+			handler := testHandler{}
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
-			eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
-			r, err := NewRouter(ctx, handler, eth2Client, true)
+			handler.SubmitAttestationsFunc = func(_ context.Context, attestations *eth2api.SubmitAttestationsOpts) error {
+				switch attestations.Attestations[0].Version {
+				case eth2spec.DataVersionPhase0:
+					require.Equal(t, att, attestations.Attestations[0])
+				case eth2spec.DataVersionAltair:
+					require.Equal(t, att, attestations.Attestations[0])
+				case eth2spec.DataVersionBellatrix:
+					require.Equal(t, att, attestations.Attestations[0])
+				case eth2spec.DataVersionCapella:
+					require.Equal(t, att, attestations.Attestations[0])
+				case eth2spec.DataVersionDeneb:
+					require.Equal(t, att, attestations.Attestations[0])
+				case eth2spec.DataVersionElectra:
+					// we don't check for aggregation bits post-electra, as it uses SingleAttestation structure which does not include them aggregation bits
+					require.Equal(t, att.Electra.Data, attestations.Attestations[0].Electra.Data)
+					require.Equal(t, att.Electra.Signature, attestations.Attestations[0].Electra.Signature)
+					require.Equal(t, att.Electra.CommitteeBits, attestations.Attestations[0].Electra.CommitteeBits)
+				case eth2spec.DataVersionFulu:
+					// we don't check for aggregation bits post-electra, as it uses SingleAttestation structure which does not include them aggregation bits
+					require.Equal(t, att.Fulu.Data, attestations.Attestations[0].Fulu.Data)
+					require.Equal(t, att.Fulu.Signature, attestations.Attestations[0].Fulu.Signature)
+					require.Equal(t, att.Fulu.CommitteeBits, attestations.Attestations[0].Fulu.CommitteeBits)
+				default:
+					require.Fail(t, "unknown version")
+				}
+
+				return nil
+			}
+			// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
+				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
+				if err != nil {
+					return nil, err
+				}
+				proxyReq.Header = req.Header
+				client := &http.Client{}
+				return client.Do(proxyReq)
+			}
+
+			r, err := NewRouter(ctx, handler, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -2040,13 +2016,24 @@ func TestCreateProposeBlockResponse(t *testing.T) {
 func testRouter(t *testing.T, handler testHandler, callback func(context.Context, *eth2http.Service)) {
 	t.Helper()
 
-	proxy := httptest.NewServer(handler.newBeaconHandler(t))
-	defer proxy.Close()
-
 	ctx := context.Background()
 
-	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
-	r, err := NewRouter(ctx, handler, eth2Client, true)
+	if handler.ProxyFunc == nil {
+		// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+		proxy := httptest.NewServer(handler.newBeaconHandler(t))
+		defer proxy.Close()
+		handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
+			proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
+			if err != nil {
+				return nil, err
+			}
+			proxyReq.Header = req.Header
+			client := &http.Client{}
+			return client.Do(proxyReq)
+		}
+	}
+
+	r, err := NewRouter(ctx, handler, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -2071,11 +2058,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), builderEnabled bool) {
 	t.Helper()
 
-	proxy := httptest.NewServer(handler.newBeaconHandler(t))
-	defer proxy.Close()
-
-	eth2Client := eth2wrap.NewHTTPAdapterForT(t, proxy.URL, nil, time.Second)
-	r, err := NewRouter(context.Background(), handler, eth2Client, builderEnabled)
+	r, err := NewRouter(context.Background(), handler, builderEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -2091,7 +2074,6 @@ type testHandler struct {
 	Handler
 	eth2client.BeaconStateProvider
 
-	ProxyHandler                     http.HandlerFunc
 	SyncCommitteeSelectionsFunc      func(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error)
 	AttestationDataFunc              func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
 	AttesterDutiesFunc               func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
@@ -2111,6 +2093,7 @@ type testHandler struct {
 	SubmitSyncCommitteeMessagesFunc  func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SyncCommitteeDutiesFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc    func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
+	ProxyFunc                        func(ctx context.Context, req *http.Request) (*http.Response, error)
 }
 
 func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
@@ -2193,6 +2176,17 @@ func (h testHandler) SyncCommitteeSelections(ctx context.Context, opts *eth2api.
 	return h.SyncCommitteeSelectionsFunc(ctx, opts)
 }
 
+func (h testHandler) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
+	// When no ProxyFunc is provided, return a 404.
+	if h.ProxyFunc == nil {
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Body:       io.NopCloser(bytes.NewReader([]byte("not found"))),
+		}, nil
+	}
+	return h.ProxyFunc(ctx, req)
+}
+
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
 // eth2http service on startup, all other requests are routed to ProxyHandler if not nil.
 func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
@@ -2235,8 +2229,16 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 		writeResponse(ctx, w, "", nest(map[string]any{"is_syncing": false, "head_slot": "1", "sync_distance": "1"}, "data"), nil)
 	})
 
-	if h.ProxyHandler != nil {
-		mux.HandleFunc("/", h.ProxyHandler)
+	if h.ProxyFunc != nil {
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			resp, err := h.Proxy(ctx, r)
+			require.NoError(t, err)
+
+			w.WriteHeader(resp.StatusCode)
+			_, err = io.Copy(w, resp.Body)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+		})
 	}
 
 	return mux

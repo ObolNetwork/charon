@@ -26,8 +26,6 @@ type Client interface {
 
 	SetForkVersion(forkVersion [4]byte)
 
-	ProxyRequest(ctx context.Context, req *http.Request) (*http.Response, error)
-
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter
 	eth2client.AttestationDataProvider
@@ -51,6 +49,7 @@ type Client interface {
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.ProxyProvider
 	eth2client.SignedBeaconBlockProvider
 	eth2client.SlotDurationProvider
 	eth2client.SlotsPerEpochProvider
@@ -1239,4 +1238,14 @@ func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	}
 
 	return cl.GenesisDomain(ctx, domainType)
+}
+
+// Proxy performs an HTTP proxy request and returns the response.
+func (l *lazy) Proxy(ctx context.Context, req *http.Request) (res0 *http.Response, err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.Proxy(ctx, req)
 }
