@@ -31,7 +31,7 @@ Instead, it follows a more procedural style for a focus on *functions and values
 - Prefer **unexported over exported** types and functions. [#WriteShyCode](https://dave.cheney.net/practical-go/presentations/qcon-china.html#_package_design)
 - Prefer **functions over methods** as methods lends themselves to stateful code while functions are stateless. [#FunctionsOverMethods](https://kellysutton.com/2018/07/13/simple-made-easy-methods-vs-functions.html)
 - Prefer **structs over objects** as structs tend to be more on the immutable data side while “objects” tend to be mutable and combine data with logic. [#TheValueOfValues](https://www.youtube.com/watch?v=-I-VpPMzG7c)
-- Prefer **explicit over implement** as explicit code doesn’t hide anything while implicit code does.
+- Prefer **explicit over implicit** as explicit code doesn’t hide anything while implicit code does.
 - Prefer **immutability over mutability** as that results in code that is easier to reason about and debug and compose.
 
 > Note that we do use types and interfaces and methods and mutable state when required, we just prefer immutable values and functions where applicable.
@@ -117,7 +117,7 @@ Please try to inform your decisions by the following style for improved consiste
   - Prefer returning an error over a panic.
   - Keep error messages consistent and concise.
     - When wrapping just state the action that failed: `errors.Wrap(err, "do something")` over `errors.Wrap(err, "failed to do something")`
-    - Prefer simple consist language: `errors.New("invalid foo")` over `errors.New("foo is invalid")`
+    - Prefer simple consistent language: `errors.New("invalid foo")` over `errors.New("foo is invalid")`
     - See the go stdlib packages for examples: `net`, `os`
   - Only add error fields that the caller is unaware of:
     - If a function has an argument `peer`, don’t add a `peer` field to the error, since the caller can decide to add that field when wrapping or logging.

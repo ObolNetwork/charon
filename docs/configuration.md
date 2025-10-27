@@ -67,7 +67,7 @@ The `cluster-lock.json` has the following schema:
     {
       "distributed_public_key":  "0x123..abfc",             // DV root pubkey
       "public_shares": ["0x123..abfc", "0x123..abfc"],      // The public share of each operator (length of num_operators)
-      "partial_deposit_data": [...],                        // Deposit datas to activate this validator (corresponds to deposit_amounts)
+      "partial_deposit_data": [...],                        // Deposit data to activate this validator (corresponds to deposit_amounts)
       "builder_registration": {...}                         // Pre-generated signed builder registration for the validator
     }
   ],

@@ -34,7 +34,7 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 - [Architecture](docs/architecture.md): Overview of charon cluster and node architecture
 - [Project Structure](docs/structure.md): Project folder structure
 - [Branching and Release Model](docs/branching.md): Git branching and release model
-- [Go Guidelines](docs/goguidelines.md): Guidelines and principals relating to go development
+- [Go Guidelines](docs/goguidelines.md): Guidelines and principles relating to go development
 - [Contributing](docs/contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
 There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon) for the source code documentation.
