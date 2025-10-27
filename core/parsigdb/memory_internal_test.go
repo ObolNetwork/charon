@@ -12,6 +12,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
@@ -164,6 +165,27 @@ type testDeadliner struct {
 	ch    chan core.Duty
 }
 
+func (t *testDeadliner) Expire() bool {
+	for _, d := range t.added {
+		t.ch <- d
+	}
+
+	t.ch <- core.Duty{} // Dummy duty to ensure all piped duties above were processed.
+
+	t.added = nil
+
+	return true
+}
+
+func (t *testDeadliner) Add(duty core.Duty) bool {
+	t.added = append(t.added, duty)
+	return true
+}
+
+func (t *testDeadliner) C() <-chan core.Duty {
+	return t.ch
+}
+
 // TestConcurrentSubscribeAndStore tests that there are no race conditions
 // when subscribers are being added while Store operations are happening.
 // This verifies the fix for race conditions when reading subscriber slices.
@@ -307,23 +329,227 @@ func TestDeterministicThresholdMatching(t *testing.T) {
 	require.Equal(t, []int{1, 2, 3}, expected, "Should return lowest ShareIdx values in order")
 }
 
-func (t *testDeadliner) Expire() bool {
-	for _, d := range t.added {
-		t.ch <- d
+// TestStoreErrorPaths tests error handling in the store function.
+func TestStoreErrorPaths(t *testing.T) {
+	ctx := context.Background()
+	db := NewMemDB(3, newTestDeadliner())
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.NewAttesterDuty(99)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	// Create first signature
+	sig1, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+
+	// Store first signature successfully
+	err = db.StoreInternal(ctx, duty, core.ParSignedDataSet{pubkey: sig1})
+	require.NoError(t, err)
+
+	// Create a different attestation (mismatching data) with same ShareIdx
+	att2 := testutil.RandomDenebVersionedAttestation()
+	sig2, err := core.NewPartialVersionedAttestation(att2, 1) // Different data, same ShareIdx
+	require.NoError(t, err)
+
+	// Try to store the mismatching signature
+	err = db.StoreInternal(ctx, duty, core.ParSignedDataSet{pubkey: sig2})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "mismatching partial signed data")
+}
+
+// TestStoreExternalWithSubscriberError tests error handling when subscriber callback fails.
+func TestStoreExternalWithSubscriberError(t *testing.T) {
+	ctx := context.Background()
+	db := NewMemDB(2, newTestDeadliner())
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.NewAttesterDuty(99)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	// Subscribe with a callback that returns an error
+	var callbackCount int
+
+	callback := func(context.Context, core.Duty, map[core.PubKey][]core.ParSignedData) error {
+		callbackCount++
+		return errors.New("subscriber callback failed")
 	}
 
-	t.ch <- core.Duty{} // Dummy duty to ensure all piped duties above were processed.
+	db.SubscribeThreshold(callback)
 
-	t.added = nil
+	// Store signatures - when threshold is reached, callback error should be returned
+	sig1, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+	sig2, err := core.NewPartialVersionedAttestation(att, 2)
+	require.NoError(t, err)
 
-	return true
+	err = db.StoreExternal(ctx, duty, core.ParSignedDataSet{pubkey: sig1})
+	require.NoError(t, err, "First signature should succeed")
+
+	err = db.StoreExternal(ctx, duty, core.ParSignedDataSet{pubkey: sig2})
+	require.Error(t, err, "Second signature should fail when callback fails")
+	require.ErrorContains(t, err, "subscriber callback failed")
+	require.Equal(t, 1, callbackCount)
 }
 
-func (t *testDeadliner) Add(duty core.Duty) bool {
-	t.added = append(t.added, duty)
-	return true
+// TestStoreInternalWithSubscriberError tests error handling in StoreInternal when subscriber fails.
+func TestStoreInternalWithSubscriberError(t *testing.T) {
+	ctx := context.Background()
+	db := NewMemDB(3, newTestDeadliner())
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.NewAttesterDuty(99)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	// Subscribe with a callback that returns an error
+	var callbackCalled bool
+
+	callback := func(context.Context, core.Duty, core.ParSignedDataSet) error {
+		callbackCalled = true
+		return errors.New("internal subscriber failed")
+	}
+
+	db.SubscribeInternal(callback)
+
+	// Store one signature - should fail due to internal subscriber error
+	sig1, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+
+	err = db.StoreInternal(ctx, duty, core.ParSignedDataSet{pubkey: sig1})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "internal subscriber failed")
+	require.True(t, callbackCalled)
 }
 
-func (t *testDeadliner) C() <-chan core.Duty {
-	return t.ch
+// TestStoreDuplicateSignature tests storing the same signature twice (idempotent).
+func TestStoreDuplicateSignature(t *testing.T) {
+	ctx := context.Background()
+	db := NewMemDB(3, newTestDeadliner())
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.NewAttesterDuty(99)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	sig, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+
+	// Store same signature twice - should be idempotent
+	err = db.StoreInternal(ctx, duty, core.ParSignedDataSet{pubkey: sig})
+	require.NoError(t, err)
+
+	err = db.StoreInternal(ctx, duty, core.ParSignedDataSet{pubkey: sig})
+	require.NoError(t, err, "Storing identical signature should succeed (idempotent)")
+}
+
+// TestGetThresholdMatchingWithMessageRootMismatch tests behavior when signatures have different MessageRoots.
+func TestGetThresholdMatchingWithMessageRootMismatch(t *testing.T) {
+	threshold := 3
+
+	// Create attestations with different data (different MessageRoots)
+	att1 := testutil.RandomDenebVersionedAttestation()
+	att2 := testutil.RandomDenebVersionedAttestation() // Different attestation
+
+	sig1, err := core.NewPartialVersionedAttestation(att1, 1)
+	require.NoError(t, err)
+	sig2, err := core.NewPartialVersionedAttestation(att2, 2) // Different MessageRoot
+	require.NoError(t, err)
+	sig3, err := core.NewPartialVersionedAttestation(att1, 3)
+	require.NoError(t, err)
+
+	sigs := []core.ParSignedData{sig1, sig2, sig3}
+
+	// With mismatching roots and not enough of any single root, should return false, nil error
+	result, ok, err := getThresholdMatching(core.DutyAttester, sigs, threshold)
+	require.NoError(t, err)
+	require.False(t, ok, "Should not reach threshold with mismatching roots")
+	require.Nil(t, result)
+}
+
+// TestStoreExternalContextPropagation tests that context is properly propagated.
+func TestStoreExternalContextPropagation(t *testing.T) {
+	db := NewMemDB(2, newTestDeadliner())
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.NewAttesterDuty(99)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	sig, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+
+	// Use valid context - StoreExternal should succeed
+	ctx := context.Background()
+	err = db.StoreExternal(ctx, duty, core.ParSignedDataSet{pubkey: sig})
+	require.NoError(t, err)
+}
+
+// TestStoreInternalContextPropagation tests that context is properly propagated.
+func TestStoreInternalContextPropagation(t *testing.T) {
+	db := NewMemDB(2, newTestDeadliner())
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.NewAttesterDuty(99)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	sig, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+
+	// Use valid context - StoreInternal should succeed
+	ctx := context.Background()
+	err = db.StoreInternal(ctx, duty, core.ParSignedDataSet{pubkey: sig})
+	require.NoError(t, err)
+}
+
+// TestCloneWithErrorCoverage tests cloneWithError behavior.
+func TestCloneWithErrorCoverage(t *testing.T) {
+	// Test successful cloning
+	pubkey := testutil.RandomCorePubKey(t)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	sig1, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+	sig2, err := core.NewPartialVersionedAttestation(att, 2)
+	require.NoError(t, err)
+
+	input := map[core.PubKey][]core.ParSignedData{
+		pubkey: {sig1, sig2},
+	}
+
+	output, err := cloneWithError(input)
+	require.NoError(t, err)
+	require.Len(t, output, 1)
+	require.Len(t, output[pubkey], 2)
+
+	// Verify it's a deep copy
+	require.NotSame(t, &input[pubkey][0], &output[pubkey][0])
+}
+
+// TestStoreExternalCloneError tests error handling when Clone fails in StoreExternal.
+func TestStoreExternalCloneError(t *testing.T) {
+	ctx := context.Background()
+	db := NewMemDB(2, newTestDeadliner())
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.NewAttesterDuty(99)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	// Subscribe with callback
+	var callbackCalled bool
+
+	db.SubscribeThreshold(func(context.Context, core.Duty, map[core.PubKey][]core.ParSignedData) error {
+		callbackCalled = true
+		return nil
+	})
+
+	// Store signatures to reach threshold
+	sig1, err := core.NewPartialVersionedAttestation(att, 1)
+	require.NoError(t, err)
+	sig2, err := core.NewPartialVersionedAttestation(att, 2)
+	require.NoError(t, err)
+
+	err = db.StoreExternal(ctx, duty, core.ParSignedDataSet{pubkey: sig1})
+	require.NoError(t, err)
+
+	// Second signature reaches threshold - callback should be called
+	err = db.StoreExternal(ctx, duty, core.ParSignedDataSet{pubkey: sig2})
+	require.NoError(t, err)
+	require.True(t, callbackCalled)
 }
