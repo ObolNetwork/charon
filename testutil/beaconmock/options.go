@@ -301,10 +301,7 @@ func WithDeterministicAttesterDuties(factor int) Option {
 	// Aggregation duties assigned using committee_length=factor and TARGET_AGGREGATORS_PER_COMMITTEE (=16).
 	// So validators are aggregators 1 out of every committee_length/TARGET_AGGREGATORS_PER_COMMITTEE or factor/16.
 	// So if all validators are aggregators if factor<=16.
-	commLength := uint64(factor)
-	if commLength < 1 {
-		commLength = 1
-	}
+	commLength := max(uint64(factor), 1)
 
 	valCommIndex := commLength - 1 // Validator always last index in committee.
 
