@@ -28,6 +28,10 @@ var (
 	vcsTime     = ""
 )
 
+const (
+	Unknown = "unknown"
+)
+
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []SemVer {
 	return []SemVer{
@@ -49,7 +53,7 @@ func GitCommit() (hash string, timestamp string) {
 		return vcsRevision, vcsTime
 	}
 
-	hash, timestamp = "unknown", "unknown"
+	hash, timestamp = Unknown, Unknown
 	hashLen := 7
 
 	info, ok := debug.ReadBuildInfo()
