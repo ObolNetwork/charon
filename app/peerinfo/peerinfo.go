@@ -218,8 +218,8 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			p.nicknamesMu.Unlock()
 
 			// Validator git hash with regex.
-			if !gitHashMatch.MatchString(resp.GetGitHash()) {
-				log.Warn(ctx, "Invalid peer git hash", nil, z.Str("peer", name))
+			if !gitHashMatch.MatchString(resp.GetGitHash()) && resp.GetGitHash() != version.Unknown {
+				log.Warn(ctx, "Invalid peer git hash", nil, z.Str("peer", name), z.Str("peer_git_hash", resp.GetGitHash()))
 				return
 			}
 
