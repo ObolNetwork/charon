@@ -33,16 +33,13 @@ import (
 //go:generate go test . -run=TestPeersTest -update
 
 func TestPeersTest(t *testing.T) {
-	// This is a known flaky test, skipping for now.
-	// The test fails pretty reliably when running with pre-commit locally.
-	t.SkipNow()
-
 	peer1PrivKey := base64ToPrivKey(t, "GCc1IKup3kKVxSd9iSu8iX5hc37coxAXasYpGFd/cwo=")
 	peer2PrivKey := base64ToPrivKey(t, "9PhpdrWEDJugHgoXhpbk2KqR4Gj5QZP/YNxNeJ3Q2+A=")
 	peer3PrivKey := base64ToPrivKey(t, "GpicOFPB/c/ZKIy1/fOt/4BmEekhFuyxa/SGcjrNe9o=")
 	freeTCPAddr := testutil.AvailableAddr(t)
 	// start local relay
-	relayAddr := relay.StartRelay(context.Background(), t)
+	ctx := t.Context()
+	relayAddr := relay.StartRelay(ctx, t)
 
 	tests := []struct {
 		name        string
@@ -50,7 +47,6 @@ func TestPeersTest(t *testing.T) {
 		expected    testCategoryResult
 		expectedErr string
 		prepare     func(*testing.T, testPeersConfig) testPeersConfig
-		cleanup     func(*testing.T, string)
 	}{
 		{
 			name: "default scenario",
@@ -110,9 +106,9 @@ func TestPeersTest(t *testing.T) {
 				t.Helper()
 
 				// start peers
-				enr1 := startPeer(t, conf, &peer1PrivKey)
-				enr2 := startPeer(t, conf, &peer2PrivKey)
-				enr3 := startPeer(t, conf, &peer3PrivKey)
+				enr1 := startPeer(t, ctx, conf, &peer1PrivKey)
+				enr2 := startPeer(t, ctx, conf, &peer2PrivKey)
+				enr3 := startPeer(t, ctx, conf, &peer3PrivKey)
 
 				newConfig := conf
 				newConfig.ENRs = []string{enr1.String(), enr2.String(), enr3.String()}
@@ -266,12 +262,6 @@ func TestPeersTest(t *testing.T) {
 				Score: categoryScoreC,
 			},
 			expectedErr: "",
-			cleanup: func(t *testing.T, p string) {
-				t.Helper()
-
-				err := os.Remove(p)
-				require.NoError(t, err)
-			},
 		},
 		{
 			name: "publish to Obol API",
@@ -347,12 +337,6 @@ func TestPeersTest(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			defer func() {
-				if test.cleanup != nil {
-					test.cleanup(t, conf.OutputJSON)
-				}
-			}()
-
 			if conf.Quiet {
 				require.Empty(t, buf.String())
 			} else {
@@ -361,6 +345,11 @@ func TestPeersTest(t *testing.T) {
 
 			if test.config.OutputJSON != "" {
 				testWriteFile(t, test.expected, test.config.OutputJSON)
+			}
+
+			if conf.OutputJSON != "" {
+				err = os.Remove(conf.OutputJSON)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -530,10 +519,9 @@ func testPublishToObolAPI(t *testing.T, expectedRes testCategoryResult, conf tes
 	return server, conf
 }
 
-func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) enr.Record {
+func startPeer(t *testing.T, ctx context.Context, conf testPeersConfig, peerPrivKey *k1.PrivateKey) enr.Record {
 	t.Helper()
 
-	ctx := context.Background()
 	peerConf := conf
 	freeTCPAddr := testutil.AvailableAddr(t)
 	peerConf.P2P.TCPAddrs = []string{fmt.Sprintf("127.0.0.1:%v", freeTCPAddr.Port)}
@@ -553,6 +541,11 @@ func startPeer(t *testing.T, conf testPeersConfig, peerPrivKey *k1.PrivateKey) e
 
 	peerTCPNode, err := p2p.NewNode(ctx, peerConf.P2P, peerPrivKey, connGater, false, p2p.NodeTypeTCP)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err := peerTCPNode.Close()
+		require.NoError(t, err)
+	})
 
 	for _, relay := range relays {
 		go p2p.NewRelayReserver(peerTCPNode, relay)(ctx)
