@@ -1638,42 +1638,15 @@ func proxy(p eth2client.ProxyProvider) http.HandlerFunc {
 			incAPIErrors("proxy", res.StatusCode)
 		}
 
-		// Copy headers from upstream (already filtered by ProxyRequest in httpwrap)
+		// Copy response to writer
 		maps.Copy(w.Header(), res.Header)
-
-		// If trailers expected, declare them before writing headers.
-		if len(res.Trailer) > 0 {
-			for k := range res.Trailer {
-				w.Header().Add("Trailer", k)
-			}
-		}
-
 		w.WriteHeader(res.StatusCode)
-
-		// For HEAD, do not write a body.
-		if r.Method == http.MethodHead {
-			if res.Body != nil {
-				_, _ = io.Copy(io.Discard, res.Body)
-				_ = res.Body.Close()
-			}
-			return
-		}
-
 		if res.Body != nil {
 			_, err = io.Copy(w, res.Body)
 			if err != nil {
 				log.Error(ctx, "Failed writing api response", err)
 			}
 			_ = res.Body.Close()
-		}
-
-		// Set trailer values after the body if present.
-		if len(res.Trailer) > 0 {
-			for k, vv := range res.Trailer {
-				for _, v := range vv {
-					w.Header().Add(k, v)
-				}
-			}
 		}
 	}
 }
