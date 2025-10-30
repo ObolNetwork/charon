@@ -127,7 +127,7 @@ var checks = []check{
 		Description: "High rate of failed validator registrations. Please check the logs for more details.",
 		Severity:    severityWarning,
 		Func: func(q query, _ Metadata) (bool, error) {
-			increase, err := q("core_bcast_recast_errors_total", sumLabels(), increase)
+			increase, err := q("core_scheduler_submit_registration_errors_total", sumLabels(), increase)
 			if err != nil {
 				return false, err
 			}

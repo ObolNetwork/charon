@@ -33,7 +33,6 @@ func TestBroadcast(t *testing.T) {
 		attData,                   // Attestation
 		proposalData,              // BeaconBlock
 		blindedProposalData,       // BlindedBlock
-		validatorRegistrationData, // ValidatorRegistration
 		validatorExitData,         // ValidatorExit
 		aggregateAttestationData,  // AggregateAttestation
 		beaconCommitteeSelections, // BeaconCommitteeSelections
@@ -183,29 +182,6 @@ func blindedProposalData(t *testing.T, mock *beaconmock.Mock) test {
 		name:     "Broadcast Blinded Block Proposal",
 		aggData:  aggData,
 		duty:     core.DutyProposer,
-		bcastCnt: 1,
-		asserted: asserted,
-	}
-}
-
-func validatorRegistrationData(t *testing.T, mock *beaconmock.Mock) test {
-	t.Helper()
-
-	asserted := make(chan struct{})
-	registration := testutil.RandomCoreVersionedSignedValidatorRegistration(t).VersionedSignedValidatorRegistration
-	aggData := core.VersionedSignedValidatorRegistration{VersionedSignedValidatorRegistration: registration}
-
-	mock.SubmitValidatorRegistrationsFunc = func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error {
-		require.Equal(t, aggData.VersionedSignedValidatorRegistration, *registrations[0])
-		close(asserted)
-
-		return nil
-	}
-
-	return test{
-		name:     "Broadcast Validator Registration",
-		aggData:  aggData,
-		duty:     core.DutyBuilderRegistration,
 		bcastCnt: 1,
 		asserted: asserted,
 	}

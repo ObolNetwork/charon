@@ -26,27 +26,6 @@ var (
 		Help:      "Duty broadcast delay since the expected duty submission in seconds by type",
 		Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
 	}, []string{"duty"})
-
-	recastRegistrationCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "core",
-		Subsystem: "bcast",
-		Name:      "recast_registration_total",
-		Help:      "The total number of unique validator registration stored in recaster per pubkey",
-	}, []string{"pubkey"})
-
-	recastTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "core",
-		Subsystem: "bcast",
-		Name:      "recast_total",
-		Help:      "The total count of recasted registrations by source; 'pregen' vs 'downstream'",
-	}, []string{"source"})
-
-	recastErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "core",
-		Subsystem: "bcast",
-		Name:      "recast_errors_total",
-		Help:      "The total count of failed recasted registrations by source; 'pregen' vs 'downstream'",
-	}, []string{"source"})
 )
 
 // instrumentDuty increments the duty counter.

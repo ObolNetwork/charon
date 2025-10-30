@@ -42,7 +42,7 @@ import (
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
+	clusterpkg "github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/manifest"
 	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/core"
@@ -118,7 +118,7 @@ type TestConfig struct {
 	p2p.TestPingConfig
 
 	// Lock provides the lock explicitly, skips loading from disk.
-	Lock *cluster.Lock
+	Lock *clusterpkg.Lock
 	// P2PKey provides the p2p privkey explicitly, skips loading from keystore on disk.
 	P2PKey *k1.PrivateKey
 	// ParSigExFunc provides an in-memory partial signature exchange.
@@ -398,14 +398,14 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 // wireCoreWorkflow wires the core workflow components.
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
-	cluster *manifestpb.Cluster, nodeIdx cluster.NodeIdx, p2pNode host.Host, p2pKey *k1.PrivateKey,
+	cluster *manifestpb.Cluster, nodeIdx clusterpkg.NodeIdx, p2pNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	consensusDebugger consensus.Debugger, pubkeys []core.PubKey, seenPubkeys func(core.PubKey),
 	sseListener sse.Listener, vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
 	var (
-		corePubkeys                  []core.PubKey
+		builderRegistrations         []clusterpkg.BuilderRegistration
 		eth2Pubkeys                  []eth2p0.BLSPubKey
 		pubshares                    []eth2p0.BLSPubKey
 		allPubSharesByKey            = make(map[core.PubKey]map[int]tbls.PublicKey) // map[pubkey]map[shareIdx]pubshare
@@ -445,10 +445,16 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		eth2Pubkey := eth2p0.BLSPubKey(pubkey)
 
 		eth2Pubkeys = append(eth2Pubkeys, eth2Pubkey)
-		corePubkeys = append(corePubkeys, corePubkey)
 		pubshares = append(pubshares, eth2Share)
 		allPubSharesByKey[corePubkey] = allPubShares
 		feeRecipientAddrByCorePubkey[corePubkey] = val.GetFeeRecipientAddress()
+
+		var builderRegistration clusterpkg.BuilderRegistration
+		if err := json.Unmarshal(val.GetBuilderRegistrationJson(), &builderRegistration); err != nil {
+			return errors.Wrap(err, "unmarshal builder registration")
+		}
+
+		builderRegistrations = append(builderRegistrations, builderRegistration)
 	}
 
 	peers, err := manifest.ClusterPeers(cluster)
@@ -465,7 +471,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	sched, err := scheduler.New(corePubkeys, eth2Cl, conf.BuilderAPI)
+	sched, err := scheduler.New(builderRegistrations, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -625,11 +631,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cluster.GetValidators(),
-		conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
-		return errors.Wrap(err, "wire recaster")
-	}
-
 	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl)
 	if err != nil {
 		return err
@@ -745,76 +746,6 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 	})
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(prio.Start))
-
-	return nil
-}
-
-// wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
-// This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
-	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
-	callback func(context.Context, core.Duty, core.SignedDataSet) error,
-) error {
-	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
-		valList, err := eth2Cl.ActiveValidators(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		ret := make(map[eth2p0.BLSPubKey]struct{})
-
-		for _, v := range valList {
-			ret[v] = struct{}{}
-		}
-
-		return ret, nil
-	})
-	if err != nil {
-		return errors.Wrap(err, "recaster init")
-	}
-
-	sched.SubscribeSlots(recaster.SlotTicked)
-	sigAgg.Subscribe(recaster.Store)
-	recaster.Subscribe(broadcaster.Broadcast)
-
-	if callback != nil {
-		recaster.Subscribe(callback)
-	}
-
-	if !builderAPI {
-		return nil
-	}
-
-	for _, val := range validators {
-		// Check if the current cluster manifest supports pre-generate validator registrations.
-		if len(val.GetBuilderRegistrationJson()) == 0 {
-			continue
-		}
-
-		reg := new(eth2api.VersionedSignedValidatorRegistration)
-		if err := json.Unmarshal(val.GetBuilderRegistrationJson(), reg); err != nil {
-			return errors.Wrap(err, "unmarshal validator registration")
-		}
-
-		pubkey, err := core.PubKeyFromBytes(val.GetPublicKey())
-		if err != nil {
-			return errors.Wrap(err, "core pubkey from bytes")
-		}
-
-		signedData, err := core.NewVersionedSignedValidatorRegistration(reg)
-		if err != nil {
-			return errors.Wrap(err, "new versioned signed validator registration")
-		}
-
-		slot, err := validatorapi.SlotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
-		if err != nil {
-			return errors.Wrap(err, "calculate slot from timestamp")
-		}
-
-		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(uint64(slot)), core.SignedDataSet{pubkey: signedData}); err != nil {
-			return errors.Wrap(err, "recaster store registration")
-		}
-	}
 
 	return nil
 }

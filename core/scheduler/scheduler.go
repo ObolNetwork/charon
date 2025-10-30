@@ -11,6 +11,8 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -22,6 +24,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -35,12 +38,12 @@ type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 type schedSlotFunc func(ctx context.Context, slot core.Slot)
 
 // NewForT returns a new scheduler for testing using a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys []core.PubKey,
-	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc,
+func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrations []cluster.BuilderRegistration,
+	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc, builderEnabled bool,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(pubkeys, eth2Cl, false)
+	s, err := New(builderRegistrations, eth2Cl, builderEnabled)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -51,15 +54,40 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, pubkeys [
 }
 
 // New returns a new scheduler.
-func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+func New(builderRegistrations []cluster.BuilderRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+	registrations := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(builderRegistrations))
+
+	for _, builderRegistration := range builderRegistrations {
+		regMessage := &eth2v1.ValidatorRegistration{
+			Timestamp: builderRegistration.Message.Timestamp,
+			GasLimit:  uint64(builderRegistration.Message.GasLimit),
+		}
+
+		copy(regMessage.FeeRecipient[:], builderRegistration.Message.FeeRecipient)
+		copy(regMessage.Pubkey[:], builderRegistration.Message.PubKey)
+
+		var signature eth2p0.BLSSignature
+		copy(signature[:], builderRegistration.Signature)
+
+		registration := &eth2v1.SignedValidatorRegistration{
+			Message:   regMessage,
+			Signature: signature,
+		}
+
+		registrations = append(registrations, &eth2api.VersionedSignedValidatorRegistration{
+			Version: eth2spec.BuilderVersionV1,
+			V1:      registration,
+		})
+	}
+
 	return &Scheduler{
-		eth2Cl:        eth2Cl,
-		pubkeys:       pubkeys,
-		quit:          make(chan struct{}),
-		duties:        make(map[core.Duty]core.DutyDefinitionSet),
-		dutiesByEpoch: make(map[uint64][]core.Duty),
-		epochResolved: make(map[uint64]chan struct{}),
-		clock:         clockwork.NewRealClock(),
+		eth2Cl:               eth2Cl,
+		builderRegistrations: registrations,
+		quit:                 make(chan struct{}),
+		duties:               make(map[core.Duty]core.DutyDefinitionSet),
+		dutiesByEpoch:        make(map[uint64][]core.Duty),
+		epochResolved:        make(map[uint64]chan struct{}),
+		clock:                clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
 		},
@@ -71,22 +99,23 @@ func New(pubkeys []core.PubKey, eth2Cl eth2wrap.Client, builderEnabled bool) (*S
 }
 
 type Scheduler struct {
-	eth2Cl          eth2wrap.Client
-	pubkeys         []core.PubKey
-	quit            chan struct{}
-	clock           clockwork.Clock
-	delayFunc       delayFunc
-	metricSubmitter metricSubmitter
-	resolvedEpoch   uint64
-	resolvingEpoch  uint64
-	duties          map[core.Duty]core.DutyDefinitionSet
-	dutiesByEpoch   map[uint64][]core.Duty
-	dutiesMutex     sync.RWMutex
-	dutySubs        []func(context.Context, core.Duty, core.DutyDefinitionSet) error
-	slotSubs        []func(context.Context, core.Slot) error
-	builderEnabled  bool
-	schedSlotFunc   schedSlotFunc
-	epochResolved   map[uint64]chan struct{} // Notification channels for epoch resolution
+	eth2Cl                     eth2wrap.Client
+	builderRegistrations       []*eth2api.VersionedSignedValidatorRegistration
+	submittedRegistrationEpoch uint64
+	quit                       chan struct{}
+	clock                      clockwork.Clock
+	delayFunc                  delayFunc
+	metricSubmitter            metricSubmitter
+	resolvedEpoch              uint64
+	resolvingEpoch             uint64
+	duties                     map[core.Duty]core.DutyDefinitionSet
+	dutiesByEpoch              map[uint64][]core.Duty
+	dutiesMutex                sync.RWMutex
+	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
+	slotSubs                   []func(context.Context, core.Slot) error
+	builderEnabled             bool
+	schedSlotFunc              schedSlotFunc
+	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -222,9 +251,15 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	if s.getResolvedEpoch() != slot.Epoch() {
 		log.Debug(ctx, "Resolving duties for slot", z.U64("slot", slot.Slot), z.U64("epoch", slot.Epoch()))
 
-		err := s.resolveDuties(ctx, slot)
-		if err != nil {
+		if err := s.resolveDuties(ctx, slot); err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
+		}
+	}
+
+	// Safe to access s.submittedRegistrationEpoch without lock because scheduleSlot is called by the same goroutine.
+	if s.builderEnabled && s.submittedRegistrationEpoch != slot.Epoch() {
+		if err := s.submitValidatorRegistrations(ctx); err == nil {
+			s.submittedRegistrationEpoch = slot.Epoch()
 		}
 	}
 
@@ -655,6 +690,22 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 	}
 
 	delete(s.dutiesByEpoch, epoch)
+}
+
+// submitValidatorRegistrations submits the validator registrations for all DVs.
+func (s *Scheduler) submitValidatorRegistrations(ctx context.Context) error {
+	submitRegistrationCounter.Add(1)
+
+	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, s.builderRegistrations)
+	if err != nil {
+		submitRegistrationErrors.Add(1)
+
+		log.Error(ctx, "Failed to submit validator registrations", err)
+	} else {
+		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(s.builderRegistrations)))
+	}
+
+	return err
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.

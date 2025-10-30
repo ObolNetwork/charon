@@ -333,9 +333,7 @@ func TestWarnLogsCheck(t *testing.T) {
 func TestHighRegistrationFailuresRateCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_registration_failures_rate"
-	metricName := "core_bcast_recast_errors_total"
-	pregenLabel := genLabels("source", "pregen")
-	downsteamLabel := genLabels("source", "downstream")
+	metricName := "core_scheduler_submit_registration_errors_total"
 
 	t.Run("no data", func(t *testing.T) {
 		testCheck(t, m, checkName, false, nil)
@@ -344,33 +342,16 @@ func TestHighRegistrationFailuresRateCheck(t *testing.T) {
 	t.Run("same errors count", func(t *testing.T) {
 		testCheck(t, m, checkName, false,
 			genFam(metricName,
-				genGauge(pregenLabel, 1, 1, 1), // No increments
+				genCounter(genLabels(), 1, 1, 1), // No increments
 			),
 		)
 	})
 
-	t.Run("incrementing errors count", func(t *testing.T) {
+	t.Run("have increasing errors count", func(t *testing.T) {
 		testCheck(t, m, checkName, true,
 			genFam(metricName,
-				genGauge(downsteamLabel, 0, 1, 2, 10),
-			),
-		)
-	})
-
-	t.Run("both labels have stable errors count", func(t *testing.T) {
-		testCheck(t, m, checkName, false,
-			genFam(metricName,
-				genGauge(pregenLabel, 1, 1, 1),
-				genGauge(downsteamLabel, 1, 1, 1),
-			),
-		)
-	})
-
-	t.Run("both labels have increasing errors count", func(t *testing.T) {
-		testCheck(t, m, checkName, true,
-			genFam(metricName,
-				genGauge(pregenLabel, 10, 15, 18),
-				genGauge(downsteamLabel, 1, 2, 3),
+				genCounter(genLabels(), 10, 15, 18),
+				genCounter(genLabels(), 1, 2, 3),
 			),
 		)
 	})

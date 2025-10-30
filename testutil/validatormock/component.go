@@ -302,6 +302,8 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		if _, err = syncComm.Aggregate(ctx, eth2Slot); err != nil { // Rename to sync.Comm.AggregateSyncContribution
 			return err
 		}
+	case core.DutyBuilderRegistration:
+		// Expected duty, but no action needed in validatormock.
 	default:
 		return errors.New("unexpected duty", z.Str("duty", duty.String()))
 	}

@@ -49,9 +49,6 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `cluster_validators` | Gauge | Number of validators in the cluster lock |  |
 | `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay since the expected duty submission in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
-| `core_bcast_recast_errors_total` | Counter | The total count of failed recasted registrations by source; `pregen` vs `downstream` | `source` |
-| `core_bcast_recast_registration_total` | Counter | The total number of unique validator registration stored in recaster per pubkey | `pubkey` |
-| `core_bcast_recast_total` | Counter | The total count of recasted registrations by source; `pregen` vs `downstream` | `source` |
 | `core_consensus_decided_leader_index` | Gauge | Index of the decided leader by protocol and duty | `protocol, duty` |
 | `core_consensus_decided_rounds` | Gauge | Number of decided rounds by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of the consensus process by protocol, duty, and timer | `protocol, duty, timer` |
@@ -62,6 +59,8 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_scheduler_current_slot` | Gauge | The current slot |  |
 | `core_scheduler_duty_total` | Counter | The total count of duties scheduled by type | `duty` |
 | `core_scheduler_skipped_slots_total` | Counter | Total number times slots were skipped |  |
+| `core_scheduler_submit_registration_errors_total` | Counter | The total count of failed submit registration requests |  |
+| `core_scheduler_submit_registration_total` | Counter | The total number of submit registration requests |  |
 | `core_scheduler_validator_balance_gwei` | Gauge | Total balance of a validator by public key | `pubkey_full, pubkey` |
 | `core_scheduler_validator_status` | Gauge | Gauge with validator pubkey and status as labels, value=1 is current status, value=0 is previous. | `pubkey_full, pubkey, status` |
 | `core_scheduler_validators_active` | Gauge | Number of active validators |  |
