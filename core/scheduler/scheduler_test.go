@@ -498,6 +498,107 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	require.NoError(t, <-doneCh)
 }
 
+func TestSubmitValidatorRegistrations(t *testing.T) {
+	// The test uses hard-coded validator registrations from beaconmock.BuilderRegistrationSetA.
+	// The scheduler advances through 3 epochs to ensure it triggers the registration submission.
+	var (
+		t0     time.Time
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithDeterministicAttesterDuties(1),
+		beaconmock.WithSlotsPerEpoch(4),
+	)
+	require.NoError(t, err)
+
+	// Track calls to SubmitValidatorRegistrations
+	var (
+		callCount     atomic.Int64
+		callMutex     sync.Mutex
+		registrations []*eth2api.VersionedSignedValidatorRegistration
+	)
+
+	origFunc := eth2Cl.SubmitValidatorRegistrationsFunc
+	eth2Cl.SubmitValidatorRegistrationsFunc = func(ctx context.Context, regs []*eth2api.VersionedSignedValidatorRegistration) error {
+		callCount.Add(1)
+
+		if registrations == nil {
+			callMutex.Lock()
+
+			registrations = regs
+
+			callMutex.Unlock()
+		}
+
+		return origFunc(ctx, regs)
+	}
+
+	schedSlotCh := make(chan core.Slot)
+	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
+		select {
+		case <-ctx.Done():
+			return
+		case schedSlotCh <- slot:
+		}
+	}
+	clock := newTestClock(t0)
+	dd := new(delayer)
+	valRegs := beaconmock.BuilderRegistrationSetA
+	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc)
+
+	doneCh := make(chan error, 1)
+
+	go func() {
+		doneCh <- sched.Run()
+
+		close(schedSlotCh)
+	}()
+
+	epochsSeen := make(map[uint64]bool)
+	slotCount := 0
+	stopped := false
+
+	for slot := range schedSlotCh {
+		clock.Pause()
+
+		slotCount++
+
+		if !epochsSeen[slot.Epoch()] {
+			epochsSeen[slot.Epoch()] = true
+		}
+
+		// Stop after processing enough slots to see 3 epochs
+		// With 4 slots per epoch, we need at least 9 slots (slots 0-8 cover epochs 0, 1, 2)
+		if slotCount >= 9 && !stopped {
+			stopped = true
+
+			sched.Stop()
+		}
+
+		clock.Resume()
+	}
+
+	require.NoError(t, <-doneCh)
+
+	count := callCount.Load()
+	require.GreaterOrEqual(t, count, int64(1), "Expected at least 1 call to SubmitValidatorRegistrations, got %d", count)
+	require.NotNil(t, registrations, "No registrations were captured")
+	require.Len(t, registrations, len(valRegs), "Expected %d registrations, got %d", len(valRegs), len(registrations))
+
+	// Verify registration data matches BuilderRegistrationSetA
+	for i, reg := range registrations {
+		require.Equal(t, valRegs[i].Message.GasLimit, int(reg.V1.Message.GasLimit))
+		require.Equal(t, valRegs[i].Message.Timestamp.Unix(), reg.V1.Message.Timestamp.Unix())
+		require.Equal(t, valRegs[i].Message.FeeRecipient, reg.V1.Message.FeeRecipient[:])
+		require.Equal(t, valRegs[i].Message.PubKey, reg.V1.Message.Pubkey[:])
+		require.Equal(t, valRegs[i].Signature, reg.V1.Signature[:])
+	}
+}
+
 // delayer implements scheduler.delayFunc and records the deadline and returns it immediately.
 type delayer struct {
 	mu        sync.Mutex
