@@ -213,28 +213,8 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		return core.ErrDeprecatedDutyBuilderProposer
 
 	case core.DutyBuilderRegistration:
-		slot, err := firstSlotInCurrentEpoch(ctx, b.eth2Cl)
-		if err != nil {
-			return errors.Wrap(err, "calculate first slot in epoch")
-		}
-
-		// Use first slot in current epoch for accurate delay calculations while submitting builder registrations.
-		// This is because builder registrations are submitted in first slot of every epoch.
-		duty.Slot = slot
-
-		registrations, err := setToRegistrations(set)
-		if err != nil {
-			return err
-		}
-
-		err = b.eth2Cl.SubmitValidatorRegistrations(ctx, registrations)
-		if err == nil {
-			log.Info(ctx, "Successfully submitted validator registrations to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot, core.DutyBuilderRegistration)),
-			)
-		}
-
-		return err
+		// Builder registrations are submitted by the scheduler.
+		return nil
 
 	case core.DutyExit:
 		var err error // Try submitting all exits and return last error.
@@ -360,21 +340,6 @@ func setToAggAndProof(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestati
 	return &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: resp}, nil
 }
 
-// setToRegistrations converts a set of signed data into a list of registrations.
-func setToRegistrations(set core.SignedDataSet) ([]*eth2api.VersionedSignedValidatorRegistration, error) {
-	var resp []*eth2api.VersionedSignedValidatorRegistration
-	for _, reg := range set {
-		reg, ok := reg.(core.VersionedSignedValidatorRegistration)
-		if !ok {
-			return nil, errors.New("invalid registration")
-		}
-
-		resp = append(resp, &reg.VersionedSignedValidatorRegistration)
-	}
-
-	return resp, nil
-}
-
 // setToOne converts a set of signed data into a single signed data.
 func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
 	if len(set) != 1 {
@@ -429,25 +394,6 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 
 		return time.Since(expectedSubmission)
 	}, nil
-}
-
-// firstSlotInCurrentEpoch calculates first slot number of the current ongoing epoch.
-func firstSlotInCurrentEpoch(ctx context.Context, eth2Cl eth2wrap.Client) (uint64, error) {
-	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
-	if err != nil {
-		return 0, err
-	}
-
-	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	if err != nil {
-		return 0, err
-	}
-
-	chainAge := time.Since(genesisTime)
-	currentSlot := chainAge / slotDuration
-	currentEpoch := uint64(currentSlot) / slotsPerEpoch
-
-	return currentEpoch * slotsPerEpoch, nil
 }
 
 // resolveActiveValidatorsIndices returns the active validators (including their validator index) for the slot.

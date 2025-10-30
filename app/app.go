@@ -631,11 +631,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err = wireRecaster(ctx, eth2Cl, sched, sigAgg, broadcaster, cluster.GetValidators(),
-		conf.BuilderAPI, conf.TestConfig.BroadcastCallback); err != nil {
-		return errors.Wrap(err, "wire recaster")
-	}
-
 	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl)
 	if err != nil {
 		return err
@@ -751,76 +746,6 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 	})
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(prio.Start))
-
-	return nil
-}
-
-// wireRecaster wires the rebroadcaster component to scheduler, sigAgg and broadcaster.
-// This is not done in core.Wire since recaster isn't really part of the official core workflow (yet).
-func wireRecaster(ctx context.Context, eth2Cl eth2wrap.Client, sched core.Scheduler, sigAgg core.SigAgg,
-	broadcaster core.Broadcaster, validators []*manifestpb.Validator, builderAPI bool,
-	callback func(context.Context, core.Duty, core.SignedDataSet) error,
-) error {
-	recaster, err := bcast.NewRecaster(func(ctx context.Context) (map[eth2p0.BLSPubKey]struct{}, error) {
-		valList, err := eth2Cl.ActiveValidators(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		ret := make(map[eth2p0.BLSPubKey]struct{})
-
-		for _, v := range valList {
-			ret[v] = struct{}{}
-		}
-
-		return ret, nil
-	})
-	if err != nil {
-		return errors.Wrap(err, "recaster init")
-	}
-
-	sched.SubscribeSlots(recaster.SlotTicked)
-	sigAgg.Subscribe(recaster.Store)
-	recaster.Subscribe(broadcaster.Broadcast)
-
-	if callback != nil {
-		recaster.Subscribe(callback)
-	}
-
-	if !builderAPI {
-		return nil
-	}
-
-	for _, val := range validators {
-		// Check if the current cluster manifest supports pre-generate validator registrations.
-		if len(val.GetBuilderRegistrationJson()) == 0 {
-			continue
-		}
-
-		reg := new(eth2api.VersionedSignedValidatorRegistration)
-		if err := json.Unmarshal(val.GetBuilderRegistrationJson(), reg); err != nil {
-			return errors.Wrap(err, "unmarshal validator registration")
-		}
-
-		pubkey, err := core.PubKeyFromBytes(val.GetPublicKey())
-		if err != nil {
-			return errors.Wrap(err, "core pubkey from bytes")
-		}
-
-		signedData, err := core.NewVersionedSignedValidatorRegistration(reg)
-		if err != nil {
-			return errors.Wrap(err, "new versioned signed validator registration")
-		}
-
-		slot, err := validatorapi.SlotFromTimestamp(ctx, eth2Cl, reg.V1.Message.Timestamp)
-		if err != nil {
-			return errors.Wrap(err, "calculate slot from timestamp")
-		}
-
-		if err = recaster.Store(ctx, core.NewBuilderRegistrationDuty(uint64(slot)), core.SignedDataSet{pubkey: signedData}); err != nil {
-			return errors.Wrap(err, "recaster store registration")
-		}
-	}
 
 	return nil
 }
