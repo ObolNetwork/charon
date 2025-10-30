@@ -565,7 +565,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	if err := wireVAPIRouter(ctx, life, conf.ValidatorAPIAddr, vapi, vapiCalls, &conf); err != nil {
+	if err := wireVAPIRouter(life, conf.ValidatorAPIAddr, vapi, vapiCalls, &conf); err != nil {
 		return err
 	}
 
@@ -1084,10 +1084,10 @@ func createMockValidators(pubkeys []eth2p0.BLSPubKey) beaconmock.ValidatorSet {
 }
 
 // wireVAPIRouter constructs the validator API router and registers it with the life cycle manager.
-func wireVAPIRouter(ctx context.Context, life *lifecycle.Manager, vapiAddr string,
+func wireVAPIRouter(life *lifecycle.Manager, vapiAddr string,
 	handler validatorapi.Handler, vapiCalls func(), conf *Config,
 ) error {
-	vrouter, err := validatorapi.NewRouter(ctx, handler, conf.BuilderAPI)
+	vrouter, err := validatorapi.NewRouter(handler, conf.BuilderAPI)
 	if err != nil {
 		return errors.Wrap(err, "new monitoring server")
 	}

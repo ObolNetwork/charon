@@ -647,11 +647,9 @@ func TestRouter(t *testing.T) {
 	}
 
 	t.Run("wrong http method", func(t *testing.T) {
-		ctx := context.Background()
-
 		h := testHandler{}
 
-		r, err := NewRouter(ctx, h, true)
+		r, err := NewRouter(h, true)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(r)
@@ -1468,15 +1466,13 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
 	handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 		proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
-		if err != nil {
-			return nil, err
-		}
+		require.NoError(t, err)
 		proxyReq.Header = req.Header
 		client := &http.Client{}
 		return client.Do(proxyReq)
 	}
 
-	r, err := NewRouter(ctx, handler, true)
+	r, err := NewRouter(handler, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -1567,15 +1563,13 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 			// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
 			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
-				if err != nil {
-					return nil, err
-				}
+				require.NoError(t, err)
 				proxyReq.Header = req.Header
 				client := &http.Client{}
 				return client.Do(proxyReq)
 			}
 
-			r, err := NewRouter(ctx, handler, true)
+			r, err := NewRouter(handler, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -1668,15 +1662,13 @@ func TestSubmitAttestations(t *testing.T) {
 			// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
 			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
-				if err != nil {
-					return nil, err
-				}
+				require.NoError(t, err)
 				proxyReq.Header = req.Header
 				client := &http.Client{}
 				return client.Do(proxyReq)
 			}
 
-			r, err := NewRouter(ctx, handler, true)
+			r, err := NewRouter(handler, true)
 			require.NoError(t, err)
 
 			server := httptest.NewServer(r)
@@ -2024,16 +2016,14 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 		defer proxy.Close()
 		handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 			proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
-			if err != nil {
-				return nil, err
-			}
+			require.NoError(t, err)
 			proxyReq.Header = req.Header
 			client := &http.Client{}
 			return client.Do(proxyReq)
 		}
 	}
 
-	r, err := NewRouter(ctx, handler, true)
+	r, err := NewRouter(handler, true)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)
@@ -2058,7 +2048,7 @@ func testRawRouter(t *testing.T, handler testHandler, callback func(context.Cont
 func testRawRouterEx(t *testing.T, handler testHandler, callback func(context.Context, string), builderEnabled bool) {
 	t.Helper()
 
-	r, err := NewRouter(context.Background(), handler, builderEnabled)
+	r, err := NewRouter(handler, builderEnabled)
 	require.NoError(t, err)
 
 	server := httptest.NewServer(r)

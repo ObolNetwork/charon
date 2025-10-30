@@ -54,7 +54,7 @@ func TestWireVAPIRouterForTLS(t *testing.T) {
 
 	port := testutil.GetFreePort(t)
 	endpoint := fmt.Sprintf("localhost:%v", port)
-	err := wireVAPIRouter(t.Context(), life, endpoint, handler, vapiCalls, conf)
+	err := wireVAPIRouter(life, endpoint, handler, vapiCalls, conf)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())

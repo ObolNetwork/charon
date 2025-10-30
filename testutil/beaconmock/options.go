@@ -691,7 +691,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
 		},
-		ProxyFunc: func(ctx context.Context, req *http.Request) (*http.Response, error) {
+		ProxyFunc: func(_ context.Context, req *http.Request) (*http.Response, error) {
 			targetURL, err := url.Parse("http://" + httpServer.Addr)
 			if err != nil {
 				return nil, errors.Wrap(err, "parse mock server address")
