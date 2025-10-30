@@ -48,16 +48,29 @@ func TestIntegration(t *testing.T) {
 	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second*2, [4]byte{}, map[string]string{}, []string{beaconURL}, []string{})
 	require.NoError(t, err)
 
-	// Use random actual mainnet validators
-	// pubkeys := []core.PubKey{
-	// 	"0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490",
-	// 	"0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea",
-	// 	"0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76",
-	// 	"0xa8785ecbb5c030e5da6cbbacc3e6cad39dffbc7bcf7f223a12844db8c1182603df99f673157f0d27912a53546e0f64fe",
-	// 	"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
-	// }
+	// Builder registrations for mainnet validators
+	valRegs := []cluster.BuilderRegistration{
+		{
+			Message: cluster.Registration{
+				FeeRecipient: beaconmock.MustBytesFromHex("0x388c818ca8b9251b393131c08a736a67ccb19297"),
+				GasLimit:     36000000,
+				Timestamp:    time.Unix(1606824023, 0),
+				PubKey:       beaconmock.MustBytesFromHex("0x8f4ef114368b24863b369bbf597ace2eab5f77e4726f7931f988ba757fbd1dffd2f44270bbed42d5dfa72e10c79dcb6d"),
+			},
+			Signature: beaconmock.MustBytesFromHex("0xacc05896c51c57177306d3f1eb9de64a6a1fb50b88cf4afe276a3c53673ce1227af2337ef607c769624f45472968cbde15f87c355dfa43bca81c882ea2d89ad301a4ce1c4169874bf9f9b1bafe70838519af34741d774930edbad40a7fefc7e6"),
+		},
+		{
+			Message: cluster.Registration{
+				FeeRecipient: beaconmock.MustBytesFromHex("0x388c818ca8b9251b393131c08a736a67ccb19297"),
+				GasLimit:     36000000,
+				Timestamp:    time.Unix(1606824023, 0),
+				PubKey:       beaconmock.MustBytesFromHex("0xa0753f1bdb24b39441aee027a44af9ec5117a572678aa987944d26d92d332789208cf0733ca99f1d96fae50f7e889c22"),
+			},
+			Signature: beaconmock.MustBytesFromHex("0x8de77931277c745c05879db7e57853a07c5d3bd45d4d5757f55bdf05de3266c6ddac81b3b0316552b2ceb77405aa5c701311db3cd6a6ca176c792a9f1814ede89907b8cd05061a15bfb6618c8390577b349b3b4a75693311f1c638f53c186c58"),
+		},
+	}
 
-	s, err := scheduler.New([]cluster.BuilderRegistration{}, eth2Cl, false)
+	s, err := scheduler.New(valRegs, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -216,14 +229,11 @@ func TestSchedulerDuties(t *testing.T) {
 				return origFunc(ctx, epoch, indices)
 			}
 
-			// get pubkeys for validators to schedule
-			_, err = valSet.CorePubKeys()
-			require.NoError(t, err)
-
 			// Construct scheduler
 			clock := newTestClock(t0)
 			delayer := new(delayer)
-			sched := scheduler.NewForT(t, clock, delayer.delay, []cluster.BuilderRegistration{}, eth2Cl, nil)
+			valRegs := beaconmock.BuilderRegistrationSetA
+			sched := scheduler.NewForT(t, clock, delayer.delay, valRegs, eth2Cl, nil)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -320,14 +330,11 @@ func TestScheduler_GetDuty(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Get pubkeys for validators to schedule.
-	_, err = valSet.CorePubKeys()
-	require.NoError(t, err)
-
 	// Construct scheduler.
 	clock := newTestClock(t0)
 	dd := new(delayer)
-	sched := scheduler.NewForT(t, clock, dd.delay, []cluster.BuilderRegistration{}, eth2Cl, nil)
+	valRegs := beaconmock.BuilderRegistrationSetA
+	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, nil)
 
 	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
@@ -444,10 +451,6 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Get pubkeys for validators to schedule.
-	_, err = valSet.CorePubKeys()
-	require.NoError(t, err)
-
 	// Construct scheduler.
 	schedSlotCh := make(chan core.Slot)
 	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
@@ -459,7 +462,8 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	}
 	clock := newTestClock(t0)
 	dd := new(delayer)
-	sched := scheduler.NewForT(t, clock, dd.delay, []cluster.BuilderRegistration{}, eth2Cl, schedSlotFunc)
+	valRegs := beaconmock.BuilderRegistrationSetA
+	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc)
 
 	doneCh := make(chan error, 1)
 
