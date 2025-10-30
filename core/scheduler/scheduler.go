@@ -256,11 +256,10 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		}
 	}
 
-	if s.builderEnabled {
-		if s.getResolvedEpoch() != slot.Epoch() || s.submittedRegistrationEpoch != slot.Epoch() {
-			if err := s.submitValidatorRegistrations(ctx); err == nil {
-				s.submittedRegistrationEpoch = slot.Epoch()
-			}
+	// Safe to access s.submittedRegistrationEpoch without lock because scheduleSlot is called by the same goroutine.
+	if s.builderEnabled && s.submittedRegistrationEpoch != slot.Epoch() {
+		if err := s.submitValidatorRegistrations(ctx); err == nil {
+			s.submittedRegistrationEpoch = slot.Epoch()
 		}
 	}
 
