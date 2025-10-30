@@ -39,11 +39,11 @@ type schedSlotFunc func(ctx context.Context, slot core.Slot)
 
 // NewForT returns a new scheduler for testing using a fake clock.
 func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrations []cluster.BuilderRegistration,
-	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc,
+	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc, builderEnabled bool,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(builderRegistrations, eth2Cl, false)
+	s, err := New(builderRegistrations, eth2Cl, builderEnabled)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -55,9 +55,34 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 
 // New returns a new scheduler.
 func New(builderRegistrations []cluster.BuilderRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+	registrations := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(builderRegistrations))
+
+	for _, builderRegistration := range builderRegistrations {
+		regMessage := &eth2v1.ValidatorRegistration{
+			Timestamp: builderRegistration.Message.Timestamp,
+			GasLimit:  uint64(builderRegistration.Message.GasLimit),
+		}
+
+		copy(regMessage.FeeRecipient[:], builderRegistration.Message.FeeRecipient)
+		copy(regMessage.Pubkey[:], builderRegistration.Message.PubKey)
+
+		var signature eth2p0.BLSSignature
+		copy(signature[:], builderRegistration.Signature)
+
+		registration := &eth2v1.SignedValidatorRegistration{
+			Message:   regMessage,
+			Signature: signature,
+		}
+
+		registrations = append(registrations, &eth2api.VersionedSignedValidatorRegistration{
+			Version: eth2spec.BuilderVersionV1,
+			V1:      registration,
+		})
+	}
+
 	return &Scheduler{
 		eth2Cl:               eth2Cl,
-		builderRegistrations: builderRegistrations,
+		builderRegistrations: registrations,
 		quit:                 make(chan struct{}),
 		duties:               make(map[core.Duty]core.DutyDefinitionSet),
 		dutiesByEpoch:        make(map[uint64][]core.Duty),
@@ -74,22 +99,23 @@ func New(builderRegistrations []cluster.BuilderRegistration, eth2Cl eth2wrap.Cli
 }
 
 type Scheduler struct {
-	eth2Cl               eth2wrap.Client
-	builderRegistrations []cluster.BuilderRegistration
-	quit                 chan struct{}
-	clock                clockwork.Clock
-	delayFunc            delayFunc
-	metricSubmitter      metricSubmitter
-	resolvedEpoch        uint64
-	resolvingEpoch       uint64
-	duties               map[core.Duty]core.DutyDefinitionSet
-	dutiesByEpoch        map[uint64][]core.Duty
-	dutiesMutex          sync.RWMutex
-	dutySubs             []func(context.Context, core.Duty, core.DutyDefinitionSet) error
-	slotSubs             []func(context.Context, core.Slot) error
-	builderEnabled       bool
-	schedSlotFunc        schedSlotFunc
-	epochResolved        map[uint64]chan struct{} // Notification channels for epoch resolution
+	eth2Cl                     eth2wrap.Client
+	builderRegistrations       []*eth2api.VersionedSignedValidatorRegistration
+	submittedRegistrationEpoch uint64
+	quit                       chan struct{}
+	clock                      clockwork.Clock
+	delayFunc                  delayFunc
+	metricSubmitter            metricSubmitter
+	resolvedEpoch              uint64
+	resolvingEpoch             uint64
+	duties                     map[core.Duty]core.DutyDefinitionSet
+	dutiesByEpoch              map[uint64][]core.Duty
+	dutiesMutex                sync.RWMutex
+	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
+	slotSubs                   []func(context.Context, core.Slot) error
+	builderEnabled             bool
+	schedSlotFunc              schedSlotFunc
+	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -228,9 +254,13 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		if err := s.resolveDuties(ctx, slot); err != nil {
 			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
 		}
+	}
 
-		if err := s.submitValidatorRegistrations(ctx); err != nil {
-			log.Warn(ctx, "Submitting validator registrations error", err, z.U64("slot", slot.Slot))
+	if s.builderEnabled {
+		if s.getResolvedEpoch() != slot.Epoch() || s.submittedRegistrationEpoch != slot.Epoch() {
+			if err := s.submitValidatorRegistrations(ctx); err == nil {
+				s.submittedRegistrationEpoch = slot.Epoch()
+			}
 		}
 	}
 
@@ -665,40 +695,15 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 // submitValidatorRegistrations submits the validator registrations for all DVs.
 func (s *Scheduler) submitValidatorRegistrations(ctx context.Context) error {
-	registrations := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(s.builderRegistrations))
-
-	for _, builderRegistration := range s.builderRegistrations {
-		regMessage := &eth2v1.ValidatorRegistration{
-			Timestamp: builderRegistration.Message.Timestamp,
-			GasLimit:  uint64(builderRegistration.Message.GasLimit),
-		}
-
-		copy(regMessage.FeeRecipient[:], builderRegistration.Message.FeeRecipient)
-		copy(regMessage.Pubkey[:], builderRegistration.Message.PubKey)
-
-		var signature eth2p0.BLSSignature
-		copy(signature[:], builderRegistration.Signature)
-
-		registration := &eth2v1.SignedValidatorRegistration{
-			Message:   regMessage,
-			Signature: signature,
-		}
-
-		registrations = append(registrations, &eth2api.VersionedSignedValidatorRegistration{
-			Version: eth2spec.BuilderVersionV1,
-			V1:      registration,
-		})
-	}
-
 	submitRegistrationCounter.Add(1)
 
-	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, registrations)
+	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, s.builderRegistrations)
 	if err != nil {
 		submitRegistrationErrors.Add(1)
 
 		log.Error(ctx, "Failed to submit validator registrations", err)
 	} else {
-		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(registrations)))
+		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(s.builderRegistrations)))
 	}
 
 	return err

@@ -670,7 +670,9 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 	return nil
 }
 
-func (Component) SubmitValidatorRegistrations(_ context.Context, _ []*eth2api.VersionedSignedValidatorRegistration) error {
+func (Component) SubmitValidatorRegistrations(ctx context.Context, _ []*eth2api.VersionedSignedValidatorRegistration) error {
+	log.Info(ctx, "Submitting validator registrations is ignored. Charon submits validator registrations directly to the beacon node.")
+
 	return nil
 }
 
