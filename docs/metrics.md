@@ -59,6 +59,8 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_scheduler_current_slot` | Gauge | The current slot |  |
 | `core_scheduler_duty_total` | Counter | The total count of duties scheduled by type | `duty` |
 | `core_scheduler_skipped_slots_total` | Counter | Total number times slots were skipped |  |
+| `core_scheduler_submit_registration_errors_total` | Counter | The total count of failed submit registration requests |  |
+| `core_scheduler_submit_registration_total` | Counter | The total number of submit registration requests |  |
 | `core_scheduler_validator_balance_gwei` | Gauge | Total balance of a validator by public key | `pubkey_full, pubkey` |
 | `core_scheduler_validator_status` | Gauge | Gauge with validator pubkey and status as labels, value=1 is current status, value=0 is previous. | `pubkey_full, pubkey, status` |
 | `core_scheduler_validators_active` | Gauge | Number of active validators |  |

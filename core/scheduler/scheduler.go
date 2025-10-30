@@ -690,7 +690,14 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context) error {
 		})
 	}
 
-	return s.eth2Cl.SubmitValidatorRegistrations(ctx, registrations)
+	submitRegistrationCounter.Add(1)
+
+	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, registrations)
+	if err != nil {
+		submitRegistrationErrors.Add(1)
+	}
+
+	return err
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.

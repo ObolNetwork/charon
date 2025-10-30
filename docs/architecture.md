@@ -149,6 +149,20 @@ The new v3 endpoint specification added a few new parameters and this is how Cha
 > ℹ️ The change in serialization (both json and ssz) introduced *a breaking change* in the internal protocol.
 Therefore, Charon v1.x will not work together with Charon v0.x. See *Version compatibility* section of `README.md` for more details.
 
+### DutyBuilderRegistration redesign
+
+Since Charon v1.8.0, the `/eth/v1/validator/register_validator` validator API endpoint has no effect.
+This endpoint now always returns HTTP 200 OK without any processing.
+Now, Charon's Scheduler component is responsible for submitting builder registrations at the right times:
+
+- At startup, it submits registrations for all DVs in the cluster (found in cluster-lock.json).
+- Thereafter, it submits registrations in the first slot of every epoch.
+
+During the transition period, a cluster running a mix of new and old Charon versions may experience "consensus timeout" errors,
+because the new version will not participate in consensus for the `DutyBuilderRegistration` duty.
+
+Also, the old metrics `core_bcast_recast_registration_total`, `core_bcast_recast_total`, and `core_bcast_recast_errors_total` are removed in favor of new metrics: `core_scheduler_submit_registration_total` and `core_scheduler_submit_registration_errors_total`.
+
 ### Scheduler
 
 The scheduler is the initiator of a duty in the core workflow. It resolves which DVs in the cluster are active and

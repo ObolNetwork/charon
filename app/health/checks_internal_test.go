@@ -333,7 +333,7 @@ func TestWarnLogsCheck(t *testing.T) {
 func TestHighRegistrationFailuresRateCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_registration_failures_rate"
-	metricName := "core_bcast_recast_errors_total"
+	metricName := "core_scheduler_submit_registration_errors_total"
 	pregenLabel := genLabels("source", "pregen")
 	downsteamLabel := genLabels("source", "downstream")
 

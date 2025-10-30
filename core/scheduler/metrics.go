@@ -62,6 +62,20 @@ var (
 		Name:      "skipped_slots_total",
 		Help:      "Total number times slots were skipped",
 	})
+
+	submitRegistrationCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "submit_registration_total",
+		Help:      "The total number of submit registration requests",
+	})
+
+	submitRegistrationErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "scheduler",
+		Name:      "submit_registration_errors_total",
+		Help:      "The total count of failed submit registration requests",
+	})
 )
 
 // instrumentSlot sets the current slot and epoch metrics.
