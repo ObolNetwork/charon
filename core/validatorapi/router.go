@@ -1280,22 +1280,10 @@ func submitBlindedBlock(p eth2client.BlindedProposalSubmitter) handlerFunc {
 }
 
 // submitValidatorRegistrations returns a handler function for the validator (builder) registration submitter endpoint.
-func submitValidatorRegistrations(r eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
-		var unversioned signedValidatorRegistrations
-		if err := unmarshal(typ, body, &unversioned); err != nil {
-			return nil, nil, errors.Wrap(err, "unmarshal signed builder registration")
-		}
-
-		var versioned []*eth2api.VersionedSignedValidatorRegistration
-		for _, registration := range unversioned.Registrations {
-			versioned = append(versioned, &eth2api.VersionedSignedValidatorRegistration{
-				Version: eth2spec.BuilderVersionV1,
-				V1:      registration,
-			})
-		}
-
-		return nil, nil, r.SubmitValidatorRegistrations(ctx, versioned)
+func submitValidatorRegistrations(_ eth2client.ValidatorRegistrationsSubmitter) handlerFunc {
+	return func(_ context.Context, _ map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		// Charon submits validator registrations itself, so we effectively ignore these requests.
+		return nil, nil, nil
 	}
 }
 

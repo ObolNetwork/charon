@@ -22,6 +22,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/testutil"
@@ -48,15 +49,15 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Use random actual mainnet validators
-	pubkeys := []core.PubKey{
-		"0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490",
-		"0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea",
-		"0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76",
-		"0xa8785ecbb5c030e5da6cbbacc3e6cad39dffbc7bcf7f223a12844db8c1182603df99f673157f0d27912a53546e0f64fe",
-		"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
-	}
+	// pubkeys := []core.PubKey{
+	// 	"0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490",
+	// 	"0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea",
+	// 	"0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76",
+	// 	"0xa8785ecbb5c030e5da6cbbacc3e6cad39dffbc7bcf7f223a12844db8c1182603df99f673157f0d27912a53546e0f64fe",
+	// 	"0xb790b322e1cce41c48e3c344cf8d752bdc3cfd51e8eeef44a4bdaac081bc92b53b73e823a9878b5d7a532eb9d9dce1e3",
+	// }
 
-	s, err := scheduler.New(pubkeys, eth2Cl, false)
+	s, err := scheduler.New([]cluster.BuilderRegistration{}, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -216,13 +217,13 @@ func TestSchedulerDuties(t *testing.T) {
 			}
 
 			// get pubkeys for validators to schedule
-			pubkeys, err := valSet.CorePubKeys()
+			_, err = valSet.CorePubKeys()
 			require.NoError(t, err)
 
 			// Construct scheduler
 			clock := newTestClock(t0)
 			delayer := new(delayer)
-			sched := scheduler.NewForT(t, clock, delayer.delay, pubkeys, eth2Cl, nil)
+			sched := scheduler.NewForT(t, clock, delayer.delay, []cluster.BuilderRegistration{}, eth2Cl, nil)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -320,13 +321,13 @@ func TestScheduler_GetDuty(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get pubkeys for validators to schedule.
-	pubkeys, err := valSet.CorePubKeys()
+	_, err = valSet.CorePubKeys()
 	require.NoError(t, err)
 
 	// Construct scheduler.
 	clock := newTestClock(t0)
 	dd := new(delayer)
-	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, nil)
+	sched := scheduler.NewForT(t, clock, dd.delay, []cluster.BuilderRegistration{}, eth2Cl, nil)
 
 	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
@@ -444,7 +445,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get pubkeys for validators to schedule.
-	pubkeys, err := valSet.CorePubKeys()
+	_, err = valSet.CorePubKeys()
 	require.NoError(t, err)
 
 	// Construct scheduler.
@@ -458,7 +459,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	}
 	clock := newTestClock(t0)
 	dd := new(delayer)
-	sched := scheduler.NewForT(t, clock, dd.delay, pubkeys, eth2Cl, schedSlotFunc)
+	sched := scheduler.NewForT(t, clock, dd.delay, []cluster.BuilderRegistration{}, eth2Cl, schedSlotFunc)
 
 	doneCh := make(chan error, 1)
 
