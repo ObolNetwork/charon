@@ -695,6 +695,10 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context) error {
 	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, registrations)
 	if err != nil {
 		submitRegistrationErrors.Add(1)
+
+		log.Error(ctx, "Failed to submit validator registrations", err)
+	} else {
+		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(registrations)))
 	}
 
 	return err
