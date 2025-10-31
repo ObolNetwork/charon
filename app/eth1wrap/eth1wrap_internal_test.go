@@ -101,7 +101,11 @@ func TestMagicValue(t *testing.T) {
 }
 
 func TestERC1271Implementation(t *testing.T) {
-	createdConnection := make(chan struct{})
+	var (
+		testContract = "0x123"
+		testHash     = [32]byte{0x1, 0x2, 0x3}
+		testSig      = []byte{0x4, 0x5, 0x6}
+	)
 
 	ecMock := mocks.NewEthClient(t)
 	ecMock.On("Close").Return().Once()
@@ -114,21 +118,18 @@ func TestERC1271Implementation(t *testing.T) {
 			sig := args.Get(2).([]byte)
 
 			require.Nil(t, opts, "Opts should be nil")
-			require.Equal(t, [32]byte{1, 2, 3}, hash, "Hash should be passed correctly")
-			require.Equal(t, []byte{4, 5, 6}, sig, "Signature should be passed correctly")
+			require.Equal(t, testHash, hash, "Hash should be passed correctly")
+			require.Equal(t, testSig, sig, "Signature should be passed correctly")
 		}).
-		Return(erc1271MagicValue, nil).Once()
-
-	doneCh := make(chan struct{})
+		Return(erc1271MagicValue, nil).Maybe() // can be called multiple times due to polling
 
 	client := NewEthClientRunner(
 		"",
 		func(ctx context.Context, rawurl string) (EthClient, error) {
-			close(createdConnection)
 			return ecMock, nil
 		},
 		func(contractAddress string, eth1Client EthClient) (Erc1271, error) {
-			require.Equal(t, "0x123", contractAddress, "Contract address should be passed to factory")
+			require.Equal(t, testContract, contractAddress, "Contract address should be passed to factory")
 			require.Equal(t, ecMock, eth1Client, "Eth1Client should be passed to factory")
 
 			return mockErc1271, nil
@@ -136,28 +137,29 @@ func TestERC1271Implementation(t *testing.T) {
 	)
 
 	// Start the client
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
+	doneCh := make(chan struct{})
 
 	go func() {
 		client.Run(ctx)
 		close(doneCh)
 	}()
 
-	// Wait for client to initialize
-	<-createdConnection
+	// Wait for client to be connected by polling until it's ready
+	require.Eventually(t, func() bool {
+		valid, err := client.VerifySmartContractBasedSignature(testContract, testHash, testSig)
+		return valid && err == nil
+	}, 1*time.Second, 10*time.Millisecond, "Client should eventually be connected")
 
-	hash := [32]byte{1, 2, 3}
-	sig := []byte{4, 5, 6}
-	valid, err := client.VerifySmartContractBasedSignature("0x123", hash, sig)
-
-	require.NoError(t, err, "Should not return an error")
-	require.True(t, valid, "Signature should be valid")
+	require.NotEmpty(t, mockErc1271.Calls)
 
 	cancel()
-	require.Eventually(t, func() bool {
-		<-doneCh
-		return true
-	}, 1*time.Second, 10*time.Millisecond)
+
+	select {
+	case <-doneCh:
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "Client did not shut down in time")
+	}
 }
 
 func TestNoopClientCreation(t *testing.T) {
