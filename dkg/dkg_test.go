@@ -532,9 +532,6 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 }
 
 func TestSyncFlow(t *testing.T) {
-	// The known flakey test, needs to be reworked.
-	t.SkipNow()
-
 	tests := []struct {
 		name       string
 		connect    []int // Initial connections
@@ -582,13 +579,17 @@ func TestSyncFlow(t *testing.T) {
 				// Initialise slice with the given number of nodes since this table tests input node indices as testcases.
 				stopDkgs   = make([]context.CancelFunc, test.nodes)
 				cTracker   = newConnTracker(pIDs)
-				dkgErrChan = make(chan error)
+				dkgErrChan = make(chan error, test.nodes) // Buffered to prevent blocking
 			)
+
+			// Set all callbacks before starting any DKG processes to avoid race conditions
+			for i := range test.nodes {
+				configs[i].TestConfig.SyncCallback = cTracker.Set
+			}
 
 			// Start DKG for initial peers.
 			for _, idx := range test.connect {
 				log.Info(ctx, "Starting initial peer", z.Int("peer_index", idx))
-				configs[idx].TestConfig.SyncCallback = cTracker.Set
 				stopDkgs[idx] = startNewDKG(t, peerCtx(ctx, idx), configs[idx], dkgErrChan)
 			}
 
@@ -606,9 +607,16 @@ func TestSyncFlow(t *testing.T) {
 				stopDkgs[idx]()
 
 				// Wait for this dkg process to return.
-				err := <-dkgErrChan
-				require.ErrorIs(t, err, context.Canceled)
+				select {
+				case err := <-dkgErrChan:
+					require.ErrorIs(t, err, context.Canceled)
+				case <-time.After(5 * time.Second):
+					require.Fail(t, "timeout waiting for peer to stop", "peer_index=%d", idx)
+				}
 			}
+
+			// Give remaining peers time to detect disconnections and update their connection counts
+			time.Sleep(500 * time.Millisecond)
 
 			// Wait for remaining-initial peers to update connection counts.
 			expect = len(test.connect) - len(test.disconnect) - 1
@@ -616,8 +624,6 @@ func TestSyncFlow(t *testing.T) {
 				if slices.Contains(test.disconnect, idx) {
 					continue
 				}
-
-				configs[idx].TestConfig.SyncCallback = cTracker.Set
 
 				log.Info(ctx, "Waiting for remaining-initial peer count",
 					z.Int("peer_index", idx), z.Int("expect", expect))
@@ -631,18 +637,16 @@ func TestSyncFlow(t *testing.T) {
 			}
 
 			// Wait for all peer DKG processes to complete.
-			var disconnectedCount int
+			for range test.nodes {
+				select {
+				case err := <-dkgErrChan:
+					testutil.SkipIfBindErr(t, err)
 
-			for err := range dkgErrChan {
-				testutil.SkipIfBindErr(t, err)
-
-				if !errors.Is(err, context.Canceled) {
-					require.NoError(t, err)
-				}
-
-				disconnectedCount++
-				if disconnectedCount == test.nodes {
-					break
+					if !errors.Is(err, context.Canceled) {
+						require.NoError(t, err)
+					}
+				case <-time.After(time.Minute):
+					require.Fail(t, "timeout waiting for all DKG processes to complete")
 				}
 			}
 
@@ -679,7 +683,7 @@ func (c *connTracker) AwaitN(t *testing.T, dkgErrChan chan error, n int, peerIdx
 	ticker := time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
 
-	timeout := time.NewTimer(time.Second * 15)
+	timeout := time.NewTimer(time.Second * 20) // Increased timeout for CI environments
 	defer timeout.Stop()
 
 	for {
@@ -688,7 +692,14 @@ func (c *connTracker) AwaitN(t *testing.T, dkgErrChan chan error, n int, peerIdx
 			require.Fail(t, "timeout", "expected %d connections for peer %d, got %d", n, peerIdx, c.count(peerIdx))
 		case err := <-dkgErrChan:
 			testutil.SkipIfBindErr(t, err)
-			require.Failf(t, "DKG exited", "err=%v", err)
+			// Put error back on channel for other consumers
+			select {
+			case dkgErrChan <- err:
+			default:
+				// Channel full, that's ok
+			}
+
+			require.Failf(t, "DKG exited unexpectedly", "err=%v", err)
 		case <-ticker.C:
 			if c.count(peerIdx) == n {
 				return
