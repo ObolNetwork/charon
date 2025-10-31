@@ -244,9 +244,8 @@ func run(_ context.Context) error {
 	pkgs, err := packages.Load(
 		&packages.Config{
 			Mode: packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedTypes,
-			Dir:  "/home/diogo/dev/work/go-eth2-client",
 		},
-		".",
+		"github.com/attestantio/go-eth2-client",
 	)
 	if err != nil {
 		return errors.Wrap(err, "load package")

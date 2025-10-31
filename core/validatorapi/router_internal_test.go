@@ -1463,7 +1463,7 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	handler.BeaconCommitteeSelectionsFunc = func(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error) {
 		return wrapResponse(opts.Selections), nil
 	}
-	// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+	// Use beacon node testing handler to handle unmocked endpoints called by eth2http client
 	handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 		proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
 		require.NoError(t, err)
@@ -1560,7 +1560,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 				require.Equal(t, agg, aggregateAndProofs.SignedAggregateAndProofs[0])
 				return nil
 			}
-			// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+			// Use beacon node testing handler to handle unmocked endpoints called by eth2http client
 			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
 				require.NoError(t, err)
@@ -1659,7 +1659,7 @@ func TestSubmitAttestations(t *testing.T) {
 
 				return nil
 			}
-			// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+			// Use beacon node testing handler to handle unmocked endpoints called by eth2http client
 			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
 				require.NoError(t, err)
@@ -2011,7 +2011,7 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 	ctx := context.Background()
 
 	if handler.ProxyFunc == nil {
-		// Use beacon node testing handler to handled unmocked endpoints called by eth2http client
+		// Use beacon node testing handler to handle unmocked endpoints called by eth2http client
 		proxy := httptest.NewServer(handler.newBeaconHandler(t))
 		defer proxy.Close()
 		handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
