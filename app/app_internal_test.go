@@ -27,7 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/core"
 	vapimocks "github.com/obolnetwork/charon/core/validatorapi/mocks"
@@ -39,7 +38,6 @@ func TestWireVAPIRouterForTLS(t *testing.T) {
 	const testVersion = "v1.0.0"
 
 	life := new(lifecycle.Manager)
-	client := mocks.NewClient(t)
 	handler := vapimocks.NewHandler(t)
 	handler.On("NodeVersion", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		t.Log("NodeVersion called")
@@ -56,7 +54,7 @@ func TestWireVAPIRouterForTLS(t *testing.T) {
 
 	port := testutil.GetFreePort(t)
 	endpoint := fmt.Sprintf("localhost:%v", port)
-	err := wireVAPIRouter(t.Context(), life, endpoint, client, handler, vapiCalls, conf)
+	err := wireVAPIRouter(life, endpoint, handler, vapiCalls, conf)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())

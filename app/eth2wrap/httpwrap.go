@@ -5,6 +5,7 @@ package eth2wrap
 import (
 	"context"
 	"encoding/hex"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,8 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -126,4 +129,9 @@ func (h *httpAdapter) Domain(ctx context.Context, domainType eth2p0.DomainType, 
 	}
 
 	return h.Service.Domain(ctx, domainType, epoch)
+}
+
+func (h *httpAdapter) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
+	log.Debug(ctx, "Proxying request to beacon node", z.Any("url", h.address))
+	return h.Service.Proxy(ctx, req)
 }
