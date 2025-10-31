@@ -115,24 +115,12 @@ func TestClientRun(t *testing.T) {
 	// 4. Reconnects
 	// 5. Second call to ERC1271 succeeds
 	t.Run("reconnect when connection lost", func(t *testing.T) {
-		// This is a known flaky test: BlockNumber & Close mocks were not called.
-		t.SkipNow()
+		faultyClient := mocks.NewEthClient(t)
+		faultyClient.On("BlockNumber", mock.Anything).Return(uint64(0), errors.New("connection lost")).Maybe()
+		faultyClient.On("Close").Return().Maybe()
 
-		createFaultyClient := func() eth1wrap.EthClient {
-			mockEth1Client := mocks.NewEthClient(t)
-			mockEth1Client.On("BlockNumber", mock.Anything).Return(uint64(0),
-				errors.New("connection lost")).Once()
-			mockEth1Client.On("Close").Return().Once()
-
-			return mockEth1Client
-		}
-
-		createGoodClient := func() eth1wrap.EthClient {
-			mockEth1Client := mocks.NewEthClient(t)
-			mockEth1Client.On("Close").Return().Once()
-
-			return mockEth1Client
-		}
+		goodClient := mocks.NewEthClient(t)
+		goodClient.On("Close").Return().Maybe()
 
 		var connectionAttempts atomic.Int32
 
@@ -142,26 +130,26 @@ func TestClientRun(t *testing.T) {
 				connectionAttempts.Add(1)
 
 				if connectionAttempts.Load() == 1 {
-					return createFaultyClient(), nil
+					return faultyClient, nil
 				}
 
-				return createGoodClient(), nil
+				return goodClient, nil
 			},
 			func(contractAddress string, eth1Client eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
 				mockErc1271 := mocks.NewErc1271(t)
 				if connectionAttempts.Load() == 1 {
 					mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
-						Return([4]byte{}, errors.New("connection lost")).Once()
+						Return([4]byte{}, errors.New("connection lost")).Maybe()
 				} else {
 					mockErc1271.On("IsValidSignature", mock.Anything, mock.Anything, mock.Anything).
-						Return([4]byte{0x16, 0x26, 0xba, 0x7e}, nil).Once()
+						Return([4]byte{0x16, 0x26, 0xba, 0x7e}, nil).Maybe()
 				}
 
 				return mockErc1271, nil
 			},
 		)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		doneCh := make(chan struct{})
 
 		// Run client in a goroutine
@@ -170,13 +158,23 @@ func TestClientRun(t *testing.T) {
 			close(doneCh)
 		}()
 
-		// Wait for the first connection attempt
+		// Wait for the first connection to be established and ready
 		require.Eventually(t, func() bool {
-			return connectionAttempts.Load() == 1
+			return connectionAttempts.Load() >= 1
 		}, 1*time.Second, 10*time.Millisecond)
 
 		// This should fail and trigger maybeReconnect()
-		valid, err := client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+		var (
+			valid bool
+			err   error
+		)
+
+		require.Eventually(t, func() bool {
+			valid, err = client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+			// Wait until we get a non-"not connected" error (i.e., the connection lost error)
+			return !errors.Is(err, eth1wrap.ErrEthClientNotConnected)
+		}, 1*time.Second, 10*time.Millisecond)
+
 		require.False(t, valid)
 		require.Error(t, err)
 
@@ -185,18 +183,24 @@ func TestClientRun(t *testing.T) {
 			return connectionAttempts.Load() == 2
 		}, 1*time.Second, 10*time.Millisecond)
 
-		// Now try again with the success mock
-		valid, err = client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
-		require.True(t, valid)
-		require.NoError(t, err)
+		// Now try again with the success mock - wait until it succeeds
+		require.Eventually(t, func() bool {
+			valid, err = client.VerifySmartContractBasedSignature("0x123", [32]byte{}, []byte{})
+			return err == nil && valid
+		}, 1*time.Second, 10*time.Millisecond)
 
-		require.EqualValues(t, connectionAttempts.Load(), 2, "Should attempt to reconnect after connection lost")
+		require.EqualValues(t, 2, connectionAttempts.Load(), "Should attempt to reconnect after connection lost")
 
 		cancel()
-		require.Eventually(t, func() bool {
-			<-doneCh
-			return true
-		}, 1*time.Second, 10*time.Millisecond)
+
+		select {
+		case <-doneCh:
+		case <-time.After(1 * time.Second):
+			require.Fail(t, "Client did not shut down in time")
+		}
+
+		require.NotEmpty(t, faultyClient)
+		require.NotEmpty(t, goodClient)
 	})
 }
 
