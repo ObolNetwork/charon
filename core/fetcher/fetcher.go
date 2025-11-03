@@ -4,8 +4,11 @@ package fetcher
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -180,11 +183,16 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 
 	resp := make(core.UnsignedDataSet)
+	idx := 0
 	for pubkey, dutyDef := range defSet {
+		idx += 1
+		log.Debug(ctx, "Starting iteration for defSet", z.Int("index", idx), z.Int("defSetSize", len(defSet)), z.Any("pubkey", pubkey))
 		attDef, ok := dutyDef.(core.AttesterDefinition)
 		if !ok {
 			return core.UnsignedDataSet{}, errors.New("invalid attester definition")
 		}
+
+		log.Debug(ctx, "Wait for prepare agg")
 
 		// Query AggSigDB for DutyPrepareAggregator to get beacon committee selections.
 		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey)
@@ -197,6 +205,8 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			return core.UnsignedDataSet{}, errors.New("invalid beacon committee selection")
 		}
 
+		log.Debug(ctx, "Check if is aggregator")
+
 		ok, err = eth2exp.IsAttAggregator(ctx, f.eth2Cl, attDef.CommitteeLength, selection.SelectionProof)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
@@ -207,8 +217,18 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 		pt.addResolved(pubkey.String())
 
+		log.Debug(ctx, "Fetching attestation from DB by comm idx from duty definition",
+			z.Int("attDef.CommitteeIndex", int(attDef.CommitteeIndex)),
+			z.Any("availableKeys", slices.Collect(maps.Keys(aggAttByCommIdx))),
+		)
+
 		aggAtt, ok := aggAttByCommIdx[attDef.CommitteeIndex]
 		if ok {
+			log.Debug(ctx, "Aggregate of same committee found",
+				z.Any("aggAtt", &aggAtt),
+				z.Any("pubkey", pubkey),
+			)
+
 			resp[pubkey] = core.VersionedAggregatedAttestation{
 				VersionedAttestation: *aggAtt,
 			}
@@ -216,6 +236,10 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			// Skips querying aggregate attestation for aggregators of same committee.
 			continue
 		}
+
+		log.Debug(ctx, "Await att data",
+			z.Int("attDef.CommitteeIndex", int(attDef.CommitteeIndex)),
+		)
 
 		// Query DutyDB for Attestation data to get attestation data root.
 		attData, err := f.awaitAttDataFunc(ctx, slot, uint64(attDef.CommitteeIndex))
@@ -227,6 +251,12 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
+
+		log.Debug(ctx, "Call BN for aggregate",
+			z.U64("slot", slot),
+			z.Str("dataRoot", hex.EncodeToString(dataRoot[:])),
+			z.U64("CommitteeIndex", uint64(attDef.CommitteeIndex)),
+		)
 
 		// Query BN for aggregate attestation.
 		opts := &eth2api.AggregateAttestationOpts{
@@ -240,19 +270,29 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 			return core.UnsignedDataSet{}, err
 		}
 
+		log.Debug(ctx, "BN call finished")
+
 		aggAtt = eth2Resp.Data
 		if aggAtt == nil {
+			log.Debug(ctx, "aggAtt is nil")
+
 			// Some beacon nodes return nil if the root is not found, return retryable error.
 			// This could happen if the beacon node didn't subscribe to the correct subnet.
 			return core.UnsignedDataSet{}, errors.New("aggregate attestation not found by root (retryable)", z.Hex("root", dataRoot[:]))
 		}
 
+		log.Debug(ctx, "Set aggAttByCommIdx")
+
 		aggAttByCommIdx[attDef.CommitteeIndex] = aggAtt
+
+		log.Debug(ctx, "Set resp")
 
 		resp[pubkey] = core.VersionedAggregatedAttestation{
 			VersionedAttestation: *aggAtt,
 		}
 	}
+
+	log.Debug(ctx, "Returning response", z.Any("resp", resp))
 
 	return resp, nil
 }

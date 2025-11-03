@@ -1307,10 +1307,24 @@ func beaconCommitteeSelections(a eth2client.BeaconCommitteeSelectionsProvider) h
 			return nil, nil, errors.Wrap(err, "unmarshal beacon committee selections")
 		}
 
+		var s1 []eth2v1.BeaconCommitteeSelection
+		for _, sel := range selections {
+			s1 = append(s1, *sel)
+		}
+
+		log.Debug(ctx, "beaconCommitteeSelections start", z.Any("selections", s1))
+
 		eth2Resp, err := a.BeaconCommitteeSelections(ctx, &eth2api.BeaconCommitteeSelectionsOpts{Selections: selections})
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "beacon committee selections")
 		}
+
+		var s2 []eth2v1.BeaconCommitteeSelection
+		for _, sel := range eth2Resp.Data {
+			s2 = append(s2, *sel)
+		}
+
+		log.Debug(ctx, "beaconCommitteeSelections finish", z.Any("selections", s2))
 
 		return beaconCommitteeSelectionsJSON{Data: eth2Resp.Data}, nil, nil
 	}
@@ -1383,6 +1397,8 @@ func aggregateAttestation(p eth2client.AggregateAttestationProvider) handlerFunc
 			return nil, nil, err
 		}
 
+		log.Debug(ctx, "Returned unsigned aggregate attestation", z.U64("slot", slot))
+
 		return res, resHeaders, nil
 	}
 }
@@ -1443,12 +1459,14 @@ func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggrega
 
 func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		log.Debug(ctx, "Submitting aggregated attestation")
 		aggs := []*eth2spec.VersionedSignedAggregateAndProof{}
 
 		var version eth2spec.DataVersion
 
 		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
 		if err != nil {
+			log.Debug(ctx, "Submitting aggregated attestation - missing version header")
 			return nil, nil, errors.New("missing consensus version header", z.Hex("body", body))
 		}
 
@@ -1530,9 +1548,10 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			}
 		case eth2spec.DataVersionElectra:
 			var electraAggs []*electra.SignedAggregateAndProof
-
+			log.Debug(ctx, "Unmarshal electra aggregated attestations")
 			err := unmarshal(typ, body, &electraAggs)
 			if err != nil {
+				log.Debug(ctx, "Unmarshal electra aggregated attestations - failed")
 				return nil, nil, errors.Wrap(err, "unmarshal electra signed aggregate and proofs", z.Hex("body", body))
 			}
 
@@ -1545,9 +1564,11 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 			}
 		case eth2spec.DataVersionFulu:
 			var electraAggs []*electra.SignedAggregateAndProof
+			log.Debug(ctx, "Unmarshal fulu aggregated attestations")
 
 			err := unmarshal(typ, body, &electraAggs)
 			if err != nil {
+				log.Debug(ctx, "Unmarshal fulu aggregated attestations - failed")
 				return nil, nil, errors.Wrap(err, "unmarshal fulu signed aggregate and proofs", z.Hex("body", body))
 			}
 

@@ -13,6 +13,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -211,6 +212,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 	cancel := make(chan struct{})
 	defer close(cancel)
 
+	log.Debug(ctx, "start AwaitAggAttestation")
 	response := make(chan core.VersionedAggregatedAttestation, 1) // Instance of one so resolving never blocks
 
 	db.mu.Lock()
@@ -227,11 +229,14 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 
 	select {
 	case <-db.shutdown:
+		log.Debug(ctx, "AwaitAggAttestation shutdown")
 		return nil, errors.New("dutydb shutdown")
 	case <-ctx.Done():
+		log.Debug(ctx, "AwaitAggAttestation ctx done")
 		return nil, ctx.Err()
 	case value := <-response:
 		// Clone before returning.
+		log.Debug(ctx, "AwaitAggAttestation response received")
 		clone, err := value.Clone()
 		if err != nil {
 			return nil, err
@@ -242,6 +247,7 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 			return nil, errors.New("invalid aggregated attestation")
 		}
 
+		log.Debug(ctx, "AwaitAggAttestation response returned")
 		return &aggAtt.VersionedAttestation, nil
 	}
 }
@@ -337,6 +343,7 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 			return errors.New("clashing attestation data", z.Any("key", aKey))
 		}
 	} else {
+		log.Debug(context.Background(), "Saving attestation data to DB", z.Any("aKey", aKey))
 		db.attDuties[aKey] = &attData.Data
 	}
 
@@ -397,6 +404,7 @@ func (db *MemDB) storeAttestationUnsafe(pubkey core.PubKey, unsignedData core.Un
 			)
 		}
 	} else {
+		log.Debug(context.Background(), "Saving attestation data to DB", z.Any("aKeyCommIdx0", aKeyCommIdx0))
 		db.attDuties[aKeyCommIdx0] = &attData.Data
 	}
 

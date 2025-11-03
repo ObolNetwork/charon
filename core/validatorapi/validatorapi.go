@@ -827,6 +827,8 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 			psigsBySlot[selection.Slot] = make(core.ParSignedDataSet)
 		}
 
+		log.Debug(ctx, "Prepare aggregator key", z.Str("pubkey", pubkey.String()))
+
 		psigsBySlot[selection.Slot][pubkey] = parSigData
 	}
 
@@ -846,6 +848,7 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 		duty := core.NewPrepareAggregatorDuty(uint64(slot))
 		for pk := range data {
 			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
+			log.Debug(ctx, "Await for agg sig db", z.Str("pk", pk.String()))
 			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
 			if err != nil {
 				return nil, err
@@ -856,6 +859,7 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 				return nil, errors.New("invalid beacon committee selection")
 			}
 
+			log.Debug(ctx, "Append selection", z.Str("pk", pk.String()), z.Any("selection", sub.BeaconCommitteeSelection))
 			resp = append(resp, &sub.BeaconCommitteeSelection)
 		}
 	}
@@ -866,10 +870,14 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
 // It does a blocking query to DutyAggregator unsigned data from dutyDB.
 func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
+	log.Debug(ctx, "AggregateAttestation start", z.U64("slot", uint64(opts.Slot)), z.Str("attestation_data_root", opts.AttestationDataRoot.String()), z.U64("committee_index", uint64(opts.CommitteeIndex)))
 	aggAtt, err := c.awaitAggAttFunc(ctx, uint64(opts.Slot), opts.AttestationDataRoot)
 	if err != nil {
+		log.Debug(ctx, "AggregateAttestation errored", z.Err(err))
 		return nil, err
 	}
+
+	log.Debug(ctx, "AggregateAttestation finished")
 
 	return wrapResponse(aggAtt), nil
 }
@@ -880,6 +888,8 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error {
 	aggsAndProofs := opts.SignedAggregateAndProofs
 
+	log.Debug(ctx, "Submit aggregated attestations - active validators")
+
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
@@ -887,21 +897,25 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2ap
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 	for _, agg := range aggsAndProofs {
+		log.Debug(ctx, "Submit aggregated attestation - get slot")
 		slot, err := agg.Slot()
 		if err != nil {
 			return err
 		}
 
+		log.Debug(ctx, "Submit aggregated attestation - get agg idx", z.U64("slot", uint64(slot)))
 		aggregatorIndex, err := agg.AggregatorIndex()
 		if err != nil {
 			return err
 		}
 
+		log.Debug(ctx, "Submit aggregated attestation - get pubkey", z.U64("slot", uint64(slot)))
 		eth2Pubkey, ok := vals[aggregatorIndex]
 		if !ok {
 			return errors.New("validator not found")
 		}
 
+		log.Debug(ctx, "Submit aggregated attestation - get pubkey from bytes", z.U64("slot", uint64(slot)))
 		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
 		if err != nil {
 			return err
@@ -909,6 +923,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2ap
 
 		// Verify inner selection proof (outcome of DutyPrepareAggregator).
 		if !c.insecureTest {
+			log.Debug(ctx, "Submit aggregated attestation - verify aggregate and proof selection", z.U64("slot", uint64(slot)))
 			err = signing.VerifyAggregateAndProofSelection(ctx, c.eth2Cl, tbls.PublicKey(eth2Pubkey), agg)
 			if err != nil {
 				return err
@@ -917,6 +932,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2ap
 
 		parSigData := core.NewPartialVersionedSignedAggregateAndProof(agg, c.shareIdx)
 
+		log.Debug(ctx, "Submit aggregated attestation - verify partial sigs", z.U64("slot", uint64(slot)))
 		// Verify outer partial signature.
 		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
@@ -932,6 +948,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2ap
 	}
 
 	for slot, data := range psigsBySlot {
+		log.Debug(ctx, "Submit aggregated attestation - new parsig duty", z.U64("slot", uint64(slot)))
 		duty := core.NewAggregatorDuty(uint64(slot))
 		for _, sub := range c.subs {
 			err = sub(ctx, duty, data)
