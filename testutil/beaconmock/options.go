@@ -3,12 +3,17 @@
 package beaconmock
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	stdlog "log"
 	"math/big"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -715,8 +720,68 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
 		},
+		ProxyFunc: func(_ context.Context, req *http.Request) (*http.Response, error) {
+			targetURL, err := url.Parse("http://" + httpServer.Addr)
+			if err != nil {
+				return nil, errors.Wrap(err, "parse mock server address")
+			}
+
+			rp := httputil.NewSingleHostReverseProxy(targetURL)
+			rp.ErrorLog = stdlog.New(io.Discard, "", 0)
+			captureWriter := newResponseCapture()
+			rp.ServeHTTP(captureWriter, req)
+
+			bodyBytes := captureWriter.body.Bytes()
+			res := &http.Response{
+				StatusCode:    captureWriter.status,
+				Status:        http.StatusText(captureWriter.status),
+				Header:        captureWriter.header.Clone(),
+				Body:          io.NopCloser(bytes.NewReader(bodyBytes)),
+				ContentLength: int64(len(bodyBytes)),
+				Request:       req,
+			}
+
+			return res, nil
+		},
 	}
 }
+
+// responseCapture is a buffered ResponseWriter that records headers, status and body.
+type responseCapture struct {
+	header      http.Header
+	body        bytes.Buffer
+	status      int
+	wroteHeader bool
+}
+
+func newResponseCapture() *responseCapture {
+	return &responseCapture{header: make(http.Header), status: http.StatusOK}
+}
+
+func (c *responseCapture) Header() http.Header { return c.header }
+
+func (c *responseCapture) WriteHeader(code int) {
+	if c.wroteHeader {
+		return
+	}
+	c.wroteHeader = true
+	c.status = code
+}
+
+func (c *responseCapture) Write(p []byte) (int, error) {
+	if !c.wroteHeader {
+		c.WriteHeader(http.StatusOK)
+	}
+	n, err := c.body.Write(p)
+	if err != nil {
+		return n, errors.Wrap(err, "write to capture buffer")
+	}
+	return n, nil
+}
+
+// Flush implements http.Flusher for compatibility with ReverseProxy flush calls
+// No need for Flush implementation since we buffer the entire response to memory
+func (*responseCapture) Flush() {}
 
 func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {
 	pubkeyHex = strings.TrimPrefix(pubkeyHex, "0x")

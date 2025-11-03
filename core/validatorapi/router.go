@@ -11,10 +11,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	stdlog "log"
+	"maps"
 	"math"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"slices"
 	"strconv"
@@ -40,7 +39,6 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -71,6 +69,7 @@ type Handler interface {
 	eth2client.AttesterDutiesProvider
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
+	eth2client.ProxyProvider
 	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
@@ -89,7 +88,7 @@ type Handler interface {
 // NewRouter returns a new validator http server router. The http router
 // translates http requests related to the distributed validator to the Handler.
 // All other requests are reverse-proxied to the beacon-node address.
-func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEnabled bool) (*mux.Router, error) {
+func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 	// Register subset of distributed validator related endpoints.
 	endpoints := []struct {
 		Name      string
@@ -319,7 +318,7 @@ func NewRouter(ctx context.Context, h Handler, eth2Cl eth2wrap.Client, builderEn
 	}
 
 	// Everything else is proxied
-	r.PathPrefix("/").Handler(proxyHandler(ctx, eth2Cl))
+	r.PathPrefix("/").Handler(proxy(h))
 
 	return r, nil
 }
@@ -1600,62 +1599,44 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	}
 }
 
-// addressProvider provides the address of the active beacon node.
-type addressProvider interface {
-	Address() string
-}
-
-// proxyHandler returns a reverse proxy handler.
-// Proxied requests use the provided context, so are cancelled when the context is cancelled.
-func proxyHandler(ctx context.Context, addrProvider addressProvider) http.HandlerFunc {
+func proxy(p eth2client.ProxyProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Get active beacon node address.
-		targetURL, err := getBeaconNodeAddress(addrProvider)
-		if err != nil {
-			ctx := log.WithTopic(r.Context(), "vapi")
-			log.Error(ctx, "Failed to determine target beacon node address for proxying. Check beacon node configuration", err)
-			writeError(ctx, w, "proxy", err)
+		ctx := r.Context()
+		ctx = log.WithTopic(ctx, "vapi")
+		ctx = log.WithCtx(ctx, z.Str("vapi_proxy_method", r.Method), z.Str("vapi_proxy_path", r.URL.Path))
+		ctx = withCtxDuration(ctx)
+		ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 
-			return
-		}
-		// Get address for active beacon node
-		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-		// Extend default proxy director with basic auth and host header.
-		defaultDirector := proxy.Director
-		proxy.Director = func(req *http.Request) {
-			if targetURL.User != nil {
-				password, _ := targetURL.User.Password()
-				req.SetBasicAuth(targetURL.User.Username(), password)
+		defer func() {
+			if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				observeProxyAPILatency(r.URL.Path)()
+				observeAPILatency("proxy")()
 			}
 
-			req.Host = targetURL.Host
-			defaultDirector(req)
+			cancel()
+		}()
+
+		res, err := p.Proxy(ctx, r)
+		if err != nil {
+			writeError(ctx, w, r.URL.Path, err)
+			return
 		}
-		proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
 
-		// Use provided context for proxied requests, so long running
-		// requests are cancelled when this context is cancelled (soft shutdown).
-		clonedReq := r.Clone(ctx)
+		if res.StatusCode/100 != 2 {
+			incAPIErrors("proxy", res.StatusCode)
+		}
 
-		log.Debug(ctx, "Proxying request to beacon node", z.Str("method", clonedReq.Method), z.Str("path", clonedReq.URL.Path))
-
-		defer observeProxyAPILatency(clonedReq.URL.Path)()
-		defer observeAPILatency("proxy")()
-
-		proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
+		// Copy response to writer
+		maps.Copy(w.Header(), res.Header)
+		w.WriteHeader(res.StatusCode)
+		if res.Body != nil {
+			_, err = io.Copy(w, res.Body)
+			if err != nil {
+				log.Error(ctx, "Failed writing api response", err)
+			}
+			_ = res.Body.Close()
+		}
 	}
-}
-
-// getBeaconNodeAddress returns an active beacon node proxy target address.
-func getBeaconNodeAddress(addrProvider addressProvider) (*url.URL, error) {
-	addr := addrProvider.Address()
-
-	targetURL, err := url.ParseRequestURI(addr)
-	if err != nil {
-		return nil, errors.Wrap(err, "invalid beacon node address", z.Str("address", addr))
-	}
-
-	return targetURL, nil
 }
 
 // writeError writes a http json error response object.
@@ -1849,28 +1830,6 @@ func hexQuery(query url.Values, name string) ([]byte, bool, error) {
 	}
 
 	return resp, true, nil
-}
-
-// writeFlusher is copied from /net/http/httputil/reverseproxy.go.
-// It is required to flush streaming responses.
-type writeFlusher interface {
-	http.ResponseWriter
-	http.Flusher
-}
-
-// proxyResponseWriter wraps the writeFlusher interface and instruments errors.
-type proxyResponseWriter struct {
-	writeFlusher
-}
-
-func (w proxyResponseWriter) WriteHeader(statusCode int) {
-	if statusCode/100 == 2 {
-		// 2XX isn't an error
-		return
-	}
-
-	incAPIErrors("proxy", statusCode)
-	w.writeFlusher.WriteHeader(statusCode)
 }
 
 // getValidatorIDs returns validator IDs as "id" array query parameters.

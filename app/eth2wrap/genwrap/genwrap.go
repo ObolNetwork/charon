@@ -39,6 +39,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
+	"net/http"
 {{- range .Imports}}
 	{{.}}
 {{- end}}
@@ -58,6 +59,7 @@ type Client interface {
 }
 
 {{range .Methods}}
+	{{- if ne .Name "Proxy"}}
 	{{.Doc}}
     {{- if not .Latency}}// Note this endpoint is cached in go-eth2-client.
     {{end -}}
@@ -80,6 +82,7 @@ type Client interface {
 
 		return {{.ResultNames}}
 	}
+	{{- end}}
 {{end}}
 
 {{range .Methods}}
@@ -135,6 +138,7 @@ type Client interface {
 		"ValidatorRegistrationsSubmitter":       {Latency: true, Log: false},
 		"VoluntaryExitSubmitter":                {Latency: true, Log: false},
 		"SetForkVersion":                        {Latency: true, Log: false},
+		"ProxyProvider":                         {Latency: false, Log: false},
 	}
 
 	// addImport indicates which types need hardcoded imports.
