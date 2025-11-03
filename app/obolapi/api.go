@@ -129,7 +129,7 @@ func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.R
 
 	if res.StatusCode/100 != 2 {
 		if res.StatusCode == http.StatusNotFound {
-			return nil, ErrNoExit
+			return nil, ErrNoValue
 		}
 
 		data, err := io.ReadAll(res.Body)
@@ -161,7 +161,7 @@ func httpDelete(ctx context.Context, url *url.URL, headers map[string]string) er
 
 	if res.StatusCode/100 != 2 {
 		if res.StatusCode == http.StatusNotFound {
-			return ErrNoExit
+			return ErrNoValue
 		}
 
 		return errors.New("http DELETE failed", z.Int("status", res.StatusCode))
