@@ -21,6 +21,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
@@ -95,13 +96,18 @@ func TestIntegration(t *testing.T) {
 
 // TestSchedulerWait tests the waitChainStart and waitBeaconSync functions.
 func TestSchedulerWait(t *testing.T) {
+	// Eliminate jitter from exponential backoff for deterministic test timing
+	expbackoff.SetRandFloatForT(t, func() float64 {
+		return 0.5 // Returns middle value, making jitter factor = 0
+	})
+
 	tests := []struct {
 		Name         string
 		GenesisAfter time.Duration
 		GenesisErrs  int
 		SyncedAfter  time.Duration
 		SyncedErrs   int
-		WaitSecs     int
+		WaitSecs     int // Expected wait time in seconds (deterministic with no jitter)
 	}{
 		{
 			Name:     "wait for nothing",
@@ -120,12 +126,12 @@ func TestSchedulerWait(t *testing.T) {
 		{
 			Name:        "genesis errors",
 			GenesisErrs: 5,
-			WaitSecs:    1, // We use expbackoff.FastConfig
+			WaitSecs:    1, // We use expbackoff.FastConfig: 100ms + 160ms + 256ms + 410ms + 656ms ≈ 1582ms
 		},
 		{
 			Name:       "synced errors",
 			SyncedErrs: 10,
-			WaitSecs:   14, // We use expbackoff.FastConfig
+			WaitSecs:   16, // We use expbackoff.FastConfig with MaxDelay=5s cap (deterministic without jitter)
 		},
 	}
 
@@ -167,7 +173,9 @@ func TestSchedulerWait(t *testing.T) {
 			sched := scheduler.NewForT(t, clock, dd.delay, nil, eth2Cl, nil, false)
 			sched.Stop() // Just run wait functions, then quit.
 			require.NoError(t, sched.Run())
-			require.LessOrEqual(t, test.WaitSecs, int(clock.Since(t0).Seconds()))
+
+			elapsedSecs := int(clock.Since(t0).Seconds())
+			require.Equal(t, test.WaitSecs, elapsedSecs, "Expected %d seconds, got %d", test.WaitSecs, elapsedSecs)
 		})
 	}
 }
