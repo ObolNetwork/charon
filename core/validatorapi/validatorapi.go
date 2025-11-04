@@ -803,6 +803,8 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 
+	log.Debug(ctx, "Prepare aggregator selections", z.Int("selections_len", len(opts.Selections)))
+
 	for _, selection := range opts.Selections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
