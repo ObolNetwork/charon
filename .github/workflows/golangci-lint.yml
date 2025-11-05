@@ -14,9 +14,9 @@ jobs:
     runs-on: charon-ci
     steps:
       # Config options can be found in README here: https://github.com/golangci/golangci-lint-action
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/setup-go
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08da042db8 # v6.1.14
         with:
           version: v2.5.0

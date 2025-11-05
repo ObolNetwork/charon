@@ -9,7 +9,7 @@ jobs:
     env:
       GITHUB_PR: ${{ toJSON(github.event.pull_request) }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/setup-go
 
       - name: "Verify PR"
