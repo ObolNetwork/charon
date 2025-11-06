@@ -12,14 +12,14 @@ jobs:
     runs-on: ubuntu-latest
     name: Build Docker Image
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
     - name: Set up QEMU
       id: qemu
-      uses: docker/setup-qemu-action@v3
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
     - name: Cache Docker layers
-      uses: actions/cache@v4
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
       with:
         path: /tmp/.buildx-cache
         key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -28,7 +28,7 @@ jobs:
 
     - name: Define docker image meta data tags
       id: meta
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@318604b99e75e41977312d83839a89be02ca4893 # v5
       with:
         images: |
           obolnetwork/promrated
@@ -38,19 +38,19 @@ jobs:
           type=raw,value=latest
 
     - name: Login to Github container registry
-      uses: docker/login-action@v3
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Login to Dockerhub container registry
-      uses: docker/login-action@v3
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
       with:
         username: obolnetwork
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - uses: docker/build-push-action@v6
+    - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
       with:
         context: .
         file: ./testutil/promrated/Dockerfile
@@ -74,7 +74,7 @@ jobs:
       run: echo ${{ steps.vars.outputs.short_sha }}
 
     - name: Trigger promrated deploy job
-      uses: peter-evans/repository-dispatch@v4
+      uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
