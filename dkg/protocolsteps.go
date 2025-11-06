@@ -123,6 +123,7 @@ func (s *updateLockProtocolStep) Run(ctx context.Context, pctx *ProtocolContext)
 	}
 
 	pubkeyToShares := make(map[core.PubKey]share.Share)
+
 	for _, sh := range pctx.Shares {
 		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 		if err != nil {

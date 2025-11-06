@@ -56,6 +56,7 @@ func Lock(ctx context.Context, dir string, conf Config) (TmplData, error) {
 		}
 	case KeyGenDKG:
 		var nodes []TmplNode
+
 		for i := range conf.NumNodes {
 			n := TmplNode{
 				EnvVars:    newNodeEnvs(i, conf, ""),

@@ -27,7 +27,7 @@ type DistValidator struct {
 	PartialDepositData []DepositData `json:"partial_deposit_data,omitempty" lock_hash:"2" ssz:"Composite[256]"`
 
 	// BuilderRegistration is the pre-generated signed validator builder registration.
-	BuilderRegistration BuilderRegistration `json:"builder_registration,omitempty" lock_hash:"3" ssz:"Composite"`
+	BuilderRegistration BuilderRegistration `json:"builder_registration" lock_hash:"3" ssz:"Composite"`
 }
 
 // PublicKey returns the validator BLS group public key.
@@ -100,22 +100,22 @@ type distValidatorJSONv1x2to5 struct {
 type distValidatorJSONv1x6 struct {
 	PubKey      ethHex          `json:"distributed_public_key"`
 	PubShares   []ethHex        `json:"public_shares,omitempty"`
-	DepositData depositDataJSON `json:"deposit_data,omitempty"`
+	DepositData depositDataJSON `json:"deposit_data"`
 }
 
 // distValidatorJSONv1x7 is the json formatter of DistValidator for version v1.7.0.
 type distValidatorJSONv1x7 struct {
 	PubKey              ethHex                  `json:"distributed_public_key"`
 	PubShares           []ethHex                `json:"public_shares,omitempty"`
-	DepositData         depositDataJSON         `json:"deposit_data,omitempty"`
-	BuilderRegistration builderRegistrationJSON `json:"builder_registration,omitempty"`
+	DepositData         depositDataJSON         `json:"deposit_data"`
+	BuilderRegistration builderRegistrationJSON `json:"builder_registration"`
 }
 
 // distValidatorJSONv1x8 is the json formatter of DistValidator for versions v1.8.0 or later.
 type distValidatorJSONv1x8 struct {
 	PubKey              ethHex                  `json:"distributed_public_key"`
 	PubShares           []ethHex                `json:"public_shares,omitempty"`
-	BuilderRegistration builderRegistrationJSON `json:"builder_registration,omitempty"`
+	BuilderRegistration builderRegistrationJSON `json:"builder_registration"`
 	PartialDepositData  []depositDataJSON       `json:"partial_deposit_data,omitempty"`
 }
 

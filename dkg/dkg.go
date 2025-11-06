@@ -249,6 +249,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	// Register libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
+
 	for _, p := range peers {
 		nodeIdx, err := def.NodeIdx(p.ID)
 		if err != nil {
@@ -669,6 +670,7 @@ func signAndAggLockHash(ctx context.Context, existingShares, newShares []share.S
 		}
 
 		pubkeyToShares := make(map[core.PubKey]share.Share)
+
 		for _, sh := range allShares {
 			pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 			if err != nil {
@@ -803,6 +805,7 @@ func aggLockHashSig(data map[core.PubKey][]core.ParSignedData, shares map[core.P
 // signLockHash returns a partially signed dataset containing signatures of the lock hash.
 func signLockHash(shareIdx int, shares []share.Share, hash []byte) (core.ParSignedDataSet, error) {
 	set := make(core.ParSignedDataSet)
+
 	for _, share := range shares {
 		pk, err := core.PubKeyFromBytes(share.PubKey[:])
 		if err != nil {
@@ -923,6 +926,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share.Sh
 	msgs map[core.PubKey]eth2p0.DepositMessage, network string,
 ) ([]eth2p0.DepositData, error) {
 	pubkeyToPubShares := make(map[core.PubKey]map[int]tbls.PublicKey)
+
 	for _, sh := range shares {
 		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 		if err != nil {
@@ -946,6 +950,7 @@ func aggDepositData(data map[core.PubKey][]core.ParSignedData, shares []share.Sh
 		}
 
 		psigs := make(map[int]tbls.Signature)
+
 		for _, s := range psigsData {
 			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
@@ -1008,6 +1013,7 @@ func aggValidatorRegistrations(
 	forkVersion []byte,
 ) ([]core.VersionedSignedValidatorRegistration, error) {
 	pubkeyToPubShares := make(map[core.PubKey]map[int]tbls.PublicKey)
+
 	for _, sh := range shares {
 		pk, err := core.PubKeyFromBytes(sh.PubKey[:])
 		if err != nil {
@@ -1031,6 +1037,7 @@ func aggValidatorRegistrations(
 		}
 
 		psigs := make(map[int]tbls.Signature)
+
 		for _, s := range psigsData {
 			sig, err := tblsconv.SignatureFromBytes(s.Signature())
 			if err != nil {
@@ -1315,6 +1322,7 @@ func getExistingShares(conf *AppendConfig) ([]share.Share, error) {
 		}
 
 		publicShares := make(map[int]tbls.PublicKey)
+
 		for idx, ps := range conf.ClusterLock.Validators[i].PubShares {
 			var tblsPublicKey tbls.PublicKey
 			copy(tblsPublicKey[:], ps)

@@ -91,6 +91,7 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 		}
 
 		publicKeyShare := tbls.PublicKey{}
+
 		for _, v := range lock.Validators {
 			if v.PublicKeyHex() == depositData.PublicKey.String() {
 				publicKeyShare, err = v.PublicShare(int(shareIndex) - 1)

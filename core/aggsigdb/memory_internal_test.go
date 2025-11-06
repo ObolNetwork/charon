@@ -21,13 +21,9 @@ func TestDutyExpiration(t *testing.T) {
 	deadliner := newTestDeadliner()
 	db := NewMemDB(deadliner)
 
-	wg.Add(1)
-
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		db.Run(ctx)
-	}()
+	})
 
 	slot := uint64(99)
 	duty := core.NewAttesterDuty(slot)
@@ -90,14 +86,10 @@ func TestCancelledQuery(t *testing.T) {
 
 	require.Equal(t, 1, <-queryCount)
 
-	wg.Add(1)
-
-	go func() {
+	wg.Go(func() {
 		_, err := db.Await(qctx, duty, pubkey)
 		errCh <- err
-
-		wg.Done()
-	}()
+	})
 
 	require.Equal(t, 2, <-queryCount)
 

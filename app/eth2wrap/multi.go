@@ -128,8 +128,11 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
 	// Duplicate the request body so each backend gets an independent reader
 	// req.Clone(ctx) does NOT clone the body reader
-	var bodyBytes []byte
-	var hasBody bool
+	var (
+		bodyBytes []byte
+		hasBody   bool
+	)
+
 	if req.Body != nil {
 		b, err := io.ReadAll(req.Body)
 		if err != nil {
@@ -159,7 +162,9 @@ func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, er
 			} else {
 				cloned.Body = nil
 			}
+
 			res, err := args.client.Proxy(ctx, cloned)
+
 			return res, err
 		},
 		nil, nil,

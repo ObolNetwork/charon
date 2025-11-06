@@ -253,6 +253,7 @@ func prepareAggregators(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 		partials    []*eth2v1.BeaconCommitteeSelection
 		commLengths = make(map[eth2p0.ValidatorIndex]uint64)
 	)
+
 	for _, duty := range duties {
 		pubkey, ok := vals[duty.ValidatorIndex]
 		if !ok {

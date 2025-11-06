@@ -289,6 +289,7 @@ func TestRawRouter(t *testing.T) {
 	t.Run("get validators with post", func(t *testing.T) {
 		simpleValidatorsFunc := func(_ context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) { //nolint:unparam
 			res := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
 			if len(opts.Indices) == 0 {
 				opts.Indices = []eth2p0.ValidatorIndex{12, 35}
 			}
@@ -1457,6 +1458,7 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	)
 
 	handler := testHandler{}
+
 	proxy := httptest.NewServer(handler.newBeaconHandler(t))
 	defer proxy.Close()
 
@@ -1467,8 +1469,10 @@ func TestBeaconCommitteeSelections(t *testing.T) {
 	handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 		proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
 		require.NoError(t, err)
+
 		proxyReq.Header = req.Header
 		client := &http.Client{}
+
 		return client.Do(proxyReq)
 	}
 
@@ -1553,6 +1557,7 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 			agg := test.versionedSignedAggregateAndProof
 
 			handler := testHandler{}
+
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
@@ -1564,8 +1569,10 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
 				require.NoError(t, err)
+
 				proxyReq.Header = req.Header
 				client := &http.Client{}
+
 				return client.Do(proxyReq)
 			}
 
@@ -1628,6 +1635,7 @@ func TestSubmitAttestations(t *testing.T) {
 			att := test.versionedAttestation
 
 			handler := testHandler{}
+
 			proxy := httptest.NewServer(handler.newBeaconHandler(t))
 			defer proxy.Close()
 
@@ -1663,8 +1671,10 @@ func TestSubmitAttestations(t *testing.T) {
 			handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 				proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
 				require.NoError(t, err)
+
 				proxyReq.Header = req.Header
 				client := &http.Client{}
+
 				return client.Do(proxyReq)
 			}
 
@@ -2014,11 +2024,14 @@ func testRouter(t *testing.T, handler testHandler, callback func(context.Context
 		// Use beacon node testing handler to handle unmocked endpoints called by eth2http client
 		proxy := httptest.NewServer(handler.newBeaconHandler(t))
 		defer proxy.Close()
+
 		handler.ProxyFunc = func(ctx context.Context, req *http.Request) (*http.Response, error) {
 			proxyReq, err := http.NewRequestWithContext(ctx, req.Method, proxy.URL+req.URL.Path, req.Body)
 			require.NoError(t, err)
+
 			proxyReq.Header = req.Header
 			client := &http.Client{}
+
 			return client.Do(proxyReq)
 		}
 	}
@@ -2174,6 +2187,7 @@ func (h testHandler) Proxy(ctx context.Context, req *http.Request) (*http.Respon
 			Body:       io.NopCloser(bytes.NewReader([]byte("not found"))),
 		}, nil
 	}
+
 	return h.ProxyFunc(ctx, req)
 }
 
@@ -2227,6 +2241,7 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 			w.WriteHeader(resp.StatusCode)
 			_, err = io.Copy(w, resp.Body)
 			require.NoError(t, err)
+
 			_ = resp.Body.Close()
 		})
 	}
@@ -2239,7 +2254,7 @@ func nest(data any, nests ...string) any {
 	res := data
 
 	for _, nest := range nests {
-		res = map[string]interface{}{
+		res = map[string]any{
 			nest: res,
 		}
 	}

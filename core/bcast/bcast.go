@@ -328,6 +328,7 @@ func setToSyncMessages(set core.SignedDataSet) ([]*altair.SyncCommitteeMessage, 
 // setToAggAndProof converts a set of signed data into a list of versioned aggregate and proofs.
 func setToAggAndProof(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestationsOpts, error) {
 	var resp []*eth2spec.VersionedSignedAggregateAndProof
+
 	for _, aggAndProof := range set {
 		aggAndProof, ok := aggAndProof.(core.VersionedSignedAggregateAndProof)
 		if !ok {
@@ -356,6 +357,7 @@ func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
 // setToAttestations converts a set of signed data into a list of versioned attestations.
 func setToAttestations(set core.SignedDataSet) ([]*eth2spec.VersionedAttestation, error) {
 	var resp []*eth2spec.VersionedAttestation
+
 	for _, att := range set {
 		att, ok := att.(core.VersionedAttestation)
 		if !ok {

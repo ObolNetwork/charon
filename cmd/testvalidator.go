@@ -265,6 +265,7 @@ func validatorPingLoadTest(ctx context.Context, conf *testValidatorConfig) testR
 
 func pingValidatorContinuously(ctx context.Context, address string, resCh chan<- time.Duration) {
 	d := net.Dialer{Timeout: time.Second}
+
 	for {
 		before := time.Now()
 

@@ -30,6 +30,7 @@ func WithBeaconMockFuzzer() Option {
 		}
 
 		validators = make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
 		for i, pubkey := range pubkeys {
 			vIdx := eth2p0.ValidatorIndex(i)
 
@@ -74,6 +75,7 @@ func WithBeaconMockFuzzer() Option {
 					}
 
 					var resp []*eth2v1.AttesterDuty
+
 					for _, vIdx := range indices {
 						var duty eth2v1.AttesterDuty
 						c.Fuzz(&duty)

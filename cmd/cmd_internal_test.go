@@ -180,6 +180,7 @@ func TestCmdFlags(t *testing.T) {
 			}
 
 			_ = testutil.CreateTempCharonDir(t)
+
 			if test.AppConfig != nil {
 				_, err := p2p.NewSavedPrivKey(test.AppConfig.PrivKeyFile)
 				require.NoError(t, err)

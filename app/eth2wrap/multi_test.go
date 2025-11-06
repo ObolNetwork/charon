@@ -96,7 +96,7 @@ func TestMulti_Proxy(t *testing.T) {
 
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
-	req, err := http.NewRequest("GET", "", nil)
+	req, err := http.NewRequest(http.MethodGet, "", nil)
 	require.NoError(t, err)
 
 	_, err = m.Proxy(t.Context(), req)
@@ -108,6 +108,7 @@ func TestMulti_Proxy_ReadBody(t *testing.T) {
 	cl1.On("Proxy", mock.Anything, mock.MatchedBy(func(req *http.Request) bool {
 		_, err := io.ReadAll(req.Body)
 		require.NoError(t, err)
+
 		return true
 	})).Return(nil, errors.New("syncing")).Once() // force fallback to also read body
 
@@ -115,13 +116,14 @@ func TestMulti_Proxy_ReadBody(t *testing.T) {
 	cl2.On("Proxy", mock.Anything, mock.MatchedBy(func(req *http.Request) bool {
 		_, err := io.ReadAll(req.Body)
 		require.NoError(t, err)
+
 		return true
 	})).Return(nil, nil).Once()
 
 	// Two clients reading the same body should not error since the body is duplicated for each backend.
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{cl1}, []eth2wrap.Client{cl2})
 	bodyReader := strings.NewReader("foo")
-	req, err := http.NewRequest("POST", "", bodyReader)
+	req, err := http.NewRequest(http.MethodPost, "", bodyReader)
 	require.NoError(t, err)
 
 	_, err = m.Proxy(t.Context(), req)

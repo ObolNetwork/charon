@@ -458,6 +458,7 @@ func signDepositDatas(secrets []tbls.PrivateKey, withdrawalAddresses []string, n
 	}
 
 	var dd [][]eth2p0.DepositData
+
 	for _, depositAmount := range depositAmounts {
 		var datas []eth2p0.DepositData
 
@@ -574,6 +575,7 @@ func getTSSShares(secrets []tbls.PrivateKey, threshold, numNodes int) ([]tbls.Pu
 		dvs    []tbls.PublicKey
 		splits [][]tbls.PrivateKey
 	)
+
 	for _, secret := range secrets {
 		shares, err := tbls.ThresholdSplit(secret, uint(numNodes), uint(threshold))
 		if err != nil {
@@ -639,6 +641,7 @@ func getKeys(splitKeysDir string, useSequencedKeys bool) ([]tbls.PrivateKey, err
 // generateKeys generates numDVs amount of tbls.PrivateKeys.
 func generateKeys(numDVs int) ([]tbls.PrivateKey, error) {
 	var secrets []tbls.PrivateKey
+
 	for range numDVs {
 		secret, err := tbls.GenerateSecretKey()
 		if err != nil {
@@ -790,6 +793,7 @@ func getValidators(
 func writeKeysToKeymanager(ctx context.Context, conf clusterConfig, numNodes int, shareSets [][]tbls.PrivateKey) error {
 	// Ping all keymanager addresses to check if they are accessible to avoid partial writes
 	var clients []keymanager.Client
+
 	for i := range numNodes {
 		cl := keymanager.New(conf.KeymanagerAddrs[i], conf.KeymanagerAuthTokens[i])
 		if err := cl.VerifyConnection(ctx); err != nil {

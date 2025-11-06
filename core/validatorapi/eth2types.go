@@ -110,7 +110,7 @@ type syncCommitteeSelectionsJSON struct {
 type root eth2p0.Root
 
 func (r root) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf(`"%#x"`, r)), nil
+	return fmt.Appendf(nil, `"%#x"`, r), nil
 }
 
 // v1Validator wraps eth2v1 Validator proper json marshalling of status.

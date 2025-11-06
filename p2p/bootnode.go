@@ -198,6 +198,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 		}
 
 		var maddrs []ma.Multiaddr
+
 		for _, addr := range addrs {
 			maddr, err := ma.NewMultiaddr(addr)
 			if err != nil {

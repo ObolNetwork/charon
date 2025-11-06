@@ -583,6 +583,7 @@ func TestSplitKeys(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var keys []tbls.PrivateKey
+
 			for range test.numSplitKeys {
 				secret, err := tbls.GenerateSecretKey()
 				require.NoError(t, err)

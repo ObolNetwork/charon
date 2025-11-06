@@ -122,6 +122,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
 
 	resp := make(core.UnsignedDataSet)
+
 	for pubkey, def := range defSet {
 		attDuty, ok := def.(core.AttesterDefinition)
 		if !ok {
@@ -180,6 +181,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 	aggAttByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2spec.VersionedAttestation)
 
 	resp := make(core.UnsignedDataSet)
+
 	for pubkey, dutyDef := range defSet {
 		attDef, ok := dutyDef.(core.AttesterDefinition)
 		if !ok {
@@ -259,6 +261,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 
 func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
+
 	for pubkey := range defSet {
 		// Fetch previously aggregated randao reveal from AggSigDB
 		dutyRandao := core.NewRandaoDuty(slot)
@@ -314,6 +317,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 	defer pt.log(ctx)
 
 	resp := make(core.UnsignedDataSet)
+
 	for pubkey := range defSet {
 		// Query AggSigDB for DutyPrepareSyncContribution to get sync committee selection.
 		selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey)

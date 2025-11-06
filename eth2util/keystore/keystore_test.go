@@ -29,6 +29,7 @@ func TestStoreLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
+
 	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
@@ -63,6 +64,7 @@ func TestStoreLoadNonCharonNames(t *testing.T) {
 	expect := make(map[tbls.PrivateKey]bool)
 
 	var secrets []tbls.PrivateKey
+
 	for range len(filenames) {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
@@ -99,6 +101,7 @@ func TestStoreLoadKeysAll(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
+
 	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
@@ -122,6 +125,7 @@ func TestStoreLoadKeysAllNonSequentialIdx(t *testing.T) {
 	dir := t.TempDir()
 
 	var secrets []tbls.PrivateKey
+
 	for range 2 {
 		secret, err := tbls.GenerateSecretKey()
 		require.NoError(t, err)
@@ -305,7 +309,7 @@ func TestLoadFilesRecursively(t *testing.T) {
 	require.Len(t, keyFiles, 2)
 
 	// Check if both keys are loaded correctly.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		isPk1 := bytes.Equal(keyFiles[i].PrivateKey[:], pk1[:])
 		isPk2 := bytes.Equal(keyFiles[i].PrivateKey[:], pk2[:])
 		require.True(t, isPk1 || isPk2, "Loaded key does not match expected keys")

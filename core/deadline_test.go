@@ -4,6 +4,7 @@ package core_test
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -208,13 +209,7 @@ func setupData(t *testing.T) ([]core.Duty, []core.Duty, []core.Duty, func(core.D
 	}
 
 	dutyExpired := func(duty core.Duty) bool {
-		for _, d := range expiredDuties {
-			if d == duty {
-				return true
-			}
-		}
-
-		return false
+		return slices.Contains(expiredDuties, duty)
 	}
 
 	return expiredDuties, nonExpiredDuties, voluntaryExits, dutyExpired

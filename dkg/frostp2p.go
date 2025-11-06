@@ -5,6 +5,7 @@ package dkg
 import (
 	"context"
 	"path"
+	"slices"
 	"sync"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
@@ -82,14 +83,7 @@ func newFrostP2P(p2pNode host.Host, peers map[peer.ID]cluster.NodeIdx, bcastComp
 
 // newCheckMsg returns a bcast.CheckMessage function for round 1 and 2.
 func newCheckMsg(messageID string) (bcast.CheckMessage, error) {
-	found := false
-
-	for _, mID := range frostMessageIDs() {
-		if mID == messageID {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(frostMessageIDs(), messageID)
 
 	if !found {
 		return nil, errors.New("frost message id unsupported", z.Str("message_id", messageID))
@@ -462,6 +456,7 @@ func round1CastFromProto(cast *pb.FrostRound1Cast) (msgKey, frost.Round1Bcast, e
 	}
 
 	var comms []curves.Point
+
 	for _, comm := range cast.GetCommitments() {
 		c, err := curve.Point.FromAffineCompressed(comm)
 		if err != nil {

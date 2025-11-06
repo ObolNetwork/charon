@@ -346,7 +346,7 @@ func TestProposeBlock(t *testing.T) {
 			require.NoError(t, err)
 
 			mockVAPI := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				testResponse := []byte(fmt.Sprintf(`{"version":"%v","data":`, test.version))
+				testResponse := fmt.Appendf(nil, `{"version":"%v","data":`, test.version)
 				blockJSON := test.jsonBeaconBlock(slotsPerEpoch)
 
 				testResponse = append(testResponse, blockJSON...)

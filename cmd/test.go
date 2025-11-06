@@ -170,7 +170,7 @@ type testResult struct {
 	Verdict      testVerdict     `json:"verdict"`
 	Measurement  string          `json:"measurement,omitempty"`
 	Suggestion   string          `json:"suggestion,omitempty"`
-	Error        testResultError `json:"error,omitempty"`
+	Error        testResultError `json:"error"`
 	IsAcceptable bool            `json:"-"`
 }
 
@@ -212,16 +212,16 @@ type testCaseName struct {
 type testCategoryResult struct {
 	CategoryName  string                  `json:"category_name,omitempty"`
 	Targets       map[string][]testResult `json:"targets,omitempty"`
-	ExecutionTime Duration                `json:"execution_time,omitempty"`
+	ExecutionTime Duration                `json:"execution_time"`
 	Score         categoryScore           `json:"score,omitempty"`
 }
 
 type allCategoriesResult struct {
-	Peers     testCategoryResult `json:"charon_peers,omitempty"`
-	Beacon    testCategoryResult `json:"beacon_node,omitempty"`
-	Validator testCategoryResult `json:"validator_client,omitempty"`
-	MEV       testCategoryResult `json:"mev,omitempty"`
-	Infra     testCategoryResult `json:"infra,omitempty"`
+	Peers     testCategoryResult `json:"charon_peers"`
+	Beacon    testCategoryResult `json:"beacon_node"`
+	Validator testCategoryResult `json:"validator_client"`
+	MEV       testCategoryResult `json:"mev"`
+	Infra     testCategoryResult `json:"infra"`
 }
 
 func appendScore(cat []string, score []string) []string {

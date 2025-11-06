@@ -91,6 +91,7 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 
 	// Get all partial signatures.
 	blsSigs := make(map[int]tbls.Signature)
+
 	for _, parSig := range parSigs {
 		sig, err := tblsconv.SigFromCore(parSig.Signature())
 		if err != nil {
@@ -118,6 +119,7 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 
 	// Fix for validator index sent only by validator client and not peers.
 	var fullSig core.SignedData
+
 	for _, parSig := range parSigs {
 		attVidx, ok := parSig.SignedData.(core.VersionedAttestation)
 		if !ok {

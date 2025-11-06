@@ -271,6 +271,7 @@ func EthsToGweis(ethAmounts []int) []eth2p0.Gwei {
 	}
 
 	var gweiAmounts []eth2p0.Gwei
+
 	for _, ethAmount := range ethAmounts {
 		gwei := eth2p0.Gwei(OneEthInGwei * ethAmount)
 		gweiAmounts = append(gweiAmounts, gwei)

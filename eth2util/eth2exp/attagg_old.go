@@ -29,10 +29,7 @@ func IsAttAggregator(ctx context.Context, specProvider eth2client.SpecProvider, 
 		return false, errors.New("invalid TARGET_AGGREGATORS_PER_COMMITTEE")
 	}
 
-	modulo := commLen / aggsPerComm
-	if modulo < 1 {
-		modulo = 1
-	}
+	modulo := max(commLen/aggsPerComm, 1)
 
 	return hashModulo(slotSig, modulo)
 }
@@ -62,10 +59,7 @@ func IsSyncCommAggregator(ctx context.Context, specProvider eth2client.SpecProvi
 		return false, errors.New("invalid TARGET_AGGREGATORS_PER_SYNC_SUBCOMMITTEE")
 	}
 
-	modulo := commSize / commSubnetCount / aggsPerComm
-	if modulo < 1 {
-		modulo = 1
-	}
+	modulo := max(commSize/commSubnetCount/aggsPerComm, 1)
 
 	return hashModulo(sig, modulo)
 }

@@ -358,6 +358,7 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 		}
 		// wait for the next slot - time it took createMEVBlock - 1 sec
 		sleepWithContext(ctx, slotTime-time.Since(startIteration)%slotTime-time.Second)
+
 		startBeaconBlockFetch := time.Now()
 		// get the new latest block, produced during 'nextSlot'
 		latestBlock, err = latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
@@ -492,6 +493,7 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 			// the current proposer was not registered with the builder, wait for next block
 			if errors.Is(err, errStatusCodeNot200) {
 				sleepWithContext(ctx, slotTime-time.Since(startIteration)-time.Second)
+
 				startBeaconBlockFetch := time.Now()
 
 				latestBlock, err = latestBeaconBlock(ctx, conf.BeaconNodeEndpoint)
