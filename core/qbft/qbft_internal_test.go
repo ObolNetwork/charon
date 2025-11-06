@@ -545,6 +545,7 @@ func newMsg(typ MsgType, instance int64, source int64, round int64, value int64,
 	pr int64, pv int64, justify []Msg[int64, int64, int64],
 ) Msg[int64, int64, int64] {
 	var msgs []msg
+
 	for _, j := range justify {
 		m := j.(msg)
 		m.justify = nil // Clear nested justifications.

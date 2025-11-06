@@ -111,6 +111,7 @@ func (Herumi) ThresholdSplitInsecure(t *testing.T, secret PrivateKey, total uint
 	}
 
 	ret := make(map[int]PrivateKey)
+
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 
@@ -161,6 +162,7 @@ func (Herumi) ThresholdSplit(secret PrivateKey, total uint, threshold uint) (map
 	}
 
 	ret := make(map[int]PrivateKey)
+
 	for i := 1; i <= int(total); i++ {
 		var blsID bls.ID
 

@@ -11,7 +11,7 @@ import (
 )
 
 func TestDelayForIteration(t *testing.T) {
-	for i := 0; i < 13; i++ {
+	for i := range 13 {
 		delay := delayForIteration(i)
 		t.Log(delay)
 

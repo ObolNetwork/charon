@@ -65,6 +65,7 @@ func (s ValidatorSet) ByPublicKey(pubkey eth2p0.BLSPubKey) (*eth2v1.Validator, b
 // CorePubKeys is a convenience function to extract the core workflow public keys from the validators.
 func (s ValidatorSet) CorePubKeys() ([]core.PubKey, error) {
 	var resp []core.PubKey
+
 	for _, validator := range s {
 		pk, err := core.PubKeyFromBytes(validator.Validator.PublicKey[:])
 		if err != nil {
@@ -338,10 +339,7 @@ func WithDeterministicAttesterDuties(factor int) Option {
 	// Aggregation duties assigned using committee_length=factor and TARGET_AGGREGATORS_PER_COMMITTEE (=16).
 	// So validators are aggregators 1 out of every committee_length/TARGET_AGGREGATORS_PER_COMMITTEE or factor/16.
 	// So if all validators are aggregators if factor<=16.
-	commLength := uint64(factor)
-	if commLength < 1 {
-		commLength = 1
-	}
+	commLength := max(uint64(factor), 1)
 
 	valCommIndex := commLength - 1 // Validator always last index in committee.
 
@@ -764,6 +762,7 @@ func (c *responseCapture) WriteHeader(code int) {
 	if c.wroteHeader {
 		return
 	}
+
 	c.wroteHeader = true
 	c.status = code
 }
@@ -772,10 +771,12 @@ func (c *responseCapture) Write(p []byte) (int, error) {
 	if !c.wroteHeader {
 		c.WriteHeader(http.StatusOK)
 	}
+
 	n, err := c.body.Write(p)
 	if err != nil {
 		return n, errors.Wrap(err, "write to capture buffer")
 	}
+
 	return n, nil
 }
 

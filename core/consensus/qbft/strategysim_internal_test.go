@@ -602,6 +602,7 @@ func (s *transportSimulator) processBuffer() {
 	now := s.clock.Now()
 
 	var remaining []tuple
+
 	for _, tuple := range s.buffer {
 		if tuple.Arrive.After(now) {
 			remaining = append(remaining, tuple)
@@ -816,6 +817,7 @@ func randomConfigs(names []string, peers int, n int, timer func(clockwork.Clock)
 
 func randomPeerLatencies(peers int, n int, selectFrom []time.Duration, random *rand.Rand) []map[int64]time.Duration {
 	var resp []map[int64]time.Duration
+
 	for range n {
 		m := make(map[int64]time.Duration)
 		for i := range peers {

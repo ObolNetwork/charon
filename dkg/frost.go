@@ -88,6 +88,7 @@ func runFrostParallel(ctx context.Context, tp fTransport, numValidators, numNode
 // newFrostParticipants returns multiple frost dkg participants (one for each parallel validator).
 func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, dgkCtx string) (map[uint32]*frost.DkgParticipant, error) {
 	var otherIDs []uint32
+
 	for i := uint32(1); i <= numNodes; i++ {
 		if i == shareIdx {
 			continue
@@ -97,6 +98,7 @@ func newFrostParticipants(numValidators, numNodes, threshold, shareIdx uint32, d
 	}
 
 	resp := make(map[uint32]*frost.DkgParticipant)
+
 	for vIdx := range numValidators {
 		p, err := frost.NewDkgParticipant(
 			shareIdx,

@@ -5,6 +5,7 @@ package pedersen
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	kdkg "github.com/drand/kyber/share/dkg"
 
@@ -35,13 +36,17 @@ func (l *kyberLogger) Info(keyvals ...any) {
 
 func concatKeyVals(keyvals []any) (str string, err error) {
 	// In fact, all keyvals are strings except errors
+	var strSb38 strings.Builder
+
 	for _, v := range keyvals {
 		if maybeErr, ok := v.(error); ok {
 			err = maybeErr
 		} else {
-			str += fmt.Sprintf("%v", v)
+			strSb38.WriteString(fmt.Sprintf("%v", v))
 		}
 	}
+
+	str += strSb38.String()
 
 	return str, err
 }

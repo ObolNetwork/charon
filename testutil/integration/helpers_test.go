@@ -47,7 +47,8 @@ func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 		}
 
 		actual = make(map[any]bool)
-		a.callbacks.Range(func(k, v interface{}) bool {
+
+		a.callbacks.Range(func(k, v any) bool {
 			actual[k] = true
 
 			return true
@@ -89,6 +90,7 @@ func externalIP(t *testing.T) string {
 
 		for _, addr := range addrs {
 			var ip net.IP
+
 			switch v := addr.(type) {
 			case *net.IPNet:
 				ip = v.IP

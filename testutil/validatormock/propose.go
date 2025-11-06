@@ -270,6 +270,7 @@ func Register(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 // NewSigner returns a signing function supporting the provided private keys.
 func NewSigner(secrets ...tbls.PrivateKey) (SignFunc, error) {
 	secretByPubkey := make(map[eth2p0.BLSPubKey]tbls.PrivateKey)
+
 	for _, secret := range secrets {
 		pk, err := tbls.SecretToPublicKey(secret)
 		if err != nil {

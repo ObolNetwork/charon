@@ -102,6 +102,7 @@ func TestPeerBuilderAPIEnabledGauge(t *testing.T) {
 
 func semvers(s ...string) []version.SemVer {
 	var resp []version.SemVer
+
 	for _, v := range s {
 		sv, _ := version.Parse(v)
 		resp = append(resp, sv)

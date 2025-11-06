@@ -815,6 +815,7 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2ap
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+
 	for _, agg := range aggsAndProofs {
 		slot, err := agg.Slot()
 		if err != nil {
@@ -891,6 +892,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+
 	for _, msg := range messages {
 		slot := msg.Slot
 
@@ -942,6 +944,7 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 	}
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+
 	for _, contrib := range contributionAndProofs {
 		var (
 			slot = contrib.Message.Contribution.Slot
@@ -1233,6 +1236,7 @@ func (Component) NodeVersion(context.Context, *eth2api.NodeVersionOpts) (*eth2ap
 // convertValidators returns the validator map with root public keys replaced by public shares for all validators that are part of the cluster.
 func (c Component) convertValidators(vals map[eth2p0.ValidatorIndex]*eth2v1.Validator, ignoreNotFound bool) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
 	resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
 	for vIdx, rawVal := range vals {
 		if rawVal == nil || rawVal.Validator == nil {
 			return nil, errors.New("validator data cannot be nil")

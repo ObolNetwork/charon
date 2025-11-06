@@ -96,6 +96,7 @@ func checksumAddressBytes(addressBytes []byte) string {
 	hexHash := hex.EncodeToString(h.Sum(nil))
 
 	resp := []rune{'0', 'x'}
+
 	for i, c := range []rune(hexAddr) {
 		if c > '9' && hexHash[i] > '7' {
 			c = unicode.ToUpper(c)

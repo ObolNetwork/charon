@@ -403,7 +403,7 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 			Method:     http.MethodGet,
 			Endpoint:   "/eth/v2/beacon/blocks/" + blockID,
 			StatusCode: http.StatusNotFound,
-			Data:       []byte(fmt.Sprintf(`{"code":404,"message":"NOT_FOUND: beacon block at slot %s","stacktraces":[]}`, blockID)),
+			Data:       fmt.Appendf(nil, `{"code":404,"message":"NOT_FOUND: beacon block at slot %s","stacktraces":[]}`, blockID),
 		}
 	}
 

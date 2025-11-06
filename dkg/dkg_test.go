@@ -731,6 +731,7 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 	p2pNodeCallback := testutil.NewP2PNodeCallback(t, dkgsync.Protocols()...)
 
 	var configs []dkg.Config
+
 	for i := range len(def.Operators) {
 		conf := dkg.Config{
 			DataDir: path.Join(dir, fmt.Sprintf("node%d", i)),

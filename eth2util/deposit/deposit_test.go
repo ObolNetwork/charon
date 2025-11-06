@@ -266,7 +266,7 @@ func TestReadDepositDataFiles_Errors(t *testing.T) {
 		// Corrupt pubkey
 		require.NoError(t, os.Remove(file))
 
-		var ddList []map[string]interface{}
+		var ddList []map[string]any
 		require.NoError(t, json.Unmarshal(bytes, &ddList))
 		ddList[0]["pubkey"] = "zzzz"
 		corruptBytes, err := json.Marshal(ddList)
@@ -287,7 +287,7 @@ func TestReadDepositDataFiles_Errors(t *testing.T) {
 		bytes, err := os.ReadFile(file)
 		require.NoError(t, err)
 
-		var ddList []map[string]interface{}
+		var ddList []map[string]any
 		require.NoError(t, json.Unmarshal(bytes, &ddList))
 		ddList[0]["pubkey"] = "abcd" // too short
 		corruptBytes, err := json.Marshal(ddList)
@@ -309,7 +309,7 @@ func TestReadDepositDataFiles_Errors(t *testing.T) {
 		bytes, err := os.ReadFile(file)
 		require.NoError(t, err)
 
-		var ddList []map[string]interface{}
+		var ddList []map[string]any
 		require.NoError(t, json.Unmarshal(bytes, &ddList))
 		ddList[0]["withdrawal_credentials"] = "badhex"
 		corruptBytes, err := json.Marshal(ddList)
@@ -331,7 +331,7 @@ func TestReadDepositDataFiles_Errors(t *testing.T) {
 		bytes, err := os.ReadFile(file)
 		require.NoError(t, err)
 
-		var ddList []map[string]interface{}
+		var ddList []map[string]any
 		require.NoError(t, json.Unmarshal(bytes, &ddList))
 		ddList[0]["signature"] = "badhex"
 		corruptBytes, err := json.Marshal(ddList)
@@ -353,7 +353,7 @@ func TestReadDepositDataFiles_Errors(t *testing.T) {
 		bytes, err := os.ReadFile(file)
 		require.NoError(t, err)
 
-		var ddList []map[string]interface{}
+		var ddList []map[string]any
 		require.NoError(t, json.Unmarshal(bytes, &ddList))
 		ddList[0]["signature"] = "abcd" // too short
 		corruptBytes, err := json.Marshal(ddList)

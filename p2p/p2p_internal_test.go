@@ -61,6 +61,7 @@ func TestFilterAdvertisedAddrs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			cast := func(addrs []string) []ma.Multiaddr {
 				var resp []ma.Multiaddr
+
 				for _, addr := range addrs {
 					maddr, err := ma.NewMultiaddr(addr)
 					require.NoError(t, err)

@@ -33,12 +33,14 @@ func ContainsField(err error, field Field) bool {
 	fields := Fields(err)
 
 	var targetField zap.Field
+
 	field(func(zapField zap.Field) {
 		targetField = zapField
 	})
 
 	return slices.ContainsFunc(fields, func(f Field) bool {
 		var sourceField zap.Field
+
 		f(func(zapField zap.Field) {
 			sourceField = zapField
 		})

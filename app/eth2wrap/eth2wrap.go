@@ -245,6 +245,7 @@ func isBadGateway(err error) bool {
 				// Ignore other errno values
 			}
 		}
+
 		if errors.Is(current, http.ErrAbortHandler) {
 			return true
 		}

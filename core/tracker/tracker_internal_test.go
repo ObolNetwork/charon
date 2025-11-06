@@ -24,7 +24,7 @@ import (
 )
 
 func TestStepString(t *testing.T) {
-	for step := zero; step < sentinel; step++ {
+	for step := range sentinel {
 		require.NotEmpty(t, step.String())
 	}
 }
@@ -436,9 +436,11 @@ func TestTrackerParticipation(t *testing.T) {
 
 	// ParSignedDataSet to be sent by ParSigExEvent per duty per peer for all the DVs.
 	psigDataPerDutyPerPeer := make(map[core.Duty][]core.ParSignedDataSet)
+
 	for _, td := range testData {
 		// ParSignedDataSet for each peer.
 		var data []core.ParSignedDataSet
+
 		for _, p := range peers {
 			set := make(core.ParSignedDataSet)
 
@@ -714,6 +716,7 @@ func setupData(t *testing.T, slots []int, numVals int) ([]testDutyData, []core.P
 		unsignedset := make(core.UnsignedDataSet)
 
 		parsignedset := make(core.ParSignedDataSet)
+
 		for i := range numVals {
 			defset[pubkeysByIdx[eth2p0.ValidatorIndex(i)]] = core.NewAttesterDefinition(&eth2v1.AttesterDuty{
 				Slot:             eth2p0.Slot(slot),

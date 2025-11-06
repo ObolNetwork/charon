@@ -423,6 +423,7 @@ func TestFetchSyncContribution(t *testing.T) {
 				signedMsg       core.SignedSyncMessage
 				signedSelection core.SyncCommitteeSelection
 			)
+
 			for _, msg := range syncMsgsByPubkey {
 				m, ok := msg.(core.SignedSyncMessage)
 				require.True(t, ok)

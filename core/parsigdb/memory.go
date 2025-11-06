@@ -179,6 +179,7 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 // clone returns a deep copy of the provided map.
 func clone(output map[core.PubKey][]core.ParSignedData) map[core.PubKey][]core.ParSignedData {
 	clone := make(map[core.PubKey][]core.ParSignedData)
+
 	for pubkey, sigs := range output {
 		var clones []core.ParSignedData
 

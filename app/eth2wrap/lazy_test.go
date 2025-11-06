@@ -82,7 +82,7 @@ func TestLazy_Proxy(t *testing.T) {
 
 	l := eth2wrap.NewLazyForT(client)
 
-	req, err := http.NewRequest("GET", "", nil)
+	req, err := http.NewRequest(http.MethodGet, "", nil)
 	require.NoError(t, err)
 	_, err = l.Proxy(t.Context(), req)
 	require.NoError(t, err)

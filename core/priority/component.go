@@ -241,6 +241,7 @@ func topicProposalToProto(p TopicProposal) (*pbv1.PriorityTopicProposal, error) 
 	}
 
 	var priorities []*anypb.Any
+
 	for _, priority := range p.Priorities {
 		pb, err := anypb.New(structpb.NewStringValue(priority))
 		if err != nil {

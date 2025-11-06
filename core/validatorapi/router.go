@@ -1629,11 +1629,13 @@ func proxy(p eth2client.ProxyProvider) http.HandlerFunc {
 		// Copy response to writer
 		maps.Copy(w.Header(), res.Header)
 		w.WriteHeader(res.StatusCode)
+
 		if res.Body != nil {
 			_, err = io.Copy(w, res.Body)
 			if err != nil {
 				log.Error(ctx, "Failed writing api response", err)
 			}
+
 			_ = res.Body.Close()
 		}
 	}

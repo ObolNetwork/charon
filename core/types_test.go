@@ -60,6 +60,7 @@ func TestWithDutySpanCtx(t *testing.T) {
 	}()
 
 	core.SetClusterHash([]byte("cluster_hash"))
+
 	_, span1_1 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
 	_, span1_2 := core.StartDutyTrace(ctx, core.Duty{}, "span1")
 	_, span2 := core.StartDutyTrace(ctx, core.Duty{}, "span2")

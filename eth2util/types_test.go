@@ -33,7 +33,7 @@ func TestUnmarshallingSignedEpoch(t *testing.T) {
 	sig := testutil.RandomBytes96()
 
 	newTmpl := `{"epoch":"%d","signature":"%#x"}`
-	b := []byte(fmt.Sprintf(newTmpl, epoch, sig))
+	b := fmt.Appendf(nil, newTmpl, epoch, sig)
 
 	var e1 eth2util.SignedEpoch
 

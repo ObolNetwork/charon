@@ -426,9 +426,12 @@ func parseEth2Methods(pkg *packages.Package) ([]Method, []string, error) {
 					var doc string
 
 					if method.Doc != nil {
+						var docSb429 strings.Builder
 						for line := range strings.SplitSeq(strings.TrimSpace(method.Doc.Text()), "\n") {
-							doc += "// " + line + "\n"
+							docSb429.WriteString("// " + line + "\n")
 						}
+
+						doc += docSb429.String()
 					}
 
 					successFunc := "nil,"
