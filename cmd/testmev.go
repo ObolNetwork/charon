@@ -41,6 +41,7 @@ type testMEVConfig struct {
 	BeaconNodeEndpoint string
 	LoadTest           bool
 	NumberOfPayloads   uint
+	XTimeoutMs         uint
 }
 
 type testCaseMEV func(context.Context, *testMEVConfig, string) testResult
@@ -97,6 +98,7 @@ func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix str
 	cmd.Flags().StringVar(&config.BeaconNodeEndpoint, flagsPrefix+"beacon-node-endpoint", "", "[REQUIRED] Beacon node endpoint URL used for block creation test.")
 	cmd.Flags().BoolVar(&config.LoadTest, flagsPrefix+"load-test", false, "Enable load test.")
 	cmd.Flags().UintVar(&config.NumberOfPayloads, flagsPrefix+"number-of-payloads", 1, "Increases the accuracy of the load test by asking for multiple payloads. Increases test duration.")
+	cmd.Flags().UintVar(&config.XTimeoutMs, flagsPrefix+"x-timeout-ms", 1000, "X-Timeout-Ms header flag for each request in milliseconds, used by MEVs to compute maximum delay for reply.")
 	mustMarkFlagRequired(cmd, flagsPrefix+"endpoints")
 }
 
@@ -342,12 +344,16 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 
 	allBlocksRTT := []time.Duration{}
 
-	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target), z.Any("blocks", conf.NumberOfPayloads))
+	headers := map[string]string{
+		"X-Timeout-Ms": strconv.FormatUint(uint64(conf.XTimeoutMs), 10),
+	}
+
+	log.Info(ctx, "Starting attempts for block creation", z.Any("mev_relay", target), z.Any("blocks", conf.NumberOfPayloads), z.Uint("x-timeout-ms", conf.XTimeoutMs))
 
 	for ctx.Err() == nil {
 		startIteration := time.Now()
 
-		rtt, err := createMEVBlock(ctx, conf, target, nextSlot, latestBlock, proposerDuties)
+		rtt, err := createMEVBlock(ctx, conf, target, headers, nextSlot, latestBlock, proposerDuties)
 		if err != nil {
 			return failedTestResult(testRes, err)
 		}
@@ -382,7 +388,7 @@ func mevCreateBlockTest(ctx context.Context, conf *testMEVConfig, target string)
 
 	averageRTT := totalRTT / time.Duration(len(allBlocksRTT))
 
-	testRes = evaluateRTT(averageRTT, testRes, thresholdMEVBlockAvg, thresholdMEVBlockPoor)
+	testRes = evaluateRTT(averageRTT, testRes, time.Duration(conf.XTimeoutMs*9/10)*time.Millisecond, time.Duration(conf.XTimeoutMs)*time.Millisecond)
 
 	return testRes
 }
@@ -413,7 +419,7 @@ func formatMEVRelayName(urlString string) string {
 	return splitScheme[0] + "://" + hashShort + "@" + hashSplit[1]
 }
 
-func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHash string, validatorPubKey string) (builderspec.VersionedSignedBuilderBid, time.Duration, error) {
+func getBlockHeader(ctx context.Context, target string, headers map[string]string, nextSlot int64, blockHash string, validatorPubKey string) (builderspec.VersionedSignedBuilderBid, time.Duration, error) {
 	var (
 		start     time.Time
 		firstByte time.Duration
@@ -434,6 +440,11 @@ func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHas
 	if err != nil {
 		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http request")
 	}
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	req.Header.Set("Date-Milliseconds", strconv.FormatInt(time.Now().UnixMilli(), 10))
 
 	resp, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil {
@@ -463,7 +474,7 @@ func getBlockHeader(ctx context.Context, target string, nextSlot int64, blockHas
 	return builderBid, rttGetHeader, nil
 }
 
-func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nextSlot int64, latestBlock BeaconBlockMessage, proposerDuties []ProposerDutiesData) (time.Duration, error) {
+func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, headers map[string]string, nextSlot int64, latestBlock BeaconBlockMessage, proposerDuties []ProposerDutiesData) (time.Duration, error) {
 	var (
 		rttGetHeader time.Duration
 		builderBid   builderspec.VersionedSignedBuilderBid
@@ -487,7 +498,7 @@ func createMEVBlock(ctx context.Context, conf *testMEVConfig, target string, nex
 			}
 		}
 
-		builderBid, rttGetHeader, err = getBlockHeader(ctx, target, nextSlot, latestBlock.Body.ExecutionPayload.BlockHash, validatorPubKey)
+		builderBid, rttGetHeader, err = getBlockHeader(ctx, target, headers, nextSlot, latestBlock.Body.ExecutionPayload.BlockHash, validatorPubKey)
 		if err != nil {
 			// the current proposer was not registered with the builder, wait for next block
 			if errors.Is(err, errStatusCodeNot200) {
