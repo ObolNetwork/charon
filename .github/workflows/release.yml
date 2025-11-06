@@ -25,7 +25,7 @@ jobs:
         run: go run testutil/genchangelog/main.go
 
       - name: Create GitHub release draft
-        uses: softprops/action-gh-release@d5382d3e6f2fa7bd53cb749d33091853d4985daf # v2.3.0
+        uses: softprops/action-gh-release@6da8fa9354ddfdc4aeace5fc48d7f679b5214090 # v2.4.1
         with:
           draft: true
           files: cli-reference.txt
