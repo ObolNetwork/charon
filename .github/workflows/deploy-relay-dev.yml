@@ -20,7 +20,7 @@ jobs:
     name: Deploy Relay - Dev
     steps:
     - name: Trigger relay nonprod deploy job
-      uses: peter-evans/repository-dispatch@v4
+      uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
       with:
         token: ${{ secrets.CHARON_K8S_REPO_ACCESS_TOKEN }}
         repository: ObolNetwork/obol-infrastructure
