@@ -300,8 +300,8 @@ github.com/influxdata/line-protocol v0.0.0-20210922203350-b1ad95c89adf h1:7JTmne
 github.com/influxdata/line-protocol v0.0.0-20210922203350-b1ad95c89adf/go.mod h1:xaLFMmpvUxqXtVkUJfg9QmT88cDaCJ3ZKgdZ78oO8Qo=
 github.com/ipfs/go-cid v0.5.0 h1:goEKKhaGm0ul11IHA7I6p1GmKz8kEYniqFopaB5Otwg=
 github.com/ipfs/go-cid v0.5.0/go.mod h1:0L7vmeNXpQpUS9vt+yEARkJ8rOg43DF3iPgn4GIN0mk=
-github.com/ipfs/go-log/v2 v2.8.2 h1:nVG4nNHUwwI/sTs9Bi5iE8sXFQwXs3AjkkuWhg7+Y2I=
-github.com/ipfs/go-log/v2 v2.8.2/go.mod h1:UhIYAwMV7Nb4ZmihUxfIRM2Istw/y9cAk3xaK+4Zs2c=
+github.com/ipfs/go-log/v2 v2.9.0 h1:l4b06AwVXwldIzbVPZy5z7sKp9lHFTX0KWfTBCtHaOk=
+github.com/ipfs/go-log/v2 v2.9.0/go.mod h1:UhIYAwMV7Nb4ZmihUxfIRM2Istw/y9cAk3xaK+4Zs2c=
 github.com/jackpal/go-nat-pmp v1.0.2 h1:KzKSgb7qkJvOUTqYl9/Hg/me3pWgBmERKrTGD7BdWus=
 github.com/jackpal/go-nat-pmp v1.0.2/go.mod h1:QPH045xvCAeXUZOxsnwmrtiCoxIr9eob+4orBN1SBKc=
 github.com/jbenet/go-temp-err-catcher v0.1.0 h1:zpb3ZH6wIE8Shj2sKS+khgRvf7T7RABoLk/+KKHggpk=
