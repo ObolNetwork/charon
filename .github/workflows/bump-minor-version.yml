@@ -38,9 +38,22 @@ jobs:
           # Use the 'new_tag' output, e.g., "v1.8.0"
           NEW_V_VERSION="${{ steps.bump.outputs.new_tag }}"
           
-          # Extract major and minor version numbers (e.g., v1.8.0 -> 1 and 8)
-          MAJOR=$(echo "$NEW_V_VERSION" | sed -E 's/v([0-9]+)\.([0-9]+)\.([0-9]+)/\1/')
-          MINOR=$(echo "$NEW_V_VERSION" | sed -E 's/v([0-9]+)\.([0-9]+)\.([0-9]+)/\2/')
+          # Extract major and minor version numbers
+          # Handles formats: v1.8.0, v1.8-dev, v1.8-rc1, etc.
+          MAJOR=$(echo "$NEW_V_VERSION" | sed -E 's/^v([0-9]+)\.([0-9]+).*/\1/')
+          MINOR=$(echo "$NEW_V_VERSION" | sed -E 's/^v([0-9]+)\.([0-9]+).*/\2/')
+          
+          # Validate that we successfully extracted major and minor versions
+          if [[ -z "$MAJOR" ]] || [[ -z "$MINOR" ]]; then
+            echo "::error::Failed to extract major/minor version from: $NEW_V_VERSION"
+            exit 1
+          fi
+          
+          # Validate that major and minor are numeric
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid version format. MAJOR=$MAJOR, MINOR=$MINOR (expected numeric values)"
+            exit 1
+          fi
           
           # Create branch names
           RELEASE_BRANCH="main-v${MAJOR}.${MINOR}"
@@ -50,6 +63,7 @@ jobs:
           echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
           echo "WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
           
+          echo "::notice::Extracted versions - MAJOR: ${MAJOR}, MINOR: ${MINOR}"
           echo "::notice::Creating release branch: ${RELEASE_BRANCH}"
           echo "::notice::Creating work branch: ${WORK_BRANCH}"
           echo "::notice::New version: ${NEW_V_VERSION}"
