@@ -2,11 +2,6 @@ name: Bump Minor Version
 
 on:
   workflow_dispatch:
-    inputs:
-      version_file:
-        description: 'Path to the version file'
-        required: true
-        default: 'app/version/version.go' # Correct path to version file
 
 jobs:
   create_minor_release_pr:
@@ -86,7 +81,7 @@ jobs:
 
       - name: 5. Modify App Version in Code
         run: |
-          VERSION_FILE="${{ inputs.version_file }}"
+          VERSION_FILE="app/version/version.go"
           NEW_VERSION="${{ steps.vars.outputs.NEW_V_VERSION }}" # e.g., "v1.8.0"
 
           echo "::notice file=$VERSION_FILE::Bumping version in $VERSION_FILE to $NEW_VERSION"
@@ -118,7 +113,7 @@ jobs:
             - **Target Branch:** `${{ steps.vars.outputs.RELEASE_BRANCH }}`
             
             ## Changes
-            - Updated version in `${{ inputs.version_file }}` from `${{ steps.bump.outputs.previous_tag }}` to `${{ steps.vars.outputs.NEW_V_VERSION }}`
+            - Updated version in `app/version/version.go` from `${{ steps.bump.outputs.previous_tag }}` to `${{ steps.vars.outputs.NEW_V_VERSION }}`
             
             ## Next Steps
             After this PR is merged, the `${{ steps.vars.outputs.RELEASE_BRANCH }}` branch will have the updated version and can be used for further release processes.
