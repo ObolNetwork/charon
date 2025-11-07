@@ -25,7 +25,7 @@ jobs:
           
       - name: 2. Get and Increment Version
         id: bump
-        uses: mathieudutour/github-tag-action@v6.2
+        uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # NOTE: This workflow ignores conventional commit messages and always bumps the minor version.
@@ -86,7 +86,7 @@ jobs:
           echo "---"
 
       - name: 6. Create Pull Request to Release Branch
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "app: bump minor version to ${{ steps.vars.outputs.NEW_V_VERSION }}"
