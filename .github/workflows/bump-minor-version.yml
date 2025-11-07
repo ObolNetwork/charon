@@ -84,7 +84,7 @@ jobs:
           VERSION_FILE="app/version/version.go"
           NEW_VERSION="${{ steps.vars.outputs.NEW_V_VERSION }}" # e.g., "v1.8.0"
 
-          echo "::notice file=$VERSION_FILE::Bumping version in $VERSION_FILE to $NEW_VERSION"
+          echo "::notice file=$VERSION_FILE,line=18::Bumping version in $VERSION_FILE to $NEW_VERSION"
           
           # Use sed to find the line and replace only the version string
           sed -i -E "s/^(var version = ).*/\1\"$NEW_VERSION\"/" "$VERSION_FILE"
