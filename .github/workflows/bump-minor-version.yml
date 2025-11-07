@@ -70,12 +70,12 @@ jobs:
           
           RELEASE_BRANCH="${{ steps.vars.outputs.RELEASE_BRANCH }}"
           
-          # Create the release branch from main
-          git checkout -b "$RELEASE_BRANCH"
+          # Create the release branch from main (use -B to reset if exists)
+          git checkout -B "$RELEASE_BRANCH"
           git push origin "$RELEASE_BRANCH"
           
-          # Explicitly checkout the release branch to ensure subsequent steps run on it
-          git checkout "$RELEASE_BRANCH"
+          # The release branch is already checked out; no need to checkout again.
+          
           
           echo "::notice::Created and pushed release branch: $RELEASE_BRANCH"
 
