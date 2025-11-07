@@ -28,6 +28,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v6.2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # NOTE: This workflow ignores conventional commit messages and always bumps the minor version.
           default_bump: minor # Will go from v1.7.X -> v1.8.0
           dry_run: true # Don't create tag yet, just calculate the new version
           
@@ -64,6 +65,9 @@ jobs:
           git checkout -b "$RELEASE_BRANCH"
           git push origin "$RELEASE_BRANCH"
           
+          # Explicitly checkout the release branch to ensure subsequent steps run on it
+          git checkout "$RELEASE_BRANCH"
+          
           echo "::notice::Created and pushed release branch: $RELEASE_BRANCH"
 
       - name: 5. Modify App Version in Code
@@ -74,12 +78,7 @@ jobs:
           echo "::notice file=$VERSION_FILE::Bumping version in $VERSION_FILE to $NEW_VERSION"
           
           # Use sed to find the line and replace only the version string
-          # This works on both Linux and macOS
-          if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' -E "s/^(var version = ).*/\1\"$NEW_VERSION\"/" "$VERSION_FILE"
-          else
-            sed -i -E "s/^(var version = ).*/\1\"$NEW_VERSION\"/" "$VERSION_FILE"
-          fi
+          sed -i -E "s/^(var version = ).*/\1\"$NEW_VERSION\"/" "$VERSION_FILE"
 
           # Verify the change
           echo "--- Verifying change in $VERSION_FILE"
