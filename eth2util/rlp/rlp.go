@@ -168,7 +168,7 @@ func toBigEndian(i int) []byte {
 
 // fromBigEndian returns the integer encoded as big endian at the provided byte slice offset and length.
 func fromBigEndian(b []byte, offset int, length int) (int, error) {
-	if offset >= len(b) || offset+length >= len(b) {
+	if offset >= len(b) || offset+length > len(b) {
 		return 0, errors.New("input too short")
 	}
 
