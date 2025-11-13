@@ -21,15 +21,18 @@ import (
 )
 
 type ChainReorgEventHandlerFunc func(ctx context.Context, epoch eth2p0.Epoch)
+type BlockEventHandlerFunc func(ctx context.Context, slot eth2p0.Slot)
 
 type Listener interface {
 	SubscribeChainReorgEvent(ChainReorgEventHandlerFunc)
+	SubscribeBlockEvent(BlockEventHandlerFunc)
 }
 
 type listener struct {
 	sync.Mutex
 
 	chainReorgSubs []ChainReorgEventHandlerFunc
+	blockSubs      []BlockEventHandlerFunc
 	lastReorgEpoch eth2p0.Epoch
 
 	// immutable fields
@@ -55,6 +58,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 
 	l := &listener{
 		chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
+		blockSubs:      make([]BlockEventHandlerFunc, 0),
 		genesisTime:    genesisTime,
 		slotDuration:   slotDuration,
 		slotsPerEpoch:  slotsPerEpoch,
@@ -92,6 +96,13 @@ func (p *listener) SubscribeChainReorgEvent(handler ChainReorgEventHandlerFunc) 
 	defer p.Unlock()
 
 	p.chainReorgSubs = append(p.chainReorgSubs, handler)
+}
+
+func (p *listener) SubscribeBlockEvent(handler BlockEventHandlerFunc) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.blockSubs = append(p.blockSubs, handler)
 }
 
 func (p *listener) eventHandler(ctx context.Context, event *event, addr string) error {
@@ -247,6 +258,8 @@ func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr stri
 
 	sseBlockHistogram.WithLabelValues(addr).Observe(delay.Seconds())
 
+	p.notifyBlockEvent(ctx, eth2p0.Slot(slot))
+
 	return nil
 }
 
@@ -261,6 +274,15 @@ func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 	p.lastReorgEpoch = epoch
 	for _, sub := range p.chainReorgSubs {
 		sub(ctx, epoch)
+	}
+}
+
+func (p *listener) notifyBlockEvent(ctx context.Context, slot eth2p0.Slot) {
+	p.Lock()
+	defer p.Unlock()
+
+	for _, sub := range p.blockSubs {
+		sub(ctx, slot)
 	}
 }
 

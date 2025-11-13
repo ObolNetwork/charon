@@ -81,13 +81,14 @@ func New(builderRegistrations []cluster.BuilderRegistration, eth2Cl eth2wrap.Cli
 	}
 
 	return &Scheduler{
-		eth2Cl:               eth2Cl,
-		builderRegistrations: registrations,
-		quit:                 make(chan struct{}),
-		duties:               make(map[core.Duty]core.DutyDefinitionSet),
-		dutiesByEpoch:        make(map[uint64][]core.Duty),
-		epochResolved:        make(map[uint64]chan struct{}),
-		clock:                clockwork.NewRealClock(),
+		eth2Cl:                     eth2Cl,
+		builderRegistrations:       registrations,
+		quit:                       make(chan struct{}),
+		duties:                     make(map[core.Duty]core.DutyDefinitionSet),
+		dutiesByEpoch:              make(map[uint64][]core.Duty),
+		epochResolved:              make(map[uint64]chan struct{}),
+		eventTriggeredAttestations: make(map[uint64]bool),
+		clock:                      clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
 		},
@@ -116,6 +117,8 @@ type Scheduler struct {
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
+	eventTriggeredAttestations map[uint64]bool          // Track attestation duties triggered via sse block event
+	eventTriggeredMutex        sync.Mutex
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -183,6 +186,71 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 	} else {
 		log.Warn(ctx, "Chain reorg event ignored due to disabled SSEReorgDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
 	}
+}
+
+// markAttestationEventTriggered checks if an attestation at this slot was already triggered and marks it as triggered.
+// Returns true if the attestation was already triggered before.
+func (s *Scheduler) markAttestationEventTriggered(slot uint64) bool {
+	s.eventTriggeredMutex.Lock()
+	defer s.eventTriggeredMutex.Unlock()
+	if s.eventTriggeredAttestations[slot] {
+		return true
+	}
+	s.eventTriggeredAttestations[slot] = true
+	return false
+}
+
+// triggerDuty triggers all duty subscribers with the provided duty and definition set.
+func (s *Scheduler) triggerDuty(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) {
+	instrumentDuty(duty, defSet)
+
+	dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
+	if duty.Type == core.DutyProposer {
+		var span trace.Span
+		dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
+		defer span.End()
+	}
+
+	for _, sub := range s.dutySubs {
+		clone, err := defSet.Clone()
+		if err != nil {
+			log.Error(dutyCtx, "Failed to clone duty definition set", err)
+			return
+		}
+
+		if err := sub(dutyCtx, duty, clone); err != nil {
+			log.Error(dutyCtx, "Failed to trigger duty subscriber", err)
+		}
+	}
+}
+
+// HandleBlockEvent handles block processing events from SSE and triggers early attestation data fetching.
+func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot) {
+	if !featureset.Enabled(featureset.FetchAttOnBlock) {
+		return
+	}
+
+	if s.markAttestationEventTriggered(uint64(slot)) {
+		return
+	}
+
+	duty := core.Duty{
+		Slot: uint64(slot),
+		Type: core.DutyAttester,
+	}
+	defSet, ok := s.getDutyDefinitionSet(duty)
+	if !ok {
+		// No attester duties for this slot, ignore
+		log.Debug(ctx, "No attester duties for slot, skipping early fetch",
+			z.U64("slot", uint64(slot)))
+		return
+	}
+
+	log.Debug(ctx, "Early attestation fetch triggered by SSE block event",
+		z.U64("slot", uint64(slot)))
+
+	// Trigger duty immediately (early fetch)
+	go s.triggerDuty(ctx, duty, defSet)
 }
 
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
@@ -276,33 +344,23 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		}
 
 		// Trigger duty async
-		go func() {
-			if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
-				return // context cancelled
-			}
-
-			instrumentDuty(duty, defSet)
-
-			dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
-			if duty.Type == core.DutyProposer {
-				var span trace.Span
-
-				dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
-				defer span.End()
-			}
-
-			for _, sub := range s.dutySubs {
-				clone, err := defSet.Clone() // Clone for each subscriber.
-				if err != nil {
-					log.Error(dutyCtx, "Failed to clone duty definition set", err)
-					return
+		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
+			// Special handling for attester duties when FetchAttOnBlock is enabled
+			if duty.Type == core.DutyAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
+				if !s.waitForBlockEventOrTimeout(ctx, slot, duty) {
+					return // context cancelled
 				}
-
-				if err := sub(dutyCtx, duty, clone); err != nil {
-					log.Error(dutyCtx, "Failed to trigger duty subscriber", err, z.U64("slot", slot.Slot))
+				if s.markAttestationEventTriggered(duty.Slot) {
+					return // already triggered via block event
+				}
+			} else {
+				if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
+					return // context cancelled
 				}
 			}
-		}()
+
+			s.triggerDuty(ctx, duty, defSet)
+		}(duty, defSet)
 	}
 
 	if slot.LastInEpoch() {
@@ -329,6 +387,28 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	case <-ctx.Done():
 		return false
 	case <-delayFunc(duty, deadline):
+		return true
+	}
+}
+
+// waitForBlockEventOrTimeout waits for attestation duty with timeout fallback.
+// Returns immediately if the duty was already triggered via block event.
+// Otherwise waits until T=1/3 + 300ms (fallback timeout).
+func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot, duty core.Duty) bool {
+	// Calculate fallback timeout: 1/3 + 300ms
+	fn, ok := slotOffsets[core.DutyAttester]
+	if !ok {
+		return true
+	}
+	offset := fn(slot.SlotDuration) + 300*time.Millisecond
+	fallbackDeadline := slot.Time.Add(offset)
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-s.clock.After(time.Until(fallbackDeadline)):
+		log.Debug(ctx, "Fallback timeout reached for attestation, no block event received, possibly fetching stale head",
+			z.U64("slot", slot.Slot))
 		return true
 	}
 }

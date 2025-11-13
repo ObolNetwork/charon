@@ -70,6 +70,10 @@ const (
 	// ChainSplitHalt compares locally fetched attestation's target and source to leader's proposed target and source attestation.
 	// In case they differ, Charon does not sign the attestation.
 	ChainSplitHalt = "chain_split_halt"
+
+	// FetchAttOnBlock enables fetching attestation data upon block processing event from beacon node via SSE.
+	// Fallback to T=1/3+300ms if block event is not received in time.
+	FetchAttOnBlock = "fetch_att_on_block"
 )
 
 var (
@@ -88,6 +92,7 @@ var (
 		QUIC:                 statusAlpha,
 		FetchOnlyCommIdx0:    statusAlpha,
 		ChainSplitHalt:       statusAlpha,
+		FetchAttOnBlock:      statusAlpha,
 		// Add all features and their status here.
 	}
 

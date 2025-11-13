@@ -506,6 +506,88 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	require.NoError(t, <-doneCh)
 }
 
+func TestHandleBlockEvent(t *testing.T) {
+	var (
+		t0     time.Time
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	featureset.EnableForT(t, featureset.FetchAttOnBlock)
+
+	// Configure beacon mock.
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithDeterministicAttesterDuties(1),
+		beaconmock.WithSlotsPerEpoch(4),
+	)
+	require.NoError(t, err)
+
+	// Construct scheduler.
+	schedSlotCh := make(chan core.Slot)
+	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
+		select {
+		case <-ctx.Done():
+			return
+		case schedSlotCh <- slot:
+		}
+	}
+	clock := newTestClock(t0)
+	dd := new(delayer)
+	valRegs := beaconmock.BuilderRegistrationSetA
+	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc, false)
+
+	// Track triggered duties
+	var triggeredDuties []core.Duty
+	var dutyMux sync.Mutex
+
+	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
+		dutyMux.Lock()
+		defer dutyMux.Unlock()
+		triggeredDuties = append(triggeredDuties, duty)
+		return nil
+	})
+
+	doneCh := make(chan error, 1)
+
+	go func() {
+		doneCh <- sched.Run()
+		close(schedSlotCh)
+	}()
+
+	for slot := range schedSlotCh {
+		clock.Pause()
+
+		switch slot.Slot {
+		case 1:
+			// Trigger block event for slot 1 (should trigger attester duty for slot 1 early)
+			sched.HandleBlockEvent(t.Context(), 1)
+
+			// Give a moment for async trigger
+			time.Sleep(50 * time.Millisecond)
+
+			dutyMux.Lock()
+			hasAttester1 := false
+			for _, d := range triggeredDuties {
+				if d.Type == core.DutyAttester && d.Slot == 1 {
+					hasAttester1 = true
+					break
+				}
+			}
+			dutyMux.Unlock()
+
+			require.True(t, hasAttester1, "Attester duty for slot 1 should be triggered early by block event for slot 1")
+
+			sched.Stop()
+		}
+
+		clock.Resume()
+	}
+
+	require.NoError(t, <-doneCh)
+}
+
 func TestSubmitValidatorRegistrations(t *testing.T) {
 	// The test uses hard-coded validator registrations from beaconmock.BuilderRegistrationSetA.
 	// The scheduler advances through 3 epochs to ensure it triggers the registration submission.

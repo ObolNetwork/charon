@@ -477,6 +477,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	sseListener.SubscribeChainReorgEvent(sched.HandleChainReorgEvent)
+	sseListener.SubscribeBlockEvent(sched.HandleBlockEvent)
 
 	feeRecipientFunc := func(pubkey core.PubKey) string {
 		return feeRecipientAddrByCorePubkey[pubkey]
