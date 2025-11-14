@@ -50,7 +50,7 @@ jobs:
 
       - name: Trigger dispatch for obol-docs
         if: env.TAG_VALID == 'true'
-        uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
           repository: ObolNetwork/obol-docs
@@ -58,7 +58,7 @@ jobs:
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
 
       - name: Trigger dispatch for helm-charts
-        uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         if: env.TAG_VALID == 'true'
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
@@ -67,7 +67,7 @@ jobs:
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
 
       - name: Trigger dispatch for obol-ansible
-        uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         if: env.TAG_VALID == 'true'
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
@@ -76,7 +76,7 @@ jobs:
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
 
       - name: Trigger dispatch for CDVN
-        uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         if: env.TAG_VALID == 'true'
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
@@ -85,7 +85,7 @@ jobs:
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
 
       - name: Trigger dispatch for CDVC
-        uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         if: env.TAG_VALID == 'true'
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
@@ -94,7 +94,7 @@ jobs:
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
 
       - name: Trigger dispatch for LCDVN
-        uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         if: env.TAG_VALID == 'true'
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
@@ -103,7 +103,7 @@ jobs:
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
 
       - name: Trigger dispatch for Launchpad
-        uses: peter-evans/repository-dispatch@5fc4efd1a4797ddb68ffd0714a238564e4cc0e6f # v4.0.0
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         if: env.TAG_VALID == 'true'
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
