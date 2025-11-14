@@ -559,8 +559,7 @@ func TestHandleBlockEvent(t *testing.T) {
 	for slot := range schedSlotCh {
 		clock.Pause()
 
-		switch slot.Slot {
-		case 1:
+		if slot.Slot == 1 {
 			// Trigger block event for slot 1 (should trigger attester duty for slot 1 early)
 			sched.HandleBlockEvent(t.Context(), 1)
 

@@ -240,14 +240,11 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot) {
 	}
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
-		// No attester duties for this slot, ignore
-		log.Debug(ctx, "No attester duties for slot, skipping early fetch",
-			z.U64("slot", uint64(slot)))
+		// Nothing for this duty.
 		return
 	}
 
-	log.Debug(ctx, "Early attestation fetch triggered by SSE block event",
-		z.U64("slot", uint64(slot)))
+	log.Debug(ctx, "Early attestation data fetch triggered by SSE block event", z.U64("slot", uint64(slot)))
 
 	// Trigger duty immediately (early fetch)
 	go s.triggerDuty(ctx, duty, defSet)
@@ -347,16 +344,14 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			// Special handling for attester duties when FetchAttOnBlock is enabled
 			if duty.Type == core.DutyAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
-				if !s.waitForBlockEventOrTimeout(ctx, slot, duty) {
+				if !s.waitForBlockEventOrTimeout(ctx, slot) {
 					return // context cancelled
 				}
 				if s.markAttestationEventTriggered(duty.Slot) {
 					return // already triggered via block event
 				}
-			} else {
-				if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
-					return // context cancelled
-				}
+			} else if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
+				return // context cancelled
 			}
 
 			s.triggerDuty(ctx, duty, defSet)
@@ -394,7 +389,7 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 // waitForBlockEventOrTimeout waits for attestation duty with timeout fallback.
 // Returns immediately if the duty was already triggered via block event.
 // Otherwise waits until T=1/3 + 300ms (fallback timeout).
-func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot, duty core.Duty) bool {
+func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout: 1/3 + 300ms
 	fn, ok := slotOffsets[core.DutyAttester]
 	if !ok {
