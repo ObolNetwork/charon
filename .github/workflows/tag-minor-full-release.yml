@@ -64,7 +64,30 @@ jobs:
           echo "::notice::Stable version: ${STABLE_VERSION}"
           echo "::notice::Next dev version: ${NEXT_DEV_VERSION}"
 
-      - name: 4. Update Release Branch to Stable Version
+      - name: 4. Validate Version Files
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          VERSION_FILE="app/version/version.go"
+
+          # Check release branch has expected RC version
+          git checkout "$RELEASE_BRANCH"
+          if ! grep -q "var version = \"v${MAJOR}\.${MINOR}-rc\"" "$VERSION_FILE"; then
+            echo "::error::Expected version pattern v${MAJOR}.${MINOR}-rc not found in $VERSION_FILE on branch $RELEASE_BRANCH"
+            exit 1
+          fi
+          echo "::notice::Release branch version validated: v${MAJOR}.${MINOR}-rc"
+
+          # Check main branch has expected dev version
+          git checkout main
+          if ! grep -q "var version = \"v${MAJOR}\.${MINOR}-dev\"" "$VERSION_FILE"; then
+            echo "::error::Expected version pattern v${MAJOR}.${MINOR}-dev not found in $VERSION_FILE on main branch"
+            exit 1
+          fi
+          echo "::notice::Main branch version validated: v${MAJOR}.${MINOR}-dev"
+
+      - name: 5. Update Release Branch to Stable Version
         id: stable_pr
         run: |
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
@@ -82,14 +105,20 @@ jobs:
           # Replace v<MAJOR>.<MINOR>-rc with v<MAJOR>.<MINOR>.0
           sed -i -E "s/^(var version = )\"v${MAJOR}\.${MINOR}-rc\"/\1\"${STABLE_VERSION}\"/" "$VERSION_FILE"
 
-          # Verify the change
+          # Verify the change was successful
+          if ! grep -q "var version = \"${STABLE_VERSION}\"" "$VERSION_FILE"; then
+            echo "::error::Failed to update version to ${STABLE_VERSION} in $VERSION_FILE"
+            exit 1
+          fi
+
+          # Display the change
           echo "::notice::Updated $VERSION_FILE:"
           grep "var version" "$VERSION_FILE"
 
           echo "WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
           echo "::notice::Prepared work branch: ${WORK_BRANCH}"
 
-      - name: 5. Create PR to Release Branch for Stable Version
+      - name: 6. Create PR to Release Branch for Stable Version
         uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v7.0.5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -111,18 +140,18 @@ jobs:
 
             ## Next Steps
             1. Review and merge this PR
-            2. After merge, the workflow will automatically tag `${{ steps.version.outputs.STABLE_VERSION }}`
-            3. A separate PR will be created to bump `main` to `${{ steps.version.outputs.NEXT_DEV_VERSION }}`
+            2. After merge, manually create and push the tag `${{ steps.version.outputs.STABLE_VERSION }}`
+            3. A separate PR has been created to bump `main` to `${{ steps.version.outputs.NEXT_DEV_VERSION }}`
 
             category: misc
             ticket: none
 
-      - name: 6. Checkout Main Branch for Dev Version Bump
+      - name: 7. Checkout Main Branch for Dev Version Bump
         run: |
           git fetch origin main
           git checkout main
 
-      - name: 7. Update Main to Next Dev Version
+      - name: 8. Update Main to Next Dev Version
         id: dev_pr
         run: |
           NEXT_DEV_VERSION="${{ steps.version.outputs.NEXT_DEV_VERSION }}"
@@ -137,14 +166,20 @@ jobs:
           VERSION_FILE="app/version/version.go"
           sed -i -E "s/^(var version = ).*/\1\"${NEXT_DEV_VERSION}\"/" "$VERSION_FILE"
 
-          # Verify the change
+          # Verify the change was successful
+          if ! grep -q "var version = \"${NEXT_DEV_VERSION}\"" "$VERSION_FILE"; then
+            echo "::error::Failed to update version to ${NEXT_DEV_VERSION} in $VERSION_FILE"
+            exit 1
+          fi
+
+          # Display the change
           echo "::notice::Updated $VERSION_FILE:"
           grep "var version" "$VERSION_FILE"
 
           echo "DEV_WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
           echo "::notice::Prepared dev work branch: ${WORK_BRANCH}"
 
-      - name: 8. Create PR to Main for Next Dev Version
+      - name: 9. Create PR to Main for Next Dev Version
         uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v7.0.5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -171,26 +206,6 @@ jobs:
             category: misc
             ticket: none
 
-      - name: 9. Checkout Release Branch and Create Stable Tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
-          STABLE_VERSION="${{ steps.version.outputs.STABLE_VERSION }}"
-
-          # Checkout release branch at latest commit
-          git checkout "$RELEASE_BRANCH"
-          git pull origin "$RELEASE_BRANCH"
-
-          # Create annotated tag
-          git tag -a "$STABLE_VERSION" -m "Release $STABLE_VERSION"
-
-          # Push tag
-          git push origin "$STABLE_VERSION"
-
-          echo "::notice::Successfully created and pushed stable tag: $STABLE_VERSION"
-
       - name: 10. Output Summary
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
@@ -207,15 +222,19 @@ jobs:
              - Branch: \`${{ steps.dev_pr.outputs.DEV_WORK_BRANCH }}\`
              - Target: \`main\`
              - Version: \`${{ steps.version.outputs.NEXT_DEV_VERSION }}\`
-             - Status: Merge AFTER stable release is complete
-
-          ### Tag Created
-          - \`${{ steps.version.outputs.STABLE_VERSION }}\` on \`${{ steps.find_branch.outputs.RELEASE_BRANCH }}\`
+             - Status: Merge AFTER stable version PR is merged
 
           ### Next Steps
           1. Review and merge the stable version PR to \`${{ steps.find_branch.outputs.RELEASE_BRANCH }}\`
-          2. Docker image will be built with tag \`${{ steps.version.outputs.STABLE_VERSION }}\`
-          3. Merge the dev version PR to \`main\` to start the next development cycle
+          2. After the stable PR is merged, manually create and push the tag \`${{ steps.version.outputs.STABLE_VERSION }}\`:
+             \`\`\`bash
+             git checkout ${{ steps.find_branch.outputs.RELEASE_BRANCH }}
+             git pull
+             git tag -a ${{ steps.version.outputs.STABLE_VERSION }} -m "Release ${{ steps.version.outputs.STABLE_VERSION }}"
+             git push origin ${{ steps.version.outputs.STABLE_VERSION }}
+             \`\`\`
+          3. Docker image will be built with tag \`${{ steps.version.outputs.STABLE_VERSION }}\`
+          4. Merge the dev version PR to \`main\` to start the next development cycle
 
           **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a separate workflow.
           EOF
