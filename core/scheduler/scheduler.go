@@ -81,14 +81,13 @@ func New(builderRegistrations []cluster.BuilderRegistration, eth2Cl eth2wrap.Cli
 	}
 
 	return &Scheduler{
-		eth2Cl:                     eth2Cl,
-		builderRegistrations:       registrations,
-		quit:                       make(chan struct{}),
-		duties:                     make(map[core.Duty]core.DutyDefinitionSet),
-		dutiesByEpoch:              make(map[uint64][]core.Duty),
-		epochResolved:              make(map[uint64]chan struct{}),
-		eventTriggeredAttestations: make(map[uint64]bool),
-		clock:                      clockwork.NewRealClock(),
+		eth2Cl:               eth2Cl,
+		builderRegistrations: registrations,
+		quit:                 make(chan struct{}),
+		duties:               make(map[core.Duty]core.DutyDefinitionSet),
+		dutiesByEpoch:        make(map[uint64][]core.Duty),
+		epochResolved:        make(map[uint64]chan struct{}),
+		clock:                clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
 		},
@@ -117,8 +116,7 @@ type Scheduler struct {
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
-	eventTriggeredAttestations map[uint64]bool          // Track attestation duties triggered via sse block event
-	eventTriggeredMutex        sync.Mutex
+	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse block event (map[uint64]bool)
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -188,18 +186,6 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 	}
 }
 
-// markAttestationEventTriggered checks if an attestation at this slot was already triggered and marks it as triggered.
-// Returns true if the attestation was already triggered before.
-func (s *Scheduler) markAttestationEventTriggered(slot uint64) bool {
-	s.eventTriggeredMutex.Lock()
-	defer s.eventTriggeredMutex.Unlock()
-	if s.eventTriggeredAttestations[slot] {
-		return true
-	}
-	s.eventTriggeredAttestations[slot] = true
-	return false
-}
-
 // triggerDuty triggers all duty subscribers with the provided duty and definition set.
 func (s *Scheduler) triggerDuty(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) {
 	instrumentDuty(duty, defSet)
@@ -230,7 +216,8 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot) {
 		return
 	}
 
-	if s.markAttestationEventTriggered(uint64(slot)) {
+	_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(uint64(slot), true)
+	if alreadyTriggered {
 		return
 	}
 
@@ -347,7 +334,8 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				if !s.waitForBlockEventOrTimeout(ctx, slot) {
 					return // context cancelled
 				}
-				if s.markAttestationEventTriggered(duty.Slot) {
+				_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(slot.Slot, true)
+				if alreadyTriggered {
 					return // already triggered via block event
 				}
 			} else if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
