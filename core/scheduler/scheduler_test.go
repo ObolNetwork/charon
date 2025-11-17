@@ -506,7 +506,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	require.NoError(t, <-doneCh)
 }
 
-func TestHandleBlockEvent(t *testing.T) {
+func TestFetchAttOnBlock(t *testing.T) {
 	var (
 		t0     time.Time
 		valSet = beaconmock.ValidatorSetA
@@ -519,7 +519,7 @@ func TestHandleBlockEvent(t *testing.T) {
 		t.Context(),
 		beaconmock.WithValidatorSet(valSet),
 		beaconmock.WithGenesisTime(t0),
-		beaconmock.WithDeterministicAttesterDuties(1),
+		beaconmock.WithDeterministicAttesterDuties(1), // Duties in slots 0, 1, 2
 		beaconmock.WithSlotsPerEpoch(4),
 	)
 	require.NoError(t, err)
@@ -557,31 +557,55 @@ func TestHandleBlockEvent(t *testing.T) {
 	}()
 
 	for slot := range schedSlotCh {
-		clock.Pause()
+		if slot.Slot == 0 {
+			// Test case 1: Happy path - single block event triggers early
+			sched.HandleBlockEvent(t.Context(), 0)
+
+			require.Eventually(t, func() bool {
+				dutyMux.Lock()
+				defer dutyMux.Unlock()
+				for _, d := range triggeredDuties {
+					if d.Type == core.DutyAttester && d.Slot == 0 {
+						return true
+					}
+				}
+				return false
+			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 0 should be triggered by block event")
+		}
 
 		if slot.Slot == 1 {
-			// Trigger block event for slot 1 (should trigger attester duty for slot 1 early)
+			// Test case 2: Deduplication - two block events should only trigger once
 			sched.HandleBlockEvent(t.Context(), 1)
+			sched.HandleBlockEvent(t.Context(), 1) // Duplicate
 
-			// Give a moment for async trigger
-			time.Sleep(50 * time.Millisecond)
-
-			dutyMux.Lock()
-			hasAttester1 := false
-			for _, d := range triggeredDuties {
-				if d.Type == core.DutyAttester && d.Slot == 1 {
-					hasAttester1 = true
-					break
+			require.Eventually(t, func() bool {
+				dutyMux.Lock()
+				defer dutyMux.Unlock()
+				count := 0
+				for _, d := range triggeredDuties {
+					if d.Type == core.DutyAttester && d.Slot == 1 {
+						count++
+					}
 				}
-			}
-			dutyMux.Unlock()
+				return count == 1
+			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 1 should only be triggered once despite duplicate block events")
+		}
 
-			require.True(t, hasAttester1, "Attester duty for slot 1 should be triggered early by block event for slot 1")
+		if slot.Slot == 2 {
+			// Test case 3: Fallback - no block event, timeout should trigger
+			require.Eventually(t, func() bool {
+				dutyMux.Lock()
+				defer dutyMux.Unlock()
+				for _, d := range triggeredDuties {
+					if d.Type == core.DutyAttester && d.Slot == 2 {
+						return true
+					}
+				}
+				return false
+			}, 2*time.Second, 50*time.Millisecond, "Attester duty for slot 2 should be triggered by fallback timeout")
 
 			sched.Stop()
 		}
-
-		clock.Resume()
 	}
 
 	require.NoError(t, <-doneCh)

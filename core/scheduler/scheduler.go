@@ -216,18 +216,18 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot) {
 		return
 	}
 
-	_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(uint64(slot), true)
-	if alreadyTriggered {
-		return
-	}
-
 	duty := core.Duty{
 		Slot: uint64(slot),
 		Type: core.DutyAttester,
 	}
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
-		// Nothing for this duty.
+		// Nothing for this duty
+		return
+	}
+
+	_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(uint64(slot), true)
+	if alreadyTriggered {
 		return
 	}
 
@@ -374,9 +374,8 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	}
 }
 
-// waitForBlockEventOrTimeout waits for attestation duty with timeout fallback.
-// Returns immediately if the duty was already triggered via block event.
-// Otherwise waits until T=1/3 + 300ms (fallback timeout).
+// waitForBlockEventOrTimeout waits until the fallback timeout (T=1/3 + 300ms) is reached.
+// Returns false if the context is cancelled, true otherwise.
 func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout: 1/3 + 300ms
 	fn, ok := slotOffsets[core.DutyAttester]
@@ -753,6 +752,30 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 	}
 
 	delete(s.dutiesByEpoch, epoch)
+
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
+		s.trimEventTriggeredAttestations(epoch)
+	}
+}
+
+// trimEventTriggeredAttestations removes old slot entries from eventTriggeredAttestations.
+func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil {
+		return
+	}
+
+	minSlotToKeep := (epoch + 1) * slotsPerEpoch // first slot of next epoch
+	s.eventTriggeredAttestations.Range(func(key, value interface{}) bool {
+		slot := key.(uint64)
+		if slot < minSlotToKeep {
+			s.eventTriggeredAttestations.Delete(slot)
+		}
+		return true // continue iteration
+	})
 }
 
 // submitValidatorRegistrations submits the validator registrations for all DVs.
