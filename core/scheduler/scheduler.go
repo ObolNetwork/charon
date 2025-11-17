@@ -769,8 +769,11 @@ func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
 	}
 
 	minSlotToKeep := (epoch + 1) * slotsPerEpoch // first slot of next epoch
-	s.eventTriggeredAttestations.Range(func(key, value interface{}) bool {
-		slot := key.(uint64)
+	s.eventTriggeredAttestations.Range(func(key, _ any) bool {
+		slot, ok := key.(uint64)
+		if !ok {
+			return true // continue iteration
+		}
 		if slot < minSlotToKeep {
 			s.eventTriggeredAttestations.Delete(slot)
 		}
