@@ -25,7 +25,7 @@ func newDKGCmd(runFunc func(context.Context, dkg.Config) error) *cobra.Command {
 distributed validator key shares and a final cluster lock configuration. Note that all other cluster operators should run
 this command at the same time.`,
 		Args: cobra.NoArgs,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
+		PreRunE: func(_ *cobra.Command, _ []string) error {
 			if len(config.Nickname) > 32 {
 				return errors.New("--nickname exceeds 32 character limit")
 			}
