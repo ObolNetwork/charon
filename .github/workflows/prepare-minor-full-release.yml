@@ -104,7 +104,7 @@ jobs:
         run: |
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
           STABLE_VERSION="${{ steps.version.outputs.STABLE_VERSION }}"
-          WORK_BRANCH="gh-actions/bump-version-to-${STABLE_VERSION}-stable"
+          WORK_BRANCH="obol-gh-actions/bump-version-to-${STABLE_VERSION}-stable"
 
           # Create work branch from release branch
           git checkout -B "$WORK_BRANCH" "origin/$RELEASE_BRANCH"
@@ -171,7 +171,7 @@ jobs:
           NEXT_MINOR="${{ steps.version.outputs.NEXT_MINOR }}"
           MAJOR="${{ steps.version.outputs.MAJOR }}"
           MINOR="${{ steps.version.outputs.MINOR }}"
-          WORK_BRANCH="gh-actions/bump-version-to-v${MAJOR}.${NEXT_MINOR}-dev"
+          WORK_BRANCH="obol-gh-actions/bump-version-to-v${MAJOR}.${NEXT_MINOR}-dev"
 
           # Create work branch from main
           git checkout -B "$WORK_BRANCH" origin/main
