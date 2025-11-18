@@ -27,10 +27,12 @@ jobs:
 
       - name: 2. Find Latest Release Branch
         id: find_branch
+        env:
+          INPUT_RELEASE_BRANCH: ${{ inputs.release_branch }}
         run: |
           # If release branch was provided as input, use it
-          if [[ -n "${{ inputs.release_branch }}" ]]; then
-            RELEASE_BRANCH="${{ inputs.release_branch }}"
+          if [[ -n "$INPUT_RELEASE_BRANCH" ]]; then
+            RELEASE_BRANCH="$INPUT_RELEASE_BRANCH"
 
             # Validate input format
             if [[ ! "$RELEASE_BRANCH" =~ ^main-v[0-9]+\.[0-9]+$ ]]; then
