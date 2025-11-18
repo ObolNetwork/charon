@@ -66,7 +66,8 @@ type Config struct {
 
 	AppendConfig *AppendConfig
 
-	Zipped bool
+	Zipped   bool
+	Nickname string
 }
 
 // TestConfig defines additional test-only config for DKG.
@@ -280,7 +281,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig)
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig, conf.Nickname)
 	if err != nil {
 		return err
 	}
@@ -491,7 +492,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a step sync and shutdown functions
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKey, defHash []byte,
-	peerIDs []peer.ID, onFailure func(), testConfig TestConfig,
+	peerIDs []peer.ID, onFailure func(), testConfig TestConfig, nickname string,
 ) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, err error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
@@ -515,7 +516,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(pID)))
 
-		client := sync.NewClient(p2pNode, pID, hashSig, minorVersion, testConfig.SyncOpts...)
+		client := sync.NewClient(p2pNode, pID, hashSig, minorVersion, nickname, testConfig.SyncOpts...)
 		clients = append(clients, client)
 
 		go func() {
