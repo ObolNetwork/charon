@@ -8,7 +8,7 @@ require (
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/drand/kyber v1.3.1
-	github.com/drand/kyber-bls12381 v0.3.3
+	github.com/drand/kyber-bls12381 v0.3.4
 	github.com/ethereum/go-ethereum v1.16.7
 	github.com/ferranbt/fastssz v1.0.0
 	github.com/golang/snappy v1.0.0
@@ -271,7 +271,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20251002181428-27f1f14c8bb9 // indirect
 	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/telemetry v0.0.0-20251008203120-078029d740a8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
