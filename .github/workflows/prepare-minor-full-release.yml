@@ -109,17 +109,18 @@ jobs:
           # Create work branch from release branch
           git checkout -B "$WORK_BRANCH" "origin/$RELEASE_BRANCH"
 
-          # Update version file from vX.Y-rc to vX.Y.0
+          # Update version file from vX.Y-rc to vX.Y
           VERSION_FILE="app/version/version.go"
           MAJOR="${{ steps.version.outputs.MAJOR }}"
           MINOR="${{ steps.version.outputs.MINOR }}"
+          VERSION_IN_CODE="v${MAJOR}.${MINOR}"
 
-          # Replace v<MAJOR>.<MINOR>-rc with v<MAJOR>.<MINOR>.0
-          sed -i -E "s/^(var version = )\"v${MAJOR}\.${MINOR}-rc\"/\1\"${STABLE_VERSION}\"/" "$VERSION_FILE"
+          # Replace v<MAJOR>.<MINOR>-rc with v<MAJOR>.<MINOR>
+          sed -i -E "s/^(var version = )\"v${MAJOR}\.${MINOR}-rc\"/\1\"${VERSION_IN_CODE}\"/" "$VERSION_FILE"
 
           # Verify the change was successful
-          if ! grep -q "var version = \"${STABLE_VERSION}\"" "$VERSION_FILE"; then
-            echo "::error::Failed to update version to ${STABLE_VERSION} in $VERSION_FILE"
+          if ! grep -q "var version = \"${VERSION_IN_CODE}\"" "$VERSION_FILE"; then
+            echo "::error::Failed to update version to ${VERSION_IN_CODE} in $VERSION_FILE"
             exit 1
           fi
 
