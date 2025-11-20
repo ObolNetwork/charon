@@ -305,6 +305,13 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			return nil, errors.Wrap(err, "new proposal")
 		}
 
+		// Track whether the proposal of a peer for a slot is blinded (1) or local (0)
+		var blinded float64
+		if proposal.Blinded {
+			blinded = 1
+		}
+		proposalBlindedGauge.Set(blinded)
+
 		resp[pubkey] = coreProposal
 	}
 
