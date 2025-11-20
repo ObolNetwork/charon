@@ -1,0 +1,287 @@
+name: Prepare Minor Full Release
+description: |
+  This workflow creates pull requests to update version files for a minor full release.
+  After the PRs are merged, a tag for the stable release should be created manually.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prepare_minor_full_release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0 # Required to get all tags and branches
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 2. Find Latest Release Branch
+        id: find_branch
+        run: |
+          # Fetch all remote branches
+          git fetch --all
+
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+            exit 1
+          fi
+
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
+
+      - name: 3. Extract Version from Branch Name
+        id: version
+        run: |
+          BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Extract version from branch name (e.g., main-v1.8 -> 1.8)
+          if [[ ! "$BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid branch name format. Expected 'main-vX.Y', got: $BRANCH"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          STABLE_VERSION="v${MAJOR}.${MINOR}.0"
+          NEXT_MINOR=$((MINOR + 1))
+          NEXT_DEV_VERSION="v${MAJOR}.${NEXT_MINOR}-dev"
+
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+          echo "NEXT_MINOR=${NEXT_MINOR}" >> $GITHUB_OUTPUT
+          echo "STABLE_VERSION=${STABLE_VERSION}" >> $GITHUB_OUTPUT
+          echo "NEXT_DEV_VERSION=${NEXT_DEV_VERSION}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Stable version: ${STABLE_VERSION}"
+          echo "::notice::Next dev version: ${NEXT_DEV_VERSION}"
+
+      - name: 3b. Check if Stable Tag Already Exists
+        run: |
+          STABLE_VERSION="${{ steps.version.outputs.STABLE_VERSION }}"
+          if git tag -l "${STABLE_VERSION}" | grep -q .; then
+            echo "::error::Tag ${STABLE_VERSION} already exists. Aborting release."
+            exit 1
+          fi
+          echo "::notice::Tag ${STABLE_VERSION} does not exist. Proceeding."
+
+      - name: 4. Validate Version Files
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          VERSION_FILE="app/version/version.go"
+
+          # Check release branch has expected RC version
+          git checkout "$RELEASE_BRANCH"
+          if ! grep -q "var version = \"v${MAJOR}\.${MINOR}-rc\"" "$VERSION_FILE"; then
+            echo "::error::Expected version pattern v${MAJOR}.${MINOR}-rc not found in $VERSION_FILE on branch $RELEASE_BRANCH"
+            exit 1
+          fi
+          echo "::notice::Release branch version validated: v${MAJOR}.${MINOR}-rc"
+
+          # Check main branch has expected dev version
+          git checkout main
+          if ! grep -q "var version = \"v${MAJOR}\.${MINOR}-dev\"" "$VERSION_FILE"; then
+            echo "::error::Expected version pattern v${MAJOR}.${MINOR}-dev not found in $VERSION_FILE on main branch"
+            exit 1
+          fi
+          echo "::notice::Main branch version validated: v${MAJOR}.${MINOR}-dev"
+
+      - name: 5. Update Release Branch to Stable Version
+        id: stable_pr
+        run: |
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          STABLE_VERSION="${{ steps.version.outputs.STABLE_VERSION }}"
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          WORK_BRANCH="obol-gh-actions/bump-version-to-v${MAJOR}.${MINOR}"
+
+          # Checkout the release branch
+          git checkout "$RELEASE_BRANCH"
+
+          # Update version file from vX.Y-rc to vX.Y
+          VERSION_FILE="app/version/version.go"
+          VERSION_IN_CODE="v${MAJOR}.${MINOR}"
+
+          # Replace v<MAJOR>.<MINOR>-rc with v<MAJOR>.<MINOR>
+          sed -i -E "s/^(var version = )\"v${MAJOR}\.${MINOR}-rc\"/\1\"${VERSION_IN_CODE}\"/" "$VERSION_FILE"
+
+          # Verify the change was successful
+          if ! grep -q "var version = \"${VERSION_IN_CODE}\"" "$VERSION_FILE"; then
+            echo "::error::Failed to update version to ${VERSION_IN_CODE} in $VERSION_FILE"
+            exit 1
+          fi
+
+          # Display the change
+          echo "::notice::Updated $VERSION_FILE:"
+          grep "var version" "$VERSION_FILE"
+
+          echo "WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Prepared changes for: ${WORK_BRANCH}"
+
+      - name: 6. Create PR to Release Branch for Stable Version
+        id: create_stable_pr
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v7.0.5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "app/version: bump v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }} to stable"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          branch: ${{ steps.stable_pr.outputs.WORK_BRANCH }}
+          base: ${{ steps.find_branch.outputs.RELEASE_BRANCH }}
+          delete-branch: true
+          title: "app/version: bump v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }} to stable"
+          body: |
+            This pull request was automatically generated by the 'Prepare Minor Full Release' GitHub Action.
+
+            - **Release Branch:** `${{ steps.find_branch.outputs.RELEASE_BRANCH }}`
+            - **Stable Version:** `v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}`
+
+            ## Changes
+            - Updated version in `app/version/version.go` from `v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}-rc` to `v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}`
+
+            ## Next Steps
+            1. Review and merge this PR
+            2. After merge, proceed with "Tag Minor Full Release" workflow to create and push the tag `v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}.0`
+            3. A separate PR has been created to bump `main` to `${{ steps.version.outputs.NEXT_DEV_VERSION }}`
+
+            category: misc
+            ticket: none
+
+      - name: 7. Checkout Main Branch for Dev Version Bump
+        run: |
+          git fetch origin main
+          git checkout main
+
+      - name: 8. Update Main to Next Dev Version
+        id: dev_pr
+        run: |
+          NEXT_DEV_VERSION="${{ steps.version.outputs.NEXT_DEV_VERSION }}"
+          NEXT_MINOR="${{ steps.version.outputs.NEXT_MINOR }}"
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          WORK_BRANCH="obol-gh-actions/bump-version-to-v${MAJOR}.${NEXT_MINOR}-dev"
+
+          # Ensure we're on main branch
+          git checkout main
+
+          # Update version file to next dev version
+          VERSION_FILE="app/version/version.go"
+          sed -i -E "s/^(var version = )\"v${MAJOR}\.${MINOR}-dev\"/\1\"${NEXT_DEV_VERSION}\"/" "$VERSION_FILE"
+
+          # Verify the change was successful
+          if ! grep -q "var version = \"${NEXT_DEV_VERSION}\"" "$VERSION_FILE"; then
+            echo "::error::Failed to update version to ${NEXT_DEV_VERSION} in $VERSION_FILE"
+            exit 1
+          fi
+
+          # Display the change
+          echo "::notice::Updated $VERSION_FILE:"
+          grep "var version" "$VERSION_FILE"
+
+          echo "DEV_WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Prepared changes for: ${WORK_BRANCH}"
+
+      - name: 9. Create PR to Main for Next Dev Version
+        id: create_dev_pr
+        uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v7.0.5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "app: bump version to ${{ steps.version.outputs.NEXT_DEV_VERSION }}"
+          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          branch: ${{ steps.dev_pr.outputs.DEV_WORK_BRANCH }}
+          base: main
+          delete-branch: true
+          title: "app: bump version to ${{ steps.version.outputs.NEXT_DEV_VERSION }}"
+          body: |
+            This pull request was automatically generated by the 'Tag Minor Full Release' GitHub Action.
+
+            - **Target Branch:** `main`
+            - **New Dev Version:** `${{ steps.version.outputs.NEXT_DEV_VERSION }}`
+            - **Stable Release:** `${{ steps.version.outputs.STABLE_VERSION }}`
+
+            ## Changes
+            - Updated version in `app/version/version.go` to `${{ steps.version.outputs.NEXT_DEV_VERSION }}`
+
+            ## Next Steps
+            This PR should be merged after the stable version PR is merged to start the next development cycle.
+
+            category: misc
+            ticket: none
+
+      - name: 10. Output Summary
+        if: always()
+        run: |
+          STABLE_PR_NUMBER="${{ steps.create_stable_pr.outputs.pull-request-number }}"
+          DEV_PR_NUMBER="${{ steps.create_dev_pr.outputs.pull-request-number }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Minor Full Release Process Initiated
+
+          ### Created PRs
+          EOF
+
+          if [[ -n "$STABLE_PR_NUMBER" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          1. **Stable Version PR**
+             - PR: [#${STABLE_PR_NUMBER}](${REPO_URL}/pull/${STABLE_PR_NUMBER})
+             - Branch: \`${{ steps.stable_pr.outputs.WORK_BRANCH }}\`
+             - Target: \`${{ steps.find_branch.outputs.RELEASE_BRANCH }}\`
+             - Version: \`v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}\`
+             - Status: Ready to merge
+
+          EOF
+          else
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          1. **Stable Version PR**
+             - Status: Failed to create PR
+             - Please check the workflow logs for details
+
+          EOF
+          fi
+
+          if [[ -n "$DEV_PR_NUMBER" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          2. **Next Dev Version PR**
+             - PR: [#${DEV_PR_NUMBER}](${REPO_URL}/pull/${DEV_PR_NUMBER})
+             - Branch: \`${{ steps.dev_pr.outputs.DEV_WORK_BRANCH }}\`
+             - Target: \`main\`
+             - Version: \`${{ steps.version.outputs.NEXT_DEV_VERSION }}\`
+             - Status: Merge AFTER stable version PR is merged
+
+          EOF
+          else
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          2. **Next Dev Version PR**
+             - Status: Failed to create PR
+             - Please check the workflow logs for details
+
+          EOF
+          fi
+
+          # Only show next steps if both PRs were created successfully
+          if [[ -n "$STABLE_PR_NUMBER" && -n "$DEV_PR_NUMBER" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Next Steps
+          1. Review and merge the stable version PR to \`${{ steps.find_branch.outputs.RELEASE_BRANCH }}\`
+          2. After the stable PR is merged, run the "Tag Minor Full Release" workflow to create and push the tag \`${{ steps.version.outputs.STABLE_VERSION }}\`
+          3. Docker image will be built with tag \`${{ steps.version.outputs.STABLE_VERSION }}\`
+          4. Merge the dev version PR to \`main\` to start the next development cycle
+
+          **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a separate workflow.
+          EOF
+          fi<

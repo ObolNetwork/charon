@@ -1,0 +1,181 @@
+name: Tag Minor Full Release
+description: |
+  This workflow creates and pushes a tag for a minor full release.
+  It should be run after the stable version PR has been merged to the release branch.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Release branch to tag (e.g., main-v1.8)"
+        required: false
+        type: string
+
+jobs:
+  tag_minor_full_release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0 # Required to get all tags and branches
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 2. Find Latest Release Branch
+        id: find_branch
+        env:
+          INPUT_RELEASE_BRANCH: ${{ inputs.release_branch }}
+        run: |
+          # If release branch was provided as input, use it
+          if [[ -n "$INPUT_RELEASE_BRANCH" ]]; then
+            RELEASE_BRANCH="$INPUT_RELEASE_BRANCH"
+
+            # Validate input format
+            if [[ ! "$RELEASE_BRANCH" =~ ^main-v[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Invalid release branch format: ${RELEASE_BRANCH}"
+              echo "::error::Expected format: main-vX.Y (e.g., main-v1.8)"
+              exit 1
+            fi
+
+            echo "::notice::Using provided release branch: ${RELEASE_BRANCH}"
+          else
+            # Fetch all remote branches
+            git fetch --all
+
+            # Find all minor release branches matching pattern main-vX.Y
+            RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+            if [[ -z "$RELEASE_BRANCHES" ]]; then
+              echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+              exit 1
+            fi
+
+            # Get the latest release branch (last in sorted list)
+            RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+            echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
+          fi
+
+          # Verify the branch exists
+          if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch ${RELEASE_BRANCH} does not exist on remote"
+            exit 1
+          fi
+
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+
+      - name: 3. Extract Version from Branch Name
+        id: version
+        run: |
+          BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Extract version from branch name (e.g., main-v1.8 -> 1.8)
+          if [[ ! "$BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid branch name format. Expected 'main-vX.Y', got: $BRANCH"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          TAG_VERSION="v${MAJOR}.${MINOR}.0"
+
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+          echo "TAG_VERSION=${TAG_VERSION}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Tag version: ${TAG_VERSION}"
+
+      - name: 4. Check if Tag Already Exists
+        run: |
+          TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
+
+          # Fetch all tags
+          git fetch --tags
+
+          if git tag -l "${TAG_VERSION}" | grep -q .; then
+            echo "::error::Tag ${TAG_VERSION} already exists. Aborting."
+            exit 1
+          fi
+          echo "::notice::Tag ${TAG_VERSION} does not exist. Proceeding."
+
+      - name: 5. Checkout Release Branch
+        run: |
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          git checkout "$RELEASE_BRANCH"
+          git pull origin "$RELEASE_BRANCH"
+          echo "::notice::Checked out branch ${RELEASE_BRANCH}"
+
+      - name: 6. Verify Version File
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          VERSION_FILE="app/version/version.go"
+
+          # Check that version file contains the expected stable version (vX.Y without .0)
+          if ! grep -q "var version = \"v${MAJOR}.${MINOR}\"" "$VERSION_FILE"; then
+            echo "::error::Expected version v${MAJOR}.${MINOR} not found in ${VERSION_FILE}"
+            echo "::error::The stable version PR must be merged before tagging"
+            echo "Current version in file:"
+            grep "var version" "$VERSION_FILE"
+            exit 1
+          fi
+
+          echo "::notice::Version file validated: v${MAJOR}.${MINOR}"
+          echo "::notice::Stable version PR has been merged"
+
+      - name: 7. Create and Push Tag
+        id: create_and_push_tag
+        run: |
+          TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Create annotated tag
+          git tag -a "${TAG_VERSION}" -m "Release ${TAG_VERSION}"
+
+          # Push tag to remote
+          git push origin "${TAG_VERSION}"
+
+          echo "::notice::Successfully created and pushed tag ${TAG_VERSION}"
+
+      - name: 8. Output Summary
+        if: always()
+        run: |
+          TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          TAG_RESULT="${{ steps.create_and_push_tag.outcome }}"
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Minor Full Release Tagged
+
+          EOF
+
+          if [[ "$TAG_RESULT" = "success" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Tag Details
+          - **Tag:** \`${TAG_VERSION}\`
+          - **Branch:** \`${RELEASE_BRANCH}\`
+          - **Status:** Successfully created and pushed
+
+          ### Next Steps
+          1. Docker images will be built automatically with tag \`${TAG_VERSION}\`
+          2. Create release notes on GitHub
+          3. Merge the dev version PR to \`main\` to start the next development cycle
+
+          **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a separate workflow.
+          EOF
+          else
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Tag Creation Failed
+          - **Tag:** \`${TAG_VERSION}\`
+          - **Branch:** \`${RELEASE_BRANCH}\`
+          - **Status:** Failed to create or push tag
+          - Please check the workflow logs for details
+          EOF
+          fi
