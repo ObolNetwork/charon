@@ -1,0 +1,126 @@
+name: Tag Minor Release Candidate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tag_minor_release_candidate:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0 # Required to get all tags and branches
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 2. Find Latest Release Branch
+        id: find_branch
+        run: |
+          # Fetch all remote branches
+          git fetch --all
+
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+            exit 1
+          fi
+
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
+
+          # Checkout the release branch
+          git checkout "$RELEASE_BRANCH"
+
+      - name: 3. Extract Version from Branch Name
+        id: version
+        run: |
+          BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Extract version from branch name (e.g., main-v1.8 -> 1.8)
+          if [[ ! "$BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid branch name format. Expected 'main-vX.Y', got: $BRANCH"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          VERSION_PREFIX="v${MAJOR}.${MINOR}.0"
+
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+          echo "VERSION_PREFIX=${VERSION_PREFIX}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Extracted version prefix: ${VERSION_PREFIX}"
+
+      - name: 3. Find Latest Release Candidate
+        id: latest_rc
+        run: |
+          VERSION_PREFIX="${{ steps.version.outputs.VERSION_PREFIX }}"
+
+          # Find all RC tags for this version (e.g., v1.8.0-rc1, v1.8.0-rc2)
+          LATEST_RC_TAG=$(git tag -l "${VERSION_PREFIX}-rc*" | sort -V | tail -n 1)
+
+          if [[ -z "$LATEST_RC_TAG" ]]; then
+            # No RC found, this is the first one
+            LATEST_RC=0
+            echo "::notice::No previous release candidates found. Starting with rc1"
+          else
+            # Extract RC number from tag (e.g., v1.8.0-rc2 -> 2)
+            LATEST_RC=$(echo "$LATEST_RC_TAG" | sed -E 's/.*-rc([0-9]+)$/\1/')
+            echo "::notice::Found latest release candidate: ${LATEST_RC_TAG} (rc${LATEST_RC})"
+          fi
+
+          # Calculate next RC number
+          NEXT_RC=$((LATEST_RC + 1))
+          NEW_TAG="${VERSION_PREFIX}-rc${NEXT_RC}"
+
+          echo "LATEST_RC=${LATEST_RC}" >> $GITHUB_OUTPUT
+          echo "NEXT_RC=${NEXT_RC}" >> $GITHUB_OUTPUT
+          echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_OUTPUT
+
+          echo "::notice::New release candidate tag will be: ${NEW_TAG}"
+
+      - name: 4. Create and Push Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          NEW_TAG="${{ steps.latest_rc.outputs.NEW_TAG }}"
+
+          # Create annotated tag
+          git tag -a "$NEW_TAG" -m "Release candidate $NEW_TAG"
+
+          # Push tag
+          git push origin "$NEW_TAG"
+
+          echo "::notice::Successfully created and pushed tag: $NEW_TAG"
+
+      - name: 5. Output Summary
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Minor Release Candidate Tagged Successfully
+
+          - **Branch:** \`${{ steps.find_branch.outputs.RELEASE_BRANCH }}\`
+          - **New Tag:** \`${{ steps.latest_rc.outputs.NEW_TAG }}\`
+          - **RC Number:** ${{ steps.latest_rc.outputs.NEXT_RC }}
+
+          ### Next Steps
+          1. The docker image will be automatically built with tag \`${{ steps.latest_rc.outputs.NEW_TAG }}\`
+          2. Test the release candidate thoroughly (Kurtosis, Hoodi environments, etc.)
+          3. If successful, proceed with "Prepare Minor Full Release" workflow
+          4. If fixes needed:
+             - Merge fixes to \`main\` branch
+             - Cherry-pick fixes to \`${{ steps.find_branch.outputs.RELEASE_BRANCH }}\`
+             - Re-run this workflow to create next RC
+
+          **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a separate workflow.
+          EOF
