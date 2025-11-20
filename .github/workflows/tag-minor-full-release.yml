@@ -12,7 +12,7 @@ on:
         type: string
 
 jobs:
-  tag_release:
+  tag_minor_full_release:
     runs-on: ubuntu-latest
 
     permissions:
@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: 1. Checkout Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0 # Required to get all tags and branches
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -47,7 +47,7 @@ jobs:
             git fetch --all
 
             # Find all minor release branches matching pattern main-vX.Y
-            RELEASE_BRANCHES=$(git branch -r | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+            RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
 
             if [[ -z "$RELEASE_BRANCHES" ]]; then
               echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
@@ -110,19 +110,20 @@ jobs:
 
       - name: 6. Verify Version File
         run: |
-          TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
           VERSION_FILE="app/version/version.go"
 
-          # Check that version file contains the expected stable version
-          if ! grep -q "var version = \"${TAG_VERSION}\"" "$VERSION_FILE"; then
-            echo "::error::Expected version ${TAG_VERSION} not found in ${VERSION_FILE}"
+          # Check that version file contains the expected stable version (vX.Y without .0)
+          if ! grep -q "var version = \"v${MAJOR}.${MINOR}\"" "$VERSION_FILE"; then
+            echo "::error::Expected version v${MAJOR}.${MINOR} not found in ${VERSION_FILE}"
             echo "::error::The stable version PR must be merged before tagging"
             echo "Current version in file:"
             grep "var version" "$VERSION_FILE"
             exit 1
           fi
 
-          echo "::notice::Version file validated: ${TAG_VERSION}"
+          echo "::notice::Version file validated: v${MAJOR}.${MINOR}"
           echo "::notice::Stable version PR has been merged"
 
       - name: 7. Create and Push Tag
@@ -153,15 +154,28 @@ jobs:
           cat << EOF >> $GITHUB_STEP_SUMMARY
           ## Minor Full Release Tagged
 
+          EOF
+
+          if [[ "$TAG_RESULT" = "success" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
           ### Tag Details
           - **Tag:** \`${TAG_VERSION}\`
           - **Branch:** \`${RELEASE_BRANCH}\`
-          - **Status:** $([ "$TAG_RESULT" = "success" ] && echo "✅ Successfully created and pushed" || echo "❌ Failed - check logs")
+          - **Status:** Successfully created and pushed
 
-          ### What Happens Next
+          ### Next Steps
           1. Docker images will be built automatically with tag \`${TAG_VERSION}\`
-          2. Release notes should be created on GitHub
-          3. The dev version PR to \`main\` should be merged to start the next development cycle
+          2. Create release notes on GitHub
+          3. Merge the dev version PR to \`main\` to start the next development cycle
 
           **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a separate workflow.
           EOF
+          else
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Tag Creation Failed
+          - **Tag:** \`${TAG_VERSION}\`
+          - **Branch:** \`${RELEASE_BRANCH}\`
+          - **Status:** Failed to create or push tag
+          - Please check the workflow logs for details
+          EOF
+          fi
