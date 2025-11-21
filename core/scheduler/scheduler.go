@@ -116,6 +116,7 @@ type Scheduler struct {
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
+	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse block event (map[uint64]bool)
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -183,6 +184,57 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 	} else {
 		log.Warn(ctx, "Chain reorg event ignored due to disabled SSEReorgDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
 	}
+}
+
+// triggerDuty triggers all duty subscribers with the provided duty and definition set.
+func (s *Scheduler) triggerDuty(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) {
+	instrumentDuty(duty, defSet)
+
+	dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
+	if duty.Type == core.DutyProposer {
+		var span trace.Span
+		dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
+		defer span.End()
+	}
+
+	for _, sub := range s.dutySubs {
+		clone, err := defSet.Clone()
+		if err != nil {
+			log.Error(dutyCtx, "Failed to clone duty definition set", err)
+			return
+		}
+
+		if err := sub(dutyCtx, duty, clone); err != nil {
+			log.Error(dutyCtx, "Failed to trigger duty subscriber", err)
+		}
+	}
+}
+
+// HandleBlockEvent handles block processing events from SSE and triggers early attestation data fetching.
+func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot) {
+	if !featureset.Enabled(featureset.FetchAttOnBlock) {
+		return
+	}
+
+	duty := core.Duty{
+		Slot: uint64(slot),
+		Type: core.DutyAttester,
+	}
+	defSet, ok := s.getDutyDefinitionSet(duty)
+	if !ok {
+		// Nothing for this duty
+		return
+	}
+
+	_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(uint64(slot), true)
+	if alreadyTriggered {
+		return
+	}
+
+	log.Debug(ctx, "Early attestation data fetch triggered by SSE block event", z.U64("slot", uint64(slot)))
+
+	// Trigger duty immediately (early fetch)
+	go s.triggerDuty(ctx, duty, defSet)
 }
 
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
@@ -276,33 +328,22 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		}
 
 		// Trigger duty async
-		go func() {
-			if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
+		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
+			// Special handling for attester duties when FetchAttOnBlock is enabled
+			if duty.Type == core.DutyAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
+				if !s.waitForBlockEventOrTimeout(ctx, slot) {
+					return // context cancelled
+				}
+				_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(slot.Slot, true)
+				if alreadyTriggered {
+					return // already triggered via block event
+				}
+			} else if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
 				return // context cancelled
 			}
 
-			instrumentDuty(duty, defSet)
-
-			dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
-			if duty.Type == core.DutyProposer {
-				var span trace.Span
-
-				dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
-				defer span.End()
-			}
-
-			for _, sub := range s.dutySubs {
-				clone, err := defSet.Clone() // Clone for each subscriber.
-				if err != nil {
-					log.Error(dutyCtx, "Failed to clone duty definition set", err)
-					return
-				}
-
-				if err := sub(dutyCtx, duty, clone); err != nil {
-					log.Error(dutyCtx, "Failed to trigger duty subscriber", err, z.U64("slot", slot.Slot))
-				}
-			}
-		}()
+			s.triggerDuty(ctx, duty, defSet)
+		}(duty, defSet)
 	}
 
 	if slot.LastInEpoch() {
@@ -329,6 +370,27 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	case <-ctx.Done():
 		return false
 	case <-delayFunc(duty, deadline):
+		return true
+	}
+}
+
+// waitForBlockEventOrTimeout waits until the fallback timeout (T=1/3 + 300ms) is reached.
+// Returns false if the context is cancelled, true otherwise.
+func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot) bool {
+	// Calculate fallback timeout: 1/3 + 300ms
+	fn, ok := slotOffsets[core.DutyAttester]
+	if !ok {
+		return true
+	}
+	offset := fn(slot.SlotDuration) + 300*time.Millisecond
+	fallbackDeadline := slot.Time.Add(offset)
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-s.clock.After(time.Until(fallbackDeadline)):
+		log.Debug(ctx, "Fallback timeout reached for attestation, no block event received, possibly fetching stale head",
+			z.U64("slot", slot.Slot))
 		return true
 	}
 }
@@ -690,6 +752,33 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 	}
 
 	delete(s.dutiesByEpoch, epoch)
+
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
+		s.trimEventTriggeredAttestations(epoch)
+	}
+}
+
+// trimEventTriggeredAttestations removes old slot entries from eventTriggeredAttestations.
+func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil {
+		return
+	}
+
+	minSlotToKeep := (epoch + 1) * slotsPerEpoch // first slot of next epoch
+	s.eventTriggeredAttestations.Range(func(key, _ any) bool {
+		slot, ok := key.(uint64)
+		if !ok {
+			return true // continue iteration
+		}
+		if slot < minSlotToKeep {
+			s.eventTriggeredAttestations.Delete(slot)
+		}
+		return true // continue iteration
+	})
 }
 
 // submitValidatorRegistrations submits the validator registrations for all DVs.
