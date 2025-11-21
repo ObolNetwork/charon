@@ -12,6 +12,7 @@ message MsgSync {
  bool shutdown = 3;
  string version = 4;
  int64 step = 5;
+ string nickname = 6;
 }
 
 message MsgSyncResponse {
