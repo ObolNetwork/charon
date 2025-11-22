@@ -133,7 +133,7 @@ jobs:
 
       - name: 6. Create PR to Release Branch for Stable Version
         id: create_stable_pr
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "app/version: bump v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }} to stable"
@@ -196,7 +196,7 @@ jobs:
 
       - name: 9. Create PR to Main for Next Dev Version
         id: create_dev_pr
-        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "app: bump version to ${{ steps.version.outputs.NEXT_DEV_VERSION }}"
