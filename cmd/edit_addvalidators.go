@@ -73,7 +73,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	// Bind `dkg` flags.
 	bindKeymanagerFlags(cmd.Flags(), &config.DKG.KeymanagerAddr, &config.DKG.KeymanagerAuthToken)
 	bindNoVerifyFlag(cmd.Flags(), &config.DKG.NoVerify)
-	bindP2PFlags(cmd, &config.DKG.P2P)
+	bindP2PFlags(cmd, &config.DKG.P2P, defaultAlphaRelay)
 	bindLogFlags(cmd.Flags(), &config.DKG.Log)
 	bindShutdownDelayFlag(cmd.Flags(), &config.DKG.ShutdownDelay)
 	bindEth1Flag(cmd.Flags(), &config.DKG.ExecutionEngineAddr)
