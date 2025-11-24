@@ -760,10 +760,7 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 // trimEventTriggeredAttestations removes old slot entries from eventTriggeredAttestations.
 func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-
-	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(context.Background(), s.eth2Cl)
 	if err != nil {
 		return
 	}
