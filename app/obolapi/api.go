@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 )
@@ -106,7 +107,11 @@ func httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string
 			return errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))
 		}
 
-		return errors.New("http POST failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
+		if res.StatusCode != http.StatusConflict {
+			return errors.New("http POST failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
+		}
+
+		log.Info(ctx, "Duplicate request ignored by Obol API. Likely another node submitted the same data already.", z.Int("status", res.StatusCode), z.Str("body", string(data)))
 	}
 
 	return nil
