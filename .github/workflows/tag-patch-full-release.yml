@@ -1,4 +1,4 @@
-name: Tag Minor Full Release
+name: Tag Patch Full Release
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
         type: string
 
 jobs:
-  tag_minor_full_release:
+  tag_patch_full_release:
     runs-on: ubuntu-latest
 
     permissions:
@@ -28,7 +28,6 @@ jobs:
           fi
 
           echo "::notice::User ${TRIGGERED_BY} is authorized to trigger this workflow"
-
 
       - name: 1. Checkout Repository
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
@@ -91,17 +90,49 @@ jobs:
 
           MAJOR="${BASH_REMATCH[1]}"
           MINOR="${BASH_REMATCH[2]}"
-          TAG_VERSION="v${MAJOR}.${MINOR}.0"
 
           echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
           echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Extracted version - MAJOR: ${MAJOR}, MINOR: ${MINOR}"
+
+      - name: 4. Find Latest Patch Version
+        id: find_patch
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+
+          # Fetch all tags
+          git fetch --tags
+
+          # Find all full release tags for this major.minor version (e.g., v1.8.0, v1.8.1, v1.8.2)
+          # Exclude RC tags
+          PATCH_TAGS=$(git tag -l "v${MAJOR}.${MINOR}.*" | grep -E "^v${MAJOR}\.${MINOR}\.[0-9]+$" | sort -V)
+
+          if [[ -z "$PATCH_TAGS" ]]; then
+            # No patch releases yet, this is patch 1
+            LATEST_PATCH=0
+            echo "::notice::No patch releases found. This will be patch 1"
+          else
+            # Extract the highest patch number
+            LATEST_PATCH_TAG=$(echo "$PATCH_TAGS" | tail -n 1)
+            LATEST_PATCH=$(echo "$LATEST_PATCH_TAG" | sed -E "s/^v${MAJOR}\.${MINOR}\.([0-9]+)$/\1/")
+            echo "::notice::Found latest patch release: ${LATEST_PATCH_TAG} (patch ${LATEST_PATCH})"
+          fi
+
+          # Calculate next patch version
+          NEXT_PATCH=$((LATEST_PATCH + 1))
+          TAG_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
+
+          echo "LATEST_PATCH=${LATEST_PATCH}" >> $GITHUB_OUTPUT
+          echo "NEXT_PATCH=${NEXT_PATCH}" >> $GITHUB_OUTPUT
           echo "TAG_VERSION=${TAG_VERSION}" >> $GITHUB_OUTPUT
 
           echo "::notice::Tag version: ${TAG_VERSION}"
 
-      - name: 4. Check if Tag Already Exists
+      - name: 5. Check if Tag Already Exists
         run: |
-          TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
 
           # Fetch all tags
           git fetch --tags
@@ -112,35 +143,36 @@ jobs:
           fi
           echo "::notice::Tag ${TAG_VERSION} does not exist. Proceeding."
 
-      - name: 5. Checkout Release Branch
+      - name: 6. Checkout Release Branch
         run: |
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
           git checkout "$RELEASE_BRANCH"
           git pull origin "$RELEASE_BRANCH"
           echo "::notice::Checked out branch ${RELEASE_BRANCH}"
 
-      - name: 6. Verify Version File
+      - name: 7. Verify Version File
         run: |
           MAJOR="${{ steps.version.outputs.MAJOR }}"
           MINOR="${{ steps.version.outputs.MINOR }}"
+          NEXT_PATCH="${{ steps.find_patch.outputs.NEXT_PATCH }}"
           VERSION_FILE="app/version/version.go"
 
-          # Check that version file contains the expected stable version (vX.Y without .0)
-          if ! grep -q "var version = \"v${MAJOR}.${MINOR}\"" "$VERSION_FILE"; then
-            echo "::error::Expected version v${MAJOR}.${MINOR} not found in ${VERSION_FILE}"
+          # Check that version file contains the expected stable version
+          if ! grep -q "var version = \"v${MAJOR}.${MINOR}.${NEXT_PATCH}\"" "$VERSION_FILE"; then
+            echo "::error::Expected version v${MAJOR}.${MINOR}.${NEXT_PATCH} not found in ${VERSION_FILE}"
             echo "::error::The stable version PR must be merged before tagging"
             echo "Current version in file:"
             grep "var version" "$VERSION_FILE"
             exit 1
           fi
 
-          echo "::notice::Version file validated: v${MAJOR}.${MINOR}"
+          echo "::notice::Version file validated: v${MAJOR}.${MINOR}.${NEXT_PATCH}"
           echo "::notice::Stable version PR has been merged"
 
-      - name: 7. Create and Push Tag
+      - name: 8. Create and Push Tag
         id: create_and_push_tag
         run: |
-          TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
 
           # Configure git
@@ -155,15 +187,15 @@ jobs:
 
           echo "::notice::Successfully created and pushed tag ${TAG_VERSION}"
 
-      - name: 8. Output Summary
+      - name: 9. Output Summary
         if: always()
         run: |
-          TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
           TAG_RESULT="${{ steps.create_and_push_tag.outcome }}"
 
           cat << EOF >> $GITHUB_STEP_SUMMARY
-          ## Minor Full Release Tagged
+          ## Patch Full Release Tagged
 
           EOF
 
@@ -177,9 +209,9 @@ jobs:
           ### Next Steps
           1. Docker images will be built automatically with tag \`${TAG_VERSION}\`
           2. Create release notes on GitHub
-          3. Merge the dev version PR to \`main\` to start the next development cycle
+          3. Monitor the deployment
 
-          **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a separate workflow.
+          **Note:** This workflow is for patch releases (vX.Y.Z). Minor releases (vX.Y.0) use a different workflow.
           EOF
           else
             cat << EOF >> $GITHUB_STEP_SUMMARY
