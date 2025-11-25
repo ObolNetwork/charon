@@ -89,6 +89,22 @@ func TestHttpPost(t *testing.T) {
 			})),
 			expectedError: "POST failed",
 		},
+		{
+			name:     "status code 409 Conflict (duplicate ignored)",
+			body:     nil,
+			headers:  nil,
+			endpoint: "/post-request",
+			server: httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, r.URL.Path, "/post-request")
+				require.Equal(t, r.Method, http.MethodPost)
+				require.Equal(t, r.Header.Get("Content-Type"), "application/json")
+
+				w.WriteHeader(http.StatusConflict)
+				_, err := w.Write([]byte(`"Duplicate request"`))
+				require.NoError(t, err)
+			})),
+			expectedError: "",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
