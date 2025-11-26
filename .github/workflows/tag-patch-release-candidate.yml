@@ -38,7 +38,7 @@ jobs:
           echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
 
           # Checkout the release branch
-          git checkout "$RELEASE_BRANCH}"
+          git checkout "$RELEASE_BRANCH"
 
       - name: 3. Extract Version from Branch Name
         id: version
