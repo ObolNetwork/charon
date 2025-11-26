@@ -2,11 +2,6 @@ name: Tag Patch Full Release
 
 on:
   workflow_dispatch:
-    inputs:
-      release_branch:
-        description: "Release branch to tag (e.g., main-v1.8)"
-        required: false
-        type: string
 
 jobs:
   tag_patch_full_release:
@@ -37,45 +32,23 @@ jobs:
 
       - name: 2. Find Latest Release Branch
         id: find_branch
-        env:
-          INPUT_RELEASE_BRANCH: ${{ inputs.release_branch }}
         run: |
-          # If release branch was provided as input, use it
-          if [[ -n "$INPUT_RELEASE_BRANCH" ]]; then
-            RELEASE_BRANCH="$INPUT_RELEASE_BRANCH"
+          # Fetch all remote branches
+          git fetch --all
 
-            # Validate input format
-            if [[ ! "$RELEASE_BRANCH" =~ ^main-v[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::Invalid release branch format: ${RELEASE_BRANCH}"
-              echo "::error::Expected format: main-vX.Y (e.g., main-v1.8)"
-              exit 1
-            fi
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
 
-            echo "::notice::Using provided release branch: ${RELEASE_BRANCH}"
-          else
-            # Fetch all remote branches
-            git fetch --all
-
-            # Find all minor release branches matching pattern main-vX.Y
-            RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
-
-            if [[ -z "$RELEASE_BRANCHES" ]]; then
-              echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
-              exit 1
-            fi
-
-            # Get the latest release branch (last in sorted list)
-            RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
-            echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
-          fi
-
-          # Verify the branch exists
-          if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH" >/dev/null 2>&1; then
-            echo "::error::Branch ${RELEASE_BRANCH} does not exist on remote"
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
             exit 1
           fi
 
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
           echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
 
       - name: 3. Extract Version from Branch Name
         id: version
@@ -154,19 +127,18 @@ jobs:
         run: |
           MAJOR="${{ steps.version.outputs.MAJOR }}"
           MINOR="${{ steps.version.outputs.MINOR }}"
-          NEXT_PATCH="${{ steps.find_patch.outputs.NEXT_PATCH }}"
           VERSION_FILE="app/version/version.go"
 
-          # Check that version file contains the expected stable version
-          if ! grep -q "var version = \"v${MAJOR}.${MINOR}.${NEXT_PATCH}\"" "$VERSION_FILE"; then
-            echo "::error::Expected version v${MAJOR}.${MINOR}.${NEXT_PATCH} not found in ${VERSION_FILE}"
+          # Check that version file contains the stable minor version (vX.Y)
+          if ! grep -q "var version = \"v${MAJOR}.${MINOR}\"" "$VERSION_FILE"; then
+            echo "::error::Expected version v${MAJOR}.${MINOR} not found in ${VERSION_FILE}"
             echo "::error::The stable version PR must be merged before tagging"
             echo "Current version in file:"
             grep "var version" "$VERSION_FILE"
             exit 1
           fi
 
-          echo "::notice::Version file validated: v${MAJOR}.${MINOR}.${NEXT_PATCH}"
+          echo "::notice::Version file validated: v${MAJOR}.${MINOR}"
           echo "::notice::Stable version PR has been merged"
 
       - name: 8. Create and Push Tag

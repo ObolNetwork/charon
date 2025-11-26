@@ -2,11 +2,6 @@ name: Tag Minor Full Release
 
 on:
   workflow_dispatch:
-    inputs:
-      release_branch:
-        description: "Release branch to tag (e.g., main-v1.8)"
-        required: false
-        type: string
 
 jobs:
   tag_minor_full_release:
@@ -29,7 +24,6 @@ jobs:
 
           echo "::notice::User ${TRIGGERED_BY} is authorized to trigger this workflow"
 
-
       - name: 1. Checkout Repository
         uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
@@ -38,45 +32,23 @@ jobs:
 
       - name: 2. Find Latest Release Branch
         id: find_branch
-        env:
-          INPUT_RELEASE_BRANCH: ${{ inputs.release_branch }}
         run: |
-          # If release branch was provided as input, use it
-          if [[ -n "$INPUT_RELEASE_BRANCH" ]]; then
-            RELEASE_BRANCH="$INPUT_RELEASE_BRANCH"
+          # Fetch all remote branches
+          git fetch --all
 
-            # Validate input format
-            if [[ ! "$RELEASE_BRANCH" =~ ^main-v[0-9]+\.[0-9]+$ ]]; then
-              echo "::error::Invalid release branch format: ${RELEASE_BRANCH}"
-              echo "::error::Expected format: main-vX.Y (e.g., main-v1.8)"
-              exit 1
-            fi
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
 
-            echo "::notice::Using provided release branch: ${RELEASE_BRANCH}"
-          else
-            # Fetch all remote branches
-            git fetch --all
-
-            # Find all minor release branches matching pattern main-vX.Y
-            RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
-
-            if [[ -z "$RELEASE_BRANCHES" ]]; then
-              echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
-              exit 1
-            fi
-
-            # Get the latest release branch (last in sorted list)
-            RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
-            echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
-          fi
-
-          # Verify the branch exists
-          if ! git ls-remote --exit-code --heads origin "$RELEASE_BRANCH" >/dev/null 2>&1; then
-            echo "::error::Branch ${RELEASE_BRANCH} does not exist on remote"
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
             exit 1
           fi
 
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
           echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
 
       - name: 3. Extract Version from Branch Name
         id: version
