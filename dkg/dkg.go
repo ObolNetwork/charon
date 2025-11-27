@@ -226,7 +226,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
 
-	p2pNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash)
+	p2pNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash, def.UUID)
 	if err != nil {
 		return err
 	}
@@ -1262,7 +1262,7 @@ func setRegistrationSignature(reg core.VersionedSignedValidatorRegistration, sig
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte, uuid string) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, p := range peers {
 		peerIDs = append(peerIDs, p.ID)
@@ -1272,7 +1272,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash))
+	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash), uuid)
 	if err != nil {
 		return nil, nil, err
 	}

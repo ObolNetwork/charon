@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
-	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -124,7 +124,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key")
 	}
 
-	cl, err := loadClusterLock(config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return err
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.ForkVersion))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}
@@ -168,8 +168,8 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 				fullExits[validatorPubKey] = exit
 			}
 		} else {
-			for _, validator := range cl.GetValidators() {
-				validatorPubKeyHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
+			for _, validator := range cl.Validators {
+				validatorPubKeyHex := validator.PublicKeyHex()
 
 				valCtx := log.WithCtx(ctx, z.Str("validator_public_key", validatorPubKeyHex))
 
@@ -183,7 +183,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 					return errors.Wrap(err, "fetch full exit for all validators from public key")
 				}
 
-				validatorPubKey, err := core.PubKeyFromBytes(validator.GetPublicKey())
+				validatorPubKey, err := core.PubKeyFromBytes(validator.PubKey)
 				if err != nil {
 					return errors.Wrap(err, "convert public key for validator")
 				}
@@ -233,7 +233,7 @@ func validatorPubKeyFromFileName(fileName string) (core.PubKey, error) {
 	return validatorPubKey, nil
 }
 
-func fetchFullExit(ctx context.Context, exitFilePath string, config exitConfig, cl *manifestpb.Cluster, identityKey *k1.PrivateKey, validatorPubKey string) (eth2p0.SignedVoluntaryExit, error) {
+func fetchFullExit(ctx context.Context, exitFilePath string, config exitConfig, cl *cluster.Lock, identityKey *k1.PrivateKey, validatorPubKey string) (eth2p0.SignedVoluntaryExit, error) {
 	var (
 		fullExit eth2p0.SignedVoluntaryExit
 		err      error
@@ -299,18 +299,18 @@ func broadcastExitsToBeacon(ctx context.Context, eth2Cl eth2wrap.Client, exits m
 }
 
 // exitFromObolAPI fetches an eth2p0.SignedVoluntaryExit message from publishAddr for the given validatorPubkey.
-func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, publishTimeout time.Duration, cl *manifestpb.Cluster, identityKey *k1.PrivateKey) (eth2p0.SignedVoluntaryExit, error) {
+func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, publishTimeout time.Duration, cl *cluster.Lock, identityKey *k1.PrivateKey) (eth2p0.SignedVoluntaryExit, error) {
 	oAPI, err := obolapi.New(publishAddr, obolapi.WithTimeout(publishTimeout))
 	if err != nil {
 		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "create Obol API client", z.Str("publish_address", publishAddr))
 	}
 
-	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
+	shareIdx, err := keystore.ShareIdxForCluster(*cl, *identityKey.PubKey())
 	if err != nil {
 		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
 
-	fullExit, err := oAPI.GetFullExit(ctx, validatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
+	fullExit, err := oAPI.GetFullExit(ctx, validatorPubkey, cl.LockHash, shareIdx, identityKey)
 	if err != nil {
 		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "load full exit data from Obol API", z.Str("publish_address", publishAddr))
 	}

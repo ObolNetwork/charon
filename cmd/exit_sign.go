@@ -18,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -107,7 +108,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := loadClusterLock(config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
 	if err != nil {
 		return err
 	}
@@ -122,12 +123,12 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load keystore")
 	}
 
-	shares, err := keystore.KeysharesToValidatorPubkey(cl, valKeys)
+	shares, err := keystore.KeysharesToValidatorPubkey(*cl, valKeys)
 	if err != nil {
 		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
 	}
 
-	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
+	shareIdx, err := keystore.ShareIdxForCluster(*cl, *identityKey.PubKey())
 	if err != nil {
 		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
@@ -142,7 +143,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return err
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.GetForkVersion()))
+	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.ForkVersion))
 	if err != nil {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
 	}
@@ -172,7 +173,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		}
 	}
 
-	if err := oAPI.PostPartialExits(ctx, cl.GetInitialMutationHash(), shareIdx, identityKey, exitBlobs...); err != nil {
+	if err := oAPI.PostPartialExits(ctx, cl.LockHash, shareIdx, identityKey, exitBlobs...); err != nil {
 		return errors.Wrap(err, "http POST partial exit message to Obol API")
 	}
 
