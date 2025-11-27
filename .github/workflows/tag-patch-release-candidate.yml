@@ -1,0 +1,181 @@
+name: Tag Patch Release Candidate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tag_patch_release_candidate:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          fetch-depth: 0 # Required to get all tags and branches
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 2. Find Latest Release Branch
+        id: find_branch
+        run: |
+          # Fetch all remote branches
+          git fetch --all
+
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+            exit 1
+          fi
+
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
+
+          # Checkout the release branch
+          git checkout "$RELEASE_BRANCH"
+
+      - name: 3. Extract Version from Branch Name
+        id: version
+        run: |
+          BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Extract version from branch name (e.g., main-v1.8 -> 1.8)
+          if [[ ! "$BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid branch name format. Expected 'main-vX.Y', got: $BRANCH"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Extracted version - MAJOR: ${MAJOR}, MINOR: ${MINOR}"
+
+      - name: 4. Find Latest Patch Version
+        id: find_patch
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+
+          # Fetch all tags
+          git fetch --tags
+
+          # Find all full release tags for this major.minor version (e.g., v1.8.0, v1.8.1, v1.8.2)
+          # Exclude RC tags
+          PATCH_TAGS=$(git tag -l "v${MAJOR}.${MINOR}.*" | grep -E "^v${MAJOR}\.${MINOR}\.[0-9]+$" | sort -V)
+
+          if [[ -z "$PATCH_TAGS" ]]; then
+            # No patch releases yet, this is patch 1 (after the initial v1.8.0)
+            LATEST_PATCH=0
+            echo "::notice::No patch releases found. Starting patch 1"
+          else
+            # Extract the highest patch number
+            LATEST_PATCH_TAG=$(echo "$PATCH_TAGS" | tail -n 1)
+            LATEST_PATCH=$(echo "$LATEST_PATCH_TAG" | sed -E "s/^v${MAJOR}\.${MINOR}\.([0-9]+)$/\1/")
+            echo "::notice::Found latest patch release: ${LATEST_PATCH_TAG} (patch ${LATEST_PATCH})"
+          fi
+
+          # Calculate next patch version
+          NEXT_PATCH=$((LATEST_PATCH + 1))
+          VERSION_PREFIX="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
+
+          echo "LATEST_PATCH=${LATEST_PATCH}" >> $GITHUB_OUTPUT
+          echo "NEXT_PATCH=${NEXT_PATCH}" >> $GITHUB_OUTPUT
+          echo "VERSION_PREFIX=${VERSION_PREFIX}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Version prefix: ${VERSION_PREFIX}"
+
+      - name: 5. Find Latest Release Candidate
+        id: latest_rc
+        run: |
+          VERSION_PREFIX="${{ steps.find_patch.outputs.VERSION_PREFIX }}"
+
+          # Find all RC tags for this version (e.g., v1.8.1-rc1, v1.8.1-rc2)
+          LATEST_RC_TAG=$(git tag -l "${VERSION_PREFIX}-rc*" | sort -V | tail -n 1)
+
+          if [[ -z "$LATEST_RC_TAG" ]]; then
+            # No RC found, this is the first one
+            LATEST_RC=0
+            echo "::notice::No previous release candidates found. Starting with rc1"
+          else
+            # Extract RC number from tag (e.g., v1.8.1-rc2 -> 2)
+            LATEST_RC=$(echo "$LATEST_RC_TAG" | sed -E 's/.*-rc([0-9]+)$/\1/')
+            echo "::notice::Found latest release candidate: ${LATEST_RC_TAG} (rc${LATEST_RC})"
+          fi
+
+          # Calculate next RC number
+          NEXT_RC=$((LATEST_RC + 1))
+          NEW_TAG="${VERSION_PREFIX}-rc${NEXT_RC}"
+
+          echo "LATEST_RC=${LATEST_RC}" >> $GITHUB_OUTPUT
+          echo "NEXT_RC=${NEXT_RC}" >> $GITHUB_OUTPUT
+          echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_OUTPUT
+
+          echo "::notice::New release candidate tag will be: ${NEW_TAG}"
+
+      - name: 6. Create and Push Tag
+        id: create_tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          NEW_TAG="${{ steps.latest_rc.outputs.NEW_TAG }}"
+
+          # Create annotated tag
+          git tag -a "$NEW_TAG" -m "Release candidate $NEW_TAG"
+
+          # Push tag
+          git push origin "$NEW_TAG"
+
+          echo "::notice::Successfully created and pushed tag: $NEW_TAG"
+
+      - name: 7. Output Summary
+        if: always()
+        run: |
+          TAG_RESULT="${{ steps.create_tag.outcome }}"
+          NEW_TAG="${{ steps.latest_rc.outputs.NEW_TAG }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Patch Release Candidate Tagged
+
+          EOF
+
+          if [[ "$TAG_RESULT" = "success" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Tag Details
+          - **Branch:** \`${RELEASE_BRANCH}\`
+          - **New Tag:** \`${NEW_TAG}\`
+          - **RC Number:** ${{ steps.latest_rc.outputs.NEXT_RC }}
+          - **Status:** Successfully created and pushed
+
+          ### Next Steps
+          1. Docker image will be automatically built with tag \`${NEW_TAG}\`
+          2. Test the release candidate thoroughly (Kurtosis, Hoodi environments, etc.)
+          3. If successful, proceed with "Prepare Patch Full Release" workflow
+          4. After stable PR is merged, run "Tag Patch Full Release" workflow
+          5. If fixes needed:
+             - Merge fixes to \`main\` branch
+             - Create a branch from \`${RELEASE_BRANCH}\` and cherry-pick fixes from main
+             - Merge cherry-picked fixes to \`${RELEASE_BRANCH}\`
+             - Re-run this workflow to create next RC
+
+          **Note:** This workflow is for patch releases (vX.Y.Z). Minor releases (vX.Y.0) use a different workflow.
+          EOF
+          else
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Tag Creation Failed
+          - **Tag:** \`${NEW_TAG}\`
+          - **Branch:** \`${RELEASE_BRANCH}\`
+          - **Status:** Failed to create or push tag
+          - Please check the workflow logs for details
+          EOF
+          fi
