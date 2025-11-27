@@ -15,6 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -89,7 +90,7 @@ func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
 }
 
 func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
-	cl, err := loadClusterLock(config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +107,8 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 
 	var allVals []eth2p0.BLSPubKey
 
-	for _, v := range cl.GetValidators() {
-		allVals = append(allVals, eth2p0.BLSPubKey(v.GetPublicKey()))
+	for _, v := range cl.Validators {
+		allVals = append(allVals, eth2p0.BLSPubKey(v.PubKey))
 	}
 
 	valData, err := eth2Cl.Validators(ctx, &eth2api.ValidatorsOpts{

@@ -142,7 +142,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 		return err
 	}
 
-	thisNode, shutdown, err := setupP2P(ctx, enrPrivateKey, config, peers, lock.DefinitionHash)
+	thisNode, shutdown, err := setupP2P(ctx, enrPrivateKey, config, peers, lock.DefinitionHash, lock.UUID)
 	if err != nil {
 		return err
 	}

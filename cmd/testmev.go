@@ -445,6 +445,7 @@ func getBlockHeader(ctx context.Context, target string, headers map[string]strin
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+
 	req.Header.Set("Date-Milliseconds", strconv.FormatInt(time.Now().UnixMilli(), 10))
 
 	resp, err := http.DefaultTransport.RoundTrip(req)

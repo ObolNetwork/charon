@@ -24,8 +24,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/forkjoin"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster/manifest"
-	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -246,7 +245,7 @@ func checkDir(dir string) error {
 // KeysharesToValidatorPubkey maps each share in cl to the associated validator private key.
 // It returns an error if a keyshare does not appear in cl, or if there's a validator public key associated to no
 // keyshare.
-func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey) (ValidatorShares, error) {
+func KeysharesToValidatorPubkey(lock cluster.Lock, shares []tbls.PrivateKey) (ValidatorShares, error) {
 	ret := make(map[core.PubKey]IndexedKeyShare)
 
 	var pubShares []tbls.PublicKey
@@ -261,11 +260,11 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 	}
 
 	// this is sadly a O(n^2) search
-	for _, validator := range cl.GetValidators() {
-		valHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
+	for _, validator := range lock.Validators {
+		valHex := validator.PublicKeyHex()
 
 		valPubShares := make(map[tbls.PublicKey]struct{})
-		for _, valShare := range validator.GetPubShares() {
+		for _, valShare := range validator.PubShares {
 			valPubShares[tbls.PublicKey(valShare)] = struct{}{}
 		}
 
@@ -290,7 +289,7 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 		}
 	}
 
-	if len(ret) != len(cl.GetValidators()) {
+	if len(ret) != len(lock.Validators) {
 		return nil, errors.New("key shares and validator public keys count mismatch")
 	}
 
@@ -298,8 +297,8 @@ func KeysharesToValidatorPubkey(cl *manifestpb.Cluster, shares []tbls.PrivateKey
 }
 
 // ShareIdxForCluster returns the share index for the Charon cluster's ENR identity key, given a *manifestpb.Cluster.
-func ShareIdxForCluster(cl *manifestpb.Cluster, identityKey k1.PublicKey) (uint64, error) {
-	pids, err := manifest.ClusterPeerIDs(cl)
+func ShareIdxForCluster(lock cluster.Lock, identityKey k1.PublicKey) (uint64, error) {
+	pids, err := lock.PeerIDs()
 	if err != nil {
 		return 0, errors.Wrap(err, "cluster peer ids")
 	}
@@ -313,7 +312,7 @@ func ShareIdxForCluster(cl *manifestpb.Cluster, identityKey k1.PublicKey) (uint6
 			continue
 		}
 
-		nIdx, err := manifest.ClusterNodeIdx(cl, pid)
+		nIdx, err := lock.NodeIdx(pid)
 		if err != nil {
 			return 0, errors.Wrap(err, "cluster node idx")
 		}
