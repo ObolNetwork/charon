@@ -329,7 +329,6 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	var eg errgroup.Group
 
 	for i := range len(def.Operators) {
-		conf := conf
 		conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", i))
 
 		conf.P2P.TCPAddrs = []string{testutil.AvailableAddr(t).String()}
