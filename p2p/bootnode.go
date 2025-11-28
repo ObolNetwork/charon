@@ -163,7 +163,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 		}
 
 		req.Header.Set("Charon-Cluster", lockHashHex)
-		req.Header.Set("Charon-Uuid", uuid)
+		req.Header.Set("Cluster-Uuid", uuid)
 
 		resp, err := client.Do(req)
 		if err != nil {
