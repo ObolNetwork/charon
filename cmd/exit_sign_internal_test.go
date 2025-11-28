@@ -266,7 +266,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 		{
 			name:    "No cluster lock",
 			noLock:  true,
-			errData: "load cluster lock",
+			errData: "no such file or directory",
 		},
 		{
 			name:       "No keystore",

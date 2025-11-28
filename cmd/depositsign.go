@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -67,7 +68,7 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := loadClusterLock(config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
 	if err != nil {
 		return err
 	}
@@ -77,7 +78,7 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
-	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
+	shareIdx, err := keystore.ShareIdxForCluster(*cl, *identityKey.PubKey())
 	if err != nil {
 		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
@@ -100,7 +101,7 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 		return errors.Wrap(err, "load keystore")
 	}
 
-	shares, err := keystore.KeysharesToValidatorPubkey(cl, valKeys)
+	shares, err := keystore.KeysharesToValidatorPubkey(*cl, valKeys)
 	if err != nil {
 		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
 	}
@@ -131,18 +132,18 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 
 	depositDatas := []eth2p0.DepositData{}
 
-	network, err := eth2util.ForkVersionToNetwork(cl.GetForkVersion())
+	network, err := eth2util.ForkVersionToNetwork(cl.ForkVersion)
 	if err != nil {
 		return err
 	}
 
 	for i, pubkey := range pubkeys {
 		for _, amount := range config.DepositAmounts {
-			if !cl.GetCompounding() && (amount < 1 || amount > 32) {
+			if !cl.Compounding && (amount < 1 || amount > 32) {
 				return errors.New("deposit amount must be between 1 and 32 ETH", z.U64("amount", uint64(amount)))
 			}
 
-			if cl.GetCompounding() && (amount < 1 || amount > 2048) {
+			if cl.Compounding && (amount < 1 || amount > 2048) {
 				return errors.New("deposit amount must be between 1 and 2048 ETH", z.U64("amount", uint64(amount)))
 			}
 
@@ -187,7 +188,7 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 
 	log.Info(ctx, "Submitting partial deposit message")
 
-	err = oAPI.PostPartialDeposits(ctx, cl.GetInitialMutationHash(), shareIdx, depositDatas)
+	err = oAPI.PostPartialDeposits(ctx, cl.LockHash, shareIdx, depositDatas)
 	if err != nil {
 		return errors.Wrap(err, "submit partial deposit data to Obol API")
 	}
