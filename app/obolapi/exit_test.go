@@ -80,7 +80,6 @@ func TestAPIExit(t *testing.T) {
 			signature, err := tbls.Sign(shareSet, sigData[:])
 			require.NoError(t, err)
 
-			exitMsg := exitMsg
 			exitMsg.Signature = eth2p0.BLSSignature(signature)
 
 			exit := obolapi.ExitBlob{
@@ -172,7 +171,6 @@ func TestAPIExitMissingSig(t *testing.T) {
 			signature, err := tbls.Sign(shareSet, sigData[:])
 			require.NoError(t, err)
 
-			exitMsg := exitMsg
 			exitMsg.Signature = eth2p0.BLSSignature(signature)
 
 			exit := obolapi.ExitBlob{
