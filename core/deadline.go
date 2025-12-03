@@ -39,7 +39,7 @@ type Deadliner interface {
 	C() <-chan Duty
 }
 
-// deadlinerInput represents the input to inputChan.
+// deadlineInput represents the input to inputChan.
 type deadlineInput struct {
 	duty    Duty
 	success chan<- bool
