@@ -8,11 +8,9 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
-var (
-	proposalBlindedGauge = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "core",
-		Subsystem: "fetcher",
-		Name:      "proposal_blinded",
-		Help:      "Whether the fetched proposal was blinded (1) or local (0)",
-	})
-)
+var proposalBlindedGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	Namespace: "core",
+	Subsystem: "fetcher",
+	Name:      "proposal_blinded",
+	Help:      "Whether the fetched proposal was blinded (1) or local (0)",
+})

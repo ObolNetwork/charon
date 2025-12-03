@@ -310,6 +310,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		if proposal.Blinded {
 			blinded = 1
 		}
+
 		proposalBlindedGauge.Set(blinded)
 
 		resp[pubkey] = coreProposal
