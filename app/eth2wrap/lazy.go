@@ -120,6 +120,15 @@ func (l *lazy) Address() string {
 	return cl.Address()
 }
 
+func (l *lazy) Headers() map[string]string {
+	cl, ok := l.getClient()
+	if !ok {
+		return nil
+	}
+
+	return cl.Headers()
+}
+
 func (l *lazy) IsActive() bool {
 	cl, ok := l.getClient()
 	if !ok {

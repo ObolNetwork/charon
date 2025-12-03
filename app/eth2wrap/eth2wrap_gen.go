@@ -26,6 +26,11 @@ type Client interface {
 
 	SetForkVersion(forkVersion [4]byte)
 
+	// Address returns the address of the beacon node.
+	Address() string
+	// Headers returns custom headers to include in requests to the beacon node.
+	Headers() map[string]string
+
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter
 	eth2client.AttestationDataProvider

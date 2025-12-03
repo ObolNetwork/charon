@@ -59,6 +59,13 @@ func (m multi) Address() string {
 	return address
 }
 
+func (m multi) Headers() map[string]string {
+	if len(m.clients) == 0 {
+		return nil
+	}
+	return m.clients[0].Headers()
+}
+
 func (m multi) IsActive() bool {
 	for _, cl := range m.clients {
 		if cl.IsActive() {
