@@ -196,6 +196,68 @@ func TestRunAddOperatorsProtocol(t *testing.T) {
 	verifyClusterValidators(t, numValidators, getNodeDirs(dstClusterDir, totalNodes))
 }
 
+func TestRunReplaceOperatorProtocol(t *testing.T) {
+	const (
+		numValidators = 3
+		numNodes      = 4
+		threshold     = 3
+	)
+
+	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
+	dstClusterDir := t.TempDir()
+
+	lockFilePath := path.Join(nodeDir(srcClusterDir, 0), clusterLockFile)
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
+	require.NoError(t, err)
+
+	// replacing operator at index 2
+	replacingIndex := 2
+
+	// Create a separate directory for the new operator (since it's a different entity)
+	newOpNodeDir := nodeDir(srcClusterDir, numNodes) // Create directory for new operator who doesn't have existing cluster data
+	newOpEnr := createENR(t, newOpNodeDir)
+
+	err = app.CopyFile(path.Join(nodeDir(srcClusterDir, 0), clusterLockFile), path.Join(newOpNodeDir, clusterLockFile))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// All 4 nodes run the protocol, but we map the new operator to replace the old one
+	runProtocol(t, numNodes, func(relayAddr string, n int) error {
+		dkgConfig := createDKGConfig(t, relayAddr)
+
+		var ndir string
+
+		if n == replacingIndex {
+			// New operator takes over index 2 (uses new operator's directory and keys)
+			ndir = newOpNodeDir
+		} else {
+			// Continuing operators use their original directories
+			ndir = nodeDir(srcClusterDir, n)
+		}
+
+		replaceConfig := dkg.ReplaceOperatorConfig{
+			LockFilePath:     path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:   p2p.KeyPath(ndir),
+			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
+			OutputDir:        nodeDir(dstClusterDir, n),
+			NewENR:           newOpEnr,
+			OldENR:           lock.Operators[replacingIndex].ENR,
+		}
+
+		err := dkg.RunReplaceOperatorProtocol(ctx, replaceConfig, dkgConfig)
+		if err != nil {
+			cancel()
+			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
+		}
+
+		return nil
+	})
+
+	verifyClusterValidators(t, numValidators, getNodeDirs(dstClusterDir, numNodes))
+}
+
 func TestRunReshareProtocol(t *testing.T) {
 	const (
 		numValidators = 3
@@ -386,9 +448,8 @@ func nodeDir(clusterDir string, i int) string {
 	return fmt.Sprintf("%s/node%d", clusterDir, i)
 }
 
-func getNodeDirs(clusterDir string, numNodes int, skip ...int) []string { //nolint:unparam
-	dirs := make([]string, 0)
-
+func getNodeDirs(clusterDir string, numNodes int, skip ...int) []string {
+	dirs := make([]string, 0, numNodes)
 	for i := range numNodes {
 		if slices.Contains(skip, i) {
 			continue
