@@ -27,6 +27,15 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return nil, errors.New("reshare config is nil")
 	}
 
+	// Validate that AddedPeers and RemovedPeers are disjoint sets
+	for _, addedPeer := range config.Reshare.AddedPeers {
+		for _, removedPeer := range config.Reshare.RemovedPeers {
+			if addedPeer == removedPeer {
+				return nil, errors.New("peer cannot be both added and removed", z.Any("peer_id", addedPeer))
+			}
+		}
+	}
+
 	thisNodeIndex, err := config.ThisNodeIndex()
 	if err != nil {
 		return nil, err
@@ -96,17 +105,17 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 	//   - oldNodes: nodes with existing shares (participating in the old cluster)
 	//   - newNodes: nodes that will have shares in the new cluster
 	//
-	// For remove-only scenarios:
-	//   - oldNodes: participating nodes with shares (excludes non-participating removed nodes)
-	//   - newNodes: participating nodes minus those being removed
-	//
-	// For add-only scenarios:
-	//   - oldNodes: existing nodes with shares (excludes newly added nodes)
-	//   - newNodes: all participating nodes (old + new)
+	// Supported scenarios:
+	//   1. Pure reshare (no adds/removes): oldNodes = newNodes = all participating nodes
+	//   2. Add-only: oldNodes = existing nodes; newNodes = existing + added nodes
+	//   3. Remove-only: oldNodes = all participating nodes; newNodes = participating - removed nodes
 
-	thisIsOldNode := false
+	// Determine if this node has existing shares to contribute
+	thisIsOldNode := len(distKeyShares) > 0
+
 	oldNodes := make([]kdkg.Node, 0, len(nodes))
 	newNodes := make([]kdkg.Node, 0, len(nodes))
+	thisIsRemovedNode := false
 
 	for _, node := range nodes {
 		isRemoving := false
@@ -117,7 +126,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 			if idx, ok := config.PeerMap[removedPeerID]; ok && idx.PeerIdx == int(node.Index) {
 				isRemoving = true
 				if idx.PeerIdx == thisNodeIndex {
-					thisIsOldNode = true
+					thisIsRemovedNode = true
 				}
 
 				break
@@ -146,15 +155,17 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 
 	// Validate node classification
 	if len(config.Reshare.RemovedPeers) > 0 && len(oldNodes) == 0 {
-		return nil, errors.New("remove operation but no old nodes with shares found")
+		return nil, errors.New("remove operation requires at least one node with existing shares to participate")
 	}
 
-	if len(config.Reshare.AddedPeers) > 0 && len(newNodes) == len(oldNodes) {
-		return nil, errors.New("add operation but no new nodes found")
+	if len(config.Reshare.AddedPeers) > 0 && len(newNodes) <= len(oldNodes) {
+		return nil, errors.New("add operation requires new nodes to join, but all nodes already exist in the cluster")
 	}
 
-	if thisIsOldNode && len(distKeyShares) == 0 {
-		return nil, errors.New("this is old node but no shares to reshare")
+	// If this node is part of oldNodes (not newly added), it must have shares to contribute
+	isNewlyAddedNode := len(config.Reshare.AddedPeers) > 0 && !thisIsOldNode
+	if !isNewlyAddedNode && len(distKeyShares) == 0 {
+		return nil, errors.New("node is not newly added but has no shares to contribute")
 	}
 
 	nonce, err := generateNonce(nodes)
@@ -178,7 +189,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 	log.Info(ctx, "Starting pedersen reshare...",
 		z.Int("oldNodes", len(oldNodes)), z.Int("newNodes", len(newNodes)),
 		z.Int("oldThreshold", config.Threshold), z.Int("newThreshold", config.Reshare.NewThreshold),
-		z.Bool("removed", thisIsOldNode))
+		z.Bool("thisIsOldNode", thisIsOldNode), z.Bool("thisIsRemovedNode", thisIsRemovedNode))
 
 	newShares := make([]share.Share, 0, config.Reshare.TotalShares)
 
@@ -220,11 +231,13 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		case <-ctx.Done():
 			return nil, errors.New("pedersen reshare context done, protocol aborted")
 		case kdkgResult := <-protocol.WaitEnd():
-			if thisIsOldNode {
+			if thisIsRemovedNode {
+				// This node is being removed and will not receive new shares
 				if err := broadcastNoneKey(ctx, config, board); err != nil {
 					return nil, err
 				}
 			} else {
+				// This node will be part of the new cluster and receives new shares
 				if kdkgResult.Error != nil {
 					return nil, errors.Wrap(kdkgResult.Error, "pedersen reshare protocol failed", z.Bool("thisIsOldNode", thisIsOldNode))
 				}
