@@ -116,6 +116,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 	oldNodes := make([]kdkg.Node, 0, len(nodes))
 	newNodes := make([]kdkg.Node, 0, len(nodes))
 	thisIsRemovedNode := false
+	thisIsAddedNode := false
 
 	for _, node := range nodes {
 		isRemoving := false
@@ -137,6 +138,10 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		for _, addedPeerID := range config.Reshare.AddedPeers {
 			if idx, ok := config.PeerMap[addedPeerID]; ok && idx.PeerIdx == int(node.Index) {
 				isNewlyAdded = true
+				if idx.PeerIdx == thisNodeIndex {
+					thisIsAddedNode = true
+				}
+
 				break
 			}
 		}
@@ -162,10 +167,10 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return nil, errors.New("add operation requires new nodes to join, but all nodes already exist in the cluster")
 	}
 
-	// If this node is part of oldNodes (not newly added), it must have shares to contribute
-	isNewlyAddedNode := len(config.Reshare.AddedPeers) > 0 && !thisIsOldNode
-	if !isNewlyAddedNode && len(distKeyShares) == 0 {
-		return nil, errors.New("node is not newly added but has no shares to contribute")
+	// In add operations, old nodes must have shares to contribute
+	// (new nodes being added won't have shares, which is expected)
+	if len(config.Reshare.AddedPeers) > 0 && !thisIsAddedNode && len(distKeyShares) == 0 {
+		return nil, errors.New("existing node in add operation must have shares to contribute")
 	}
 
 	nonce, err := generateNonce(nodes)
