@@ -91,17 +91,41 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		distKeyShares = append(distKeyShares, dks)
 	}
 
-	// The new nodes are always appended to the old nodes slice
-	// The old nodes can be indices within the existing nodes slice
-	oldN := len(nodes) - len(config.Reshare.NewPeers)
-	oldNodes := nodes[:oldN]
-	newNodes := make([]kdkg.Node, len(nodes))
+	var (
+		oldNodes, newNodes []kdkg.Node
+		thisIsOldNode      bool
+	)
+
+	// Standard reshare logic:
+	// - oldNodes: nodes that contribute their existing shares to the reshare
+	// - newNodes: nodes that will receive new shares after the reshare
+	// - In a replace operation: the new peer at index N joins newNodes,
+	//   the old peer at index N is removed from newNodes but was in oldNodes
+
+	// Build oldNodes: all nodes that have existing shares (i.e., not newly added)
+	// In add-operators: new peers are appended at the end and have no shares
+	// In replace-operator: new peer is at a specific index and has no shares
+	for _, node := range nodes {
+		nodeIdx := int(node.Index)
+		if len(pubKeyShares[nodeIdx]) > 0 {
+			// This node has shares, so it's an old node
+			oldNodes = append(oldNodes, node)
+		}
+	}
+
+	// Build newNodes: start with all nodes, then remove those being removed
+	newNodes = make([]kdkg.Node, len(nodes))
 	copy(newNodes, nodes)
 
-	thisIsOldNode := false
-
 	for _, oid := range config.Reshare.OldPeers {
-		idx := config.PeerMap[oid]
+		idx, ok := config.PeerMap[oid]
+		if !ok {
+			// Old peer is not participating (e.g., in a replace operation, the old operator
+			// doesn't participate, only the new operator at that index participates).
+			// In this case, we don't need to remove anything from newNodes or set thisIsOldNode.
+			continue
+		}
+
 		if idx.PeerIdx == thisNodeIndex {
 			thisIsOldNode = true
 		}
