@@ -29,17 +29,17 @@ type Config struct {
 type ReshareConfig struct {
 	TotalShares  int
 	NewThreshold int
-	NewPeers     []peer.ID
-	OldPeers     []peer.ID
+	AddedPeers   []peer.ID // Nodes being added to the cluster
+	RemovedPeers []peer.ID // Nodes being removed from the cluster
 }
 
 // NewReshareConfig creates a new ReshareConfig instance.
-func NewReshareConfig(totalShares, newThreshold int, newPeers, oldPeers []peer.ID) *ReshareConfig {
+func NewReshareConfig(totalShares, newThreshold int, addedPeers, removedPeers []peer.ID) *ReshareConfig {
 	return &ReshareConfig{
 		TotalShares:  totalShares,
 		NewThreshold: newThreshold,
-		NewPeers:     newPeers,
-		OldPeers:     oldPeers,
+		AddedPeers:   addedPeers,
+		RemovedPeers: removedPeers,
 	}
 }
 
