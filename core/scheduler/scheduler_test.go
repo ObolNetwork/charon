@@ -506,6 +506,111 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	require.NoError(t, <-doneCh)
 }
 
+func TestFetchAttOnBlock(t *testing.T) {
+	var (
+		t0     time.Time
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	featureset.EnableForT(t, featureset.FetchAttOnBlock)
+
+	// Configure beacon mock.
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithDeterministicAttesterDuties(1), // Duties in slots 0, 1, 2
+		beaconmock.WithSlotsPerEpoch(4),
+	)
+	require.NoError(t, err)
+
+	// Construct scheduler.
+	schedSlotCh := make(chan core.Slot)
+	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
+		select {
+		case <-ctx.Done():
+			return
+		case schedSlotCh <- slot:
+		}
+	}
+	clock := newTestClock(t0)
+	dd := new(delayer)
+	valRegs := beaconmock.BuilderRegistrationSetA
+	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc, false)
+
+	// Track triggered duties
+	var triggeredDuties []core.Duty
+	var dutyMux sync.Mutex
+
+	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
+		dutyMux.Lock()
+		defer dutyMux.Unlock()
+		triggeredDuties = append(triggeredDuties, duty)
+		return nil
+	})
+
+	doneCh := make(chan error, 1)
+
+	go func() {
+		doneCh <- sched.Run()
+		close(schedSlotCh)
+	}()
+
+	for slot := range schedSlotCh {
+		if slot.Slot == 0 {
+			// Test case 1: Happy path - single block event triggers early
+			sched.HandleBlockEvent(t.Context(), 0)
+
+			require.Eventually(t, func() bool {
+				dutyMux.Lock()
+				defer dutyMux.Unlock()
+				for _, d := range triggeredDuties {
+					if d.Type == core.DutyAttester && d.Slot == 0 {
+						return true
+					}
+				}
+				return false
+			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 0 should be triggered by block event")
+		}
+
+		if slot.Slot == 1 {
+			// Test case 2: Deduplication - two block events should only trigger once
+			sched.HandleBlockEvent(t.Context(), 1)
+			sched.HandleBlockEvent(t.Context(), 1) // Duplicate
+
+			require.Eventually(t, func() bool {
+				dutyMux.Lock()
+				defer dutyMux.Unlock()
+				count := 0
+				for _, d := range triggeredDuties {
+					if d.Type == core.DutyAttester && d.Slot == 1 {
+						count++
+					}
+				}
+				return count == 1
+			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 1 should only be triggered once despite duplicate block events")
+		}
+
+		if slot.Slot == 2 {
+			// Test case 3: Fallback - no block event, timeout should trigger
+			require.Eventually(t, func() bool {
+				dutyMux.Lock()
+				defer dutyMux.Unlock()
+				for _, d := range triggeredDuties {
+					if d.Type == core.DutyAttester && d.Slot == 2 {
+						return true
+					}
+				}
+				return false
+			}, 2*time.Second, 50*time.Millisecond, "Attester duty for slot 2 should be triggered by fallback timeout")
+
+			sched.Stop()
+		}
+	}
+
+	require.NoError(t, <-doneCh)
+}
+
 func TestSubmitValidatorRegistrations(t *testing.T) {
 	// The test uses hard-coded validator registrations from beaconmock.BuilderRegistrationSetA.
 	// The scheduler advances through 3 epochs to ensure it triggers the registration submission.

@@ -117,14 +117,14 @@ func EnableForT(t *testing.T, feature Feature) {
 
 	initMu.Lock()
 	defer initMu.Unlock()
-
 	cache := state[feature]
+	state[feature] = enable
 
 	t.Cleanup(func() {
+		initMu.Lock()
+		defer initMu.Unlock()
 		state[feature] = cache
 	})
-
-	state[feature] = enable
 }
 
 // DisableForT disables a feature for testing.
@@ -133,12 +133,12 @@ func DisableForT(t *testing.T, feature Feature) {
 
 	initMu.Lock()
 	defer initMu.Unlock()
-
 	cache := state[feature]
+	state[feature] = disable
 
 	t.Cleanup(func() {
+		initMu.Lock()
+		defer initMu.Unlock()
 		state[feature] = cache
 	})
-
-	state[feature] = disable
 }
