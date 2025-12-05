@@ -77,6 +77,26 @@ func (_m *Client) Address() string {
 	return r0
 }
 
+// Headers provides a mock function with given fields:
+func (_m *Client) Headers() map[string]string {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Headers")
+	}
+
+	var r0 map[string]string
+	if rf, ok := ret.Get(0).(func() map[string]string); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(map[string]string)
+		}
+	}
+
+	return r0
+}
+
 // AggregateAttestation provides a mock function with given fields: ctx, opts
 func (_m *Client) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	ret := _m.Called(ctx, opts)

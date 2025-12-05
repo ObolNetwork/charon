@@ -11,9 +11,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	stdlog "log"
 	"maps"
 	"math"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"slices"
 	"strconv"
@@ -83,6 +85,11 @@ type Handler interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
+
+	// Address returns the address of the beacon node.
+	Address() string
+	// Headers returns custom headers to include in requests to the beacon node.
+	Headers() map[string]string
 }
 
 // NewRouter returns a new validator http server router. The http router
@@ -1599,12 +1606,21 @@ func nodeVersion(p eth2client.NodeVersionProvider) handlerFunc {
 	}
 }
 
-func proxy(p eth2client.ProxyProvider) http.HandlerFunc {
+func proxy(h Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
 		ctx = log.WithCtx(ctx, z.Str("vapi_proxy_method", r.Method), z.Str("vapi_proxy_path", r.URL.Path))
 		ctx = withCtxDuration(ctx)
+
+		// For SSE endpoints (/events), use direct reverse proxy to beacon node
+		if strings.HasSuffix(r.URL.Path, "/events") {
+			addr := h.Address()
+			proxyToBeaconNode(ctx, w, r, addr, h.Headers())
+			return
+		}
+
+		// For non-SSE endpoints, use eth2wrap logic with timeout
 		ctx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 
 		defer func() {
@@ -1616,7 +1632,7 @@ func proxy(p eth2client.ProxyProvider) http.HandlerFunc {
 			cancel()
 		}()
 
-		res, err := p.Proxy(ctx, r)
+		res, err := h.Proxy(ctx, r)
 		if err != nil {
 			writeError(ctx, w, r.URL.Path, err)
 			return
@@ -1639,6 +1655,72 @@ func proxy(p eth2client.ProxyProvider) http.HandlerFunc {
 			_ = res.Body.Close()
 		}
 	}
+}
+
+// writeFlusher is copied from /net/http/httputil/reverseproxy.go.
+// It is required to flush streaming responses.
+type writeFlusher interface {
+	http.ResponseWriter
+	http.Flusher
+}
+
+// proxyResponseWriter wraps the writeFlusher interface and instruments errors.
+type proxyResponseWriter struct {
+	writeFlusher
+}
+
+func (w proxyResponseWriter) WriteHeader(statusCode int) {
+	if statusCode/100 == 2 {
+		// 2XX isn't an error
+		return
+	}
+
+	incAPIErrors("proxy", statusCode)
+	w.writeFlusher.WriteHeader(statusCode)
+}
+
+// proxyToBeaconNode directly reverse proxies the request to the beacon node.
+// This is used for SSE endpoints which require a persistent connection.
+func proxyToBeaconNode(ctx context.Context, w http.ResponseWriter, r *http.Request, beaconNodeAddr string, headers map[string]string) {
+	targetURL, err := url.ParseRequestURI(beaconNodeAddr)
+	if err != nil {
+		log.Error(ctx, "Failed to parse beacon node address for proxying", err, z.Str("address", beaconNodeAddr))
+		writeError(ctx, w, "proxy", err)
+		return
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+	// Extend default proxy director with basic auth and host header
+	defaultDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		if targetURL.User != nil {
+			password, _ := targetURL.User.Password()
+			req.SetBasicAuth(targetURL.User.Username(), password)
+		}
+
+		req.Host = targetURL.Host
+		defaultDirector(req)
+
+		// Apply custom beacon node headers (e.g., authentication)
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+	}
+
+	proxy.ErrorLog = stdlog.New(io.Discard, "", 0)
+
+	// Clone request with the provided context for soft shutdown support
+	clonedReq := r.Clone(ctx)
+
+	log.Debug(ctx, "Reverse proxying SSE request to beacon node",
+		z.Str("method", clonedReq.Method),
+		z.Str("path", clonedReq.URL.Path))
+
+	defer observeProxyAPILatency(clonedReq.URL.Path)()
+	defer observeAPILatency("proxy")()
+
+	proxy.ServeHTTP(proxyResponseWriter{w.(writeFlusher)}, clonedReq)
 }
 
 // writeError writes a http json error response object.

@@ -135,3 +135,7 @@ func (h *httpAdapter) Proxy(ctx context.Context, req *http.Request) (*http.Respo
 	log.Debug(ctx, "Proxying request to beacon node", z.Any("url", h.address))
 	return h.Service.Proxy(ctx, req)
 }
+
+func (h *httpAdapter) Headers() map[string]string {
+	return h.headers
+}
