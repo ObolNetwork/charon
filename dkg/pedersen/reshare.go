@@ -91,24 +91,56 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		distKeyShares = append(distKeyShares, dks)
 	}
 
-	// The new nodes are always appended to the old nodes slice
-	// The old nodes can be indices within the existing nodes slice
-	oldN := len(nodes) - len(config.Reshare.NewPeers)
-	oldNodes := nodes[:oldN]
-	newNodes := make([]kdkg.Node, len(nodes))
-	copy(newNodes, nodes)
+	// Determine which nodes are old vs new
+	// For remove-only scenarios (no new nodes added):
+	//   - oldNodes: all participating nodes (even if removed, but participating)
+	//   - newNodes: participating nodes excluding those being removed
+	// For add-only scenarios (no nodes removed):
+	//   - oldNodes: participating old nodes only (excludes new nodes)
+	//   - newNodes: all participating nodes (old + new)
 
 	thisIsOldNode := false
 
 	for _, oid := range config.Reshare.OldPeers {
-		idx := config.PeerMap[oid]
-		if idx.PeerIdx == thisNodeIndex {
-			thisIsOldNode = true
+		idx, ok := config.PeerMap[oid]
+		if !ok {
+			// Removed node is not in peer map (not participating)
+			continue
 		}
 
-		newNodes = slices.DeleteFunc(newNodes, func(n kdkg.Node) bool {
-			return n.Index == kdkg.Index(idx.PeerIdx)
-		})
+		if idx.PeerIdx == thisNodeIndex {
+			thisIsOldNode = true
+			break
+		}
+	}
+
+	// The nodes slice contains all participating nodes (sorted by index)
+	// For remove scenarios, removed nodes don't participate and aren't in this list
+	// Split the participating nodes into old and new based on config
+	numNewPeers := len(config.Reshare.NewPeers)
+	numOldNodes := len(nodes) - numNewPeers
+
+	// oldNodes are the first N-numNewPeers nodes (assuming new nodes come last after old nodes)
+	oldNodes := make([]kdkg.Node, numOldNodes)
+	copy(oldNodes, nodes[:numOldNodes])
+
+	// newNodes starts with all participating nodes
+	newNodes := make([]kdkg.Node, 0, len(nodes))
+	for _, node := range nodes {
+		// Check if this node is being removed
+		isRemoving := false
+
+		for _, oid := range config.Reshare.OldPeers {
+			if idx, ok := config.PeerMap[oid]; ok && idx.PeerIdx == int(node.Index) {
+				isRemoving = true
+				break
+			}
+		}
+
+		// Only include nodes that are NOT being removed
+		if !isRemoving {
+			newNodes = append(newNodes, node)
+		}
 	}
 
 	nonce, err := generateNonce(nodes)
