@@ -91,56 +91,70 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		distKeyShares = append(distKeyShares, dks)
 	}
 
-	// Determine which nodes are old vs new
-	// For remove-only scenarios (no new nodes added):
-	//   - oldNodes: all participating nodes (even if removed, but participating)
-	//   - newNodes: participating nodes excluding those being removed
-	// For add-only scenarios (no nodes removed):
-	//   - oldNodes: participating old nodes only (excludes new nodes)
+	// Classify nodes for reshare operation.
+	// In KDKG terminology:
+	//   - oldNodes: nodes with existing shares (participating in the old cluster)
+	//   - newNodes: nodes that will have shares in the new cluster
+	//
+	// For remove-only scenarios:
+	//   - oldNodes: participating nodes with shares (excludes non-participating removed nodes)
+	//   - newNodes: participating nodes minus those being removed
+	//
+	// For add-only scenarios:
+	//   - oldNodes: existing nodes with shares (excludes newly added nodes)
 	//   - newNodes: all participating nodes (old + new)
 
 	thisIsOldNode := false
-
-	for _, oid := range config.Reshare.OldPeers {
-		idx, ok := config.PeerMap[oid]
-		if !ok {
-			// Removed node is not in peer map (not participating)
-			continue
-		}
-
-		if idx.PeerIdx == thisNodeIndex {
-			thisIsOldNode = true
-			break
-		}
-	}
-
-	// The nodes slice contains all participating nodes (sorted by index)
-	// For remove scenarios, removed nodes don't participate and aren't in this list
-	// Split the participating nodes into old and new based on config
-	numNewPeers := len(config.Reshare.NewPeers)
-	numOldNodes := len(nodes) - numNewPeers
-
-	// oldNodes are the first N-numNewPeers nodes (assuming new nodes come last after old nodes)
-	oldNodes := make([]kdkg.Node, numOldNodes)
-	copy(oldNodes, nodes[:numOldNodes])
-
-	// newNodes starts with all participating nodes
+	oldNodes := make([]kdkg.Node, 0, len(nodes))
 	newNodes := make([]kdkg.Node, 0, len(nodes))
-	for _, node := range nodes {
-		// Check if this node is being removed
-		isRemoving := false
 
-		for _, oid := range config.Reshare.OldPeers {
-			if idx, ok := config.PeerMap[oid]; ok && idx.PeerIdx == int(node.Index) {
+	for _, node := range nodes {
+		isRemoving := false
+		isNewlyAdded := false
+
+		// Check if this node is being removed
+		for _, removedPeerID := range config.Reshare.RemovedPeers {
+			if idx, ok := config.PeerMap[removedPeerID]; ok && idx.PeerIdx == int(node.Index) {
 				isRemoving = true
+				if idx.PeerIdx == thisNodeIndex {
+					thisIsOldNode = true
+				}
+
 				break
 			}
 		}
 
-		// Only include nodes that are NOT being removed
+		// Check if this node is newly added
+		for _, addedPeerID := range config.Reshare.AddedPeers {
+			if idx, ok := config.PeerMap[addedPeerID]; ok && idx.PeerIdx == int(node.Index) {
+				isNewlyAdded = true
+				break
+			}
+		}
+
+		// Classify nodes:
+		// - oldNodes: nodes that are not newly added (have existing shares)
+		// - newNodes: nodes that are not being removed (will be in new cluster)
+		if !isNewlyAdded {
+			oldNodes = append(oldNodes, node)
+		}
+
 		if !isRemoving {
 			newNodes = append(newNodes, node)
 		}
+	}
+
+	// Validate node classification
+	if len(config.Reshare.RemovedPeers) > 0 && len(oldNodes) == 0 {
+		return nil, errors.New("remove operation but no old nodes with shares found")
+	}
+
+	if len(config.Reshare.AddedPeers) > 0 && len(newNodes) == len(oldNodes) {
+		return nil, errors.New("add operation but no new nodes found")
+	}
+
+	if thisIsOldNode && len(distKeyShares) == 0 {
+		return nil, errors.New("this is old node but no shares to reshare")
 	}
 
 	nonce, err := generateNonce(nodes)
@@ -171,12 +185,16 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 	for shareNum := range config.Reshare.TotalShares {
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
-		if len(distKeyShares) > 0 {
-			// Share is to be set by old nodes only
+		// Nodes with existing shares provide their share to the reshare protocol.
+		// New nodes without shares provide public coefficients instead.
+		isNodeWithExistingShares := len(distKeyShares) > 0
+
+		if isNodeWithExistingShares {
+			// This node has existing shares to contribute to the reshare
 			reshareConfig.Share = distKeyShares[shareNum]
 			reshareConfig.PublicCoeffs = nil
 		} else {
-			// PublicCoeffs is to be set by new nodes only, but not the Share
+			// This is a new node - restore public coefficients from exchanged public key shares
 			commits, err := restoreCommits(pubKeyShares, shareNum, config.Threshold)
 			if err != nil {
 				return nil, errors.Wrap(err, "restore commits")
