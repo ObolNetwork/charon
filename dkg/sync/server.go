@@ -272,12 +272,17 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			SyncTimestamp: msg.GetTimestamp(),
 		}
 
+		logOpts := []z.Field{z.Str("peer", p2p.PeerName(pID))}
+		if msg.GetNickname() != "" {
+			logOpts = append(logOpts, z.Str("nickname", msg.GetNickname()))
+		}
+
 		if err := s.validReq(pubkey, msg); err != nil {
-			s.setErr(errors.Wrap(err, "invalid sync message", z.Str("peer", p2p.PeerName(pID))))
+			s.setErr(errors.Wrap(err, "invalid sync message", logOpts...))
 			resp.Error = err.Error()
 		} else if !s.isConnected(pID) {
 			count := s.setConnected(pID)
-			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
+			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount), logOpts...)
 		}
 
 		if err := s.updateStep(pID, int(msg.GetStep())); err != nil {

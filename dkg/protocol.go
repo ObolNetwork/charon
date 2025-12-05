@@ -161,7 +161,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, cancel, TestConfig{})
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, cancel, TestConfig{}, config.Nickname)
 	if err != nil {
 		return err
 	}
