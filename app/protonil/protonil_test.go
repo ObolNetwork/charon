@@ -12,7 +12,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/protonil"
 	v1 "github.com/obolnetwork/charon/app/protonil/testdata/v1"
-	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	corepb "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -136,10 +135,6 @@ func TestFuzz(t *testing.T) {
 		new(v1.M2),
 		new(v1.M3),
 		new(v1.M4),
-		new(manifestpb.Cluster),
-		new(manifestpb.SignedMutation),
-		new(manifestpb.SignedMutationList),
-		new(manifestpb.LegacyLock),
 		new(corepb.QBFTMsg),
 		new(corepb.PriorityScoredResult),
 		new(corepb.SniffedConsensusInstance),

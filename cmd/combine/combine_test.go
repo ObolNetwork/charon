@@ -14,11 +14,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/manifest"
-	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/cmd/combine"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -92,18 +89,6 @@ func TestCombineCannotLoadKeystore(t *testing.T) {
 	require.ErrorContains(t, err, "insufficient private key shares found for validator")
 }
 
-func TestCombineAllManifest(t *testing.T) {
-	seed := 0
-	random := rand.New(rand.NewSource(int64(seed)))
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
-	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
-		ManifestOnly,
-		ManifestOnly,
-		ManifestOnly,
-		ManifestOnly,
-	}, eth2util.Network{})
-}
-
 func TestCombineCustomNetworkFork(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
@@ -120,31 +105,7 @@ func TestCombineCustomNetworkFork(t *testing.T) {
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random, func(definition *cluster.Definition) {
 		definition.ForkVersion = []byte{0xca, 0xfe, 0xba, 0xbe}
 	})
-	combineTest(t, lock, shares, false, false, noLockModif, nil, customNetwork)
-}
-
-func TestCombineBothManifestAndLockForAll(t *testing.T) {
-	seed := 0
-	random := rand.New(rand.NewSource(int64(seed)))
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
-	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
-		Both,
-		Both,
-		Both,
-		Both,
-	}, eth2util.Network{})
-}
-
-func TestCombineBothManifestAndLockForSome(t *testing.T) {
-	seed := 0
-	random := rand.New(rand.NewSource(int64(seed)))
-	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
-	combineTest(t, lock, shares, false, false, noLockModif, []manifestChoice{
-		ManifestOnly,
-		Both,
-		Both,
-		LockOnly,
-	}, eth2util.Network{})
+	combineTest(t, lock, shares, false, false, noLockModif, customNetwork)
 }
 
 // This test exists because of https://github.com/ObolNetwork/charon/issues/2151.
@@ -152,21 +113,21 @@ func TestCombineLotsOfVals(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, _, shares := cluster.NewForT(t, 100, 3, 4, seed, random)
-	combineTest(t, lock, shares, false, false, noLockModif, nil, eth2util.Network{})
+	combineTest(t, lock, shares, false, false, noLockModif, eth2util.Network{})
 }
 
 func TestCombine(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
-	combineTest(t, lock, shares, false, false, noLockModif, nil, eth2util.Network{})
+	combineTest(t, lock, shares, false, false, noLockModif, eth2util.Network{})
 }
 
 func TestCombineNoVerifyGoodLock(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, _, shares := cluster.NewForT(t, 2, 3, 4, seed, random)
-	combineTest(t, lock, shares, true, false, noLockModif, nil, eth2util.Network{})
+	combineTest(t, lock, shares, true, false, noLockModif, eth2util.Network{})
 }
 
 func TestCombineNoVerifyBadLock(t *testing.T) {
@@ -179,7 +140,7 @@ func TestCombineNoVerifyBadLock(t *testing.T) {
 		}
 
 		return src
-	}, nil, eth2util.Network{})
+	}, eth2util.Network{})
 }
 
 func TestCombineBadLock(t *testing.T) {
@@ -192,7 +153,7 @@ func TestCombineBadLock(t *testing.T) {
 		}
 
 		return src
-	}, nil, eth2util.Network{})
+	}, eth2util.Network{})
 }
 
 func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
@@ -205,33 +166,7 @@ func TestCombineNoVerifyDifferentValidatorData(t *testing.T) {
 		}
 
 		return src
-	}, nil, eth2util.Network{})
-}
-
-type manifestChoice int
-
-const (
-	ManifestOnly manifestChoice = iota
-	LockOnly
-	Both
-)
-
-func writeManifest(
-	t *testing.T,
-	valIdx int,
-	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
-	path string,
-	lock cluster.Lock,
-) {
-	t.Helper()
-	legacy, err := manifest.NewLegacyLockForT(t, modifyLockFile(valIdx, lock))
-	require.NoError(t, err)
-
-	dag := &manifestpb.SignedMutationList{Mutations: []*manifestpb.SignedMutation{legacy}}
-	data, err := proto.Marshal(dag)
-	require.NoError(t, err)
-
-	require.NoError(t, os.WriteFile(filepath.Join(path, "cluster-manifest.pb"), data, 0o755))
+	}, eth2util.Network{})
 }
 
 func writeLock(
@@ -256,7 +191,6 @@ func combineTest(
 	noVerify bool,
 	wantErr bool,
 	modifyLockFile func(valIndex int, src cluster.Lock) cluster.Lock,
-	manifestOrLock []manifestChoice,
 	testnetConfig eth2util.Network,
 ) {
 	t.Helper()
@@ -318,21 +252,7 @@ func combineTest(
 		require.NoError(t, os.Mkdir(vk, 0o755))
 		require.NoError(t, keystore.StoreKeysInsecure(keys, vk, keystore.ConfirmInsecureKeys))
 
-		if len(manifestOrLock) == 0 {
-			// default to lockfile
-			writeLock(t, idx, modifyLockFile, ep, lock)
-			continue
-		}
-
-		switch manifestOrLock[idx] {
-		case ManifestOnly:
-			writeManifest(t, idx, modifyLockFile, ep, lock)
-		case LockOnly:
-			writeLock(t, idx, modifyLockFile, ep, lock)
-		case Both:
-			writeManifest(t, idx, modifyLockFile, ep, lock)
-			writeLock(t, idx, modifyLockFile, ep, lock)
-		}
+		writeLock(t, idx, modifyLockFile, ep, lock)
 	}
 
 	err := combine.Combine(context.Background(), dir, od, true, noVerify, "", testnetConfig, combine.WithInsecureKeysForT(t))
