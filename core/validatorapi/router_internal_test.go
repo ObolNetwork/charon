@@ -65,7 +65,7 @@ func TestProxyShutdown(t *testing.T) {
 			// Forward the request to the target server
 			proxyReq, err := http.NewRequestWithContext(ctx, req.Method, target.URL+req.URL.Path, req.Body)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "create proxy request")
 			}
 			proxyReq.Header = req.Header
 

@@ -463,7 +463,7 @@ func (m Mock) Address() string {
 	return "http://" + m.httpServer.Addr
 }
 
-func (_ Mock) Headers() map[string]string {
+func (Mock) Headers() map[string]string {
 	return nil // Mock doesn't use custom headers
 }
 
