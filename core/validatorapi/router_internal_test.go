@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -47,6 +48,80 @@ const (
 	electraForkEpoch = 1
 	infoLevel        = 1 // 1 is InfoLevel, this avoids importing zerolog directly.
 )
+
+func TestProxyShutdown(t *testing.T) {
+	// Start a server that will block until the request is cancelled.
+	serving := make(chan struct{})
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(serving)
+		<-r.Context().Done()
+	}))
+	defer target.Close()
+
+	// Create a handler that proxies to the target server
+	handler := testHandler{
+		AddressFunc: func() string { return target.URL },
+		ProxyFunc: func(ctx context.Context, req *http.Request) (*http.Response, error) {
+			// Forward the request to the target server
+			proxyReq, err := http.NewRequestWithContext(ctx, req.Method, target.URL+req.URL.Path, req.Body)
+			if err != nil {
+				return nil, err
+			}
+			proxyReq.Header = req.Header
+
+			client := &http.Client{}
+			return client.Do(proxyReq)
+		},
+	}
+
+	// Start a proxy server that will proxy to the target server.
+	ctx, cancel := context.WithCancel(context.Background())
+	proxyHTTP := proxy(handler)
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxyHTTP.ServeHTTP(w, r.WithContext(ctx))
+	}))
+	defer proxyServer.Close()
+
+	// Make a request to the proxy server, this will block until the proxy is shutdown.
+	errCh := make(chan error, 1)
+
+	go func() {
+		_, err := http.Get(proxyServer.URL)
+		errCh <- err
+	}()
+
+	// Wait for the target server is serving the request.
+	<-serving
+	// Shutdown the proxy server.
+	cancel()
+	// Wait for the request to complete.
+	err := <-errCh
+	require.NoError(t, err)
+}
+
+func TestRouterIntegration(t *testing.T) {
+	beaconURL, ok := os.LookupEnv("BEACON_URL")
+	if !ok {
+		t.Skip("Skipping integration test since BEACON_URL not found")
+	}
+
+	handler := testHandler{}
+	// Override Address to return the beacon URL from environment
+	handler.AddressFunc = func() string {
+		return beaconURL
+	}
+
+	r, err := NewRouter(handler, true)
+	require.NoError(t, err)
+
+	server := httptest.NewServer(r)
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/eth/v1/node/version")
+	require.NoError(t, err)
+
+	require.Equal(t, 200, resp.StatusCode)
+}
 
 func TestRawRouter(t *testing.T) {
 	t.Run("proxy", func(t *testing.T) {
@@ -2097,6 +2172,8 @@ type testHandler struct {
 	SyncCommitteeDutiesFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc    func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
 	ProxyFunc                        func(ctx context.Context, req *http.Request) (*http.Response, error)
+	AddressFunc                      func() string
+	HeadersFunc                      func() map[string]string
 }
 
 func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
@@ -2192,11 +2269,19 @@ func (h testHandler) Proxy(ctx context.Context, req *http.Request) (*http.Respon
 }
 
 func (h testHandler) Address() string {
+	if h.AddressFunc != nil {
+		return h.AddressFunc()
+	}
+
 	return "http://mock-beacon-node"
 }
 
 func (h testHandler) Headers() map[string]string {
-	return nil // Test handler doesn't use custom headers
+	if h.HeadersFunc != nil {
+		return h.HeadersFunc()
+	}
+
+	return nil // Test handler doesn't use custom headers by default
 }
 
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
