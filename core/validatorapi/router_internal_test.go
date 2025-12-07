@@ -2191,6 +2191,14 @@ func (h testHandler) Proxy(ctx context.Context, req *http.Request) (*http.Respon
 	return h.ProxyFunc(ctx, req)
 }
 
+func (h testHandler) Address() string {
+	return "http://mock-beacon-node"
+}
+
+func (h testHandler) Headers() map[string]string {
+	return nil // Test handler doesn't use custom headers
+}
+
 // newBeaconHandler returns a mock beacon node handler. It registers a few mock handlers required by the
 // eth2http service on startup, all other requests are routed to ProxyHandler if not nil.
 func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
