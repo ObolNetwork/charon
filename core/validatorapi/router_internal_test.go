@@ -75,7 +75,7 @@ func TestProxyShutdown(t *testing.T) {
 	}
 
 	// Start a proxy server that will proxy to the target server.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	proxyHTTP := proxy(handler)
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHTTP.ServeHTTP(w, r.WithContext(ctx))
