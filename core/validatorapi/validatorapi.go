@@ -1304,6 +1304,14 @@ func (c Component) Proxy(ctx context.Context, req *http.Request) (*http.Response
 	return c.eth2Cl.Proxy(ctx, req)
 }
 
+func (c Component) Address() string {
+	return c.eth2Cl.Address()
+}
+
+func (c Component) Headers() map[string]string {
+	return c.eth2Cl.Headers()
+}
+
 // wrapResponse wraps the provided data into an API Response and returns the response.
 func wrapResponse[T any](data T) *eth2api.Response[T] {
 	return &eth2api.Response[T]{Data: data}
