@@ -30,7 +30,22 @@ jobs:
           fetch-depth: 0 # Required to get all tags and branches
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 2. Find Latest Release Branch
+      - name: 2. Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: 2b. Configure Git with GPG
+        run: |
+          git config --global user.name "obol-platform"
+          git config --global user.email "platform@obol.tech"
+          git config --global user.signingkey "$(gpg --list-secret-keys --keyid-format LONG platform@obol.tech | grep sec | awk '{print $2}' | cut -d'/' -f2)"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+      - name: 3. Find Latest Release Branch
         id: find_branch
         run: |
           # Fetch all remote branches
@@ -146,10 +161,6 @@ jobs:
         run: |
           TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
-
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # Create annotated tag
           git tag -a "${TAG_VERSION}" -m "Release ${TAG_VERSION}"
