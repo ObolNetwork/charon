@@ -18,7 +18,20 @@ jobs:
           fetch-depth: 0 # Required to get all tags for versioning
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 2. Get and Increment Version
+      - name: 2. Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: 3. Configure Git with GPG
+        run: |
+          git config --global user.name "obol-platform"
+          git config --global user.email "platform@obol.tech"
+          git config --global user.signingkey "$(gpg --list-secret-keys --keyid-format LONG platform@obol.tech | grep sec | awk '{print $2}' | cut -d'/' -f2)"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+      - name: 4. Get and Increment Version
         id: bump
         uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
         with:
@@ -27,7 +40,7 @@ jobs:
           default_bump: minor # Will go from v1.7.X -> v1.8.0
           dry_run: true # Don't create tag yet, just calculate the new version
 
-      - name: 3. Set Variables for New Release
+      - name: 5. Set Variables for New Release
         id: vars
         run: |
           # Use the 'new_tag' output, e.g., "v1.8.0"
@@ -68,11 +81,8 @@ jobs:
           echo "::notice::Creating work branch: ${WORK_BRANCH}"
           echo "::notice::New version: ${NEW_V_VERSION}"
 
-      - name: 4. Create Release Branch
+      - name: 6. Create Release Branch
         run: |
-          git config user.name "obol-platform"
-          git config user.email "platform@obol.tech"
-
           RELEASE_BRANCH="${{ steps.vars.outputs.RELEASE_BRANCH }}"
 
           # Create the release branch from main (use -B to reset if exists)
@@ -84,7 +94,7 @@ jobs:
 
           echo "::notice::Created and pushed release branch: $RELEASE_BRANCH"
 
-      - name: 5. Modify App Version in Code
+      - name: 7. Modify App Version in Code
         run: |
           VERSION_FILE="app/version/version.go"
           NEW_VERSION="${{ steps.vars.outputs.NEW_V_VERSION }}"
@@ -99,7 +109,7 @@ jobs:
           grep "var version" "$VERSION_FILE"
           echo "---"
 
-      - name: 6. Create Pull Request to Release Branch
+      - name: 8. Create Pull Request to Release Branch
         uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
         with:
           token: ${{ secrets.GITHUB_TOKEN }}

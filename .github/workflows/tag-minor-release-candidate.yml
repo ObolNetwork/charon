@@ -17,7 +17,20 @@ jobs:
           fetch-depth: 0 # Required to get all tags and branches
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 2. Find Latest Release Branch
+      - name: 2. Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: 2b. Configure Git with GPG
+        run: |
+          git config --global user.name "obol-platform"
+          git config --global user.email "platform@obol.tech"
+          git config --global user.signingkey "$(gpg --list-secret-keys --keyid-format LONG platform@obol.tech | grep sec | awk '{print $2}' | cut -d'/' -f2)"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+      - name: 3. Find Latest Release Branch
         id: find_branch
         run: |
           # Fetch all remote branches
@@ -89,11 +102,8 @@ jobs:
 
           echo "::notice::New release candidate tag will be: ${NEW_TAG}"
 
-      - name: 4. Create and Push Tag
+      - name: 5. Create and Push Tag
         run: |
-          git config user.name "obol-platform"
-          git config user.email "platform@obol.tech"
-
           NEW_TAG="${{ steps.latest_rc.outputs.NEW_TAG }}"
 
           # Create annotated tag

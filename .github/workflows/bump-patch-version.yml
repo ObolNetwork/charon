@@ -19,7 +19,20 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: false
 
-      - name: 2. Get and Increment Version
+      - name: 2. Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: 3. Configure Git with GPG
+        run: |
+          git config --global user.name "obol-platform"
+          git config --global user.email "platform@obol.tech"
+          git config --global user.signingkey "$(gpg --list-secret-keys --keyid-format LONG platform@obol.tech | grep sec | awk '{print $2}' | cut -d'/' -f2)"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+      - name: 4. Get and Increment Version
         id: bump
         run: |
           # Fetch all remote branches and tags
@@ -107,7 +120,7 @@ jobs:
           echo "::notice::Creating work branch: ${WORK_BRANCH}"
           echo "::notice::New version: ${NEW_V_VERSION}"
 
-      - name: 4. Checkout Release Branch
+      - name: 5. Checkout Release Branch
         run: |
           RELEASE_BRANCH="${{ steps.vars.outputs.RELEASE_BRANCH }}"
 
@@ -117,7 +130,7 @@ jobs:
 
           echo "::notice::Checked out branch: $RELEASE_BRANCH"
 
-      - name: 5. Modify App Version in Code
+      - name: 6. Modify App Version in Code
         run: |
           VERSION_FILE="app/version/version.go"
           NEW_VERSION="${{ steps.vars.outputs.NEW_V_VERSION }}"
@@ -132,7 +145,7 @@ jobs:
           grep "var version" "$VERSION_FILE"
           echo "---"
 
-      - name: 6. Create Pull Request to Release Branch
+      - name: 7. Create Pull Request to Release Branch
         uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
