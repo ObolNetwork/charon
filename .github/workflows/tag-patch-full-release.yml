@@ -148,8 +148,8 @@ jobs:
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
 
           # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "obol-platform"
+          git config user.email "platform@obol.tech"
 
           # Create annotated tag
           git tag -a "${TAG_VERSION}" -m "Release ${TAG_VERSION}"

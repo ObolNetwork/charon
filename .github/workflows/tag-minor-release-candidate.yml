@@ -91,8 +91,8 @@ jobs:
 
       - name: 4. Create and Push Tag
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "obol-platform"
+          git config user.email "platform@obol.tech"
 
           NEW_TAG="${{ steps.latest_rc.outputs.NEW_TAG }}"
 

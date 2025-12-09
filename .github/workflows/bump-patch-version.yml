@@ -137,8 +137,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "app: bump patch version to ${{ steps.vars.outputs.NEW_V_VERSION }}"
-          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
-          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "obol-platform <platform@obol.tech>"
+          author: "obol-platform <platform@obol.tech>"
           branch: ${{ steps.vars.outputs.WORK_BRANCH }}
           base: ${{ steps.vars.outputs.RELEASE_BRANCH }}
           delete-branch: true

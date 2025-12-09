@@ -70,8 +70,8 @@ jobs:
 
       - name: 4. Create Release Branch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "obol-platform"
+          git config user.email "platform@obol.tech"
 
           RELEASE_BRANCH="${{ steps.vars.outputs.RELEASE_BRANCH }}"
 
@@ -104,8 +104,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "app: bump minor version to ${{ steps.vars.outputs.NEW_V_VERSION }}"
-          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
-          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "obol-platform <platform@obol.tech>"
+          author: "obol-platform <platform@obol.tech>"
           branch: ${{ steps.vars.outputs.WORK_BRANCH }}
           base: ${{ steps.vars.outputs.RELEASE_BRANCH }}
           delete-branch: true

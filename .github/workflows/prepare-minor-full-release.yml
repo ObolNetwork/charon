@@ -137,8 +137,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "app/version: bump v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }} to stable"
-          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
-          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "obol-platform <platform@obol.tech>"
+          author: "obol-platform <platform@obol.tech>"
           branch: ${{ steps.stable_pr.outputs.WORK_BRANCH }}
           base: ${{ steps.find_branch.outputs.RELEASE_BRANCH }}
           delete-branch: true
@@ -200,8 +200,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "app: bump version to ${{ steps.version.outputs.NEXT_DEV_VERSION }}"
-          committer: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
-          author: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          committer: "obol-platform <platform@obol.tech>"
+          author: "obol-platform <platform@obol.tech>"
           branch: ${{ steps.dev_pr.outputs.DEV_WORK_BRANCH }}
           base: main
           delete-branch: true
