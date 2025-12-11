@@ -14,6 +14,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -87,7 +88,7 @@ func runDeleteExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := loadClusterLock(config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
 	if err != nil {
 		return err
 	}
@@ -97,20 +98,20 @@ func runDeleteExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
-	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
+	shareIdx, err := keystore.ShareIdxForCluster(*cl, *identityKey.PubKey())
 	if err != nil {
 		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
 
 	if config.All {
-		for _, validator := range cl.GetValidators() {
-			validatorPubKeyHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
+		for _, validator := range cl.Validators {
+			validatorPubKeyHex := validator.PublicKeyHex()
 
 			valCtx := log.WithCtx(ctx, z.Str("validator", validatorPubKeyHex))
 
 			log.Info(ctx, "Deleting partial exit message")
 
-			err := oAPI.DeletePartialExit(valCtx, validatorPubKeyHex, cl.GetInitialMutationHash(), shareIdx, identityKey)
+			err := oAPI.DeletePartialExit(valCtx, validatorPubKeyHex, cl.LockHash, shareIdx, identityKey)
 			if err != nil {
 				if errors.Is(err, obolapi.ErrNoValue) {
 					log.Warn(ctx, fmt.Sprintf("partial exit data from Obol API for validator %v not available (exit may not have been submitted)", validatorPubKeyHex), nil)
@@ -130,7 +131,7 @@ func runDeleteExit(ctx context.Context, config exitConfig) error {
 
 		log.Info(ctx, "Deleting partial exit message")
 
-		err := oAPI.DeletePartialExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
+		err := oAPI.DeletePartialExit(ctx, config.ValidatorPubkey, cl.LockHash, shareIdx, identityKey)
 		if err != nil {
 			return errors.Wrap(err, "delete partial exit data from Obol API", z.Str("validator_public_key", config.ValidatorPubkey))
 		}
