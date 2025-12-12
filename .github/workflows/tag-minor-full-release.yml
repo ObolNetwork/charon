@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0 # Required to get all tags and branches
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
 
       - name: 2. Import GPG key
         env:
@@ -126,6 +126,8 @@ jobs:
 
       - name: 7. Create and Push Tag
         id: create_and_push_tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.OBOL_PLATFORM_PAT }}
         run: |
           TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"

@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0 # Required to get all tags for versioning
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
           persist-credentials: false
 
       - name: 2. Import GPG key
@@ -150,7 +150,7 @@ jobs:
       - name: 7. Create Pull Request to Release Branch
         uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
           commit-message: "app: bump patch version to ${{ steps.vars.outputs.NEW_V_VERSION }}"
           committer: "obol-platform <platform@obol.tech>"
           author: "obol-platform <platform@obol.tech>"
