@@ -269,27 +269,28 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			Type: dutyType,
 		}
 
+		var span trace.Span
+
+		dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
+
+		dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
+
 		defSet, ok := s.getDutyDefinitionSet(duty)
 		if !ok {
+			span.End()
 			// Nothing for this duty.
 			continue
 		}
 
 		// Trigger duty async
 		go func() {
+			defer span.End()
+
 			if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
 				return // context cancelled
 			}
 
 			instrumentDuty(duty, defSet)
-
-			dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
-			if duty.Type == core.DutyProposer {
-				var span trace.Span
-
-				dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
-				defer span.End()
-			}
 
 			for _, sub := range s.dutySubs {
 				clone, err := defSet.Clone() // Clone for each subscriber.
