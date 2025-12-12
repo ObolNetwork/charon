@@ -108,7 +108,7 @@ jobs:
         run: |
           NEW_TAG="${{ steps.latest_rc.outputs.NEW_TAG }}"
 
-          # Create annotated tag
+          # Create tag
           git tag "$NEW_TAG" -m "Release candidate $NEW_TAG"
 
           # Push tag

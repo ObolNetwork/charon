@@ -162,7 +162,7 @@ jobs:
           TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
 
-          # Create annotated tag
+          # Create tag
           git tag "${TAG_VERSION}" -m "Release ${TAG_VERSION}"
 
           # Push tag to remote
