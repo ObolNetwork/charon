@@ -23,7 +23,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/instance"
@@ -514,8 +513,14 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		inst.ErrCh <- err // Send resulting error to errCh.
 	}()
 
+	var span trace.Span
+
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/qbft.runInstance")
+
 	if !c.deadliner.Add(duty) {
+		span.AddEvent("Expired Duty Skipped")
 		log.Warn(ctx, "Skipping consensus for expired duty", nil)
+
 		return nil
 	}
 
@@ -527,11 +532,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	var (
 		decided bool
 		nodes   = len(c.peers)
-		span    trace.Span
 	)
-
-	_, span = tracer.Start(ctx, "qbft.runInstance")
-	span.SetAttributes(attribute.String("duty", duty.Type.String()))
 
 	defer func() {
 		if err != nil && !isContextErr(err) {
@@ -573,6 +574,15 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback, c.compareAttestations)
+	origLogRoundChange := def.LogRoundChange
+	def.LogRoundChange = func(ctx context.Context, instance core.Duty, process, round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
+		if origLogRoundChange != nil {
+			origLogRoundChange(ctx, instance, process, round, newRound, uponRule, msgs)
+		}
+
+		span.AddEvent("Round Changed")
+		span.SetAttributes(attribute.Int64("new_round", newRound))
+	}
 
 	// Create a new transport that handles sending and receiving for this instance.
 	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte, proto.Message]), newSniffer(int64(def.Nodes), peerIdx))

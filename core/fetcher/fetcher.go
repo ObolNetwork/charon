@@ -11,6 +11,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -54,9 +55,13 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 // Fetch triggers fetching of a proposed duty data set.
 func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	var (
+		span        trace.Span
 		unsignedSet core.UnsignedDataSet
 		err         error
 	)
+
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/fetcher.Fetch")
+	defer span.End()
 
 	switch duty.Type {
 	case core.DutyProposer:
