@@ -132,8 +132,8 @@ jobs:
           TAG_VERSION="${{ steps.version.outputs.TAG_VERSION }}"
           RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
 
-          # Create annotated tag
-          git tag -a "${TAG_VERSION}" -m "Release ${TAG_VERSION}"
+          # Create tag
+          git tag "${TAG_VERSION}" -m "Release ${TAG_VERSION}"
 
           # Push tag to remote
           git push origin "${TAG_VERSION}"
