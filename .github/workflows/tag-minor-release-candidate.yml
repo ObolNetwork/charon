@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0 # Required to get all tags and branches
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
 
       - name: 2. Import GPG key
         env:
@@ -55,7 +55,7 @@ jobs:
           # Checkout the release branch
           git checkout "$RELEASE_BRANCH"
 
-      - name: 3. Extract Version from Branch Name
+      - name: 4. Extract Version from Branch Name
         id: version
         run: |
           BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
@@ -76,7 +76,7 @@ jobs:
 
           echo "::notice::Extracted version prefix: ${VERSION_PREFIX}"
 
-      - name: 3. Find Latest Release Candidate
+      - name: 5. Find Latest Release Candidate
         id: latest_rc
         run: |
           VERSION_PREFIX="${{ steps.version.outputs.VERSION_PREFIX }}"
@@ -104,7 +104,10 @@ jobs:
 
           echo "::notice::New release candidate tag will be: ${NEW_TAG}"
 
-      - name: 5. Create and Push Tag
+      - name: 6. Create and Push Tag
+        id: create_and_push_tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.OBOL_PLATFORM_PAT }}
         run: |
           NEW_TAG="${{ steps.latest_rc.outputs.NEW_TAG }}"
 
@@ -116,7 +119,7 @@ jobs:
 
           echo "::notice::Successfully created and pushed tag: $NEW_TAG"
 
-      - name: 5. Output Summary
+      - name: 7. Output Summary
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
           ## Minor Release Candidate Tagged Successfully

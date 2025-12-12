@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0 # Required to get all tags for versioning
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
 
       - name: 2. Import GPG key
         env:
@@ -37,7 +37,7 @@ jobs:
         id: bump
         uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.OBOL_PLATFORM_PAT }}
           # NOTE: This workflow ignores conventional commit messages and always bumps the minor version.
           default_bump: minor # Will go from v1.7.X -> v1.8.0
           dry_run: true # Don't create tag yet, just calculate the new version
@@ -93,7 +93,6 @@ jobs:
 
           # The release branch is already checked out; no need to checkout again.
 
-
           echo "::notice::Created and pushed release branch: $RELEASE_BRANCH"
 
       - name: 7. Modify App Version in Code
@@ -114,7 +113,7 @@ jobs:
       - name: 8. Create Pull Request to Release Branch
         uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
           commit-message: "app: bump minor version to ${{ steps.vars.outputs.NEW_V_VERSION }}"
           committer: "obol-platform <platform@obol.tech>"
           author: "obol-platform <platform@obol.tech>"
@@ -137,3 +136,25 @@ jobs:
 
             category: misc
             ticket: none
+
+      - name: 9. Output Summary
+        if: always()
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Minor Release Process Initiated
+
+          ### Details
+          - **Previous Release:** \`${{ steps.bump.outputs.previous_tag }}\`
+          - **New Release Branch:** \`${{ steps.vars.outputs.RELEASE_BRANCH }}\`
+          - **New Version:** \`${{ steps.vars.outputs.NEW_V_VERSION }}\`
+
+          ### Next Steps
+          1. Review and merge the created PR to \`${{ steps.vars.outputs.RELEASE_BRANCH }}\`
+          2. After merge, run the "Tag Minor Release Candidate" workflow
+          3. Test the release candidate thoroughly (Kurtosis, Hoodi environments, etc.)
+          4. If successful, proceed with "Prepare Minor Full Release" workflow
+          5. After stable PR is merged to release branch, run "Tag Minor Full Release" workflow
+          6. Finally, merge the dev version PR to \`main\` to start the next development cycle
+
+          **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a different workflow.
+          EOF
