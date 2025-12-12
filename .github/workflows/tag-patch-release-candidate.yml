@@ -55,7 +55,7 @@ jobs:
           # Checkout the release branch
           git checkout "$RELEASE_BRANCH"
 
-      - name: 3. Extract Version from Branch Name
+      - name: 4. Extract Version from Branch Name
         id: version
         run: |
           BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
@@ -136,7 +136,7 @@ jobs:
 
           echo "::notice::New release candidate tag will be: ${NEW_TAG}"
 
-      - name: 7. Create and Push Tag
+      - name: 6. Create and Push Tag
         id: create_tag
         env:
           GITHUB_TOKEN: ${{ secrets.OBOL_PLATFORM_PAT }}

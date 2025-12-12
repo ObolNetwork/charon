@@ -136,3 +136,25 @@ jobs:
 
             category: misc
             ticket: none
+
+      - name: 9. Output Summary
+        if: always()
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Minor Release Process Initiated
+
+          ### Details
+          - **Previous Release:** \`${{ steps.bump.outputs.previous_tag }}\`
+          - **New Release Branch:** \`${{ steps.vars.outputs.RELEASE_BRANCH }}\`
+          - **New Version:** \`${{ steps.vars.outputs.NEW_V_VERSION }}\`
+
+          ### Next Steps
+          1. Review and merge the created PR to \`${{ steps.vars.outputs.RELEASE_BRANCH }}\`
+          2. After merge, run the "Tag Minor Release Candidate" workflow
+          3. Test the release candidate thoroughly (Kurtosis, Hoodi environments, etc.)
+          4. If successful, proceed with "Prepare Minor Full Release" workflow
+          5. After stable PR is merged to release branch, run "Tag Minor Full Release" workflow
+          6. Finally, merge the dev version PR to \`main\` to start the next development cycle
+
+          **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a different workflow.
+          EOF
