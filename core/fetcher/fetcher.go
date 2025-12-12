@@ -305,10 +305,10 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			return nil, errors.Wrap(err, "new proposal")
 		}
 
-		// Track whether the fetched proposal is blinded (built by MEV builder, 2) or local (built by beacon node, 1)
-		blinded := 1.0
+		// Track whether the fetched proposal is blinded (built by MEV builder, 1) or local (built by beacon node, 2)
+		blinded := 2.0
 		if proposal.Blinded {
-			blinded = 2.0
+			blinded = 1.0
 		}
 
 		proposalBlindedGauge.Set(blinded)

@@ -12,5 +12,5 @@ var proposalBlindedGauge = promauto.NewGauge(prometheus.GaugeOpts{
 	Namespace: "core",
 	Subsystem: "fetcher",
 	Name:      "proposal_blinded",
-	Help:      "Whether the fetched proposal was blinded (2) or local (1)",
+	Help:      "Whether the fetched proposal was blinded (1) or local (2)",
 })
