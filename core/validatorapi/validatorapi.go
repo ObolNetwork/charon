@@ -18,11 +18,13 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -34,7 +36,6 @@ import (
 
 const (
 	defaultGasLimit = 30000000
-	zeroAddress     = "0x0000000000000000000000000000000000000000"
 )
 
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
@@ -261,6 +262,14 @@ func (c *Component) Subscribe(fn func(context.Context, core.Duty, core.ParSigned
 
 // AttestationData implements the eth2client.AttesterDutiesProvider for the router.
 func (c Component) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
+	var span trace.Span
+
+	duty := core.NewAttesterDuty(uint64(opts.Slot))
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.AttestationData")
+
+	span.SetAttributes(attribute.Int64("committee_index", int64(opts.CommitteeIndex)))
+	defer span.End()
+
 	att, err := c.awaitAttFunc(ctx, uint64(opts.Slot), uint64(opts.CommitteeIndex))
 	if err != nil {
 		return nil, err
@@ -271,6 +280,13 @@ func (c Component) AttestationData(ctx context.Context, opts *eth2api.Attestatio
 
 // SubmitAttestations implements the eth2client.AttestationsSubmitter for the router.
 func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2api.SubmitAttestationsOpts) error {
+	var span trace.Span
+
+	ctx, span = tracer.Start(ctx, "core/validatorapi.SubmitAttestations")
+
+	span.SetAttributes(attribute.Int("num_attestations", len(attestationOpts.Attestations)))
+	defer span.End()
+
 	attestations := attestationOpts.Attestations
 	setsBySlot := make(map[uint64]core.ParSignedDataSet)
 
@@ -387,6 +403,13 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 }
 
 func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
+	var span trace.Span
+
+	duty := core.NewRandaoDuty(uint64(opts.Slot))
+
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.Proposal")
+	defer span.End()
+
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(opts.Slot)))
 	if err != nil {
@@ -403,7 +426,6 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 		Signature: opts.RandaoReveal,
 	}
 
-	duty := core.NewRandaoDuty(uint64(opts.Slot))
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
 
 	// Verify randao signature
@@ -795,6 +817,14 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 // AggregateAttestation returns the aggregate attestation for the given attestation root.
 // It does a blocking query to DutyAggregator unsigned data from dutyDB.
 func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.AggregateAttestationOpts) (*eth2api.Response[*eth2spec.VersionedAttestation], error) {
+	var span trace.Span
+
+	duty := core.NewAggregatorDuty(uint64(opts.Slot))
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.AggregateAttestation")
+
+	span.SetAttributes(attribute.Int64("committee_index", int64(opts.CommitteeIndex)))
+	defer span.End()
+
 	aggAtt, err := c.awaitAggAttFunc(ctx, uint64(opts.Slot), opts.AttestationDataRoot)
 	if err != nil {
 		return nil, err
@@ -807,6 +837,13 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 // - It verifies partial signature on AggregateAndProof.
 // - It then calls all the subscribers for further steps on partially signed aggregate and proof.
 func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error {
+	var span trace.Span
+
+	ctx, span = tracer.Start(ctx, "core/validatorapi.SubmitAggregateAttestations")
+
+	span.SetAttributes(attribute.Int("num_aggregates", len(opts.SignedAggregateAndProofs)))
+	defer span.End()
+
 	aggsAndProofs := opts.SignedAggregateAndProofs
 
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
@@ -1071,6 +1108,13 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 
 // ProposerDuties obtains proposer duties for the given options.
 func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+	var span trace.Span
+
+	ctx, span = tracer.Start(ctx, "core/validatorapi.ProposerDuties")
+
+	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
+	defer span.End()
+
 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -1097,6 +1141,13 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
+	var span trace.Span
+
+	ctx, span = tracer.Start(ctx, "core/validatorapi.AttesterDuties")
+
+	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
+	defer span.End()
+
 	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -1148,6 +1199,13 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
+	var span trace.Span
+
+	ctx, span = tracer.Start(ctx, "core/validatorapi.Validators")
+
+	span.SetAttributes(attribute.String("state", opts.State))
+	defer span.End()
+
 	if len(opts.PubKeys) == 0 && len(opts.Indices) == 0 {
 		// fetch all validators
 		eth2Resp, err := c.eth2Cl.Validators(ctx, opts)

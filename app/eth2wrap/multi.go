@@ -63,6 +63,7 @@ func (m multi) Headers() map[string]string {
 	if len(m.clients) == 0 {
 		return nil
 	}
+
 	return m.clients[0].Headers()
 }
 
