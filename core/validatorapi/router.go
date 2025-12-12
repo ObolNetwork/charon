@@ -1648,6 +1648,7 @@ func eventsHandler(h Handler) http.HandlerFunc {
 		if err != nil {
 			log.Error(ctx, "Failed to parse beacon node address for proxying", err, z.Str("address", beaconNodeAddr))
 			writeError(ctx, w, "events", err)
+
 			return
 		}
 

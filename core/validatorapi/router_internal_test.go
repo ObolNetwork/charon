@@ -52,6 +52,7 @@ const (
 func TestProxyShutdown(t *testing.T) {
 	// Start a server that will block until the request is cancelled.
 	serving := make(chan struct{})
+
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		close(serving)
 		<-r.Context().Done()
@@ -67,9 +68,11 @@ func TestProxyShutdown(t *testing.T) {
 			if err != nil {
 				return nil, errors.Wrap(err, "create proxy request")
 			}
+
 			proxyReq.Header = req.Header
 
 			client := &http.Client{}
+
 			return client.Do(proxyReq)
 		},
 	}
@@ -77,6 +80,7 @@ func TestProxyShutdown(t *testing.T) {
 	// Start a proxy server that will proxy to the target server.
 	ctx, cancel := context.WithCancel(t.Context())
 	proxyHTTP := proxy(handler)
+
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyHTTP.ServeHTTP(w, r.WithContext(ctx))
 	}))
