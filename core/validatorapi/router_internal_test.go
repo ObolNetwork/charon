@@ -58,6 +58,7 @@ func (a addr) Address() string {
 func TestProxyShutdown(t *testing.T) {
 	// Start a server that will block until the request is cancelled.
 	serving := make(chan struct{})
+
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		close(serving)
 		<-r.Context().Done()
