@@ -54,7 +54,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_consensus_duration_seconds` | Histogram | Duration of the consensus process by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_error_total` | Counter | Total count of consensus errors by protocol | `protocol` |
 | `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by protocol, duty, and timer | `protocol, duty, timer` |
-| `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was blinded (1) or local (0) |  |
+| `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was blinded (1) or local (2) |  |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_scheduler_current_epoch` | Gauge | The current epoch |  |
 | `core_scheduler_current_slot` | Gauge | The current slot |  |
