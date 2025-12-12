@@ -42,7 +42,7 @@ jobs:
       - name: Validate tag pattern
         id: validate_tag
         run: |
-          if [[ "${TAG_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ "${TAG_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
             echo "TAG_VALID=true" >> $GITHUB_ENV
           else
             echo "TAG_VALID=false" >> $GITHUB_ENV
@@ -108,5 +108,14 @@ jobs:
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
           repository: ObolNetwork/dv-launchpad
+          event-type: update-version
+          client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
+
+      - name: Trigger dispatch for obol-infrastructure
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        if: env.TAG_VALID == 'true'
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          repository: ObolNetwork/obol-infrastructure
           event-type: update-version
           client-payload: '{"tag": "${{ env.TAG_NAME }}"}'
