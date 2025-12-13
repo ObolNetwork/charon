@@ -4,7 +4,7 @@ package validatormock
 
 import "time"
 
-// sepcMeta defines the spec constants.
+// specMeta defines the spec constants.
 type specMeta struct {
 	GenesisTime   time.Time
 	SlotDuration  time.Duration

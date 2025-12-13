@@ -333,7 +333,7 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 	return r, nil
 }
 
-// apiErr defines a validator api error that is converted to an eth2 errorResponse.
+// apiError defines a validator api error that is converted to an eth2 errorResponse.
 type apiError struct {
 	// StatusCode is the http status code to return, defaults to 500.
 	StatusCode int
