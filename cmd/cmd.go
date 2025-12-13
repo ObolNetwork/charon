@@ -52,6 +52,7 @@ func New() *cobra.Command {
 				newRecreatePrivateKeysCmd(runRecreatePrivateKeys),
 				newAddOperatorsCmd(runAddOperators),
 				newRemoveOperatorsCmd(runRemoveOperators),
+				newReplaceOperatorCmd(runReplaceOperator),
 			),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
