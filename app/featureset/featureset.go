@@ -70,6 +70,9 @@ const (
 	// ChainSplitHalt compares locally fetched attestation's target and source to leader's proposed target and source attestation.
 	// In case they differ, Charon does not sign the attestation.
 	ChainSplitHalt = "chain_split_halt"
+
+	// PrepareProposer enables scheduling and processing of prepare proposer duties.
+	PrepareProposer = "prepare_proposer"
 )
 
 var (
@@ -88,6 +91,7 @@ var (
 		QUIC:                 statusAlpha,
 		FetchOnlyCommIdx0:    statusAlpha,
 		ChainSplitHalt:       statusAlpha,
+		PrepareProposer:      statusAlpha,
 		// Add all features and their status here.
 	}
 

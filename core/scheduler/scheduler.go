@@ -498,6 +498,13 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			continue
 		}
 
+		if featureset.Enabled(featureset.PrepareProposer) && proDuty.Slot > eth2p0.Slot(slot.Slot) {
+			// Schedule prepare proposer duty for the slot before the actual proposer duty.
+			prepareDuty := core.NewPrepareProposerDuty(uint64(proDuty.Slot - 1))
+
+			s.setDutyDefinition(prepareDuty, slot.Epoch(), pubkey, core.NewPrepareProposerDefinition(uint64(proDuty.Slot-1)))
+		}
+
 		log.Info(ctx, "Resolved proposer duty",
 			z.U64("slot", uint64(proDuty.Slot)),
 			z.U64("vidx", uint64(proDuty.ValidatorIndex)),

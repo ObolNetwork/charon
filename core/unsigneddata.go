@@ -45,6 +45,49 @@ var (
 	_ ssz.Unmarshaler = new(SyncContribution)
 )
 
+// PrepareProposerData wraps the prepare proposer data.
+type PrepareProposerData struct {
+	TargetSlot   uint64
+	VisiblePeers []uint64 // Indices of peers seen by the proposer.
+}
+
+func (p PrepareProposerData) Clone() (UnsignedData, error) {
+	peers := make([]uint64, len(p.VisiblePeers))
+	copy(peers, p.VisiblePeers)
+
+	return PrepareProposerData{TargetSlot: p.TargetSlot, VisiblePeers: peers}, nil
+}
+
+func (p PrepareProposerData) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(struct {
+		TargetSlot   uint64   `json:"target_slot,string"`
+		VisiblePeers []uint64 `json:"visible_peers,omitempty"`
+	}{
+		TargetSlot:   p.TargetSlot,
+		VisiblePeers: p.VisiblePeers,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal prepare proposer data")
+	}
+
+	return b, nil
+}
+
+func (p *PrepareProposerData) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		TargetSlot   uint64   `json:"target_slot,string"`
+		VisiblePeers []uint64 `json:"visible_peers,omitempty"`
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return errors.Wrap(err, "unmarshal prepare proposer data")
+	}
+
+	p.TargetSlot = aux.TargetSlot
+	p.VisiblePeers = aux.VisiblePeers
+
+	return nil
+}
+
 // AttestationData wraps the eth2 attestation data and adds the original duty.
 // The original duty allows mapping the partial signed response from the VC
 // back to the validator pubkey via the aggregation bits field.
@@ -687,6 +730,13 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 		var resp SyncContribution
 		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal sync contribution")
+		}
+
+		return resp, nil
+	case DutyPrepareProposer:
+		var resp PrepareProposerData
+		if err := unmarshal(data, &resp); err != nil {
+			return nil, errors.Wrap(err, "unmarshal prepare proposer data")
 		}
 
 		return resp, nil

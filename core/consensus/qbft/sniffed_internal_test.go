@@ -79,7 +79,10 @@ func testSniffedInstance(ctx context.Context, t *testing.T, instance *pbv1.Sniff
 
 			return nil
 		}}
-	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {}, false)
+	}, timer.NewIncreasingRoundTimer(), func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message], value proto.Message) {},
+		func(duty core.Duty, round, process int64) bool {
+			return leader(duty, round, int(instance.GetNodes())) == process
+		}, false)
 
 	recvBuffer := make(chan qbft.Msg[core.Duty, [32]byte, proto.Message], len(instance.GetMsgs()))
 

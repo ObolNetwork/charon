@@ -198,16 +198,21 @@ func TestSchedulerDuties(t *testing.T) {
 		},
 		{
 			// All duties spread in first N slots of epoch (N is number of validators)
+			// 3 slots × (proposer + attester + aggregator) + 2 prepare_proposer = 11
 			Name:    "spread",
 			Factor:  1,
-			Results: 9,
+			Results: 11,
 		},
 		{
 			// All duties spread in first N slots of epoch (except first proposer errors)
+			// Slot 0: attester + aggregator = 2 (no proposer due to error)
+			// Slot 1: proposer + attester + aggregator + prepare_proposer = 4
+			// Slot 2: proposer + attester + aggregator = 3
+			// Total = 9
 			Name:     "spread_errors",
 			Factor:   1,
 			PropErrs: 1,
-			Results:  8,
+			Results:  9,
 		},
 	}
 

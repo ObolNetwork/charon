@@ -591,3 +591,230 @@ func signConsensusMsg(t *testing.T, msg *pbv1.QBFTConsensusMsg, privKey *k1.Priv
 
 	return msg
 }
+
+func createPrepareProposerValue(t *testing.T, visiblePeers []uint64) proto.Message {
+	t.Helper()
+
+	data := core.PrepareProposerData{
+		TargetSlot:   100, // Dummy slot
+		VisiblePeers: visiblePeers,
+	}
+
+	// Wrap in UnsignedDataSet
+	set := core.UnsignedDataSet{
+		"0x123": data, // Dummy pubkey
+	}
+
+	pb, err := core.UnsignedDataSetToProto(set)
+	require.NoError(t, err)
+
+	return pb
+}
+
+func TestStoreAndGetParticipation(t *testing.T) {
+	c := &Consensus{}
+	c.prepareParticipation.data = make(map[uint64][]int64)
+
+	// Store participation for slot 10.
+	c.storeParticipation(10, createPrepareProposerValue(t, []uint64{0, 1, 2}))
+
+	// Get participants and verify they are sorted.
+	participants := c.getParticipants(10)
+	require.Equal(t, []int64{0, 1, 2}, participants)
+
+	// Verify non-existent slot returns nil.
+	require.Nil(t, c.getParticipants(5))
+
+	// Store for slot 12, should clean up slot 10 (12 - 10 > 1).
+	c.storeParticipation(12, createPrepareProposerValue(t, []uint64{3}))
+
+	// Slot 10 should be cleaned up.
+	require.Nil(t, c.getParticipants(10))
+
+	// Slot 12 should exist.
+	require.Equal(t, []int64{3}, c.getParticipants(12))
+}
+
+func TestLeaderWithParticipation(t *testing.T) {
+	c := &Consensus{}
+	c.prepareParticipation.data = make(map[uint64][]int64)
+
+	const nodes = 4
+
+	tests := []struct {
+		name         string
+		duty         core.Duty
+		round        int64
+		participants []int64 // Stored at slot-1 for DutyProposer.
+		expected     int64
+	}{
+		{
+			name:     "non-proposer duty uses normal leader",
+			duty:     core.Duty{Slot: 10, Type: core.DutyAttester},
+			round:    0,
+			expected: leader(core.Duty{Slot: 10, Type: core.DutyAttester}, 0, nodes),
+		},
+		{
+			name:     "proposer without participation uses normal leader",
+			duty:     core.Duty{Slot: 10, Type: core.DutyProposer},
+			round:    0,
+			expected: leader(core.Duty{Slot: 10, Type: core.DutyProposer}, 0, nodes),
+		},
+		{
+			name:         "proposer with participation elects from participants only",
+			duty:         core.Duty{Slot: 10, Type: core.DutyProposer},
+			round:        0,
+			participants: []int64{1, 3}, // Stored at slot 9.
+			expected:     3,             // (10 + 1 + 0) % 2 = 1, so participants[1] = 3.
+		},
+		{
+			name:         "proposer with all participants same as normal",
+			duty:         core.Duty{Slot: 10, Type: core.DutyProposer},
+			round:        0,
+			participants: []int64{0, 1, 2, 3},
+			expected:     leader(core.Duty{Slot: 10, Type: core.DutyProposer}, 0, nodes),
+		},
+		{
+			name:     "proposer at slot 0 uses normal leader",
+			duty:     core.Duty{Slot: 0, Type: core.DutyProposer},
+			round:    0,
+			expected: leader(core.Duty{Slot: 0, Type: core.DutyProposer}, 0, nodes),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear and set up participation data.
+			c.prepareParticipation.data = make(map[uint64][]int64)
+			if tt.participants != nil && tt.duty.Slot > 0 {
+				c.prepareParticipation.data[tt.duty.Slot-1] = tt.participants
+			}
+
+			result := c.leaderWithParticipation(tt.duty, tt.round, nodes)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestLeaderWithParticipationConsistency(t *testing.T) {
+	// This test verifies that all nodes with the same participation data
+	// will elect the same leader - the core consistency guarantee.
+	c1 := &Consensus{}
+	c1.prepareParticipation.data = make(map[uint64][]int64)
+
+	c2 := &Consensus{}
+	c2.prepareParticipation.data = make(map[uint64][]int64)
+
+	// Simulate same participation data on both nodes.
+	participants := []int64{0, 2, 3} // Node 1 is offline.
+	c1.prepareParticipation.data[9] = participants
+	c2.prepareParticipation.data[9] = participants
+
+	duty := core.Duty{Slot: 10, Type: core.DutyProposer}
+
+	// Both nodes should elect the same leader for all rounds.
+	for round := int64(0); round < 10; round++ {
+		leader1 := c1.leaderWithParticipation(duty, round, 4)
+		leader2 := c2.leaderWithParticipation(duty, round, 4)
+		require.Equal(t, leader1, leader2, "round %d: leaders should match", round)
+
+		// Leader should be one of the participants.
+		require.Contains(t, participants, leader1, "leader should be a participant")
+	}
+}
+
+func TestPrepareProposerToProposerFlow(t *testing.T) {
+	// This test simulates the full flow:
+	// 1. DutyPrepareProposer at slot N-1 decides with a subset of peers participating
+	// 2. DutyProposer at slot N uses participation data to exclude non-participating peers
+	const (
+		nodes        = 4
+		prepareSlot  = 9
+		proposerSlot = 10
+		offlinePeer  = int64(1) // Peer 1 is offline/malicious
+	)
+
+	c := &Consensus{}
+	c.prepareParticipation.data = make(map[uint64][]int64)
+
+	// Store participation from DutyPrepareProposer.
+	// Only peers 0, 2, 3 participated (peer 1 was offline).
+	c.storeParticipation(prepareSlot, createPrepareProposerValue(t, []uint64{0, 2, 3}))
+
+	// Verify participation was stored correctly.
+	participants := c.getParticipants(prepareSlot)
+	require.Equal(t, []int64{0, 2, 3}, participants)
+	require.NotContains(t, participants, offlinePeer)
+
+	// Now simulate DutyProposer at slot 10.
+	proposerDuty := core.Duty{Slot: proposerSlot, Type: core.DutyProposer}
+
+	// Verify that for multiple rounds, the leader is never the offline peer.
+	for r := range 20 {
+		round := int64(r)
+		leaderIdx := c.leaderWithParticipation(proposerDuty, round, nodes)
+
+		// Leader must be one of the participating peers.
+		require.Contains(t, participants, leaderIdx,
+			"round %d: leader %d should be a participant", round, leaderIdx)
+
+		// Leader must NOT be the offline peer.
+		require.NotEqual(t, offlinePeer, leaderIdx,
+			"round %d: leader should not be the offline peer", round)
+	}
+
+	// Compare with normal leader election (without participation data).
+	// At least some rounds should have different leaders.
+	var differenceCount int
+
+	for r := range 20 {
+		round := int64(r)
+		normalLeader := leader(proposerDuty, round, nodes)
+		participationLeader := c.leaderWithParticipation(proposerDuty, round, nodes)
+
+		if normalLeader != participationLeader {
+			differenceCount++
+		}
+	}
+
+	// We expect differences because peer 1 (offline) would be leader in some rounds
+	// with normal election but not with participation-based election.
+	require.Positive(t, differenceCount, "participation-based election should differ from normal election when a peer is offline")
+}
+
+func TestPrepareProposerExpiresAfterTwoSlots(t *testing.T) {
+	// This test verifies that participation data expires correctly.
+	const nodes = 4
+
+	c := &Consensus{}
+	c.prepareParticipation.data = make(map[uint64][]int64)
+
+	// Store participation at slot 9.
+	c.storeParticipation(9, createPrepareProposerValue(t, []uint64{0, 2}))
+
+	// At slot 10 (next slot), participation should still be available.
+	proposerDuty10 := core.Duty{Slot: 10, Type: core.DutyProposer}
+	leaderSlot10 := c.leaderWithParticipation(proposerDuty10, 0, nodes)
+	require.Contains(t, []int64{0, 2}, leaderSlot10, "slot 10 should use participation from slot 9")
+
+	// Store new participation at slot 11 (this cleans up slot 9).
+	c.storeParticipation(11, createPrepareProposerValue(t, []uint64{1, 3}))
+
+	// Slot 9 data should be cleaned up.
+	require.Nil(t, c.getParticipants(9), "slot 9 data should be expired")
+
+	// Slot 11 data should exist.
+	require.Equal(t, []int64{1, 3}, c.getParticipants(11))
+
+	// DutyProposer at slot 12 should use participation from slot 11.
+	proposerDuty12 := core.Duty{Slot: 12, Type: core.DutyProposer}
+	leaderSlot12 := c.leaderWithParticipation(proposerDuty12, 0, nodes)
+	require.Contains(t, []int64{1, 3}, leaderSlot12, "slot 12 should use participation from slot 11")
+
+	// DutyProposer at slot 10 should now fall back to normal election
+	// because slot 9 data was cleaned up.
+	leaderSlot10After := c.leaderWithParticipation(proposerDuty10, 0, nodes)
+	normalLeader := leader(proposerDuty10, 0, nodes)
+	require.Equal(t, normalLeader, leaderSlot10After,
+		"slot 10 should fall back to normal election after slot 9 data expired")
+}
