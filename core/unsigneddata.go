@@ -31,6 +31,7 @@ var (
 	_ UnsignedData = VersionedAggregatedAttestation{}
 	_ UnsignedData = VersionedProposal{}
 	_ UnsignedData = SyncContribution{}
+	_ UnsignedData = PrepareProposerData{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
 	_ ssz.Marshaler   = AttestationData{}
@@ -48,7 +49,7 @@ var (
 // PrepareProposerData wraps the prepare proposer data.
 type PrepareProposerData struct {
 	TargetSlot   uint64
-	VisiblePeers []uint64 // Indices of peers seen by the proposer.
+	VisiblePeers []uint64 // Indices of peers visible to this node.
 }
 
 func (p PrepareProposerData) Clone() (UnsignedData, error) {

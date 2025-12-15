@@ -218,6 +218,8 @@ func TestSchedulerDuties(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
+			featureset.EnableForT(t, featureset.PrepareProposer)
+
 			// Configure beacon mock
 			var t0 time.Time
 
@@ -256,9 +258,6 @@ func TestSchedulerDuties(t *testing.T) {
 
 			slotDuration, ok := eth2Resp.Data["SECONDS_PER_SLOT"].(time.Duration)
 			require.True(t, ok)
-			clock.CallbackAfter(t0.Add(time.Duration(stopAfter)*slotDuration), func() {
-				time.Sleep(time.Hour) // Do not let the slot ticker tick anymore.
-			})
 
 			// Collect results
 			type result struct {
@@ -272,6 +271,25 @@ func TestSchedulerDuties(t *testing.T) {
 				results []result
 				mu      sync.Mutex
 			)
+
+			clock.CallbackAfter(t0.Add(time.Duration(stopAfter)*slotDuration), func() {
+				// Wait for any lagging duties to be processed.
+				for range 100 {
+					mu.Lock()
+
+					count := len(results)
+
+					mu.Unlock()
+
+					if count >= test.Results {
+						return
+					}
+
+					time.Sleep(10 * time.Millisecond)
+				}
+
+				sched.Stop()
+			})
 
 			sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
 				// Make result human-readable

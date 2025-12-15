@@ -116,6 +116,7 @@ type Scheduler struct {
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
+	stopOnce                   sync.Once
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -132,7 +133,9 @@ func (s *Scheduler) SubscribeSlots(fn func(context.Context, core.Slot) error) {
 }
 
 func (s *Scheduler) Stop() {
-	close(s.quit)
+	s.stopOnce.Do(func() {
+		close(s.quit)
+	})
 }
 
 // Run blocks and runs the scheduler until Stop is called.
@@ -502,7 +505,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			// Schedule prepare proposer duty for the slot before the actual proposer duty.
 			prepareDuty := core.NewPrepareProposerDuty(uint64(proDuty.Slot - 1))
 
-			s.setDutyDefinition(prepareDuty, slot.Epoch(), pubkey, core.NewPrepareProposerDefinition(uint64(proDuty.Slot-1)))
+			s.setDutyDefinition(prepareDuty, slot.Epoch(), pubkey, core.NewPrepareProposerDefinition(uint64(proDuty.Slot)))
 		}
 
 		log.Info(ctx, "Resolved proposer duty",
