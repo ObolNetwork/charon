@@ -3,6 +3,7 @@ module github.com/obolnetwork/charon
 go 1.25
 
 require (
+	github.com/OffchainLabs/go-bitfield v0.0.0-20251031151322-f427d04d8506
 	github.com/attestantio/go-builder-client v0.7.2
 	github.com/attestantio/go-eth2-client v0.27.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
@@ -26,7 +27,6 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
 	github.com/protolambda/eth2-shuffle v1.1.0
-	github.com/prysmaticlabs/go-bitfield v0.0.0-20240618144021-706c95b2dd15
 	github.com/r3labs/sse/v2 v2.10.0
 	github.com/rs/zerolog v1.34.0
 	github.com/showwin/speedtest-go v1.7.10
@@ -288,7 +288,7 @@ require (
 replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.1.0
 
 // We're replacing go-eth2-client with a branch off our fork. The branch is kept up to date with the latest attestantio versions.
-replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.27.1-obol.2 //nolint
+replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.28.0-obol //nolint
 
 tool (
 	github.com/bufbuild/buf/cmd/buf
