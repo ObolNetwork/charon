@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/OffchainLabs/go-bitfield"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
-	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
