@@ -31,7 +31,6 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -146,33 +145,42 @@ var ValidatorSetA = ValidatorSet{
 }
 
 // BuilderRegistrationSetA defines a set of 3 deterministic builder registrations for ValidatorSetA.
-var BuilderRegistrationSetA = []cluster.BuilderRegistration{
+var BuilderRegistrationSetA = []*eth2api.VersionedSignedValidatorRegistration{
 	{
-		Message: cluster.Registration{
-			FeeRecipient: MustBytesFromHex("0x0000000000000000000000000000000000000001"),
-			GasLimit:     30000000,
-			Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
-			PubKey:       MustBytesFromHex("0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490"),
+		Version: eth2spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: must20ByteArray(MustBytesFromHex("0x0000000000000000000000000000000000000001")),
+				GasLimit:     30000000,
+				Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
+				Pubkey:       must48ByteArray(MustBytesFromHex("0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490")),
+			},
+			Signature: must96ByteArray(MustBytesFromHex("0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6")),
 		},
-		Signature: MustBytesFromHex("0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"),
 	},
 	{
-		Message: cluster.Registration{
-			FeeRecipient: MustBytesFromHex("0x0000000000000000000000000000000000000002"),
-			GasLimit:     30000000,
-			Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
-			PubKey:       MustBytesFromHex("0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea"),
+		Version: eth2spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: must20ByteArray(MustBytesFromHex("0x0000000000000000000000000000000000000002")),
+				GasLimit:     30000000,
+				Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
+				Pubkey:       must48ByteArray(MustBytesFromHex("0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea")),
+			},
+			Signature: must96ByteArray(MustBytesFromHex("0xb2b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6")),
 		},
-		Signature: MustBytesFromHex("0xb2b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"),
 	},
 	{
-		Message: cluster.Registration{
-			FeeRecipient: MustBytesFromHex("0x0000000000000000000000000000000000000003"),
-			GasLimit:     30000000,
-			Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
-			PubKey:       MustBytesFromHex("0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76"),
+		Version: eth2spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: must20ByteArray(MustBytesFromHex("0x0000000000000000000000000000000000000003")),
+				GasLimit:     30000000,
+				Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
+				Pubkey:       must48ByteArray(MustBytesFromHex("0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76")),
+			},
+			Signature: must96ByteArray(MustBytesFromHex("0xc3b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6")),
 		},
-		Signature: MustBytesFromHex("0xc3b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"),
 	},
 }
 
@@ -802,6 +810,36 @@ func mustPKFromHex(pubkeyHex string) eth2p0.BLSPubKey {
 	return resp
 }
 
+// must20ByteArray converts a byte slice to a 20-byte array, panicking if wrong size.
+func must20ByteArray(b []byte) [20]byte {
+	if len(b) != 20 {
+		panic(fmt.Sprintf("expected 20 bytes, got %d", len(b)))
+	}
+	var arr [20]byte
+	copy(arr[:], b)
+	return arr
+}
+
+// must48ByteArray converts a byte slice to a 48-byte array, panicking if wrong size.
+func must48ByteArray(b []byte) [48]byte {
+	if len(b) != 48 {
+		panic(fmt.Sprintf("expected 48 bytes, got %d", len(b)))
+	}
+	var arr [48]byte
+	copy(arr[:], b)
+	return arr
+}
+
+// must96ByteArray converts a byte slice to a 96-byte array, panicking if wrong size.
+func must96ByteArray(b []byte) [96]byte {
+	if len(b) != 96 {
+		panic(fmt.Sprintf("expected 96 bytes, got %d", len(b)))
+	}
+	var arr [96]byte
+	copy(arr[:], b)
+	return arr
+}
+
 // MustBytesFromHex converts a hex string to bytes, panicking on error.
 func MustBytesFromHex(hexStr string) []byte {
 	hexStr = strings.TrimPrefix(hexStr, "0x")
@@ -812,4 +850,19 @@ func MustBytesFromHex(hexStr string) []byte {
 	}
 
 	return b
+}
+
+// MustExecutionAddress converts a hex string to an execution address (20 bytes), panicking on error.
+func MustExecutionAddress(hexStr string) [20]byte {
+	return must20ByteArray(MustBytesFromHex(hexStr))
+}
+
+// MustBLSPubKey converts a hex string to a BLS public key (48 bytes), panicking on error.
+func MustBLSPubKey(hexStr string) [48]byte {
+	return must48ByteArray(MustBytesFromHex(hexStr))
+}
+
+// MustBLSSignature converts a hex string to a BLS signature (96 bytes), panicking on error.
+func MustBLSSignature(hexStr string) [96]byte {
+	return must96ByteArray(MustBytesFromHex(hexStr))
 }

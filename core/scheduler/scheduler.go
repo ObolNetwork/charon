@@ -11,8 +11,6 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -24,7 +22,6 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -38,7 +35,7 @@ type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 type schedSlotFunc func(ctx context.Context, slot core.Slot)
 
 // NewForT returns a new scheduler for testing using a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrations []cluster.BuilderRegistration,
+func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrations []*eth2api.VersionedSignedValidatorRegistration,
 	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc, builderEnabled bool,
 ) *Scheduler {
 	t.Helper()
@@ -54,35 +51,10 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 }
 
 // New returns a new scheduler.
-func New(builderRegistrations []cluster.BuilderRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
-	registrations := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(builderRegistrations))
-
-	for _, builderRegistration := range builderRegistrations {
-		regMessage := &eth2v1.ValidatorRegistration{
-			Timestamp: builderRegistration.Message.Timestamp,
-			GasLimit:  uint64(builderRegistration.Message.GasLimit),
-		}
-
-		copy(regMessage.FeeRecipient[:], builderRegistration.Message.FeeRecipient)
-		copy(regMessage.Pubkey[:], builderRegistration.Message.PubKey)
-
-		var signature eth2p0.BLSSignature
-		copy(signature[:], builderRegistration.Signature)
-
-		registration := &eth2v1.SignedValidatorRegistration{
-			Message:   regMessage,
-			Signature: signature,
-		}
-
-		registrations = append(registrations, &eth2api.VersionedSignedValidatorRegistration{
-			Version: eth2spec.BuilderVersionV1,
-			V1:      registration,
-		})
-	}
-
+func New(builderRegistrations []*eth2api.VersionedSignedValidatorRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:               eth2Cl,
-		builderRegistrations: registrations,
+		builderRegistrations: builderRegistrations,
 		quit:                 make(chan struct{}),
 		duties:               make(map[core.Duty]core.DutyDefinitionSet),
 		dutiesByEpoch:        make(map[uint64][]core.Duty),

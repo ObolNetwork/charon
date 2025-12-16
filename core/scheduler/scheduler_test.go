@@ -15,6 +15,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,6 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/featureset"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/testutil"
@@ -50,24 +50,30 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Builder registrations for mainnet validators
-	valRegs := []cluster.BuilderRegistration{
+	valRegs := []*eth2api.VersionedSignedValidatorRegistration{
 		{
-			Message: cluster.Registration{
-				FeeRecipient: beaconmock.MustBytesFromHex("0x388c818ca8b9251b393131c08a736a67ccb19297"),
-				GasLimit:     36000000,
-				Timestamp:    time.Unix(1606824023, 0),
-				PubKey:       beaconmock.MustBytesFromHex("0x8f4ef114368b24863b369bbf597ace2eab5f77e4726f7931f988ba757fbd1dffd2f44270bbed42d5dfa72e10c79dcb6d"),
+			Version: eth2spec.BuilderVersionV1,
+			V1: &eth2v1.SignedValidatorRegistration{
+				Message: &eth2v1.ValidatorRegistration{
+					FeeRecipient: beaconmock.MustExecutionAddress("0x388c818ca8b9251b393131c08a736a67ccb19297"),
+					GasLimit:     36000000,
+					Timestamp:    time.Unix(1606824023, 0),
+					Pubkey:       beaconmock.MustBLSPubKey("0x8f4ef114368b24863b369bbf597ace2eab5f77e4726f7931f988ba757fbd1dffd2f44270bbed42d5dfa72e10c79dcb6d"),
+				},
+				Signature: beaconmock.MustBLSSignature("0xacc05896c51c57177306d3f1eb9de64a6a1fb50b88cf4afe276a3c53673ce1227af2337ef607c769624f45472968cbde15f87c355dfa43bca81c882ea2d89ad301a4ce1c4169874bf9f9b1bafe70838519af34741d774930edbad40a7fefc7e6"),
 			},
-			Signature: beaconmock.MustBytesFromHex("0xacc05896c51c57177306d3f1eb9de64a6a1fb50b88cf4afe276a3c53673ce1227af2337ef607c769624f45472968cbde15f87c355dfa43bca81c882ea2d89ad301a4ce1c4169874bf9f9b1bafe70838519af34741d774930edbad40a7fefc7e6"),
 		},
 		{
-			Message: cluster.Registration{
-				FeeRecipient: beaconmock.MustBytesFromHex("0x388c818ca8b9251b393131c08a736a67ccb19297"),
-				GasLimit:     36000000,
-				Timestamp:    time.Unix(1606824023, 0),
-				PubKey:       beaconmock.MustBytesFromHex("0xa0753f1bdb24b39441aee027a44af9ec5117a572678aa987944d26d92d332789208cf0733ca99f1d96fae50f7e889c22"),
+			Version: eth2spec.BuilderVersionV1,
+			V1: &eth2v1.SignedValidatorRegistration{
+				Message: &eth2v1.ValidatorRegistration{
+					FeeRecipient: beaconmock.MustExecutionAddress("0x388c818ca8b9251b393131c08a736a67ccb19297"),
+					GasLimit:     36000000,
+					Timestamp:    time.Unix(1606824023, 0),
+					Pubkey:       beaconmock.MustBLSPubKey("0xa0753f1bdb24b39441aee027a44af9ec5117a572678aa987944d26d92d332789208cf0733ca99f1d96fae50f7e889c22"),
+				},
+				Signature: beaconmock.MustBLSSignature("0x8de77931277c745c05879db7e57853a07c5d3bd45d4d5757f55bdf05de3266c6ddac81b3b0316552b2ceb77405aa5c701311db3cd6a6ca176c792a9f1814ede89907b8cd05061a15bfb6618c8390577b349b3b4a75693311f1c638f53c186c58"),
 			},
-			Signature: beaconmock.MustBytesFromHex("0x8de77931277c745c05879db7e57853a07c5d3bd45d4d5757f55bdf05de3266c6ddac81b3b0316552b2ceb77405aa5c701311db3cd6a6ca176c792a9f1814ede89907b8cd05061a15bfb6618c8390577b349b3b4a75693311f1c638f53c186c58"),
 		},
 	}
 
@@ -599,11 +605,11 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 
 	// Verify registration data matches BuilderRegistrationSetA
 	for i, reg := range registrations {
-		require.Equal(t, valRegs[i].Message.GasLimit, int(reg.V1.Message.GasLimit))
-		require.Equal(t, valRegs[i].Message.Timestamp.Unix(), reg.V1.Message.Timestamp.Unix())
-		require.Equal(t, valRegs[i].Message.FeeRecipient, reg.V1.Message.FeeRecipient[:])
-		require.Equal(t, valRegs[i].Message.PubKey, reg.V1.Message.Pubkey[:])
-		require.Equal(t, valRegs[i].Signature, reg.V1.Signature[:])
+		require.Equal(t, valRegs[i].V1.Message.GasLimit, reg.V1.Message.GasLimit)
+		require.Equal(t, valRegs[i].V1.Message.Timestamp.Unix(), reg.V1.Message.Timestamp.Unix())
+		require.Equal(t, valRegs[i].V1.Message.FeeRecipient, reg.V1.Message.FeeRecipient)
+		require.Equal(t, valRegs[i].V1.Message.Pubkey, reg.V1.Message.Pubkey)
+		require.Equal(t, valRegs[i].V1.Signature, reg.V1.Signature)
 	}
 }
 
