@@ -21,6 +21,7 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
@@ -580,11 +581,17 @@ func TestSyncFlow(t *testing.T) {
 				stopDkgs   = make([]context.CancelFunc, test.nodes)
 				cTracker   = newConnTracker(pIDs)
 				dkgErrChan = make(chan error, test.nodes) // Buffered to prevent blocking
+				hosts      = make([]host.Host, test.nodes)
 			)
 
 			// Set all callbacks before starting any DKG processes to avoid race conditions
 			for i := range test.nodes {
 				configs[i].TestConfig.SyncCallback = cTracker.Set
+
+				idx := i
+				configs[i].TestConfig.P2PNodeCallback = func(h host.Host) {
+					hosts[idx] = h
+				}
 			}
 
 			// Start DKG for initial peers.
@@ -606,6 +613,15 @@ func TestSyncFlow(t *testing.T) {
 				log.Info(ctx, "Stopping peer", z.Int("peer_index", idx))
 				stopDkgs[idx]()
 
+				// Manually close connections from other peers to this peer
+				for i, h := range hosts {
+					// The hosts array may contain nil values for peers that have been stopped.
+					// This safety check ensures we only attempt to close connections for active hosts.
+					if h != nil && i != idx {
+						_ = h.Network().ClosePeer(pIDs[idx])
+					}
+				}
+
 				// Wait for this dkg process to return.
 				select {
 				case err := <-dkgErrChan:
@@ -614,9 +630,6 @@ func TestSyncFlow(t *testing.T) {
 					require.Fail(t, "timeout waiting for peer to stop", "peer_index=%d", idx)
 				}
 			}
-
-			// Give remaining peers time to detect disconnections and update their connection counts
-			time.Sleep(500 * time.Millisecond)
 
 			// Wait for remaining-initial peers to update connection counts.
 			expect = len(test.connect) - len(test.disconnect) - 1
