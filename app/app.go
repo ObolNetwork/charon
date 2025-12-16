@@ -405,7 +405,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
-		builderRegistrations         []clusterpkg.BuilderRegistration
+		builderRegistrations         []*eth2api.VersionedSignedValidatorRegistration
 		eth2Pubkeys                  []eth2p0.BLSPubKey
 		pubshares                    []eth2p0.BLSPubKey
 		allPubSharesByKey            = make(map[core.PubKey]map[int]tbls.PublicKey) // map[pubkey]map[shareIdx]pubshare
@@ -449,12 +449,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		allPubSharesByKey[corePubkey] = allPubShares
 		feeRecipientAddrByCorePubkey[corePubkey] = val.GetFeeRecipientAddress()
 
-		var builderRegistration clusterpkg.BuilderRegistration
+		var builderRegistration eth2api.VersionedSignedValidatorRegistration
 		if err := json.Unmarshal(val.GetBuilderRegistrationJson(), &builderRegistration); err != nil {
 			return errors.Wrap(err, "unmarshal builder registration")
 		}
 
-		builderRegistrations = append(builderRegistrations, builderRegistration)
+		builderRegistrations = append(builderRegistrations, &builderRegistration)
 	}
 
 	peers, err := manifest.ClusterPeers(cluster)
