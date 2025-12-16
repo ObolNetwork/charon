@@ -144,44 +144,39 @@ var ValidatorSetA = ValidatorSet{
 	},
 }
 
+// mustBuilderRegistration creates a builder registration, panicking on error.
+func mustBuilderRegistration(feeRecipient, pubkey, signature string) *eth2api.VersionedSignedValidatorRegistration {
+	return &eth2api.VersionedSignedValidatorRegistration{
+		Version: eth2spec.BuilderVersionV1,
+		V1: &eth2v1.SignedValidatorRegistration{
+			Message: &eth2v1.ValidatorRegistration{
+				FeeRecipient: MustExecutionAddress(feeRecipient),
+				GasLimit:     30000000,
+				Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
+				Pubkey:       MustBLSPubKey(pubkey),
+			},
+			Signature: MustBLSSignature(signature),
+		},
+	}
+}
+
 // BuilderRegistrationSetA defines a set of 3 deterministic builder registrations for ValidatorSetA.
 var BuilderRegistrationSetA = []*eth2api.VersionedSignedValidatorRegistration{
-	{
-		Version: eth2spec.BuilderVersionV1,
-		V1: &eth2v1.SignedValidatorRegistration{
-			Message: &eth2v1.ValidatorRegistration{
-				FeeRecipient: must20ByteArray(MustBytesFromHex("0x0000000000000000000000000000000000000001")),
-				GasLimit:     30000000,
-				Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
-				Pubkey:       must48ByteArray(MustBytesFromHex("0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490")),
-			},
-			Signature: must96ByteArray(MustBytesFromHex("0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6")),
-		},
-	},
-	{
-		Version: eth2spec.BuilderVersionV1,
-		V1: &eth2v1.SignedValidatorRegistration{
-			Message: &eth2v1.ValidatorRegistration{
-				FeeRecipient: must20ByteArray(MustBytesFromHex("0x0000000000000000000000000000000000000002")),
-				GasLimit:     30000000,
-				Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
-				Pubkey:       must48ByteArray(MustBytesFromHex("0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea")),
-			},
-			Signature: must96ByteArray(MustBytesFromHex("0xb2b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6")),
-		},
-	},
-	{
-		Version: eth2spec.BuilderVersionV1,
-		V1: &eth2v1.SignedValidatorRegistration{
-			Message: &eth2v1.ValidatorRegistration{
-				FeeRecipient: must20ByteArray(MustBytesFromHex("0x0000000000000000000000000000000000000003")),
-				GasLimit:     30000000,
-				Timestamp:    time.Unix(1609459200, 0), // 2021-01-01 00:00:00 UTC
-				Pubkey:       must48ByteArray(MustBytesFromHex("0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76")),
-			},
-			Signature: must96ByteArray(MustBytesFromHex("0xc3b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6")),
-		},
-	},
+	mustBuilderRegistration(
+		"0x0000000000000000000000000000000000000001",
+		"0x914cff835a769156ba43ad50b931083c2dadd94e8359ce394bc7a3e06424d0214922ddf15f81640530b9c25c0bc0d490",
+		"0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+	),
+	mustBuilderRegistration(
+		"0x0000000000000000000000000000000000000002",
+		"0x8dae41352b69f2b3a1c0b05330c1bf65f03730c520273028864b11fcb94d8ce8f26d64f979a0ee3025467f45fd2241ea",
+		"0xb2b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+	),
+	mustBuilderRegistration(
+		"0x0000000000000000000000000000000000000003",
+		"0x8ee91545183c8c2db86633626f5074fd8ef93c4c9b7a2879ad1768f600c5b5906c3af20d47de42c3b032956fa8db1a76",
+		"0xc3b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6",
+	),
 }
 
 // WithValidatorSet configures the mock with the provided validator set.
