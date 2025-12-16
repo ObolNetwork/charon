@@ -29,7 +29,7 @@ func WithPeriod(period time.Duration) func(*Client) {
 }
 
 // NewClient returns a new Client instance.
-func NewClient(p2pNode host.Host, peer peer.ID, hashSig []byte, version version.SemVer, opts ...func(*Client)) *Client {
+func NewClient(p2pNode host.Host, peer peer.ID, hashSig []byte, version version.SemVer, nickname string, opts ...func(*Client)) *Client {
 	c := &Client{
 		p2pNode:   p2pNode,
 		peer:      peer,
@@ -38,6 +38,7 @@ func NewClient(p2pNode host.Host, peer peer.ID, hashSig []byte, version version.
 		done:      make(chan struct{}),
 		reconnect: true,
 		version:   version,
+		nickname:  nickname,
 		period:    100 * time.Millisecond, // Must be at least two times lower than the sync timeout (dkg.go, startSyncProtocol)
 	}
 
@@ -61,11 +62,12 @@ type Client struct {
 	done      chan struct{}
 
 	// Immutable state
-	hashSig []byte
-	version version.SemVer
-	p2pNode host.Host
-	peer    peer.ID
-	period  time.Duration
+	hashSig  []byte
+	version  version.SemVer
+	p2pNode  host.Host
+	peer     peer.ID
+	period   time.Duration
+	nickname string
 }
 
 // Run blocks while running the client-side sync protocol. It tries to reconnect if relay connection is dropped or
@@ -200,6 +202,7 @@ func (c *Client) sendMsg(stream network.Stream, shutdown bool) (*pb.MsgSyncRespo
 		HashSignature: c.hashSig,
 		Shutdown:      shutdown,
 		Version:       c.version.String(),
+		Nickname:      c.nickname,
 		Step:          int64(c.getStep()),
 	}
 
