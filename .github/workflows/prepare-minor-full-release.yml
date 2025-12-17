@@ -299,4 +299,4 @@ jobs:
 
           **Note:** This workflow is for minor releases (vX.Y.0). Patch releases (vX.Y.Z) use a separate workflow.
           EOF
-          fi<
+          fi
