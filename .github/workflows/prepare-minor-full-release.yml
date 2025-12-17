@@ -133,15 +133,28 @@ jobs:
           # Replace v<MAJOR>.<MINOR>-rc with v<MAJOR>.<MINOR>
           sed -i -E "s/^(var version = )\"v${MAJOR}\.${MINOR}-rc\"/\1\"${VERSION_IN_CODE}\"/" "$VERSION_FILE"
 
-          # Verify the change was successful
+          # Verify the version change was successful
           if ! grep -q "var version = \"${VERSION_IN_CODE}\"" "$VERSION_FILE"; then
             echo "::error::Failed to update version to ${VERSION_IN_CODE} in $VERSION_FILE"
             exit 1
           fi
 
-          # Display the change
+          # Add new version to the top of the Supported() list
+          # Find the line with "return []SemVer{" and add the new version on the next line
+          sed -i "/return \[\]SemVer{/a\\
+          \\t\\t{major: ${MAJOR}, minor: ${MINOR}}," "$VERSION_FILE"
+
+          # Verify the supported version was added
+          if ! grep -q "{major: ${MAJOR}, minor: ${MINOR}}" "$VERSION_FILE"; then
+            echo "::error::Failed to add version to Supported() in $VERSION_FILE"
+            exit 1
+          fi
+
+          # Display the changes
           echo "::notice::Updated $VERSION_FILE:"
           grep "var version" "$VERSION_FILE"
+          echo "::notice::Added to Supported():"
+          grep -A 2 "return \[\]SemVer{" "$VERSION_FILE"
 
           echo "WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
           echo "::notice::Prepared changes for: ${WORK_BRANCH}"
