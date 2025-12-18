@@ -10,7 +10,7 @@ func newEditCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "edit",
 		Short: "Subcommands provide functionality to modify existing cluster configurations",
-		Long:  "Subcommands allow users to modify existing distributed validator cluster configurations, such as adding and removing operators.",
+		Long:  "Subcommands allow users to modify existing distributed validator cluster configurations, such as adding, removing or replacing operators.",
 	}
 
 	root.AddCommand(cmds...)
