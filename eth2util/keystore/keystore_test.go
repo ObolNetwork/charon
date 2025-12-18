@@ -17,8 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/manifest"
-	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -377,14 +375,14 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 
 	privateShares := make([]tbls.PrivateKey, valAmt)
 
-	cl := &manifestpb.Cluster{}
+	lock := cluster.Lock{}
 
 	for valIdx := range valAmt {
 		valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
 		require.NoError(t, err)
 
-		validator := &manifestpb.Validator{
-			PublicKey: valPubk[:],
+		validator := cluster.DistValidator{
+			PubKey: valPubk[:],
 		}
 
 		randomShareSelected := false
@@ -404,14 +402,14 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 			validator.PubShares = append(validator.PubShares, sharePub[:])
 		}
 
-		rand.Shuffle(len(validator.GetPubShares()), func(i, j int) {
-			validator.PubShares[i], validator.PubShares[j] = validator.GetPubShares()[j], validator.GetPubShares()[i]
+		rand.Shuffle(len(validator.PubShares), func(i, j int) {
+			validator.PubShares[i], validator.PubShares[j] = validator.PubShares[j], validator.PubShares[i]
 		})
 
-		cl.Validators = append(cl.Validators, validator)
+		lock.Validators = append(lock.Validators, validator)
 	}
 
-	ret, err := keystore.KeysharesToValidatorPubkey(cl, privateShares)
+	ret, err := keystore.KeysharesToValidatorPubkey(lock, privateShares)
 	require.NoError(t, err)
 
 	require.Len(t, ret, 4)
@@ -420,8 +418,8 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 		valFound := false
 		sharePrivKeyFound := false
 
-		for _, val := range cl.GetValidators() {
-			if string(valPubKey) == fmt.Sprintf("0x%x", val.GetPublicKey()) {
+		for _, val := range lock.Validators {
+			if string(valPubKey) == val.PublicKeyHex() {
 				valFound = true
 				break
 			}
@@ -454,15 +452,9 @@ func TestShareIdxForCluster(t *testing.T) {
 		random,
 	)
 
-	dag, err := manifest.NewDAGFromLockForT(t, lock)
-	require.NoError(t, err)
-
-	cl, err := manifest.Materialise(dag)
-	require.NoError(t, err)
-
 	pubkey := enrs[0].PubKey()
 
-	res, err := keystore.ShareIdxForCluster(cl, *pubkey)
+	res, err := keystore.ShareIdxForCluster(lock, *pubkey)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), res)
 }

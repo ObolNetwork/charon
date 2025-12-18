@@ -810,8 +810,10 @@ func must20ByteArray(b []byte) [20]byte {
 	if len(b) != 20 {
 		panic(fmt.Sprintf("expected 20 bytes, got %d", len(b)))
 	}
+
 	var arr [20]byte
 	copy(arr[:], b)
+
 	return arr
 }
 
@@ -820,8 +822,10 @@ func must48ByteArray(b []byte) [48]byte {
 	if len(b) != 48 {
 		panic(fmt.Sprintf("expected 48 bytes, got %d", len(b)))
 	}
+
 	var arr [48]byte
 	copy(arr[:], b)
+
 	return arr
 }
 
@@ -830,8 +834,10 @@ func must96ByteArray(b []byte) [96]byte {
 	if len(b) != 96 {
 		panic(fmt.Sprintf("expected 96 bytes, got %d", len(b)))
 	}
+
 	var arr [96]byte
 	copy(arr[:], b)
+
 	return arr
 }
 

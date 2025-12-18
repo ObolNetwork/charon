@@ -15,6 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 )
@@ -56,7 +57,7 @@ func bindDepositFetchFlags(cmd *cobra.Command, config *depositFetchConfig) {
 }
 
 func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
-	cl, err := loadClusterLock(config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
 	if err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 	for _, pubkey := range config.ValidatorPublicKeys {
 		log.Info(ctx, "Fetching full deposit message", z.Str("validator_pubkey", pubkey))
 
-		dd, err := oAPI.GetFullDeposit(ctx, pubkey, cl.GetInitialMutationHash(), int(cl.GetThreshold()))
+		dd, err := oAPI.GetFullDeposit(ctx, pubkey, cl.LockHash, cl.Threshold)
 		if err != nil {
 			return errors.Wrap(err, "fetch full deposit data from Obol API")
 		}
@@ -94,7 +95,7 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 		return errors.Wrap(err, "create deposit data dir")
 	}
 
-	network, err := eth2util.ForkVersionToNetwork(cl.GetForkVersion())
+	network, err := eth2util.ForkVersionToNetwork(cl.ForkVersion)
 	if err != nil {
 		return err
 	}
