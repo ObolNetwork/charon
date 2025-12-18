@@ -8,7 +8,7 @@ require (
 	github.com/attestantio/go-eth2-client v0.27.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
-	github.com/drand/kyber v1.3.1
+	github.com/drand/kyber v1.3.2
 	github.com/drand/kyber-bls12381 v0.3.4
 	github.com/ethereum/go-ethereum v1.16.7
 	github.com/ferranbt/fastssz v1.0.0
@@ -80,7 +80,7 @@ require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/bits-and-blooms/bitset v1.22.0 // indirect
+	github.com/bits-and-blooms/bitset v1.24.4 // indirect
 	github.com/bufbuild/buf v1.58.0 // indirect
 	github.com/bufbuild/protocompile v0.14.1 // indirect
 	github.com/bufbuild/protoplugin v0.0.0-20250218205857-750e09ce93e1 // indirect
@@ -93,7 +93,7 @@ require (
 	github.com/cockroachdb/pebble v1.1.5 // indirect
 	github.com/cockroachdb/redact v1.1.6 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
-	github.com/consensys/gnark-crypto v0.18.1 // indirect
+	github.com/consensys/gnark-crypto v0.19.2 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.17.0 // indirect

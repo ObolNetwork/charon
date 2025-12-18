@@ -69,8 +69,8 @@ github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZx
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/bits-and-blooms/bitset v1.22.0 h1:Tquv9S8+SGaS3EhyA+up3FXzmkhxPGjQQCkcs2uw7w4=
-github.com/bits-and-blooms/bitset v1.22.0/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
+github.com/bits-and-blooms/bitset v1.24.4 h1:95H15Og1clikBrKr/DuzMXkQzECs1M6hhoGXLwLQOZE=
+github.com/bits-and-blooms/bitset v1.24.4/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
 github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
 github.com/bufbuild/buf v1.58.0 h1:TMgp0jmfPD5SixbUCB2iqGnK/X+2KQXTzsVc7F2LbLc=
@@ -105,8 +105,8 @@ github.com/cockroachdb/redact v1.1.6 h1:zXJBwDZ84xJNlHl1rMyCojqyIxv+7YUpQiJLQ7n4
 github.com/cockroachdb/redact v1.1.6/go.mod h1:BVNblN9mBWFyMyqK1k3AAiSxhvhfK2oOZZ2lK+dpvRg=
 github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 h1:zuQyyAKVxetITBuuhv3BI9cMrmStnpT18zmgmTxunpo=
 github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06/go.mod h1:7nc4anLGjupUW/PeY5qiNYsdNXj7zopG+eqsS7To5IQ=
-github.com/consensys/gnark-crypto v0.18.1 h1:RyLV6UhPRoYYzaFnPQA4qK3DyuDgkTgskDdoGqFt3fI=
-github.com/consensys/gnark-crypto v0.18.1/go.mod h1:L3mXGFTe1ZN+RSJ+CLjUt9x7PNdx8ubaYfDROyp2Z8c=
+github.com/consensys/gnark-crypto v0.19.2 h1:qrEAIXq3T4egxqiliFFoNrepkIWVEeIYwt3UL0fvS80=
+github.com/consensys/gnark-crypto v0.19.2/go.mod h1:rT23F0XSZqE0mUA0+pRtnL56IbPxs6gp4CeRsBk4XS0=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=
 github.com/containerd/errdefs v1.0.0/go.mod h1:+YBYIdtsnF4Iw6nWZhJcqGSg/dwvV7tyJ/kCkyJ2k+M=
 github.com/containerd/errdefs/pkg v0.3.0 h1:9IKJ06FvyNlexW690DXuQNx2KA2cUJXx151Xdx3ZPPE=
@@ -155,8 +155,8 @@ github.com/docker/go-connections v0.6.0 h1:LlMG9azAe1TqfR7sO+NJttz1gy6KO7VJBh+pM
 github.com/docker/go-connections v0.6.0/go.mod h1:AahvXYshr6JgfUJGdDCs2b5EZG/vmaMAntpSFH5BFKE=
 github.com/docker/go-units v0.5.0 h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4=
 github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
-github.com/drand/kyber v1.3.1 h1:E0p6M3II+loMVwTlAp5zu4+GGZFNiRfq02qZxzw2T+Y=
-github.com/drand/kyber v1.3.1/go.mod h1:f+mNHjiGT++CuueBrpeMhFNdKZAsy0tu03bKq9D5LPA=
+github.com/drand/kyber v1.3.2 h1:Cf3NNcb5bV3eODopr3XVHzImjDK40GiObhFUFG93Zeo=
+github.com/drand/kyber v1.3.2/go.mod h1:ciDFWoC7ajb89niGJnS4C1Xeo4lSJMmbi+km5w8juAI=
 github.com/drand/kyber-bls12381 v0.3.4 h1:rrmYcRcXmtOAvKWVBxRQxi22qNMVcS2Jz7MAebZQJxI=
 github.com/drand/kyber-bls12381 v0.3.4/go.mod h1:jh3IGIAQfdLrdNKYz1HWZ3YdfJM0DWlN1TxXkh60utk=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
