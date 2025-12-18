@@ -24,6 +24,7 @@ import (
 func TestSyncProtocol(t *testing.T) {
 	versions := make(map[int]version.SemVer)
 	nicknames := make(map[int]string)
+
 	for i := range 5 {
 		versions[i] = version.Version
 		nicknames[i] = fmt.Sprintf("node%d", i)

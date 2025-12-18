@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
@@ -442,12 +441,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		allPubSharesByKey[corePubkey] = allPubShares
 		feeRecipientAddrByCorePubkey[corePubkey] = lockFeeRecipientAddresses[vi]
 
-		var builderRegistration eth2api.VersionedSignedValidatorRegistration
-		if err := json.Unmarshal(val.GetBuilderRegistrationJson(), &builderRegistration); err != nil {
-			return errors.Wrap(err, "unmarshal builder registration")
+		builderRegistration, err := val.Eth2Registration()
+		if err != nil {
+			return errors.Wrap(err, "convert builder registration")
 		}
 
-		builderRegistrations = append(builderRegistrations, &builderRegistration)
+		builderRegistrations = append(builderRegistrations, builderRegistration)
 	}
 
 	peers, err := lock.Peers()

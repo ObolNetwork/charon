@@ -29,6 +29,7 @@ this command at the same time.`,
 			if len(config.Nickname) > 32 {
 				return errors.New("--nickname exceeds 32 character limit")
 			}
+
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
