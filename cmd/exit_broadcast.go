@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	libp2plog "github.com/ipfs/go-log/v2"
@@ -252,8 +254,41 @@ func fetchFullExit(ctx context.Context, exitFilePath string, config exitConfig, 
 }
 
 func broadcastExitsToBeacon(ctx context.Context, eth2Cl eth2wrap.Client, exits map[core.PubKey]eth2p0.SignedVoluntaryExit) error {
+	blsKeys := []eth2p0.BLSPubKey{}
+
+	for key := range exits {
+		blsKey, err := key.ToETH2()
+		if err != nil {
+			return errors.Wrap(err, "convert core pubkey to eth2 pubkey", z.Str("core_pubkey", key.String()))
+		}
+
+		blsKeys = append(blsKeys, blsKey)
+	}
+
+	rawValData, err := queryBeaconForValidator(ctx, eth2Cl, blsKeys, nil, []eth2v1.ValidatorState{eth2v1.ValidatorStateActiveOngoing})
+	if err != nil {
+		return errors.Wrap(err, "fetch all validators indices from beacon")
+	}
+
+	activePubKeys := []eth2p0.BLSPubKey{}
+	for _, val := range rawValData.Data {
+		activePubKeys = append(activePubKeys, val.Validator.PublicKey)
+	}
+
+	activeExits := make(map[core.PubKey]eth2p0.SignedVoluntaryExit)
+
 	for validator, fullExit := range exits {
 		valCtx := log.WithCtx(ctx, z.Str("validator", validator.String()))
+
+		eth2Key, err := validator.ToETH2()
+		if err != nil {
+			return errors.Wrap(err, "convert core pubkey to eth2 pubkey", z.Str("core_pubkey", validator.String()))
+		}
+
+		if !slices.Contains(activePubKeys, eth2Key) {
+			log.Info(valCtx, "Validator is not active, skipping broadcast")
+			continue
+		}
 
 		rawPkBytes, err := validator.Bytes()
 		if err != nil {
@@ -284,9 +319,11 @@ func broadcastExitsToBeacon(ctx context.Context, eth2Cl eth2wrap.Client, exits m
 		if err := tbls.Verify(pubkey, exitRoot[:], signature); err != nil {
 			return errors.Wrap(err, "exit message signature not verified")
 		}
+
+		activeExits[validator] = fullExit
 	}
 
-	for validator, fullExit := range exits {
+	for validator, fullExit := range activeExits {
 		valCtx := log.WithCtx(ctx, z.Str("validator", validator.String()))
 		if err := eth2Cl.SubmitVoluntaryExit(valCtx, &fullExit); err != nil {
 			return errors.Wrap(err, "submit voluntary exit")
