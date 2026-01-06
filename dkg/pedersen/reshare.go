@@ -29,10 +29,8 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 
 	// Validate that AddedPeers and RemovedPeers are disjoint sets
 	for _, addedPeer := range config.Reshare.AddedPeers {
-		for _, removedPeer := range config.Reshare.RemovedPeers {
-			if addedPeer == removedPeer {
-				return nil, errors.New("peer cannot be both added and removed", z.Any("peer_id", addedPeer))
-			}
+		if slices.Contains(config.Reshare.RemovedPeers, addedPeer) {
+			return nil, errors.New("peer cannot be both added and removed", z.Any("peer_id", addedPeer))
 		}
 	}
 
