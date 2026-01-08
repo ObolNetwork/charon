@@ -292,15 +292,6 @@ func (p *listener) storeBlockGossipTime(slot uint64, addr string, timestamp time
 		p.blockGossipTimes[slot] = make(map[string]time.Time)
 	}
 	p.blockGossipTimes[slot][addr] = timestamp
-
-	if uint64(len(p.blockGossipTimes)) > p.slotsPerEpoch {
-		cutoff := slot - p.slotsPerEpoch
-		for s := range p.blockGossipTimes {
-			if s < cutoff {
-				delete(p.blockGossipTimes, s)
-			}
-		}
-	}
 }
 
 // recordBlockProcessingTime calculates and records the time between block gossip and head events.
@@ -310,16 +301,18 @@ func (p *listener) recordBlockProcessingTime(slot uint64, addr string, headTimes
 
 	addrMap, slotFound := p.blockGossipTimes[slot]
 	if !slotFound {
+		// Block gossip event not received yet or already cleaned up
 		return
 	}
 
 	gossipTime, addrFound := addrMap[addr]
 	if !addrFound {
+		// Block gossip event for this address not received yet or already cleaned up
 		return
 	}
 
 	processingTime := headTimestamp.Sub(gossipTime)
-	if processingTime >= 0 {
+	if processingTime > 0 {
 		sseBlockProcessingTimeHistogram.WithLabelValues(addr).Observe(processingTime.Seconds())
 	}
 
@@ -327,5 +320,16 @@ func (p *listener) recordBlockProcessingTime(slot uint64, addr string, headTimes
 	delete(addrMap, addr)
 	if len(addrMap) == 0 {
 		delete(p.blockGossipTimes, slot)
+	}
+
+	// Cleanup old entries (older than one epoch)
+	// This handles cases where gossip events don't get matching head events
+	if slot > p.slotsPerEpoch {
+		cutoff := slot - p.slotsPerEpoch
+		for s := range p.blockGossipTimes {
+			if s < cutoff {
+				delete(p.blockGossipTimes, s)
+			}
+		}
 	}
 }
