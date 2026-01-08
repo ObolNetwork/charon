@@ -313,7 +313,7 @@ func (p *listener) recordBlockProcessingTime(slot uint64, addr string, headTimes
 
 	processingTime := headTimestamp.Sub(gossipTime)
 	if processingTime > 0 {
-		sseBlockProcessingTimeHistogram.WithLabelValues(addr).Observe(processingTime.Seconds())
+		sseBlockProcessingTimeGauge.WithLabelValues(addr).Set(processingTime.Seconds())
 	}
 
 	// Clean up this entry as it's no longer needed
