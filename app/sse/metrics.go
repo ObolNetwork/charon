@@ -51,7 +51,7 @@ var (
 	sseBlockProcessingTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "beacon_node",
-		Name:      "sse_block_processing_time_seconds",
+		Name:      "sse_block_processing_time",
 		Help:      "Most recent block processing time in seconds (time between block gossip and head events). Lower values indicate better CPU/disk/RAM performance.",
 	}, []string{"addr"})
 )
