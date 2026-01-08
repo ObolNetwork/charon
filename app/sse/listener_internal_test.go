@@ -179,3 +179,60 @@ func TestComputeDelay(t *testing.T) {
 		})
 	}
 }
+
+func TestBlockProcessingTime(t *testing.T) {
+	l := &listener{
+		blockGossipTimes: make(map[uint64]map[string]time.Time),
+		genesisTime:      time.Now().Add(-10 * 12 * time.Second),
+		slotDuration:     12 * time.Second,
+		slotsPerEpoch:    32,
+	}
+
+	addr := "test-beacon-node"
+	slot := uint64(10)
+
+	// Simulate block gossip event
+	gossipTime := time.Now()
+	l.storeBlockGossipTime(slot, addr, gossipTime)
+
+	// Verify the timestamp was stored
+	addrMap, found := l.blockGossipTimes[slot]
+	require.True(t, found)
+	storedTime, found := addrMap[addr]
+	require.True(t, found)
+	require.Equal(t, gossipTime, storedTime)
+
+	// Simulate head event 400ms later
+	headTime := gossipTime.Add(400 * time.Millisecond)
+	l.recordBlockProcessingTime(slot, addr, headTime)
+
+	// Verify the entry was cleaned up after recording
+	_, found = l.blockGossipTimes[slot]
+	require.False(t, found)
+}
+
+func TestBlockProcessingTimeCleanup(t *testing.T) {
+	l := &listener{
+		blockGossipTimes: make(map[uint64]map[string]time.Time),
+		genesisTime:      time.Now().Add(-200 * 12 * time.Second),
+		slotDuration:     12 * time.Second,
+		slotsPerEpoch:    32,
+	}
+
+	addr := "test-addr"
+	now := time.Now()
+
+	// Add entries for 150 slots to trigger cleanup
+	for i := uint64(1); i <= 150; i++ {
+		l.storeBlockGossipTime(i, addr, now)
+	}
+
+	// Map should have been cleaned up to keep it under ~32 entries (one epoch)
+	require.LessOrEqual(t, len(l.blockGossipTimes), int(l.slotsPerEpoch)+10)
+
+	// Verify recent entries are still there
+	addrMap, found := l.blockGossipTimes[150]
+	require.True(t, found)
+	_, found = addrMap[addr]
+	require.True(t, found)
+}
