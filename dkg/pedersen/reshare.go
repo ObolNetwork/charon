@@ -124,6 +124,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		for _, removedPeerID := range config.Reshare.RemovedPeers {
 			if idx, ok := config.PeerMap[removedPeerID]; ok && idx.PeerIdx == int(node.Index) {
 				isRemoving = true
+
 				if idx.PeerIdx == thisNodeIndex {
 					thisIsRemovedNode = true
 				}
@@ -136,6 +137,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		for _, addedPeerID := range config.Reshare.AddedPeers {
 			if idx, ok := config.PeerMap[addedPeerID]; ok && idx.PeerIdx == int(node.Index) {
 				isNewlyAdded = true
+
 				if idx.PeerIdx == thisNodeIndex {
 					thisIsAddedNode = true
 				}

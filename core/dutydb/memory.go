@@ -34,7 +34,6 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 }
 
 // MemDB is an in-memory dutyDB implementation.
-// It is a placeholder for the badgerDB implementation.
 type MemDB struct {
 	mu sync.Mutex
 
