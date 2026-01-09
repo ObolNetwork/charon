@@ -30,7 +30,7 @@ type MemDBMetadata struct {
 }
 
 // NewMemDB returns a new in-memory partial signature database instance.
-func NewMemDB(ctx context.Context, threshold int, deadliner core.Deadliner, metadata MemDBMetadata) *MemDB {
+func NewMemDB(threshold int, deadliner core.Deadliner, metadata MemDBMetadata) *MemDB {
 	return &MemDB{
 		entries:    make(map[key][]core.ParSignedData),
 		keysByDuty: make(map[core.Duty][]key),
@@ -167,12 +167,15 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 
 	slotStart := (uint64(db.metadata.genesisTime.Unix()) + k.Duty.Slot*db.metadata.slotDuration) * 1000 // in ms
 	timeSinceSlotStart := float64(now-int64(slotStart)) / 1000                                          // in seconds
+
 	switch k.Duty.Type {
 	case core.DutyAttester:
 		timeSinceSlotStart -= 4.0
 	case core.DutyAggregator, core.DutySyncContribution:
 		timeSinceSlotStart -= 8.0
+	default:
 	}
+
 	parsigStored.WithLabelValues(k.Duty.Type.String(), strconv.FormatInt(int64(value.ShareIdx), 10)).Observe(timeSinceSlotStart)
 
 	for _, s := range db.entries[k] {

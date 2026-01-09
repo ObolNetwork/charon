@@ -85,7 +85,7 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 
 	p.allENRs = append(p.allENRs, p.newENRs...)
 
-	pctx.SigExchanger = newExchanger(ctx, pctx.ThisNode, pctx.ThisNodeIdx.PeerIdx, pctx.PeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
+	pctx.SigExchanger = newExchanger(pctx.ThisNode, pctx.ThisNodeIdx.PeerIdx, pctx.PeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey)
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
 

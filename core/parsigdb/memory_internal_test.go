@@ -117,7 +117,7 @@ func TestMemDBThreshold(t *testing.T) {
 	)
 
 	deadliner := newTestDeadliner()
-	db := NewMemDB(t.Context(), th, deadliner, NewMemDBMetadata(eth2util.Mainnet.SlotDuration, time.Unix(eth2util.Mainnet.GenesisTimestamp, 0)))
+	db := NewMemDB(th, deadliner, NewMemDBMetadata(eth2util.Mainnet.SlotDuration, time.Unix(eth2util.Mainnet.GenesisTimestamp, 0)))
 
 	ctx := t.Context()
 
