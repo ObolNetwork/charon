@@ -151,7 +151,7 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 			PeerIdx:  nodeIdx,
 			ShareIdx: nodeIdx + 1,
 		}
-		pctx.SigExchanger = newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
+		pctx.SigExchanger = newExchanger(ctx, pctx.ThisNode, nodeIdx, newPeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
 	}
 
 	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), p.newThreshold, nil, oldPeerIDs)

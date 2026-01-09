@@ -567,7 +567,27 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	parSigDB := parsigdb.NewMemDB(lock.Threshold, deadlinerFunc("parsigdb"))
+	var slotDuration uint64
+	var genesisTime time.Time
+	if conf.TestnetConfig.IsNonZero() {
+		slotDuration = 12
+		genesisTime = time.Unix(conf.TestnetConfig.GenesisTimestamp, 0)
+	} else {
+		network, err := eth2util.ForkVersionToNetwork(lock.ForkVersion)
+		if err != nil {
+			network = "mainnet"
+		}
+		slotDuration, err = eth2util.NetworkToSlotDuration(network)
+		if err != nil {
+			return err
+		}
+		genesisTime, err = eth2util.NetworkToGenesisTime(network)
+		if err != nil {
+			return err
+		}
+
+	}
+	parSigDB := parsigdb.NewMemDB(ctx, lock.Threshold, deadlinerFunc("parsigdb"), parsigdb.NewMemDBMetadata(slotDuration, genesisTime))
 
 	var parSigEx core.ParSigEx
 	if conf.TestConfig.ParSigExFunc != nil {

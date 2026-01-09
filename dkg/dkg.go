@@ -242,7 +242,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{
+	ex := newExchanger(ctx, p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{
 		sigLock,
 		sigDepositData,
 		sigValidatorRegistration,

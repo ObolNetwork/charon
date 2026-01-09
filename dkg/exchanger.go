@@ -56,7 +56,7 @@ type exchanger struct {
 	sigDatasChan  chan map[core.PubKey][]core.ParSignedData
 }
 
-func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []sigType, timeout time.Duration) *exchanger {
+func newExchanger(ctx context.Context, p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []sigType, timeout time.Duration) *exchanger {
 	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
 	noopVerifier := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
 		return nil
@@ -82,7 +82,7 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []si
 
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
-		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}),
+		sigdb:    parsigdb.NewMemDB(ctx, len(peers), noopDeadliner{}, parsigdb.NewMemDBMetadata(0, time.Now())), // metadata timestamps are used for metrics, irrelevant for DKG
 		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, noopVerifier, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
 		sigTypes: st,
 		sigData: dataByPubkey{
