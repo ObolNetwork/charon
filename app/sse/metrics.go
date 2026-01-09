@@ -48,10 +48,11 @@ var (
 		Buckets:   []float64{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 8, 10, 12},
 	}, []string{"addr"})
 
-	sseBlockProcessingTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	sseBlockProcessingTimeHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "sse_block_processing_time",
-		Help:      "Most recent block processing time in seconds (time between block gossip and head events). Lower values indicate better CPU/disk/RAM performance.",
+		Help:      "Time in seconds between block gossip and head events, indicating block processing time. Lower values indicate better CPU/disk/RAM performance.",
+		Buckets:   []float64{0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 4},
 	}, []string{"addr"})
 )
