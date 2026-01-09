@@ -179,3 +179,78 @@ func TestComputeDelay(t *testing.T) {
 		})
 	}
 }
+
+func TestBlockProcessingTime(t *testing.T) {
+	l := &listener{
+		blockGossipTimes: make(map[uint64]map[string]time.Time),
+		genesisTime:      time.Now().Add(-10 * 12 * time.Second),
+		slotDuration:     12 * time.Second,
+		slotsPerEpoch:    32,
+	}
+
+	addr := "test-beacon-node"
+	slot := uint64(10)
+
+	// Simulate block gossip event
+	gossipTime := time.Now()
+	l.storeBlockGossipTime(slot, addr, gossipTime)
+
+	// Verify the timestamp was stored
+	addrMap, found := l.blockGossipTimes[slot]
+	require.True(t, found)
+	storedTime, found := addrMap[addr]
+	require.True(t, found)
+	require.Equal(t, gossipTime, storedTime)
+
+	// Simulate head event 400ms later
+	headTime := gossipTime.Add(400 * time.Millisecond)
+	l.recordBlockProcessingTime(slot, addr, headTime)
+
+	// Verify the entry was cleaned up after recording
+	_, found = l.blockGossipTimes[slot]
+	require.False(t, found)
+}
+
+func TestBlockProcessingTimeCleanup(t *testing.T) {
+	l := &listener{
+		blockGossipTimes: make(map[uint64]map[string]time.Time),
+		genesisTime:      time.Now().Add(-200 * 12 * time.Second),
+		slotDuration:     12 * time.Second,
+		slotsPerEpoch:    32,
+	}
+
+	addr := "test-addr"
+	baseTime := time.Now()
+
+	// Add entries for 150 slots and process them to trigger cleanup
+	for i := uint64(1); i <= 150; i++ {
+		gossipTime := baseTime.Add(time.Duration(i) * time.Millisecond)
+		l.storeBlockGossipTime(i, addr, gossipTime)
+
+		// Process every other slot to trigger cleanup
+		if i%2 == 0 {
+			headTime := gossipTime.Add(100 * time.Millisecond)
+			l.recordBlockProcessingTime(i, addr, headTime)
+		}
+	}
+
+	// Cleanup happens on every record call and removes entries older than 1 epoch
+	// After processing slot 150, entries older than (150 - 32) = 118 are removed
+	// Remaining entries: odd slots from 119-149 (never processed) = 16 entries
+	// Even slots are immediately deleted after processing
+	require.Equal(t, 16, len(l.blockGossipTimes))
+
+	// Verify recent unprocessed entries are still there (odd slots from end)
+	addrMap, found := l.blockGossipTimes[149]
+	require.True(t, found)
+	_, found = addrMap[addr]
+	require.True(t, found)
+
+	// Verify old entries were cleaned up
+	_, found = l.blockGossipTimes[1]
+	require.False(t, found)
+
+	// Verify processed entries were immediately cleaned up
+	_, found = l.blockGossipTimes[150]
+	require.False(t, found)
+}

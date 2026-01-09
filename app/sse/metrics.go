@@ -47,4 +47,12 @@ var (
 		Help:      "Block imported into fork choice delay, supplied by beacon node's SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe",
 		Buckets:   []float64{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 8, 10, 12},
 	}, []string{"addr"})
+
+	sseBlockProcessingTimeHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "app",
+		Subsystem: "beacon_node",
+		Name:      "sse_block_processing_time",
+		Help:      "Time in seconds between block gossip and head events, indicating block processing time. Lower values indicate better CPU/disk/RAM performance.",
+		Buckets:   []float64{0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 4},
+	}, []string{"addr"})
 )
