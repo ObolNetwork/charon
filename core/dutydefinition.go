@@ -3,6 +3,8 @@
 package core
 
 import (
+	"encoding/json"
+
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -64,6 +66,35 @@ func (d ProposerDefinition) Clone() (DutyDefinition, error) {
 
 func (d ProposerDefinition) MarshalJSON() ([]byte, error) {
 	return d.ProposerDuty.MarshalJSON()
+}
+
+// NewPrepareProposerDefinition is a convenience function that returns a new prepare proposer definition.
+func NewPrepareProposerDefinition(targetSlot uint64) PrepareProposerDefinition {
+	return PrepareProposerDefinition{
+		TargetSlot: targetSlot,
+	}
+}
+
+// PrepareProposerDefinition defines a prepare proposer duty.
+type PrepareProposerDefinition struct {
+	TargetSlot uint64 // Definition cannot be empty, so we store the target slot.
+}
+
+func (d PrepareProposerDefinition) Clone() (DutyDefinition, error) {
+	return NewPrepareProposerDefinition(d.TargetSlot), nil
+}
+
+func (d PrepareProposerDefinition) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(struct {
+		TargetSlot uint64 `json:"target_slot,string"`
+	}{
+		TargetSlot: d.TargetSlot,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal prepare proposer definition")
+	}
+
+	return b, nil
 }
 
 // NewSyncCommitteeDefinition is a convenience function that returns a new SyncCommitteeDefinition.
