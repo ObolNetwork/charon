@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -14,18 +16,31 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
+// NewMemDBMetadata returns a new in-memory partial signature database instance.
+func NewMemDBMetadata(slotDuration uint64, genesisTime time.Time) MemDBMetadata {
+	return MemDBMetadata{
+		slotDuration: slotDuration,
+		genesisTime:  genesisTime,
+	}
+}
+
+type MemDBMetadata struct {
+	slotDuration uint64
+	genesisTime  time.Time
+}
+
 // NewMemDB returns a new in-memory partial signature database instance.
-func NewMemDB(threshold int, deadliner core.Deadliner) *MemDB {
+func NewMemDB(threshold int, deadliner core.Deadliner, metadata MemDBMetadata) *MemDB {
 	return &MemDB{
 		entries:    make(map[key][]core.ParSignedData),
 		keysByDuty: make(map[core.Duty][]key),
 		threshold:  threshold,
 		deadliner:  deadliner,
+		metadata:   metadata,
 	}
 }
 
-// MemDB is a placeholder in-memory partial signature database.
-// It will be replaced with a BadgerDB implementation.
+// MemDB is an in-memory partial signature database.
 type MemDB struct {
 	mu           sync.Mutex
 	internalSubs []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -35,6 +50,8 @@ type MemDB struct {
 	keysByDuty map[core.Duty][]key
 	threshold  int
 	deadliner  core.Deadliner
+
+	metadata MemDBMetadata
 }
 
 // SubscribeInternal registers a callback when an internal
@@ -145,6 +162,21 @@ func (db *MemDB) Trim(ctx context.Context) {
 func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, bool, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
+	now := time.Now().UnixMilli()
+
+	slotStart := (uint64(db.metadata.genesisTime.Unix()) + k.Duty.Slot*db.metadata.slotDuration) * 1000 // in ms
+	timeSinceSlotStart := float64(now-int64(slotStart)) / 1000                                          // in seconds
+
+	switch k.Duty.Type {
+	case core.DutyAttester:
+		timeSinceSlotStart -= 4.0
+	case core.DutyAggregator, core.DutySyncContribution:
+		timeSinceSlotStart -= 8.0
+	default:
+	}
+
+	parsigStored.WithLabelValues(k.Duty.Type.String(), strconv.FormatInt(int64(value.ShareIdx), 10)).Observe(timeSinceSlotStart)
 
 	for _, s := range db.entries[k] {
 		if s.ShareIdx == value.ShareIdx {

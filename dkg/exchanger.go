@@ -82,7 +82,7 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []si
 
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
-		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}),
+		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}, parsigdb.NewMemDBMetadata(0, time.Now())), // metadata timestamps are used for metrics, irrelevant for DKG
 		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, noopVerifier, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
 		sigTypes: st,
 		sigData: dataByPubkey{
