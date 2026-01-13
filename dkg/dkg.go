@@ -98,9 +98,9 @@ type AppendConfig struct {
 	AddValidators int
 	// Unverified is true when source validator keys are not available.
 	Unverified bool
-	// ValidatorAddresses' length must match AddValidators.
+	// ValidatorAddresses length must match AddValidators.
 	ValidatorAddresses []cluster.ValidatorAddresses
-	// DepositDatas is the deposit data from the existing cluster.
+	// DepositData is the deposit data from the existing cluster.
 	DepositData [][]eth2p0.DepositData
 }
 
