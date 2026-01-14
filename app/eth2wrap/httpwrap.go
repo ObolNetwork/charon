@@ -138,7 +138,7 @@ func (h *httpAdapter) Proxy(ctx context.Context, req *http.Request) (*http.Respo
 
 // ClientForAddress returns the same client (self) since httpAdapter wraps a single address.
 // The addr parameter is ignored as this client is already scoped to a specific address.
-func (h *httpAdapter) ClientForAddress(addr string) Client {
+func (h *httpAdapter) ClientForAddress(_ string) Client {
 	return h
 }
 
