@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dutydb
 
@@ -34,7 +34,6 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 }
 
 // MemDB is an in-memory dutyDB implementation.
-// It is a placeholder for the badgerDB implementation.
 type MemDB struct {
 	mu sync.Mutex
 

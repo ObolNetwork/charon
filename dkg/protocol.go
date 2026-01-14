@@ -1,10 +1,9 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"time"
 
@@ -142,7 +141,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 		return err
 	}
 
-	thisNode, shutdown, err := setupP2P(ctx, enrPrivateKey, config, peers, lock.DefinitionHash)
+	thisNode, shutdown, err := setupP2P(ctx, enrPrivateKey, config, peers, lock.DefinitionHash, lock.UUID)
 	if err != nil {
 		return err
 	}
@@ -161,7 +160,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, cancel, TestConfig{})
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, cancel, TestConfig{}, config.Nickname)
 	if err != nil {
 		return err
 	}
@@ -187,35 +186,13 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 
 // LoadAndVerifyClusterLock loads the cluster lock from disk and verifies its hashes and signatures.
 func LoadAndVerifyClusterLock(ctx context.Context, lockFilePath, executionEngineAddr string, noVerify bool) (*cluster.Lock, error) {
-	b, err := os.ReadFile(lockFilePath)
-	if err != nil {
-		return nil, errors.Wrap(err, "read cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
-	var lock cluster.Lock
-	if err := json.Unmarshal(b, &lock); err != nil {
-		return nil, errors.Wrap(err, "unmarshal cluster-lock.json", z.Str("path", lockFilePath))
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
 	go eth1Cl.Run(ctx)
 
-	if err := lock.VerifyHashes(); err != nil && !noVerify {
-		return nil, errors.Wrap(err, "verify cluster lock hashes (run with --no-verify to bypass verification at own risk)")
-	} else if err != nil && noVerify {
-		log.Warn(ctx, "Ignoring failed cluster lock hashes verification due to --no-verify flag", err)
-	}
-
-	if err := lock.VerifySignatures(eth1Cl); err != nil && !noVerify {
-		return nil, errors.Wrap(err, "verify cluster lock signatures (run with --no-verify to bypass verification at own risk)")
-	} else if err != nil && noVerify {
-		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
-	}
-
-	return &lock, nil
+	return cluster.LoadClusterLock(ctx, lockFilePath, noVerify, eth1Cl)
 }
 
 // LoadSecrets loads the private key shares from the validator keys subdirectory in the given data directory.

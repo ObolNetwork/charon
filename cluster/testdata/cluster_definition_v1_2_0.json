@@ -2,14 +2,14 @@
  "name": "test definition",
  "operators": [
   {
-   "address": "0x019192c24224e2cafccae3a61fb586b14323a6bc",
-   "enr": "enr://ea6f5b3af6de0374366c4719e43a1b067d89bc7f01f1f573981659a44ff17a4c",
+   "address": "0x86b14323a6bc8f9e7df1d929333ff993933bea6f",
+   "enr": "enr:-HW4QMIZ10BTPuSp6xOGrD15Enk-TM1WbNARH6yPJmGSWkWdfUUaSNg1T4BHao3RUJdboINPCKsm_X38Xyj1uFPKdoWAgmlkgnY0iXNlY3AyNTZrMaEDTLCHkTEDlpKqN4fRxuEsh_Amst07WBUyiL8z1_ba8Qw",
    "config_signature": "",
    "enr_signature": ""
   },
   {
-   "address": "0xa6430105220d0b29688b734b8ea0f3ca9936e846",
-   "enr": "enr://f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b",
+   "address": "0x40e9a1d007f033c2823061bdd0eaa59f8e4da643",
+   "enr": "enr:-HW4QBt3PTM5MBcYQKiUA0hgcqopF-42-R8sCs6PoLPI11qCAoftNLfKq6cLrKfhhmrGD9w5CWAuJsBSNUo08y2PTyGAgmlkgnY0iXNlY3AyNTZrMaED8Lz22L8jIlhbkAo5dMNIhVgcPg-8-1_7XeYejqxno-4",
    "config_signature": "",
    "enr_signature": ""
   }
@@ -23,6 +23,6 @@
  "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4",
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
- "config_hash": "0x271a4e90f3a71be54760782e02fe805e6b26e86c257667906387b6dbc1589db8",
- "definition_hash": "0x2768494b99a8d9685b19159f8babdb9a9ec27ae49b729b50b3d32eaa7b6921c0"
+ "config_hash": "0xf61eafe230658b03bb4f90d7a910f8b6c56b0849ee3d70f12e688583b4e7f8a3",
+ "definition_hash": "0x45d87ed12ccf5f137da6acd03c0aa9378bdd8a25e9ec856b681b1427165a6ee3"
 }

@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package p2p
 
@@ -24,7 +24,7 @@ import (
 )
 
 // NewRelays returns the libp2p relays from the provided addresses.
-func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
+func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex, uuid string,
 ) ([]*MutablePeer, error) {
 	var resp []*MutablePeer
 
@@ -35,7 +35,7 @@ func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 			}
 
 			mutable := new(MutablePeer)
-			go resolveRelay(ctx, relayAddr, lockHashHex, mutable.Set)
+			go resolveRelay(ctx, relayAddr, lockHashHex, uuid, mutable.Set)
 
 			resp = append(resp, mutable)
 
@@ -89,13 +89,13 @@ func NewRelays(ctx context.Context, relayAddrs []string, lockHashHex string,
 
 // resolveRelay continuously resolves the relay multiaddrs from the HTTP url and returns
 // the new Peer when it changes via the callback.
-func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func(Peer)) {
+func resolveRelay(ctx context.Context, rawURL, lockHashHex, uuid string, callback func(Peer)) {
 	var (
 		prevAddrs      string
 		backoff, reset = expbackoff.NewWithReset(ctx, expbackoff.WithFastConfig()) // Fast retries mostly for unit tests.
 	)
 	for ctx.Err() == nil {
-		addrs, err := queryRelayAddrs(ctx, rawURL, backoff, lockHashHex)
+		addrs, err := queryRelayAddrs(ctx, rawURL, backoff, lockHashHex, uuid)
 		if err != nil {
 			log.Error(ctx, "Failed to resolve relay addresses from URL. Check that the URL is correct, the relay service is running, and network connectivity is available", err, z.Str("url", rawURL))
 			return
@@ -138,7 +138,7 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex string, callback func
 // when relays are deployed in docker compose or kubernetes
 //
 // It retries until the context is cancelled.
-func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockHashHex string) ([]ma.Multiaddr, error) {
+func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockHashHex, uuid string) ([]ma.Multiaddr, error) {
 	parsedURL, err := url.ParseRequestURI(relayURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "parse relay url")
@@ -163,6 +163,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 		}
 
 		req.Header.Set("Charon-Cluster", lockHashHex)
+		req.Header.Set("Cluster-Uuid", uuid)
 
 		resp, err := client.Do(req)
 		if err != nil {

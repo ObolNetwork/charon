@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster
 
@@ -211,7 +211,7 @@ func TestDefinitionVerify(t *testing.T) {
 	})
 }
 
-// randomOperator returns a random ETH1 private key and populated creator struct (excluding config signature).
+// randomCreator returns a random ETH1 private key and populated creator struct (excluding config signature).
 func randomCreator(t *testing.T) (*k1.PrivateKey, Creator) {
 	t.Helper()
 

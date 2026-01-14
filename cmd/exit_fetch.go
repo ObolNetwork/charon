@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -104,7 +105,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := loadClusterLock(config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
 	if err != nil {
 		return err
 	}
@@ -114,20 +115,20 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
-	shareIdx, err := keystore.ShareIdxForCluster(cl, *identityKey.PubKey())
+	shareIdx, err := keystore.ShareIdxForCluster(*cl, *identityKey.PubKey())
 	if err != nil {
 		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
 
 	if config.All {
-		for _, validator := range cl.GetValidators() {
-			validatorPubKeyHex := fmt.Sprintf("0x%x", validator.GetPublicKey())
+		for _, validator := range cl.Validators {
+			validatorPubKeyHex := validator.PublicKeyHex()
 
 			valCtx := log.WithCtx(ctx, z.Str("validator", validatorPubKeyHex))
 
 			log.Info(valCtx, "Retrieving full exit message")
 
-			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.GetInitialMutationHash(), shareIdx, identityKey)
+			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.LockHash, shareIdx, identityKey)
 			if err != nil {
 				if errors.Is(err, obolapi.ErrNoValue) {
 					log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
@@ -152,7 +153,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 		log.Info(ctx, "Retrieving full exit message")
 
-		fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.GetInitialMutationHash(), shareIdx, identityKey)
+		fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.LockHash, shareIdx, identityKey)
 		if err != nil {
 			return errors.Wrap(err, "load full exit data from Obol API", z.Str("validator_public_key", config.ValidatorPubkey))
 		}

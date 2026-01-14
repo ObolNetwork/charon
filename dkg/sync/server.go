@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package sync provides Client and Server APIs that ensures robust network connectivity between all peers in the DKG.
 // It supports cluster_definition verification, soft shutdown and reconnect on connection loss.
@@ -272,12 +272,17 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 			SyncTimestamp: msg.GetTimestamp(),
 		}
 
+		logOpts := []z.Field{z.Str("peer", p2p.PeerName(pID))}
+		if msg.GetNickname() != "" {
+			logOpts = append(logOpts, z.Str("nickname", msg.GetNickname()))
+		}
+
 		if err := s.validReq(pubkey, msg); err != nil {
-			s.setErr(errors.Wrap(err, "invalid sync message", z.Str("peer", p2p.PeerName(pID))))
+			s.setErr(errors.Wrap(err, "invalid sync message", logOpts...))
 			resp.Error = err.Error()
 		} else if !s.isConnected(pID) {
 			count := s.setConnected(pID)
-			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount))
+			log.Info(ctx, fmt.Sprintf("Connected to peer %d of %d", count, s.allCount), logOpts...)
 		}
 
 		if err := s.updateStep(pID, int(msg.GetStep())); err != nil {

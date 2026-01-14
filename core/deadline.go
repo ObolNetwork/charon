@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package core
 
@@ -39,7 +39,7 @@ type Deadliner interface {
 	C() <-chan Duty
 }
 
-// deadlinerInput represents the input to inputChan.
+// deadlineInput represents the input to inputChan.
 type deadlineInput struct {
 	duty    Duty
 	success chan<- bool

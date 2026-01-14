@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/manifest"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -79,11 +78,6 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
 		}
 	}
-
-	dag, err := manifest.NewDAGFromLockForT(t, lock)
-	require.NoError(t, err)
-	cl, err := manifest.Materialise(dag)
-	require.NoError(t, err)
 
 	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
@@ -171,7 +165,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 		if all {
 			for _, validator := range lock.Validators {
 				validatorPublicKey := validator.PublicKeyHex()
-				exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, cl, enrs[0])
+				exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, &lock, enrs[0])
 				require.NoError(t, err)
 
 				exitBytes, err := json.Marshal(exit)
@@ -184,7 +178,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 			config.ExitFromFileDir = baseDir
 		} else {
 			validatorPublicKey := lock.Validators[0].PublicKeyHex()
-			exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, cl, enrs[0])
+			exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, &lock, enrs[0])
 			require.NoError(t, err)
 
 			exitBytes, err := json.Marshal(exit)
@@ -222,7 +216,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 		{
 			name:    "No lock",
 			noLock:  true,
-			errData: "load cluster lock",
+			errData: "no such file or directory",
 		},
 		{
 			name:       "Bad Obol API URL",

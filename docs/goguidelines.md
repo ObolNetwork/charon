@@ -16,7 +16,7 @@ These resources define opinions and practices that are highly recommended.
 We take inspiration and guidance from these top-quality go projects.
 
 - [Vouch](https://github.com/attestantio/vouch)
-- [Prysm](https://github.com/prysmaticlabs/prysm)
+- [Prysm](https://github.com/OffchainLabs/prysm)
 - [Go-ethereum](https://github.com/ethereum/go-ethereum)
 - [Avalanchego](https://github.com/ava-labs/avalanchego)
 - [LND](https://github.com/lightningnetwork/lnd)

@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -75,7 +75,7 @@ func bindNoVerifyFlag(flags *pflag.FlagSet, config *bool) {
 
 func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.LockFile, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
-	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
+	cmd.Flags().StringVar(&config.ManifestFile, "manifest-file", ".charon/cluster-manifest.pb", "[DEPRECATED] The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence.")
 	cmd.Flags().StringSliceVar(&config.BeaconNodeAddrs, "beacon-node-endpoints", nil, "Comma separated list of one or more beacon node endpoint URLs.")
 	cmd.Flags().DurationVar(&config.BeaconNodeTimeout, "beacon-node-timeout", eth2ClientTimeout, "Timeout for the HTTP requests Charon makes to the configured beacon nodes.")
 	cmd.Flags().DurationVar(&config.BeaconNodeSubmitTimeout, "beacon-node-submit-timeout", eth2ClientTimeout, "Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes.")

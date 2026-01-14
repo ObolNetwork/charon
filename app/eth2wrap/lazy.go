@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap
 
@@ -128,6 +128,15 @@ func (l *lazy) ClientForAddress(addr string) Client {
 	}
 
 	return cl.ClientForAddress(addr)
+}
+
+func (l *lazy) Headers() map[string]string {
+	cl, ok := l.getClient()
+	if !ok {
+		return nil
+	}
+
+	return cl.Headers()
 }
 
 func (l *lazy) IsActive() bool {

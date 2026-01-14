@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap
 
@@ -92,6 +92,14 @@ func (m multi) ClientForAddress(addr string) Client {
 
 	// Address not found, return original multi client
 	return m
+}
+
+func (m multi) Headers() map[string]string {
+	if len(m.clients) == 0 {
+		return nil
+	}
+
+	return m.clients[0].Headers()
 }
 
 func (m multi) IsActive() bool {

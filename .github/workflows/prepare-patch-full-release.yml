@@ -1,0 +1,240 @@
+name: Prepare Patch Full Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  prepare_patch_full_release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0 # Required to get all tags and branches
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          persist-credentials: false
+
+      - name: 2. Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: 2b. Configure Git with GPG
+        run: |
+          git config --global user.name "obol-platform"
+          git config --global user.email "platform@obol.tech"
+          git config --global user.signingkey "$(gpg --list-secret-keys --keyid-format LONG platform@obol.tech | grep sec | awk '{print $2}' | cut -d'/' -f2)"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+      - name: 3. Find Latest Release Branch
+        id: find_branch
+        run: |
+          # Fetch all remote branches
+          git fetch --all
+
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+            exit 1
+          fi
+
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
+
+      - name: 3. Extract Version from Branch Name
+        id: version
+        run: |
+          BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Extract version from branch name (e.g., main-v1.8 -> 1.8)
+          if [[ ! "$BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid branch name format. Expected 'main-vX.Y', got: $BRANCH"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Extracted version - MAJOR: ${MAJOR}, MINOR: ${MINOR}"
+
+      - name: 4. Find Latest Patch Version
+        id: find_patch
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+
+          # Fetch all tags
+          git fetch --tags
+
+          # Find all full release tags for this major.minor version
+          # Exclude RC tags
+          PATCH_TAGS=$(git tag -l "v${MAJOR}.${MINOR}.*" | grep -E "^v${MAJOR}\.${MINOR}\.[0-9]+$" | sort -V)
+
+          if [[ -z "$PATCH_TAGS" ]]; then
+            # No patch releases yet, this is patch 1
+            LATEST_PATCH=0
+            echo "::notice::No patch releases found. Starting patch 1"
+          else
+            # Extract the highest patch number
+            LATEST_PATCH_TAG=$(echo "$PATCH_TAGS" | tail -n 1)
+            LATEST_PATCH=$(echo "$LATEST_PATCH_TAG" | sed -E "s/^v${MAJOR}\.${MINOR}\.([0-9]+)$/\1/")
+            echo "::notice::Found latest patch release: ${LATEST_PATCH_TAG} (patch ${LATEST_PATCH})"
+          fi
+
+          # Calculate next patch version
+          NEXT_PATCH=$((LATEST_PATCH + 1))
+
+          # Version in code is vX.Y, tag will be vX.Y.Z
+          VERSION_IN_CODE="v${MAJOR}.${MINOR}"
+          TAG_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
+
+          echo "LATEST_PATCH=${LATEST_PATCH}" >> $GITHUB_OUTPUT
+          echo "NEXT_PATCH=${NEXT_PATCH}" >> $GITHUB_OUTPUT
+          echo "VERSION_IN_CODE=${VERSION_IN_CODE}" >> $GITHUB_OUTPUT
+          echo "TAG_VERSION=${TAG_VERSION}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Version in code: ${VERSION_IN_CODE}"
+          echo "::notice::Tag version: ${TAG_VERSION}"
+
+      - name: 5. Check if Stable Tag Already Exists
+        run: |
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
+          if git tag -l "${TAG_VERSION}" | grep -q .; then
+            echo "::error::Tag ${TAG_VERSION} already exists. Aborting release."
+            exit 1
+          fi
+          echo "::notice::Tag ${TAG_VERSION} does not exist. Proceeding."
+
+      - name: 6. Validate Version File
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          VERSION_FILE="app/version/version.go"
+
+          # Check release branch has expected RC version (vX.Y-rc format)
+          git checkout "$RELEASE_BRANCH"
+          if ! grep -q "var version = \"v${MAJOR}\.${MINOR}-rc\"" "$VERSION_FILE"; then
+            echo "::error::Expected version pattern v${MAJOR}.${MINOR}-rc not found in $VERSION_FILE on branch $RELEASE_BRANCH"
+            exit 1
+          fi
+          echo "::notice::Release branch version validated: v${MAJOR}.${MINOR}-rc"
+
+      - name: 7. Update Release Branch to Stable Version
+        id: stable_pr
+        run: |
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
+          VERSION_IN_CODE="${{ steps.find_patch.outputs.VERSION_IN_CODE }}"
+          WORK_BRANCH="obol-gh-actions/bump-version-to-v${MAJOR}.${MINOR}"
+
+          # Checkout the release branch
+          git checkout "$RELEASE_BRANCH"
+
+          # Update version file from vX.Y-rc to vX.Y
+          VERSION_FILE="app/version/version.go"
+
+          # Replace v<MAJOR>.<MINOR>-rc with v<MAJOR>.<MINOR>
+          sed -i -E "s/^(var version = )\"v${MAJOR}\.${MINOR}-rc\"/\1\"${VERSION_IN_CODE}\"/" "$VERSION_FILE"
+
+          # Verify the change was successful
+          if ! grep -q "var version = \"${VERSION_IN_CODE}\"" "$VERSION_FILE"; then
+            echo "::error::Failed to update version to ${VERSION_IN_CODE} in $VERSION_FILE"
+            exit 1
+          fi
+
+          # Display the change
+          echo "::notice::Updated $VERSION_FILE:"
+          grep "var version" "$VERSION_FILE"
+
+          echo "WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Prepared changes for: ${WORK_BRANCH}"
+
+      - name: 9. Create PR to Release Branch for Stable Version
+        id: create_stable_pr
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          commit-message: "app/version: bump v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }} to stable"
+          committer: "obol-platform <platform@obol.tech>"
+          author: "obol-platform <platform@obol.tech>"
+          branch: ${{ steps.stable_pr.outputs.WORK_BRANCH }}
+          base: ${{ steps.find_branch.outputs.RELEASE_BRANCH }}
+          delete-branch: true
+          title: "app/version: bump v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }} to stable"
+          body: |
+            This pull request was automatically generated by the 'Prepare Patch Full Release' GitHub Action.
+
+            - **Release Branch:** `${{ steps.find_branch.outputs.RELEASE_BRANCH }}`
+            - **Version in Code:** `v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}`
+            - **Tag to be Created:** `${{ steps.find_patch.outputs.TAG_VERSION }}`
+
+            ## Changes
+            - Updated version in `app/version/version.go` from `v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}-rc` to `v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }}`
+
+            ## Next Steps
+            1. Review and merge this PR
+            2. After merge, proceed with "Tag Patch Full Release" workflow to create and push the tag `${{ steps.find_patch.outputs.TAG_VERSION }}`
+            3. Docker image will be built with tag `${{ steps.find_patch.outputs.TAG_VERSION }}`
+
+            category: misc
+            ticket: none
+
+      - name: 9. Output Summary
+        if: always()
+        run: |
+          STABLE_PR_NUMBER="${{ steps.create_stable_pr.outputs.pull-request-number }}"
+          REPO_URL="https://github.com/${{ github.repository }}"
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
+          VERSION_IN_CODE="${{ steps.find_patch.outputs.VERSION_IN_CODE }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Patch Full Release Process Initiated
+
+          EOF
+
+          if [[ -n "$STABLE_PR_NUMBER" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Created PR
+          - **PR:** [#${STABLE_PR_NUMBER}](${REPO_URL}/pull/${STABLE_PR_NUMBER})
+          - **Branch:** \`${{ steps.stable_pr.outputs.WORK_BRANCH }}\`
+          - **Target:** \`${RELEASE_BRANCH}\`
+          - **Version in Code:** \`${VERSION_IN_CODE}\`
+          - **Tag to Create:** \`${TAG_VERSION}\`
+          - **Status:** Ready to merge
+
+          ### Next Steps
+          1. Review and merge the stable version PR to \`${RELEASE_BRANCH}\`
+          2. After the PR is merged, run the "Tag Patch Full Release" workflow to create and push the tag \`${TAG_VERSION}\`
+          3. Docker image will be built with tag \`${TAG_VERSION}\`
+
+          **Note:** This workflow is for patch releases (vX.Y.Z). Minor releases (vX.Y.0) use a different workflow.
+          EOF
+          else
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Failed to Create PR
+          - **Target:** \`${RELEASE_BRANCH}\`
+          - **Tag Version:** \`${TAG_VERSION}\`
+          - **Status:** Failed to create PR
+          - Please check the workflow logs for details
+          EOF
+          fi

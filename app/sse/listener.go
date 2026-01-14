@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package sse
 
@@ -35,6 +35,10 @@ type listener struct {
 	blockSubs      []BlockEventHandlerFunc
 	lastReorgEpoch eth2p0.Epoch
 
+	// blockGossipTimes stores timestamps of block gossip events per slot and beacon node address
+	// first key: slot, second key: beacon node address
+	blockGossipTimes map[uint64]map[string]time.Time
+
 	// immutable fields
 	genesisTime   time.Time
 	slotDuration  time.Duration
@@ -59,6 +63,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 	l := &listener{
 		chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
 		blockSubs:      make([]BlockEventHandlerFunc, 0),
+    blockGossipTimes: make(map[uint64]map[string]time.Time),
 		genesisTime:    genesisTime,
 		slotDuration:   slotDuration,
 		slotsPerEpoch:  slotsPerEpoch,
@@ -150,6 +155,9 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 
 	sseHeadSlotGauge.WithLabelValues(addr).Set(float64(slot))
 
+	// Calculate and record block processing time
+	p.recordBlockProcessingTime(slot, addr, event.Timestamp)
+
 	log.Debug(ctx, "SSE head event",
 		z.U64("slot", slot),
 		z.Str("delay", delay.String()),
@@ -227,6 +235,8 @@ func (p *listener) handleBlockGossipEvent(ctx context.Context, event *event, add
 
 	sseBlockGossipHistogram.WithLabelValues(addr).Observe(delay.Seconds())
 
+	p.storeBlockGossipTime(slot, addr, event.Timestamp)
+
 	return nil
 }
 
@@ -293,4 +303,55 @@ func (p *listener) computeDelay(slot uint64, eventTS time.Time, delayOKFunc func
 
 	// calculate time of receiving the event - the time of start of the slot
 	return delay, delayOKFunc(delay)
+}
+
+// storeBlockGossipTime stores the timestamp of a block gossip event for later comparison with head event.
+func (p *listener) storeBlockGossipTime(slot uint64, addr string, timestamp time.Time) {
+	p.Lock()
+	defer p.Unlock()
+
+	if p.blockGossipTimes[slot] == nil {
+		p.blockGossipTimes[slot] = make(map[string]time.Time)
+	}
+	p.blockGossipTimes[slot][addr] = timestamp
+}
+
+// recordBlockProcessingTime calculates and records the time between block gossip and head events.
+func (p *listener) recordBlockProcessingTime(slot uint64, addr string, headTimestamp time.Time) {
+	p.Lock()
+	defer p.Unlock()
+
+	addrMap, slotFound := p.blockGossipTimes[slot]
+	if !slotFound {
+		// Block gossip event not received yet or already cleaned up
+		return
+	}
+
+	gossipTime, addrFound := addrMap[addr]
+	if !addrFound {
+		// Block gossip event for this address not received yet or already cleaned up
+		return
+	}
+
+	processingTime := headTimestamp.Sub(gossipTime)
+	if processingTime > 0 {
+		sseBlockProcessingTimeHistogram.WithLabelValues(addr).Observe(processingTime.Seconds())
+	}
+
+	// Clean up this entry as it's no longer needed
+	delete(addrMap, addr)
+	if len(addrMap) == 0 {
+		delete(p.blockGossipTimes, slot)
+	}
+
+	// Cleanup old entries (older than one epoch)
+	// This handles cases where gossip events don't get matching head events
+	if slot > p.slotsPerEpoch {
+		cutoff := slot - p.slotsPerEpoch
+		for s := range p.blockGossipTimes {
+			if s < cutoff {
+				delete(p.blockGossipTimes, s)
+			}
+		}
+	}
 }

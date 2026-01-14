@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package dkg
 
@@ -66,7 +66,8 @@ type Config struct {
 
 	AppendConfig *AppendConfig
 
-	Zipped bool
+	Zipped   bool
+	Nickname string
 }
 
 // TestConfig defines additional test-only config for DKG.
@@ -97,9 +98,9 @@ type AppendConfig struct {
 	AddValidators int
 	// Unverified is true when source validator keys are not available.
 	Unverified bool
-	// ValidatorAddresses' length must match AddValidators.
+	// ValidatorAddresses length must match AddValidators.
 	ValidatorAddresses []cluster.ValidatorAddresses
-	// DepositDatas is the deposit data from the existing cluster.
+	// DepositData is the deposit data from the existing cluster.
 	DepositData [][]eth2p0.DepositData
 }
 
@@ -225,7 +226,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
 
-	p2pNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash)
+	p2pNode, shutdown, err := setupP2P(ctx, key, conf, peers, def.DefinitionHash, def.UUID)
 	if err != nil {
 		return err
 	}
@@ -280,7 +281,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig)
+	nextStepSync, stopSync, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig, conf.Nickname)
 	if err != nil {
 		return err
 	}
@@ -491,7 +492,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a step sync and shutdown functions
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKey, defHash []byte,
-	peerIDs []peer.ID, onFailure func(), testConfig TestConfig,
+	peerIDs []peer.ID, onFailure func(), testConfig TestConfig, nickname string,
 ) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, err error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
@@ -515,7 +516,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(pID)))
 
-		client := sync.NewClient(p2pNode, pID, hashSig, minorVersion, testConfig.SyncOpts...)
+		client := sync.NewClient(p2pNode, pID, hashSig, minorVersion, nickname, testConfig.SyncOpts...)
 		clients = append(clients, client)
 
 		go func() {
@@ -1261,7 +1262,7 @@ func setRegistrationSignature(reg core.VersionedSignedValidatorRegistration, sig
 }
 
 // setupP2P returns a started libp2p tcp node and a shutdown function.
-func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.Peer, defHash []byte, uuid string) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, p := range peers {
 		peerIDs = append(peerIDs, p.ID)
@@ -1271,7 +1272,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash))
+	relays, err := p2p.NewRelays(ctx, conf.P2P.Relays, hex.EncodeToString(defHash), uuid)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -1,0 +1,194 @@
+name: Bump Patch Version
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create_patch_release_pr:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: 1. Checkout release branch
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0 # Required to get all tags for versioning
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          persist-credentials: false
+
+      - name: 2. Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: 3. Configure Git with GPG
+        run: |
+          git config --global user.name "obol-platform"
+          git config --global user.email "platform@obol.tech"
+          git config --global user.signingkey "$(gpg --list-secret-keys --keyid-format LONG platform@obol.tech | grep sec | awk '{print $2}' | cut -d'/' -f2)"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+      - name: 4. Get and Increment Version
+        id: bump
+        run: |
+          # Fetch all remote branches and tags
+          git fetch --all
+          git fetch --tags
+
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+            exit 1
+          fi
+
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
+          # Extract version from branch name (e.g., main-v1.8 -> 1.8)
+          if [[ ! "$RELEASE_BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid branch name format. Expected 'main-vX.Y', got: $RELEASE_BRANCH"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+
+          # Find all tags for this major.minor version (e.g., v1.8.0, v1.8.1, v1.8.2)
+          PATCH_TAGS=$(git tag -l "v${MAJOR}.${MINOR}.*" | grep -E "^v${MAJOR}\.${MINOR}\.[0-9]+$" | sort -V)
+
+          if [[ -z "$PATCH_TAGS" ]]; then
+            # No patch releases yet, this would be the first patch after minor release
+            PREVIOUS_TAG="v${MAJOR}.${MINOR}.0"
+            LATEST_PATCH=0
+            echo "::notice::No patch releases found for v${MAJOR}.${MINOR}"
+          else
+            # Extract the highest patch number
+            PREVIOUS_TAG=$(echo "$PATCH_TAGS" | tail -n 1)
+            LATEST_PATCH=$(echo "$PREVIOUS_TAG" | sed -E "s/^v${MAJOR}\.${MINOR}\.([0-9]+)$/\1/")
+            echo "::notice::Found latest patch release: ${PREVIOUS_TAG}"
+          fi
+
+          # Calculate next patch version
+          NEXT_PATCH=$((LATEST_PATCH + 1))
+          NEW_TAG="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
+
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+          echo "NEXT_PATCH=${NEXT_PATCH}" >> $GITHUB_OUTPUT
+          echo "new_tag=${NEW_TAG}" >> $GITHUB_OUTPUT
+          echo "previous_tag=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Release branch: ${RELEASE_BRANCH}"
+          echo "::notice::Previous tag: ${PREVIOUS_TAG}"
+          echo "::notice::New tag will be: ${NEW_TAG}"
+
+      - name: 3. Set Variables for New Release
+        id: vars
+        run: |
+          # Get values from bump step
+          MAJOR="${{ steps.bump.outputs.MAJOR }}"
+          MINOR="${{ steps.bump.outputs.MINOR }}"
+
+          # Validate that major and minor are numeric
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then
+            echo "::error::Invalid version format. MAJOR=$MAJOR, MINOR=$MINOR (expected numeric values)"
+            exit 1
+          fi
+
+          # Create RC version format: v1.7-rc
+          NEW_V_VERSION="v${MAJOR}.${MINOR}-rc"
+
+          # Create branch names
+          RELEASE_BRANCH="${{ steps.bump.outputs.RELEASE_BRANCH }}"
+          WORK_BRANCH="obol-gh-actions/bump-version-to-v${MAJOR}.${MINOR}-rc"
+
+          echo "NEW_V_VERSION=${NEW_V_VERSION}" >> $GITHUB_OUTPUT
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "WORK_BRANCH=${WORK_BRANCH}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Extracted versions - MAJOR: ${MAJOR}, MINOR: ${MINOR}"
+          echo "::notice::Using release branch: ${RELEASE_BRANCH}"
+          echo "::notice::Creating work branch: ${WORK_BRANCH}"
+          echo "::notice::New version: ${NEW_V_VERSION}"
+
+      - name: 5. Checkout Release Branch
+        run: |
+          RELEASE_BRANCH="${{ steps.vars.outputs.RELEASE_BRANCH }}"
+
+          # Fetch and checkout the release branch
+          git fetch origin "$RELEASE_BRANCH:$RELEASE_BRANCH"
+          git checkout "$RELEASE_BRANCH"
+
+          echo "::notice::Checked out branch: $RELEASE_BRANCH"
+
+      - name: 6. Modify App Version in Code
+        run: |
+          VERSION_FILE="app/version/version.go"
+          NEW_VERSION="${{ steps.vars.outputs.NEW_V_VERSION }}"
+
+          echo "::notice file=$VERSION_FILE,line=18::Bumping version in $VERSION_FILE to $NEW_VERSION"
+
+          # Use sed to find the line and replace only the version string
+          sed -i -E "s/^(var version = ).*/\1\"$NEW_VERSION\"/" "$VERSION_FILE"
+
+          # Verify the change
+          echo "--- Verifying change in $VERSION_FILE"
+          grep "var version" "$VERSION_FILE"
+          echo "---"
+
+      - name: 7. Create Pull Request to Release Branch
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # v8.0.0
+        with:
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+          commit-message: "app: bump patch version to ${{ steps.vars.outputs.NEW_V_VERSION }}"
+          committer: "obol-platform <platform@obol.tech>"
+          author: "obol-platform <platform@obol.tech>"
+          branch: ${{ steps.vars.outputs.WORK_BRANCH }}
+          base: ${{ steps.vars.outputs.RELEASE_BRANCH }}
+          delete-branch: true
+          title: "app/version: bump to ${{ steps.vars.outputs.NEW_V_VERSION }}"
+          body: |
+            This pull request was automatically generated by the 'Bump Patch Version' GitHub Action.
+
+            - **Release Branch:** `${{ steps.vars.outputs.RELEASE_BRANCH }}`
+            - **New Version:** `${{ steps.vars.outputs.NEW_V_VERSION }}`
+
+            ## Changes
+            - Updated version in `app/version/version.go` to `${{ steps.vars.outputs.NEW_V_VERSION }}`
+
+            ## Next Steps
+            After this PR is merged, the `${{ steps.vars.outputs.RELEASE_BRANCH }}` branch will have the updated version and can be used for further patch release processes.
+
+            category: misc
+            ticket: none
+
+      - name: 7. Output Summary
+        if: always()
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Patch Release Process Initiated
+
+          ### Details
+          - **Release Branch:** \`${{ steps.vars.outputs.RELEASE_BRANCH }}\`
+          - **New Version:** \`${{ steps.vars.outputs.NEW_V_VERSION }}\`
+
+          ### Next Steps
+          1. Review and merge the created PR
+          2. After merge, run the "Tag Patch Release Candidate" workflow
+          3. Test the release candidate thoroughly
+          4. If successful, proceed with "Prepare Patch Full Release" workflow
+          5. After stable PR is merged, run "Tag Patch Full Release" workflow
+
+          **Note:** This workflow is for patch releases (vX.Y.Z). Minor releases (vX.Y.0) use a different workflow.
+          EOF

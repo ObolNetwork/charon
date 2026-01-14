@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -526,7 +526,7 @@ func startPeer(t *testing.T, ctx context.Context, conf testPeersConfig, peerPriv
 	freeTCPAddr := testutil.AvailableAddr(t)
 	peerConf.P2P.TCPAddrs = []string{fmt.Sprintf("127.0.0.1:%v", freeTCPAddr.Port)}
 
-	relays, err := p2p.NewRelays(ctx, peerConf.P2P.Relays, "test")
+	relays, err := p2p.NewRelays(ctx, peerConf.P2P.Relays, "test", "test")
 	require.NoError(t, err)
 
 	hostPrivKey, err := k1util.Load(conf.PrivateKeyFile)

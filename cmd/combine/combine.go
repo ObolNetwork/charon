@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package combine
 
@@ -14,8 +14,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/cluster/manifest"
-	manifestpb "github.com/obolnetwork/charon/cluster/manifestpb/v1"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -69,7 +67,7 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
 	go eth1Cl.Run(ctx)
 
-	cluster, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify, eth1Cl)
+	lock, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify, eth1Cl)
 	if err != nil {
 		return errors.Wrap(err, "open manifest file")
 	}
@@ -99,31 +97,31 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	for valIdx := range len(privkeys) {
 		pkSet := privkeys[valIdx]
 
-		if len(pkSet) < int(cluster.GetThreshold()) {
+		if len(pkSet) < lock.Threshold {
 			return errors.New(
 				"insufficient private key shares found for validator",
 				z.Int("validator_index", valIdx),
-				z.Int("expected", int(cluster.GetThreshold())),
+				z.Int("expected", lock.Threshold),
 				z.Int("actual", len(pkSet)),
 			)
 		}
 
 		log.Info(ctx, "Recombining private key shares", z.Int("validator_index", valIdx))
 
-		shares, err := shareIdxByPubkeys(cluster, pkSet, valIdx)
+		shares, err := shareIdxByPubkeys(lock, pkSet, valIdx)
 		if err != nil {
 			return err
 		}
 
-		secret, err := tbls.RecoverSecret(shares, uint(len(cluster.GetOperators())), uint(cluster.GetThreshold()))
+		secret, err := tbls.RecoverSecret(shares, uint(len(lock.Operators)), uint(lock.Threshold))
 		if err != nil {
 			return errors.Wrap(err, "recover private key share", z.Int("validator_index", valIdx))
 		}
 
 		// require that the generated secret pubkey matches what's in the lockfile for the valIdx validator
-		val := cluster.GetValidators()[valIdx]
+		val := lock.Validators[valIdx]
 
-		valPk, err := tblsconv.PubkeyFromBytes(val.GetPublicKey())
+		valPk, err := tblsconv.PubkeyFromBytes(val.PubKey)
 		if err != nil {
 			return errors.Wrap(err, "public key for validator from manifest", z.Int("validator_index", valIdx))
 		}
@@ -181,11 +179,11 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 
 // shareIdxByPubkeys maps private keys to the valIndex validator public shares in the manifest file.
 // It preserves the order as found in the validator public share slice.
-func shareIdxByPubkeys(cluster *manifestpb.Cluster, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
+func shareIdxByPubkeys(lock *cluster.Lock, secrets []tbls.PrivateKey, valIndex int) (map[int]tbls.PrivateKey, error) {
 	pubkMap := make(map[tbls.PublicKey]int)
 
-	for peerIdx := range len(cluster.GetValidators()[valIndex].GetPubShares()) {
-		pubShareRaw := cluster.GetValidators()[valIndex].GetPubShares()[peerIdx]
+	for peerIdx := range len(lock.Validators[valIndex].PubShares) {
+		pubShareRaw := lock.Validators[valIndex].PubShares[peerIdx]
 
 		pubShare, err := tblsconv.PubkeyFromBytes(pubShareRaw)
 		if err != nil {
@@ -236,7 +234,7 @@ type options struct {
 // loadManifest will fail if some of the directories contain a different set of manifest and lock file.
 // For example, if 3 out of 4 directories contain both manifest and lock file, and the fourth only contains lock, loadManifest will return error.
 // It returns the v1.Cluster read from the manifest, and a list of directories that possibly contains keys.
-func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wrap.EthClientRunner) (*manifestpb.Cluster, []string, error) {
+func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wrap.EthClientRunner) (*cluster.Lock, []string, error) {
 	root, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "read directory")
@@ -244,7 +242,7 @@ func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wra
 
 	var (
 		possibleValKeysDir []string
-		lastCluster        *manifestpb.Cluster
+		lastCluster        *cluster.Lock
 	)
 
 	for _, sd := range root {
@@ -262,17 +260,14 @@ func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wra
 
 		// try opening the lock file
 		lockFile := filepath.Join(dir, sd.Name(), "cluster-lock.json")
-		manifestFile := filepath.Join(dir, sd.Name(), "cluster-manifest.pb")
 
-		cl, err := manifest.LoadCluster(manifestFile, lockFile, func(lock cluster.Lock) error {
-			return verifyLock(ctx, lock, noverify, eth1Cl)
-		})
+		cl, err := cluster.LoadClusterLock(ctx, lockFile, noverify, eth1Cl)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "manifest load error", z.Str("name", sd.Name()))
 		}
 
 		if !noverify {
-			if lastCluster != nil && !bytes.Equal(lastCluster.GetLatestMutationHash(), cl.GetLatestMutationHash()) {
+			if lastCluster != nil && !bytes.Equal(lastCluster.LockHash, cl.LockHash) {
 				return nil, nil, errors.New("mismatching last mutation hash")
 			}
 		}
@@ -287,20 +282,4 @@ func loadManifest(ctx context.Context, dir string, noverify bool, eth1Cl eth1wra
 	}
 
 	return lastCluster, possibleValKeysDir, nil
-}
-
-func verifyLock(ctx context.Context, lock cluster.Lock, noverify bool, eth1Cl eth1wrap.EthClientRunner) error {
-	if err := lock.VerifyHashes(); err != nil && !noverify {
-		return errors.Wrap(err, "verify cluster lock hashes (run with --no-verify to bypass verification at own risk)")
-	} else if err != nil && noverify {
-		log.Warn(ctx, "Ignoring failed cluster lock hash verification due to --no-verify flag", err)
-	}
-
-	if err := lock.VerifySignatures(eth1Cl); err != nil && !noverify {
-		return errors.Wrap(err, "verify cluster lock signatures (run with --no-verify to bypass verification at own risk)")
-	} else if err != nil && noverify {
-		log.Warn(ctx, "Ignoring failed cluster lock signature verification due to --no-verify flag", err)
-	}
-
-	return nil
 }

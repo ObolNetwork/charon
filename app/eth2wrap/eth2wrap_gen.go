@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap
 
@@ -27,6 +27,10 @@ type Client interface {
 	SetForkVersion(forkVersion [4]byte)
 
 	ClientForAddress(addr string) Client
+	// Address returns the address of the beacon node.
+	Address() string
+	// Headers returns custom headers to include in requests to the beacon node.
+	Headers() map[string]string
 
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter

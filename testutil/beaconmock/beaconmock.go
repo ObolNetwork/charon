@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 // Package beaconmock provides a mock beacon node server and client primarily for testing.
 //
@@ -461,6 +461,10 @@ func (Mock) Name() string {
 
 func (m Mock) Address() string {
 	return "http://" + m.httpServer.Addr
+}
+
+func (Mock) Headers() map[string]string {
+	return nil // Mock doesn't use custom headers
 }
 
 func (m Mock) IsActive() bool {

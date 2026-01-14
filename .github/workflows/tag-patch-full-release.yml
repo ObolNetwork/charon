@@ -1,0 +1,209 @@
+name: Tag Patch Full Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  tag_patch_full_release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check if user is authorized
+        run: |
+          AUTHORIZED_USERS=("KaloyanTanev" "OisinKyne")
+          TRIGGERED_BY="${{ github.actor }}"
+
+          if [[ ! " ${AUTHORIZED_USERS[@]} " =~ " ${TRIGGERED_BY} " ]]; then
+            echo "::error::User ${TRIGGERED_BY} is not authorized to trigger this workflow"
+            echo "::error::Only the following users can trigger this workflow: ${AUTHORIZED_USERS[@]}"
+            exit 1
+          fi
+
+          echo "::notice::User ${TRIGGERED_BY} is authorized to trigger this workflow"
+
+      - name: 1. Checkout Repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0 # Required to get all tags and branches
+          token: ${{ secrets.OBOL_PLATFORM_PAT }}
+
+      - name: 2. Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: 2b. Configure Git with GPG
+        run: |
+          git config --global user.name "obol-platform"
+          git config --global user.email "platform@obol.tech"
+          git config --global user.signingkey "$(gpg --list-secret-keys --keyid-format LONG platform@obol.tech | grep sec | awk '{print $2}' | cut -d'/' -f2)"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+
+      - name: 3. Find Latest Release Branch
+        id: find_branch
+        run: |
+          # Fetch all remote branches
+          git fetch --all
+
+          # Find all minor release branches matching pattern main-vX.Y
+          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+          if [[ -z "$RELEASE_BRANCHES" ]]; then
+            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+            exit 1
+          fi
+
+          # Get the latest release branch (last in sorted list)
+          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+
+          echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
+
+      - name: 3. Extract Version from Branch Name
+        id: version
+        run: |
+          BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Extract version from branch name (e.g., main-v1.8 -> 1.8)
+          if [[ ! "$BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Invalid branch name format. Expected 'main-vX.Y', got: $BRANCH"
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+
+          echo "MAJOR=${MAJOR}" >> $GITHUB_OUTPUT
+          echo "MINOR=${MINOR}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Extracted version - MAJOR: ${MAJOR}, MINOR: ${MINOR}"
+
+      - name: 4. Find Latest Patch Version
+        id: find_patch
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+
+          # Fetch all tags
+          git fetch --tags
+
+          # Find all full release tags for this major.minor version (e.g., v1.8.0, v1.8.1, v1.8.2)
+          # Exclude RC tags
+          PATCH_TAGS=$(git tag -l "v${MAJOR}.${MINOR}.*" | grep -E "^v${MAJOR}\.${MINOR}\.[0-9]+$" | sort -V)
+
+          if [[ -z "$PATCH_TAGS" ]]; then
+            # No patch releases yet, this is patch 1
+            LATEST_PATCH=0
+            echo "::notice::No patch releases found. This will be patch 1"
+          else
+            # Extract the highest patch number
+            LATEST_PATCH_TAG=$(echo "$PATCH_TAGS" | tail -n 1)
+            LATEST_PATCH=$(echo "$LATEST_PATCH_TAG" | sed -E "s/^v${MAJOR}\.${MINOR}\.([0-9]+)$/\1/")
+            echo "::notice::Found latest patch release: ${LATEST_PATCH_TAG} (patch ${LATEST_PATCH})"
+          fi
+
+          # Calculate next patch version
+          NEXT_PATCH=$((LATEST_PATCH + 1))
+          TAG_VERSION="v${MAJOR}.${MINOR}.${NEXT_PATCH}"
+
+          echo "LATEST_PATCH=${LATEST_PATCH}" >> $GITHUB_OUTPUT
+          echo "NEXT_PATCH=${NEXT_PATCH}" >> $GITHUB_OUTPUT
+          echo "TAG_VERSION=${TAG_VERSION}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Tag version: ${TAG_VERSION}"
+
+      - name: 5. Check if Tag Already Exists
+        run: |
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
+
+          # Fetch all tags
+          git fetch --tags
+
+          if git tag -l "${TAG_VERSION}" | grep -q .; then
+            echo "::error::Tag ${TAG_VERSION} already exists. Aborting."
+            exit 1
+          fi
+          echo "::notice::Tag ${TAG_VERSION} does not exist. Proceeding."
+
+      - name: 6. Checkout Release Branch
+        run: |
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          git checkout "$RELEASE_BRANCH"
+          git pull origin "$RELEASE_BRANCH"
+          echo "::notice::Checked out branch ${RELEASE_BRANCH}"
+
+      - name: 7. Verify Version File
+        run: |
+          MAJOR="${{ steps.version.outputs.MAJOR }}"
+          MINOR="${{ steps.version.outputs.MINOR }}"
+          VERSION_FILE="app/version/version.go"
+
+          # Check that version file contains the stable minor version (vX.Y)
+          if ! grep -q "var version = \"v${MAJOR}.${MINOR}\"" "$VERSION_FILE"; then
+            echo "::error::Expected version v${MAJOR}.${MINOR} not found in ${VERSION_FILE}"
+            echo "::error::The stable version PR must be merged before tagging"
+            echo "Current version in file:"
+            grep "var version" "$VERSION_FILE"
+            exit 1
+          fi
+
+          echo "::notice::Version file validated: v${MAJOR}.${MINOR}"
+          echo "::notice::Stable version PR has been merged"
+
+      - name: 8. Create and Push Tag
+        id: create_and_push_tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.OBOL_PLATFORM_PAT }}
+        run: |
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+
+          # Create tag
+          git tag "${TAG_VERSION}" -m "Release ${TAG_VERSION}"
+
+          # Push tag to remote
+          git push origin "${TAG_VERSION}"
+
+          echo "::notice::Successfully created and pushed tag ${TAG_VERSION}"
+
+      - name: 9. Output Summary
+        if: always()
+        run: |
+          TAG_VERSION="${{ steps.find_patch.outputs.TAG_VERSION }}"
+          RELEASE_BRANCH="${{ steps.find_branch.outputs.RELEASE_BRANCH }}"
+          TAG_RESULT="${{ steps.create_and_push_tag.outcome }}"
+
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Patch Full Release Tagged
+
+          EOF
+
+          if [[ "$TAG_RESULT" = "success" ]]; then
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Tag Details
+          - **Tag:** \`${TAG_VERSION}\`
+          - **Branch:** \`${RELEASE_BRANCH}\`
+          - **Status:** Successfully created and pushed
+
+          ### Next Steps
+          1. Docker images will be built automatically with tag \`${TAG_VERSION}\`
+          2. Create release notes on GitHub
+          3. Monitor the deployment
+
+          **Note:** This workflow is for patch releases (vX.Y.Z). Minor releases (vX.Y.0) use a different workflow.
+          EOF
+          else
+            cat << EOF >> $GITHUB_STEP_SUMMARY
+          ### Tag Creation Failed
+          - **Tag:** \`${TAG_VERSION}\`
+          - **Branch:** \`${RELEASE_BRANCH}\`
+          - **Status:** Failed to create or push tag
+          - Please check the workflow logs for details
+          EOF
+          fi

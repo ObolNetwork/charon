@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -210,7 +210,7 @@ func TestExitListCLI(t *testing.T) {
 	}{
 		{
 			name:        "check flags",
-			expectedErr: "load cluster lock: load dag from disk: no file found",
+			expectedErr: "read cluster-lock.json: open test: no such file or directory",
 			flags: []string{
 				"--lock-file=test",
 				"--beacon-node-endpoints=test1,test2",

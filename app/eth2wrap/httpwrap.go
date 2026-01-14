@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2wrap
 
@@ -140,4 +140,8 @@ func (h *httpAdapter) Proxy(ctx context.Context, req *http.Request) (*http.Respo
 // The addr parameter is ignored as this client is already scoped to a specific address.
 func (h *httpAdapter) ClientForAddress(addr string) Client {
 	return h
+}
+
+func (h *httpAdapter) Headers() map[string]string {
+	return h.headers
 }

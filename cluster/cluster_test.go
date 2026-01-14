@@ -1,10 +1,9 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cluster_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -74,6 +73,10 @@ func TestEncode(t *testing.T) {
 				targetGasLimit = 30000000
 			}
 
+			// Generate deterministic ENRs
+			_, enr1 := testutil.RandomENR(t, int(r.Int63()))
+			_, enr2 := testutil.RandomENR(t, int(r.Int63()))
+
 			definition, err := cluster.NewDefinition(
 				"test definition",
 				numVals,
@@ -88,13 +91,13 @@ func TestEncode(t *testing.T) {
 				[]cluster.Operator{
 					{
 						Address:         testutil.RandomETHAddressSeed(r),
-						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32Seed(r)),
+						ENR:             enr1.String(),
 						ConfigSignature: testutil.RandomSecp256k1SignatureSeed(r),
 						ENRSignature:    testutil.RandomSecp256k1SignatureSeed(r),
 					},
 					{
 						Address:         testutil.RandomETHAddressSeed(r),
-						ENR:             fmt.Sprintf("enr://%x", testutil.RandomBytes32Seed(r)),
+						ENR:             enr2.String(),
 						ConfigSignature: testutil.RandomSecp256k1SignatureSeed(r),
 						ENRSignature:    testutil.RandomSecp256k1SignatureSeed(r),
 					},

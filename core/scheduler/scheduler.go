@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package scheduler
 
@@ -11,8 +11,6 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -24,7 +22,6 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -38,7 +35,7 @@ type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 type schedSlotFunc func(ctx context.Context, slot core.Slot)
 
 // NewForT returns a new scheduler for testing using a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrations []cluster.BuilderRegistration,
+func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrations []*eth2api.VersionedSignedValidatorRegistration,
 	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc, builderEnabled bool,
 ) *Scheduler {
 	t.Helper()
@@ -54,35 +51,10 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 }
 
 // New returns a new scheduler.
-func New(builderRegistrations []cluster.BuilderRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
-	registrations := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(builderRegistrations))
-
-	for _, builderRegistration := range builderRegistrations {
-		regMessage := &eth2v1.ValidatorRegistration{
-			Timestamp: builderRegistration.Message.Timestamp,
-			GasLimit:  uint64(builderRegistration.Message.GasLimit),
-		}
-
-		copy(regMessage.FeeRecipient[:], builderRegistration.Message.FeeRecipient)
-		copy(regMessage.Pubkey[:], builderRegistration.Message.PubKey)
-
-		var signature eth2p0.BLSSignature
-		copy(signature[:], builderRegistration.Signature)
-
-		registration := &eth2v1.SignedValidatorRegistration{
-			Message:   regMessage,
-			Signature: signature,
-		}
-
-		registrations = append(registrations, &eth2api.VersionedSignedValidatorRegistration{
-			Version: eth2spec.BuilderVersionV1,
-			V1:      registration,
-		})
-	}
-
+func New(builderRegistrations []*eth2api.VersionedSignedValidatorRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:               eth2Cl,
-		builderRegistrations: registrations,
+		builderRegistrations: builderRegistrations,
 		quit:                 make(chan struct{}),
 		duties:               make(map[core.Duty]core.DutyDefinitionSet),
 		dutiesByEpoch:        make(map[uint64][]core.Duty),
@@ -190,30 +162,6 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 		}
 	} else {
 		log.Warn(ctx, "Chain reorg event ignored due to disabled SSEReorgDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
-	}
-}
-
-// triggerDuty triggers all duty subscribers with the provided duty and definition set.
-func (s *Scheduler) triggerDuty(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) {
-	instrumentDuty(duty, defSet)
-
-	dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
-	if duty.Type == core.DutyProposer {
-		var span trace.Span
-		dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
-		defer span.End()
-	}
-
-	for _, sub := range s.dutySubs {
-		clone, err := defSet.Clone()
-		if err != nil {
-			log.Error(dutyCtx, "Failed to clone duty definition set", err)
-			return
-		}
-
-		if err := sub(dutyCtx, duty, clone); err != nil {
-			log.Error(dutyCtx, "Failed to trigger duty subscriber", err)
-		}
 	}
 }
 
@@ -341,34 +289,47 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			Type: dutyType,
 		}
 
+		var span trace.Span
+
+		dutyCtx := log.WithCtx(ctx, z.Any("duty", duty))
+
+		dutyCtx, span = core.StartDutyTrace(dutyCtx, duty, "core/scheduler.scheduleSlot")
+
 		defSet, ok := s.getDutyDefinitionSet(duty)
 		if !ok {
+			span.End()
 			// Nothing for this duty.
 			continue
 		}
 
 		// Trigger duty async
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
+			defer span.End()
+
 			// Special handling for attester duties when FetchAttOnBlock is enabled
 			if duty.Type == core.DutyAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
-				if !s.waitForBlockEventOrTimeout(ctx, slot) {
+				if !s.waitForBlockEventOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
+			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc) {
 				return // context cancelled
 			}
 
-			s.triggerDuty(ctx, duty, defSet)
-		}(duty, defSet)
-	}
+			instrumentDuty(duty, defSet)
 
-	if slot.LastInEpoch() {
-		err := s.resolveDuties(ctx, slot.Next())
-		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
-		}
-	}
+			for _, sub := range s.dutySubs {
+				clone, err := defSet.Clone() // Clone for each subscriber.
+				if err != nil {
+					log.Error(dutyCtx, "Failed to clone duty definition set", err)
+					return
+				}
+
+				if err := sub(dutyCtx, duty, clone); err != nil {
+					log.Error(dutyCtx, "Failed to trigger duty subscriber", err, z.U64("slot", slot.Slot))
+				}
+			}
+		}(duty, defSet)
 }
 
 // delaySlotOffset blocks until the slot offset for the duty has been reached and return true.

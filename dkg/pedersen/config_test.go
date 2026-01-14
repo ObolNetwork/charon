@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package pedersen_test
 
@@ -36,8 +36,8 @@ func TestNewConfig(t *testing.T) {
 	reshareConfig := pedersen.NewReshareConfig(2, 3, newPeers, oldPeers)
 	require.Equal(t, 2, reshareConfig.TotalShares)
 	require.Equal(t, 3, reshareConfig.NewThreshold)
-	require.Equal(t, newPeers, reshareConfig.NewPeers)
-	require.Equal(t, oldPeers, reshareConfig.OldPeers)
+	require.Equal(t, newPeers, reshareConfig.AddedPeers)
+	require.Equal(t, oldPeers, reshareConfig.RemovedPeers)
 
 	config2 := pedersen.NewConfig("peer21", peerMap, 2, []byte("session2"), phaseDuration, reshareConfig)
 	require.Equal(t, reshareConfig, config2.Reshare)

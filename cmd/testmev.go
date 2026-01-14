@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -445,6 +445,7 @@ func getBlockHeader(ctx context.Context, target string, headers map[string]strin
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+
 	req.Header.Set("Date-Milliseconds", strconv.FormatInt(time.Now().UnixMilli(), 10))
 
 	resp, err := http.DefaultTransport.RoundTrip(req)

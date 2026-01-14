@@ -1,10 +1,11 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package parsigdb
 
 import (
 	"context"
 	"testing"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/altair"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -115,7 +117,7 @@ func TestMemDBThreshold(t *testing.T) {
 	)
 
 	deadliner := newTestDeadliner()
-	db := NewMemDB(th, deadliner)
+	db := NewMemDB(th, deadliner, NewMemDBMetadata(eth2util.Mainnet.SlotDuration, time.Unix(eth2util.Mainnet.GenesisTimestamp, 0)))
 
 	ctx := t.Context()
 

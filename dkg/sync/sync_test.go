@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package sync_test
 
@@ -23,20 +23,23 @@ import (
 
 func TestSyncProtocol(t *testing.T) {
 	versions := make(map[int]version.SemVer)
+	nicknames := make(map[int]string)
+
 	for i := range 5 {
 		versions[i] = version.Version
+		nicknames[i] = fmt.Sprintf("node%d", i)
 	}
 
 	t.Run("2", func(t *testing.T) {
-		testCluster(t, 2, versions, "")
+		testCluster(t, 2, versions, "", nicknames)
 	})
 
 	t.Run("3", func(t *testing.T) {
-		testCluster(t, 3, versions, "")
+		testCluster(t, 3, versions, "", nicknames)
 	})
 
 	t.Run("5", func(t *testing.T) {
-		testCluster(t, 5, versions, "")
+		testCluster(t, 5, versions, "", nicknames)
 	})
 
 	t.Run("invalid version", func(t *testing.T) {
@@ -47,7 +50,7 @@ func TestSyncProtocol(t *testing.T) {
 				2: semver(t, "v0.3"),
 				3: semver(t, "v0.4"),
 			},
-			"mismatching charon version; expect=")
+			"mismatching charon version; expect=", nicknames)
 	})
 }
 
@@ -60,7 +63,7 @@ func semver(t *testing.T, v string) version.SemVer {
 	return sv
 }
 
-func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr string) {
+func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr string, nicknames map[int]string) {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -101,7 +104,7 @@ func testCluster(t *testing.T, n int, versions map[int]version.SemVer, expectErr
 			hashSig, err := keys[i].Sign(hash)
 			require.NoError(t, err)
 
-			client := sync.NewClient(tcpNodes[i], tcpNodes[j].ID(), hashSig, versions[i], sync.WithPeriod(time.Millisecond*100))
+			client := sync.NewClient(tcpNodes[i], tcpNodes[j].ID(), hashSig, versions[i], nicknames[i], sync.WithPeriod(time.Millisecond*100))
 			clients = append(clients, client)
 
 			ctx := log.WithTopic(ctx, fmt.Sprintf("client%d_%d", i, j))

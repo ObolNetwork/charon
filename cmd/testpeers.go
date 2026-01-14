@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package cmd
 
@@ -21,6 +21,7 @@ import (
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -821,8 +822,9 @@ func startTCPNode(ctx context.Context, conf testPeersConfig) (host.Host, func(),
 	slices.Sort(allENRs)
 	allENRsString := strings.Join(allENRs, ",")
 	allENRsHash := sha256.Sum256([]byte(allENRsString))
+	allUUID := uuid.UUID(allENRsHash[:16])
 
-	return setupP2P(ctx, p2pPrivKey, conf.P2P, peers, allENRsHash[:])
+	return setupP2P(ctx, p2pPrivKey, conf.P2P, peers, allENRsHash[:], allUUID.String())
 }
 
 func pingPeerOnce(ctx context.Context, p2pNode host.Host, peer p2p.Peer) (ping.Result, error) {
@@ -886,7 +888,7 @@ func dialLibp2pTCPIP(ctx context.Context, address string) error {
 	return nil
 }
 
-func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peers []p2p.Peer, enrsHash []byte) (host.Host, func(), error) {
+func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peers []p2p.Peer, enrsHash []byte, uuid string) (host.Host, func(), error) {
 	var peerIDs []peer.ID
 	for _, peer := range peers {
 		peerIDs = append(peerIDs, peer.ID)
@@ -896,7 +898,7 @@ func setupP2P(ctx context.Context, privKey *k1.PrivateKey, conf p2p.Config, peer
 		return nil, nil, err
 	}
 
-	relays, err := p2p.NewRelays(ctx, conf.Relays, hex.EncodeToString(enrsHash))
+	relays, err := p2p.NewRelays(ctx, conf.Relays, hex.EncodeToString(enrsHash), uuid)
 	if err != nil {
 		return nil, nil, err
 	}

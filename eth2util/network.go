@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package eth2util
 
@@ -27,6 +27,8 @@ type Network struct {
 	GenesisTimestamp int64
 	// CapellaHardFork represents capella fork version, used for computing domains for signatures
 	CapellaHardFork string
+	// SlotDuration represents slot duration in seconds
+	SlotDuration uint64
 }
 
 // IsNonZero checks if each field in this struct is not equal to its zero value.
@@ -42,6 +44,7 @@ var (
 		GenesisForkVersionHex: "0x00000000",
 		GenesisTimestamp:      1606824023,
 		CapellaHardFork:       "0x03000000",
+		SlotDuration:          12,
 	}
 	Goerli = Network{
 		ChainID:               5,
@@ -49,6 +52,7 @@ var (
 		GenesisForkVersionHex: "0x00001020",
 		GenesisTimestamp:      1616508000,
 		CapellaHardFork:       "0x03001020",
+		SlotDuration:          12,
 	}
 	Gnosis = Network{
 		ChainID:               100,
@@ -56,6 +60,7 @@ var (
 		GenesisForkVersionHex: "0x00000064",
 		GenesisTimestamp:      1638993340,
 		CapellaHardFork:       "0x03000064",
+		SlotDuration:          5,
 	}
 	Chiado = Network{
 		ChainID:               10200,
@@ -63,6 +68,7 @@ var (
 		GenesisForkVersionHex: "0x0000006f",
 		GenesisTimestamp:      1665396300,
 		CapellaHardFork:       "0x0300006f",
+		SlotDuration:          5,
 	}
 	Sepolia = Network{
 		ChainID:               11155111,
@@ -70,6 +76,7 @@ var (
 		GenesisForkVersionHex: "0x90000069",
 		GenesisTimestamp:      1655733600,
 		CapellaHardFork:       "0x90000072",
+		SlotDuration:          12,
 	}
 	// Holesky metadata taken from https://github.com/eth-clients/holesky#metadata.
 	Holesky = Network{
@@ -78,6 +85,7 @@ var (
 		GenesisForkVersionHex: "0x01017000",
 		GenesisTimestamp:      1696000704,
 		CapellaHardFork:       "0x04017000",
+		SlotDuration:          12,
 	}
 	// Hoodi metadata taken from https://github.com/eth-clients/hoodi/#metadata.
 	Hoodi = Network{
@@ -86,6 +94,7 @@ var (
 		GenesisForkVersionHex: "0x10000910",
 		GenesisTimestamp:      1742213400,
 		CapellaHardFork:       "0x40000910",
+		SlotDuration:          12,
 	}
 )
 
@@ -190,6 +199,15 @@ func NetworkToGenesisTime(name string) (time.Time, error) {
 	}
 
 	return time.Unix(network.GenesisTimestamp, 0), nil
+}
+
+func NetworkToSlotDuration(name string) (uint64, error) {
+	network, err := networkFromName(name)
+	if err != nil {
+		return 0, err
+	}
+
+	return network.SlotDuration, nil
 }
 
 func ForkVersionToGenesisTime(forkVersion []byte) (time.Time, error) {

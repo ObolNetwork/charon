@@ -1,4 +1,4 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package app
 
@@ -21,10 +21,10 @@ func TestLoadClusterManifest(t *testing.T) {
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner("")
 	go eth1Cl.Run(t.Context())
 
-	cluster, err := loadClusterManifest(t.Context(), conf, eth1Cl)
+	cluster, err := loadClusterLock(t.Context(), conf, eth1Cl)
 	require.NoError(t, err)
 	require.NotNil(t, cluster)
-	require.Len(t, cluster.GetValidators(), 2)
+	require.Len(t, cluster.Validators, 2)
 }
 
 func TestFileExists(t *testing.T) {

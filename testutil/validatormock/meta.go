@@ -1,10 +1,10 @@
-// Copyright © 2022-2025 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
 package validatormock
 
 import "time"
 
-// sepcMeta defines the spec constants.
+// specMeta defines the spec constants.
 type specMeta struct {
 	GenesisTime   time.Time
 	SlotDuration  time.Duration
