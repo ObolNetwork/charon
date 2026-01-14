@@ -330,6 +330,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 			}
 		}(duty, defSet)
+	}
 }
 
 // delaySlotOffset blocks until the slot offset for the duty has been reached and return true.
