@@ -113,6 +113,7 @@ type Scheduler struct {
 	dutiesMutex                sync.RWMutex
 	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs                   []func(context.Context, core.Slot) error
+	fetcherFetchOnly           func(context.Context, core.Duty, core.DutyDefinitionSet, string) error
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
@@ -123,6 +124,12 @@ type Scheduler struct {
 // Note this should be called *before* Start.
 func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.DutyDefinitionSet) error) {
 	s.dutySubs = append(s.dutySubs, fn)
+}
+
+// RegisterFetcherFetchOnly registers the fetcher's FetchOnly method for early attestation fetching.
+// Note this should be called *before* Start.
+func (s *Scheduler) RegisterFetcherFetchOnly(fn func(context.Context, core.Duty, core.DutyDefinitionSet, string) error) {
+	s.fetcherFetchOnly = fn
 }
 
 // SubscribeSlots subscribes a callback function for triggered slots.
@@ -211,8 +218,8 @@ func (s *Scheduler) triggerDuty(ctx context.Context, duty core.Duty, defSet core
 }
 
 // HandleBlockEvent handles block processing events from SSE and triggers early attestation data fetching.
-func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot) {
-	if !featureset.Enabled(featureset.FetchAttOnBlock) {
+func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
+	if !featureset.Enabled(featureset.FetchAttOnBlock) || s.fetcherFetchOnly == nil {
 		return
 	}
 
@@ -231,10 +238,16 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot) {
 		return
 	}
 
-	log.Debug(ctx, "Early attestation data fetch triggered by SSE block event", z.U64("slot", uint64(slot)))
+	log.Debug(ctx, "Early attestation data fetch triggered by SSE block event", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 
-	// Trigger duty immediately (early fetch)
-	go s.triggerDuty(ctx, duty, defSet)
+	// Fetch attestation data early without triggering consensus
+	// Use background context to prevent cancellation if SSE connection drops
+	go func() {
+		fetchCtx := log.CopyFields(context.Background(), ctx)
+		if err := s.fetcherFetchOnly(fetchCtx, duty, defSet, bnAddr); err != nil {
+			log.Warn(fetchCtx, "Early attestation data fetch failed", err, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+		}
+	}()
 }
 
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
@@ -334,10 +347,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				if !s.waitForBlockEventOrTimeout(ctx, slot) {
 					return // context cancelled
 				}
-				_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(slot.Slot, true)
-				if alreadyTriggered {
-					return // already triggered via block event
-				}
+				s.eventTriggeredAttestations.Store(slot.Slot, true)
 			} else if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
 				return // context cancelled
 			}
@@ -389,8 +399,11 @@ func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Sl
 	case <-ctx.Done():
 		return false
 	case <-s.clock.After(time.Until(fallbackDeadline)):
-		log.Debug(ctx, "Fallback timeout reached for attestation, no block event received, possibly fetching stale head",
-			z.U64("slot", slot.Slot))
+		// Check if block event triggered early fetch
+		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
+			log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early block event)",
+				z.U64("slot", slot.Slot))
+		}
 		return true
 	}
 }

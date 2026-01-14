@@ -77,6 +77,26 @@ func (_m *Client) Address() string {
 	return r0
 }
 
+// ClientForAddress provides a mock function with given fields: addr
+func (_m *Client) ClientForAddress(addr string) eth2wrap.Client {
+	ret := _m.Called(addr)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClientForAddress")
+	}
+
+	var r0 eth2wrap.Client
+	if rf, ok := ret.Get(0).(func(string) eth2wrap.Client); ok {
+		r0 = rf(addr)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(eth2wrap.Client)
+		}
+	}
+
+	return r0
+}
+
 // AggregateAttestation provides a mock function with given fields: ctx, opts
 func (_m *Client) AggregateAttestation(ctx context.Context, opts *api.AggregateAttestationOpts) (*api.Response[*spec.VersionedAttestation], error) {
 	ret := _m.Called(ctx, opts)

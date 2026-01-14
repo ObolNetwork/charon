@@ -26,6 +26,8 @@ type Client interface {
 
 	SetForkVersion(forkVersion [4]byte)
 
+	ClientForAddress(addr string) Client
+
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter
 	eth2client.AttestationDataProvider

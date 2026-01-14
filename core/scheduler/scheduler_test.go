@@ -540,12 +540,22 @@ func TestFetchAttOnBlock(t *testing.T) {
 
 	// Track triggered duties
 	var triggeredDuties []core.Duty
+	var earlyFetchedDuties []core.Duty
 	var dutyMux sync.Mutex
 
 	sched.SubscribeDuties(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
 		dutyMux.Lock()
 		defer dutyMux.Unlock()
 		triggeredDuties = append(triggeredDuties, duty)
+		return nil
+	})
+
+	// Register a mock fetcher fetch-only function
+	sched.RegisterFetcherFetchOnly(func(ctx context.Context, duty core.Duty, _ core.DutyDefinitionSet, bnAddr string) error {
+		// This simulates early fetching - just record that it happened
+		dutyMux.Lock()
+		defer dutyMux.Unlock()
+		earlyFetchedDuties = append(earlyFetchedDuties, duty)
 		return nil
 	})
 
@@ -559,36 +569,36 @@ func TestFetchAttOnBlock(t *testing.T) {
 	for slot := range schedSlotCh {
 		if slot.Slot == 0 {
 			// Test case 1: Happy path - single block event triggers early
-			sched.HandleBlockEvent(t.Context(), 0)
+			sched.HandleBlockEvent(t.Context(), 0, "http://test-bn:5052")
 
 			require.Eventually(t, func() bool {
 				dutyMux.Lock()
 				defer dutyMux.Unlock()
-				for _, d := range triggeredDuties {
+				for _, d := range earlyFetchedDuties {
 					if d.Type == core.DutyAttester && d.Slot == 0 {
 						return true
 					}
 				}
 				return false
-			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 0 should be triggered by block event")
+			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 0 should be early fetched by block event")
 		}
 
 		if slot.Slot == 1 {
 			// Test case 2: Deduplication - two block events should only trigger once
-			sched.HandleBlockEvent(t.Context(), 1)
-			sched.HandleBlockEvent(t.Context(), 1) // Duplicate
+			sched.HandleBlockEvent(t.Context(), 1, "http://test-bn:5052")
+			sched.HandleBlockEvent(t.Context(), 1, "http://test-bn:5052") // Duplicate
 
 			require.Eventually(t, func() bool {
 				dutyMux.Lock()
 				defer dutyMux.Unlock()
 				count := 0
-				for _, d := range triggeredDuties {
+				for _, d := range earlyFetchedDuties {
 					if d.Type == core.DutyAttester && d.Slot == 1 {
 						count++
 					}
 				}
 				return count == 1
-			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 1 should only be triggered once despite duplicate block events")
+			}, 500*time.Millisecond, 5*time.Millisecond, "Attester duty for slot 1 should only be early fetched once despite duplicate block events")
 		}
 
 		if slot.Slot == 2 {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -43,12 +44,31 @@ type Fetcher struct {
 	graffitiBuilder   *GraffitiBuilder
 	electraSlot       eth2p0.Slot
 	fetchOnlyCommIdx0 bool
+	attDataCache      sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
 }
 
 // Subscribe registers a callback for fetched duties.
 // Note this is not thread safe should be called *before* Fetch.
 func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDataSet) error) {
 	f.subs = append(f.subs, fn)
+}
+
+// FetchOnly fetches attestation data and caches it without triggering subscribers.
+// This allows early fetching on block events while deferring consensus to the scheduled time.
+func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet, bnAddr string) error {
+	if duty.Type != core.DutyAttester {
+		return errors.New("unsupported duty", z.Str("type", duty.Type.String()))
+	}
+
+	unsignedSet, err := f.fetchAttesterDataFrom(ctx, duty.Slot, defSet, bnAddr)
+	if err != nil {
+		return errors.Wrap(err, "fetch attester data for early cache")
+	}
+
+	f.attDataCache.Store(duty.Slot, unsignedSet)
+	log.Debug(ctx, "Early attestation data fetched and cached", z.U64("slot", duty.Slot), z.Str("bn_addr", bnAddr))
+
+	return nil
 }
 
 // Fetch triggers fetching of a proposed duty data set.
@@ -65,9 +85,18 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return errors.Wrap(err, "fetch proposer data")
 		}
 	case core.DutyAttester:
-		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
-		if err != nil {
-			return errors.Wrap(err, "fetch attester data")
+		// Check if attestation data was already fetched early and cached
+		if cached, ok := f.attDataCache.Load(duty.Slot); ok {
+			if data, valid := cached.(core.UnsignedDataSet); valid {
+				unsignedSet = data
+				log.Debug(ctx, "Using early-fetched attestation data from cache", z.U64("slot", duty.Slot))
+			}
+			f.attDataCache.Delete(duty.Slot) // Remove from cache after use
+		} else {
+			unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
+			if err != nil {
+				return errors.Wrap(err, "fetch attester data")
+			}
 		}
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
@@ -113,6 +142,66 @@ func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubK
 // Note: This is not thread safe and should only be called *before* Fetch.
 func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error)) {
 	f.awaitAttDataFunc = fn
+}
+
+// fetchAttesterDataFrom returns the fetched attestation data set from a specific beacon node address.
+func (f *Fetcher) fetchAttesterDataFrom(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet, bnAddr string,
+) (core.UnsignedDataSet, error) {
+	// Create a scoped client for the specific BN address
+	scopedCl := f.eth2Cl.ClientForAddress(bnAddr)
+
+	// We may have multiple validators in the same committee, use the same attestation data in that case.
+	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
+
+	resp := make(core.UnsignedDataSet)
+
+	for pubkey, def := range defSet {
+		attDuty, ok := def.(core.AttesterDefinition)
+		if !ok {
+			return nil, errors.New("invalid attester definition")
+		}
+
+		commIdx := attDuty.CommitteeIndex
+
+		// Attestation data for Electra is not bound by committee index.
+		// Committee index is still persisted in the request but should be set to 0.
+		// https://ethereum.github.io/beacon-APIs/#/Validator/produceAttestationData
+		// However, some validator clients are still sending attestation_data requests for each committee index.
+		// Because of that, we should continue asking for all + 0 committee indices for the ones that work correctly.
+		// After all VCs start asking for committee index 0, we should change the default scenario to that.
+		if slot >= uint64(f.electraSlot) && f.fetchOnlyCommIdx0 {
+			commIdx = 0
+		}
+
+		eth2AttData, ok := dataByCommIdx[commIdx]
+		if !ok {
+			var err error
+
+			opts := &eth2api.AttestationDataOpts{
+				Slot:           eth2p0.Slot(slot),
+				CommitteeIndex: commIdx,
+			}
+
+			eth2Resp, err := scopedCl.AttestationData(ctx, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			eth2AttData = eth2Resp.Data
+			if eth2AttData == nil {
+				return nil, errors.New("attestation data is nil")
+			}
+
+			dataByCommIdx[commIdx] = eth2AttData
+		}
+
+		resp[pubkey] = core.AttestationData{
+			Data: *eth2AttData,
+			Duty: attDuty.AttesterDuty,
+		}
+	}
+
+	return resp, nil
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.

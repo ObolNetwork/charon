@@ -120,6 +120,16 @@ func (l *lazy) Address() string {
 	return cl.Address()
 }
 
+// ClientForAddress returns a scoped client that queries only the specified address.
+func (l *lazy) ClientForAddress(addr string) Client {
+	cl, ok := l.getClient()
+	if !ok {
+		return l
+	}
+
+	return cl.ClientForAddress(addr)
+}
+
 func (l *lazy) IsActive() bool {
 	cl, ok := l.getClient()
 	if !ok {

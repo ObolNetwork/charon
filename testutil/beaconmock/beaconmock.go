@@ -471,6 +471,11 @@ func (m Mock) IsSynced() bool {
 	return m.IsSyncedFunc()
 }
 
+// ClientForAddress returns the same mock since it represents a single beacon node.
+func (m Mock) ClientForAddress(addr string) eth2wrap.Client {
+	return m
+}
+
 func (m Mock) Close() error {
 	m.headProducer.Close()
 

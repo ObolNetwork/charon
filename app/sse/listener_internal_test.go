@@ -169,13 +169,13 @@ func TestSubscribeNotifyBlockEvent(t *testing.T) {
 
 	reportedSlots := make([]eth2p0.Slot, 0)
 
-	l.SubscribeBlockEvent(func(_ context.Context, slot eth2p0.Slot) {
+	l.SubscribeBlockEvent(func(_ context.Context, slot eth2p0.Slot, bnAddr string) {
 		reportedSlots = append(reportedSlots, slot)
 	})
 
-	l.notifyBlockEvent(ctx, eth2p0.Slot(100))
-	l.notifyBlockEvent(ctx, eth2p0.Slot(100)) // Duplicate should be reported (no dedup for block events)
-	l.notifyBlockEvent(ctx, eth2p0.Slot(101))
+	l.notifyBlockEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052")
+	l.notifyBlockEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052") // Duplicate should be reported (no dedup for block events)
+	l.notifyBlockEvent(ctx, eth2p0.Slot(101), "http://test-bn:5052")
 
 	require.Len(t, reportedSlots, 3)
 	require.Equal(t, eth2p0.Slot(100), reportedSlots[0])
