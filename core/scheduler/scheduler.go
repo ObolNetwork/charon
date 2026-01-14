@@ -217,7 +217,7 @@ func (s *Scheduler) triggerDuty(ctx context.Context, duty core.Duty, defSet core
 	}
 }
 
-// HandleBlockEvent handles block processing events from SSE and triggers early attestation data fetching.
+// HandleBlockEvent handles SSE "block" events (block imported to fork choice) and triggers early attestation data fetching.
 func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
 	if !featureset.Enabled(featureset.FetchAttOnBlock) || s.fetcherFetchOnly == nil {
 		return
