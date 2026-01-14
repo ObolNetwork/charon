@@ -60,7 +60,9 @@ func (m multi) Address() string {
 }
 
 // ClientForAddress returns a scoped multi client that only queries the specified address.
-// Returns the original multi client if the address is not found or is empty.
+// Returns the original multi client if the address is not found or is empty, meaning requests
+// will be sent to all configured clients using the multi-client's normal selection strategy
+// rather than being scoped to a single node.
 func (m multi) ClientForAddress(addr string) Client {
 	if addr == "" {
 		return m

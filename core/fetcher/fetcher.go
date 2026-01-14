@@ -87,11 +87,17 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 	case core.DutyAttester:
 		// Check if attestation data was already fetched early and cached
 		if cached, ok := f.attDataCache.Load(duty.Slot); ok {
+			f.attDataCache.Delete(duty.Slot)
 			if data, valid := cached.(core.UnsignedDataSet); valid {
 				unsignedSet = data
 				log.Debug(ctx, "Using early-fetched attestation data from cache", z.U64("slot", duty.Slot))
+			} else {
+				// Type assertion failed, re-fetch
+				unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
+				if err != nil {
+					return errors.Wrap(err, "fetch attester data")
+				}
 			}
-			f.attDataCache.Delete(duty.Slot) // Remove from cache after use
 		} else {
 			unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
 			if err != nil {
@@ -149,63 +155,18 @@ func (f *Fetcher) fetchAttesterDataFrom(ctx context.Context, slot uint64, defSet
 ) (core.UnsignedDataSet, error) {
 	// Create a scoped client for the specific BN address
 	scopedCl := f.eth2Cl.ClientForAddress(bnAddr)
-
-	// We may have multiple validators in the same committee, use the same attestation data in that case.
-	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
-
-	resp := make(core.UnsignedDataSet)
-
-	for pubkey, def := range defSet {
-		attDuty, ok := def.(core.AttesterDefinition)
-		if !ok {
-			return nil, errors.New("invalid attester definition")
-		}
-
-		commIdx := attDuty.CommitteeIndex
-
-		// Attestation data for Electra is not bound by committee index.
-		// Committee index is still persisted in the request but should be set to 0.
-		// https://ethereum.github.io/beacon-APIs/#/Validator/produceAttestationData
-		// However, some validator clients are still sending attestation_data requests for each committee index.
-		// Because of that, we should continue asking for all + 0 committee indices for the ones that work correctly.
-		// After all VCs start asking for committee index 0, we should change the default scenario to that.
-		if slot >= uint64(f.electraSlot) && f.fetchOnlyCommIdx0 {
-			commIdx = 0
-		}
-
-		eth2AttData, ok := dataByCommIdx[commIdx]
-		if !ok {
-			var err error
-
-			opts := &eth2api.AttestationDataOpts{
-				Slot:           eth2p0.Slot(slot),
-				CommitteeIndex: commIdx,
-			}
-
-			eth2Resp, err := scopedCl.AttestationData(ctx, opts)
-			if err != nil {
-				return nil, err
-			}
-
-			eth2AttData = eth2Resp.Data
-			if eth2AttData == nil {
-				return nil, errors.New("attestation data is nil")
-			}
-
-			dataByCommIdx[commIdx] = eth2AttData
-		}
-
-		resp[pubkey] = core.AttestationData{
-			Data: *eth2AttData,
-			Duty: attDuty.AttesterDuty,
-		}
-	}
-
-	return resp, nil
+	return f.fetchAttesterDataWithClient(ctx, slot, defSet, scopedCl)
 }
 
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
 func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet,
+) (core.UnsignedDataSet, error) {
+	return f.fetchAttesterDataWithClient(ctx, slot, defSet, f.eth2Cl)
+}
+
+// fetchAttesterDataWithClient is a helper that fetches attestation data using the provided client.
+// It handles Electra committee index logic and caches attestation data by committee index.
+func (f *Fetcher) fetchAttesterDataWithClient(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet, client eth2wrap.Client,
 ) (core.UnsignedDataSet, error) {
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
@@ -239,7 +200,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 				CommitteeIndex: commIdx,
 			}
 
-			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
+			eth2Resp, err := client.AttestationData(ctx, opts)
 			if err != nil {
 				return nil, err
 			}

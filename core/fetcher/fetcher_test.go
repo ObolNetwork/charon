@@ -626,3 +626,114 @@ func blsSigFromHex(t *testing.T, sig string) eth2p0.BLSSignature {
 
 	return resp
 }
+
+func TestFetchOnly(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot    = 1
+		vIdxA   = 2
+		vIdxB   = 3
+		notZero = 99 // Validation require non-zero values
+	)
+
+	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
+		vIdxA: testutil.RandomCorePubKey(t),
+		vIdxB: testutil.RandomCorePubKey(t),
+	}
+
+	dutyA := eth2v1.AttesterDuty{
+		Slot:             slot,
+		ValidatorIndex:   vIdxA,
+		CommitteeIndex:   vIdxA,
+		CommitteeLength:  notZero,
+		CommitteesAtSlot: notZero,
+	}
+
+	dutyB := eth2v1.AttesterDuty{
+		Slot:             slot,
+		ValidatorIndex:   vIdxB,
+		CommitteeIndex:   vIdxB,
+		CommitteeLength:  notZero,
+		CommitteesAtSlot: notZero,
+	}
+
+	defSet := core.DutyDefinitionSet{
+		pubkeysByIdx[vIdxA]: core.NewAttesterDefinition(&dutyA),
+		pubkeysByIdx[vIdxB]: core.NewAttesterDefinition(&dutyB),
+	}
+	duty := core.NewAttesterDuty(slot)
+
+	t.Run("happy path", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch := mustCreateFetcher(t, bmock)
+
+		// FetchOnly should not trigger subscribers
+		subscriberCalled := false
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			subscriberCalled = true
+			return nil
+		})
+
+		// FetchOnly should cache the attestation data without triggering subscribers
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address())
+		require.NoError(t, err)
+		require.False(t, subscriberCalled, "FetchOnly should not trigger subscribers")
+
+		// Now call Fetch, which should use the cached data
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, duty, resDuty)
+			require.Len(t, resDataSet, 2)
+
+			dutyDataA := resDataSet[pubkeysByIdx[vIdxA]].(core.AttestationData)
+			require.EqualValues(t, slot, dutyDataA.Data.Slot)
+			require.EqualValues(t, vIdxA, dutyDataA.Data.Index)
+			require.Equal(t, dutyA, dutyDataA.Duty)
+
+			dutyDataB := resDataSet[pubkeysByIdx[vIdxB]].(core.AttestationData)
+			require.EqualValues(t, slot, dutyDataB.Data.Slot)
+			require.EqualValues(t, vIdxB, dutyDataB.Data.Index)
+			require.Equal(t, dutyB, dutyDataB.Duty)
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
+	})
+
+	t.Run("non-attester duty", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch := mustCreateFetcher(t, bmock)
+
+		proposerDuty := core.NewProposerDuty(slot)
+		err = fetch.FetchOnly(ctx, proposerDuty, defSet, bmock.Address())
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unsupported duty")
+	})
+
+	t.Run("invalid cache entry", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch := mustCreateFetcher(t, bmock)
+
+		// FetchOnly should cache the data
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address())
+		require.NoError(t, err)
+
+		// Now call Fetch with the cached data - should work fine
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, duty, resDuty)
+			require.Len(t, resDataSet, 2)
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
+	})
+}

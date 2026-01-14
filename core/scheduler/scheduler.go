@@ -238,13 +238,20 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAd
 		return
 	}
 
+	// Clone defSet to prevent race conditions when it's modified or trimmed
+	clonedDefSet, err := defSet.Clone()
+	if err != nil {
+		log.Error(ctx, "Failed to clone duty definition set for early fetch", err)
+		return
+	}
+
 	log.Debug(ctx, "Early attestation data fetch triggered by SSE block event", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 
 	// Fetch attestation data early without triggering consensus
 	// Use background context to prevent cancellation if SSE connection drops
 	go func() {
 		fetchCtx := log.CopyFields(context.Background(), ctx)
-		if err := s.fetcherFetchOnly(fetchCtx, duty, defSet, bnAddr); err != nil {
+		if err := s.fetcherFetchOnly(fetchCtx, duty, clonedDefSet, bnAddr); err != nil {
 			log.Warn(fetchCtx, "Early attestation data fetch failed", err, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 		}
 	}()
@@ -390,6 +397,7 @@ func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Sl
 	// Calculate fallback timeout: 1/3 + 300ms
 	fn, ok := slotOffsets[core.DutyAttester]
 	if !ok {
+		log.Warn(ctx, "Slot offset not found for attester duty, proceeding immediately", nil, z.U64("slot", slot.Slot))
 		return true
 	}
 	offset := fn(slot.SlotDuration) + 300*time.Millisecond
@@ -773,8 +781,10 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 // trimEventTriggeredAttestations removes old slot entries from eventTriggeredAttestations.
 func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
-	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(context.Background(), s.eth2Cl)
+	ctx := context.Background()
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
 	if err != nil {
+		log.Warn(ctx, "Failed to fetch slots config for trimming event triggered attestations", err, z.U64("epoch", epoch))
 		return
 	}
 
