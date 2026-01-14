@@ -90,6 +90,18 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 		} else if len(unsignedSet) == 0 { // No sync committee contributors found in this slot
 			return nil
 		}
+	case core.DutyPrepareProposer:
+		unsignedSet = make(core.UnsignedDataSet)
+		for pubkey, def := range defSet {
+			prepDef, ok := def.(core.PrepareProposerDefinition)
+			if !ok {
+				return errors.New("invalid prepare proposer definition")
+			}
+
+			unsignedSet[pubkey] = core.PrepareProposerData{
+				TargetSlot: prepDef.TargetSlot,
+			}
+		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}

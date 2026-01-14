@@ -13,6 +13,7 @@ var slotOffsets = map[core.DutyType]func(time.Duration) time.Duration{
 	core.DutyAttester:         fraction(1, 3), // 1/3 slot duration
 	core.DutyAggregator:       fraction(2, 3), // 2/3 slot duration
 	core.DutySyncContribution: fraction(2, 3),
+	core.DutyPrepareProposer:  fraction(1, 2), // 1/2 slot duration
 }
 
 // fraction returns a function that calculates slot offset based on the fraction x/y of total slot duration.
