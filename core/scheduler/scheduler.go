@@ -167,7 +167,8 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 
 // HandleBlockEvent handles SSE "block" events (block imported to fork choice) and triggers early attestation data fetching.
 func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
-	if !featureset.Enabled(featureset.FetchAttOnBlock) || s.fetcherFetchOnly == nil {
+	// Only process if either feature flag is enabled
+	if (!featureset.Enabled(featureset.FetchAttOnBlock) && !featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) || s.fetcherFetchOnly == nil {
 		return
 	}
 
@@ -306,8 +307,8 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			defer span.End()
 
-			// Special handling for attester duties when FetchAttOnBlock is enabled
-			if duty.Type == core.DutyAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
+			// Special handling for attester duties when FetchAttOnBlock features are enabled
+			if duty.Type == core.DutyAttester && (featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) {
 				if !s.waitForBlockEventOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
@@ -360,16 +361,21 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	}
 }
 
-// waitForBlockEventOrTimeout waits until the fallback timeout (T=1/3 + 300ms) is reached.
+// waitForBlockEventOrTimeout waits until the fallback timeout is reached.
+// If FetchAttOnBlockWithDelay is enabled, timeout is T=1/3+300ms, otherwise T=1/3.
 // Returns false if the context is cancelled, true otherwise.
 func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot) bool {
-	// Calculate fallback timeout: 1/3 + 300ms
+	// Calculate fallback timeout
 	fn, ok := slotOffsets[core.DutyAttester]
 	if !ok {
 		log.Warn(ctx, "Slot offset not found for attester duty, proceeding immediately", nil, z.U64("slot", slot.Slot))
 		return true
 	}
-	offset := fn(slot.SlotDuration) + 300*time.Millisecond
+	offset := fn(slot.SlotDuration)
+	// Add 300ms delay only if FetchAttOnBlockWithDelay is enabled
+	if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+		offset += 300 * time.Millisecond
+	}
 	fallbackDeadline := slot.Time.Add(offset)
 
 	select {
@@ -378,8 +384,13 @@ func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Sl
 	case <-s.clock.After(time.Until(fallbackDeadline)):
 		// Check if block event triggered early fetch
 		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
-			log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early block event)",
-				z.U64("slot", slot.Slot))
+			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+				log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early block event)",
+					z.U64("slot", slot.Slot))
+			} else {
+				log.Debug(ctx, "Proceeding with attestation at T=1/3 (no early block event)",
+					z.U64("slot", slot.Slot))
+			}
 		}
 		return true
 	}
@@ -743,7 +754,7 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 	delete(s.dutiesByEpoch, epoch)
 
-	if featureset.Enabled(featureset.FetchAttOnBlock) {
+	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
 		s.trimEventTriggeredAttestations(epoch)
 	}
 }
