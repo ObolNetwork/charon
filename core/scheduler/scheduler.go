@@ -336,7 +336,6 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 					log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
 				}
 			}
-
 		}(duty, defSet)
 	}
 }
