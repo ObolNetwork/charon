@@ -291,6 +291,7 @@ func (p *listener) storeBlockGossipTime(slot uint64, addr string, timestamp time
 	if p.blockGossipTimes[slot] == nil {
 		p.blockGossipTimes[slot] = make(map[string]time.Time)
 	}
+
 	p.blockGossipTimes[slot][addr] = timestamp
 }
 
@@ -318,6 +319,7 @@ func (p *listener) recordBlockProcessingTime(slot uint64, addr string, headTimes
 
 	// Clean up this entry as it's no longer needed
 	delete(addrMap, addr)
+
 	if len(addrMap) == 0 {
 		delete(p.blockGossipTimes, slot)
 	}
