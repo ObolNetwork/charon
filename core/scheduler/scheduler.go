@@ -335,7 +335,6 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 					log.Error(dutyCtx, "Failed to trigger duty subscriber", err, z.U64("slot", slot.Slot))
 				}
 			}
-
 		}(duty, defSet)
 
 		if slot.LastInEpoch() {
