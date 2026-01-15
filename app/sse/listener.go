@@ -61,12 +61,12 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 	}
 
 	l := &listener{
-		chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
-		blockSubs:      make([]BlockEventHandlerFunc, 0),
-    blockGossipTimes: make(map[uint64]map[string]time.Time),
-		genesisTime:    genesisTime,
-		slotDuration:   slotDuration,
-		slotsPerEpoch:  slotsPerEpoch,
+		chainReorgSubs:   make([]ChainReorgEventHandlerFunc, 0),
+		blockSubs:        make([]BlockEventHandlerFunc, 0),
+		blockGossipTimes: make(map[uint64]map[string]time.Time),
+		genesisTime:      genesisTime,
+		slotDuration:     slotDuration,
+		slotsPerEpoch:    slotsPerEpoch,
 	}
 
 	parsedHeaders, err := eth2util.ParseHTTPHeaders(headers)
