@@ -329,6 +329,14 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 					log.Error(dutyCtx, "Failed to trigger duty subscriber", err, z.U64("slot", slot.Slot))
 				}
 			}
+
+			if slot.LastInEpoch() {
+				err := s.resolveDuties(ctx, slot.Next())
+				if err != nil {
+					log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
+				}
+			}
+
 		}(duty, defSet)
 	}
 }
