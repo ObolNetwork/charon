@@ -167,8 +167,13 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 
 // HandleBlockEvent handles SSE "block" events (block imported to fork choice) and triggers early attestation data fetching.
 func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
+	if s.fetcherFetchOnly == nil {
+		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+		return
+	}
+
 	// Only process if either feature flag is enabled
-	if (!featureset.Enabled(featureset.FetchAttOnBlock) && !featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) || s.fetcherFetchOnly == nil {
+	if !featureset.Enabled(featureset.FetchAttOnBlock) && !featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
 		return
 	}
 
@@ -331,13 +336,14 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 			}
 
-			if slot.LastInEpoch() {
-				err := s.resolveDuties(ctx, slot.Next())
-				if err != nil {
-					log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
-				}
-			}
 		}(duty, defSet)
+
+		if slot.LastInEpoch() {
+			err := s.resolveDuties(ctx, slot.Next())
+			if err != nil {
+				log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
+			}
+		}
 	}
 }
 

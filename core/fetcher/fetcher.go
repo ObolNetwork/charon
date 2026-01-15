@@ -97,6 +97,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 				unsignedSet = data
 				log.Debug(ctx, "Using early-fetched attestation data from cache", z.U64("slot", duty.Slot))
 			} else {
+				log.Warn(ctx, "Cached attestation data has invalid type, re-fetching", err, z.U64("slot", duty.Slot))
 				// Type assertion failed, re-fetch
 				unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
 				if err != nil {
