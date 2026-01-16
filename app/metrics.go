@@ -131,6 +131,7 @@ func initStartupMetrics(peerName string, threshold, numOperators, numValidators 
 	peerNameGauge.WithLabelValues(peerName).Set(1)
 
 	for _, f := range featureset.CustomEnabledAll() {
+		featureFlagsGauge.Reset()
 		featureFlagsGauge.WithLabelValues(string(f)).Set(1)
 	}
 
