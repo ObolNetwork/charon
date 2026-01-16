@@ -20,7 +20,8 @@ var (
 	updatePeriod = 1 * time.Second
 
 	// gracePeriod is the duration after which a new cluster (new lock hash) can be run after an edit command.
-	gracePeriod = 2 * 32 * 12 * time.Second // 2 epochs of 32 slots of 12s each
+	// (we can't use chain spec at this time, so we use fixed duration of 768 seconds)
+	gracePeriod = 2 * 32 * 12 * time.Second
 )
 
 // New returns new private key locking service. It errors if a recently-updated private key lock file exists.
