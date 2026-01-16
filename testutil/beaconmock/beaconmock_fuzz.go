@@ -98,12 +98,18 @@ func WithBeaconMockFuzzer() Option {
 
 			return duties, nil
 		}
+		mock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
+			return mock.AttesterDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
+		}
 
 		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			var duties []*eth2v1.ProposerDuty
 			fuzz.New().Fuzz(&duties)
 
 			return duties, nil
+		}
+		mock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
+			return mock.ProposerDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
 		}
 
 		mock.AttestationDataFunc = func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -172,6 +178,9 @@ func WithBeaconMockFuzzer() Option {
 			fuzz.New().Fuzz(&duties)
 
 			return duties, nil
+		}
+		mock.CachedSyncDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return mock.SyncCommitteeDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
 		}
 
 		mock.SyncCommitteeContributionFunc = func(context.Context, eth2p0.Slot, uint64, eth2p0.Root) (*altair.SyncCommitteeContribution, error) {

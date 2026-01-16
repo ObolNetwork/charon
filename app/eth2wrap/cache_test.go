@@ -4,7 +4,9 @@ package eth2wrap_test
 
 import (
 	"context"
+	"maps"
 	"math/rand"
+	"slices"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -236,4 +238,58 @@ func TestGetBySlot(t *testing.T) {
 		require.Len(t, complete, 2)
 		require.False(t, refreshedBySlot)
 	})
+}
+
+func TestDutiesCache(t *testing.T) {
+	NValidators := 64
+	// Create a set of validators
+	valSet := testutil.RandomValidatorSet(t, NValidators)
+
+	proposerDutiesCalled := false
+
+	// Create a mock client.
+	eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet))
+	require.NoError(t, err)
+
+	eth2Cl.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		// use 3 random validators from the set
+		vidxs := slices.Collect(maps.Keys(valSet))
+		resp := []*eth2v1.ProposerDuty{}
+
+		for it := range 3 {
+			validator := *valSet[vidxs[rand.Intn(NValidators)]]
+			resp = append(resp, &eth2v1.ProposerDuty{
+				PubKey:         validator.Validator.PublicKey,
+				ValidatorIndex: validator.Index,
+				Slot:           eth2p0.Slot(it),
+			})
+		}
+
+		proposerDutiesCalled = true
+
+		return resp, nil
+	}
+
+	// Create a cache.
+	valCache := eth2wrap.NewDutiesCache(eth2Cl, slices.Collect(maps.Keys(valSet)))
+	ctx := t.Context()
+
+	// First call should populate the cache
+	_, err = valCache.ProposerDutiesByEpoch(ctx, 0)
+	require.NoError(t, err)
+	require.True(t, proposerDutiesCalled)
+
+	// Second call should use the cache
+	proposerDutiesCalled = false
+	_, err = valCache.ProposerDutiesByEpoch(ctx, 0)
+	require.NoError(t, err)
+	require.False(t, proposerDutiesCalled)
+
+	// Trim cache
+	valCache.Trim(7)
+
+	// Third call should populate the cache
+	_, err = valCache.ProposerDutiesByEpoch(ctx, 0)
+	require.NoError(t, err)
+	require.True(t, proposerDutiesCalled)
 }
