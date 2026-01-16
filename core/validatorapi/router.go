@@ -398,6 +398,7 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 
 		userAgent := r.Header.Get("User-Agent")
 		if userAgent != "" {
+			vcUserAgentGauge.Reset()
 			vcUserAgentGauge.WithLabelValues(userAgent).Set(1)
 		}
 
