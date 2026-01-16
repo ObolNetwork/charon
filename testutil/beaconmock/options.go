@@ -390,6 +390,9 @@ func WithDeterministicAttesterDuties(factor int) Option {
 
 			return resp, nil
 		}
+		mock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
+			return mock.AttesterDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
+		}
 	}
 }
 
@@ -447,6 +450,9 @@ func WithNoProposerDuties() Option {
 		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return nil, nil
 		}
+		mock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
+			return mock.ProposerDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
+		}
 	}
 }
 
@@ -456,6 +462,9 @@ func WithNoAttesterDuties() Option {
 		mock.AttesterDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return nil, nil
 		}
+		mock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
+			return mock.AttesterDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
+		}
 	}
 }
 
@@ -464,6 +473,9 @@ func WithNoSyncCommitteeDuties() Option {
 	return func(mock *Mock) {
 		mock.SyncCommitteeDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			return nil, nil
+		}
+		mock.CachedSyncDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return mock.SyncCommitteeDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
 		}
 	}
 }
@@ -505,6 +517,9 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 			}
 
 			return resp, nil
+		}
+		mock.CachedSyncDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return mock.SyncCommitteeDutiesFunc(ctx, epoch, []eth2p0.ValidatorIndex{})
 		}
 
 		mock.overrides = append(mock.overrides, staticOverride{
@@ -586,7 +601,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		ProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},
+		CachedProposerDutiesFunc: func(context.Context, eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
+			return []*eth2v1.ProposerDuty{}, nil
+		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			return []*eth2v1.AttesterDuty{}, nil
+		},
+		CachedAttesterDutiesFunc: func(context.Context, eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
 		BeaconBlockAttestationsFunc: func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
@@ -684,6 +705,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return nil
 		},
 		SyncCommitteeDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return []*eth2v1.SyncCommitteeDuty{}, nil
+		},
+		CachedSyncDutiesFunc: func(context.Context, eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
 			return []*eth2v1.SyncCommitteeDuty{}, nil
 		},
 		SyncCommitteeSelectionsFunc: func(_ context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) ([]*eth2v1.SyncCommitteeSelection, error) {

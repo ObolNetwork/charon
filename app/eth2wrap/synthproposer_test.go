@@ -252,10 +252,31 @@ func TestSynthProposer(t *testing.T) {
 					},
 				}, nil
 			}
-			cached := bmock.CachedValidatorsFunc
+			cachedValidators := bmock.CachedValidatorsFunc
 			bmock.CachedValidatorsFunc = func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
 				activeVals++
-				return cached(ctx)
+				return cachedValidators(ctx)
+			}
+			bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
+				duties, err := bmock.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch})
+				if err != nil {
+					return nil, err
+				}
+				return duties.Data, nil
+			}
+			bmock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
+				duties, err := bmock.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch})
+				if err != nil {
+					return nil, err
+				}
+				return duties.Data, nil
+			}
+			bmock.CachedSyncDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
+				duties, err := bmock.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch})
+				if err != nil {
+					return nil, err
+				}
+				return duties.Data, nil
 			}
 			bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 				resp := test.versionedSignedBlock
