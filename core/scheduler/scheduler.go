@@ -85,15 +85,23 @@ type Scheduler struct {
 	dutiesMutex                sync.RWMutex
 	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs                   []func(context.Context, core.Slot) error
+	fetcherFetchOnly           func(context.Context, core.Duty, core.DutyDefinitionSet, string) error
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
+	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse block event (map[uint64]bool)
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
 // Note this should be called *before* Start.
 func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.DutyDefinitionSet) error) {
 	s.dutySubs = append(s.dutySubs, fn)
+}
+
+// RegisterFetcherFetchOnly registers the fetcher's FetchOnly method for early attestation fetching.
+// Note this should be called *before* Start.
+func (s *Scheduler) RegisterFetcherFetchOnly(fn func(context.Context, core.Duty, core.DutyDefinitionSet, string) error) {
+	s.fetcherFetchOnly = fn
 }
 
 // SubscribeSlots subscribes a callback function for triggered slots.
@@ -155,6 +163,52 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 	} else {
 		log.Warn(ctx, "Chain reorg event ignored due to disabled SSEReorgDuties feature", nil, z.U64("reorg_epoch", uint64(epoch)))
 	}
+}
+
+// HandleBlockEvent handles SSE "block" events (block imported to fork choice) and triggers early attestation data fetching.
+func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
+	if s.fetcherFetchOnly == nil {
+		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+		return
+	}
+
+	// Only process if either feature flag is enabled
+	if !featureset.Enabled(featureset.FetchAttOnBlock) && !featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+		return
+	}
+
+	duty := core.Duty{
+		Slot: uint64(slot),
+		Type: core.DutyAttester,
+	}
+	defSet, ok := s.getDutyDefinitionSet(duty)
+	if !ok {
+		// Nothing for this duty
+		return
+	}
+
+	_, alreadyTriggered := s.eventTriggeredAttestations.LoadOrStore(uint64(slot), true)
+	if alreadyTriggered {
+		return
+	}
+
+	// Clone defSet to prevent race conditions when it's modified or trimmed
+	clonedDefSet, err := defSet.Clone()
+	if err != nil {
+		log.Error(ctx, "Failed to clone duty definition set for early fetch", err)
+		return
+	}
+
+	log.Debug(ctx, "Early attestation data fetch triggered by SSE block event", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+
+	// Fetch attestation data early without triggering consensus
+	// Use background context to prevent cancellation if SSE connection drops
+	go func() {
+		fetchCtx := log.CopyFields(context.Background(), ctx)
+		if err := s.fetcherFetchOnly(fetchCtx, duty, clonedDefSet, bnAddr); err != nil {
+			log.Warn(fetchCtx, "Early attestation data fetch failed", err, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+		}
+	}()
 }
 
 // emitCoreSlot calls all slot subscriptions asynchronously with the provided slot.
@@ -255,10 +309,16 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		}
 
 		// Trigger duty async
-		go func() {
+		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			defer span.End()
 
-			if !delaySlotOffset(ctx, slot, duty, s.delayFunc) {
+			// Special handling for attester duties when FetchAttOnBlock features are enabled
+			if duty.Type == core.DutyAttester && (featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) {
+				if !s.waitForBlockEventOrTimeout(dutyCtx, slot) {
+					return // context cancelled
+				}
+				s.eventTriggeredAttestations.Store(slot.Slot, true)
+			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc) {
 				return // context cancelled
 			}
 
@@ -275,13 +335,13 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 					log.Error(dutyCtx, "Failed to trigger duty subscriber", err, z.U64("slot", slot.Slot))
 				}
 			}
-		}()
-	}
+		}(duty, defSet)
 
-	if slot.LastInEpoch() {
-		err := s.resolveDuties(ctx, slot.Next())
-		if err != nil {
-			log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
+		if slot.LastInEpoch() {
+			err := s.resolveDuties(ctx, slot.Next())
+			if err != nil {
+				log.Warn(ctx, "Resolving duties error (retrying next slot)", err, z.U64("slot", slot.Slot))
+			}
 		}
 	}
 }
@@ -302,6 +362,41 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	case <-ctx.Done():
 		return false
 	case <-delayFunc(duty, deadline):
+		return true
+	}
+}
+
+// waitForBlockEventOrTimeout waits until the fallback timeout is reached.
+// If FetchAttOnBlockWithDelay is enabled, timeout is T=1/3+300ms, otherwise T=1/3.
+// Returns false if the context is cancelled, true otherwise.
+func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot) bool {
+	// Calculate fallback timeout
+	fn, ok := slotOffsets[core.DutyAttester]
+	if !ok {
+		log.Warn(ctx, "Slot offset not found for attester duty, proceeding immediately", nil, z.U64("slot", slot.Slot))
+		return true
+	}
+	offset := fn(slot.SlotDuration)
+	// Add 300ms delay only if FetchAttOnBlockWithDelay is enabled
+	if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+		offset += 300 * time.Millisecond
+	}
+	fallbackDeadline := slot.Time.Add(offset)
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-s.clock.After(time.Until(fallbackDeadline)):
+		// Check if block event triggered early fetch
+		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
+			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+				log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early block event)",
+					z.U64("slot", slot.Slot))
+			} else {
+				log.Debug(ctx, "Proceeding with attestation at T=1/3 (no early block event)",
+					z.U64("slot", slot.Slot))
+			}
+		}
 		return true
 	}
 }
@@ -663,6 +758,32 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 	}
 
 	delete(s.dutiesByEpoch, epoch)
+
+	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+		s.trimEventTriggeredAttestations(epoch)
+	}
+}
+
+// trimEventTriggeredAttestations removes old slot entries from eventTriggeredAttestations.
+func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
+	ctx := context.Background()
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil {
+		log.Warn(ctx, "Failed to fetch slots config for trimming event triggered attestations", err, z.U64("epoch", epoch))
+		return
+	}
+
+	minSlotToKeep := (epoch + 1) * slotsPerEpoch // first slot of next epoch
+	s.eventTriggeredAttestations.Range(func(key, _ any) bool {
+		slot, ok := key.(uint64)
+		if !ok {
+			return true // continue iteration
+		}
+		if slot < minSlotToKeep {
+			s.eventTriggeredAttestations.Delete(slot)
+		}
+		return true // continue iteration
+	})
 }
 
 // submitValidatorRegistrations submits the validator registrations for all DVs.

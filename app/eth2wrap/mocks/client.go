@@ -59,6 +59,26 @@ func (_m *Client) ActiveValidators(_a0 context.Context) (eth2wrap.ActiveValidato
 	return r0, r1
 }
 
+// ClientForAddress provides a mock function with given fields: addr
+func (_m *Client) ClientForAddress(addr string) eth2wrap.Client {
+	ret := _m.Called(addr)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClientForAddress")
+	}
+
+	var r0 eth2wrap.Client
+	if rf, ok := ret.Get(0).(func(string) eth2wrap.Client); ok {
+		r0 = rf(addr)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(eth2wrap.Client)
+		}
+	}
+
+	return r0
+}
+
 // Address provides a mock function with no fields
 func (_m *Client) Address() string {
 	ret := _m.Called()

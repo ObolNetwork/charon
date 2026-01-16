@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -44,12 +45,31 @@ type Fetcher struct {
 	graffitiBuilder   *GraffitiBuilder
 	electraSlot       eth2p0.Slot
 	fetchOnlyCommIdx0 bool
+	attDataCache      sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
 }
 
 // Subscribe registers a callback for fetched duties.
 // Note this is not thread safe should be called *before* Fetch.
 func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDataSet) error) {
 	f.subs = append(f.subs, fn)
+}
+
+// FetchOnly fetches attestation data and caches it without triggering subscribers.
+// This allows early fetching on block events while deferring consensus to the scheduled time.
+func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet, bnAddr string) error {
+	if duty.Type != core.DutyAttester {
+		return errors.New("unsupported duty", z.Str("type", duty.Type.String()))
+	}
+
+	unsignedSet, err := f.fetchAttesterDataFrom(ctx, duty.Slot, defSet, bnAddr)
+	if err != nil {
+		return errors.Wrap(err, "fetch attester data for early cache")
+	}
+
+	f.attDataCache.Store(duty.Slot, unsignedSet)
+	log.Debug(ctx, "Early attestation data fetched and cached", z.U64("slot", duty.Slot), z.Str("bn_addr", bnAddr))
+
+	return nil
 }
 
 // Fetch triggers fetching of a proposed duty data set.
@@ -70,9 +90,25 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return errors.Wrap(err, "fetch proposer data")
 		}
 	case core.DutyAttester:
-		unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
-		if err != nil {
-			return errors.Wrap(err, "fetch attester data")
+		// Check if attestation data was already fetched early and cached
+		if cached, ok := f.attDataCache.Load(duty.Slot); ok {
+			f.attDataCache.Delete(duty.Slot)
+			if data, valid := cached.(core.UnsignedDataSet); valid {
+				unsignedSet = data
+				log.Debug(ctx, "Using early-fetched attestation data from cache", z.U64("slot", duty.Slot))
+			} else {
+				log.Warn(ctx, "Cached attestation data has invalid type, re-fetching", err, z.U64("slot", duty.Slot))
+				// Type assertion failed, re-fetch
+				unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
+				if err != nil {
+					return errors.Wrap(err, "fetch attester data")
+				}
+			}
+		} else {
+			unsignedSet, err = f.fetchAttesterData(ctx, duty.Slot, defSet)
+			if err != nil {
+				return errors.Wrap(err, "fetch attester data")
+			}
 		}
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
@@ -120,8 +156,23 @@ func (f *Fetcher) RegisterAwaitAttData(fn func(ctx context.Context, slot uint64,
 	f.awaitAttDataFunc = fn
 }
 
+// fetchAttesterDataFrom returns the fetched attestation data set from a specific beacon node address.
+func (f *Fetcher) fetchAttesterDataFrom(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet, bnAddr string,
+) (core.UnsignedDataSet, error) {
+	// Create a scoped client for the specific BN address
+	scopedCl := f.eth2Cl.ClientForAddress(bnAddr)
+	return f.fetchAttesterDataWithClient(ctx, slot, defSet, scopedCl)
+}
+
 // fetchAttesterData returns the fetched attestation data set for committees and validators in the arg set.
 func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet,
+) (core.UnsignedDataSet, error) {
+	return f.fetchAttesterDataWithClient(ctx, slot, defSet, f.eth2Cl)
+}
+
+// fetchAttesterDataWithClient is a helper that fetches attestation data using the provided client.
+// It handles Electra committee index logic and caches attestation data by committee index.
+func (f *Fetcher) fetchAttesterDataWithClient(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet, client eth2wrap.Client,
 ) (core.UnsignedDataSet, error) {
 	// We may have multiple validators in the same committee, use the same attestation data in that case.
 	dataByCommIdx := make(map[eth2p0.CommitteeIndex]*eth2p0.AttestationData)
@@ -155,7 +206,7 @@ func (f *Fetcher) fetchAttesterData(ctx context.Context, slot uint64, defSet cor
 				CommitteeIndex: commIdx,
 			}
 
-			eth2Resp, err := f.eth2Cl.AttestationData(ctx, opts)
+			eth2Resp, err := client.AttestationData(ctx, opts)
 			if err != nil {
 				return nil, err
 			}

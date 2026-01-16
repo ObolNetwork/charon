@@ -129,3 +129,45 @@ func TestMulti_Proxy_ReadBody(t *testing.T) {
 	_, err = m.Proxy(t.Context(), req)
 	require.NoError(t, err)
 }
+
+func TestMulti_ClientForAddress(t *testing.T) {
+	client1 := mocks.NewClient(t)
+	client1.On("Address").Return("http://bn1:5051").Maybe()
+
+	client2 := mocks.NewClient(t)
+	client2.On("Address").Return("http://bn2:5052").Maybe()
+
+	fallback := mocks.NewClient(t)
+	fallback.On("Address").Return("http://fallback:5053").Maybe()
+
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client1, client2}, []eth2wrap.Client{fallback})
+
+	t.Run("address found in primary clients", func(t *testing.T) {
+		scoped := m.ClientForAddress("http://bn1:5051")
+		require.NotNil(t, scoped)
+		// The scoped client should only use the specified address
+		require.Equal(t, "http://bn1:5051", scoped.Address())
+	})
+
+	t.Run("address found in fallback clients", func(t *testing.T) {
+		scoped := m.ClientForAddress("http://fallback:5053")
+		require.NotNil(t, scoped)
+		require.Equal(t, "http://fallback:5053", scoped.Address())
+	})
+
+	t.Run("address not found", func(t *testing.T) {
+		// Should return the original multi client
+		scoped := m.ClientForAddress("http://unknown:5054")
+		require.NotNil(t, scoped)
+		// When address is not found, it returns the original multi client
+		// which will use the first client's address
+		require.Equal(t, "http://bn1:5051", scoped.Address())
+	})
+
+	t.Run("empty address", func(t *testing.T) {
+		// Should return the original multi client
+		scoped := m.ClientForAddress("")
+		require.NotNil(t, scoped)
+		require.Equal(t, "http://bn1:5051", scoped.Address())
+	})
+}

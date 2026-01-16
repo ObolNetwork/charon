@@ -26,6 +26,7 @@ type Client interface {
 
 	SetForkVersion(forkVersion [4]byte)
 
+	ClientForAddress(addr string) Client
 	// Address returns the address of the beacon node.
 	Address() string
 	// Headers returns custom headers to include in requests to the beacon node.

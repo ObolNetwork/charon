@@ -83,12 +83,40 @@ func TestHandleEvents(t *testing.T) {
 			},
 			err: errors.New("parse depth to uint64"),
 		},
+		{
+			name: "block event happy path",
+			event: &event{
+				Event:     sseBlockEvent,
+				Data:      []byte(`{"slot":"42", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "execution_optimistic": false}`),
+				Timestamp: time.Now(),
+			},
+			err: nil,
+		},
+		{
+			name: "block event incompatible data payload",
+			event: &event{
+				Event:     sseBlockEvent,
+				Data:      []byte(`"error"`),
+				Timestamp: time.Now(),
+			},
+			err: errors.New("unmarshal SSE block event"),
+		},
+		{
+			name: "block event parse slot",
+			event: &event{
+				Event:     sseBlockEvent,
+				Data:      []byte(`{"slot":"invalid", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "execution_optimistic": false}`),
+				Timestamp: time.Now(),
+			},
+			err: errors.New("parse slot to uint64"),
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			l := &listener{
 				chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
+				blockSubs:      make([]BlockEventHandlerFunc, 0),
 				slotDuration:   12 * time.Second,
 				slotsPerEpoch:  32,
 				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
@@ -131,6 +159,28 @@ func TestSubscribeNotifyChainReorg(t *testing.T) {
 	require.Len(t, reportedEpochs, 2)
 	require.Equal(t, eth2p0.Epoch(5), reportedEpochs[0])
 	require.Equal(t, eth2p0.Epoch(10), reportedEpochs[1])
+}
+
+func TestSubscribeNotifyBlockEvent(t *testing.T) {
+	ctx := t.Context()
+	l := &listener{
+		blockSubs: make([]BlockEventHandlerFunc, 0),
+	}
+
+	reportedSlots := make([]eth2p0.Slot, 0)
+
+	l.SubscribeBlockEvent(func(_ context.Context, slot eth2p0.Slot, bnAddr string) {
+		reportedSlots = append(reportedSlots, slot)
+	})
+
+	l.notifyBlockEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052")
+	l.notifyBlockEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052") // Duplicate should be reported (no dedup for block events)
+	l.notifyBlockEvent(ctx, eth2p0.Slot(101), "http://test-bn:5052")
+
+	require.Len(t, reportedSlots, 3)
+	require.Equal(t, eth2p0.Slot(100), reportedSlots[0])
+	require.Equal(t, eth2p0.Slot(100), reportedSlots[1])
+	require.Equal(t, eth2p0.Slot(101), reportedSlots[2])
 }
 
 func TestComputeDelay(t *testing.T) {

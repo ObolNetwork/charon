@@ -59,6 +59,41 @@ func (m multi) Address() string {
 	return address
 }
 
+// ClientForAddress returns a scoped multi client that only queries the specified address.
+// Returns the original multi client if the address is not found or is empty, meaning requests
+// will be sent to all configured clients using the multi-client's normal selection strategy
+// rather than being scoped to a single node.
+func (m multi) ClientForAddress(addr string) Client {
+	if addr == "" {
+		return m
+	}
+
+	// Find client matching the address
+	for _, cl := range m.clients {
+		if cl.Address() == addr {
+			return multi{
+				clients:   []Client{cl},
+				fallbacks: m.fallbacks,
+				selector:  m.selector,
+			}
+		}
+	}
+
+	// Address not found in clients, check fallbacks
+	for _, cl := range m.fallbacks {
+		if cl.Address() == addr {
+			return multi{
+				clients:   []Client{cl},
+				fallbacks: nil,
+				selector:  m.selector,
+			}
+		}
+	}
+
+	// Address not found, return original multi client
+	return m
+}
+
 func (m multi) Headers() map[string]string {
 	if len(m.clients) == 0 {
 		return nil

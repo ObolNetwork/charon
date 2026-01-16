@@ -87,3 +87,14 @@ func TestLazy_Proxy(t *testing.T) {
 	_, err = l.Proxy(t.Context(), req)
 	require.NoError(t, err)
 }
+
+func TestLazy_ClientForAddress(t *testing.T) {
+	innerClient := mocks.NewClient(t)
+	scopedClient := mocks.NewClient(t)
+	innerClient.On("ClientForAddress", "http://test:5051").Return(scopedClient).Once()
+
+	l := eth2wrap.NewLazyForT(innerClient)
+
+	result := l.ClientForAddress("http://test:5051")
+	require.NotNil(t, result)
+}

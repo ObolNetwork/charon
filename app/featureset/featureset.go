@@ -70,24 +70,35 @@ const (
 	// ChainSplitHalt compares locally fetched attestation's target and source to leader's proposed target and source attestation.
 	// In case they differ, Charon does not sign the attestation.
 	ChainSplitHalt = "chain_split_halt"
+
+	// FetchAttOnBlock enables fetching attestation data upon block processing event from beacon node via SSE.
+	// Fallback to T=1/3 if block event is not received in time.
+	FetchAttOnBlock = "fetch_att_on_block"
+
+	// FetchAttOnBlockWithDelay enables fetching attestation data with 300ms delay.
+	// When enabled with FetchAttOnBlock, uses T=1/3+300ms as fallback timeout.
+	// When enabled alone, uses T=1/3+300ms as timeout.
+	FetchAttOnBlockWithDelay = "fetch_att_on_block_with_delay"
 )
 
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		EagerDoubleLinear:    statusStable,
-		ConsensusParticipate: statusStable,
-		MockAlpha:            statusAlpha,
-		AggSigDBV2:           statusAlpha,
-		JSONRequests:         statusAlpha,
-		GnosisBlockHotfix:    statusAlpha,
-		Linear:               statusAlpha,
-		SSEReorgDuties:       statusAlpha,
-		AttestationInclusion: statusAlpha,
-		ProposalTimeout:      statusAlpha,
-		QUIC:                 statusAlpha,
-		FetchOnlyCommIdx0:    statusAlpha,
-		ChainSplitHalt:       statusAlpha,
+		EagerDoubleLinear:        statusStable,
+		ConsensusParticipate:     statusStable,
+		MockAlpha:                statusAlpha,
+		AggSigDBV2:               statusAlpha,
+		JSONRequests:             statusAlpha,
+		GnosisBlockHotfix:        statusAlpha,
+		Linear:                   statusAlpha,
+		SSEReorgDuties:           statusAlpha,
+		AttestationInclusion:     statusAlpha,
+		ProposalTimeout:          statusAlpha,
+		QUIC:                     statusAlpha,
+		FetchOnlyCommIdx0:        statusAlpha,
+		ChainSplitHalt:           statusAlpha,
+		FetchAttOnBlock:          statusAlpha,
+		FetchAttOnBlockWithDelay: statusAlpha,
 		// Add all features and their status here.
 	}
 
