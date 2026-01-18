@@ -155,7 +155,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	life := new(lifecycle.Manager)
 
 	if conf.PrivKeyLocking {
-		lockSvc, err := privkeylock.New(conf.PrivKeyFile+".lock", "charon run")
+		lockSvc, err := privkeylock.New(conf.PrivKeyFile, conf.LockFile, "charon run")
 		if err != nil {
 			return err
 		}

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"path"
 	"slices"
 	"time"
 
@@ -115,7 +116,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	{
 		// Setup private key locking.
-		lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir)+".lock", "charon dkg")
+		lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir), path.Join(conf.DataDir, "cluster-lock.json"), "charon dkg")
 		if err != nil {
 			return err
 		}

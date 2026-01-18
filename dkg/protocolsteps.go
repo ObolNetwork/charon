@@ -177,6 +177,13 @@ func (s *writeArtifactsProtocolStep) Run(ctx context.Context, pctx *ProtocolCont
 		return err
 	}
 
+	maybeLockFilePath := pctx.PrivateKeyPath + ".lock"
+	if app.FileExists(maybeLockFilePath) {
+		if err := app.CopyFile(maybeLockFilePath, filepath.Join(s.outputDir, enrPrivateKeyLockFile)); err != nil {
+			return err
+		}
+	}
+
 	if err := storeKeys(s.outputDir, pctx.Shares); err != nil {
 		return err
 	}

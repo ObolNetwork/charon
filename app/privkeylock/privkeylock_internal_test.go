@@ -3,6 +3,7 @@
 package privkeylock
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,32 +15,38 @@ import (
 )
 
 func TestService(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "privkeylocktest")
+	tmpDir := t.TempDir()
+	privKeyPath := filepath.Join(tmpDir, "privkey")
+	lockFilePath := filepath.Join(tmpDir, "cluster-lock.json")
+	lockPath := privKeyPath + ".lock"
+
+	// Create cluster lock file.
+	writeClusterLockFile(t, lockFilePath, "hash123")
 
 	// Create a stale file that is ignored.
-	err := writeFile(path, "test", time.Now().Add(-staleDuration))
+	err := writeFile(lockPath, "hash123", "test", time.Now().Add(-staleDuration))
 	require.NoError(t, err)
 
 	// Create a new service.
-	svc, err := New(path, "test")
+	svc, err := New(privKeyPath, lockFilePath, "test")
 	require.NoError(t, err)
 	// Increase the update period to make the test faster.
 	svc.updatePeriod = time.Millisecond
 
-	assertFileExists(t, path)
+	assertFileExists(t, lockPath)
 
 	// Assert a new service can't be created.
-	_, err = New(path, "test")
+	_, err = New(privKeyPath, lockFilePath, "test")
 	require.ErrorContains(t, err, "existing private key lock file found")
 
 	// Delete the file so Run will create it again.
-	require.NoError(t, os.Remove(path))
+	require.NoError(t, os.Remove(lockPath))
 
 	var eg errgroup.Group
 	eg.Go(svc.Run) // Run will create the file.
 
 	eg.Go(func() error {
-		assertFileExists(t, path)
+		assertFileExists(t, lockPath)
 		svc.Close()
 
 		return nil
@@ -48,8 +55,111 @@ func TestService(t *testing.T) {
 	require.NoError(t, eg.Wait())
 
 	// Assert the file is deleted.
-	_, openErr := os.Open(path)
+	_, openErr := os.Open(lockPath)
 	require.ErrorIs(t, openErr, os.ErrNotExist)
+}
+
+func TestClusterHashMismatchWithinGracePeriod(t *testing.T) {
+	tmpDir := t.TempDir()
+	privKeyPath := filepath.Join(tmpDir, "privkey")
+	lockFilePath := filepath.Join(tmpDir, "cluster-lock.json")
+	lockPath := privKeyPath + ".lock"
+
+	// Create cluster lock file with hash1.
+	writeClusterLockFile(t, lockFilePath, "hash1")
+
+	// Create a stale but within grace period lock file with hash1.
+	err := writeFile(lockPath, "hash1", "test", time.Now().Add(-staleDuration-time.Second))
+	require.NoError(t, err)
+
+	// Update cluster lock file to hash2.
+	writeClusterLockFile(t, lockFilePath, "hash2")
+
+	// Try to create service with new hash within grace period - should fail.
+	_, err = New(privKeyPath, lockFilePath, "test")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "different cluster lock hash")
+	require.ErrorContains(t, err, "you must wait")
+}
+
+func TestClusterHashMismatchAfterGracePeriod(t *testing.T) {
+	tmpDir := t.TempDir()
+	privKeyPath := filepath.Join(tmpDir, "privkey")
+	lockFilePath := filepath.Join(tmpDir, "cluster-lock.json")
+	lockPath := privKeyPath + ".lock"
+
+	// Create cluster lock file with hash1.
+	writeClusterLockFile(t, lockFilePath, "hash1")
+
+	// Create an old lock file with hash1 (beyond grace period).
+	err := writeFile(lockPath, "hash1", "test", time.Now().Add(-gracePeriod-time.Second))
+	require.NoError(t, err)
+
+	// Update cluster lock file to hash2.
+	writeClusterLockFile(t, lockFilePath, "hash2")
+
+	// Try to create service with new hash after grace period - should succeed.
+	_, err = New(privKeyPath, lockFilePath, "test")
+	require.NoError(t, err)
+
+	// Verify the new hash is written.
+	content, err := os.ReadFile(lockPath)
+	require.NoError(t, err)
+
+	var meta metadata
+
+	err = json.Unmarshal(content, &meta)
+	require.NoError(t, err)
+	require.Equal(t, "hash2", meta.ClusterLockHash)
+}
+
+func TestClusterHashMatchWithinGracePeriod(t *testing.T) {
+	tmpDir := t.TempDir()
+	privKeyPath := filepath.Join(tmpDir, "privkey")
+	lockFilePath := filepath.Join(tmpDir, "cluster-lock.json")
+	lockPath := privKeyPath + ".lock"
+
+	// Create cluster lock file with hash1.
+	writeClusterLockFile(t, lockFilePath, "hash1")
+
+	// Create a recent lock file with hash1 (within stale duration).
+	err := writeFile(lockPath, "hash1", "test", time.Now().Add(-time.Second))
+	require.NoError(t, err)
+
+	// Try to create service with same hash - should fail due to staleness check.
+	_, err = New(privKeyPath, lockFilePath, "test")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "another charon instance may be running")
+
+	// Now create a stale lock file with same hash (beyond stale duration but within grace period).
+	err = writeFile(lockPath, "hash1", "test", time.Now().Add(-staleDuration-time.Second))
+	require.NoError(t, err)
+
+	// Should succeed since hash matches and file is stale.
+	_, err = New(privKeyPath, lockFilePath, "test")
+	require.NoError(t, err)
+}
+
+func TestClusterLockFileNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	privKeyPath := filepath.Join(tmpDir, "privkey")
+	lockFilePath := filepath.Join(tmpDir, "nonexistent.json")
+
+	// Should succeed when cluster lock file doesn't exist (e.g., during DKG).
+	// The cluster lock hash will be empty.
+	_, err := New(privKeyPath, lockFilePath, "test")
+	require.NoError(t, err)
+
+	// Verify empty cluster hash is written.
+	lockPath := privKeyPath + ".lock"
+	content, err := os.ReadFile(lockPath)
+	require.NoError(t, err)
+
+	var meta metadata
+
+	err = json.Unmarshal(content, &meta)
+	require.NoError(t, err)
+	require.Empty(t, meta.ClusterLockHash)
 }
 
 func assertFileExists(t *testing.T, path string) {
@@ -59,4 +169,46 @@ func assertFileExists(t *testing.T, path string) {
 		_, openErr := os.Open(path)
 		return openErr == nil
 	}, time.Second, time.Millisecond)
+}
+
+// writeClusterLockFile creates a cluster lock file with the given hash.
+func writeClusterLockFile(t *testing.T, path, lockHash string) {
+	t.Helper()
+
+	content := map[string]any{
+		"lock_hash": lockHash,
+		"name":      "test-cluster",
+	}
+	b, err := json.Marshal(content)
+	require.NoError(t, err)
+	err = os.WriteFile(path, b, 0o644)
+	require.NoError(t, err)
+}
+
+func TestEmptyHashToHashMigration(t *testing.T) {
+	tmpDir := t.TempDir()
+	privKeyPath := filepath.Join(tmpDir, "privkey")
+	lockFilePath := filepath.Join(tmpDir, "cluster-lock.json")
+	lockPath := privKeyPath + ".lock"
+
+	// Create cluster lock file.
+	writeClusterLockFile(t, lockFilePath, "newhash")
+
+	// Create a stale lock file with empty cluster hash (migration scenario).
+	err := writeFile(lockPath, "", "test", time.Now().Add(-staleDuration*2))
+	require.NoError(t, err)
+
+	// Should succeed - empty hash shouldn't trigger grace period.
+	_, err = New(privKeyPath, lockFilePath, "test")
+	require.NoError(t, err)
+
+	// Verify the new hash is written.
+	content, err := os.ReadFile(lockPath)
+	require.NoError(t, err)
+
+	var meta metadata
+
+	err = json.Unmarshal(content, &meta)
+	require.NoError(t, err)
+	require.Equal(t, "newhash", meta.ClusterLockHash)
 }

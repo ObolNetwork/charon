@@ -211,6 +211,9 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	err := k1util.Save(nodeKeys[0], p2p.KeyPath(dataDir))
 	require.NoError(t, err)
 
+	err = os.WriteFile(p2p.KeyPath(dataDir)+".lock", []byte("{}"), 0o600)
+	require.NoError(t, err)
+
 	shares := valKeysToSharesNode0(t, valKeys, lock.Validators)
 
 	pctx := &ProtocolContext{
@@ -226,6 +229,7 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	require.FileExists(t, filepath.Join(step.outputDir, clusterLockFile))
 	require.DirExists(t, filepath.Join(step.outputDir, validatorKeysSubDir))
 	require.FileExists(t, p2p.KeyPath(step.outputDir))
+	require.FileExists(t, p2p.KeyPath(step.outputDir)+".lock")
 
 	enrPrivKey, err := os.ReadFile(p2p.KeyPath(step.outputDir))
 	require.NoError(t, err)

@@ -26,9 +26,10 @@ import (
 )
 
 const (
-	enrPrivateKeyFile   = "charon-enr-private-key"
-	validatorKeysSubDir = "validator_keys"
-	clusterLockFile     = "cluster-lock.json"
+	enrPrivateKeyFile     = "charon-enr-private-key"
+	enrPrivateKeyLockFile = "charon-enr-private-key.lock"
+	validatorKeysSubDir   = "validator_keys"
+	clusterLockFile       = "cluster-lock.json"
 )
 
 // Protocol is a generic interface for DKG protocols such as add/remove operators.
