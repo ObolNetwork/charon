@@ -269,34 +269,28 @@ func (c *DutiesCache) UpdateCacheIndices(_ context.Context, indices []eth2p0.Val
 	c.validatorIndices = indices
 }
 
-// cachedProposerDuties returns the cached proposer duties and true if they are available.
-func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+// InvalidateCache handles chain reorg, invalidating all cached duties.
+func (c *DutiesCache) InvalidateCache(_ context.Context, epoch eth2p0.Epoch) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	duties, ok := c.proposerDuties[epoch]
+	for e := range c.proposerDuties {
+		if e >= epoch {
+			delete(c.proposerDuties, e)
+		}
+	}
 
-	return duties, ok
-}
+	for e := range c.attesterDuties {
+		if e >= epoch {
+			delete(c.attesterDuties, e)
+		}
+	}
 
-// cachedAttesterDuties returns the cached attester duties and true if they are available.
-func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	duties, ok := c.attesterDuties[epoch]
-
-	return duties, ok
-}
-
-// cachedSyncDuties returns the cached sync duties and true if they are available.
-func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	duties, ok := c.syncDuties[epoch]
-
-	return duties, ok
+	for e := range c.syncDuties {
+		if e >= epoch {
+			delete(c.syncDuties, e)
+		}
+	}
 }
 
 // ProposerDutiesByEpoch returns the cached proposer duties, or fetches them if not available populating the cache.
@@ -399,4 +393,34 @@ func (c *DutiesCache) SyncDutiesByEpoch(ctx context.Context, epoch eth2p0.Epoch)
 	c.syncDuties = syncDuties
 
 	return syncDutiesCurrEpoch, nil
+}
+
+// cachedProposerDuties returns the cached proposer duties and true if they are available.
+func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	duties, ok := c.proposerDuties[epoch]
+
+	return duties, ok
+}
+
+// cachedAttesterDuties returns the cached attester duties and true if they are available.
+func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	duties, ok := c.attesterDuties[epoch]
+
+	return duties, ok
+}
+
+// cachedSyncDuties returns the cached sync duties and true if they are available.
+func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	duties, ok := c.syncDuties[epoch]
+
+	return duties, ok
 }

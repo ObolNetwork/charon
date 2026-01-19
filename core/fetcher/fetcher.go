@@ -93,8 +93,10 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 		// Check if attestation data was already fetched early and cached
 		if cached, ok := f.attDataCache.Load(duty.Slot); ok {
 			f.attDataCache.Delete(duty.Slot)
+
 			if data, valid := cached.(core.UnsignedDataSet); valid {
 				unsignedSet = data
+
 				log.Debug(ctx, "Using early-fetched attestation data from cache", z.U64("slot", duty.Slot))
 			} else {
 				log.Warn(ctx, "Cached attestation data has invalid type, re-fetching", err, z.U64("slot", duty.Slot))

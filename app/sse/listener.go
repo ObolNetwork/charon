@@ -20,8 +20,10 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 )
 
-type ChainReorgEventHandlerFunc func(ctx context.Context, epoch eth2p0.Epoch)
-type BlockEventHandlerFunc func(ctx context.Context, slot eth2p0.Slot, bnAddr string)
+type (
+	ChainReorgEventHandlerFunc func(ctx context.Context, epoch eth2p0.Epoch)
+	BlockEventHandlerFunc      func(ctx context.Context, slot eth2p0.Slot, bnAddr string)
+)
 
 type Listener interface {
 	SubscribeChainReorgEvent(ChainReorgEventHandlerFunc)

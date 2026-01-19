@@ -262,6 +262,7 @@ func TestSynthProposer(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
+
 				return duties.Data, nil
 			}
 			bmock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
@@ -269,6 +270,7 @@ func TestSynthProposer(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
+
 				return duties.Data, nil
 			}
 			bmock.CachedSyncDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
@@ -276,6 +278,7 @@ func TestSynthProposer(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
+
 				return duties.Data, nil
 			}
 			bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {

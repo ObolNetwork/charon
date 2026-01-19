@@ -508,6 +508,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	dutiesCache := eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
 	eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesByEpoch, dutiesCache.AttesterDutiesByEpoch, dutiesCache.SyncDutiesByEpoch)
 
+	sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
+
 	var fvcrLock sync.RWMutex
 
 	shouldUpdateCache := func(slot core.Slot, lock *sync.RWMutex) bool {
