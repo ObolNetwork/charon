@@ -56,6 +56,7 @@ func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dk
 	bindLogFlags(cmd.Flags(), &dkgConfig.Log)
 	bindEth1Flag(cmd.Flags(), &dkgConfig.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &dkgConfig.ShutdownDelay)
+	bindPublishFlags(cmd.Flags(), &dkgConfig)
 
 	return cmd
 }

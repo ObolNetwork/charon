@@ -55,6 +55,7 @@ func newReplaceOperatorCmd(runFunc func(context.Context, dkg.ReplaceOperatorConf
 	bindLogFlags(cmd.Flags(), &dkgConfig.Log)
 	bindEth1Flag(cmd.Flags(), &dkgConfig.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &dkgConfig.ShutdownDelay)
+	bindPublishFlags(cmd.Flags(), &dkgConfig)
 
 	return cmd
 }

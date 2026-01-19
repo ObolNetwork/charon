@@ -77,6 +77,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	bindLogFlags(cmd.Flags(), &config.DKG.Log)
 	bindShutdownDelayFlag(cmd.Flags(), &config.DKG.ShutdownDelay)
 	bindEth1Flag(cmd.Flags(), &config.DKG.ExecutionEngineAddr)
+	bindPublishFlags(cmd.Flags(), &config.DKG)
 	cmd.Flags().DurationVar(&config.DKG.Timeout, "timeout", 1*time.Minute, "Timeout for the command, should be increased if the command times out.")
 
 	// Bind `create dkg` flags.
