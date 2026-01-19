@@ -257,24 +257,24 @@ func TestSynthProposer(t *testing.T) {
 				activeVals++
 				return cachedValidators(ctx)
 			}
-			bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
-				duties, err := bmock.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch})
+			bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+				duties, err := bmock.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
 				if err != nil {
 					return nil, err
 				}
 
 				return duties.Data, nil
 			}
-			bmock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
-				duties, err := bmock.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch})
+			bmock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+				duties, err := bmock.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: vidxs})
 				if err != nil {
 					return nil, err
 				}
 
 				return duties.Data, nil
 			}
-			bmock.CachedSyncDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
-				duties, err := bmock.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch})
+			bmock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+				duties, err := bmock.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
 				if err != nil {
 					return nil, err
 				}

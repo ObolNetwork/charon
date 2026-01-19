@@ -201,9 +201,9 @@ type SyncDuties map[eth2p0.Epoch][]*eth2v1.SyncCommitteeDuty
 type CachedDutiesProvider interface {
 	UpdateCacheIndices(context.Context, []eth2p0.ValidatorIndex)
 
-	ProposerDutiesByEpoch(context.Context, eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error)
-	AttesterDutiesByEpoch(context.Context, eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error)
-	SyncDutiesByEpoch(context.Context, eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error)
+	ProposerDutiesCache(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	AttesterDutiesCache(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	SyncCommDutiesCache(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
 }
 
 // NewDutiesCache creates a new validator cache.
@@ -293,8 +293,8 @@ func (c *DutiesCache) InvalidateCache(_ context.Context, epoch eth2p0.Epoch) {
 	}
 }
 
-// ProposerDutiesByEpoch returns the cached proposer duties, or fetches them if not available populating the cache.
-func (c *DutiesCache) ProposerDutiesByEpoch(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
+// ProposerDutiesCache returns the cached proposer duties, or fetches them if not available populating the cache.
+func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 	duties, ok := c.cachedProposerDuties(epoch)
 
 	if ok {
@@ -306,7 +306,7 @@ func (c *DutiesCache) ProposerDutiesByEpoch(ctx context.Context, epoch eth2p0.Ep
 
 	opts := &eth2api.ProposerDutiesOpts{
 		Epoch:   epoch,
-		Indices: c.validatorIndices,
+		Indices: vidxs,
 	}
 
 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
@@ -331,8 +331,8 @@ func (c *DutiesCache) ProposerDutiesByEpoch(ctx context.Context, epoch eth2p0.Ep
 	return proposerDutiesCurrEpoch, nil
 }
 
-// AttesterDutiesByEpoch returns the cached attester duties, or fetches them if not available populating the cache.
-func (c *DutiesCache) AttesterDutiesByEpoch(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
+// AttesterDutiesCache returns the cached attester duties, or fetches them if not available populating the cache.
+func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 	duties, ok := c.cachedAttesterDuties(epoch)
 
 	if ok {
@@ -344,7 +344,7 @@ func (c *DutiesCache) AttesterDutiesByEpoch(ctx context.Context, epoch eth2p0.Ep
 
 	opts := &eth2api.AttesterDutiesOpts{
 		Epoch:   epoch,
-		Indices: c.validatorIndices,
+		Indices: vidx,
 	}
 
 	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
@@ -357,8 +357,8 @@ func (c *DutiesCache) AttesterDutiesByEpoch(ctx context.Context, epoch eth2p0.Ep
 	return eth2Resp.Data, nil
 }
 
-// SyncDutiesByEpoch returns the cached sync duties, or fetches them if not available populating the cache.
-func (c *DutiesCache) SyncDutiesByEpoch(ctx context.Context, epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
+// SyncCommDutiesCache returns the cached sync duties, or fetches them if not available populating the cache.
+func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 	duties, ok := c.cachedSyncDuties(epoch)
 
 	if ok {
@@ -370,7 +370,7 @@ func (c *DutiesCache) SyncDutiesByEpoch(ctx context.Context, epoch eth2p0.Epoch)
 
 	opts := &eth2api.SyncCommitteeDutiesOpts{
 		Epoch:   epoch,
-		Indices: c.validatorIndices,
+		Indices: vidx,
 	}
 
 	eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, opts)

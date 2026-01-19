@@ -188,29 +188,29 @@ func (_m *Client) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOp
 	return r0, r1
 }
 
-// AttesterDutiesByEpoch provides a mock function with given fields: _a0, _a1
-func (_m *Client) AttesterDutiesByEpoch(_a0 context.Context, _a1 phase0.Epoch) ([]*v1.AttesterDuty, error) {
-	ret := _m.Called(_a0, _a1)
+// AttesterDutiesCache provides a mock function with given fields: _a0, _a1, _a2
+func (_m *Client) AttesterDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) ([]*v1.AttesterDuty, error) {
+	ret := _m.Called(_a0, _a1, _a2)
 
 	if len(ret) == 0 {
-		panic("no return value specified for AttesterDutiesByEpoch")
+		panic("no return value specified for AttesterDutiesCache")
 	}
 
 	var r0 []*v1.AttesterDuty
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) ([]*v1.AttesterDuty, error)); ok {
-		return rf(_a0, _a1)
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.AttesterDuty, error)); ok {
+		return rf(_a0, _a1, _a2)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) []*v1.AttesterDuty); ok {
-		r0 = rf(_a0, _a1)
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) []*v1.AttesterDuty); ok {
+		r0 = rf(_a0, _a1, _a2)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*v1.AttesterDuty)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch) error); ok {
-		r1 = rf(_a0, _a1)
+	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
+		r1 = rf(_a0, _a1, _a2)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -772,29 +772,29 @@ func (_m *Client) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOp
 	return r0, r1
 }
 
-// ProposerDutiesByEpoch provides a mock function with given fields: _a0, _a1
-func (_m *Client) ProposerDutiesByEpoch(_a0 context.Context, _a1 phase0.Epoch) ([]*v1.ProposerDuty, error) {
-	ret := _m.Called(_a0, _a1)
+// ProposerDutiesCache provides a mock function with given fields: _a0, _a1, _a2
+func (_m *Client) ProposerDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) ([]*v1.ProposerDuty, error) {
+	ret := _m.Called(_a0, _a1, _a2)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ProposerDutiesByEpoch")
+		panic("no return value specified for ProposerDutiesCache")
 	}
 
 	var r0 []*v1.ProposerDuty
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) ([]*v1.ProposerDuty, error)); ok {
-		return rf(_a0, _a1)
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.ProposerDuty, error)); ok {
+		return rf(_a0, _a1, _a2)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) []*v1.ProposerDuty); ok {
-		r0 = rf(_a0, _a1)
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) []*v1.ProposerDuty); ok {
+		r0 = rf(_a0, _a1, _a2)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*v1.ProposerDuty)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch) error); ok {
-		r1 = rf(_a0, _a1)
+	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
+		r1 = rf(_a0, _a1, _a2)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -833,7 +833,11 @@ func (_m *Client) Proxy(ctx context.Context, req *http.Request) (*http.Response,
 }
 
 // SetDutiesCache provides a mock function with given fields: _a0, _a1, _a2
-func (_m *Client) SetDutiesCache(_a0 func(context.Context, phase0.Epoch) ([]*v1.ProposerDuty, error), _a1 func(context.Context, phase0.Epoch) ([]*v1.AttesterDuty, error), _a2 func(context.Context, phase0.Epoch) ([]*v1.SyncCommitteeDuty, error)) {
+func (_m *Client) SetDutiesCache(
+	_a0 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.ProposerDuty, error),
+	_a1 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.AttesterDuty, error),
+	_a2 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.SyncCommitteeDuty, error),
+) {
 	_m.Called(_a0, _a1, _a2)
 }
 
@@ -1251,29 +1255,29 @@ func (_m *Client) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCom
 	return r0, r1
 }
 
-// SyncDutiesByEpoch provides a mock function with given fields: _a0, _a1
-func (_m *Client) SyncDutiesByEpoch(_a0 context.Context, _a1 phase0.Epoch) ([]*v1.SyncCommitteeDuty, error) {
-	ret := _m.Called(_a0, _a1)
+// SyncCommDutiesCache provides a mock function with given fields: _a0, _a1, _a2
+func (_m *Client) SyncCommDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) ([]*v1.SyncCommitteeDuty, error) {
+	ret := _m.Called(_a0, _a1, _a2)
 
 	if len(ret) == 0 {
-		panic("no return value specified for SyncDutiesByEpoch")
+		panic("no return value specified for SyncCommDutiesCache")
 	}
 
 	var r0 []*v1.SyncCommitteeDuty
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) ([]*v1.SyncCommitteeDuty, error)); ok {
-		return rf(_a0, _a1)
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.SyncCommitteeDuty, error)); ok {
+		return rf(_a0, _a1, _a2)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) []*v1.SyncCommitteeDuty); ok {
-		r0 = rf(_a0, _a1)
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) []*v1.SyncCommitteeDuty); ok {
+		r0 = rf(_a0, _a1, _a2)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*v1.SyncCommitteeDuty)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch) error); ok {
-		r1 = rf(_a0, _a1)
+	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
+		r1 = rf(_a0, _a1, _a2)
 	} else {
 		r1 = ret.Error(1)
 	}

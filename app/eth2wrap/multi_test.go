@@ -93,13 +93,13 @@ func TestMulti_SetValidatorCache(t *testing.T) {
 }
 
 func TestMulti_SetDutiesCache(t *testing.T) {
-	proposerDutiesCache := func(context.Context, eth2p0.Epoch) ([]*eth2v1.ProposerDuty, error) {
+	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		return nil, nil
 	}
-	attesterDutiesCache := func(context.Context, eth2p0.Epoch) ([]*eth2v1.AttesterDuty, error) {
+	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 		return nil, nil
 	}
-	syncDutiesCache := func(context.Context, eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, error) {
+	syncDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 		return nil, nil
 	}
 
@@ -110,16 +110,16 @@ func TestMulti_SetDutiesCache(t *testing.T) {
 	m.SetDutiesCache(proposerDutiesCache, attesterDutiesCache, syncDutiesCache)
 }
 
-func TestMulti_ProposerDutiesByEpoch(t *testing.T) {
+func TestMulti_ProposerDutiesCache(t *testing.T) {
 	ctx := context.Background()
 	proposerDuties := make([]*eth2v1.ProposerDuty, 0)
 
 	client := mocks.NewClient(t)
-	client.On("ProposerDutiesByEpoch", ctx, eth2p0.Epoch(0)).Return(proposerDuties, nil).Once()
+	client.On("ProposerDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(proposerDuties, nil).Once()
 
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
-	proposerDuties2, err := m.ProposerDutiesByEpoch(ctx, 0)
+	proposerDuties2, err := m.ProposerDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
 	require.Equal(t, proposerDuties, proposerDuties2)
 }
@@ -129,11 +129,11 @@ func TestMulti_AttesterDutiesByEpoch(t *testing.T) {
 	attesterDuties := make([]*eth2v1.AttesterDuty, 0)
 
 	client := mocks.NewClient(t)
-	client.On("AttesterDutiesByEpoch", ctx, eth2p0.Epoch(0)).Return(attesterDuties, nil).Once()
+	client.On("AttesterDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(attesterDuties, nil).Once()
 
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
-	attesterDuties2, err := m.AttesterDutiesByEpoch(ctx, 0)
+	attesterDuties2, err := m.AttesterDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
 	require.Equal(t, attesterDuties, attesterDuties2)
 }
@@ -143,11 +143,11 @@ func TestMulti_SyncDutiesByEpoch(t *testing.T) {
 	syncDuties := make([]*eth2v1.SyncCommitteeDuty, 0)
 
 	client := mocks.NewClient(t)
-	client.On("SyncDutiesByEpoch", ctx, eth2p0.Epoch(0)).Return(syncDuties, nil).Once()
+	client.On("SyncCommDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(syncDuties, nil).Once()
 
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
-	syncDuties2, err := m.SyncDutiesByEpoch(ctx, 0)
+	syncDuties2, err := m.SyncCommDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
 	require.Equal(t, syncDuties, syncDuties2)
 }

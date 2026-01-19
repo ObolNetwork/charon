@@ -275,13 +275,13 @@ func TestDutiesCache(t *testing.T) {
 	ctx := t.Context()
 
 	// First call should populate the cache
-	_, err = valCache.ProposerDutiesByEpoch(ctx, 0)
+	_, err = valCache.ProposerDutiesCache(ctx, 0, slices.Collect(maps.Keys(valSet)))
 	require.NoError(t, err)
 	require.True(t, proposerDutiesCalled)
 
 	// Second call should use the cache
 	proposerDutiesCalled = false
-	_, err = valCache.ProposerDutiesByEpoch(ctx, 0)
+	_, err = valCache.ProposerDutiesCache(ctx, 0, slices.Collect(maps.Keys(valSet)))
 	require.NoError(t, err)
 	require.False(t, proposerDutiesCalled)
 
@@ -289,7 +289,7 @@ func TestDutiesCache(t *testing.T) {
 	valCache.Trim(7)
 
 	// Third call should populate the cache
-	_, err = valCache.ProposerDutiesByEpoch(ctx, 0)
+	_, err = valCache.ProposerDutiesCache(ctx, 0, slices.Collect(maps.Keys(valSet)))
 	require.NoError(t, err)
 	require.True(t, proposerDutiesCalled)
 }

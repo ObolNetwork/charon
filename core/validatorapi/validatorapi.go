@@ -1115,7 +1115,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	cachedResp, err := c.eth2Cl.ProposerDutiesByEpoch(ctx, opts.Epoch)
+	cachedResp, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
 	if err != nil {
 		return nil, err
 	}
@@ -1145,7 +1145,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	cachedResp, err := c.eth2Cl.AttesterDutiesByEpoch(ctx, opts.Epoch)
+	cachedResp, err := c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
 	if err != nil {
 		return nil, err
 	}
@@ -1173,7 +1173,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
 func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
-	cachedResp, err := c.eth2Cl.SyncDutiesByEpoch(ctx, opts.Epoch)
+	cachedResp, err := c.eth2Cl.SyncCommDutiesCache(ctx, opts.Epoch, opts.Indices)
 	if err != nil {
 		return nil, err
 	}

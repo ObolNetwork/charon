@@ -636,7 +636,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 				attesterDuties = []*eth2v1.AttesterDuty{}
 			} else {
 				// TODO: This can be optimised by not calling attester duties on every slot, in the case of small clusters, where there are <32 validators per cluster.
-				resp, err := a.eth2Cl.AttesterDutiesByEpoch(ctx, epoch)
+				resp, err := a.eth2Cl.AttesterDutiesCache(ctx, epoch, indices)
 				if err != nil {
 					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
 
