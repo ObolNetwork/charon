@@ -57,7 +57,7 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 			elapsedPeriod := time.Since(meta.Timestamp)
 			if elapsedPeriod < gracePeriod {
 				waitTime := gracePeriod - elapsedPeriod
-				errText := fmt.Sprintf("existing private key lock file found with different cluster lock hash, you must wait for %v before starting charon with the new cluster hash", waitTime)
+				errText := fmt.Sprintf("an existing private key lock file is present with a different cluster lock hash, for safety reasons, you must wait for %v before starting charon with a modified cluster", waitTime)
 
 				return Service{}, errors.New(
 					errText,
