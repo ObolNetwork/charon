@@ -288,7 +288,7 @@ func TestBlockProcessingTimeCleanup(t *testing.T) {
 	// After processing slot 150, entries older than (150 - 32) = 118 are removed
 	// Remaining entries: odd slots from 119-149 (never processed) = 16 entries
 	// Even slots are immediately deleted after processing
-	require.Equal(t, 16, len(l.blockGossipTimes))
+	require.Len(t, l.blockGossipTimes, 16)
 
 	// Verify recent unprocessed entries are still there (odd slots from end)
 	addrMap, found := l.blockGossipTimes[149]
