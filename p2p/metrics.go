@@ -112,11 +112,16 @@ func WithSwarmMetrics(registerer prometheus.Registerer) swarm.Option {
 	return swarm.WithMetricsTracer(swarm.NewMetricsTracer(swarm.WithRegisterer(registerer)))
 }
 
+// BandwidthReporter is an interface for the bandwidth reporter that can be registered with a host.
+type BandwidthReporter interface {
+	registerHost(host.Host)
+}
+
 var _ metrics.Reporter = (*bandwithReporter)(nil)
 
 // WithBandwidthReporter returns a libp2p option that enables bandwidth reporting via prometheus.
 // Returns both the option and the reporter instance so the host can be registered later.
-func WithBandwidthReporter(peers []peer.ID) (libp2p.Option, *bandwithReporter) {
+func WithBandwidthReporter(peers []peer.ID) (libp2p.Option, BandwidthReporter) {
 	peerNames := make(map[peer.ID]string)
 	for _, p := range peers {
 		peerNames[p] = PeerName(p)
@@ -130,9 +135,9 @@ func WithBandwidthReporter(peers []peer.ID) (libp2p.Option, *bandwithReporter) {
 }
 
 // RegisterBandwidthReporter sets the host reference on the bandwidth reporter for transport detection.
-func RegisterBandwidthReporter(reporter *bandwithReporter, h host.Host) {
+func RegisterBandwidthReporter(reporter BandwidthReporter, h host.Host) {
 	if reporter != nil {
-		reporter.host = h
+		reporter.registerHost(h)
 	}
 }
 
@@ -141,6 +146,10 @@ type bandwithReporter struct {
 
 	host      host.Host
 	peerNames map[peer.ID]string
+}
+
+func (r *bandwithReporter) registerHost(h host.Host) {
+	r.host = h
 }
 
 func (bandwithReporter) LogSentMessage(int64) {}
