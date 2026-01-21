@@ -520,10 +520,8 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
-		// Use dummy genesis time and slot duration for testing
-		genesisTime := time.Unix(1606824023, 0) // Mainnet genesis time
-		slotDuration := 12 * time.Second
-		c.timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration)
+		// Use zero values for tests to use default clock.Now() behavior
+		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0)
 
 		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)

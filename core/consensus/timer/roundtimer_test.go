@@ -164,9 +164,9 @@ func TestLinearRoundTimer(t *testing.T) {
 }
 
 func TestGetTimerFunc(t *testing.T) {
-	// Use dummy genesis time and slot duration for testing
-	genesisTime := time.Unix(1606824023, 0) // Mainnet genesis time
-	slotDuration := 12 * time.Second
+	// Use zero values for tests to use default clock.Now() behavior
+	genesisTime := time.Time{}
+	slotDuration := time.Duration(0)
 
 	timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration)
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
