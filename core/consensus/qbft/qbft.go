@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -245,7 +246,7 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 }
 
 // NewConsensus returns a new consensus QBFT component.
-func NewConsensus(p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
+func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
 	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance), compareAttestations bool,
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
@@ -263,6 +264,16 @@ func NewConsensus(p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		keys[int64(i)] = pk
 	}
 
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch genesis time")
+	}
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch slot duration")
+	}
+
 	c := &Consensus{
 		p2pNode:             p2pNode,
 		sender:              sender,
@@ -274,7 +285,7 @@ func NewConsensus(p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKe
 		snifferFunc:         snifferFunc,
 		gaterFunc:           gaterFunc,
 		dropFilter:          log.Filter(),
-		timerFunc:           timer.GetRoundTimerFunc(),
+		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration),
 		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 		compareAttestations: compareAttestations,
 	}

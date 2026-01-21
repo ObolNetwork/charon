@@ -164,21 +164,25 @@ func TestLinearRoundTimer(t *testing.T) {
 }
 
 func TestGetTimerFunc(t *testing.T) {
-	timerFunc := timer.GetRoundTimerFunc()
+	// Use dummy genesis time and slot duration for testing
+	genesisTime := time.Unix(1606824023, 0) // Mainnet genesis time
+	slotDuration := 12 * time.Second
+
+	timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration)
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
 
-	timerFunc = timer.GetRoundTimerFunc()
+	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration)
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.EnableForT(t, featureset.Linear)
 
-	timerFunc = timer.GetRoundTimerFunc()
+	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration)
 	// non proposer duty, defaults to increasing
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())

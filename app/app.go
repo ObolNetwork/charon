@@ -630,7 +630,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Consensus
 	consensusController, err := consensus.NewConsensusController(
-		ctx, p2pNode, sender, peers, p2pKey,
+		ctx, eth2Cl, p2pNode, sender, peers, p2pKey,
 		deadlineFunc, gaterFunc, consensusDebugger, featureset.Enabled(featureset.ChainSplitHalt))
 	if err != nil {
 		return err
