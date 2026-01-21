@@ -23,6 +23,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -219,7 +221,33 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	lockHashHex := Hex7(lock.LockHash)
 
-	p2pNode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex, lock.UUID)
+	// Create prometheus registry early so it can be used by p2p.
+	// Metric and logging labels.
+	labels := map[string]string{
+		"cluster_hash":    lockHashHex,
+		"cluster_name":    lock.Name,
+		"cluster_peer":    "", // Set below from p2p key
+		"nickname":        conf.Nickname,
+		"cluster_network": network,
+		"charon_version":  version.Version.String(),
+	}
+
+	// Derive peer ID from private key to set cluster_peer label before registering metrics
+	peerID, err := p2p.PeerIDFromKey(p2pKey.PubKey())
+	if err != nil {
+		return err
+	}
+	labels["cluster_peer"] = p2p.PeerName(peerID)
+
+	// Update cluster_peer label for Loki
+	log.SetLokiLabels(labels)
+
+	promRegistry, err := promauto.NewRegistry(labels)
+	if err != nil {
+		return err
+	}
+
+	p2pNode, err := wireP2P(ctx, life, conf, lock, p2pKey, lockHashHex, lock.UUID, promRegistry, labels)
 	if err != nil {
 		return err
 	}
@@ -243,22 +271,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Str("cluster_hash_full", hex.EncodeToString(lock.LockHash)),
 		z.Str("enr", enrRec.String()),
 		z.Int("peers", len(lock.Operators)))
-
-	// Metric and logging labels.
-	labels := map[string]string{
-		"cluster_hash":    lockHashHex,
-		"cluster_name":    lock.Name,
-		"cluster_peer":    p2p.PeerName(p2pNode.ID()),
-		"nickname":        conf.Nickname,
-		"cluster_network": network,
-		"charon_version":  version.Version.String(),
-	}
-	log.SetLokiLabels(labels)
-
-	promRegistry, err := promauto.NewRegistry(labels)
-	if err != nil {
-		return err
-	}
 
 	initStartupMetrics(p2p.PeerName(p2pNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
 
@@ -336,7 +348,7 @@ func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, l
 
 // wireP2P constructs the p2p tcp or udp (libp2p) nodes and registers it with the life cycle manager.
 func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
-	lock *cluster.Lock, p2pKey *k1.PrivateKey, lockHashHex, uuid string,
+	lock *cluster.Lock, p2pKey *k1.PrivateKey, lockHashHex, uuid string, promRegistry *prometheus.Registry, labels prometheus.Labels,
 ) (host.Host, error) {
 	peerIDs, err := lock.PeerIDs()
 	if err != nil {
@@ -354,22 +366,31 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	// Start libp2p node.
+	bwOpt, bwReporter := p2p.WithBandwidthReporter(peerIDs)
+
+	// Wrap registerer with cluster labels for libp2p metrics
+	wrappedRegisterer := prometheus.WrapRegistererWith(labels, promRegistry)
+	swarmOpts := []swarm.Option{p2p.WithSwarmMetrics(wrappedRegisterer)}
+
 	opts := []libp2p.Option{
-		p2p.WithBandwidthReporter(peerIDs),
+		bwOpt,
 		libp2p.ResourceManager(new(network.NullResourceManager)),
 	}
 	opts = append(opts, conf.TestConfig.LibP2POpts...)
 
 	var p2pNode host.Host
 	if featureset.Enabled(featureset.QUIC) {
-		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeQUIC, opts...)
+		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeQUIC, swarmOpts, opts...)
 	} else {
-		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeTCP, opts...)
+		p2pNode, err = p2p.NewNode(ctx, conf.P2P, p2pKey, connGater, false, p2p.NodeTypeTCP, swarmOpts, opts...)
 	}
 
 	if err != nil {
 		return nil, err
 	}
+
+	// Register host with bandwidth reporter for transport protocol detection
+	p2p.RegisterBandwidthReporter(bwReporter, p2pNode)
 
 	if conf.TestConfig.P2PNodeCallback != nil {
 		conf.TestConfig.P2PNodeCallback(p2pNode)

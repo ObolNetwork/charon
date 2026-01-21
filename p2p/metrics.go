@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/promauto"
@@ -70,8 +72,8 @@ var (
 	peerStreamGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace: "p2p",
 		Name:      "peer_streams",
-		Help:      "Current number of libp2p streams by peer, direction ('inbound' or 'outbound' or 'unknown') and protocol.",
-	}, []string{"peer", "direction", "protocol"})
+		Help:      "Current number of libp2p streams by peer, direction ('inbound' or 'outbound' or 'unknown'), protocol and transport.",
+	}, []string{"peer", "direction", "protocol", "transport"})
 
 	peerConnCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
@@ -82,14 +84,14 @@ var (
 	networkRXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
 		Name:      "peer_network_receive_bytes_total",
-		Help:      "Total number of network bytes received from the peer by protocol.",
-	}, []string{"peer", "protocol"})
+		Help:      "Total number of network bytes received from the peer by protocol and transport. Transport is based on first active connection (accurate in steady state).",
+	}, []string{"peer", "protocol", "transport"})
 
 	networkTXCounter = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
 		Name:      "peer_network_sent_bytes_total",
-		Help:      "Total number of network bytes sent to the peer by protocol.",
-	}, []string{"peer", "protocol"})
+		Help:      "Total number of network bytes sent to the peer by protocol and transport. Transport is based on first active connection (accurate in steady state).",
+	}, []string{"peer", "protocol", "transport"})
 )
 
 func observePing(p peer.ID, d time.Duration) {
@@ -102,21 +104,42 @@ func incPingError(p peer.ID) {
 	pingSuccess.WithLabelValues(PeerName(p)).Set(0)
 }
 
-var _ metrics.Reporter = bandwithReporter{}
+// WithSwarmMetrics returns a libp2p swarm option that enables the built-in swarm metrics.
+// The registerer parameter should be the same prometheus registry used by the application
+// to ensure libp2p metrics are exposed alongside application metrics.
+func WithSwarmMetrics(registerer prometheus.Registerer) swarm.Option {
+	// Use libp2p's built-in metrics tracer with the provided registerer
+	return swarm.WithMetricsTracer(swarm.NewMetricsTracer(swarm.WithRegisterer(registerer)))
+}
+
+var _ metrics.Reporter = (*bandwithReporter)(nil)
 
 // WithBandwidthReporter returns a libp2p option that enables bandwidth reporting via prometheus.
-func WithBandwidthReporter(peers []peer.ID) libp2p.Option {
+// Returns both the option and the reporter instance so the host can be registered later.
+func WithBandwidthReporter(peers []peer.ID) (libp2p.Option, *bandwithReporter) {
 	peerNames := make(map[peer.ID]string)
 	for _, p := range peers {
 		peerNames[p] = PeerName(p)
 	}
 
-	return libp2p.BandwidthReporter(bandwithReporter{peerNames: peerNames})
+	reporter := &bandwithReporter{
+		peerNames: peerNames,
+	}
+
+	return libp2p.BandwidthReporter(reporter), reporter
+}
+
+// RegisterBandwidthReporter sets the host reference on the bandwidth reporter for transport detection.
+func RegisterBandwidthReporter(reporter *bandwithReporter, h host.Host) {
+	if reporter != nil {
+		reporter.host = h
+	}
 }
 
 type bandwithReporter struct {
 	metrics.Reporter
 
+	host      host.Host
 	peerNames map[peer.ID]string
 }
 
@@ -124,20 +147,39 @@ func (bandwithReporter) LogSentMessage(int64) {}
 
 func (bandwithReporter) LogRecvMessage(int64) {}
 
-func (r bandwithReporter) LogSentMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
+func (r *bandwithReporter) LogSentMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
 	name, ok := r.peerNames[peerID]
 	if !ok {
 		return // Do not instrument relays
 	}
 
-	networkTXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
+	transport := r.getTransportProtocol(peerID)
+	networkTXCounter.WithLabelValues(name, string(protoID), transport).Add(float64(bytes))
 }
 
-func (r bandwithReporter) LogRecvMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
+func (r *bandwithReporter) LogRecvMessageStream(bytes int64, protoID protocol.ID, peerID peer.ID) {
 	name, ok := r.peerNames[peerID]
 	if !ok {
 		return // Do not instrument relays
 	}
 
-	networkRXCounter.WithLabelValues(name, string(protoID)).Add(float64(bytes))
+	transport := r.getTransportProtocol(peerID)
+	networkRXCounter.WithLabelValues(name, string(protoID), transport).Add(float64(bytes))
+}
+
+// getTransportProtocol determines the transport protocol (tcp/quic/unknown) for a peer.
+// Uses first connection which is accurate in steady state (single connection per peer).
+func (r *bandwithReporter) getTransportProtocol(peerID peer.ID) string {
+	if r.host == nil {
+		return protocolUnknown
+	}
+
+	conns := r.host.Network().ConnsToPeer(peerID)
+	if len(conns) == 0 {
+		return protocolUnknown
+	}
+
+	// In steady state, there's typically only one connection per peer.
+	// Use first connection's protocol.
+	return addrProtocol(conns[0].RemoteMultiaddr())
 }

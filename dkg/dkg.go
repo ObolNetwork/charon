@@ -1282,7 +1282,7 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 		return nil, nil, err
 	}
 
-	p2pNode, err := p2p.NewNode(ctx, conf.P2P, key, connGater, false, p2p.NodeTypeTCP)
+	p2pNode, err := p2p.NewNode(ctx, conf.P2P, key, connGater, false, p2p.NodeTypeTCP, nil)
 	if err != nil {
 		return nil, nil, err
 	}
