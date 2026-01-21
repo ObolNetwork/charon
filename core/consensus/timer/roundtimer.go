@@ -87,6 +87,20 @@ func proposalTimeoutOptimization(duty core.Duty, round int64) bool {
 	return featureset.Enabled(featureset.ProposalTimeout) && duty.Type == core.DutyProposer && round == 1
 }
 
+// getDutyStartDelayWithDuration returns the delay from slot start to when a duty is scheduled to begin,
+// given the slot duration. This matches the scheduler's slot offsets to ensure timers align with when
+// consensus actually starts.
+func getDutyStartDelayWithDuration(dutyType core.DutyType, slotDuration time.Duration) time.Duration {
+	switch dutyType {
+	case core.DutyAttester:
+		return slotDuration / 3
+	case core.DutyAggregator, core.DutySyncContribution:
+		return (2 * slotDuration) / 3
+	default:
+		return 0
+	}
+}
+
 // NewIncreasingRoundTimer returns a new increasing round timer type.
 func NewIncreasingRoundTimer() RoundTimer {
 	return NewIncreasingRoundTimerWithClock(clockwork.NewRealClock())
@@ -240,9 +254,14 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 		// Otherwise, fall back to clock.Now().
 		if !t.genesisTime.IsZero() && t.slotDuration > 0 {
 			// Calculate slot start time deterministically from duty slot number.
-			// This ensures all nodes calculate the same deadline regardless of when Timer() is called.
 			slotStart := t.genesisTime.Add(t.slotDuration * time.Duration(t.duty.Slot))
-			deadline = slotStart.Add(timeout)
+
+			// Add duty-specific delay to account for when the duty is scheduled to start.
+			dutyDelay := getDutyStartDelayWithDuration(t.duty.Type, t.slotDuration)
+			dutyStart := slotStart.Add(dutyDelay)
+
+			// Deadline is duty start time plus the round timeout
+			deadline = dutyStart.Add(timeout)
 		} else {
 			deadline = t.clock.Now().Add(timeout)
 		}
