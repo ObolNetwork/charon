@@ -45,6 +45,8 @@ type createDKGConfig struct {
 	Publish             bool
 	PublishAddress      string
 	OperatorsAddresses  []string
+
+	testnetConfig eth2util.Network
 }
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
@@ -61,6 +63,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 	}
 
 	bindCreateDKGFlags(cmd, &config)
+	bindNetworkFlags(cmd.Flags(), &config.Network, &config.testnetConfig)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
@@ -99,7 +102,6 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().IntVarP(&config.Threshold, "threshold", "t", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	cmd.Flags().StringVar(&config.Network, "network", defaultNetwork, "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, holesky, gnosis, chiado.")
 	cmd.Flags().StringVar(&config.DKGAlgo, "dkg-algorithm", "default", "DKG algorithm to use; default, frost or pedersen.")
 	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address.")
@@ -131,7 +133,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		operatorsLen = len(conf.OperatorsAddresses)
 	}
 
-	if err = validateDKGConfig(operatorsLen, conf.Network, conf.DepositAmounts, conf.ConsensusProtocol, conf.Compounding); err != nil {
+	if err = validateDKGConfig(operatorsLen, conf.Network, conf.testnetConfig, conf.DepositAmounts, conf.ConsensusProtocol, conf.Compounding); err != nil {
 		return err
 	}
 
@@ -187,9 +189,16 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		log.Warn(ctx, "Non standard `--threshold` flag provided, this will affect cluster safety", nil, z.Int("threshold", conf.Threshold), z.Int("safe_threshold", safeThreshold))
 	}
 
-	forkVersion, err := eth2util.NetworkToForkVersion(conf.Network)
-	if err != nil {
-		return err
+	var forkVersion string
+	if conf.Network != "" {
+		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
+		if err != nil {
+			return err
+		}
+	} else if conf.testnetConfig.GenesisForkVersionHex != "" {
+		forkVersion = conf.testnetConfig.GenesisForkVersionHex
+	} else {
+		return errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
 
 	var privKey *k1.PrivateKey
@@ -284,14 +293,14 @@ func validateWithdrawalAddrs(addrs []string, network string) error {
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
-func validateDKGConfig(numOperators int, network string, depositAmounts []int, consensusProtocol string, compounding bool) error {
+func validateDKGConfig(numOperators int, network string, testnet eth2util.Network, depositAmounts []int, consensusProtocol string, compounding bool) error {
 	// Don't allow cluster size to be less than 3.
 	if numOperators < minNodes {
 		return errors.New("number of operators is below minimum", z.Int("operators", numOperators), z.Int("min", minNodes))
 	}
 
-	if !eth2util.ValidNetwork(network) {
-		return errors.New("unsupported network", z.Str("network", network))
+	if err := validateNetworkConfig(network, testnet); err != nil {
+		return errors.Wrap(err, "unsupported network", z.Str("network", network))
 	}
 
 	if len(depositAmounts) > 0 {

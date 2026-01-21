@@ -111,6 +111,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 
 	bindClusterFlags(cmd.Flags(), &conf)
 	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
+	bindNetworkFlags(cmd.Flags(), &conf.Network, &conf.testnetConfig)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
@@ -142,22 +143,25 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.IntVar(&config.Threshold, "threshold", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
 	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
-	flags.StringVar(&config.Network, "network", "", "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, holesky, gnosis, chiado.")
 	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
-	flags.StringVar(&config.testnetConfig.Name, "testnet-name", "", "Name of the custom test network.")
-	flags.StringVar(&config.testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
-	flags.Uint64Var(&config.testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
-	flags.Int64Var(&config.testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 60000000, "Preferred target gas limit for transactions.")
 	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 	flags.StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	flags.BoolVar(&config.Zipped, "zipped", false, "Create a tar archive compressed with gzip of the cluster directory after creation.")
+}
+
+func bindNetworkFlags(flags *pflag.FlagSet, network *string, testnetConfig *eth2util.Network) {
+	flags.StringVar(network, "network", "mainnet", "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, holesky, gnosis, chiado.")
+	flags.StringVar(&testnetConfig.Name, "testnet-name", "", "Name of the custom test network.")
+	flags.StringVar(&testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
+	flags.Uint64Var(&testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")
+	flags.Int64Var(&testnetConfig.GenesisTimestamp, "testnet-genesis-timestamp", 0, "Genesis timestamp of the custom test network.")
 }
 
 func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
@@ -377,7 +381,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	}
 
 	// Check for valid network configuration.
-	if err := validateNetworkConfig(conf); err != nil {
+	if err := validateNetworkConfig(conf.Network, conf.testnetConfig); err != nil {
 		return errors.Wrap(err, "get network config")
 	}
 
@@ -1219,19 +1223,19 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 }
 
 // validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
-func validateNetworkConfig(conf clusterConfig) error {
-	if conf.Network != "" {
-		if eth2util.ValidNetwork(conf.Network) {
+func validateNetworkConfig(network string, testnet eth2util.Network) error {
+	if network != "" {
+		if eth2util.ValidNetwork(network) {
 			return nil
 		}
 
-		return errors.New("invalid network specified", z.Str("network", conf.Network))
+		return errors.New("invalid network specified", z.Str("network", network))
 	}
 
 	// Check if custom testnet configuration is provided.
-	if conf.testnetConfig.IsNonZero() {
+	if testnet.IsNonZero() {
 		// Add testnet config to supported networks.
-		eth2util.AddTestNetwork(conf.testnetConfig)
+		eth2util.AddTestNetwork(testnet)
 
 		return nil
 	}
