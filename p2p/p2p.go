@@ -20,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
@@ -48,7 +49,7 @@ const (
 
 // NewNode returns a started libp2p host.
 func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
-	filterPrivateAddrs bool, nodeType NodeType, opts ...libp2p.Option,
+	filterPrivateAddrs bool, nodeType NodeType, swarmOpts []swarm.Option, opts ...libp2p.Option,
 ) (host.Host, error) {
 	setActivationThreshold()
 
@@ -118,6 +119,8 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
 		transport,
+		// Enable libp2p swarm metrics
+		libp2p.SwarmOpts(swarmOpts...),
 	}
 
 	defaultOpts = append(defaultOpts, opts...)
@@ -638,6 +641,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 		PeerName  string
 		Direction string
 		Protocol  string
+		Transport string
 	}
 
 	var (
@@ -682,11 +686,13 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 					}
 					counts[cKey]++
 
+					transport := addrProtocol(conn.RemoteMultiaddr())
 					for _, stream := range conn.GetStreams() {
 						sKey := streamKey{
 							PeerName:  PeerName(conn.RemotePeer()),
 							Direction: stream.Stat().Direction.String(),
 							Protocol:  string(stream.Protocol()),
+							Transport: transport,
 						}
 						streams[sKey]++
 					}
@@ -718,7 +724,7 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 				}
 
 				for sKey, amount := range streams {
-					peerStreamGauge.WithLabelValues(sKey.PeerName, sKey.Direction, sKey.Protocol).Set(float64(amount))
+					peerStreamGauge.WithLabelValues(sKey.PeerName, sKey.Direction, sKey.Protocol, sKey.Transport).Set(float64(amount))
 				}
 			case e := <-events:
 				// Log and instrument events.

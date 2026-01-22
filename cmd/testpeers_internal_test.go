@@ -539,7 +539,7 @@ func startPeer(t *testing.T, ctx context.Context, conf testPeersConfig, peerPriv
 	connGater, err := p2p.NewConnGater([]peer.ID{hostAsPeer.ID}, relays)
 	require.NoError(t, err)
 
-	peerTCPNode, err := p2p.NewNode(ctx, peerConf.P2P, peerPrivKey, connGater, false, p2p.NodeTypeTCP)
+	peerTCPNode, err := p2p.NewNode(ctx, peerConf.P2P, peerPrivKey, connGater, false, p2p.NodeTypeTCP, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
