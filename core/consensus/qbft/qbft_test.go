@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -129,7 +130,8 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		deadliner.On("C").Return(nil)
 
 		// Create a mock beacon client for test
-		bmock, err := beaconmock.New(t.Context())
+		// Use zero genesis time so timer uses relative timing instead of absolute slot-based timing
+		bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
 		require.NoError(t, err)
 
 		c, err := qbft.NewConsensus(t.Context(), bmock, hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer, false)
