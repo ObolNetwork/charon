@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/mock"
@@ -519,7 +520,8 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
-		c.timerFunc = timer.GetRoundTimerFunc()
+		// Use zero values for tests to use default clock.Now() behavior
+		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0)
 
 		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)

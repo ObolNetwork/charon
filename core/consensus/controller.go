@@ -11,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/qbft"
 	"github.com/obolnetwork/charon/p2p"
@@ -37,13 +38,13 @@ type consensusController struct {
 }
 
 // NewConsensusController creates a new consensus controller with the default consensus protocol.
-func NewConsensusController(ctx context.Context, p2pNode host.Host, sender *p2p.Sender,
+func NewConsensusController(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host, sender *p2p.Sender,
 	peers []p2p.Peer, p2pKey *k1.PrivateKey, deadlineFunc core.DeadlineFunc,
 	gaterFunc core.DutyGaterFunc, debugger Debugger, compareAttestations bool,
 ) (core.ConsensusController, error) {
 	qbftDeadliner := core.NewDeadliner(ctx, "consensus.qbft", deadlineFunc)
 
-	defaultConsensus, err := qbft.NewConsensus(p2pNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance, compareAttestations)
+	defaultConsensus, err := qbft.NewConsensus(ctx, eth2Cl, p2pNode, sender, peers, p2pKey, qbftDeadliner, gaterFunc, debugger.AddInstance, compareAttestations)
 	if err != nil {
 		return nil, err
 	}

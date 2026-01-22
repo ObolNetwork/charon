@@ -23,6 +23,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestConsensusController(t *testing.T) {
@@ -61,7 +62,11 @@ func TestConsensusController(t *testing.T) {
 	debugger := csmocks.NewDebugger(t)
 	ctx := context.Background()
 
-	controller, err := consensus.NewConsensusController(ctx, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger, false)
+	// Create a mock beacon client for test
+	bmock, err := beaconmock.New(ctx)
+	require.NoError(t, err)
+
+	controller, err := consensus.NewConsensusController(ctx, bmock, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger, false)
 	require.NoError(t, err)
 	require.NotNil(t, controller)
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
@@ -27,6 +28,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestQBFTConsensus(t *testing.T) {
@@ -126,7 +128,13 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		deadliner := coremocks.NewDeadliner(t)
 		deadliner.On("Add", mock.Anything).Return(true)
 		deadliner.On("C").Return(nil)
-		c, err := qbft.NewConsensus(hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer, false)
+
+		// Create a mock beacon client for test
+		// Use zero genesis time so timer uses relative timing instead of absolute slot-based timing
+		bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
+		require.NoError(t, err)
+
+		c, err := qbft.NewConsensus(t.Context(), bmock, hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer, false)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set
