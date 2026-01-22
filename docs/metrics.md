@@ -67,6 +67,8 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_scheduler_validator_balance_gwei` | Gauge | Total balance of a validator by public key | `pubkey_full, pubkey` |
 | `core_scheduler_validator_status` | Gauge | Gauge with validator pubkey and status as labels, value=1 is current status, value=0 is previous. | `pubkey_full, pubkey, status` |
 | `core_scheduler_validators_active` | Gauge | Number of active validators |  |
+| `core_tracker_attestation_expect_total` | Counter | Total number of expected attestations for the slot (counts individual attestations, not duties) |  |
+| `core_tracker_attestation_success_total` | Counter | Total number of successful attestations for the slot (counts individual attestations, not duties) |  |
 | `core_tracker_expect_duties_total` | Counter | Total number of expected duties (failed + success) by type | `duty` |
 | `core_tracker_failed_duties_total` | Counter | Total number of failed duties by type | `duty` |
 | `core_tracker_failed_duty_reasons_total` | Counter | Total number of failed duties by type and reason code | `duty, reason` |
