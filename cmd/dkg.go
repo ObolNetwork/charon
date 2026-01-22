@@ -50,7 +50,7 @@ this command at the same time.`,
 	bindKeymanagerFlags(cmd.Flags(), &config.KeymanagerAddr, &config.KeymanagerAuthToken)
 	bindDefDirFlag(cmd.Flags(), &config.DefFile)
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
-	bindP2PFlags(cmd, &config.P2P)
+	bindP2PFlags(cmd, &config.P2P, defaultAlphaRelay)
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindPublishFlags(cmd.Flags(), &config)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)

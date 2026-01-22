@@ -284,6 +284,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	nextStepSync, stopSync, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig, conf.Nickname)
 	if err != nil {
+		log.Error(ctx, "Failed to start sync protocol, please make sure you don't have any other charon or dkg processes running", err)
+
 		return err
 	}
 
