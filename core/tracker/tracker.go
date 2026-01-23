@@ -219,22 +219,22 @@ func lastStep(dutyType core.DutyType) step {
 }
 
 // countAttestations returns the number of attestations in the events for an attester duty.
-// For attester duties, it counts the unique pubkeys which represents the number of attestations.
+// For attester duties, it counts the fetcher events which represents the number of attestations.
 // For other duty types, it returns 0.
 func countAttestations(duty core.Duty, events []event) int {
 	if duty.Type != core.DutyAttester {
 		return 0
 	}
 
-	// Count unique pubkeys in fetcher events (which represents the expected attestations)
-	uniquePubkeys := make(map[core.PubKey]bool)
+	// Count fetcher events
+	count := 0
 	for _, e := range events {
 		if e.step == fetcher && e.pubkey != "" {
-			uniquePubkeys[e.pubkey] = true
+			count++
 		}
 	}
 
-	return len(uniquePubkeys)
+	return count
 }
 
 // analyseDutyFailed detects if the given duty failed.

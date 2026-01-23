@@ -1432,7 +1432,6 @@ func TestCountAttestations(t *testing.T) {
 			{duty: duty, step: fetcher, pubkey: pubkey2},
 			{duty: duty, step: fetcher, pubkey: pubkey3},
 			{duty: duty, step: consensus, pubkey: pubkey1}, // Different step, should not affect count
-			{duty: duty, step: fetcher, pubkey: pubkey1},   // Duplicate, should not be counted twice
 		}
 
 		count := countAttestations(duty, events)
