@@ -1123,6 +1123,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
 	dutiesShareKey := []*eth2v1.ProposerDuty{}
+
 	for _, d := range cachedResp {
 		duty := *d
 

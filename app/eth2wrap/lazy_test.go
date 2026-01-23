@@ -124,7 +124,7 @@ func TestLazy_ProposerDutiesCache(t *testing.T) {
 	proposerDuties := make([]*eth2v1.ProposerDuty, 0)
 
 	client := mocks.NewClient(t)
-	client.On("ProposerDutiesCache", ctx, eth2p0.Epoch(0)).Return(proposerDuties, nil).Once()
+	client.On("ProposerDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(proposerDuties, nil).Once()
 
 	l := eth2wrap.NewLazyForT(client)
 
@@ -133,7 +133,7 @@ func TestLazy_ProposerDutiesCache(t *testing.T) {
 	require.Equal(t, proposerDuties, proposerDuties2)
 }
 
-func TestLazy_AttesterDutiesByEpoch(t *testing.T) {
+func TestLazy_AttesterDutiesCache(t *testing.T) {
 	ctx := context.Background()
 	attesterDuties := make([]*eth2v1.AttesterDuty, 0)
 
@@ -147,7 +147,7 @@ func TestLazy_AttesterDutiesByEpoch(t *testing.T) {
 	require.Equal(t, attesterDuties, attesterDuties2)
 }
 
-func TestLazy_SyncDutiesByEpoch(t *testing.T) {
+func TestLazy_SyncDutiesCache(t *testing.T) {
 	ctx := context.Background()
 	syncDuties := make([]*eth2v1.SyncCommitteeDuty, 0)
 

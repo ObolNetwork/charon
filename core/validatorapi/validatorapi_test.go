@@ -1782,6 +1782,16 @@ func TestComponent_Duties(t *testing.T) {
 			}}, nil
 		}
 
+		bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
+
+			return []*eth2v1.ProposerDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
 		// Construct the validator api component
 		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 		require.NoError(t, err)
@@ -1809,6 +1819,16 @@ func TestComponent_Duties(t *testing.T) {
 			}}, nil
 		}
 
+		bmock.CachedAttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
+
+			return []*eth2v1.AttesterDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
 		// Construct the validator api component
 		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000, nil)
 		require.NoError(t, err)
@@ -1827,6 +1847,16 @@ func TestComponent_Duties(t *testing.T) {
 
 	t.Run("sync_committee_duties", func(t *testing.T) {
 		bmock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
+
+			return []*eth2v1.SyncCommitteeDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
+		bmock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))
 			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
 
