@@ -102,4 +102,18 @@ var (
 		Name:      "inclusion_missed_total",
 		Help:      "Total number of broadcast duties never included in any block by type",
 	}, []string{"duty"})
+
+	attestationExpect = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "attestation_expect_total",
+		Help:      "Total number of expected attestations for the slot (counts individual attestations, not duties)",
+	})
+
+	attestationSuccess = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "attestation_success_total",
+		Help:      "Total number of successful attestations for the slot (counts individual attestations, not duties)",
+	})
 )

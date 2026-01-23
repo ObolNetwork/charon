@@ -41,7 +41,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 		consensusErr := errors.New("consensus error")
 
 		count := 0
-		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, reason reason, err error) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, reason reason, err error, _ int) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.True(t, isFailed)
 			require.Equal(t, consensus, step)
@@ -83,7 +83,7 @@ func TestTrackerFailedDuty(t *testing.T) {
 		deleter := testDeadliner{deadlineChan: make(chan core.Duty)}
 
 		count := 0
-		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, reason reason, _ error) {
+		failedDutyReporter := func(_ context.Context, failedDuty core.Duty, isFailed bool, step step, reason reason, _ error, _ int) {
 			require.Equal(t, testData[0].duty, failedDuty)
 			require.False(t, isFailed)
 			require.Equal(t, zero, step)
@@ -494,7 +494,7 @@ func TestTrackerParticipation(t *testing.T) {
 	}
 
 	// Ignore failedDutyReporter part to isolate participation only.
-	tr.failedDutyReporter = func(context.Context, core.Duty, bool, step, reason, error) {}
+	tr.failedDutyReporter = func(context.Context, core.Duty, bool, step, reason, error, int) {}
 
 	go func() {
 		for _, td := range testData {
@@ -1406,5 +1406,56 @@ func TestSubmittedProposals(t *testing.T) {
 			},
 		}, 1*time.Millisecond)
 		require.ErrorContains(t, err, "could not determine if proposal was synthetic or not")
+	})
+}
+
+func TestCountAttestations(t *testing.T) {
+	t.Run("non-attester duty returns 0", func(t *testing.T) {
+		duty := core.NewProposerDuty(123)
+		events := []event{
+			{duty: duty, step: fetcher, pubkey: testutil.RandomCorePubKey(t)},
+			{duty: duty, step: fetcher, pubkey: testutil.RandomCorePubKey(t)},
+		}
+
+		count := countAttestations(duty, events)
+		require.Equal(t, 0, count)
+	})
+
+	t.Run("attester duty with multiple pubkeys", func(t *testing.T) {
+		duty := core.NewAttesterDuty(123)
+		pubkey1 := testutil.RandomCorePubKey(t)
+		pubkey2 := testutil.RandomCorePubKey(t)
+		pubkey3 := testutil.RandomCorePubKey(t)
+
+		events := []event{
+			{duty: duty, step: fetcher, pubkey: pubkey1},
+			{duty: duty, step: fetcher, pubkey: pubkey2},
+			{duty: duty, step: fetcher, pubkey: pubkey3},
+			{duty: duty, step: consensus, pubkey: pubkey1}, // Different step, should not affect count
+		}
+
+		count := countAttestations(duty, events)
+		require.Equal(t, 3, count)
+	})
+
+	t.Run("attester duty with empty events", func(t *testing.T) {
+		duty := core.NewAttesterDuty(123)
+		events := []event{}
+
+		count := countAttestations(duty, events)
+		require.Equal(t, 0, count)
+	})
+
+	t.Run("attester duty with no fetcher events", func(t *testing.T) {
+		duty := core.NewAttesterDuty(123)
+		pubkey1 := testutil.RandomCorePubKey(t)
+
+		events := []event{
+			{duty: duty, step: consensus, pubkey: pubkey1},
+			{duty: duty, step: dutyDB, pubkey: pubkey1},
+		}
+
+		count := countAttestations(duty, events)
+		require.Equal(t, 0, count)
 	})
 }

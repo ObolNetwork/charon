@@ -100,7 +100,7 @@ type Tracker struct {
 	parSigReporter func(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 
 	// failedDutyReporter instruments duty failures.
-	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, step step, reason reason, err error)
+	failedDutyReporter func(ctx context.Context, duty core.Duty, failed bool, step step, reason reason, err error, attestationCount int)
 
 	// participationReporter instruments duty peer participation.
 	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedPeers map[int]int, expectedPerPeer int)
@@ -158,7 +158,9 @@ func (t *Tracker) Run(ctx context.Context) error {
 				continue // Ignore unsupported duties
 			}
 
-			t.failedDutyReporter(ctx, duty, failed, failedStep, reason, failedErr)
+			// Count attestations for attester duties
+			attestationCount := countAttestations(duty, t.events[duty])
+			t.failedDutyReporter(ctx, duty, failed, failedStep, reason, failedErr, attestationCount)
 
 			// Analyse peer participation
 			participatedShares, unexpectedShares, expectedPerPeer := analyseParticipation(duty, t.events)
@@ -214,6 +216,25 @@ func lastStep(dutyType core.DutyType) step {
 	}
 
 	return bcast
+}
+
+// countAttestations returns the number of attestations in the events for an attester duty.
+// For attester duties, it counts the fetcher events which represents the number of attestations.
+// For other duty types, it returns 0.
+func countAttestations(duty core.Duty, events []event) int {
+	if duty.Type != core.DutyAttester {
+		return 0
+	}
+
+	// Count fetcher events
+	count := 0
+	for _, e := range events {
+		if e.step == fetcher && e.pubkey != "" {
+			count++
+		}
+	}
+
+	return count
 }
 
 // analyseDutyFailed detects if the given duty failed.
@@ -466,7 +487,7 @@ func extractParSigs(ctx context.Context, events []event) parsigsByMsg {
 }
 
 // newFailedDutyReporter returns failed duty reporter which instruments failed duties.
-func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason reason, err error) {
+func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bool, step step, reason reason, err error, attestationCount int) {
 	// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
 	for _, dutyType := range core.AllDutyTypes() {
 		dutyFailed.WithLabelValues(dutyType.String()).Add(0)
@@ -474,7 +495,7 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 		dutyExpect.WithLabelValues(dutyType.String()).Add(0)
 	}
 
-	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason reason, err error) {
+	return func(ctx context.Context, duty core.Duty, failed bool, step step, reason reason, err error, attestationCount int) {
 		if !failed {
 			if step == fetcher {
 				// TODO(corver): improve detection of duties that are not expected to be performed (aggregation).
@@ -483,6 +504,12 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 
 			dutyExpect.WithLabelValues(duty.Type.String()).Inc()
 			dutySuccess.WithLabelValues(duty.Type.String()).Inc()
+
+			// For attester duties, also count individual attestations
+			if duty.Type == core.DutyAttester && attestationCount > 0 {
+				attestationExpect.Add(float64(attestationCount))
+				attestationSuccess.Add(float64(attestationCount))
+			}
 
 			return
 		}
@@ -496,6 +523,11 @@ func newFailedDutyReporter() func(ctx context.Context, duty core.Duty, failed bo
 		dutyExpect.WithLabelValues(duty.Type.String()).Inc()
 		dutyFailed.WithLabelValues(duty.Type.String()).Inc()
 		dutyFailedReasons.WithLabelValues(duty.Type.String(), reason.Code).Inc()
+
+		// For attester duties, also count individual attestations as expected (even if failed)
+		if duty.Type == core.DutyAttester && attestationCount > 0 {
+			attestationExpect.Add(float64(attestationCount))
+		}
 	}
 }
 
