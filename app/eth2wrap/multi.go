@@ -182,7 +182,7 @@ func (m multi) SetDutiesCache(
 }
 
 func (m multi) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	const label = "proposer_duties_by_epoch"
+	const label = "proposer_duties_cache"
 	// No latency since this is a cached endpoint.
 
 	defer incRequest(label)
@@ -202,7 +202,7 @@ func (m multi) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 }
 
 func (m multi) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-	const label = "attester_duties_by_epoch"
+	const label = "attester_duties_cache"
 	// No latency since this is a cached endpoint.
 
 	defer incRequest(label)
@@ -222,7 +222,7 @@ func (m multi) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 }
 
 func (m multi) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-	const label = "sync_duties_by_epoch"
+	const label = "sync_comm_duties_cache"
 	// No latency since this is a cached endpoint.
 
 	defer incRequest(label)
