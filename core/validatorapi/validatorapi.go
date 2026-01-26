@@ -1125,6 +1125,9 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	dutiesShareKey := []*eth2v1.ProposerDuty{}
 
 	for _, d := range cachedResp {
+		if d == nil {
+			return nil, errors.New("nil proposer duty from cache")
+		}
 		duty := *d
 
 		pubshare, ok := c.getPubShareFunc(duty.PubKey)
