@@ -14,6 +14,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/featureset"
 )
 
 // dutiesCacheTrimThreshold is the number of epochs after which duties are trimmed from the cache.
@@ -313,6 +314,15 @@ func (c *DutiesCache) InvalidateCache(_ context.Context, epoch eth2p0.Epoch) {
 
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
+		if err != nil {
+			return nil, err
+		}
+
+		return eth2Resp.Data, nil
+	}
+
 	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
 	if ok {
@@ -353,6 +363,15 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 // AttesterDutiesCache returns the cached attester duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: vidxs})
+		if err != nil {
+			return nil, err
+		}
+
+		return eth2Resp.Data, nil
+	}
+
 	duties, ok := c.cachedAttesterDuties(epoch, vidxs)
 
 	if ok {
@@ -381,6 +400,15 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 // SyncCommDutiesCache returns the cached sync duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
+		if err != nil {
+			return nil, err
+		}
+
+		return eth2Resp.Data, nil
+	}
+
 	duties, ok := c.cachedSyncDuties(epoch, vidxs)
 
 	if ok {
