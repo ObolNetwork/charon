@@ -80,7 +80,7 @@ const (
 	// When enabled alone, uses T=1/3+300ms as timeout.
 	FetchAttOnBlockWithDelay = "fetch_att_on_block_with_delay"
 
-	// Safety measure to disable duties cache.
+	// DisableDutiesCache is a safety measure to disable duties cache.
 	DisableDutiesCache = "disable_duties_cache"
 )
 
