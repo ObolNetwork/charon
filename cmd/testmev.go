@@ -270,10 +270,19 @@ func mevPingTest(ctx context.Context, _ *testMEVConfig, target string) testResul
 	client := http.Client{}
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/builder/status", target)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -433,14 +442,25 @@ func getBlockHeader(ctx context.Context, target string, headers map[string]strin
 	}
 	start = time.Now()
 
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/builder/header/%v/%v/%v", target, nextSlot, blockHash, validatorPubKey)
+
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
+	if err != nil {
+		return builderspec.VersionedSignedBuilderBid{}, 0, err
+	}
+
 	req, err := http.NewRequestWithContext(
 		httptrace.WithClientTrace(ctx, trace),
 		http.MethodGet,
-		fmt.Sprintf("%v/eth/v1/builder/header/%v/%v/%v", target, nextSlot, blockHash, validatorPubKey),
+		cleanURL,
 		nil)
 	if err != nil {
 		return builderspec.VersionedSignedBuilderBid{}, 0, errors.Wrap(err, "http request")
 	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	for k, v := range headers {
 		req.Header.Set(k, v)
@@ -666,10 +686,21 @@ type BeaconBlockExecPayload struct {
 }
 
 func latestBeaconBlock(ctx context.Context, endpoint string) (BeaconBlockMessage, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/eth/v2/beacon/blocks/head", endpoint), nil)
+	targetEndpoint := fmt.Sprintf("%v/eth/v2/beacon/blocks/head", endpoint)
+
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
+	if err != nil {
+		return BeaconBlockMessage{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
 	if err != nil {
 		return BeaconBlockMessage{}, errors.Wrap(err, "http request")
 	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
@@ -702,10 +733,21 @@ type ProposerDutiesData struct {
 }
 
 func fetchProposersForEpoch(ctx context.Context, conf *testMEVConfig, epoch int64) ([]ProposerDutiesData, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", conf.BeaconNodeEndpoint, epoch), nil)
+	targetEndpoint := fmt.Sprintf("%v/eth/v1/validator/duties/proposer/%v", conf.BeaconNodeEndpoint, epoch)
+
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "http request")
 	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {

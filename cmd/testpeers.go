@@ -672,10 +672,19 @@ func relayPingTest(ctx context.Context, _ *testPeersConfig, target string) testR
 
 	client := http.Client{}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(target)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := client.Do(req)
 	if err != nil {

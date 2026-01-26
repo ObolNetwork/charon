@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -568,6 +569,35 @@ func sleepWithContext(ctx context.Context, d time.Duration) {
 	}
 }
 
+// parseEndpointURL parses an endpoint URL and extracts basic auth credentials if present.
+// Returns the cleaned URL (without credentials) and the parsed URL with User info.
+func parseEndpointURL(endpoint string) (string, *url.URL, error) {
+	parsedURL, err := url.Parse(endpoint)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "parse endpoint URL")
+	}
+
+	// Create clean URL without user info for display/use
+	cleanURL := endpoint
+	if parsedURL.User != nil {
+		// Reconstruct URL without user info
+		cleanURL = parsedURL.Scheme + "://" + parsedURL.Host + parsedURL.Path
+		if parsedURL.RawQuery != "" {
+			cleanURL += "?" + parsedURL.RawQuery
+		}
+	}
+
+	return cleanURL, parsedURL, nil
+}
+
+// applyBasicAuth applies HTTP basic authentication to a request if credentials are present in the parsed URL.
+func applyBasicAuth(req *http.Request, parsedURL *url.URL) {
+	if parsedURL.User != nil {
+		password, _ := parsedURL.User.Password()
+		req.SetBasicAuth(parsedURL.User.Username(), password)
+	}
+}
+
 func requestRTT(ctx context.Context, url string, method string, body io.Reader, expectedStatus int) (time.Duration, error) {
 	var (
 		start     time.Time
@@ -582,10 +612,19 @@ func requestRTT(ctx context.Context, url string, method string, body io.Reader, 
 
 	start = time.Now()
 
-	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, url, body)
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(url)
+	if err != nil {
+		return 0, err
+	}
+
+	req, err := http.NewRequestWithContext(httptrace.WithClientTrace(ctx, trace), method, cleanURL, body)
 	if err != nil {
 		return 0, errors.Wrap(err, "create new request with trace and context")
 	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
