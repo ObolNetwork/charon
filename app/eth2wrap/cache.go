@@ -16,7 +16,10 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 )
 
-const dutiesCacheTrimThreshold = 6
+// dutiesCacheTrimThreshold is the number of epochs after which duties are trimmed from the cache.
+// Ethereum is usually considered final after all validators signed twice, which is at most 3 epochs minus 1 slot.
+// There is no need to keep duties older than that, as usually the validator client does not request.
+const dutiesCacheTrimThreshold = 3
 
 // ActiveValidators is a map of active validator indices to pubkeys.
 type ActiveValidators map[eth2p0.ValidatorIndex]eth2p0.BLSPubKey
@@ -269,25 +272,27 @@ func (c *DutiesCache) UpdateCacheIndices(_ context.Context, indices []eth2p0.Val
 	c.validatorIndices = indices
 }
 
-// InvalidateCache handles chain reorg, invalidating all cached duties.
+// InvalidateCache handles chain reorg, invalidating cached duties.
+// The epoch parameter indicates at which epoch the reorg led us to.
+// Meaning, we should invalidate all duties prior to that epoch.
 func (c *DutiesCache) InvalidateCache(_ context.Context, epoch eth2p0.Epoch) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for e := range c.proposerDuties {
-		if e >= epoch {
+		if e > epoch {
 			delete(c.proposerDuties, e)
 		}
 	}
 
 	for e := range c.attesterDuties {
-		if e >= epoch {
+		if e > epoch {
 			delete(c.attesterDuties, e)
 		}
 	}
 
 	for e := range c.syncDuties {
-		if e >= epoch {
+		if e > epoch {
 			delete(c.syncDuties, e)
 		}
 	}
