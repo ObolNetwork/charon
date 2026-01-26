@@ -8,7 +8,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -551,10 +553,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		vIdxs := []eth2p0.ValidatorIndex{}
-		for idx := range activeValidators {
-			vIdxs = append(vIdxs, idx)
-		}
+		vIdxs := slices.Collect(maps.Keys(activeValidators))
 
 		dutiesCache.UpdateCacheIndices(ctx, vIdxs)
 
