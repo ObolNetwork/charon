@@ -371,10 +371,19 @@ func beaconPingTest(ctx context.Context, _ *testBeaconConfig, target string) tes
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/health", target)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
@@ -417,10 +426,19 @@ func beaconVersionTest(ctx context.Context, _ *testBeaconConfig, target string) 
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/version", target)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
@@ -508,10 +526,19 @@ func beaconIsSyncedTest(ctx context.Context, _ *testBeaconConfig, target string)
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/syncing", target)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
@@ -558,10 +585,19 @@ func beaconPeerCountTest(ctx context.Context, _ *testBeaconConfig, target string
 
 	targetEndpoint := fmt.Sprintf("%v/eth/v1/node/peers?state=connected", target)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetEndpoint, nil)
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
 	if err != nil {
 		return failedTestResult(testRes, err)
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
+	if err != nil {
+		return failedTestResult(testRes, err)
+	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
@@ -1732,10 +1768,21 @@ func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDura
 // simulation helper functions
 
 func getCurrentSlot(ctx context.Context, target string) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target+"/eth/v1/node/syncing", nil)
+	targetEndpoint := target + "/eth/v1/node/syncing"
+
+	// Parse URL to extract auth credentials
+	cleanURL, parsedURL, err := parseEndpointURL(targetEndpoint)
+	if err != nil {
+		return 0, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cleanURL, nil)
 	if err != nil {
 		return 0, errors.Wrap(err, "create new http request")
 	}
+
+	// Apply basic auth if present
+	applyBasicAuth(req, parsedURL)
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
