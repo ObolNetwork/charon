@@ -21,6 +21,9 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with label set to the node version of the upstream beacon node | `version` |
+| `app_cache_hits_total` | Counter | Total number of times the cache was used | `endpoint` |
+| `app_cache_misses_total` | Counter | Total number of times the cache was missed | `endpoint` |
+| `app_cache_invalidated_reorg_total` | Counter | Total number of times the cache was invalidated due to a chain reorg | `endpoint` |
 | `app_eth2_errors_total` | Counter | Total number of errors returned by eth2 beacon node requests | `endpoint` |
 | `app_eth2_latency_seconds` | Histogram | Latency in seconds for eth2 beacon node requests | `endpoint` |
 | `app_eth2_requests_total` | Counter | Total number of requests sent to eth2 beacon node | `endpoint` |

@@ -104,8 +104,11 @@ func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, Compl
 	activeCached, activeOk := c.activeCached()
 
 	if completeOk && activeOk {
+		usedCacheCount.WithLabelValues("validators").Inc()
 		return activeCached, completeCached, nil
 	}
+
+	missedCacheCount.WithLabelValues("validators").Inc()
 
 	// This code is only ever invoked by scheduler's slot ticking method.
 	// It's fine locking this way.
@@ -149,6 +152,8 @@ func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, Compl
 func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveValidators, CompleteValidators, bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	missedCacheCount.WithLabelValues("validators").Inc()
 
 	refreshedBySlot := true
 
@@ -279,22 +284,30 @@ func (c *DutiesCache) InvalidateCache(_ context.Context, epoch eth2p0.Epoch) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	invalidated := false
 	for e := range c.proposerDuties {
 		if e > epoch {
+			invalidated = true
 			delete(c.proposerDuties, e)
 		}
 	}
 
 	for e := range c.attesterDuties {
 		if e > epoch {
+			invalidated = true
 			delete(c.attesterDuties, e)
 		}
 	}
 
 	for e := range c.syncDuties {
 		if e > epoch {
+			invalidated = true
 			delete(c.syncDuties, e)
 		}
+	}
+
+	if invalidated {
+		invalidatedCacheDueReorgCount.WithLabelValues("validators").Inc()
 	}
 }
 
@@ -303,9 +316,11 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
 	if ok {
+		usedCacheCount.WithLabelValues("validators").Inc()
 		return duties, nil
 	}
 
+	missedCacheCount.WithLabelValues("validators").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -341,9 +356,11 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedAttesterDuties(epoch, vidxs)
 
 	if ok {
+		usedCacheCount.WithLabelValues("validators").Inc()
 		return duties, nil
 	}
 
+	missedCacheCount.WithLabelValues("validators").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -367,9 +384,11 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedSyncDuties(epoch, vidxs)
 
 	if ok {
+		usedCacheCount.WithLabelValues("validators").Inc()
 		return duties, nil
 	}
 
+	missedCacheCount.WithLabelValues("validators").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
