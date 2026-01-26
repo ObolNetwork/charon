@@ -1123,7 +1123,6 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
 	dutiesShareKey := []*eth2v1.ProposerDuty{}
-
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("nil proposer duty from cache")
@@ -1155,8 +1154,9 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		return nil, err
 	}
 
-	duties := []*eth2v1.AttesterDuty{}
 	// Replace root public keys with public shares.
+	// Duties are copied into new slice, as otherwise the cached duties would be modified.
+	dutiesShareKey := []*eth2v1.AttesterDuty{}
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("attester duty cannot be nil")
@@ -1170,10 +1170,10 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		}
 
 		duty.PubKey = pubshare
-		duties = append(duties, &duty)
+		dutiesShareKey = append(dutiesShareKey, &duty)
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponse(dutiesShareKey), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
@@ -1183,9 +1183,9 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 		return nil, err
 	}
 
-	duties := []*eth2v1.SyncCommitteeDuty{}
-
 	// Replace root public keys with public shares.
+	// Duties are copied into new slice, as otherwise the cached duties would be modified.
+	dutiesShareKey := []*eth2v1.SyncCommitteeDuty{}
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("sync committee duty cannot be nil")
@@ -1199,10 +1199,10 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 		}
 
 		duty.PubKey = pubshare
-		duties = append(duties, &duty)
+		dutiesShareKey = append(dutiesShareKey, &duty)
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponse(dutiesShareKey), nil
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {
