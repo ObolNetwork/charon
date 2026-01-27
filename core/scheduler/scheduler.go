@@ -181,6 +181,7 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAd
 		Slot: uint64(slot),
 		Type: core.DutyAttester,
 	}
+
 	defSet, ok := s.getDutyDefinitionSet(duty)
 	if !ok {
 		// Nothing for this duty
@@ -317,6 +318,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				if !s.waitForBlockEventOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
+
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
 			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc) {
 				return // context cancelled
@@ -376,11 +378,13 @@ func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Sl
 		log.Warn(ctx, "Slot offset not found for attester duty, proceeding immediately", nil, z.U64("slot", slot.Slot))
 		return true
 	}
+
 	offset := fn(slot.SlotDuration)
 	// Add 300ms delay only if FetchAttOnBlockWithDelay is enabled
 	if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
 		offset += 300 * time.Millisecond
 	}
+
 	fallbackDeadline := slot.Time.Add(offset)
 
 	select {
@@ -397,6 +401,7 @@ func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Sl
 					z.U64("slot", slot.Slot))
 			}
 		}
+
 		return true
 	}
 }
@@ -443,17 +448,12 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 
 // resolveAttDuties resolves attester duties for the given validators.
 func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	opts := &eth2api.AttesterDutiesOpts{
-		Epoch:   eth2p0.Epoch(slot.Epoch()),
-		Indices: vals.Indexes(),
-	}
-
-	eth2Resp, err := s.eth2Cl.AttesterDuties(ctx, opts)
+	eth2Resp, err := s.eth2Cl.AttesterDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 	if err != nil {
 		return err
 	}
 
-	attDuties := eth2Resp.Data
+	attDuties := eth2Resp
 
 	// Check if any of the attester duties returned are nil.
 	for _, duty := range attDuties {
@@ -524,17 +524,12 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 // resolveProDuties resolves proposer duties for the given validators.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	opts := &eth2api.ProposerDutiesOpts{
-		Epoch:   eth2p0.Epoch(slot.Epoch()),
-		Indices: vals.Indexes(),
-	}
-
-	eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, opts)
+	eth2Resp, err := s.eth2Cl.ProposerDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 	if err != nil {
 		return err
 	}
 
-	proDuties := eth2Resp.Data
+	proDuties := eth2Resp
 
 	// Check if any of the proposer duties returned are nil.
 	for _, duty := range proDuties {
@@ -578,17 +573,12 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 // resolveSyncCommDuties resolves sync committee duties for the validators in the given slot's epoch, caching the results.
 func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	opts := &eth2api.SyncCommitteeDutiesOpts{
-		Epoch:   eth2p0.Epoch(slot.Epoch()),
-		Indices: vals.Indexes(),
-	}
-
-	eth2Resp, err := s.eth2Cl.SyncCommitteeDuties(ctx, opts)
+	eth2Resp, err := s.eth2Cl.SyncCommDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 	if err != nil {
 		return err
 	}
 
-	duties := eth2Resp.Data
+	duties := eth2Resp
 
 	// Check if any of the sync committee duties returned are nil.
 	for _, duty := range duties {
@@ -767,6 +757,7 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 // trimEventTriggeredAttestations removes old slot entries from eventTriggeredAttestations.
 func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
 	ctx := context.Background()
+
 	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
 	if err != nil {
 		log.Warn(ctx, "Failed to fetch slots config for trimming event triggered attestations", err, z.U64("epoch", epoch))
@@ -774,14 +765,17 @@ func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
 	}
 
 	minSlotToKeep := (epoch + 1) * slotsPerEpoch // first slot of next epoch
+
 	s.eventTriggeredAttestations.Range(func(key, _ any) bool {
 		slot, ok := key.(uint64)
 		if !ok {
 			return true // continue iteration
 		}
+
 		if slot < minSlotToKeep {
 			s.eventTriggeredAttestations.Delete(slot)
 		}
+
 		return true // continue iteration
 	})
 }

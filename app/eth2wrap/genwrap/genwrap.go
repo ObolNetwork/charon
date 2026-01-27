@@ -51,8 +51,13 @@ type Client interface {
 
     CachedValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
+		CachedDutiesProvider
+		SetDutiesCache(func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error), func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error), func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error))
 
-	SetForkVersion(forkVersion [4]byte)
+		SetForkVersion(forkVersion [4]byte)
+
+		Address() string
+		Headers() map[string]string
 
     {{range .Providers}} eth2client.{{.}}
     {{end -}}

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"testing"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -97,4 +99,75 @@ func TestLazy_ClientForAddress(t *testing.T) {
 
 	result := l.ClientForAddress("http://test:5051")
 	require.NotNil(t, result)
+}
+
+func TestLazy_SetDutiesCache(t *testing.T) {
+	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		return nil, nil
+	}
+	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+		return nil, nil
+	}
+	syncDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+		return nil, nil
+	}
+
+	client := mocks.NewClient(t)
+	client.On("SetDutiesCache", mock.Anything, mock.Anything, mock.Anything).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+	l.SetDutiesCache(proposerDutiesCache, attesterDutiesCache, syncDutiesCache)
+}
+
+func TestLazy_ProposerDutiesCache(t *testing.T) {
+	ctx := context.Background()
+	proposerDuties := make([]*eth2v1.ProposerDuty, 0)
+
+	client := mocks.NewClient(t)
+	client.On("ProposerDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(proposerDuties, nil).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	proposerDuties2, err := l.ProposerDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
+	require.NoError(t, err)
+	require.Equal(t, proposerDuties, proposerDuties2)
+}
+
+func TestLazy_AttesterDutiesCache(t *testing.T) {
+	ctx := context.Background()
+	attesterDuties := make([]*eth2v1.AttesterDuty, 0)
+
+	client := mocks.NewClient(t)
+	client.On("AttesterDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(attesterDuties, nil).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	attesterDuties2, err := l.AttesterDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
+	require.NoError(t, err)
+	require.Equal(t, attesterDuties, attesterDuties2)
+}
+
+func TestLazy_SyncDutiesCache(t *testing.T) {
+	ctx := context.Background()
+	syncDuties := make([]*eth2v1.SyncCommitteeDuty, 0)
+
+	client := mocks.NewClient(t)
+	client.On("SyncCommDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(syncDuties, nil).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	syncDuties2, err := l.SyncCommDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
+	require.NoError(t, err)
+	require.Equal(t, syncDuties, syncDuties2)
+}
+
+func TestLazy_UpdateCacheIndices(t *testing.T) {
+	ctx := context.Background()
+
+	client := mocks.NewClient(t)
+	client.On("UpdateCacheIndices", ctx, []eth2p0.ValidatorIndex{}).Return().Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	l.UpdateCacheIndices(ctx, []eth2p0.ValidatorIndex{})
 }

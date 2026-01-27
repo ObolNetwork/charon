@@ -672,6 +672,7 @@ func TestFetchOnly(t *testing.T) {
 
 		// FetchOnly should not trigger subscribers
 		subscriberCalled := false
+
 		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 			subscriberCalled = true
 			return nil
@@ -730,6 +731,7 @@ func TestFetchOnly(t *testing.T) {
 		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 			require.Equal(t, duty, resDuty)
 			require.Len(t, resDataSet, 2)
+
 			return nil
 		})
 
