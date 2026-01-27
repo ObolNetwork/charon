@@ -34,7 +34,7 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 			return Service{}, errors.New("private key file does not exist, please check the path", z.Str("path", privKeyFilePath))
 		}
 
-		return Service{}, errors.Wrap(err, "stat private key file", z.Str("path", privKeyFilePath))
+		return Service{}, errors.Wrap(err, "fetch file info for private key file", z.Str("path", privKeyFilePath))
 	}
 
 	if info.IsDir() {
@@ -47,7 +47,7 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 	parentDir := filepath.Dir(privKeyFileLockPath)
 	if info, err := os.Stat(parentDir); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return Service{}, errors.New("parent directory does not exist", z.Str("dir", parentDir), z.Str("lock_path", privKeyFileLockPath))
+			return Service{}, errors.New("parent directory, fetched from private key lock file path, does not exist", z.Str("parent_directory", parentDir), z.Str("lock_path", privKeyFileLockPath))
 		}
 
 		return Service{}, errors.Wrap(err, "check parent directory", z.Str("dir", parentDir))
