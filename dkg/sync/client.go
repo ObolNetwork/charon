@@ -84,7 +84,7 @@ func (c *Client) Run(ctx context.Context) error {
 
 		stream, err := c.connect(ctx)
 		if err != nil {
-			return errors.Wrap(err, "client connect", z.Str("peer", p2p.PeerName(c.peer)))
+			return errors.Wrap(err, "client failed to connect, allow time before reconnecting", z.Str("peer", p2p.PeerName(c.peer)))
 		}
 
 		c.setConnected()

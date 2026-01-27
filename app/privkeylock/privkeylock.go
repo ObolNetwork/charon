@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -26,28 +27,56 @@ var (
 
 // New returns new private key locking service. It errors if a recently-updated private key lock file exists.
 func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) {
+	// Sanity check: private key file exists
+	info, err := os.Stat(privKeyFilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Service{}, errors.New("private key file does not exist, please check the path", z.Str("path", privKeyFilePath))
+		}
+
+		return Service{}, errors.Wrap(err, "fetch file info for private key file", z.Str("path", privKeyFilePath))
+	}
+
+	if info.IsDir() {
+		return Service{}, errors.New("private key file path is a directory, please check the path", z.Str("path", privKeyFilePath))
+	}
+
+	privKeyFileLockPath := privKeyFilePath + ".lock"
+
+	// Sanity check: we can write to the directory
+	parentDir := filepath.Dir(privKeyFileLockPath)
+	if info, err := os.Stat(parentDir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return Service{}, errors.New("parent directory, fetched from private key lock file path, does not exist", z.Str("parent_directory", parentDir), z.Str("lock_path", privKeyFileLockPath))
+		}
+
+		return Service{}, errors.Wrap(err, "check parent directory", z.Str("dir", parentDir))
+	} else if !info.IsDir() {
+		return Service{}, errors.New("parent path is not a directory", z.Str("path", parentDir))
+	} else if info.Mode().Perm()&0o200 == 0 {
+		return Service{}, errors.New("parent directory is not writable", z.Str("dir", parentDir))
+	}
+
 	clusterLockHash, err := readClusterLockHash(clusterLockFilePath)
 	if err != nil {
 		return Service{}, err
 	}
 
-	privKeyFilePath += ".lock"
-
-	content, err := os.ReadFile(privKeyFilePath)
+	content, err := os.ReadFile(privKeyFileLockPath)
 	if errors.Is(err, os.ErrNotExist) { //nolint:revive // Empty block is fine.
 		// No file, we will create it in run
 	} else if err != nil {
-		return Service{}, errors.Wrap(err, "read private key lock file", z.Str("path", privKeyFilePath))
+		return Service{}, errors.Wrap(err, "read private key lock file", z.Str("path", privKeyFileLockPath))
 	} else {
 		var meta metadata
 		if err := json.Unmarshal(content, &meta); err != nil {
-			return Service{}, errors.Wrap(err, "decode private key lock file", z.Str("path", privKeyFilePath))
+			return Service{}, errors.Wrap(err, "decode private key lock file", z.Str("path", privKeyFileLockPath))
 		}
 
 		if time.Since(meta.Timestamp) <= staleDuration {
 			return Service{}, errors.New(
 				"existing private key lock file found, another charon instance may be running on your machine",
-				z.Str("path", privKeyFilePath),
+				z.Str("path", privKeyFileLockPath),
 				z.Str("command", meta.Command),
 				z.Str("cluster_lock_hash", meta.ClusterLockHash),
 			)
@@ -61,7 +90,7 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 
 				return Service{}, errors.New(
 					errText,
-					z.Str("path", privKeyFilePath),
+					z.Str("path", privKeyFileLockPath),
 					z.Str("command", meta.Command),
 					z.Str("existing_cluster_lock_hash", meta.ClusterLockHash),
 					z.Str("current_cluster_lock_hash", clusterLockHash),
@@ -71,14 +100,14 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 		}
 	}
 
-	if err := writeFile(privKeyFilePath, clusterLockHash, command, time.Now()); err != nil {
+	if err := writePrivateKeyLockFile(privKeyFileLockPath, clusterLockHash, command, time.Now()); err != nil {
 		return Service{}, err
 	}
 
 	return Service{
 		clusterLockHash: clusterLockHash,
+		lockFilePath:    privKeyFileLockPath,
 		command:         command,
-		path:            privKeyFilePath,
 		updatePeriod:    updatePeriod,
 		quit:            make(chan struct{}),
 		done:            make(chan struct{}),
@@ -88,8 +117,8 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 // Service is a private key locking service.
 type Service struct {
 	clusterLockHash string
+	lockFilePath    string
 	command         string
-	path            string
 	updatePeriod    time.Duration
 	quit            chan struct{} // Quit exits the Run goroutine if closed.
 	done            chan struct{} // Done is closed when Run exits, which exits the Close goroutine.
@@ -105,14 +134,14 @@ func (s Service) Run() error {
 	for {
 		select {
 		case <-s.quit:
-			if err := os.Remove(s.path); err != nil {
+			if err := os.Remove(s.lockFilePath); err != nil {
 				return errors.Wrap(err, "delete private key lock file")
 			}
 
 			return nil
 		case <-tick.C:
 			// Overwrite lockfile with new metadata
-			if err := writeFile(s.path, s.clusterLockHash, s.command, time.Now()); err != nil {
+			if err := writePrivateKeyLockFile(s.lockFilePath, s.clusterLockHash, s.command, time.Now()); err != nil {
 				return err
 			}
 		}
@@ -133,8 +162,8 @@ type metadata struct {
 	ClusterLockHash string    `json:"cluster_lock_hash,omitempty"`
 }
 
-// writeFile creates or updates the file with the latest metadata.
-func writeFile(path, clusterLockHash, command string, now time.Time) error {
+// writePrivateKeyLockFile creates or updates the lock file with the latest metadata.
+func writePrivateKeyLockFile(path, clusterLockHash, command string, now time.Time) error {
 	b, err := json.Marshal(metadata{Command: command, Timestamp: now, ClusterLockHash: clusterLockHash})
 	if err != nil {
 		return errors.Wrap(err, "marshal private key lock file")
@@ -142,6 +171,13 @@ func writeFile(path, clusterLockHash, command string, now time.Time) error {
 
 	//nolint:gosec // Readable and writable for all users is fine for this file.
 	if err := os.WriteFile(path, b, 0o666); err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return errors.New(
+				"permission denied while writing lock file, please check file permissions",
+				z.Str("path", path),
+			)
+		}
+
 		return errors.Wrap(err, "write private key lock file", z.Str("path", path))
 	}
 
