@@ -205,6 +205,13 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 				z.Any("pubkey", pubkey),
 				z.Bool("blinded", block.Blinded),
 			)
+		} else {
+			log.Error(ctx, "Failed to submit block proposal to beacon node",
+				err,
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
+				z.Any("pubkey", pubkey),
+				z.Bool("blinded", block.Blinded),
+			)
 		}
 
 		return err
