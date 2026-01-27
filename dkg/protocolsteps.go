@@ -194,6 +194,14 @@ func (s *writeArtifactsProtocolStep) Run(ctx context.Context, pctx *ProtocolCont
 
 	log.Info(ctx, "Stored artifacts", z.Str("output_dir", s.outputDir))
 
+	if pctx.Config.Publish {
+		if _, err := writeLockToAPI(ctx, pctx.Config.PublishAddr, *pctx.Lock, pctx.Config.PublishTimeout); err != nil {
+			return errors.Wrap(err, "publish lock to API")
+		}
+
+		log.Info(ctx, "The new cluster lock has been published to Obol API")
+	}
+
 	return nil
 }
 

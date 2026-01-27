@@ -47,6 +47,7 @@ func newRecreatePrivateKeysCmd(runFunc func(context.Context, dkg.ReshareConfig) 
 	bindLogFlags(cmd.Flags(), &config.DKGConfig.Log)
 	bindEth1Flag(cmd.Flags(), &config.DKGConfig.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &config.DKGConfig.ShutdownDelay)
+	bindPublishFlags(cmd.Flags(), &config.DKGConfig)
 
 	return cmd
 }

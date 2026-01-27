@@ -4,7 +4,11 @@ package dkg
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"io"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -216,12 +220,34 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 
 	shares := valKeysToSharesNode0(t, valKeys, lock.Validators)
 
+	var receivedLock cluster.Lock
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/lock", r.URL.Path)
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		err = json.Unmarshal(body, &receivedLock)
+		require.NoError(t, err)
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockServer.Close()
+
 	pctx := &ProtocolContext{
 		Lock:           &lock,
 		PrivateKeyPath: p2p.KeyPath(dataDir),
 		ENRPrivateKey:  nodeKeys[0],
 		Shares:         shares,
 		ThisNodeIdx:    cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1},
+		Config: Config{
+			PublishAddr:    mockServer.URL,
+			PublishTimeout: 30 * time.Second,
+			Publish:        true,
+		},
 	}
 	err = step.Run(t.Context(), pctx)
 
@@ -230,6 +256,9 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	require.DirExists(t, filepath.Join(step.outputDir, validatorKeysSubDir))
 	require.FileExists(t, p2p.KeyPath(step.outputDir))
 	require.FileExists(t, p2p.KeyPath(step.outputDir)+".lock")
+
+	require.NotZero(t, receivedLock.LockHash, "Expected lock to be published to mock server")
+	require.Equal(t, lock.LockHash, receivedLock.LockHash)
 
 	enrPrivKey, err := os.ReadFile(p2p.KeyPath(step.outputDir))
 	require.NoError(t, err)
