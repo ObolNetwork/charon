@@ -713,28 +713,28 @@ func (_m *Client) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*
 }
 
 // NodeIdentity provides a mock function with given fields: ctx
-func (_m *Client) NodeIdentity(ctx context.Context) (*eth2wrap.NodeIdentity, error) {
-	ret := _m.Called(ctx)
+func (_m *Client) NodeIdentity(ctx context.Context, opts *api.NodeIdentityOpts) (*api.Response[*v1.NodeIdentity], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for NodeIdentity")
 	}
 
-	var r0 *eth2wrap.NodeIdentity
+	var r0 *api.Response[*v1.NodeIdentity]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (*eth2wrap.NodeIdentity, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeIdentityOpts) (*api.Response[*v1.NodeIdentity], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) *eth2wrap.NodeIdentity); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeIdentityOpts) *api.Response[*v1.NodeIdentity]); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*eth2wrap.NodeIdentity)
+			r0 = ret.Get(0).(*api.Response[*v1.NodeIdentity])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.NodeIdentityOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}

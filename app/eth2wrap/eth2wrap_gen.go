@@ -38,8 +38,6 @@ type Client interface {
 	// Address returns the address of the beacon node.
 	Address() string
 	Headers() map[string]string
-	// NodeIdentity returns the identity of the beacon node.
-	NodeIdentity(ctx context.Context) (*NodeIdentity, error)
 
 	eth2client.AggregateAttestationProvider
 	eth2client.AggregateAttestationsSubmitter
@@ -57,6 +55,7 @@ type Client interface {
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
+	eth2client.NodeIdentityProvider
 	eth2client.NodePeerCountProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
