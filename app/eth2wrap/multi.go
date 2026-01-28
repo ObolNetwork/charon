@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -292,26 +291,6 @@ func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, er
 		},
 		nil, nil,
 	)
-
-	return res0, err
-}
-
-// NodeIdentity returns the identity of the beacon node.
-func (m multi) NodeIdentity(ctx context.Context, opts *eth2api.NodeIdentityOpts) (*eth2api.Response[*eth2v1.NodeIdentity], error) {
-	const label = "node_identity"
-	defer incRequest(label)
-
-	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (*eth2api.Response[*eth2v1.NodeIdentity], error) {
-			return args.client.NodeIdentity(ctx, opts)
-		},
-		nil, m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
 
 	return res0, err
 }

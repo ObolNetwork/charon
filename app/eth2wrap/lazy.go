@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
@@ -242,13 +241,4 @@ func (l *lazy) UpdateCacheIndices(ctx context.Context, idxs []eth2p0.ValidatorIn
 	}
 
 	cl.UpdateCacheIndices(ctx, idxs)
-}
-
-func (l *lazy) NodeIdentity(ctx context.Context, opts *eth2api.NodeIdentityOpts) (*eth2api.Response[*eth2v1.NodeIdentity], error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cl.NodeIdentity(ctx, opts)
 }
