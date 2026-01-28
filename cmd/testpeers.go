@@ -86,7 +86,7 @@ func newTestPeersCmd(runFunc func(context.Context, io.Writer, testPeersConfig) (
 
 	bindTestFlags(cmd, &config.testConfig)
 	bindTestPeersFlags(cmd, &config, "")
-	bindP2PFlags(cmd, &config.P2P, defaultAlphaRelay)
+	bindP2PFlags(cmd, &config.P2P, defaultDKGRelays...)
 	bindTestLogFlags(cmd.Flags(), &config.Log)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {

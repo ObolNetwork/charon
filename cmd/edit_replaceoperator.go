@@ -51,7 +51,7 @@ func newReplaceOperatorCmd(runFunc func(context.Context, dkg.ReplaceOperatorConf
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
-	bindP2PFlags(cmd, &dkgConfig.P2P, defaultAlphaRelay)
+	bindP2PFlags(cmd, &dkgConfig.P2P, defaultDKGRelays...)
 	bindLogFlags(cmd.Flags(), &dkgConfig.Log)
 	bindEth1Flag(cmd.Flags(), &dkgConfig.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &dkgConfig.ShutdownDelay)

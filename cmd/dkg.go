@@ -15,6 +15,8 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 )
 
+var defaultDKGRelays = []string{"https://4.relay.obol.dev"}
+
 func newDKGCmd(runFunc func(context.Context, dkg.Config) error) *cobra.Command {
 	var config dkg.Config
 
@@ -50,7 +52,7 @@ this command at the same time.`,
 	bindKeymanagerFlags(cmd.Flags(), &config.KeymanagerAddr, &config.KeymanagerAuthToken)
 	bindDefDirFlag(cmd.Flags(), &config.DefFile)
 	bindNoVerifyFlag(cmd.Flags(), &config.NoVerify)
-	bindP2PFlags(cmd, &config.P2P)
+	bindP2PFlags(cmd, &config.P2P, defaultDKGRelays...)
 	bindLogFlags(cmd.Flags(), &config.Log)
 	bindPublishFlags(cmd.Flags(), &config)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)

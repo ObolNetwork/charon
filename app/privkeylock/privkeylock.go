@@ -64,7 +64,7 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 
 	content, err := os.ReadFile(privKeyFileLockPath)
 	if errors.Is(err, os.ErrNotExist) { //nolint:revive // Empty block is fine.
-		// No file, we will create it in run
+		// No file, we will create it in Run
 	} else if err != nil {
 		return Service{}, errors.Wrap(err, "read private key lock file", z.Str("path", privKeyFileLockPath))
 	} else {
@@ -75,7 +75,7 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 
 		if time.Since(meta.Timestamp) <= staleDuration {
 			return Service{}, errors.New(
-				"existing private key lock file found, another charon instance may be running on your machine",
+				"private key lock file is recently updated, another charon instance may be running on your machine",
 				z.Str("path", privKeyFileLockPath),
 				z.Str("command", meta.Command),
 				z.Str("cluster_lock_hash", meta.ClusterLockHash),
@@ -100,7 +100,7 @@ func New(privKeyFilePath, clusterLockFilePath, command string) (Service, error) 
 		}
 	}
 
-	if err := writePrivateKeyLockFile(privKeyFileLockPath, clusterLockHash, command, time.Now()); err != nil {
+	if err := overwritePrivateKeyLockFile(privKeyFileLockPath, clusterLockHash, command, time.Now()); err != nil {
 		return Service{}, err
 	}
 
@@ -124,7 +124,8 @@ type Service struct {
 	done            chan struct{} // Done is closed when Run exits, which exits the Close goroutine.
 }
 
-// Run runs the service, updating the lock file every second and deleting it on context cancellation.
+// Run runs the service, periodically updating the lock file.
+// It does NOT delete the lock file on exit; callers are responsible for any cleanup.
 func (s Service) Run() error {
 	defer close(s.done)
 
@@ -134,14 +135,9 @@ func (s Service) Run() error {
 	for {
 		select {
 		case <-s.quit:
-			if err := os.Remove(s.lockFilePath); err != nil {
-				return errors.Wrap(err, "delete private key lock file")
-			}
-
 			return nil
 		case <-tick.C:
-			// Overwrite lockfile with new metadata
-			if err := writePrivateKeyLockFile(s.lockFilePath, s.clusterLockHash, s.command, time.Now()); err != nil {
+			if err := overwritePrivateKeyLockFile(s.lockFilePath, s.clusterLockHash, s.command, time.Now()); err != nil {
 				return err
 			}
 		}
@@ -162,8 +158,8 @@ type metadata struct {
 	ClusterLockHash string    `json:"cluster_lock_hash,omitempty"`
 }
 
-// writePrivateKeyLockFile creates or updates the lock file with the latest metadata.
-func writePrivateKeyLockFile(path, clusterLockHash, command string, now time.Time) error {
+// overwritePrivateKeyLockFile creates or updates the lock file with the latest metadata.
+func overwritePrivateKeyLockFile(path, clusterLockHash, command string, now time.Time) error {
 	b, err := json.Marshal(metadata{Command: command, Timestamp: now, ClusterLockHash: clusterLockHash})
 	if err != nil {
 		return errors.Wrap(err, "marshal private key lock file")

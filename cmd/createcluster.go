@@ -443,7 +443,7 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 			return errors.Wrap(err, "absolute path retrieval")
 		}
 
-		if _, err := os.Stat(filepath.Join(absPath, "cluster-lock.json")); err == nil {
+		if _, err := os.Stat(filepath.Join(absPath, clusterLockFile)); err == nil {
 			return errors.New("existing node directory found, please delete it before running this command", z.Str("node_path", absPath))
 		}
 	}

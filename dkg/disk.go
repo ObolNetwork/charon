@@ -153,7 +153,7 @@ func writeLock(datadir string, lock cluster.Lock) error {
 	}
 
 	//nolint:gosec // File needs to be read-only for everybody
-	err = os.WriteFile(path.Join(datadir, "cluster-lock.json"), b, 0o444) // Read-only
+	err = os.WriteFile(path.Join(datadir, clusterLockFile), b, 0o444) // Read-only
 	if err != nil {
 		return errors.Wrap(err, "write lock")
 	}
@@ -179,12 +179,12 @@ func checkClearDataDir(dataDir string) error {
 	}
 
 	disallowedEntities := map[string]struct{}{
-		"validator_keys":    {},
-		"cluster-lock.json": {},
+		validatorKeysSubDir: {},
+		clusterLockFile:     {},
 	}
 
 	necessaryEntities := map[string]bool{
-		"charon-enr-private-key": false,
+		enrPrivateKeyFile: false,
 	}
 
 	for _, entity := range dirContent {
