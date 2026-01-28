@@ -7,13 +7,9 @@ import (
 	"sync"
 	"time"
 
-<<<<<<< HEAD
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-=======
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
->>>>>>> 3130cbf8 (use node identity from go-eth2-client)
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
 //go:generate mockery --name=Client --output=mocks --outpkg=mocks --case=underscore
