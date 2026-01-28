@@ -5,6 +5,9 @@ package eth2wrap
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"testing"
@@ -20,6 +23,11 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
+
+// NodeIdentity represents the identity of a beacon node.
+type NodeIdentity struct {
+	PeerID string `json:"peer_id"`
+}
 
 // NewHTTPAdapterForT returns a http adapter for testing non-eth2service methods as it is nil.
 func NewHTTPAdapterForT(_ *testing.T, address string, headers map[string]string, timeout time.Duration) Client {
@@ -197,4 +205,52 @@ func (h *httpAdapter) ClientForAddress(_ string) Client {
 
 func (h *httpAdapter) Headers() map[string]string {
 	return h.headers
+}
+
+// NodeIdentity fetches the node identity from the beacon node.
+func (h *httpAdapter) NodeIdentity(ctx context.Context) (*NodeIdentity, error) {
+	url := fmt.Sprintf("%s/eth/v1/node/identity", h.address)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "create request")
+	}
+
+	// Add custom headers
+	for k, v := range h.headers {
+		req.Header.Set(k, v)
+	}
+
+	client := &http.Client{
+		Timeout: h.timeout,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch node identity")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.New("node identity request failed",
+			z.Int("status_code", resp.StatusCode),
+			z.Str("body", string(body)),
+		)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "read response")
+	}
+
+	var result struct {
+		Data NodeIdentity `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, errors.Wrap(err, "unmarshal node identity")
+	}
+
+	return &result.Data, nil
 }

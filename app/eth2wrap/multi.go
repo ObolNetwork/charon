@@ -294,3 +294,23 @@ func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, er
 
 	return res0, err
 }
+
+// NodeIdentity returns the identity of the beacon node.
+func (m multi) NodeIdentity(ctx context.Context) (*NodeIdentity, error) {
+	const label = "node_identity"
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*NodeIdentity, error) {
+			return args.client.NodeIdentity(ctx)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}

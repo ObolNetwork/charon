@@ -508,6 +508,13 @@ func (m Mock) ClientForAddress(_ string) eth2wrap.Client {
 	return m
 }
 
+// NodeIdentity returns a mock node identity.
+func (m Mock) NodeIdentity(_ context.Context) (*eth2wrap.NodeIdentity, error) {
+	return &eth2wrap.NodeIdentity{
+		PeerID: "16Uiu2HAm1234567890abcdefghijklmnopqrstuvwxyz",
+	}, nil
+}
+
 func (m Mock) Close() error {
 	m.headProducer.Close()
 

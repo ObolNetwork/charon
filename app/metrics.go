@@ -89,6 +89,13 @@ var (
 		Help:      "Constant gauge with label set to the node version of the upstream beacon node",
 	}, []string{"version"})
 
+	beaconNodePeerIDGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "beacon_node",
+		Name:      "peer_id",
+		Help:      "Constant gauge with label set to the peer_id of the upstream beacon node",
+	}, []string{"peer_id"})
+
 	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "cluster",
 		Name:      "threshold",

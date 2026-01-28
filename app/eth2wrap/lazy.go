@@ -242,3 +242,12 @@ func (l *lazy) UpdateCacheIndices(ctx context.Context, idxs []eth2p0.ValidatorIn
 
 	cl.UpdateCacheIndices(ctx, idxs)
 }
+
+func (l *lazy) NodeIdentity(ctx context.Context) (*NodeIdentity, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.NodeIdentity(ctx)
+}
