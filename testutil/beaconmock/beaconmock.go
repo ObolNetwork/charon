@@ -509,7 +509,7 @@ func (m Mock) ClientForAddress(_ string) eth2wrap.Client {
 }
 
 // NodeIdentity returns a mock node identity.
-func (m Mock) NodeIdentity(_ context.Context, _ *eth2api.NodeIdentityOpts) (*eth2api.Response[*eth2v1.NodeIdentity], error) {
+func (_ Mock) NodeIdentity(_ context.Context, _ *eth2api.NodeIdentityOpts) (*eth2api.Response[*eth2v1.NodeIdentity], error) {
 	return &eth2api.Response[*eth2v1.NodeIdentity]{
 		Data: &eth2v1.NodeIdentity{
 			PeerID: "16Uiu2HAm1234567890abcdefghijklmnopqrstuvwxyz",
