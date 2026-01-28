@@ -18,10 +18,6 @@ import (
 	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
-const (
-	defaultAlphaRelay = "https://4.relay.obol.dev"
-)
-
 func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dkg.Config) error) *cobra.Command {
 	var (
 		config    dkg.AddOperatorsConfig
@@ -52,7 +48,7 @@ func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dk
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
-	bindP2PFlags(cmd, &dkgConfig.P2P, defaultAlphaRelay)
+	bindP2PFlags(cmd, &dkgConfig.P2P, defaultDKGRelays...)
 	bindLogFlags(cmd.Flags(), &dkgConfig.Log)
 	bindEth1Flag(cmd.Flags(), &dkgConfig.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &dkgConfig.ShutdownDelay)

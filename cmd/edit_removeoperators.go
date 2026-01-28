@@ -50,7 +50,7 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 	cmd.Flags().StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony. Required if --operator-enrs-to-remove specifies more operators to remove than the fault tolerance of the current cluster.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
-	bindP2PFlags(cmd, &dkgConfig.P2P, defaultAlphaRelay)
+	bindP2PFlags(cmd, &dkgConfig.P2P, defaultDKGRelays...)
 	bindLogFlags(cmd.Flags(), &dkgConfig.Log)
 	bindEth1Flag(cmd.Flags(), &dkgConfig.ExecutionEngineAddr)
 	bindShutdownDelayFlag(cmd.Flags(), &dkgConfig.ShutdownDelay)

@@ -25,7 +25,7 @@ func TestService(t *testing.T) {
 	writePrivateKeyFile(t, privKeyPath)
 
 	// Create a stale file that is ignored.
-	err := writePrivateKeyLockFile(lockPath, "hash123", "test", time.Now().Add(-staleDuration))
+	err := overwritePrivateKeyLockFile(lockPath, "hash123", "test", time.Now().Add(-staleDuration))
 	require.NoError(t, err)
 
 	// Create a new service.
@@ -38,7 +38,7 @@ func TestService(t *testing.T) {
 
 	// Assert a new service can't be created.
 	_, err = New(privKeyPath, lockFilePath, "test")
-	require.ErrorContains(t, err, "existing private key lock file found")
+	require.ErrorContains(t, err, "private key lock file is recently updated")
 
 	// Delete the file so Run will create it again.
 	require.NoError(t, os.Remove(lockPath))
@@ -55,9 +55,9 @@ func TestService(t *testing.T) {
 
 	require.NoError(t, eg.Wait())
 
-	// Assert the file is deleted.
+	// Assert the file is not deleted.
 	_, openErr := os.Open(lockPath)
-	require.ErrorIs(t, openErr, os.ErrNotExist)
+	require.NoError(t, openErr)
 }
 
 func TestClusterHashMismatchWithinGracePeriod(t *testing.T) {
@@ -71,7 +71,7 @@ func TestClusterHashMismatchWithinGracePeriod(t *testing.T) {
 	writePrivateKeyFile(t, privKeyPath)
 
 	// Create a stale but within grace period lock file with hash1.
-	err := writePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-staleDuration-time.Second))
+	err := overwritePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-staleDuration-time.Second))
 	require.NoError(t, err)
 
 	// Update cluster lock file to hash2.
@@ -95,7 +95,7 @@ func TestClusterHashMismatchAfterGracePeriod(t *testing.T) {
 	writePrivateKeyFile(t, privKeyPath)
 
 	// Create an old lock file with hash1 (beyond grace period).
-	err := writePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-gracePeriod-time.Second))
+	err := overwritePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-gracePeriod-time.Second))
 	require.NoError(t, err)
 
 	// Update cluster lock file to hash2.
@@ -127,7 +127,7 @@ func TestClusterHashMatchWithinGracePeriod(t *testing.T) {
 	writePrivateKeyFile(t, privKeyPath)
 
 	// Create a recent lock file with hash1 (within stale duration).
-	err := writePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-time.Second))
+	err := overwritePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-time.Second))
 	require.NoError(t, err)
 
 	// Try to create service with same hash - should fail due to staleness check.
@@ -136,7 +136,7 @@ func TestClusterHashMatchWithinGracePeriod(t *testing.T) {
 	require.ErrorContains(t, err, "another charon instance may be running")
 
 	// Now create a stale lock file with same hash (beyond stale duration but within grace period).
-	err = writePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-staleDuration-time.Second))
+	err = overwritePrivateKeyLockFile(lockPath, "hash1", "test", time.Now().Add(-staleDuration-time.Second))
 	require.NoError(t, err)
 
 	// Should succeed since hash matches and file is stale.
@@ -211,7 +211,7 @@ func TestEmptyHashToHashMigration(t *testing.T) {
 	writePrivateKeyFile(t, privKeyPath)
 
 	// Create a stale lock file with empty cluster hash (migration scenario).
-	err := writePrivateKeyLockFile(lockPath, "", "test", time.Now().Add(-staleDuration*2))
+	err := overwritePrivateKeyLockFile(lockPath, "", "test", time.Now().Add(-staleDuration*2))
 	require.NoError(t, err)
 
 	// Should succeed - empty hash shouldn't trigger grace period.

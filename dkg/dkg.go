@@ -114,23 +114,18 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	ctx = log.WithTopic(ctx, "dkg")
 
-	{
-		// Setup private key locking.
-		lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir), path.Join(conf.DataDir, "cluster-lock.json"), "charon dkg")
-		if err != nil {
-			return err
-		}
-
-		// Start it async
-		go func() {
-			if err := lockSvc.Run(); err != nil {
-				log.Error(ctx, "Failed to acquire lock on private key file. Another process may be using it or file permissions may be incorrect", err)
-			}
-		}()
-
-		// Stop it on exit.
-		defer lockSvc.Close()
+	// Setup private key locking and starting async
+	lockSvc, err := privkeylock.New(p2p.KeyPath(conf.DataDir), path.Join(conf.DataDir, clusterLockFile), "charon dkg")
+	if err != nil {
+		return err
 	}
+	defer lockSvc.Close() // safe to defer Close here, because lockSvc.Run() will be called eventually
+
+	go func() {
+		if err := lockSvc.Run(); err != nil {
+			log.Error(ctx, "Failed to update the private key lock file, another process may be using the file or file permissions may be incorrect.", err)
+		}
+	}()
 
 	version.LogInfo(ctx, "Charon DKG starting")
 

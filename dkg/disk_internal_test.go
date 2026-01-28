@@ -189,7 +189,7 @@ func TestCheckClearDataDir(t *testing.T) {
 
 				require.NoError(t,
 					os.WriteFile(
-						filepath.Join(rootDir, dataDir, "cluster-lock.json"),
+						filepath.Join(rootDir, dataDir, clusterLockFile),
 						[]byte{1, 2, 3},
 						0o755,
 					),
