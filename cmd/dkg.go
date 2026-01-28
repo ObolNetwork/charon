@@ -15,9 +15,7 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 )
 
-var (
-	defaultDKGRelays = []string{"https://4.relay.obol.dev"}
-)
+var defaultDKGRelays = []string{"https://4.relay.obol.dev"}
 
 func newDKGCmd(runFunc func(context.Context, dkg.Config) error) *cobra.Command {
 	var config dkg.Config
