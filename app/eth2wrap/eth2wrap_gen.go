@@ -35,7 +35,6 @@ type Client interface {
 	SetForkVersion(forkVersion [4]byte)
 
 	ClientForAddress(addr string) Client
-	// Address returns the address of the beacon node.
 	Address() string
 	Headers() map[string]string
 
@@ -55,6 +54,7 @@ type Client interface {
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
+	eth2client.NodeIdentityProvider
 	eth2client.NodePeerCountProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
@@ -655,6 +655,28 @@ func (m multi) Genesis(ctx context.Context, opts *api.GenesisOpts) (*api.Respons
 	return res0, err
 }
 
+// NodeIdentity provides the identity information of the node.
+// Note this endpoint is cached in go-eth2-client.
+func (m multi) NodeIdentity(ctx context.Context, opts *api.NodeIdentityOpts) (*api.Response[*apiv1.NodeIdentity], error) {
+	const label = "node_identity"
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.NodeIdentity], error) {
+			return args.client.NodeIdentity(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // NodePeerCount provides the peer count of the node.
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (*api.Response[*apiv1.PeerCount], error) {
@@ -1147,6 +1169,16 @@ func (l *lazy) Genesis(ctx context.Context, opts *api.GenesisOpts) (res0 *api.Re
 	}
 
 	return cl.Genesis(ctx, opts)
+}
+
+// NodeIdentity provides the identity information of the node.
+func (l *lazy) NodeIdentity(ctx context.Context, opts *api.NodeIdentityOpts) (res0 *api.Response[*apiv1.NodeIdentity], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.NodeIdentity(ctx, opts)
 }
 
 // NodePeerCount provides the peer count of the node.

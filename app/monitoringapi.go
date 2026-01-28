@@ -286,6 +286,19 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 		eth2wrap.CheckBeaconNodeVersion(ctx, version)
 	}
 
+	setNodePeerID := func() {
+		response, err := eth2Cl.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
+		if err != nil {
+			log.Error(ctx, "Failed to fetch beacon node identity. Check beacon node connectivity and API availability", err)
+			return
+		}
+
+		peerID := response.Data.PeerID
+
+		beaconNodePeerIDGauge.Reset()
+		beaconNodePeerIDGauge.WithLabelValues(peerID).Set(1)
+	}
+
 	go func() {
 		onStartup := make(chan struct{}, 1)
 		onStartup <- struct{}{}
@@ -294,8 +307,10 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 			select {
 			case <-onStartup:
 				setNodeVersion()
+				setNodePeerID()
 			case <-nodeVersionTicker.Chan():
 				setNodeVersion()
+				setNodePeerID()
 			case <-ctx.Done():
 				return
 			}

@@ -56,6 +56,7 @@ type Client interface {
 
 		SetForkVersion(forkVersion [4]byte)
 
+		ClientForAddress(addr string) Client
 		Address() string
 		Headers() map[string]string
 
@@ -124,6 +125,7 @@ type Client interface {
 		"ForkProvider":                          {Latency: true, Log: false},
 		"ForkScheduleProvider":                  {Latency: true, Log: false},
 		"GenesisProvider":                       {Latency: false, Log: false},
+		"NodeIdentityProvider":                  {Latency: false, Log: false},
 		"NodePeerCountProvider":                 {Latency: false, Log: false},
 		"NodeSyncingProvider":                   {Latency: true, Log: false},
 		"NodeVersionProvider":                   {Latency: false, Log: false},
