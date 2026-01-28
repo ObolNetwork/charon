@@ -21,7 +21,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
-	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
@@ -34,12 +33,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-var setActivationThreshold = sync.OnceFunc(func() {
-	// Use own observed addresses as soon as a single relay reports it.
-	// Since there are probably no other directly connected peers to do so.
-	identify.ActivationThresh = 1
-})
-
 type NodeType int
 
 const (
@@ -51,8 +44,6 @@ const (
 func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater ConnGater,
 	filterPrivateAddrs bool, nodeType NodeType, swarmOpts []swarm.Option, opts ...libp2p.Option,
 ) (host.Host, error) {
-	setActivationThreshold()
-
 	var libP2POpts []any // libp2p.Transport requires empty interface options.
 	if cfg.DisableReuseport {
 		libP2POpts = append(libP2POpts, tcp.DisableReuseport())
