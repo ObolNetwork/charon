@@ -194,10 +194,10 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 
 	publicShares := make(map[int]tbls.PublicKey)
 
-	for i, oi := range oldShareIndices {
+	for _, oi := range oldShareIndices {
 		var pk tbls.PublicKey
 		copy(pk[:], oldShareRevMap[oi])
-		publicShares[i+1] = pk
+		publicShares[oi] = pk
 	}
 
 	return share.Share{
