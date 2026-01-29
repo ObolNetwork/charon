@@ -23,6 +23,7 @@ import (
 	"github.com/obolnetwork/charon/app/health"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 )
@@ -45,12 +46,12 @@ var (
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, debugAddr string,
-	p2pNode host.Host, eth2Cl eth2wrap.Client,
+	p2pNode host.Host, eth2Cl eth2wrap.Client, beaconNodeAddrs []string,
 	peerIDs []peer.ID, registry *prometheus.Registry, consensusDebugger http.Handler,
 	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
 	numValidators int,
 ) {
-	beaconNodeVersionMetric(ctx, eth2Cl, clockwork.NewRealClock())
+	beaconNodeVersionMetric(ctx, eth2Cl, beaconNodeAddrs, clockwork.NewRealClock())
 
 	mux := http.NewServeMux()
 
@@ -268,35 +269,37 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 }
 
 // beaconNodeVersionMetric sets the beacon node version gauge.
-func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.Clock) {
-	nodeVersionTicker := clock.NewTicker(10 * time.Minute)
+func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, clk clockwork.Clock) {
+	nodeVersionTicker := clk.NewTicker(10 * time.Minute)
 
-	setNodeVersion := func() {
-		eth2Resp, err := eth2Cl.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
-		if err != nil {
-			log.Error(ctx, "Failed to fetch beacon node version. Check beacon node connectivity and API availability", err)
-			return
-		}
-
-		version := eth2Resp.Data
-
+	setNodeVersionAndID := func() {
 		beaconNodeVersionGauge.Reset()
-		beaconNodeVersionGauge.WithLabelValues(version).Set(1)
 
-		eth2wrap.CheckBeaconNodeVersion(ctx, version)
-	}
+		// Query each beacon node individually
+		for _, addr := range beaconNodeAddrs {
+			// Get a client scoped to this specific beacon node
+			scopedClient := eth2Cl.ClientForAddress(addr)
 
-	setNodePeerID := func() {
-		response, err := eth2Cl.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
-		if err != nil {
-			log.Error(ctx, "Failed to fetch beacon node identity. Check beacon node connectivity and API availability", err)
-			return
+			versionResp, err := scopedClient.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
+			if err != nil {
+				log.Warn(ctx, "Failed to fetch beacon node version", err,
+					z.Str("beacon_node_address", addr))
+				continue
+			}
+
+			response, err := scopedClient.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
+			if err != nil {
+				log.Warn(ctx, "Failed to fetch beacon node identity", err,
+					z.Str("beacon_node_address", addr))
+				continue
+			}
+
+			version := versionResp.Data
+			beaconID := response.Data.PeerID
+			beaconNodeVersionGauge.WithLabelValues(version, beaconID).Set(1)
+
+			eth2wrap.CheckBeaconNodeVersion(ctx, version)
 		}
-
-		peerID := response.Data.PeerID
-
-		beaconNodePeerIDGauge.Reset()
-		beaconNodePeerIDGauge.WithLabelValues(peerID).Set(1)
 	}
 
 	go func() {
@@ -306,11 +309,9 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, clock 
 		for {
 			select {
 			case <-onStartup:
-				setNodeVersion()
-				setNodePeerID()
+				setNodeVersionAndID()
 			case <-nodeVersionTicker.Chan():
-				setNodeVersion()
-				setNodePeerID()
+				setNodeVersionAndID()
 			case <-ctx.Done():
 				return
 			}
