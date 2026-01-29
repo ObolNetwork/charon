@@ -331,11 +331,11 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
 	if ok {
-		usedCacheCount.WithLabelValues("validators").Inc()
+		usedCacheCount.WithLabelValues("proposer_duties").Inc()
 		return duties, nil
 	}
 
-	missedCacheCount.WithLabelValues("validators").Inc()
+	missedCacheCount.WithLabelValues("proposer_duties").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -380,11 +380,11 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedAttesterDuties(epoch, vidxs)
 
 	if ok {
-		usedCacheCount.WithLabelValues("validators").Inc()
+		usedCacheCount.WithLabelValues("attester_duties").Inc()
 		return duties, nil
 	}
 
-	missedCacheCount.WithLabelValues("validators").Inc()
+	missedCacheCount.WithLabelValues("attester_duties").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -417,11 +417,11 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedSyncDuties(epoch, vidxs)
 
 	if ok {
-		usedCacheCount.WithLabelValues("validators").Inc()
+		usedCacheCount.WithLabelValues("sync_committee_duties").Inc()
 		return duties, nil
 	}
 
-	missedCacheCount.WithLabelValues("validators").Inc()
+	missedCacheCount.WithLabelValues("sync_committee_duties").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
