@@ -905,13 +905,14 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 
 	var forkVersion string
-	if conf.Network != "" {
+	if conf.testnetConfig.IsNonZero() {
+		// Custom testnet config takes precedence (already registered in validateCreateConfig via validateNetworkConfig).
+		forkVersion = conf.testnetConfig.GenesisForkVersionHex
+	} else if conf.Network != "" {
 		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
 		if err != nil {
 			return cluster.Definition{}, err
 		}
-	} else if conf.testnetConfig.GenesisForkVersionHex != "" {
-		forkVersion = conf.testnetConfig.GenesisForkVersionHex
 	} else {
 		return cluster.Definition{}, errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
