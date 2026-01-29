@@ -1225,20 +1225,20 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 
 // validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
 func validateNetworkConfig(network string, testnet eth2util.Network) error {
+	// Check if custom testnet configuration is provided first (takes precedence over default network).
+	if testnet.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(testnet)
+
+		return nil
+	}
+
 	if network != "" {
 		if eth2util.ValidNetwork(network) {
 			return nil
 		}
 
 		return errors.New("invalid network specified", z.Str("network", network))
-	}
-
-	// Check if custom testnet configuration is provided.
-	if testnet.IsNonZero() {
-		// Add testnet config to supported networks.
-		eth2util.AddTestNetwork(testnet)
-
-		return nil
 	}
 
 	return errors.New("missing --network flag or testnet config flags")
