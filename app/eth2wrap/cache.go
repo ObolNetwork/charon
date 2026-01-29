@@ -15,6 +15,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // dutiesCacheTrimThreshold is the number of epochs after which duties are trimmed from the cache.
@@ -281,7 +283,7 @@ func (c *DutiesCache) UpdateCacheIndices(_ context.Context, indices []eth2p0.Val
 // InvalidateCache handles chain reorg, invalidating cached duties.
 // The epoch parameter indicates at which epoch the reorg led us to.
 // Meaning, we should invalidate all duties prior to that epoch.
-func (c *DutiesCache) InvalidateCache(_ context.Context, epoch eth2p0.Epoch) {
+func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -308,7 +310,10 @@ func (c *DutiesCache) InvalidateCache(_ context.Context, epoch eth2p0.Epoch) {
 	}
 
 	if invalidated {
+		log.Debug(ctx, "Reorg occurred through epoch transition, invalidating duties cache", z.U64("reorged_back_to_epoch", uint64(epoch)))
 		invalidatedCacheDueReorgCount.WithLabelValues("validators").Inc()
+	} else {
+		log.Debug(ctx, "Reorg occurred, but it was not through epoch transition, duties cache is not invalidated", z.U64("reorged_epoch", uint64(epoch)))
 	}
 }
 
@@ -326,11 +331,11 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
 	if ok {
-		usedCacheCount.WithLabelValues("validators").Inc()
+		usedCacheCount.WithLabelValues("proposer_duties").Inc()
 		return duties, nil
 	}
 
-	missedCacheCount.WithLabelValues("validators").Inc()
+	missedCacheCount.WithLabelValues("proposer_duties").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -375,11 +380,11 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedAttesterDuties(epoch, vidxs)
 
 	if ok {
-		usedCacheCount.WithLabelValues("validators").Inc()
+		usedCacheCount.WithLabelValues("attester_duties").Inc()
 		return duties, nil
 	}
 
-	missedCacheCount.WithLabelValues("validators").Inc()
+	missedCacheCount.WithLabelValues("attester_duties").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -412,11 +417,11 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, ok := c.cachedSyncDuties(epoch, vidxs)
 
 	if ok {
-		usedCacheCount.WithLabelValues("validators").Inc()
+		usedCacheCount.WithLabelValues("sync_committee_duties").Inc()
 		return duties, nil
 	}
 
-	missedCacheCount.WithLabelValues("validators").Inc()
+	missedCacheCount.WithLabelValues("sync_committee_duties").Inc()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
