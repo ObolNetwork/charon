@@ -542,35 +542,37 @@ func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) { //n
 	}
 
 	data := []byte("test data")
-	allSigs := make([][]tbls.Signature, numVals)
-	clusterPubKeys := make([][]tbls.PublicKey, numVals)
+	allSigs := make([]map[int]tbls.Signature, numVals)
+	validatorPubKeys := make([]tbls.PublicKey, numVals)
 
 	for valIdx := range numVals {
-		sigs := make([]tbls.Signature, numNodes)
+		sigsByIdx := make(map[int]tbls.Signature)
 
 		for nodeIdx := range numNodes {
 			sig, err := tbls.Sign(clusterSecrets[nodeIdx][valIdx], data)
 			require.NoError(t, err)
 
-			sigs[nodeIdx] = sig
+			// Use 1-based share indices as production does
+			sigsByIdx[nodeIdx+1] = sig
 		}
 
-		allSigs[valIdx] = sigs
-		clusterPubKeys[valIdx] = make([]tbls.PublicKey, numNodes)
+		allSigs[valIdx] = sigsByIdx
 
-		for nodeIdx := range numNodes {
-			pubKey, err := tbls.SecretToPublicKey(clusterSecrets[nodeIdx][valIdx])
-			require.NoError(t, err)
+		// Get the validator's full public key for verification
+		lockFilePath := path.Join(nodeDirs[0], clusterLockFile)
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
+		require.NoError(t, err)
 
-			clusterPubKeys[valIdx][nodeIdx] = pubKey
-		}
+		validatorPubKeys[valIdx] = tbls.PublicKey(lock.Validators[valIdx].PubKey)
 	}
 
 	for valIdx := range numVals {
-		aSig, err := tbls.Aggregate(allSigs[valIdx])
+		// Use ThresholdAggregate (Lagrange interpolation) instead of simple Aggregate
+		// to ensure share indices are correct - this is what production uses.
+		aSig, err := tbls.ThresholdAggregate(allSigs[valIdx])
 		require.NoError(t, err)
 
-		err = tbls.VerifyAggregate(clusterPubKeys[valIdx], aSig, data)
+		err = tbls.Verify(validatorPubKeys[valIdx], data, aSig)
 		require.NoError(t, err)
 	}
 }

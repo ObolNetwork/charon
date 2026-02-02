@@ -159,6 +159,16 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		}
 	}
 
+	// For remove-only operations, reassign compact indices to newNodes.
+	// This ensures new shares are evaluated at x=1,2,3,...,n (compact) rather than
+	// the original gapped indices. The oldNodes keep their original indices for
+	// correct Lagrange interpolation of contributed shares.
+	if len(config.Reshare.RemovedPeers) > 0 && len(config.Reshare.AddedPeers) == 0 {
+		for i := range newNodes {
+			newNodes[i].Index = kdkg.Index(i)
+		}
+	}
+
 	// Validate old/new node counts against the reshare operation being performed.
 	if err := validateReshareNodeCounts(len(oldNodes), len(newNodes), config.Threshold, config.Reshare); err != nil {
 		return nil, err
