@@ -76,16 +76,21 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 	lock, p2pkeys, _ := cluster.NewForT(t, 1, threshold, nodes, seed, random)
 
 	var (
-		peers       []p2p.Peer
-		hosts       []host.Host
-		hostsInfo   []peer.AddrInfo
-		components  []*qbft.Consensus
-		results     = make(chan core.UnsignedDataSet, threshold)
-		runErrs     = make(chan error, threshold)
-		sniffed     = make(chan int, threshold)
-		ctx, cancel = context.WithCancel(context.Background())
+		peers        []p2p.Peer
+		hosts        []host.Host
+		hostsInfo    []peer.AddrInfo
+		components   []*qbft.Consensus
+		results      = make(chan core.UnsignedDataSet, threshold)
+		runErrs      = make(chan error, threshold)
+		sniffed      = make(chan int, threshold)
+		deadlineChan = make(chan core.Duty)
+		ctx, cancel  = context.WithCancel(context.Background())
 	)
 	defer cancel()
+
+	// Add a test timeout to fail fast instead of waiting for CI's 10-minute timeout
+	testCtx, testCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer testCancel()
 
 	// Create hosts and enrs (only for threshold).
 	for i := range threshold {
@@ -127,7 +132,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 
 		deadliner := coremocks.NewDeadliner(t)
 		deadliner.On("Add", mock.Anything).Return(true)
-		deadliner.On("C").Return(nil)
+		deadliner.On("C").Return((<-chan core.Duty)(deadlineChan))
 
 		// Create a mock beacon client for test
 		// Use zero genesis time so timer uses relative timing instead of absolute slot-based timing
@@ -165,6 +170,8 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 
 	for {
 		select {
+		case <-testCtx.Done():
+			t.Fatal("test timed out waiting for consensus")
 		case err := <-runErrs:
 			testutil.RequireNoError(t, err)
 		case res := <-results:

@@ -1123,10 +1123,12 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
 	dutiesShareKey := []*eth2v1.ProposerDuty{}
+
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("nil proposer duty from cache")
 		}
+
 		duty := *d
 
 		pubshare, ok := c.getPubShareFunc(duty.PubKey)
@@ -1158,6 +1160,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
 	dutiesShareKey := []*eth2v1.AttesterDuty{}
+
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("attester duty cannot be nil")
@@ -1187,6 +1190,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
 	dutiesShareKey := []*eth2v1.SyncCommitteeDuty{}
+
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("sync committee duty cannot be nil")

@@ -228,6 +228,7 @@ func countAttestations(duty core.Duty, events []event) int {
 
 	// Count fetcher events
 	count := 0
+
 	for _, e := range events {
 		if e.step == fetcher && e.pubkey != "" {
 			count++
