@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -173,6 +174,26 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return nil, errors.New("existing node in add operation must have shares to contribute")
 	}
 
+	oldThreshold := config.Threshold
+	if oldThreshold == 0 {
+		oldThreshold = cluster.Threshold(len(oldNodes))
+	}
+
+	newThreshold := config.Reshare.NewThreshold
+	if newThreshold == 0 {
+		newThreshold = cluster.Threshold(len(newNodes))
+	}
+
+	// Validate old threshold against current cluster size
+	if err := validateThreshold(len(oldNodes), oldThreshold); err != nil {
+		return nil, errors.Wrap(err, "invalid old threshold")
+	}
+
+	// Validate new threshold against resulting cluster size
+	if err := validateThreshold(len(newNodes), newThreshold); err != nil {
+		return nil, errors.Wrap(err, "invalid new threshold")
+	}
+
 	nonce, err := generateNonce(nodes)
 	if err != nil {
 		return nil, err
@@ -184,8 +205,8 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		Suite:        config.Suite,
 		NewNodes:     newNodes,
 		OldNodes:     oldNodes,
-		Threshold:    config.Reshare.NewThreshold,
-		OldThreshold: config.Threshold,
+		Threshold:    newThreshold,
+		OldThreshold: oldThreshold,
 		FastSync:     true,
 		Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
 		Log:          newLogger(log.WithTopic(ctx, "pedersen")),
@@ -193,7 +214,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 
 	log.Info(ctx, "Starting pedersen reshare...",
 		z.Int("oldNodes", len(oldNodes)), z.Int("newNodes", len(newNodes)),
-		z.Int("oldThreshold", config.Threshold), z.Int("newThreshold", config.Reshare.NewThreshold),
+		z.Int("oldThreshold", oldThreshold), z.Int("newThreshold", newThreshold),
 		z.Bool("thisIsOldNode", thisIsOldNode), z.Bool("thisIsRemovedNode", thisIsRemovedNode))
 
 	newShares := make([]share.Share, 0, config.Reshare.TotalShares)

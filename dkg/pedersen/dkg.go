@@ -13,6 +13,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -51,6 +53,15 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 		return int(a.Index) - int(b.Index)
 	})
 
+	threshold := config.Threshold
+	if threshold == 0 {
+		threshold = cluster.Threshold(len(nodes))
+	}
+
+	if err := validateThreshold(len(nodes), threshold); err != nil {
+		return nil, err
+	}
+
 	nonce, err := generateNonce(nodes)
 	if err != nil {
 		return nil, err
@@ -61,7 +72,7 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 		Nonce:     nonce,
 		Suite:     config.Suite,
 		NewNodes:  nodes,
-		Threshold: config.Threshold,
+		Threshold: threshold,
 		FastSync:  true,
 		Auth:      drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
 		Log:       newLogger(log.WithTopic(ctx, "pedersen")),
@@ -207,4 +218,27 @@ func readBoardChannel[T any](ctx context.Context, ch <-chan T, count int) ([]T, 
 	}
 
 	return pubKeys, nil
+}
+
+// validateThreshold verifies that the threshold meets Byzantine fault tolerance requirements.
+// It ensures the threshold is at least cluster.Threshold(nodeCount) and at most nodeCount.
+// Note: This function expects a non-zero threshold. Callers should normalize zero to the default before calling.
+func validateThreshold(nodeCount, threshold int) error {
+	minThreshold := cluster.Threshold(nodeCount)
+	if threshold < minThreshold {
+		return errors.New("threshold below minimum Byzantine fault tolerance requirement",
+			z.Int("threshold", threshold),
+			z.Int("minimum", minThreshold),
+			z.Int("nodes", nodeCount),
+		)
+	}
+
+	if threshold > nodeCount {
+		return errors.New("threshold exceeds node count",
+			z.Int("threshold", threshold),
+			z.Int("nodes", nodeCount),
+		)
+	}
+
+	return nil
 }

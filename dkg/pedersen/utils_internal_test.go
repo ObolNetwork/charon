@@ -86,3 +86,77 @@ func TestKeyShareToBLS(t *testing.T) {
 		require.Equal(t, pubKeyBytes, pubKey[:])
 	})
 }
+
+func TestValidateThreshold(t *testing.T) {
+	tests := []struct {
+		name      string
+		nodeCount int
+		threshold int
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name:      "valid threshold at BFT minimum (3 nodes)",
+			nodeCount: 3,
+			threshold: 2, // ceil(2*3/3) = 2
+			wantErr:   false,
+		},
+		{
+			name:      "valid threshold at BFT minimum (4 nodes)",
+			nodeCount: 4,
+			threshold: 3, // ceil(2*4/3) = 3
+			wantErr:   false,
+		},
+		{
+			name:      "valid threshold at maximum (equals node count)",
+			nodeCount: 5,
+			threshold: 5,
+			wantErr:   false,
+		},
+		{
+			name:      "valid threshold between minimum and maximum",
+			nodeCount: 7,
+			threshold: 6, // minimum is 5, max is 7
+			wantErr:   false,
+		},
+		{
+			name:      "invalid threshold below BFT minimum",
+			nodeCount: 4,
+			threshold: 2, // minimum is 3
+			wantErr:   true,
+			errMsg:    "threshold below minimum Byzantine fault tolerance requirement",
+		},
+		{
+			name:      "invalid threshold exceeds node count",
+			nodeCount: 3,
+			threshold: 4,
+			wantErr:   true,
+			errMsg:    "threshold exceeds node count",
+		},
+		{
+			name:      "invalid threshold zero (should be normalized before validation)",
+			nodeCount: 4,
+			threshold: 0,
+			wantErr:   true,
+			errMsg:    "threshold below minimum Byzantine fault tolerance requirement",
+		},
+		{
+			name:      "edge case single node (threshold must be 1)",
+			nodeCount: 1,
+			threshold: 1,
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateThreshold(tt.nodeCount, tt.threshold)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
