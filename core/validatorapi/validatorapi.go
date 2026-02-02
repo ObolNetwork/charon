@@ -950,6 +950,10 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 			return err
 		}
 
+		log.Debug(ctx, "Sync committee message received from validator client",
+			z.U64("slot", uint64(msg.Slot)),
+			z.Any("beacon_block_root", msg.BeaconBlockRoot))
+
 		_, ok = psigsBySlot[slot]
 		if !ok {
 			psigsBySlot[slot] = make(core.ParSignedDataSet)
