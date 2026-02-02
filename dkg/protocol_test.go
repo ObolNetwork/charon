@@ -147,6 +147,66 @@ func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
 	verifyClusterValidators(t, numValidators, outputNodeDirs)
 }
 
+func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
+	const (
+		numValidators = 3
+		numNodes      = 4
+		threshold     = 3
+	)
+
+	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
+	dstClusterDir := t.TempDir()
+
+	lockFilePath := path.Join(nodeDir(srcClusterDir, 0), clusterLockFile)
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
+	require.NoError(t, err)
+
+	// Attempt to remove all nodes from the original cluster
+	oldENRs := []string{
+		lock.Operators[0].ENR,
+		lock.Operators[1].ENR,
+		lock.Operators[2].ENR,
+		lock.Operators[3].ENR,
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	errorOccurred := false
+
+	runProtocol(t, numNodes, func(relayAddr string, n int) error {
+		dkgConfig := createDKGConfig(t, relayAddr)
+		ndir := nodeDir(srcClusterDir, n)
+		removeConfig := dkg.RemoveOperatorsConfig{
+			LockFilePath:     path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:   p2p.KeyPath(ndir),
+			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
+			OutputDir:        nodeDir(dstClusterDir, n),
+			RemovingENRs:     oldENRs,
+			ParticipatingENRs: []string{
+				lock.Operators[0].ENR,
+				lock.Operators[1].ENR,
+				lock.Operators[2].ENR,
+				lock.Operators[3].ENR,
+			},
+		}
+
+		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
+		if err != nil {
+			errorOccurred = true
+
+			require.ErrorContains(t, err, "remove operation would remove all nodes from original cluster")
+			cancel()
+
+			return nil
+		}
+
+		return err
+	})
+
+	require.True(t, errorOccurred, "Expected error when attempting to remove all nodes from original cluster")
+}
+
 func TestRunAddOperatorsProtocol(t *testing.T) {
 	const (
 		numValidators = 3

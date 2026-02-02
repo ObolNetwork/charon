@@ -174,6 +174,28 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return nil, errors.New("existing node in add operation must have shares to contribute")
 	}
 
+	// Validate that at least one old node remains after removal operation
+	if len(config.Reshare.RemovedPeers) > 0 {
+		oldNodesRemaining := 0
+
+		for _, oldNode := range oldNodes {
+			// Check if this old node is in the new cluster
+			for _, newNode := range newNodes {
+				if oldNode.Index == newNode.Index {
+					oldNodesRemaining++
+					break
+				}
+			}
+		}
+
+		if oldNodesRemaining == 0 {
+			return nil, errors.New("remove operation would remove all nodes from original cluster, at least one original node must remain",
+				z.Int("old_nodes", len(oldNodes)),
+				z.Int("removed_peers", len(config.Reshare.RemovedPeers)),
+			)
+		}
+	}
+
 	oldThreshold := config.Threshold
 	if oldThreshold == 0 {
 		oldThreshold = cluster.Threshold(len(oldNodes))
