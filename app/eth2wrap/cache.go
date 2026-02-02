@@ -288,9 +288,11 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	defer c.mu.Unlock()
 
 	invalidated := false
+
 	for e := range c.proposerDuties {
 		if e > epoch {
 			invalidated = true
+
 			delete(c.proposerDuties, e)
 		}
 	}
@@ -298,6 +300,7 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	for e := range c.attesterDuties {
 		if e > epoch {
 			invalidated = true
+
 			delete(c.attesterDuties, e)
 		}
 	}
@@ -305,6 +308,7 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	for e := range c.syncDuties {
 		if e > epoch {
 			invalidated = true
+
 			delete(c.syncDuties, e)
 		}
 	}
@@ -336,6 +340,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 
 	missedCacheCount.WithLabelValues("proposer_duties").Inc()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -385,6 +390,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 
 	missedCacheCount.WithLabelValues("attester_duties").Inc()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -422,6 +428,7 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 
 	missedCacheCount.WithLabelValues("sync_committee_duties").Inc()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -467,10 +474,12 @@ func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	}
 
 	dutiesFiltered := []*eth2v1.ProposerDuty{}
+
 	for _, d := range duties {
 		if !slices.Contains(vidxs, d.ValidatorIndex) {
 			continue
 		}
+
 		dutiesFiltered = append(dutiesFiltered, d)
 	}
 
@@ -492,10 +501,12 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	}
 
 	dutiesFiltered := []*eth2v1.AttesterDuty{}
+
 	for _, d := range duties {
 		if !slices.Contains(vidxs, d.ValidatorIndex) {
 			continue
 		}
+
 		dutiesFiltered = append(dutiesFiltered, d)
 	}
 
@@ -517,10 +528,12 @@ func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Valida
 	}
 
 	dutiesFiltered := []*eth2v1.SyncCommitteeDuty{}
+
 	for _, d := range duties {
 		if !slices.Contains(vidxs, d.ValidatorIndex) {
 			continue
 		}
+
 		dutiesFiltered = append(dutiesFiltered, d)
 	}
 

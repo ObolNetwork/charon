@@ -265,6 +265,7 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 		} else {
 			deadline = t.clock.Now().Add(timeout)
 		}
+
 		t.firstDeadlines[round] = deadline
 	}
 

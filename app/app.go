@@ -239,6 +239,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	if err != nil {
 		return err
 	}
+
 	labels["cluster_peer"] = p2p.PeerName(peerID)
 
 	// Update cluster_peer label for Loki

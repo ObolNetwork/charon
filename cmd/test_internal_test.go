@@ -23,6 +23,7 @@ func TestBeaconBasicAuth(t *testing.T) {
 
 	// Create a test server that validates basic auth
 	authValidated := false
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if Authorization header is present
 		auth := r.Header.Get("Authorization")
