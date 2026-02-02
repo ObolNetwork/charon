@@ -905,13 +905,14 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 
 	var forkVersion string
-	if conf.Network != "" {
+	if conf.testnetConfig.IsNonZero() {
+		// Custom testnet config takes precedence (already registered in validateCreateConfig via validateNetworkConfig).
+		forkVersion = conf.testnetConfig.GenesisForkVersionHex
+	} else if conf.Network != "" {
 		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
 		if err != nil {
 			return cluster.Definition{}, err
 		}
-	} else if conf.testnetConfig.GenesisForkVersionHex != "" {
-		forkVersion = conf.testnetConfig.GenesisForkVersionHex
 	} else {
 		return cluster.Definition{}, errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
@@ -1224,20 +1225,20 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 
 // validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
 func validateNetworkConfig(network string, testnet eth2util.Network) error {
+	// Check if custom testnet configuration is provided first (takes precedence over default network).
+	if testnet.IsNonZero() {
+		// Add testnet config to supported networks.
+		eth2util.AddTestNetwork(testnet)
+
+		return nil
+	}
+
 	if network != "" {
 		if eth2util.ValidNetwork(network) {
 			return nil
 		}
 
 		return errors.New("invalid network specified", z.Str("network", network))
-	}
-
-	// Check if custom testnet configuration is provided.
-	if testnet.IsNonZero() {
-		// Add testnet config to supported networks.
-		eth2util.AddTestNetwork(testnet)
-
-		return nil
 	}
 
 	return errors.New("missing --network flag or testnet config flags")
