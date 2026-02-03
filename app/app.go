@@ -511,9 +511,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	dutiesCache := eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
 		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
-
-		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 	}
+
+	sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 
 	var fvcrLock sync.RWMutex
 
