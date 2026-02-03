@@ -490,6 +490,14 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	return syncDutiesCurrEpoch, nil
 }
 
+func flatten[T any](lists [][]T) []T {
+	var res []T
+	for _, list := range lists {
+		res = append(res, list...)
+	}
+	return res
+}
+
 // cachedProposerDuties returns the cached proposer duties and true if they are available.
 func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, bool) {
 	c.mu.RLock()
@@ -499,7 +507,7 @@ func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 		"dutiescache proposer - get proposer duties, current state of cache",
 		z.U64("epoch", uint64(epoch)),
 		z.Int("cached_epochs", len(slices.Collect(maps.Keys(c.proposerDuties)))),
-		z.Int("cached_duties", len(slices.Collect(maps.Values(c.proposerDuties)))),
+		z.Int("cached_duties", len(flatten(slices.Collect(maps.Values(c.proposerDuties))))),
 	)
 
 	duties, ok := c.proposerDuties[epoch]
@@ -537,7 +545,7 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 		"dutiescache attester - get attester duties, current state of cache",
 		z.U64("epoch", uint64(epoch)),
 		z.Int("cached_epochs", len(slices.Collect(maps.Keys(c.attesterDuties)))),
-		z.Int("cached_duties", len(slices.Collect(maps.Values(c.attesterDuties)))),
+		z.Int("cached_duties", len(flatten(slices.Collect(maps.Values(c.attesterDuties))))),
 	)
 
 	duties, ok := c.attesterDuties[epoch]
@@ -575,7 +583,7 @@ func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Valida
 		"dutiescache sync - get sync duties, current state of cache",
 		z.U64("epoch", uint64(epoch)),
 		z.Int("cached_epochs", len(slices.Collect(maps.Keys(c.syncDuties)))),
-		z.Int("cached_duties", len(slices.Collect(maps.Values(c.syncDuties)))),
+		z.Int("cached_duties", len(flatten(slices.Collect(maps.Values(c.syncDuties))))),
 	)
 
 	duties, ok := c.syncDuties[epoch]
