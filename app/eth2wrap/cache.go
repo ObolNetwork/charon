@@ -345,7 +345,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		return eth2Resp.Data, nil
 	}
 	start := time.Now()
-	log.Debug(ctx, "dutiescache - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	log.Debug(ctx, "dutiescache proposer - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 
 	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
@@ -383,7 +383,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	proposerDuties[epoch] = proposerDutiesCurrEpoch
 	c.proposerDuties = proposerDuties
 
-	log.Debug(ctx, "dutiescache - fetched cache for proposer duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	log.Debug(ctx, "dutiescache proposer - fetched cache for proposer duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return proposerDutiesCurrEpoch, nil
 }
 
@@ -400,7 +400,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 
 	start := time.Now()
-	log.Debug(ctx, "dutiescache - checking cache for attester duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	log.Debug(ctx, "dutiescache attester - checking cache for attester duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 
 	duties, ok := c.cachedAttesterDuties(epoch, vidxs)
 
@@ -426,7 +426,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	c.attesterDuties[epoch] = eth2Resp.Data
 
-	log.Debug(ctx, "dutiescache - fetched cache for attester duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	log.Debug(ctx, "dutiescache attester - fetched cache for attester duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return eth2Resp.Data, nil
 }
 
@@ -443,7 +443,7 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 
 	start := time.Now()
-	log.Debug(ctx, "dutiescache - checking cache for sync committee duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	log.Debug(ctx, "dutiescache sync - checking cache for sync committee duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 
 	duties, ok := c.cachedSyncDuties(epoch, vidxs)
 
@@ -481,7 +481,7 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	syncDuties[epoch] = syncDutiesCurrEpoch
 	c.syncDuties = syncDuties
 
-	log.Debug(ctx, "dutiescache - fetched cache for sync committee duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	log.Debug(ctx, "dutiescache sync - fetched cache for sync committee duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return syncDutiesCurrEpoch, nil
 }
 
@@ -517,12 +517,22 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	collectedEpochs := slices.Collect(maps.Keys(c.attesterDuties))
+	collectedDuties := slices.Collect(maps.Values(c.attesterDuties))
+	log.Debug(context.Background(), "dutiescache attester - get attester duties, current state of cache", z.U64("epoch", uint64(epoch)), z.Any("cached_epochs", collectedEpochs), z.Any("cached_duties", collectedDuties))
+
 	duties, ok := c.attesterDuties[epoch]
 	if !ok {
+		log.Debug(context.Background(), "dutiescache attester - get attester duties, not found cached epoch", z.U64("epoch", uint64(epoch)))
 		return nil, false
 	}
 
+	log.Debug(context.Background(), "dutiescache attester - get attester duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Any("duties", duties))
 	if len(vidxs) == 0 {
+		log.Debug(context.Background(), "dutiescache attester - get attester duties, no idxs specified, returning all", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
+		for _, d := range duties {
+			log.Debug(context.Background(), "dutiescache attester - get attester duties, cached duty", z.U64("epoch", uint64(epoch)), z.Any("duty", *d))
+		}
 		return duties, true
 	}
 
@@ -534,6 +544,11 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 		}
 
 		dutiesFiltered = append(dutiesFiltered, d)
+	}
+
+	log.Debug(context.Background(), "dutiescache attester - get attester duties, filtered idxs specified, returning filtered", z.U64("epoch", uint64(epoch)), z.Int("duties", len(dutiesFiltered)))
+	for _, d := range duties {
+		log.Debug(context.Background(), "dutiescache attester - get attester duties, cached duty", z.U64("epoch", uint64(epoch)), z.Any("duty", *d))
 	}
 
 	return dutiesFiltered, true
