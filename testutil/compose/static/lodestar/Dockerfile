@@ -1,4 +1,4 @@
-FROM chainsafe/lodestar:v1.39.0
+FROM chainsafe/lodestar:v1.39.1
 
 RUN apt-get update && apt-get install -y curl jq wget
 
