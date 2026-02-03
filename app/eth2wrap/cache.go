@@ -498,8 +498,8 @@ func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	log.Debug(context.Background(),
 		"dutiescache proposer - get proposer duties, current state of cache",
 		z.U64("epoch", uint64(epoch)),
-		z.Any("cached_epochs", slices.Collect(maps.Keys(c.proposerDuties))),
-		z.Any("cached_duties", slices.Collect(maps.Values(c.proposerDuties))),
+		z.Int("cached_epochs", len(slices.Collect(maps.Keys(c.proposerDuties)))),
+		z.Int("cached_duties", len(slices.Collect(maps.Values(c.proposerDuties)))),
 	)
 
 	duties, ok := c.proposerDuties[epoch]
@@ -508,7 +508,7 @@ func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 		return nil, false
 	}
 
-	log.Debug(context.Background(), "dutiescache proposer - get proposer duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Any("duties", duties))
+	log.Debug(context.Background(), "dutiescache proposer - get proposer duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
 	if len(vidxs) == 0 {
 		return duties, true
 	}
@@ -536,8 +536,8 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	log.Debug(context.Background(),
 		"dutiescache attester - get attester duties, current state of cache",
 		z.U64("epoch", uint64(epoch)),
-		z.Any("cached_epochs", slices.Collect(maps.Keys(c.attesterDuties))),
-		z.Any("cached_duties", slices.Collect(maps.Values(c.attesterDuties))),
+		z.Int("cached_epochs", len(slices.Collect(maps.Keys(c.attesterDuties)))),
+		z.Int("cached_duties", len(slices.Collect(maps.Values(c.attesterDuties)))),
 	)
 
 	duties, ok := c.attesterDuties[epoch]
@@ -546,7 +546,7 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 		return nil, false
 	}
 
-	log.Debug(context.Background(), "dutiescache attester - get attester duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Any("duties", duties))
+	log.Debug(context.Background(), "dutiescache attester - get attester duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
 	if len(vidxs) == 0 {
 		return duties, true
 	}
@@ -574,8 +574,8 @@ func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Valida
 	log.Debug(context.Background(),
 		"dutiescache sync - get sync duties, current state of cache",
 		z.U64("epoch", uint64(epoch)),
-		z.Any("cached_epochs", slices.Collect(maps.Keys(c.syncDuties))),
-		z.Any("cached_duties", slices.Collect(maps.Values(c.syncDuties))),
+		z.Int("cached_epochs", len(slices.Collect(maps.Keys(c.syncDuties)))),
+		z.Int("cached_duties", len(slices.Collect(maps.Values(c.syncDuties)))),
 	)
 
 	duties, ok := c.syncDuties[epoch]
@@ -584,7 +584,7 @@ func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Valida
 		return nil, false
 	}
 
-	log.Debug(context.Background(), "dutiescache sync - get sync duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Any("duties", duties))
+	log.Debug(context.Background(), "dutiescache sync - get sync duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
 	if len(vidxs) == 0 {
 		return duties, true
 	}
