@@ -346,6 +346,9 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 	start := time.Now()
 	log.Debug(ctx, "dutiescache proposer - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	defer func(t time.Time) {
+		log.Debug(ctx, "dutiescache proposer - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	}(start)
 
 	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
@@ -383,7 +386,6 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	proposerDuties[epoch] = proposerDutiesCurrEpoch
 	c.proposerDuties = proposerDuties
 
-	log.Debug(ctx, "dutiescache proposer - fetched cache for proposer duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return proposerDutiesCurrEpoch, nil
 }
 
@@ -401,6 +403,9 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	start := time.Now()
 	log.Debug(ctx, "dutiescache attester - checking cache for attester duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	defer func(t time.Time) {
+		log.Debug(ctx, "dutiescache attester - fetched cache for attester duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	}(start)
 
 	duties, ok := c.cachedAttesterDuties(epoch, vidxs)
 
@@ -426,7 +431,6 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	c.attesterDuties[epoch] = eth2Resp.Data
 
-	log.Debug(ctx, "dutiescache attester - fetched cache for attester duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return eth2Resp.Data, nil
 }
 
@@ -444,6 +448,9 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	start := time.Now()
 	log.Debug(ctx, "dutiescache sync - checking cache for sync committee duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	defer func(t time.Time) {
+		log.Debug(ctx, "dutiescache sync - fetched cache for sync committee duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	}(start)
 
 	duties, ok := c.cachedSyncDuties(epoch, vidxs)
 
@@ -481,7 +488,6 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	syncDuties[epoch] = syncDutiesCurrEpoch
 	c.syncDuties = syncDuties
 
-	log.Debug(ctx, "dutiescache sync - fetched cache for sync committee duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return syncDutiesCurrEpoch, nil
 }
 
@@ -490,11 +496,20 @@ func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	log.Debug(context.Background(),
+		"dutiescache proposer - get proposer duties, current state of cache",
+		z.U64("epoch", uint64(epoch)),
+		z.Any("cached_epochs", slices.Collect(maps.Keys(c.proposerDuties))),
+		z.Any("cached_duties", slices.Collect(maps.Values(c.proposerDuties))),
+	)
+
 	duties, ok := c.proposerDuties[epoch]
 	if !ok {
+		log.Debug(context.Background(), "dutiescache proposer - get proposer duties, not found cached epoch", z.U64("epoch", uint64(epoch)))
 		return nil, false
 	}
 
+	log.Debug(context.Background(), "dutiescache proposer - get proposer duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Any("duties", duties))
 	if len(vidxs) == 0 {
 		return duties, true
 	}
@@ -509,6 +524,8 @@ func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 		dutiesFiltered = append(dutiesFiltered, d)
 	}
 
+	log.Debug(context.Background(), "dutiescache proposer - get proposer duties, filtered idxs specified, returning filtered", z.U64("epoch", uint64(epoch)), z.Int("duties", len(dutiesFiltered)))
+
 	return dutiesFiltered, true
 }
 
@@ -517,9 +534,12 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	collectedEpochs := slices.Collect(maps.Keys(c.attesterDuties))
-	collectedDuties := slices.Collect(maps.Values(c.attesterDuties))
-	log.Debug(context.Background(), "dutiescache attester - get attester duties, current state of cache", z.U64("epoch", uint64(epoch)), z.Any("cached_epochs", collectedEpochs), z.Any("cached_duties", collectedDuties))
+	log.Debug(context.Background(),
+		"dutiescache attester - get attester duties, current state of cache",
+		z.U64("epoch", uint64(epoch)),
+		z.Any("cached_epochs", slices.Collect(maps.Keys(c.attesterDuties))),
+		z.Any("cached_duties", slices.Collect(maps.Values(c.attesterDuties))),
+	)
 
 	duties, ok := c.attesterDuties[epoch]
 	if !ok {
@@ -529,10 +549,6 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 
 	log.Debug(context.Background(), "dutiescache attester - get attester duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Any("duties", duties))
 	if len(vidxs) == 0 {
-		log.Debug(context.Background(), "dutiescache attester - get attester duties, no idxs specified, returning all", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
-		for _, d := range duties {
-			log.Debug(context.Background(), "dutiescache attester - get attester duties, cached duty", z.U64("epoch", uint64(epoch)), z.Any("duty", *d))
-		}
 		return duties, true
 	}
 
@@ -547,9 +563,6 @@ func (c *DutiesCache) cachedAttesterDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Va
 	}
 
 	log.Debug(context.Background(), "dutiescache attester - get attester duties, filtered idxs specified, returning filtered", z.U64("epoch", uint64(epoch)), z.Int("duties", len(dutiesFiltered)))
-	for _, d := range duties {
-		log.Debug(context.Background(), "dutiescache attester - get attester duties, cached duty", z.U64("epoch", uint64(epoch)), z.Any("duty", *d))
-	}
 
 	return dutiesFiltered, true
 }
@@ -559,11 +572,20 @@ func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Valida
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	log.Debug(context.Background(),
+		"dutiescache sync - get sync duties, current state of cache",
+		z.U64("epoch", uint64(epoch)),
+		z.Any("cached_epochs", slices.Collect(maps.Keys(c.syncDuties))),
+		z.Any("cached_duties", slices.Collect(maps.Values(c.syncDuties))),
+	)
+
 	duties, ok := c.syncDuties[epoch]
 	if !ok {
+		log.Debug(context.Background(), "dutiescache sync - get sync duties, not found cached epoch", z.U64("epoch", uint64(epoch)))
 		return nil, false
 	}
 
+	log.Debug(context.Background(), "dutiescache sync - get sync duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Any("duties", duties))
 	if len(vidxs) == 0 {
 		return duties, true
 	}
@@ -577,6 +599,8 @@ func (c *DutiesCache) cachedSyncDuties(epoch eth2p0.Epoch, vidxs []eth2p0.Valida
 
 		dutiesFiltered = append(dutiesFiltered, d)
 	}
+
+	log.Debug(context.Background(), "dutiescache sync - get sync duties, filtered idxs specified, returning filtered", z.U64("epoch", uint64(epoch)), z.Int("duties", len(dutiesFiltered)))
 
 	return dutiesFiltered, true
 }
