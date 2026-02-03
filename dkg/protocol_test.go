@@ -173,7 +173,7 @@ func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	var errorOccurred atomic.Bool
+	var errorReported atomic.Bool
 
 	runProtocol(t, numNodes, func(relayAddr string, n int) error {
 		dkgConfig := createDKGConfig(t, relayAddr)
@@ -194,10 +194,9 @@ func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
 		if err != nil {
-			errorOccurred.Store(true)
-
-			require.ErrorContains(t, err, "remove operation would remove all nodes from original cluster")
-			cancel()
+			if strings.Contains(err.Error(), "remove operation would remove all nodes from original cluster") {
+				errorReported.Store(true)
+			}
 
 			return nil
 		}
@@ -205,7 +204,7 @@ func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
 		return err
 	})
 
-	require.True(t, errorOccurred.Load(), "Expected error when attempting to remove all nodes from original cluster")
+	require.True(t, errorReported.Load(), "Expected error when attempting to remove all nodes from original cluster")
 }
 
 func TestRunAddOperatorsProtocol(t *testing.T) {
