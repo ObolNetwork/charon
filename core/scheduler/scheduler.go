@@ -74,6 +74,7 @@ type Scheduler struct {
 	eth2Cl                     eth2wrap.Client
 	builderRegistrations       []*eth2api.VersionedSignedValidatorRegistration
 	submittedRegistrationEpoch uint64
+	registrationMutex          sync.Mutex
 	quit                       chan struct{}
 	clock                      clockwork.Clock
 	delayFunc                  delayFunc
@@ -113,6 +114,20 @@ func (s *Scheduler) SubscribeSlots(fn func(context.Context, core.Slot) error) {
 
 func (s *Scheduler) Stop() {
 	close(s.quit)
+}
+
+// getSubmittedRegistrationEpoch returns the last epoch for which registrations were submitted.
+func (s *Scheduler) getSubmittedRegistrationEpoch() uint64 {
+	s.registrationMutex.Lock()
+	defer s.registrationMutex.Unlock()
+	return s.submittedRegistrationEpoch
+}
+
+// setSubmittedRegistrationEpoch sets the last epoch for which registrations were submitted.
+func (s *Scheduler) setSubmittedRegistrationEpoch(epoch uint64) {
+	s.registrationMutex.Lock()
+	defer s.registrationMutex.Unlock()
+	s.submittedRegistrationEpoch = epoch
 }
 
 // Run blocks and runs the scheduler until Stop is called.
@@ -283,11 +298,9 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		}
 	}
 
-	// Safe to access s.submittedRegistrationEpoch without lock because scheduleSlot is called by the same goroutine.
-	if s.builderEnabled && s.submittedRegistrationEpoch != slot.Epoch() {
-		if err := s.submitValidatorRegistrations(ctx); err == nil {
-			s.submittedRegistrationEpoch = slot.Epoch()
-		}
+	// Submit validator registrations asynchronously to avoid blocking duty triggering.
+	if s.builderEnabled && s.getSubmittedRegistrationEpoch() != slot.Epoch() {
+		go s.submitValidatorRegistrationsAsync(ctx, slot.Epoch())
 	}
 
 	for _, dutyType := range core.AllDutyTypes() {
@@ -780,20 +793,22 @@ func (s *Scheduler) trimEventTriggeredAttestations(epoch uint64) {
 	})
 }
 
-// submitValidatorRegistrations submits the validator registrations for all DVs.
-func (s *Scheduler) submitValidatorRegistrations(ctx context.Context) error {
+// submitValidatorRegistrationsAsync submits validator registrations asynchronously and updates the epoch tracker on success.
+func (s *Scheduler) submitValidatorRegistrationsAsync(ctx context.Context, epoch uint64) {
+	if s.getSubmittedRegistrationEpoch() == epoch {
+		return
+	}
+
 	submitRegistrationCounter.Add(1)
 
 	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, s.builderRegistrations)
 	if err != nil {
 		submitRegistrationErrors.Add(1)
-
-		log.Error(ctx, "Failed to submit validator registrations", err)
+		log.Error(ctx, "Failed to submit validator registrations", err, z.U64("epoch", epoch))
 	} else {
-		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(s.builderRegistrations)))
+		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(s.builderRegistrations)), z.U64("epoch", epoch))
+		s.setSubmittedRegistrationEpoch(epoch)
 	}
-
-	return err
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
