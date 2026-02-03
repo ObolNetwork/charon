@@ -378,13 +378,12 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		if duty == nil {
 			return nil, errors.New("proposer duty data is nil")
 		}
+		d := *duty
 
-		proposerDutiesCurrEpoch = append(proposerDutiesCurrEpoch, duty)
+		proposerDutiesCurrEpoch = append(proposerDutiesCurrEpoch, &d)
 	}
 
-	proposerDuties := c.proposerDuties
-	proposerDuties[epoch] = proposerDutiesCurrEpoch
-	c.proposerDuties = proposerDuties
+	c.proposerDuties[epoch] = proposerDutiesCurrEpoch
 
 	return proposerDutiesCurrEpoch, nil
 }
