@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -219,6 +220,7 @@ type CachedDutiesProvider interface {
 
 // NewDutiesCache creates a new validator cache.
 func NewDutiesCache(eth2Cl Client, validatorIndices []eth2p0.ValidatorIndex) *DutiesCache {
+	log.Debug(context.Background(), "new duties cache")
 	return &DutiesCache{
 		eth2Cl:           eth2Cl,
 		validatorIndices: validatorIndices,
@@ -243,6 +245,8 @@ type DutiesCache struct {
 // Trim trims the cache of 6 epochs older than the current.
 // This should be called on epoch boundary.
 func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
+	start := time.Now()
+	log.Debug(context.Background(), "start trimming")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -270,20 +274,27 @@ func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 			delete(c.syncDuties, e)
 		}
 	}
+
+	log.Debug(context.Background(), "finished trimming", z.I64("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // UpdateCacheIndices updates the validator indices to be queried.
 func (c *DutiesCache) UpdateCacheIndices(_ context.Context, indices []eth2p0.ValidatorIndex) {
+	start := time.Now()
+	log.Debug(context.Background(), "start updating cache indices")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.validatorIndices = indices
+	log.Debug(context.Background(), "finished updating cache indices", z.I64("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // InvalidateCache handles chain reorg, invalidating cached duties.
 // The epoch parameter indicates at which epoch the reorg led us to.
 // Meaning, we should invalidate all duties prior to that epoch.
 func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
+	start := time.Now()
+	log.Debug(context.Background(), "start invalidating cache")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -319,6 +330,7 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	} else {
 		log.Debug(ctx, "Reorg occurred, but it was not through epoch transition, duties cache is not invalidated", z.U64("reorged_epoch", uint64(epoch)))
 	}
+	log.Debug(context.Background(), "finished invalidating cache", z.I64("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available populating the cache.
