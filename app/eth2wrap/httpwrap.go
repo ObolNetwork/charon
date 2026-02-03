@@ -102,10 +102,10 @@ func (h *httpAdapter) SetDutiesCache(
 	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.SyncCommitteeDuty, error),
 ) {
 	h.cacheMu.Lock()
+	defer h.cacheMu.Unlock()
 	h.proposerDutiesCache = proposerDutiesCache
 	h.attesterDutiesCache = attesterDutiesCache
 	h.syncCommDutiesCache = syncCommDutiesCache
-	h.cacheMu.Unlock()
 }
 
 func (h *httpAdapter) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*apiv1.ProposerDuty, error) {
