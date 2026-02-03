@@ -242,7 +242,7 @@ type DutiesCache struct {
 	syncDuties     SyncDuties
 }
 
-// Trim trims the cache of 6 epochs older than the current.
+// Trim trims the cache of 3 epochs older than the current.
 // This should be called on epoch boundary.
 func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 	start := time.Now()
