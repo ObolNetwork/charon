@@ -220,7 +220,7 @@ type CachedDutiesProvider interface {
 
 // NewDutiesCache creates a new validator cache.
 func NewDutiesCache(eth2Cl Client, validatorIndices []eth2p0.ValidatorIndex) *DutiesCache {
-	log.Debug(context.Background(), "new duties cache")
+	log.Debug(context.Background(), "dutiescache - new duties cache")
 	return &DutiesCache{
 		eth2Cl:           eth2Cl,
 		validatorIndices: validatorIndices,
@@ -246,7 +246,7 @@ type DutiesCache struct {
 // This should be called on epoch boundary.
 func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 	start := time.Now()
-	log.Debug(context.Background(), "start trimming")
+	log.Debug(context.Background(), "dutiescache - start trimming")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -275,18 +275,18 @@ func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 		}
 	}
 
-	log.Debug(context.Background(), "finished trimming", z.I64("duration_ms", time.Since(start).Milliseconds()))
+	log.Debug(context.Background(), "dutiescache - finished trimming", z.I64("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // UpdateCacheIndices updates the validator indices to be queried.
 func (c *DutiesCache) UpdateCacheIndices(_ context.Context, indices []eth2p0.ValidatorIndex) {
 	start := time.Now()
-	log.Debug(context.Background(), "start updating cache indices")
+	log.Debug(context.Background(), "dutiescache - start updating cache indices")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.validatorIndices = indices
-	log.Debug(context.Background(), "finished updating cache indices", z.I64("duration_ms", time.Since(start).Milliseconds()))
+	log.Debug(context.Background(), "dutiescache - finished updating cache indices", z.I64("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // InvalidateCache handles chain reorg, invalidating cached duties.
@@ -294,7 +294,7 @@ func (c *DutiesCache) UpdateCacheIndices(_ context.Context, indices []eth2p0.Val
 // Meaning, we should invalidate all duties prior to that epoch.
 func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	start := time.Now()
-	log.Debug(context.Background(), "start invalidating cache")
+	log.Debug(context.Background(), "dutiescache - start invalidating cache")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -325,17 +325,18 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	}
 
 	if invalidated {
-		log.Debug(ctx, "Reorg occurred through epoch transition, invalidating duties cache", z.U64("reorged_back_to_epoch", uint64(epoch)))
+		log.Debug(ctx, "dutiescache - reorg occurred through epoch transition, invalidating duties cache", z.U64("reorged_back_to_epoch", uint64(epoch)))
 		invalidatedCacheDueReorgCount.WithLabelValues("validators").Inc()
 	} else {
-		log.Debug(ctx, "Reorg occurred, but it was not through epoch transition, duties cache is not invalidated", z.U64("reorged_epoch", uint64(epoch)))
+		log.Debug(ctx, "dutiescache - reorg occurred, but it was not through epoch transition, duties cache is not invalidated", z.U64("reorged_epoch", uint64(epoch)))
 	}
-	log.Debug(context.Background(), "finished invalidating cache", z.I64("duration_ms", time.Since(start).Milliseconds()))
+	log.Debug(context.Background(), "dutiescache - finished invalidating cache", z.I64("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 	if featureset.Enabled(featureset.DisableDutiesCache) {
+		log.Debug(ctx, "dutiescache disabled - calling proposer duties endpoint")
 		eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
 		if err != nil {
 			return nil, err
@@ -343,6 +344,8 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 		return eth2Resp.Data, nil
 	}
+	start := time.Now()
+	log.Debug(ctx, "dutiescache - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 
 	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
@@ -380,12 +383,14 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	proposerDuties[epoch] = proposerDutiesCurrEpoch
 	c.proposerDuties = proposerDuties
 
+	log.Debug(ctx, "dutiescache - fetched cache for proposer duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return proposerDutiesCurrEpoch, nil
 }
 
 // AttesterDutiesCache returns the cached attester duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 	if featureset.Enabled(featureset.DisableDutiesCache) {
+		log.Debug(ctx, "dutiescache disabled - calling attester duties endpoint")
 		eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: vidxs})
 		if err != nil {
 			return nil, err
@@ -393,6 +398,9 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 		return eth2Resp.Data, nil
 	}
+
+	start := time.Now()
+	log.Debug(ctx, "dutiescache - checking cache for attester duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 
 	duties, ok := c.cachedAttesterDuties(epoch, vidxs)
 
@@ -418,12 +426,14 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	c.attesterDuties[epoch] = eth2Resp.Data
 
+	log.Debug(ctx, "dutiescache - fetched cache for attester duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return eth2Resp.Data, nil
 }
 
 // SyncCommDutiesCache returns the cached sync duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 	if featureset.Enabled(featureset.DisableDutiesCache) {
+		log.Debug(ctx, "dutiescache disabled - calling sync committee duties endpoint")
 		eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
 		if err != nil {
 			return nil, err
@@ -431,6 +441,9 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 		return eth2Resp.Data, nil
 	}
+
+	start := time.Now()
+	log.Debug(ctx, "dutiescache - checking cache for sync committee duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 
 	duties, ok := c.cachedSyncDuties(epoch, vidxs)
 
@@ -468,6 +481,7 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	syncDuties[epoch] = syncDutiesCurrEpoch
 	c.syncDuties = syncDuties
 
+	log.Debug(ctx, "dutiescache - fetched cache for sync committee duties", z.I64("duration_ms", time.Since(start).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	return syncDutiesCurrEpoch, nil
 }
 
