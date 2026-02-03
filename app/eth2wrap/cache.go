@@ -246,7 +246,7 @@ type DutiesCache struct {
 // This should be called on epoch boundary.
 func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 	start := time.Now()
-	log.Debug(context.Background(), "dutiescache - start trimming")
+	log.Debug(context.Background(), "dutiescache trim - start", z.U64("epoch", uint64(epoch)))
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -255,25 +255,43 @@ func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 	}
 
 	proposerDutiesEpochs := slices.Collect(maps.Keys(c.proposerDuties))
+	log.Debug(context.Background(), "dutiescache trim - trimming proposer duties", z.Int("cached_epochs_before_trim", len(proposerDutiesEpochs)))
 	for _, e := range proposerDutiesEpochs {
 		if e < epoch-dutiesCacheTrimThreshold {
+			log.Debug(context.Background(), "dutiescache trim - trimming proposer duties", z.U64("epoch", uint64(e)))
 			delete(c.proposerDuties, e)
+		} else {
+			log.Debug(context.Background(), "dutiescache trim - skipping proposer duties", z.U64("epoch", uint64(e)))
 		}
 	}
+	proposerDutiesEpochs2 := slices.Collect(maps.Keys(c.proposerDuties))
+	log.Debug(context.Background(), "dutiescache trim - trimmed proposer duties", z.Int("cached_epochs_after_trim", len(proposerDutiesEpochs2)))
 
 	attesterDutiesEpochs := slices.Collect(maps.Keys(c.attesterDuties))
+	log.Debug(context.Background(), "dutiescache trim - trimming attester duties", z.Int("cached_epochs_before_trim", len(attesterDutiesEpochs)))
 	for _, e := range attesterDutiesEpochs {
 		if e < epoch-dutiesCacheTrimThreshold {
+			log.Debug(context.Background(), "dutiescache trim - trimming attester duties", z.U64("epoch", uint64(e)))
 			delete(c.attesterDuties, e)
+		} else {
+			log.Debug(context.Background(), "dutiescache trim - skipping attester duties", z.U64("epoch", uint64(e)))
 		}
 	}
+	attesterDutiesEpochs2 := slices.Collect(maps.Keys(c.attesterDuties))
+	log.Debug(context.Background(), "dutiescache trim - trimmed attester duties", z.Int("cached_epochs_after_trim", len(attesterDutiesEpochs2)))
 
 	syncDutiesEpochs := slices.Collect(maps.Keys(c.syncDuties))
+	log.Debug(context.Background(), "dutiescache trim - trimming sync duties", z.Int("cached_epochs_before_trim", len(syncDutiesEpochs)))
 	for _, e := range syncDutiesEpochs {
 		if e < epoch-dutiesCacheTrimThreshold {
+			log.Debug(context.Background(), "dutiescache trim - trimming sync duties", z.U64("epoch", uint64(e)))
 			delete(c.syncDuties, e)
+		} else {
+			log.Debug(context.Background(), "dutiescache trim - skipping sync duties", z.U64("epoch", uint64(e)))
 		}
 	}
+	syncDutiesEpochs2 := slices.Collect(maps.Keys(c.syncDuties))
+	log.Debug(context.Background(), "dutiescache trim - trimmed sync duties", z.Int("cached_epochs_after_trim", len(syncDutiesEpochs2)))
 
 	log.Debug(context.Background(), "dutiescache - finished trimming", z.I64("duration_ms", time.Since(start).Milliseconds()))
 }
