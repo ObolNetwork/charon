@@ -53,13 +53,14 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 // New returns a new scheduler.
 func New(builderRegistrations []*eth2api.VersionedSignedValidatorRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
 	return &Scheduler{
-		eth2Cl:               eth2Cl,
-		builderRegistrations: builderRegistrations,
-		quit:                 make(chan struct{}),
-		duties:               make(map[core.Duty]core.DutyDefinitionSet),
-		dutiesByEpoch:        make(map[uint64][]core.Duty),
-		epochResolved:        make(map[uint64]chan struct{}),
-		clock:                clockwork.NewRealClock(),
+		eth2Cl:                     eth2Cl,
+		builderRegistrations:       builderRegistrations,
+		submittedRegistrationEpoch: math.MaxUint64,
+		quit:                       make(chan struct{}),
+		duties:                     make(map[core.Duty]core.DutyDefinitionSet),
+		dutiesByEpoch:              make(map[uint64][]core.Duty),
+		epochResolved:              make(map[uint64]chan struct{}),
+		clock:                      clockwork.NewRealClock(),
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
 		},
@@ -143,7 +144,7 @@ func (s *Scheduler) Run() error {
 	// Submit validator registrations on startup if builder is enabled.
 	// This ensures registrations are sent before the first proposal opportunity.
 	if s.builderEnabled {
-		go s.submitValidatorRegistrations(ctx, math.MaxUint64)
+		go s.submitValidatorRegistrations(ctx, 0)
 	}
 
 	slotTicker, err := newSlotTicker(ctx, s.eth2Cl, s.clock)
