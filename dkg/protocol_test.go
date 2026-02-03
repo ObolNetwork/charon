@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -172,7 +173,7 @@ func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	errorOccurred := false
+	var errorOccurred atomic.Bool
 
 	runProtocol(t, numNodes, func(relayAddr string, n int) error {
 		dkgConfig := createDKGConfig(t, relayAddr)
@@ -193,7 +194,7 @@ func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
 		if err != nil {
-			errorOccurred = true
+			errorOccurred.Store(true)
 
 			require.ErrorContains(t, err, "remove operation would remove all nodes from original cluster")
 			cancel()
@@ -204,7 +205,7 @@ func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
 		return err
 	})
 
-	require.True(t, errorOccurred, "Expected error when attempting to remove all nodes from original cluster")
+	require.True(t, errorOccurred.Load(), "Expected error when attempting to remove all nodes from original cluster")
 }
 
 func TestRunAddOperatorsProtocol(t *testing.T) {

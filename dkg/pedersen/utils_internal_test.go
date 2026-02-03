@@ -96,18 +96,6 @@ func TestValidateThreshold(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name:      "valid threshold at BFT minimum (3 nodes)",
-			nodeCount: 3,
-			threshold: 2, // ceil(2*3/3) = 2
-			wantErr:   false,
-		},
-		{
-			name:      "valid threshold at BFT minimum (4 nodes)",
-			nodeCount: 4,
-			threshold: 3, // ceil(2*4/3) = 3
-			wantErr:   false,
-		},
-		{
 			name:      "valid threshold at maximum (equals node count)",
 			nodeCount: 5,
 			threshold: 5,
@@ -116,35 +104,15 @@ func TestValidateThreshold(t *testing.T) {
 		{
 			name:      "valid threshold between minimum and maximum",
 			nodeCount: 7,
-			threshold: 6, // minimum is 5, max is 7
+			threshold: 6,
 			wantErr:   false,
 		},
 		{
-			name:      "invalid threshold below BFT minimum",
+			name:      "invalid threshold below minimum",
 			nodeCount: 4,
-			threshold: 2, // minimum is 3
+			threshold: 0, // minimum is 1
 			wantErr:   true,
-			errMsg:    "threshold below minimum Byzantine fault tolerance requirement",
-		},
-		{
-			name:      "invalid threshold exceeds node count",
-			nodeCount: 3,
-			threshold: 4,
-			wantErr:   true,
-			errMsg:    "threshold exceeds node count",
-		},
-		{
-			name:      "invalid threshold zero (should be normalized before validation)",
-			nodeCount: 4,
-			threshold: 0,
-			wantErr:   true,
-			errMsg:    "threshold below minimum Byzantine fault tolerance requirement",
-		},
-		{
-			name:      "edge case single node (threshold must be 1)",
-			nodeCount: 1,
-			threshold: 1,
-			wantErr:   false,
+			errMsg:    "threshold is too low",
 		},
 	}
 

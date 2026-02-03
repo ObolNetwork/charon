@@ -54,8 +54,10 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 	})
 
 	threshold := config.Threshold
-	if threshold == 0 {
+	if threshold <= 0 {
 		threshold = cluster.Threshold(len(nodes))
+
+		log.Info(ctx, "Using default threshold", z.Int("threshold", threshold))
 	}
 
 	if err := validateThreshold(len(nodes), threshold); err != nil {
@@ -220,24 +222,15 @@ func readBoardChannel[T any](ctx context.Context, ch <-chan T, count int) ([]T, 
 	return pubKeys, nil
 }
 
-// validateThreshold verifies that the threshold meets Byzantine fault tolerance requirements.
-// It ensures the threshold is at least cluster.Threshold(nodeCount) and at most nodeCount.
-// Note: This function expects a non-zero threshold. Callers should normalize zero to the default before calling.
+// validateThreshold verifies that the threshold is between 1 and nodeCount.
+// Note that in case of rotation we cannot increase the threshold beyond the original cluster size.
 func validateThreshold(nodeCount, threshold int) error {
-	minThreshold := cluster.Threshold(nodeCount)
-	if threshold < minThreshold {
-		return errors.New("threshold below minimum Byzantine fault tolerance requirement",
-			z.Int("threshold", threshold),
-			z.Int("minimum", minThreshold),
-			z.Int("nodes", nodeCount),
-		)
+	if threshold < 1 {
+		return errors.New("threshold is too low", z.Int("threshold", threshold))
 	}
 
 	if threshold > nodeCount {
-		return errors.New("threshold exceeds node count",
-			z.Int("threshold", threshold),
-			z.Int("nodes", nodeCount),
-		)
+		return errors.New("threshold exceeds node count", z.Int("threshold", threshold), z.Int("nodes", nodeCount))
 	}
 
 	return nil

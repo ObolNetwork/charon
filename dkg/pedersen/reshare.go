@@ -196,19 +196,11 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		}
 	}
 
-	oldThreshold := config.Threshold
-	if oldThreshold == 0 {
-		oldThreshold = cluster.Threshold(len(oldNodes))
-	}
-
 	newThreshold := config.Reshare.NewThreshold
-	if newThreshold == 0 {
+	if newThreshold <= 0 {
 		newThreshold = cluster.Threshold(len(newNodes))
-	}
 
-	// Validate old threshold against current cluster size
-	if err := validateThreshold(len(oldNodes), oldThreshold); err != nil {
-		return nil, errors.Wrap(err, "invalid old threshold")
+		log.Info(ctx, "Using default new threshold", z.Int("new_threshold", newThreshold))
 	}
 
 	// Validate new threshold against resulting cluster size
@@ -228,7 +220,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		NewNodes:     newNodes,
 		OldNodes:     oldNodes,
 		Threshold:    newThreshold,
-		OldThreshold: oldThreshold,
+		OldThreshold: config.Threshold,
 		FastSync:     true,
 		Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
 		Log:          newLogger(log.WithTopic(ctx, "pedersen")),
@@ -236,7 +228,7 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 
 	log.Info(ctx, "Starting pedersen reshare...",
 		z.Int("oldNodes", len(oldNodes)), z.Int("newNodes", len(newNodes)),
-		z.Int("oldThreshold", oldThreshold), z.Int("newThreshold", newThreshold),
+		z.Int("oldThreshold", config.Threshold), z.Int("newThreshold", newThreshold),
 		z.Bool("thisIsOldNode", thisIsOldNode), z.Bool("thisIsRemovedNode", thisIsRemovedNode))
 
 	newShares := make([]share.Share, 0, config.Reshare.TotalShares)
