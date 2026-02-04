@@ -199,6 +199,21 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 	return active, complete, refreshedBySlot, nil
 }
 
+// ProposerDuties is a map of proposer duties per epoch.
+type ProposerDuties struct {
+	sync.Map // map[eth2p0.Epoch][]*eth2v1.ProposerDuty
+}
+
+// AttesterDuties is a map of attester duties per epoch.
+type AttesterDuties struct {
+	sync.Map // map[eth2p0.Epoch][]*eth2v1.AttesterDuty
+}
+
+// SyncDuties is a map of sync committee duties per epoch.
+type SyncDuties struct {
+	sync.Map // map[eth2p0.Epoch][]*eth2v1.SyncCommitteeDuty
+}
+
 // CachedDutiesProvider is the interface for providing current epoch's duties.
 type CachedDutiesProvider interface {
 	ProposerDutiesCache(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
@@ -215,9 +230,9 @@ func NewDutiesCache(eth2Cl Client) *DutiesCache {
 type DutiesCache struct {
 	eth2Cl Client
 
-	proposerDuties sync.Map // map[eth2p0.Epoch][]*eth2v1.ProposerDuty
-	attesterDuties sync.Map // map[eth2p0.Epoch][]*eth2v1.AttesterDuty
-	syncDuties     sync.Map // map[eth2p0.Epoch][]*eth2v1.SyncCommitteeDuty
+	proposerDuties ProposerDuties
+	attesterDuties AttesterDuties
+	syncDuties     SyncDuties
 }
 
 // Trim trims the cache of 3 epochs older than the current.
