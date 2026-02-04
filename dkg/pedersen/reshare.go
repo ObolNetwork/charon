@@ -437,16 +437,28 @@ func generateNonce(nodes []kdkg.Node, iteration int) ([]byte, error) {
 
 	indx := hh.Index()
 
+	// Field (0) 'iteration'
 	hh.PutUint32(uint32(iteration))
-	hh.PutUint32(uint32(len(nodes)))
 
-	for _, node := range nodes {
-		pkBytes, err := node.Public.MarshalBinary()
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal node public key")
+	// Field (1) 'nodes' - list of (index, pubkey) pairs
+	{
+		subIndx := hh.Index()
+
+		for _, node := range nodes {
+			elemIndx := hh.Index()
+
+			hh.PutUint32(node.Index)
+
+			pkBytes, err := node.Public.MarshalBinary()
+			if err != nil {
+				return nil, errors.Wrap(err, "marshal node public key")
+			}
+
+			hh.PutBytes(pkBytes)
+			hh.Merkleize(elemIndx)
 		}
 
-		hh.AppendBytes32(pkBytes)
+		hh.MerkleizeWithMixin(subIndx, uint64(len(nodes)), uint64(len(nodes)))
 	}
 
 	hh.Merkleize(indx)
