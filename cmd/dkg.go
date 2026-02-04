@@ -15,6 +15,12 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 )
 
+const (
+	defaultDKGTimeout     = 2 * time.Minute
+	defaultShutdownDelay  = 5 * time.Second
+	defaultPublishTimeout = 1 * time.Minute
+)
+
 var defaultDKGRelays = []string{"https://4.relay.obol.dev"}
 
 func newDKGCmd(runFunc func(context.Context, dkg.Config) error) *cobra.Command {
@@ -58,7 +64,7 @@ this command at the same time.`,
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
 	bindEth1Flag(cmd.Flags(), &config.ExecutionEngineAddr)
 
-	cmd.Flags().DurationVar(&config.Timeout, "timeout", 1*time.Minute, "Timeout for the DKG process, should be increased if DKG times out.")
+	cmd.Flags().DurationVar(&config.Timeout, "timeout", defaultDKGTimeout, "Timeout for the DKG process, should be increased if DKG times out.")
 	cmd.Flags().BoolVar(&config.Zipped, "zipped", false, "Create a tar archive compressed with gzip of the target directory after creation.")
 	cmd.Flags().StringVar(&config.Nickname, "nickname", "", "Human friendly peer nickname. Maximum 32 characters.")
 
@@ -80,12 +86,12 @@ func bindDataDirFlag(flags *pflag.FlagSet, dataDir *string) {
 
 func bindPublishFlags(flags *pflag.FlagSet, config *dkg.Config) {
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the cluster to.")
-	flags.DurationVar(&config.PublishTimeout, "publish-timeout", 30*time.Second, "Timeout for publishing a cluster, consider increasing if the cluster contains more than 200 validators.")
+	flags.DurationVar(&config.PublishTimeout, "publish-timeout", defaultPublishTimeout, "Timeout for publishing a cluster, consider increasing if the cluster contains more than 200 validators.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish the created cluster to a remote API.")
 }
 
 func bindShutdownDelayFlag(flags *pflag.FlagSet, shutdownDelay *time.Duration) {
-	flags.DurationVar(shutdownDelay, "shutdown-delay", time.Second, "Graceful shutdown delay.")
+	flags.DurationVar(shutdownDelay, "shutdown-delay", defaultShutdownDelay, "Graceful shutdown delay.")
 }
 
 func bindEth1Flag(flags *pflag.FlagSet, executionEngineAddr *string) {
