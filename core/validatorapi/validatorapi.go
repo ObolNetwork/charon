@@ -952,7 +952,7 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 
 		log.Debug(ctx, "Sync committee message received from validator client",
 			z.U64("slot", uint64(msg.Slot)),
-			z.Any("beacon_block_root", msg.BeaconBlockRoot))
+			z.Str("beacon_block_root", msg.BeaconBlockRoot.String()))
 
 		_, ok = psigsBySlot[slot]
 		if !ok {
