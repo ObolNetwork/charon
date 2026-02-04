@@ -1152,7 +1152,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 
 		// Replace root public keys with public shares.
 		// Duties are copied into new slice, as otherwise the cached duties would be modified.
-		dutiesShareKey := []*eth2v1.ProposerDuty{}
+		dutiesShareKey := make([]*eth2v1.ProposerDuty, 0, len(cachedResp))
 
 		for _, d := range cachedResp {
 			if d == nil {
@@ -1214,7 +1214,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 
 		// Replace root public keys with public shares.
 		// Duties are copied into new slice, as otherwise the cached duties would be modified.
-		dutiesShareKey := []*eth2v1.AttesterDuty{}
+		dutiesShareKey := make([]*eth2v1.AttesterDuty, 0, len(cachedResp))
 
 		for _, d := range cachedResp {
 			if d == nil {
@@ -1270,7 +1270,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 
 		// Replace root public keys with public shares.
 		// Duties are copied into new slice, as otherwise the cached duties would be modified.
-		dutiesShareKey := []*eth2v1.SyncCommitteeDuty{}
+		dutiesShareKey := make([]*eth2v1.SyncCommitteeDuty, 0, len(cachedResp))
 
 		for _, d := range cachedResp {
 			if d == nil {
