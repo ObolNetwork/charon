@@ -64,14 +64,8 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 		return nil, err
 	}
 
-	nonce, err := generateNonce(nodes)
-	if err != nil {
-		return nil, err
-	}
-
 	dkgConfig := &kdkg.Config{
 		Longterm:  nodePrivateKey,
-		Nonce:     nonce,
 		Suite:     config.Suite,
 		NewNodes:  nodes,
 		Threshold: threshold,
@@ -84,7 +78,14 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 
 	shares := make([]share.Share, 0, numVals)
 
-	for range numVals {
+	for i := 0; i < numVals; i++ {
+		nonce, err := generateNonce(nodes, i)
+		if err != nil {
+			return nil, err
+		}
+
+		dkgConfig.Nonce = nonce
+
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
 		protocol, err := kdkg.NewProtocol(
