@@ -141,10 +141,6 @@ func (h *httpAdapter) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	return h.syncCommDutiesCache(ctx, epoch, vidxs)
 }
 
-func (*httpAdapter) UpdateCacheIndices(context.Context, []eth2p0.ValidatorIndex) {
-	// No-op
-}
-
 // Validators returns the validators as requested in opts.
 // If the amount of validators requested is greater than 200, exponentially increase the timeout: on crowded testnets
 // this HTTP call takes a long time.

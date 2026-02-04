@@ -160,14 +160,3 @@ func TestLazy_SyncDutiesCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, syncDuties, syncDuties2)
 }
-
-func TestLazy_UpdateCacheIndices(t *testing.T) {
-	ctx := context.Background()
-
-	client := mocks.NewClient(t)
-	client.On("UpdateCacheIndices", ctx, []eth2p0.ValidatorIndex{}).Return().Once()
-
-	l := eth2wrap.NewLazyForT(client)
-
-	l.UpdateCacheIndices(ctx, []eth2p0.ValidatorIndex{})
-}

@@ -152,17 +152,6 @@ func TestMulti_SyncDutiesCache(t *testing.T) {
 	require.Equal(t, syncDuties, syncDuties2)
 }
 
-func TestMulti_UpdateCacheIndices(t *testing.T) {
-	ctx := context.Background()
-
-	client := mocks.NewClient(t)
-	client.On("UpdateCacheIndices", ctx, []eth2p0.ValidatorIndex{}).Return().Once()
-
-	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-
-	m.UpdateCacheIndices(ctx, []eth2p0.ValidatorIndex{})
-}
-
 func TestMulti_Proxy(t *testing.T) {
 	client := mocks.NewClient(t)
 	client.On("Proxy", mock.Anything, mock.Anything).Return(nil, nil).Once()

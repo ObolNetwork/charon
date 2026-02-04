@@ -233,12 +233,3 @@ func (l *lazy) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 
 	return cl.SyncCommDutiesCache(ctx, epoch, vidxs)
 }
-
-func (l *lazy) UpdateCacheIndices(ctx context.Context, idxs []eth2p0.ValidatorIndex) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return
-	}
-
-	cl.UpdateCacheIndices(ctx, idxs)
-}
