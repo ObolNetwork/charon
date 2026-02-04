@@ -1145,10 +1145,12 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 
 	// 	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 	// } else {
+	log.Debug(ctx, "dutiescache proposer - vapi, calling proposer duties endpoint")
 	cachedResp, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug(ctx, "dutiescache proposer - vapi, cache returned resp, start loop")
 
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
@@ -1170,6 +1172,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 		cachedResp[i].PubKey = pubshare
 		// dutiesShareKey = append(dutiesShareKey, &duty)
 	}
+	log.Debug(ctx, "dutiescache proposer - vapi, finish loop")
 
 	return wrapResponse(cachedResp), nil
 	// }
