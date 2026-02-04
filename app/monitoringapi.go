@@ -284,7 +284,6 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beacon
 			if err != nil {
 				log.Warn(ctx, "Failed to fetch beacon node version", err,
 					z.Str("beacon_node_address", addr))
-
 				continue
 			}
 
@@ -292,7 +291,6 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beacon
 			if err != nil {
 				log.Warn(ctx, "Failed to fetch beacon node identity", err,
 					z.Str("beacon_node_address", addr))
-
 				continue
 			}
 
