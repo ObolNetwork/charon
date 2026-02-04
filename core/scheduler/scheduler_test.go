@@ -146,6 +146,13 @@ func TestSchedulerWait(t *testing.T) {
 			var t0 time.Time
 
 			clock := newTestClock(t0)
+
+			// Set a deadline to prevent the slot ticker goroutine from advancing
+			// the clock past the expected wait time. This avoids race conditions
+			// where the goroutine advances time before we can measure it.
+			expectedEndTime := t0.Add(time.Duration(test.WaitSecs) * time.Second)
+			clock.SetDeadline(expectedEndTime)
+
 			eth2Cl, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
@@ -667,8 +674,19 @@ func newTestClock(now time.Time) *testClock {
 type testClock struct {
 	nowMutex  sync.Mutex
 	now       time.Time
+	deadline  time.Time // If set, clock won't advance past this time
 	callbacks map[time.Time]func()
 	paused    atomic.Bool
+}
+
+// SetDeadline sets a deadline time that the clock cannot advance past.
+// Any Sleep that would advance past the deadline will instead advance to the deadline and pause.
+// This is useful for tests that need to prevent background goroutines from advancing time.
+func (c *testClock) SetDeadline(deadline time.Time) {
+	c.nowMutex.Lock()
+	defer c.nowMutex.Unlock()
+
+	c.deadline = deadline
 }
 
 // CallbackAfter sets a callback function that is called once
@@ -695,7 +713,15 @@ func (c *testClock) Sleep(d time.Duration) {
 	c.nowMutex.Lock()
 	defer c.nowMutex.Unlock()
 
-	c.now = c.now.Add(d)
+	newTime := c.now.Add(d)
+
+	// If deadline is set and we would advance past it, cap at deadline and pause
+	if !c.deadline.IsZero() && newTime.After(c.deadline) {
+		c.now = c.deadline
+		c.paused.Store(true)
+	} else {
+		c.now = newTime
+	}
 
 	for after, callback := range c.callbacks {
 		if c.now.Before(after) {
