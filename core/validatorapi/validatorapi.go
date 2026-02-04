@@ -1120,62 +1120,58 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	// if featureset.Enabled(featureset.DisableDutiesCache) {
-	// 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	duties := eth2Resp.Data
-
-	// 	// Replace root public keys with public shares
-	// 	for i := range len(duties) {
-	// 		if duties[i] == nil {
-	// 			return nil, errors.New("proposer duty cannot be nil")
-	// 		}
-
-	// 		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
-	// 		if !ok {
-	// 			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
-	// 			continue
-	// 		}
-
-	// 		duties[i].PubKey = pubshare
-	// 	}
-
-	// 	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
-	// } else {
-	log.Debug(ctx, "dutiescache proposer - vapi, calling proposer duties endpoint")
-	cachedResp, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
-	if err != nil {
-		return nil, err
-	}
-	log.Debug(ctx, "dutiescache proposer - vapi, cache returned resp, start loop")
-
-	// Replace root public keys with public shares.
-	// Duties are copied into new slice, as otherwise the cached duties would be modified.
-	// dutiesShareKey := make([]*eth2v1.ProposerDuty, 0, len(cachedResp))
-
-	for i := range len(cachedResp) {
-		if cachedResp[i] == nil {
-			return nil, errors.New("nil proposer duty from cache")
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
+		if err != nil {
+			return nil, err
 		}
 
-		// duty := *cachedResp[i]
+		duties := eth2Resp.Data
 
-		pubshare, ok := c.getPubShareFunc(cachedResp[i].PubKey)
-		if !ok {
-			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
-			continue
+		// Replace root public keys with public shares
+		for i := range len(duties) {
+			if duties[i] == nil {
+				return nil, errors.New("proposer duty cannot be nil")
+			}
+
+			pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
+			if !ok {
+				// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
+				continue
+			}
+
+			duties[i].PubKey = pubshare
 		}
 
-		cachedResp[i].PubKey = pubshare
-		// dutiesShareKey = append(dutiesShareKey, &duty)
-	}
-	log.Debug(ctx, "dutiescache proposer - vapi, finish loop")
+		return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
+	} else {
+		cachedResp, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
+		if err != nil {
+			return nil, err
+		}
 
-	return wrapResponse(cachedResp), nil
-	// }
+		// Replace root public keys with public shares.
+		// Duties are copied into new slice, as otherwise the cached duties would be modified.
+		dutiesShareKey := make([]*eth2v1.ProposerDuty, 0, len(cachedResp))
+		for _, d := range cachedResp {
+			if d == nil {
+				return nil, errors.New("nil proposer duty from cache")
+			}
+
+			duty := *d
+
+			pubshare, ok := c.getPubShareFunc(duty.PubKey)
+			if !ok {
+				// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
+				continue
+			}
+
+			duty.PubKey = pubshare
+			dutiesShareKey = append(dutiesShareKey, &duty)
+		}
+
+		return wrapResponse(dutiesShareKey), nil
+	}
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -1218,7 +1214,6 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		// Replace root public keys with public shares.
 		// Duties are copied into new slice, as otherwise the cached duties would be modified.
 		dutiesShareKey := make([]*eth2v1.AttesterDuty, 0, len(cachedResp))
-
 		for _, d := range cachedResp {
 			if d == nil {
 				return nil, errors.New("attester duty cannot be nil")
@@ -1264,7 +1259,6 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 		}
 
 		return wrapResponse(duties), nil
-
 	} else {
 		cachedResp, err := c.eth2Cl.SyncCommDutiesCache(ctx, opts.Epoch, opts.Indices)
 		if err != nil {
@@ -1274,7 +1268,6 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 		// Replace root public keys with public shares.
 		// Duties are copied into new slice, as otherwise the cached duties would be modified.
 		dutiesShareKey := make([]*eth2v1.SyncCommitteeDuty, 0, len(cachedResp))
-
 		for _, d := range cachedResp {
 			if d == nil {
 				return nil, errors.New("sync committee duty cannot be nil")
