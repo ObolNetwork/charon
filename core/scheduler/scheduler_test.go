@@ -550,6 +550,7 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 		callCount     atomic.Int64
 		callMutex     sync.Mutex
 		registrations []*eth2api.VersionedSignedValidatorRegistration
+		callDone      = make(chan struct{}, 1)
 	)
 
 	origFunc := eth2Cl.SubmitValidatorRegistrationsFunc
@@ -558,10 +559,13 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 
 		if registrations == nil {
 			callMutex.Lock()
-
 			registrations = regs
-
 			callMutex.Unlock()
+
+			select {
+			case callDone <- struct{}{}:
+			default:
+			}
 		}
 
 		return origFunc(ctx, regs)
@@ -601,11 +605,11 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 			epochsSeen[slot.Epoch()] = true
 		}
 
-		// Stop after processing enough slots to see 3 epochs
+		// Stop after processing enough slots to see 3 epochs and after registration completes
 		// With 4 slots per epoch, we need at least 9 slots (slots 0-8 cover epochs 0, 1, 2)
 		if slotCount >= 9 && !stopped {
+			<-callDone
 			stopped = true
-
 			sched.Stop()
 		}
 
