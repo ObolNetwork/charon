@@ -13,7 +13,6 @@ import (
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -114,16 +113,20 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		hosts = append(hosts, h)
 	}
 
-	// Connect each host with its peers
+	// Connect each host with its peers (establish actual connections, not just add addresses)
 	for i := range threshold {
 		for j := range threshold {
 			if i == j {
 				continue
 			}
 
-			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
+			err := hosts[i].Connect(ctx, hostsInfo[j])
+			require.NoError(t, err)
 		}
+	}
 
+	// Create consensus components
+	for i := range threshold {
 		sniffer := func(msgs *pbv1.SniffedConsensusInstance) {
 			sniffed <- len(msgs.GetMsgs())
 		}
