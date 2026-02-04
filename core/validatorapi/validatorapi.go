@@ -1152,26 +1152,26 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
-	dutiesShareKey := make([]*eth2v1.ProposerDuty, 0, len(cachedResp))
+	// dutiesShareKey := make([]*eth2v1.ProposerDuty, 0, len(cachedResp))
 
 	for i := range len(cachedResp) {
 		if cachedResp[i] == nil {
 			return nil, errors.New("nil proposer duty from cache")
 		}
 
-		duty := *cachedResp[i]
+		// duty := *cachedResp[i]
 
-		pubshare, ok := c.getPubShareFunc(duty.PubKey)
+		pubshare, ok := c.getPubShareFunc(cachedResp[i].PubKey)
 		if !ok {
 			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
 			continue
 		}
 
-		duty.PubKey = pubshare
-		dutiesShareKey = append(dutiesShareKey, &duty)
+		cachedResp[i].PubKey = pubshare
+		// dutiesShareKey = append(dutiesShareKey, &duty)
 	}
 
-	return wrapResponse(dutiesShareKey), nil
+	return wrapResponse(cachedResp), nil
 	// }
 }
 
