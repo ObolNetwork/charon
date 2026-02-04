@@ -309,15 +309,15 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	if featureset.Enabled(featureset.DisableDutiesCache) {
-		log.Debug(ctx, "dutiescache proposer - disabled, calling proposer duties endpoint")
-		eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
-		if err != nil {
-			return nil, err
-		}
+	// if featureset.Enabled(featureset.DisableDutiesCache) {
+	// 	log.Debug(ctx, "dutiescache proposer - disabled, calling proposer duties endpoint")
+	// 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		return eth2Resp.Data, nil
-	}
+	// 	return eth2Resp.Data, nil
+	// }
 	start := time.Now()
 	log.Debug(ctx, "dutiescache proposer - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	defer func(t time.Time) {
