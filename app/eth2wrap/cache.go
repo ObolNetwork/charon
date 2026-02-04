@@ -410,14 +410,14 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 // SyncCommDutiesCache returns the cached sync duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-	if featureset.Enabled(featureset.DisableDutiesCache) {
-		eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
-		if err != nil {
-			return nil, err
-		}
+	// if featureset.Enabled(featureset.DisableDutiesCache) {
+	// 	eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		return eth2Resp.Data, nil
-	}
+	// 	return eth2Resp.Data, nil
+	// }
 
 	duties, ok := c.cachedSyncDuties(ctx, epoch, vidxs)
 
