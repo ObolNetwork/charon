@@ -335,73 +335,42 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	// }
 	start := time.Now()
 	log.Debug(ctx, "dutiescache proposer - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	duties, ok := c.cachedProposerDuties(ctx, epoch, vidxs)
 	defer func(t time.Time) {
 		log.Debug(ctx, "dutiescache proposer - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	}(start)
+
+	if ok {
+		usedCacheCount.WithLabelValues("proposer_duties").Inc()
+		return duties, nil
+	}
+
+	missedCacheCount.WithLabelValues("proposer_duties").Inc()
 
 	opts := &eth2api.ProposerDutiesOpts{
 		Epoch:   epoch,
 		Indices: vidxs,
 	}
 
-	var duties []*eth2v1.ProposerDuty
-
-	log.Debug(ctx, "dutiescache proposer - load", z.U64("epoch", uint64(epoch)))
-	dutiesAny, ok := c.proposerDuties.Load(epoch)
-	if !ok {
-		log.Debug(ctx, "dutiescache proposer - not found cached epoch", z.U64("epoch", uint64(epoch)))
-		missedCacheCount.WithLabelValues("proposer_duties").Inc()
-		log.Debug(ctx, "dutiescache proposer - fetch from eth2cl", z.U64("epoch", uint64(epoch)))
-		eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
-		if err != nil {
-			return nil, err
-		}
-		proposerDutiesCurrEpoch := []*eth2v1.ProposerDuty{}
-
-		log.Debug(ctx, "dutiescache proposer - fetched from eth2cl, filter duties", z.U64("epoch", uint64(epoch)))
-		for _, duty := range eth2Resp.Data {
-			if duty == nil {
-				return nil, errors.New("proposer duty data is nil")
-			}
-			d := *duty
-
-			proposerDutiesCurrEpoch = append(proposerDutiesCurrEpoch, &d)
-		}
-
-		log.Debug(ctx, "dutiescache proposer - update cache with filtered duties", z.U64("epoch", uint64(epoch)))
-		c.proposerDuties.Store(epoch, proposerDutiesCurrEpoch)
-
-		duties = proposerDutiesCurrEpoch
-	} else {
-		dutiesFetched, ok := dutiesAny.([]*eth2v1.ProposerDuty)
-		if !ok {
-			missedCacheCount.WithLabelValues("proposer_duties").Inc()
-			eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
-			if err != nil {
-				return nil, err
-			}
-			proposerDutiesCurrEpoch := []*eth2v1.ProposerDuty{}
-
-			for _, duty := range eth2Resp.Data {
-				if duty == nil {
-					return nil, errors.New("proposer duty data is nil")
-				}
-				d := *duty
-
-				proposerDutiesCurrEpoch = append(proposerDutiesCurrEpoch, &d)
-			}
-
-			c.proposerDuties.Store(epoch, proposerDutiesCurrEpoch)
-			duties = eth2Resp.Data
-		} else {
-			log.Debug(ctx, "dutiescache proposer - found cached epoch", z.U64("epoch", uint64(epoch)))
-			usedCacheCount.WithLabelValues("proposer_duties").Inc()
-			duties = dutiesFetched
-		}
+	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
+	if err != nil {
+		return nil, err
 	}
 
-	log.Debug(ctx, "dutiescache proposer - finished", z.U64("epoch", uint64(epoch)))
-	return duties, nil
+	proposerDutiesCurrEpoch := []*eth2v1.ProposerDuty{}
+
+	for _, duty := range eth2Resp.Data {
+		if duty == nil {
+			return nil, errors.New("proposer duty data is nil")
+		}
+		d := *duty
+
+		proposerDutiesCurrEpoch = append(proposerDutiesCurrEpoch, &d)
+	}
+
+	c.proposerDuties.Store(epoch, proposerDutiesCurrEpoch)
+
+	return proposerDutiesCurrEpoch, nil
 }
 
 // AttesterDutiesCache returns the cached attester duties, or fetches them if not available populating the cache.
