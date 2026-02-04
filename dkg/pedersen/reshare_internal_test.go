@@ -5,6 +5,8 @@ package pedersen
 import (
 	"testing"
 
+	kbls "github.com/drand/kyber-bls12381"
+	kdkg "github.com/drand/kyber/share/dkg"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/dkg/share"
@@ -53,4 +55,35 @@ func TestRestoreDistKeyShare(t *testing.T) {
 		_, err := restoreDistKeyShare(sshare, 3, 0)
 		require.Error(t, err)
 	})
+}
+
+func TestGenerateNonce(t *testing.T) {
+	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
+	_, pub1 := randomKeyPair(suite)
+	_, pub2 := randomKeyPair(suite)
+	_, pub3 := randomKeyPair(suite)
+
+	nodes := []kdkg.Node{
+		{Index: 1, Public: pub1},
+		{Index: 2, Public: pub2},
+		{Index: 3, Public: pub3},
+	}
+
+	nonce1, err := generateNonce(nodes, 0)
+	require.NoError(t, err)
+
+	nonce2, err := generateNonce(nodes, 1)
+	require.NoError(t, err)
+
+	require.NotEqual(t, nonce1, nonce2)
+
+	nodes = []kdkg.Node{
+		{Index: 1, Public: pub1},
+		{Index: 2, Public: pub2},
+	}
+
+	nonce3, err := generateNonce(nodes, 1)
+	require.NoError(t, err)
+
+	require.NotEqual(t, nonce2, nonce3)
 }
