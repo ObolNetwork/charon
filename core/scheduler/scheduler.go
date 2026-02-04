@@ -11,6 +11,7 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -471,12 +472,27 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 
 // resolveAttDuties resolves attester duties for the given validators.
 func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	eth2Resp, err := s.eth2Cl.AttesterDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
-	if err != nil {
-		return err
-	}
+	var attDuties []*eth2v1.AttesterDuty
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		opts := &eth2api.AttesterDutiesOpts{
+			Epoch:   eth2p0.Epoch(slot.Epoch()),
+			Indices: vals.Indexes(),
+		}
 
-	attDuties := eth2Resp
+		eth2Resp, err := s.eth2Cl.AttesterDuties(ctx, opts)
+		if err != nil {
+			return err
+		}
+
+		attDuties = eth2Resp.Data
+	} else {
+		eth2Resp, err := s.eth2Cl.AttesterDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		if err != nil {
+			return err
+		}
+
+		attDuties = eth2Resp
+	}
 
 	// Check if any of the attester duties returned are nil.
 	for _, duty := range attDuties {
@@ -547,12 +563,27 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 
 // resolveProDuties resolves proposer duties for the given validators.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	eth2Resp, err := s.eth2Cl.ProposerDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
-	if err != nil {
-		return err
-	}
+	var proDuties []*eth2v1.ProposerDuty
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		opts := &eth2api.ProposerDutiesOpts{
+			Epoch:   eth2p0.Epoch(slot.Epoch()),
+			Indices: vals.Indexes(),
+		}
 
-	proDuties := eth2Resp
+		eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, opts)
+		if err != nil {
+			return err
+		}
+
+		proDuties = eth2Resp.Data
+	} else {
+		eth2Resp, err := s.eth2Cl.ProposerDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		if err != nil {
+			return err
+		}
+
+		proDuties = eth2Resp
+	}
 
 	// Check if any of the proposer duties returned are nil.
 	for _, duty := range proDuties {
@@ -596,12 +627,27 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 
 // resolveSyncCommDuties resolves sync committee duties for the validators in the given slot's epoch, caching the results.
 func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	eth2Resp, err := s.eth2Cl.SyncCommDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
-	if err != nil {
-		return err
-	}
+	var duties []*eth2v1.SyncCommitteeDuty
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		opts := &eth2api.SyncCommitteeDutiesOpts{
+			Epoch:   eth2p0.Epoch(slot.Epoch()),
+			Indices: vals.Indexes(),
+		}
 
-	duties := eth2Resp
+		eth2Resp, err := s.eth2Cl.SyncCommitteeDuties(ctx, opts)
+		if err != nil {
+			return err
+		}
+
+		duties = eth2Resp.Data
+	} else {
+		eth2Resp, err := s.eth2Cl.SyncCommDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		if err != nil {
+			return err
+		}
+
+		duties = eth2Resp
+	}
 
 	// Check if any of the sync committee duties returned are nil.
 	for _, duty := range duties {
