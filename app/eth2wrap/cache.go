@@ -209,9 +209,7 @@ type CachedDutiesProvider interface {
 // NewDutiesCache creates a new validator cache.
 func NewDutiesCache(eth2Cl Client) *DutiesCache {
 	log.Debug(context.Background(), "dutiescache - new duties cache")
-	return &DutiesCache{
-		eth2Cl: eth2Cl,
-	}
+	return &DutiesCache{eth2Cl: eth2Cl}
 }
 
 // DutiesCache caches active duties.
@@ -348,11 +346,10 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 	start := time.Now()
 	log.Debug(ctx, "dutiescache proposer - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	duties, ok := c.cachedProposerDuties(ctx, epoch, vidxs)
 	defer func(t time.Time) {
 		log.Debug(ctx, "dutiescache proposer - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
 	}(start)
-
-	duties, ok := c.cachedProposerDuties(epoch, vidxs)
 
 	if ok {
 		usedCacheCount.WithLabelValues("proposer_duties").Inc()
@@ -482,8 +479,8 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 }
 
 // cachedProposerDuties returns the cached proposer duties and true if they are available.
-func (c *DutiesCache) cachedProposerDuties(epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, bool) {
-	log.Debug(context.Background(), "dutiescache proposer - get proposer duties, current state of cache", z.U64("epoch", uint64(epoch)))
+func (c *DutiesCache) cachedProposerDuties(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, bool) {
+	log.Debug(ctx, "dutiescache proposer - get proposer duties, current state of cache", z.U64("epoch", uint64(epoch)))
 
 	dutiesAny, ok := c.proposerDuties.Load(epoch)
 	if !ok {
