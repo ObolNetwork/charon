@@ -1154,12 +1154,12 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
 	dutiesShareKey := make([]*eth2v1.ProposerDuty, 0, len(cachedResp))
 
-	for _, d := range cachedResp {
-		if d == nil {
+	for i := range len(cachedResp) {
+		if cachedResp[i] == nil {
 			return nil, errors.New("nil proposer duty from cache")
 		}
 
-		duty := *d
+		duty := *cachedResp[i]
 
 		pubshare, ok := c.getPubShareFunc(duty.PubKey)
 		if !ok {
