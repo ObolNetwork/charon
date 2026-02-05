@@ -327,7 +327,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		return nil, err
 	}
 
-	log.Debug(ctx, "dutiescache proposer step 6 - caching proposer duties", z.U64("epoch", uint64(epoch)), z.Int("duties", len(eth2Resp.Data)))
+	log.Debug(ctx, "dutiescache proposer step 6 - caching proposer duties", z.U64("epoch", uint64(epoch)), z.Int("duties", len(eth2Resp.Data)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)+1))
 	c.proposerDuties.mu.Lock()
 	c.proposerDuties.duties[epoch] = eth2Resp.Data
 	c.proposerDuties.mu.Unlock()
@@ -422,7 +422,7 @@ func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]*eth2v1.Propose
 		return nil, false
 	}
 
-	log.Debug(context.Background(), "dutiescache proposer step 3 - get proposer duties from map - found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
+	log.Debug(context.Background(), "dutiescache proposer step 3 - get proposer duties from map - found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)))
 	return duties, true
 }
 
