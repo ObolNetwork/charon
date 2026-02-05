@@ -544,11 +544,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		valCache.Trim()
-		err = dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
-		if err != nil {
-			log.Error(ctx, "Failed to trim duties cache", err)
-			return err
-		}
+		dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
 
 		_, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
 		if err != nil {
