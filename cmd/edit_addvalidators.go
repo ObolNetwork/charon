@@ -64,7 +64,7 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	// Bind `add-validator` flags.
 	cmd.Flags().IntVar(&config.NumValidators, "num-validators", 1, "The number of new validators to generate and add to the existing cluster.")
 	cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
-	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path or URL to the cluster lock file defining the distributed validator cluster.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new (combined) cluster data. Must be empty.")
 	cmd.Flags().BoolVar(&config.Unverified, "unverified", false,
@@ -196,7 +196,7 @@ func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error
 		return errors.New("private-key-file is required")
 	}
 
-	if !app.FileExists(config.LockFilePath) {
+	if !cluster.IsURL(config.LockFilePath) && !app.FileExists(config.LockFilePath) {
 		return errors.New("lock-file is required")
 	}
 

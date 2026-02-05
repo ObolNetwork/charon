@@ -210,7 +210,7 @@ func TestExitListCLI(t *testing.T) {
 	}{
 		{
 			name:        "check flags",
-			expectedErr: "read cluster-lock.json: open test: no such file or directory",
+			expectedErr: "read cluster-lock.json from disk: open test: no such file or directory",
 			flags: []string{
 				"--lock-file=test",
 				"--beacon-node-endpoints=test1,test2",
