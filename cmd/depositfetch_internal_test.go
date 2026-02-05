@@ -111,7 +111,7 @@ func TestDepositFetchCLI(t *testing.T) {
 	}{
 		{
 			name:        "correct flags",
-			expectedErr: "read cluster-lock.json: open test: no such file or directory",
+			expectedErr: "read cluster-lock.json from disk: open test: no such file or directory",
 			flags: []string{
 				"--validator-public-keys=test",
 				"--private-key-file=test",

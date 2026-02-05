@@ -43,7 +43,7 @@ func newReplaceOperatorCmd(runFunc func(context.Context, dkg.ReplaceOperatorConf
 	}
 
 	cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
-	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path or URL to the cluster lock file defining the distributed validator cluster.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty.")
 	cmd.Flags().StringVar(&config.NewENR, "new-operator-enr", "", "The new operator to be added (Charon ENR address).")
@@ -95,7 +95,7 @@ func validateReplaceOperatorConfig(ctx context.Context, config *dkg.ReplaceOpera
 		return errors.New("old-operator-enr and new-operator-enr cannot be the same")
 	}
 
-	if !app.FileExists(config.LockFilePath) {
+	if !cluster.IsURL(config.LockFilePath) && !app.FileExists(config.LockFilePath) {
 		return errors.New("lock-file does not exist")
 	}
 
