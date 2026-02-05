@@ -225,7 +225,19 @@ type CachedDutiesProvider interface {
 
 // NewDutiesCache creates a new validator cache.
 func NewDutiesCache(eth2Cl Client) *DutiesCache {
-	return &DutiesCache{eth2Cl: eth2Cl}
+	return &DutiesCache{
+		eth2Cl: eth2Cl,
+
+		proposerDuties: ProposerDuties{
+			duties: make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
+		},
+		attesterDuties: AttesterDuties{
+			duties: make(map[eth2p0.Epoch][]*eth2v1.AttesterDuty),
+		},
+		syncDuties: SyncDuties{
+			duties: make(map[eth2p0.Epoch][]*eth2v1.SyncCommitteeDuty),
+		},
+	}
 }
 
 // DutiesCache caches active duties.
