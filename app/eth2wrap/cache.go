@@ -304,7 +304,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	start := time.Now()
 	log.Debug(ctx, "dutiescache proposer step 1 - checking cache for proposer duties", z.U64("epoch", uint64(epoch)))
 	defer func(t time.Time) {
-		log.Debug(ctx, "dutiescache proposer step 4 or 7 - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)))
+		log.Debug(ctx, "dutiescache proposer step 7 - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)))
 	}(start)
 
 	duties, ok := c.fetchProposerDuties(epoch)
@@ -418,12 +418,21 @@ func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]*eth2v1.Propose
 
 	duties, ok := c.proposerDuties.duties[epoch]
 	if !ok {
-		log.Debug(context.Background(), "dutiescache proposer step 3 - get proposer duties from map - not found cached epoch", z.U64("epoch", uint64(epoch)))
+		log.Debug(context.Background(), "dutiescache proposer step 3 and 4 - get proposer duties from map - not found cached epoch", z.U64("epoch", uint64(epoch)))
 		return nil, false
 	}
 
-	log.Debug(context.Background(), "dutiescache proposer step 3 - get proposer duties from map - found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)))
-	return duties, true
+	log.Debug(context.Background(), "dutiescache proposer step 3 - get proposer duties from map - found cached epoch, duplicating...", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)))
+	duplicate := make([]*eth2v1.ProposerDuty, 0, len(duties))
+	for _, duty := range duties {
+		if duty == nil {
+			return nil, false
+		}
+		d := *duty
+		duplicate = append(duplicate, &d)
+	}
+	log.Debug(context.Background(), "dutiescache proposer step 4-6 - duplicated proposer duties", z.U64("epoch", uint64(epoch)))
+	return duplicate, true
 }
 
 // fetchAttesterDuties returns the cached attester duties and true if they are available.
