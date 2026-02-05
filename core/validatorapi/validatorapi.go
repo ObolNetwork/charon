@@ -1113,6 +1113,12 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 
 // ProposerDuties obtains proposer duties for the given options.
 func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+	start := time.Now()
+	log.Debug(ctx, "cache test - validatorapi proposer duties step 1 - VC called", z.U64("epoch", uint64(opts.Epoch)))
+	defer func(t time.Time) {
+		log.Debug(ctx, "cache test - validatorapi proposer duties step 5 - VC got response", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(opts.Epoch)))
+	}(start)
+
 	var span trace.Span
 
 	ctx, span = tracer.Start(ctx, "core/validatorapi.ProposerDuties")
@@ -1145,32 +1151,35 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 
 	// 	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 	// } else {
+
+	cacheCall := time.Now()
+	log.Debug(ctx, "cache test - validatorapi proposer duties step 2 - calling cache...", z.U64("epoch", uint64(opts.Epoch)))
+
 	cachedResp, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug(ctx, "cache test - validatorapi proposer duties step 3 - cache responded", z.I64("duration_ms", time.Since(cacheCall).Milliseconds()), z.U64("epoch", uint64(opts.Epoch)))
 
 	// Replace root public keys with public shares.
 	// Duties are copied into new slice, as otherwise the cached duties would be modified.
-	dutiesShareKey := make([]*eth2v1.ProposerDuty, 0, len(cachedResp))
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("nil proposer duty from cache")
 		}
 
-		duty := *d
-
-		pubshare, ok := c.getPubShareFunc(duty.PubKey)
+		pubshare, ok := c.getPubShareFunc(d.PubKey)
 		if !ok {
 			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
 			continue
 		}
 
-		duty.PubKey = pubshare
-		dutiesShareKey = append(dutiesShareKey, &duty)
+		d.PubKey = pubshare
 	}
 
-	return wrapResponse(dutiesShareKey), nil
+	log.Debug(ctx, "cache test - validatorapi proposer duties step 4 - partial pubkeys set", z.I64("duration_ms", time.Since(cacheCall).Milliseconds()), z.U64("epoch", uint64(opts.Epoch)))
+
+	return wrapResponse(cachedResp), nil
 	// }
 }
 
