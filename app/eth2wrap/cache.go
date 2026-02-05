@@ -292,19 +292,19 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available populating the cache.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	if featureset.Enabled(featureset.DisableDutiesCache) {
-		log.Debug(ctx, "dutiescache proposer - disabled, calling proposer duties endpoint")
-		eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
-		if err != nil {
-			return nil, err
-		}
+	// if featureset.Enabled(featureset.DisableDutiesCache) {
+	// 	log.Debug(ctx, "dutiescache proposer - disabled, calling proposer duties endpoint")
+	// 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		return eth2Resp.Data, nil
-	}
+	// 	return eth2Resp.Data, nil
+	// }
 	start := time.Now()
-	log.Debug(ctx, "dutiescache proposer - checking cache for proposer duties", z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+	log.Debug(ctx, "dutiescache proposer step 1 - checking cache for proposer duties", z.U64("epoch", uint64(epoch)))
 	defer func(t time.Time) {
-		log.Debug(ctx, "dutiescache proposer - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)), z.I64("requested_validators_count", int64(len(vidxs))))
+		log.Debug(ctx, "dutiescache proposer step 4 or 7 - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)))
 	}(start)
 
 	duties, ok := c.fetchProposerDuties(epoch)
@@ -321,11 +321,13 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		Indices: vidxs,
 	}
 
+	log.Debug(ctx, "dutiescache proposer step 5 - calling proposer duties endpoint", z.U64("epoch", uint64(epoch)))
 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
+	log.Debug(ctx, "dutiescache proposer step 6 - caching proposer duties", z.U64("epoch", uint64(epoch)), z.Int("duties", len(eth2Resp.Data)))
 	c.proposerDuties.mu.Lock()
 	c.proposerDuties.duties[epoch] = eth2Resp.Data
 	c.proposerDuties.mu.Unlock()
@@ -409,18 +411,18 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 // fetchProposerDuties returns the cached proposer duties and true if they are available.
 func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, bool) {
-	log.Debug(context.Background(), "dutiescache proposer - get proposer duties", z.U64("epoch", uint64(epoch)))
+	log.Debug(context.Background(), "dutiescache proposer step 2 - get proposer duties from map", z.U64("epoch", uint64(epoch)))
 
 	c.proposerDuties.mu.RLock()
 	defer c.proposerDuties.mu.RUnlock()
 
 	duties, ok := c.proposerDuties.duties[epoch]
 	if !ok {
-		log.Debug(context.Background(), "dutiescache proposer - get proposer duties, not found cached epoch", z.U64("epoch", uint64(epoch)))
+		log.Debug(context.Background(), "dutiescache proposer step 3 - get proposer duties from map - not found cached epoch", z.U64("epoch", uint64(epoch)))
 		return nil, false
 	}
 
-	log.Debug(context.Background(), "dutiescache proposer - get proposer duties, found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
+	log.Debug(context.Background(), "dutiescache proposer step 3 - get proposer duties from map - found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)))
 	return duties, true
 }
 
