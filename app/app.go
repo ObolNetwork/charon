@@ -653,6 +653,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
+	if !featureset.Enabled(featureset.DisableDutiesCache) {
+		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+	}
 
 	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
 	if err != nil {
