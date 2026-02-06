@@ -508,7 +508,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	// Setup duties cache, refreshing it every epoch.
 	dutiesCache := eth2wrap.NewDutiesCache(eth2Cl)
 	eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
-	sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
+
+	if !featureset.Enabled(featureset.DisableDutiesCache) {
+		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
+	}
 
 	var fvcrLock sync.RWMutex
 
