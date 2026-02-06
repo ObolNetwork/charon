@@ -1136,7 +1136,6 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	log.Debug(ctx, "cache test - validatorapi proposer duties step 3 - cache responded", z.I64("duration_ms", time.Since(cacheCall).Milliseconds()), z.U64("epoch", uint64(opts.Epoch)))
 
 	// Replace root public keys with public shares.
-	// Duties are copied into new slice, as otherwise the cached duties would be modified.
 	for _, d := range cachedResp {
 		if d == nil {
 			return nil, errors.New("nil proposer duty from cache")
@@ -1164,110 +1163,72 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
+	var duties []*eth2v1.AttesterDuty
+	var err error
+
 	if featureset.Enabled(featureset.DisableDutiesCache) {
 		eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
-
-		duties := eth2Resp.Data
-
-		// Replace root public keys with public shares.
-		for i := range len(duties) {
-			if duties[i] == nil {
-				return nil, errors.New("attester duty cannot be nil")
-			}
-
-			pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
-			if !ok {
-				return nil, errors.New("pubshare not found")
-			}
-
-			duties[i].PubKey = pubshare
-		}
-
-		return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
+		duties = eth2Resp.Data
 	} else {
-		cachedResp, err := c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
+		duties, err = c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
 		if err != nil {
 			return nil, err
 		}
+	}
 
-		// Replace root public keys with public shares.
-		// Duties are copied into new slice, as otherwise the cached duties would be modified.
-		dutiesShareKey := make([]*eth2v1.AttesterDuty, 0, len(cachedResp))
-		for _, d := range cachedResp {
-			if d == nil {
-				return nil, errors.New("attester duty cannot be nil")
-			}
-
-			duty := *d
-
-			pubshare, ok := c.getPubShareFunc(duty.PubKey)
-			if !ok {
-				return nil, errors.New("pubshare not found")
-			}
-
-			duty.PubKey = pubshare
-			dutiesShareKey = append(dutiesShareKey, &duty)
+	// Replace root public keys with public shares.
+	for _, d := range duties {
+		if d == nil {
+			return nil, errors.New("attester duty cannot be nil")
 		}
 
-		return wrapResponse(dutiesShareKey), nil
+		pubshare, ok := c.getPubShareFunc(d.PubKey)
+		if !ok {
+			return nil, errors.New("pubshare not found")
+		}
+
+		d.PubKey = pubshare
 	}
+
+	return wrapResponse(duties), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
 func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
+	var duties []*eth2v1.SyncCommitteeDuty
+	var err error
+
 	if featureset.Enabled(featureset.DisableDutiesCache) {
 		eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
-
-		duties := eth2Resp.Data
-
-		// Replace root public keys with public shares.
-		for i := range len(duties) {
-			if duties[i] == nil {
-				return nil, errors.New("sync committee duty cannot be nil")
-			}
-
-			pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
-			if !ok {
-				return nil, errors.New("pubshare not found")
-			}
-
-			duties[i].PubKey = pubshare
-		}
-
-		return wrapResponse(duties), nil
+		duties = eth2Resp.Data
 	} else {
-		cachedResp, err := c.eth2Cl.SyncCommDutiesCache(ctx, opts.Epoch, opts.Indices)
+		duties, err = c.eth2Cl.SyncCommDutiesCache(ctx, opts.Epoch, opts.Indices)
 		if err != nil {
 			return nil, err
 		}
+	}
 
-		// Replace root public keys with public shares.
-		// Duties are copied into new slice, as otherwise the cached duties would be modified.
-		dutiesShareKey := make([]*eth2v1.SyncCommitteeDuty, 0, len(cachedResp))
-		for _, d := range cachedResp {
-			if d == nil {
-				return nil, errors.New("sync committee duty cannot be nil")
-			}
-
-			duty := *d
-
-			pubshare, ok := c.getPubShareFunc(duty.PubKey)
-			if !ok {
-				return nil, errors.New("pubshare not found")
-			}
-
-			duty.PubKey = pubshare
-			dutiesShareKey = append(dutiesShareKey, &duty)
+	// Replace root public keys with public shares.
+	for _, d := range duties {
+		if d == nil {
+			return nil, errors.New("sync committee duty cannot be nil")
 		}
 
-		return wrapResponse(dutiesShareKey), nil
+		pubshare, ok := c.getPubShareFunc(d.PubKey)
+		if !ok {
+			return nil, errors.New("pubshare not found")
+		}
+
+		d.PubKey = pubshare
 	}
+
+	return wrapResponse(duties), nil
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {

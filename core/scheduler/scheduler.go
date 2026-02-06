@@ -474,24 +474,19 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var attDuties []*eth2v1.AttesterDuty
 	if featureset.Enabled(featureset.DisableDutiesCache) {
-		opts := &eth2api.AttesterDutiesOpts{
-			Epoch:   eth2p0.Epoch(slot.Epoch()),
-			Indices: vals.Indexes(),
-		}
-
-		eth2Resp, err := s.eth2Cl.AttesterDuties(ctx, opts)
+		eth2Resp, err := s.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
 		if err != nil {
 			return err
 		}
 
 		attDuties = eth2Resp.Data
 	} else {
-		eth2Resp, err := s.eth2Cl.AttesterDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		cachedResp, err := s.eth2Cl.AttesterDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 		if err != nil {
 			return err
 		}
 
-		attDuties = eth2Resp
+		attDuties = cachedResp
 	}
 
 	// Check if any of the attester duties returned are nil.
@@ -565,24 +560,19 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var proDuties []*eth2v1.ProposerDuty
 	if featureset.Enabled(featureset.DisableDutiesCache) {
-		opts := &eth2api.ProposerDutiesOpts{
-			Epoch:   eth2p0.Epoch(slot.Epoch()),
-			Indices: vals.Indexes(),
-		}
-
-		eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, opts)
+		eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
 		if err != nil {
 			return err
 		}
 
 		proDuties = eth2Resp.Data
 	} else {
-		eth2Resp, err := s.eth2Cl.ProposerDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		cachedResp, err := s.eth2Cl.ProposerDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 		if err != nil {
 			return err
 		}
 
-		proDuties = eth2Resp
+		proDuties = cachedResp
 	}
 
 	// Check if any of the proposer duties returned are nil.
@@ -629,24 +619,19 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var duties []*eth2v1.SyncCommitteeDuty
 	if featureset.Enabled(featureset.DisableDutiesCache) {
-		opts := &eth2api.SyncCommitteeDutiesOpts{
-			Epoch:   eth2p0.Epoch(slot.Epoch()),
-			Indices: vals.Indexes(),
-		}
-
-		eth2Resp, err := s.eth2Cl.SyncCommitteeDuties(ctx, opts)
+		eth2Resp, err := s.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
 		if err != nil {
 			return err
 		}
 
 		duties = eth2Resp.Data
 	} else {
-		eth2Resp, err := s.eth2Cl.SyncCommDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		cachedResp, err := s.eth2Cl.SyncCommDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 		if err != nil {
 			return err
 		}
 
-		duties = eth2Resp
+		duties = cachedResp
 	}
 
 	// Check if any of the sync committee duties returned are nil.

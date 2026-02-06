@@ -13,7 +13,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -290,17 +289,8 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	}
 }
 
-// ProposerDutiesCache returns the cached proposer duties, or fetches them if not available populating the cache.
+// ProposerDutiesCache returns the cached proposer duties, or fetches them if not available, populating the cache with the newly fetched ones.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-	// if featureset.Enabled(featureset.DisableDutiesCache) {
-	// 	log.Debug(ctx, "cache test - dutiescache proposer - disabled, calling proposer duties endpoint")
-	// 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	return eth2Resp.Data, nil
-	// }
 	start := time.Now()
 	log.Debug(ctx, "cache test - dutiescache proposer step 1 - checking cache for proposer duties", z.U64("epoch", uint64(epoch)))
 	defer func(t time.Time) {
@@ -348,17 +338,8 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	return eth2Resp.Data, nil
 }
 
-// AttesterDutiesCache returns the cached attester duties, or fetches them if not available populating the cache.
+// AttesterDutiesCache returns the cached attester duties, or fetches them if not available, populating the cache with the newly fetched ones.
 func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-	if featureset.Enabled(featureset.DisableDutiesCache) {
-		eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: vidxs})
-		if err != nil {
-			return nil, err
-		}
-
-		return eth2Resp.Data, nil
-	}
-
 	duties, ok := c.fetchAttesterDuties(epoch)
 
 	if ok {
@@ -372,12 +353,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	missedCacheCount.WithLabelValues("attester_duties").Inc()
 
-	opts := &eth2api.AttesterDutiesOpts{
-		Epoch:   epoch,
-		Indices: vidxs,
-	}
-
-	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
+	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: vidxs})
 	if err != nil {
 		return nil, err
 	}
@@ -391,24 +367,16 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		dutiesDeref = append(dutiesDeref, d)
 	}
 
-	c.attesterDuties.mu.Lock()
-	c.attesterDuties.duties[epoch] = dutiesDeref
-	c.attesterDuties.mu.Unlock()
+	ok = c.storeAttesterDuties(epoch, dutiesDeref)
+	if !ok {
+		log.Debug(ctx, "failed to cache attester duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
+	}
 
 	return eth2Resp.Data, nil
 }
 
-// SyncCommDutiesCache returns the cached sync duties, or fetches them if not available populating the cache.
+// SyncCommDutiesCache returns the cached sync duties, or fetches them if not available, populating the cache with the newly fetched ones.
 func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-	if featureset.Enabled(featureset.DisableDutiesCache) {
-		eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
-		if err != nil {
-			return nil, err
-		}
-
-		return eth2Resp.Data, nil
-	}
-
 	duties, ok := c.fetchSyncDuties(epoch)
 
 	if ok {
@@ -441,9 +409,10 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		dutiesDeref = append(dutiesDeref, d)
 	}
 
-	c.syncDuties.mu.Lock()
-	c.syncDuties.duties[epoch] = dutiesDeref
-	c.syncDuties.mu.Unlock()
+	ok = c.storeSyncDuties(epoch, dutiesDeref)
+	if !ok {
+		log.Debug(ctx, "failed to cache sync duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
+	}
 
 	return eth2Resp.Data, nil
 }
@@ -491,7 +460,7 @@ func (c *DutiesCache) fetchSyncDuties(epoch eth2p0.Epoch) ([]eth2v1.SyncCommitte
 	return duties, true
 }
 
-// storeProposerDuties returns the cached proposer duties and true if they are available.
+// storeProposerDuties stores proposer duties in the cache for the given epoch if they don't exist and false if they already exists.
 func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []eth2v1.ProposerDuty) bool {
 	log.Debug(context.Background(), "cache test - dutiescache proposer step 7 - duplicated proposer duties, locking", z.U64("epoch", uint64(epoch)))
 	c.proposerDuties.mu.Lock()
@@ -506,7 +475,31 @@ func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []eth2v1.Pr
 	return true
 }
 
-// trimBeforeProposerDuties removes cached proposer duties before the given epoch.
+// storeAttesterDuties stores attester duties in the cache for the given epoch if they don't exist and false if they already exists.
+func (c *DutiesCache) storeAttesterDuties(epoch eth2p0.Epoch, duties []eth2v1.AttesterDuty) bool {
+	c.attesterDuties.mu.Lock()
+	defer c.attesterDuties.mu.Unlock()
+	_, ok := c.attesterDuties.duties[epoch]
+	if ok {
+		return false
+	}
+	c.attesterDuties.duties[epoch] = duties
+	return true
+}
+
+// storeSyncDuties stores sync duties in the cache for the given epoch if they don't exist and false if they already exists.
+func (c *DutiesCache) storeSyncDuties(epoch eth2p0.Epoch, duties []eth2v1.SyncCommitteeDuty) bool {
+	c.syncDuties.mu.Lock()
+	defer c.syncDuties.mu.Unlock()
+	_, ok := c.syncDuties.duties[epoch]
+	if ok {
+		return false
+	}
+	c.syncDuties.duties[epoch] = duties
+	return true
+}
+
+// trimBeforeProposerDuties removes cached proposer duties before the given epoch and returns if any were removed.
 func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 	c.proposerDuties.mu.Lock()
 	defer c.proposerDuties.mu.Unlock()
@@ -520,7 +513,7 @@ func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 	return ok
 }
 
-// trimBeforeAttesterDuties removes cached attester duties before the given epoch.
+// trimBeforeAttesterDuties removes cached attester duties before the given epoch and returns if any were removed.
 func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 	c.attesterDuties.mu.Lock()
 	defer c.attesterDuties.mu.Unlock()
@@ -534,7 +527,7 @@ func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 	return ok
 }
 
-// trimBeforeSyncDuties removes cached sync duties before the given epoch.
+// trimBeforeSyncDuties removes cached sync duties before the given epoch and returns if any were removed.
 func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 	c.syncDuties.mu.Lock()
 	defer c.syncDuties.mu.Unlock()
@@ -548,7 +541,7 @@ func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 	return ok
 }
 
-// trimAfterProposerDuties removes cached proposer duties after the given epoch.
+// trimAfterProposerDuties removes cached proposer duties after the given epoch and returns if any were removed.
 func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 	c.proposerDuties.mu.Lock()
 	defer c.proposerDuties.mu.Unlock()
@@ -562,7 +555,7 @@ func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 	return ok
 }
 
-// trimAfterAttesterDuties removes cached attester duties after the given epoch.
+// trimAfterAttesterDuties removes cached attester duties after the given epoch and returns if any were removed.
 func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 	c.attesterDuties.mu.Lock()
 	defer c.attesterDuties.mu.Unlock()
@@ -576,7 +569,7 @@ func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 	return ok
 }
 
-// trimAfterSyncDuties removes cached sync duties after the given epoch.
+// trimAfterSyncDuties removes cached sync duties after the given epoch and returns if any were removed.
 func (c *DutiesCache) trimAfterSyncDuties(epoch eth2p0.Epoch) bool {
 	c.syncDuties.mu.Lock()
 	defer c.syncDuties.mu.Unlock()
