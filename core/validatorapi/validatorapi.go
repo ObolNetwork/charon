@@ -1120,13 +1120,24 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	cachedResp, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
-	if err != nil {
-		return nil, err
+	var duties []*eth2v1.ProposerDuty
+	var err error
+
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		duties = eth2Resp.Data
+	} else {
+		duties, err = c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Replace root public keys with public shares.
-	for _, d := range cachedResp {
+	for _, d := range duties {
 		if d == nil {
 			return nil, errors.New("nil proposer duty from cache")
 		}
@@ -1140,7 +1151,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 		d.PubKey = pubshare
 	}
 
-	return wrapResponse(cachedResp), nil
+	return wrapResponse(duties), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
