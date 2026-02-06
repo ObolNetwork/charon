@@ -544,7 +544,9 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		valCache.Trim()
-		dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
+		if !featureset.Enabled(featureset.DisableDutiesCache) {
+			dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
+		}
 
 		_, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
 		if err != nil {
