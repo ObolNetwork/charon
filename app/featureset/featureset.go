@@ -109,21 +109,21 @@ var (
 	// minStatus defines the minimum enabled status.
 	minStatus = statusStable
 
-	initMu sync.Mutex
+	initMu sync.RWMutex
 )
 
 // Enabled returns true if the feature is enabled.
 func Enabled(feature Feature) bool {
-	initMu.Lock()
-	defer initMu.Unlock()
+	initMu.RLock()
+	defer initMu.RUnlock()
 
 	return state[feature] >= minStatus
 }
 
 // CustomEnabledAll returns all custom enabled features.
 func CustomEnabledAll() []Feature {
-	initMu.Lock()
-	defer initMu.Unlock()
+	initMu.RLock()
+	defer initMu.RUnlock()
 
 	customEnabledFeatures := []Feature{}
 

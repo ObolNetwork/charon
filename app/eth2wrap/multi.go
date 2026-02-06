@@ -241,12 +241,6 @@ func (m multi) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 	return res0, err
 }
 
-func (m multi) UpdateCacheIndices(ctx context.Context, idxs []eth2p0.ValidatorIndex) {
-	for _, cl := range m.clients {
-		cl.UpdateCacheIndices(ctx, idxs)
-	}
-}
-
 func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
 	// Duplicate the request body so each backend gets an independent reader
 	// req.Clone(ctx) does NOT clone the body reader
