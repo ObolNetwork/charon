@@ -318,7 +318,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	dutiesDeref := make([]eth2v1.ProposerDuty, 0, len(eth2Resp.Data))
 	for _, duty := range eth2Resp.Data {
 		if duty == nil {
-			break
+			return nil, errors.New("proposer duty is nil")
 		}
 
 		d := *duty
