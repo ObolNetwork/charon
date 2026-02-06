@@ -201,19 +201,19 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 // ProposerDuties is a map of proposer duties per epoch.
 type ProposerDuties struct {
 	mu     sync.RWMutex
-	duties map[eth2p0.Epoch][]*eth2v1.ProposerDuty
+	duties map[eth2p0.Epoch][]eth2v1.ProposerDuty
 }
 
 // AttesterDuties is a map of attester duties per epoch.
 type AttesterDuties struct {
 	mu     sync.RWMutex
-	duties map[eth2p0.Epoch][]*eth2v1.AttesterDuty
+	duties map[eth2p0.Epoch][]eth2v1.AttesterDuty
 }
 
 // SyncDuties is a map of sync committee duties per epoch.
 type SyncDuties struct {
 	mu     sync.RWMutex
-	duties map[eth2p0.Epoch][]*eth2v1.SyncCommitteeDuty
+	duties map[eth2p0.Epoch][]eth2v1.SyncCommitteeDuty
 }
 
 // CachedDutiesProvider is the interface for providing current epoch's duties.
@@ -229,13 +229,13 @@ func NewDutiesCache(eth2Cl Client) *DutiesCache {
 		eth2Cl: eth2Cl,
 
 		proposerDuties: ProposerDuties{
-			duties: make(map[eth2p0.Epoch][]*eth2v1.ProposerDuty),
+			duties: make(map[eth2p0.Epoch][]eth2v1.ProposerDuty),
 		},
 		attesterDuties: AttesterDuties{
-			duties: make(map[eth2p0.Epoch][]*eth2v1.AttesterDuty),
+			duties: make(map[eth2p0.Epoch][]eth2v1.AttesterDuty),
 		},
 		syncDuties: SyncDuties{
-			duties: make(map[eth2p0.Epoch][]*eth2v1.SyncCommitteeDuty),
+			duties: make(map[eth2p0.Epoch][]eth2v1.SyncCommitteeDuty),
 		},
 	}
 }
@@ -304,14 +304,18 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	start := time.Now()
 	log.Debug(ctx, "cache test - dutiescache proposer step 1 - checking cache for proposer duties", z.U64("epoch", uint64(epoch)))
 	defer func(t time.Time) {
-		log.Debug(ctx, "cache test - dutiescache proposer step 10 - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)))
+		log.Debug(ctx, "cache test - dutiescache proposer step 9 - fetched cache for proposer duties", z.I64("duration_ms", time.Since(t).Milliseconds()), z.U64("epoch", uint64(epoch)))
 	}(start)
 
 	duties, ok := c.fetchProposerDuties(epoch)
 
 	if ok {
 		usedCacheCount.WithLabelValues("proposer_duties").Inc()
-		return duties, nil
+		dutiesRef := make([]*eth2v1.ProposerDuty, 0, len(duties))
+		for i := range duties {
+			dutiesRef = append(dutiesRef, &duties[i])
+		}
+		return dutiesRef, nil
 	}
 
 	missedCacheCount.WithLabelValues("proposer_duties").Inc()
@@ -321,14 +325,22 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		Indices: vidxs,
 	}
 
-	log.Debug(ctx, "cache test - dutiescache proposer step 5 - calling proposer duties endpoint", z.U64("epoch", uint64(epoch)))
+	log.Debug(ctx, "cache test - dutiescache proposer step 4 - calling proposer duties endpoint", z.U64("epoch", uint64(epoch)))
 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
-
-	log.Debug(ctx, "cache test - dutiescache proposer step 6 - caching proposer duties", z.U64("epoch", uint64(epoch)), z.Int("duties", len(eth2Resp.Data)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)+1))
-	ok = c.storeProposerDuties(epoch, eth2Resp.Data)
+	log.Debug(ctx, "cache test - dutiescache proposer step 5 - dereferencing duties to store...", z.U64("epoch", uint64(epoch)), z.Int("duties", len(eth2Resp.Data)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)+1))
+	dutiesDeref := make([]eth2v1.ProposerDuty, 0, len(eth2Resp.Data))
+	for _, duty := range eth2Resp.Data {
+		if duty == nil {
+			break
+		}
+		d := *duty
+		dutiesDeref = append(dutiesDeref, d)
+	}
+	log.Debug(ctx, "cache test - dutiescache proposer step 6 - storing duties", z.U64("epoch", uint64(epoch)), z.Int("duties", len(eth2Resp.Data)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)+1))
+	ok = c.storeProposerDuties(epoch, dutiesDeref)
 	if !ok {
 		log.Debug(ctx, "failed to cache proposer duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
 	}
@@ -351,7 +363,11 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	if ok {
 		usedCacheCount.WithLabelValues("attester_duties").Inc()
-		return duties, nil
+		dutiesRef := make([]*eth2v1.AttesterDuty, 0, len(duties))
+		for i := range duties {
+			dutiesRef = append(dutiesRef, &duties[i])
+		}
+		return dutiesRef, nil
 	}
 
 	missedCacheCount.WithLabelValues("attester_duties").Inc()
@@ -366,8 +382,17 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		return nil, err
 	}
 
+	dutiesDeref := make([]eth2v1.AttesterDuty, 0, len(eth2Resp.Data))
+	for _, duty := range eth2Resp.Data {
+		if duty == nil {
+			return nil, errors.New("attester duty is nil")
+		}
+		d := *duty
+		dutiesDeref = append(dutiesDeref, d)
+	}
+
 	c.attesterDuties.mu.Lock()
-	c.attesterDuties.duties[epoch] = eth2Resp.Data
+	c.attesterDuties.duties[epoch] = dutiesDeref
 	c.attesterDuties.mu.Unlock()
 
 	return eth2Resp.Data, nil
@@ -388,7 +413,11 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	if ok {
 		usedCacheCount.WithLabelValues("sync_committee_duties").Inc()
-		return duties, nil
+		dutiesRef := make([]*eth2v1.SyncCommitteeDuty, 0, len(duties))
+		for i := range duties {
+			dutiesRef = append(dutiesRef, &duties[i])
+		}
+		return dutiesRef, nil
 	}
 
 	missedCacheCount.WithLabelValues("sync_committee_duties").Inc()
@@ -403,15 +432,24 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		return nil, err
 	}
 
+	dutiesDeref := make([]eth2v1.SyncCommitteeDuty, 0, len(eth2Resp.Data))
+	for _, duty := range eth2Resp.Data {
+		if duty == nil {
+			return nil, errors.New("sync committee duty is nil")
+		}
+		d := *duty
+		dutiesDeref = append(dutiesDeref, d)
+	}
+
 	c.syncDuties.mu.Lock()
-	c.syncDuties.duties[epoch] = eth2Resp.Data
+	c.syncDuties.duties[epoch] = dutiesDeref
 	c.syncDuties.mu.Unlock()
 
 	return eth2Resp.Data, nil
 }
 
 // fetchProposerDuties returns the cached proposer duties and true if they are available.
-func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]*eth2v1.ProposerDuty, bool) {
+func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]eth2v1.ProposerDuty, bool) {
 	log.Debug(context.Background(), "cache test - dutiescache proposer step 2 - get proposer duties from map", z.U64("epoch", uint64(epoch)))
 
 	c.proposerDuties.mu.RLock()
@@ -419,25 +457,16 @@ func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]*eth2v1.Propose
 
 	duties, ok := c.proposerDuties.duties[epoch]
 	if !ok {
-		log.Debug(context.Background(), "cache test - dutiescache proposer step 3-4 - get proposer duties from map - not found cached epoch", z.U64("epoch", uint64(epoch)))
+		log.Debug(context.Background(), "cache test - dutiescache proposer step 3 - get proposer duties from map - not found cached epoch", z.U64("epoch", uint64(epoch)))
 		return nil, false
 	}
 
-	log.Debug(context.Background(), "cache test - dutiescache proposer step 3 - get proposer duties from map - found cached epoch, duplicating...", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)))
-	duplicate := make([]*eth2v1.ProposerDuty, 0, len(duties))
-	for _, duty := range duties {
-		if duty == nil {
-			return nil, false
-		}
-		d := *duty
-		duplicate = append(duplicate, &d)
-	}
-	log.Debug(context.Background(), "cache test - dutiescache proposer step 4-9 - duplicated proposer duties", z.U64("epoch", uint64(epoch)))
-	return duplicate, true
+	log.Debug(context.Background(), "cache test - dutiescache proposer step 3-8 - get proposer duties from map - found cached epoch", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)))
+	return duties, true
 }
 
 // fetchAttesterDuties returns the cached attester duties and true if they are available.
-func (c *DutiesCache) fetchAttesterDuties(epoch eth2p0.Epoch) ([]*eth2v1.AttesterDuty, bool) {
+func (c *DutiesCache) fetchAttesterDuties(epoch eth2p0.Epoch) ([]eth2v1.AttesterDuty, bool) {
 	c.attesterDuties.mu.RLock()
 	defer c.attesterDuties.mu.RUnlock()
 
@@ -450,7 +479,7 @@ func (c *DutiesCache) fetchAttesterDuties(epoch eth2p0.Epoch) ([]*eth2v1.Atteste
 }
 
 // fetchSyncDuties returns the cached sync duties and true if they are available.
-func (c *DutiesCache) fetchSyncDuties(epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitteeDuty, bool) {
+func (c *DutiesCache) fetchSyncDuties(epoch eth2p0.Epoch) ([]eth2v1.SyncCommitteeDuty, bool) {
 	c.syncDuties.mu.RLock()
 	defer c.syncDuties.mu.RUnlock()
 
@@ -463,27 +492,17 @@ func (c *DutiesCache) fetchSyncDuties(epoch eth2p0.Epoch) ([]*eth2v1.SyncCommitt
 }
 
 // storeProposerDuties returns the cached proposer duties and true if they are available.
-func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []*eth2v1.ProposerDuty) bool {
-	log.Debug(context.Background(), "cache test - dutiescache proposer step 7 - duplicating duties to save...", z.U64("epoch", uint64(epoch)), z.Int("duties", len(duties)), z.Int("cached_epochs_count", len(c.proposerDuties.duties)))
-	duplicate := make([]*eth2v1.ProposerDuty, 0, len(duties))
-	for _, duty := range duties {
-		if duty == nil {
-			return false
-		}
-		d := *duty
-		duplicate = append(duplicate, &d)
-	}
-
-	log.Debug(context.Background(), "cache test - dutiescache proposer step 8 - duplicated proposer duties, locking", z.U64("epoch", uint64(epoch)))
+func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []eth2v1.ProposerDuty) bool {
+	log.Debug(context.Background(), "cache test - dutiescache proposer step 7 - duplicated proposer duties, locking", z.U64("epoch", uint64(epoch)))
 	c.proposerDuties.mu.Lock()
 	defer c.proposerDuties.mu.Unlock()
+
 	_, ok := c.proposerDuties.duties[epoch]
 	if ok {
 		return false
 	}
-	c.proposerDuties.duties[epoch] = duplicate
-	log.Debug(context.Background(), "cache test - dutiescache proposer step 9 - duplicated proposer duties, saved", z.U64("epoch", uint64(epoch)))
-
+	c.proposerDuties.duties[epoch] = duties
+	log.Debug(context.Background(), "cache test - dutiescache proposer step 8 - duplicated proposer duties, saved", z.U64("epoch", uint64(epoch)))
 	return true
 }
 

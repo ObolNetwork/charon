@@ -1126,32 +1126,6 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	// if featureset.Enabled(featureset.DisableDutiesCache) {
-	// 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	duties := eth2Resp.Data
-
-	// 	// Replace root public keys with public shares
-	// 	for i := range len(duties) {
-	// 		if duties[i] == nil {
-	// 			return nil, errors.New("proposer duty cannot be nil")
-	// 		}
-
-	// 		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
-	// 		if !ok {
-	// 			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
-	// 			continue
-	// 		}
-
-	// 		duties[i].PubKey = pubshare
-	// 	}
-
-	// 	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
-	// } else {
-
 	cacheCall := time.Now()
 	log.Debug(ctx, "cache test - validatorapi proposer duties step 2 - calling cache...", z.U64("epoch", uint64(opts.Epoch)))
 
@@ -1180,7 +1154,6 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	log.Debug(ctx, "cache test - validatorapi proposer duties step 4 - partial pubkeys set", z.I64("duration_ms", time.Since(cacheCall).Milliseconds()), z.U64("epoch", uint64(opts.Epoch)))
 
 	return wrapResponse(cachedResp), nil
-	// }
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
