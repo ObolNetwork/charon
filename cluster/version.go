@@ -8,10 +8,11 @@ import (
 )
 
 const (
-	currentVersion = v1_10
+	currentVersion = v1_11
 	dkgAlgo        = "default"
 
-	v1_10 = "v1.10.0" // Default
+	v1_11 = "v1.11.0" // Default
+	v1_10 = "v1.10.0"
 	v1_9  = "v1.9.0"
 	v1_8  = "v1.8.0"
 	v1_7  = "v1.7.0"
@@ -29,6 +30,7 @@ const (
 )
 
 var supportedVersions = map[string]bool{
+	v1_11: true,
 	v1_10: true,
 	v1_9:  true,
 	v1_8:  true,
