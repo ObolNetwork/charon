@@ -547,6 +547,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		valCache.Trim()
+
 		if !featureset.Enabled(featureset.DisableDutiesCache) {
 			dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
 		}
@@ -653,6 +654,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
+
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
 		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}

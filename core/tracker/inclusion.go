@@ -641,6 +641,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 					eth2Resp, err := a.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: indices})
 					if err != nil {
 						log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
+
 						attesterDuties = []*eth2v1.AttesterDuty{}
 					} else {
 						attesterDuties = eth2Resp.Data
@@ -649,6 +650,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 					cachedResp, err := a.eth2Cl.AttesterDutiesCache(ctx, epoch, indices)
 					if err != nil {
 						log.Warn(ctx, "Failed to fetch attester duties for epoch from cache", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
+
 						attesterDuties = []*eth2v1.AttesterDuty{}
 					} else {
 						attesterDuties = cachedResp

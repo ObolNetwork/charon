@@ -473,6 +473,7 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 // resolveAttDuties resolves attester duties for the given validators.
 func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var attDuties []*eth2v1.AttesterDuty
+
 	if featureset.Enabled(featureset.DisableDutiesCache) {
 		eth2Resp, err := s.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
 		if err != nil {
@@ -559,6 +560,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 // resolveProDuties resolves proposer duties for the given validators.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var proDuties []*eth2v1.ProposerDuty
+
 	if featureset.Enabled(featureset.DisableDutiesCache) {
 		eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
 		if err != nil {
@@ -618,6 +620,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 // resolveSyncCommDuties resolves sync committee duties for the validators in the given slot's epoch, caching the results.
 func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var duties []*eth2v1.SyncCommitteeDuty
+
 	if featureset.Enabled(featureset.DisableDutiesCache) {
 		eth2Resp, err := s.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
 		if err != nil {

@@ -294,10 +294,12 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	if ok {
 		usedCacheCount.WithLabelValues("proposer_duties").Inc()
+
 		dutiesRef := make([]*eth2v1.ProposerDuty, 0, len(duties))
 		for i := range duties {
 			dutiesRef = append(dutiesRef, &duties[i])
 		}
+
 		return dutiesRef, nil
 	}
 
@@ -312,14 +314,17 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	if err != nil {
 		return nil, err
 	}
+
 	dutiesDeref := make([]eth2v1.ProposerDuty, 0, len(eth2Resp.Data))
 	for _, duty := range eth2Resp.Data {
 		if duty == nil {
 			break
 		}
+
 		d := *duty
 		dutiesDeref = append(dutiesDeref, d)
 	}
+
 	ok = c.storeProposerDuties(epoch, dutiesDeref)
 	if !ok {
 		log.Debug(ctx, "failed to cache proposer duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
@@ -334,10 +339,12 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	if ok {
 		usedCacheCount.WithLabelValues("attester_duties").Inc()
+
 		dutiesRef := make([]*eth2v1.AttesterDuty, 0, len(duties))
 		for i := range duties {
 			dutiesRef = append(dutiesRef, &duties[i])
 		}
+
 		return dutiesRef, nil
 	}
 
@@ -353,6 +360,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		if duty == nil {
 			return nil, errors.New("attester duty is nil")
 		}
+
 		d := *duty
 		dutiesDeref = append(dutiesDeref, d)
 	}
@@ -371,10 +379,12 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	if ok {
 		usedCacheCount.WithLabelValues("sync_committee_duties").Inc()
+
 		dutiesRef := make([]*eth2v1.SyncCommitteeDuty, 0, len(duties))
 		for i := range duties {
 			dutiesRef = append(dutiesRef, &duties[i])
 		}
+
 		return dutiesRef, nil
 	}
 
@@ -395,6 +405,7 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		if duty == nil {
 			return nil, errors.New("sync committee duty is nil")
 		}
+
 		d := *duty
 		dutiesDeref = append(dutiesDeref, d)
 	}
@@ -455,7 +466,9 @@ func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []eth2v1.Pr
 	if ok {
 		return false
 	}
+
 	c.proposerDuties.duties[epoch] = duties
+
 	return true
 }
 
@@ -463,11 +476,14 @@ func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []eth2v1.Pr
 func (c *DutiesCache) storeAttesterDuties(epoch eth2p0.Epoch, duties []eth2v1.AttesterDuty) bool {
 	c.attesterDuties.mu.Lock()
 	defer c.attesterDuties.mu.Unlock()
+
 	_, ok := c.attesterDuties.duties[epoch]
 	if ok {
 		return false
 	}
+
 	c.attesterDuties.duties[epoch] = duties
+
 	return true
 }
 
@@ -475,11 +491,14 @@ func (c *DutiesCache) storeAttesterDuties(epoch eth2p0.Epoch, duties []eth2v1.At
 func (c *DutiesCache) storeSyncDuties(epoch eth2p0.Epoch, duties []eth2v1.SyncCommitteeDuty) bool {
 	c.syncDuties.mu.Lock()
 	defer c.syncDuties.mu.Unlock()
+
 	_, ok := c.syncDuties.duties[epoch]
 	if ok {
 		return false
 	}
+
 	c.syncDuties.duties[epoch] = duties
+
 	return true
 }
 
@@ -487,13 +506,17 @@ func (c *DutiesCache) storeSyncDuties(epoch eth2p0.Epoch, duties []eth2v1.SyncCo
 func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 	c.proposerDuties.mu.Lock()
 	defer c.proposerDuties.mu.Unlock()
+
 	ok := false
+
 	for k := range c.proposerDuties.duties {
 		if k < epoch {
 			delete(c.proposerDuties.duties, k)
+
 			ok = true
 		}
 	}
+
 	return ok
 }
 
@@ -501,13 +524,17 @@ func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 	c.attesterDuties.mu.Lock()
 	defer c.attesterDuties.mu.Unlock()
+
 	ok := false
+
 	for k := range c.attesterDuties.duties {
 		if k < epoch {
 			delete(c.attesterDuties.duties, k)
+
 			ok = true
 		}
 	}
+
 	return ok
 }
 
@@ -515,13 +542,17 @@ func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 	c.syncDuties.mu.Lock()
 	defer c.syncDuties.mu.Unlock()
+
 	ok := false
+
 	for k := range c.syncDuties.duties {
 		if k < epoch {
 			delete(c.syncDuties.duties, k)
+
 			ok = true
 		}
 	}
+
 	return ok
 }
 
@@ -529,13 +560,17 @@ func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 	c.proposerDuties.mu.Lock()
 	defer c.proposerDuties.mu.Unlock()
+
 	ok := false
+
 	for k := range c.proposerDuties.duties {
 		if k > epoch {
 			delete(c.proposerDuties.duties, k)
+
 			ok = true
 		}
 	}
+
 	return ok
 }
 
@@ -543,13 +578,17 @@ func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 	c.attesterDuties.mu.Lock()
 	defer c.attesterDuties.mu.Unlock()
+
 	ok := false
+
 	for k := range c.attesterDuties.duties {
 		if k > epoch {
 			delete(c.attesterDuties.duties, k)
+
 			ok = true
 		}
 	}
+
 	return ok
 }
 
@@ -557,12 +596,16 @@ func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 func (c *DutiesCache) trimAfterSyncDuties(epoch eth2p0.Epoch) bool {
 	c.syncDuties.mu.Lock()
 	defer c.syncDuties.mu.Unlock()
+
 	ok := false
+
 	for k := range c.syncDuties.duties {
 		if k > epoch {
 			delete(c.syncDuties.duties, k)
+
 			ok = true
 		}
 	}
+
 	return ok
 }
