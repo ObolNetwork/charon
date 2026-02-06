@@ -86,3 +86,45 @@ func TestKeyShareToBLS(t *testing.T) {
 		require.Equal(t, pubKeyBytes, pubKey[:])
 	})
 }
+
+func TestValidateThreshold(t *testing.T) {
+	tests := []struct {
+		name      string
+		nodeCount int
+		threshold int
+		wantErr   bool
+		errMsg    string
+	}{
+		{
+			name:      "valid threshold at maximum (equals node count)",
+			nodeCount: 5,
+			threshold: 5,
+			wantErr:   false,
+		},
+		{
+			name:      "valid threshold between minimum and maximum",
+			nodeCount: 7,
+			threshold: 6,
+			wantErr:   false,
+		},
+		{
+			name:      "invalid threshold below minimum",
+			nodeCount: 4,
+			threshold: 0, // minimum is 1
+			wantErr:   true,
+			errMsg:    "threshold is too low",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateThreshold(tt.nodeCount, tt.threshold)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
