@@ -296,8 +296,8 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		usedCacheCount.WithLabelValues("proposer_duties").Inc()
 
 		dutiesRef := make([]*eth2v1.ProposerDuty, 0, len(duties))
-		for i := range duties {
-			dutiesRef = append(dutiesRef, &duties[i])
+		for _, d := range duties {
+			dutiesRef = append(dutiesRef, &d)
 		}
 
 		return dutiesRef, nil
@@ -341,8 +341,8 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		usedCacheCount.WithLabelValues("attester_duties").Inc()
 
 		dutiesRef := make([]*eth2v1.AttesterDuty, 0, len(duties))
-		for i := range duties {
-			dutiesRef = append(dutiesRef, &duties[i])
+		for _, d := range duties {
+			dutiesRef = append(dutiesRef, &d)
 		}
 
 		return dutiesRef, nil
@@ -381,8 +381,8 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		usedCacheCount.WithLabelValues("sync_committee_duties").Inc()
 
 		dutiesRef := make([]*eth2v1.SyncCommitteeDuty, 0, len(duties))
-		for i := range duties {
-			dutiesRef = append(dutiesRef, &duties[i])
+		for _, d := range duties {
+			dutiesRef = append(dutiesRef, &d)
 		}
 
 		return dutiesRef, nil

@@ -1192,7 +1192,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 
 		pubshare, ok := c.getPubShareFunc(d.PubKey)
 		if !ok {
-			return nil, errors.New("pubshare not found")
+			return nil, errors.New("pubshare not found", z.Str("pubkey", d.PubKey.String()))
 		}
 
 		d.PubKey = pubshare
@@ -1230,7 +1230,7 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 
 		pubshare, ok := c.getPubShareFunc(d.PubKey)
 		if !ok {
-			return nil, errors.New("pubshare not found")
+			return nil, errors.New("pubshare not found", z.Str("pubkey", d.PubKey.String()))
 		}
 
 		d.PubKey = pubshare
