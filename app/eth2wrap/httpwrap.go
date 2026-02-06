@@ -48,14 +48,17 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, headers map[string
 type httpAdapter struct {
 	*eth2http.Service
 
-	address             string
-	headers             map[string]string
-	timeout             time.Duration
-	cacheMu             sync.RWMutex
-	valCache            func(context.Context) (ActiveValidators, CompleteValidators, error)
-	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.ProposerDuty, error)
-	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.AttesterDuty, error)
-	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.SyncCommitteeDuty, error)
+	address               string
+	headers               map[string]string
+	timeout               time.Duration
+	valCacheMu            sync.RWMutex
+	valCache              func(context.Context) (ActiveValidators, CompleteValidators, error)
+	proposerDutiesCacheMu sync.RWMutex
+	proposerDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.ProposerDuty, error)
+	attesterDutiesCacheMu sync.RWMutex
+	attesterDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.AttesterDuty, error)
+	syncCommDutiesCacheMu sync.RWMutex
+	syncCommDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.SyncCommitteeDuty, error)
 
 	forkVersion [4]byte
 }
@@ -65,14 +68,14 @@ func (h *httpAdapter) SetForkVersion(forkVersion [4]byte) {
 }
 
 func (h *httpAdapter) SetValidatorCache(valCache func(context.Context) (ActiveValidators, CompleteValidators, error)) {
-	h.cacheMu.Lock()
+	h.valCacheMu.Lock()
 	h.valCache = valCache
-	h.cacheMu.Unlock()
+	h.valCacheMu.Unlock()
 }
 
 func (h *httpAdapter) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
-	h.cacheMu.RLock()
-	defer h.cacheMu.RUnlock()
+	h.valCacheMu.RLock()
+	defer h.valCacheMu.RUnlock()
 
 	if h.valCache == nil {
 		return nil, errors.New("no active validator cache")
@@ -84,8 +87,8 @@ func (h *httpAdapter) ActiveValidators(ctx context.Context) (ActiveValidators, e
 }
 
 func (h *httpAdapter) CompleteValidators(ctx context.Context) (CompleteValidators, error) {
-	h.cacheMu.RLock()
-	defer h.cacheMu.RUnlock()
+	h.valCacheMu.RLock()
+	defer h.valCacheMu.RUnlock()
 
 	if h.valCache == nil {
 		return nil, errors.New("no active validator cache")
@@ -101,16 +104,22 @@ func (h *httpAdapter) SetDutiesCache(
 	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.AttesterDuty, error),
 	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*apiv1.SyncCommitteeDuty, error),
 ) {
-	h.cacheMu.Lock()
-	defer h.cacheMu.Unlock()
+	h.proposerDutiesCacheMu.Lock()
 	h.proposerDutiesCache = proposerDutiesCache
+	h.proposerDutiesCacheMu.Unlock()
+
+	h.attesterDutiesCacheMu.Lock()
 	h.attesterDutiesCache = attesterDutiesCache
+	h.attesterDutiesCacheMu.Unlock()
+
+	h.syncCommDutiesCacheMu.Lock()
 	h.syncCommDutiesCache = syncCommDutiesCache
+	h.syncCommDutiesCacheMu.Unlock()
 }
 
 func (h *httpAdapter) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*apiv1.ProposerDuty, error) {
-	h.cacheMu.RLock()
-	defer h.cacheMu.RUnlock()
+	h.proposerDutiesCacheMu.RLock()
+	defer h.proposerDutiesCacheMu.RUnlock()
 
 	if h.proposerDutiesCache == nil {
 		return nil, errors.New("no active proposer duties cache")
@@ -120,8 +129,8 @@ func (h *httpAdapter) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 }
 
 func (h *httpAdapter) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*apiv1.AttesterDuty, error) {
-	h.cacheMu.RLock()
-	defer h.cacheMu.RUnlock()
+	h.attesterDutiesCacheMu.RLock()
+	defer h.attesterDutiesCacheMu.RUnlock()
 
 	if h.attesterDutiesCache == nil {
 		return nil, errors.New("no active attester duties cache")
@@ -131,8 +140,8 @@ func (h *httpAdapter) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 }
 
 func (h *httpAdapter) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*apiv1.SyncCommitteeDuty, error) {
-	h.cacheMu.RLock()
-	defer h.cacheMu.RUnlock()
+	h.syncCommDutiesCacheMu.RLock()
+	defer h.syncCommDutiesCacheMu.RUnlock()
 
 	if h.syncCommDutiesCache == nil {
 		return nil, errors.New("no active sync duties cache")
