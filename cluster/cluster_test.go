@@ -21,6 +21,7 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
+	v1_11 = "v1.11.0"
 	v1_10 = "v1.10.0"
 	v1_9  = "v1.9.0"
 	v1_8  = "v1.8.0"
@@ -64,12 +65,12 @@ func TestEncode(t *testing.T) {
 			}
 
 			var partialAmounts []int
-			if isAnyVersion(version, v1_8, v1_9, v1_10) {
+			if isAnyVersion(version, v1_8, v1_9, v1_10, v1_11) {
 				partialAmounts = []int{16, 16}
 			}
 
 			targetGasLimit := uint(0)
-			if isAnyVersion(version, v1_10) {
+			if isAnyVersion(version, v1_10, v1_11) {
 				targetGasLimit = 30000000
 			}
 
