@@ -255,6 +255,11 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return errors.New("empty operator config signature", z.Any("operator_address", o.Address))
 		}
 
+		// Validate signature lengths for v1.11.0+ (Safe multisig support)
+		if err := d.validateSignatureLengths(); err != nil {
+			return err
+		}
+
 		// Check that we have a valid config signature for each operator.
 		if ok, err := verifySig(o.Address, operatorConfigHashDigest, o.ConfigSignature); err != nil {
 			return err
@@ -315,6 +320,56 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		} else if !ok {
 			return errors.New("invalid creator config signature")
 		}
+	}
+
+	return nil
+}
+
+// validateSignatureLengths validates that all signatures in v1.11.0+ are multiples of 65 bytes.
+// This ensures compatibility with Safe multisig wallets where signature length = threshold × 65 bytes.
+func (d Definition) validateSignatureLengths() error {
+	if !isAnyVersion(d.Version, v1_11) {
+		return nil // Skip validation for older versions
+	}
+
+	for i, op := range d.Operators {
+		if err := validateSignatureLength(op.ConfigSignature, "operator config signature"); err != nil {
+			return errors.Wrap(err, "invalid signature length", z.Int("operator_index", i), z.Str("address", op.Address))
+		}
+		if err := validateSignatureLength(op.ENRSignature, "operator enr signature"); err != nil {
+			return errors.Wrap(err, "invalid signature length", z.Int("operator_index", i), z.Str("address", op.Address))
+		}
+	}
+
+	if err := validateSignatureLength(d.Creator.ConfigSignature, "creator config signature"); err != nil {
+		return errors.Wrap(err, "invalid signature length", z.Str("address", d.Creator.Address))
+	}
+
+	return nil
+}
+
+// validateSignatureLength validates that a signature is either empty or a multiple of 65 bytes.
+// Safe/Gnosis Safe multisig signatures are concatenated ECDSA signatures: threshold × 65 bytes.
+func validateSignatureLength(sig []byte, fieldName string) error {
+	if len(sig) == 0 {
+		return nil // Empty signatures are valid
+	}
+
+	if len(sig)%65 != 0 {
+		return errors.New("signature must be multiple of 65 bytes",
+			z.Str("field", fieldName),
+			z.Int("length", len(sig)),
+			z.Int("remainder", len(sig)%65),
+		)
+	}
+
+	if len(sig) > sszMaxSignature {
+		return errors.New("signature exceeds maximum length",
+			z.Str("field", fieldName),
+			z.Int("length", len(sig)),
+			z.Int("max", sszMaxSignature),
+			z.Int("max_threshold", sszMaxSignature/65),
+		)
 	}
 
 	return nil
@@ -441,6 +496,8 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return marshalDefinitionV1x9(d2)
 	case isAnyVersion(d2.Version, v1_10):
 		return marshalDefinitionV1x10(d2)
+	case isAnyVersion(d2.Version, v1_11):
+		return marshalDefinitionV1x11(d2)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -498,6 +555,11 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		}
 	case isAnyVersion(version.Version, v1_10):
 		def, err = unmarshalDefinitionV1x10(data)
+		if err != nil {
+			return err
+		}
+	case isAnyVersion(version.Version, v1_11):
+		def, err = unmarshalDefinitionV1x11(data)
 		if err != nil {
 			return err
 		}
@@ -705,6 +767,36 @@ func marshalDefinitionV1x9(def Definition) ([]byte, error) {
 
 func marshalDefinitionV1x10(def Definition) ([]byte, error) {
 	resp, err := json.Marshal(definitionJSONv1x10{
+		Name:               def.Name,
+		UUID:               def.UUID,
+		Version:            def.Version,
+		Timestamp:          def.Timestamp,
+		NumValidators:      def.NumValidators,
+		Threshold:          def.Threshold,
+		DKGAlgorithm:       def.DKGAlgorithm,
+		ValidatorAddresses: validatorAddressesToJSON(def.ValidatorAddresses),
+		ForkVersion:        def.ForkVersion,
+		ConfigHash:         def.ConfigHash,
+		DefinitionHash:     def.DefinitionHash,
+		Operators:          operatorsToV1x2orLater(def.Operators),
+		Creator: creatorJSON{
+			Address:         def.Creator.Address,
+			ConfigSignature: def.Creator.ConfigSignature,
+		},
+		DepositAmounts:    def.DepositAmounts,
+		ConsensusProtocol: def.ConsensusProtocol,
+		TargetGasLimit:    def.TargetGasLimit,
+		Compounding:       def.Compounding,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal definition", z.Str("version", def.Version))
+	}
+
+	return resp, nil
+}
+
+func marshalDefinitionV1x11(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x11{
 		Name:               def.Name,
 		UUID:               def.UUID,
 		Version:            def.Version,
@@ -970,6 +1062,44 @@ func unmarshalDefinitionV1x10(data []byte) (def Definition, err error) {
 	}, nil
 }
 
+func unmarshalDefinitionV1x11(data []byte) (def Definition, err error) {
+	var defJSON definitionJSONv1x11
+	if err := json.Unmarshal(data, &defJSON); err != nil {
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1_11")
+	}
+
+	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
+		return Definition{}, errors.New("num_validators not matching validators length")
+	}
+
+	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
+		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
+	}
+
+	return Definition{
+		Name:               defJSON.Name,
+		UUID:               defJSON.UUID,
+		Version:            defJSON.Version,
+		Timestamp:          defJSON.Timestamp,
+		NumValidators:      defJSON.NumValidators,
+		Threshold:          defJSON.Threshold,
+		DKGAlgorithm:       defJSON.DKGAlgorithm,
+		ForkVersion:        defJSON.ForkVersion,
+		ConfigHash:         defJSON.ConfigHash,
+		DefinitionHash:     defJSON.DefinitionHash,
+		Operators:          operatorsFromV1x2orLater(defJSON.Operators),
+		ValidatorAddresses: validatorAddressesFromJSON(defJSON.ValidatorAddresses),
+		Creator: Creator{
+			Address:         defJSON.Creator.Address,
+			ConfigSignature: defJSON.Creator.ConfigSignature,
+		},
+		DepositAmounts:    defJSON.DepositAmounts,
+		ConsensusProtocol: defJSON.ConsensusProtocol,
+		TargetGasLimit:    defJSON.TargetGasLimit,
+		Compounding:       defJSON.Compounding,
+	}, nil
+}
+
 // supportEIP712Sigs returns true if the provided definition version supports EIP712 signatures.
 // Note that Definition versions prior to v1.3.0 don't support EIP712 signatures.
 func supportEIP712Sigs(version string) bool {
@@ -1107,8 +1237,29 @@ type definitionJSONv1x9 struct {
 	DefinitionHash     ethHex                    `json:"definition_hash"`
 }
 
-// definitionJSONv1x10 is the json formatter of Definition for versions v1.10 or later.
+// definitionJSONv1x10 is the json formatter of Definition for versions v1.10.
 type definitionJSONv1x10 struct {
+	Name               string                    `json:"name,omitempty"`
+	Creator            creatorJSON               `json:"creator"`
+	Operators          []operatorJSONv1x2orLater `json:"operators"`
+	UUID               string                    `json:"uuid"`
+	Version            string                    `json:"version"`
+	Timestamp          string                    `json:"timestamp,omitempty"`
+	NumValidators      int                       `json:"num_validators"`
+	Threshold          int                       `json:"threshold"`
+	ValidatorAddresses []validatorAddressesJSON  `json:"validators"`
+	DKGAlgorithm       string                    `json:"dkg_algorithm"`
+	ForkVersion        ethHex                    `json:"fork_version"`
+	DepositAmounts     []eth2p0.Gwei             `json:"deposit_amounts"`
+	ConsensusProtocol  string                    `json:"consensus_protocol"`
+	TargetGasLimit     uint                      `json:"target_gas_limit"`
+	Compounding        bool                      `json:"compounding"`
+	ConfigHash         ethHex                    `json:"config_hash"`
+	DefinitionHash     ethHex                    `json:"definition_hash"`
+}
+
+// definitionJSONv1x11 is the json formatter of Definition for version v1.11 or later.
+type definitionJSONv1x11 struct {
 	Name               string                    `json:"name,omitempty"`
 	Creator            creatorJSON               `json:"creator"`
 	Operators          []operatorJSONv1x2orLater `json:"operators"`
