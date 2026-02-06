@@ -260,8 +260,8 @@ func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 }
 
 // InvalidateCache handles chain reorg, invalidating cached duties.
-// The epoch parameter indicates at which epoch the reorg led us to.
-// Meaning, we should invalidate all duties prior to that epoch.
+// The epoch parameter indicates the epoch the chain has reorged back to.
+// Meaning, we should invalidate all duties after that epoch.
 func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	invalidated := false
 
