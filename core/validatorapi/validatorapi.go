@@ -1142,7 +1142,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	// Replace root public keys with public shares.
 	for _, d := range duties {
 		if d == nil {
-			return nil, errors.New("nil proposer duty from cache")
+			return nil, errors.New("nil proposer duty")
 		}
 
 		pubshare, ok := c.getPubShareFunc(d.PubKey)
