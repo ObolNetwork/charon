@@ -227,6 +227,24 @@ func TestSigsCallbacks(t *testing.T) {
 		require.ErrorContains(t, err, "invalid node sig type")
 	})
 
+	t.Run("sender peer ID mismatch", func(t *testing.T) {
+		ns.lockHashData = bytes.Repeat([]byte{42}, 32)
+
+		msg := &dkgpb.MsgNodeSig{
+			Signature: bytes.Repeat([]byte{42}, 65),
+			PeerIndex: uint32(2), // Claims to be from peer 2
+		}
+
+		// But actually sent by peer 1
+		err := ns.broadcastCallback(context.Background(),
+			peers[1],
+			"",
+			msg,
+		)
+
+		require.ErrorContains(t, err, "sender peer ID does not match claimed peer index")
+	})
+
 	t.Run("signature verification failed", func(t *testing.T) {
 		ns.lockHashData = bytes.Repeat([]byte{42}, 32)
 
@@ -236,7 +254,7 @@ func TestSigsCallbacks(t *testing.T) {
 		}
 
 		err := ns.broadcastCallback(context.Background(),
-			peers[0],
+			peers[2],
 			"",
 			msg,
 		)
@@ -251,7 +269,7 @@ func TestSigsCallbacks(t *testing.T) {
 		}
 
 		err := ns.broadcastCallback(context.Background(),
-			peers[0],
+			peers[2],
 			"",
 			msg,
 		)
