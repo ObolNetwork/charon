@@ -510,7 +510,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
 		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl)
 		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
-		// sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
+		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 	}
 
 	var fvcrLock sync.RWMutex
@@ -547,6 +547,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		valCache.Trim()
+
+		if !featureset.Enabled(featureset.DisableDutiesCache) {
+			dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
+		}
 
 		_, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
 		if err != nil {
