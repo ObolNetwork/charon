@@ -79,9 +79,6 @@ const (
 	// When enabled with FetchAttOnBlock, uses T=1/3+300ms as fallback timeout.
 	// When enabled alone, uses T=1/3+300ms as timeout.
 	FetchAttOnBlockWithDelay = "fetch_att_on_block_with_delay"
-
-	// DisableDutiesCache is a safety measure to disable duties cache.
-	DisableDutiesCache = "disable_duties_cache"
 )
 
 var (
@@ -102,7 +99,6 @@ var (
 		ChainSplitHalt:           statusAlpha,
 		FetchAttOnBlock:          statusAlpha,
 		FetchAttOnBlockWithDelay: statusAlpha,
-		DisableDutiesCache:       statusAlpha,
 		// Add all features and their status here.
 	}
 

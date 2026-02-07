@@ -1119,32 +1119,29 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	cachedResp, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
+	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Replace root public keys with public shares.
-	// Duties are copied into new slice, as otherwise the cached duties would be modified.
-	dutiesShareKey := []*eth2v1.ProposerDuty{}
+	duties := eth2Resp.Data
 
-	for _, d := range cachedResp {
-		if d == nil {
-			return nil, errors.New("nil proposer duty from cache")
+	// Replace root public keys with public shares
+	for i := range len(duties) {
+		if duties[i] == nil {
+			return nil, errors.New("proposer duty cannot be nil")
 		}
 
-		duty := *d
-
-		pubshare, ok := c.getPubShareFunc(duty.PubKey)
+		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
 		if !ok {
-			return nil, errors.New("pubshare not found")
+			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
+			continue
 		}
 
-		duty.PubKey = pubshare
-		dutiesShareKey = append(dutiesShareKey, &duty)
+		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponse(dutiesShareKey), nil
+	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -1155,62 +1152,54 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	cachedResp, err := c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
+	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Replace root public keys with public shares.
-	// Duties are copied into new slice, as otherwise the cached duties would be modified.
-	dutiesShareKey := []*eth2v1.AttesterDuty{}
+	duties := eth2Resp.Data
 
-	for _, d := range cachedResp {
-		if d == nil {
+	// Replace root public keys with public shares.
+	for i := range len(duties) {
+		if duties[i] == nil {
 			return nil, errors.New("attester duty cannot be nil")
 		}
 
-		duty := *d
-
-		pubshare, ok := c.getPubShareFunc(duty.PubKey)
+		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
 		if !ok {
 			return nil, errors.New("pubshare not found")
 		}
 
-		duty.PubKey = pubshare
-		dutiesShareKey = append(dutiesShareKey, &duty)
+		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponse(dutiesShareKey), nil
+	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
 func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
-	cachedResp, err := c.eth2Cl.SyncCommDutiesCache(ctx, opts.Epoch, opts.Indices)
+	eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	// Replace root public keys with public shares.
-	// Duties are copied into new slice, as otherwise the cached duties would be modified.
-	dutiesShareKey := []*eth2v1.SyncCommitteeDuty{}
+	duties := eth2Resp.Data
 
-	for _, d := range cachedResp {
-		if d == nil {
+	// Replace root public keys with public shares.
+	for i := range len(duties) {
+		if duties[i] == nil {
 			return nil, errors.New("sync committee duty cannot be nil")
 		}
 
-		duty := *d
-
-		pubshare, ok := c.getPubShareFunc(duty.PubKey)
+		pubshare, ok := c.getPubShareFunc(duties[i].PubKey)
 		if !ok {
 			return nil, errors.New("pubshare not found")
 		}
 
-		duty.PubKey = pubshare
-		dutiesShareKey = append(dutiesShareKey, &duty)
+		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponse(dutiesShareKey), nil
+	return wrapResponse(duties), nil
 }
 
 func (c Component) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error) {

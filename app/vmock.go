@@ -85,12 +85,8 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 			}
 
 			cached = eth2wrap.AdaptEth2HTTP(eth2Http, nil, timeout)
-
 			valCache := eth2wrap.NewValidatorCache(cached, pubshares)
 			cached.SetValidatorCache(valCache.GetByHead)
-
-			dutiesCache := eth2wrap.NewDutiesCache(cached, []eth2p0.ValidatorIndex{})
-			cached.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 
 			break
 		}

@@ -56,19 +56,6 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return res, nil
 	}
 
-	eth2Cl.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-		res, err := oldAttesterFunc(ctx, epoch, indices)
-		if err != nil {
-			return nil, err
-		}
-
-		for idx := range len(res) {
-			res[idx].PubKey = testutil.RandomEth2PubKey(t)
-		}
-
-		return res, nil
-	}
-
 	eth2Cl.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 		res, err := oldSyncFunc(ctx, epoch, validatorIndices)
 		if err != nil {
@@ -82,33 +69,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return res, nil
 	}
 
-	eth2Cl.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-		res, err := oldSyncFunc(ctx, epoch, validatorIndices)
-		if err != nil {
-			return nil, err
-		}
-
-		for idx := range len(res) {
-			res[idx].PubKey = testutil.RandomEth2PubKey(t)
-		}
-
-		return res, nil
-	}
-
 	eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-		res, err := oldProposerFunc(ctx, epoch, indices)
-		if err != nil {
-			return nil, err
-		}
-
-		for idx := range len(res) {
-			res[idx].PubKey = testutil.RandomEth2PubKey(t)
-		}
-
-		return res, nil
-	}
-
-	eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		res, err := oldProposerFunc(ctx, epoch, indices)
 		if err != nil {
 			return nil, err

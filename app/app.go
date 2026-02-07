@@ -8,9 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"maps"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -504,14 +502,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	valCache := eth2wrap.NewValidatorCache(eth2Cl, eth2Pubkeys)
 	eth2Cl.SetValidatorCache(valCache.GetByHead)
 
-	firstCacheRefresh := true
+	firstValCacheRefresh := true
 	refreshedBySlot := true
-
-	// Setup duties cache, refreshing it every epoch.
-	dutiesCache := eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
-	eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
-
-	sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 
 	var fvcrLock sync.RWMutex
 
@@ -519,7 +511,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		lock.RLock()
 		defer lock.RUnlock()
 
-		if !slot.FirstInEpoch() && !firstCacheRefresh && refreshedBySlot {
+		if !slot.FirstInEpoch() && !firstValCacheRefresh && refreshedBySlot {
 			return false
 		}
 
@@ -534,7 +526,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		fvcrLock.Lock()
 		defer fvcrLock.Unlock()
 
-		ctx = log.WithCtx(ctx, z.Bool("first_refresh", firstCacheRefresh))
+		ctx = log.WithCtx(ctx, z.Bool("first_refresh", firstValCacheRefresh))
 
 		log.Info(ctx, "Refreshing validator cache")
 
@@ -548,18 +540,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 		valCache.Trim()
 
-		activeValidators, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
+		_, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
 		if err != nil {
 			log.Error(ctx, "Failed to refresh validator cache", err)
 			return err
 		}
 
-		vIdxs := slices.Collect(maps.Keys(activeValidators))
-
-		dutiesCache.UpdateCacheIndices(ctx, vIdxs)
-
 		refreshedBySlot = refresh
-		firstCacheRefresh = false
+		firstValCacheRefresh = false
 
 		return nil
 	})
