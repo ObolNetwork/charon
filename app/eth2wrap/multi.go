@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/http"
 
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/obolnetwork/charon/app/errors"
 )
 
@@ -157,6 +159,76 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (CompleteValidators, error) {
 			return args.client.CompleteValidators(ctx)
+		},
+		nil, nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) SetDutiesCache(
+	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error),
+	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error),
+	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error),
+) {
+	for _, cl := range m.clients {
+		cl.SetDutiesCache(proposerDutiesCache, attesterDutiesCache, syncCommDutiesCache)
+	}
+}
+
+func (m multi) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	const label = "proposer_duties_cache"
+	// No latency since this is a cached endpoint.
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) ([]*eth2v1.ProposerDuty, error) {
+			return args.client.ProposerDutiesCache(ctx, epoch, vidxs)
+		},
+		nil, nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+	const label = "attester_duties_cache"
+	// No latency since this is a cached endpoint.
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) ([]*eth2v1.AttesterDuty, error) {
+			return args.client.AttesterDutiesCache(ctx, epoch, vidxs)
+		},
+		nil, nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	const label = "sync_comm_duties_cache"
+	// No latency since this is a cached endpoint.
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) ([]*eth2v1.SyncCommitteeDuty, error) {
+			return args.client.SyncCommDutiesCache(ctx, epoch, vidxs)
 		},
 		nil, nil,
 	)

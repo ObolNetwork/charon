@@ -6,6 +6,9 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
 //go:generate mockery --name=Client --output=mocks --outpkg=mocks --case=underscore
@@ -32,9 +35,12 @@ type lazy struct {
 	providerMu sync.Mutex
 	provider   func(context.Context) (Client, error)
 
-	clientMu sync.RWMutex
-	client   Client
-	valCache func(context.Context) (ActiveValidators, CompleteValidators, error)
+	clientMu            sync.RWMutex
+	client              Client
+	valCache            func(context.Context) (ActiveValidators, CompleteValidators, error)
+	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
 }
 
 // getClient returns the client and true if it is available.
@@ -183,4 +189,47 @@ func (l *lazy) SetValidatorCache(valCache func(context.Context) (ActiveValidator
 	if cl, ok := l.getClient(); ok {
 		cl.SetValidatorCache(valCache)
 	}
+}
+
+func (l *lazy) SetDutiesCache(
+	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error),
+	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error),
+	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error),
+) {
+	l.clientMu.Lock()
+	l.proposerDutiesCache = proposerDutiesCache
+	l.attesterDutiesCache = attesterDutiesCache
+	l.syncCommDutiesCache = syncCommDutiesCache
+	l.clientMu.Unlock()
+
+	if cl, ok := l.getClient(); ok {
+		cl.SetDutiesCache(l.proposerDutiesCache, l.attesterDutiesCache, l.syncCommDutiesCache)
+	}
+}
+
+func (l *lazy) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.ProposerDutiesCache(ctx, epoch, vidxs)
+}
+
+func (l *lazy) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.AttesterDutiesCache(ctx, epoch, vidxs)
+}
+
+func (l *lazy) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return cl.SyncCommDutiesCache(ctx, epoch, vidxs)
 }

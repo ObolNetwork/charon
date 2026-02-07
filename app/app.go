@@ -505,6 +505,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	firstValCacheRefresh := true
 	refreshedBySlot := true
 
+	// Setup duties cache, refreshing it every epoch.
+	var dutiesCache *eth2wrap.DutiesCache
+	if !featureset.Enabled(featureset.DisableDutiesCache) {
+		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl)
+		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+		// sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
+	}
+
 	var fvcrLock sync.RWMutex
 
 	shouldUpdateCache := func(slot core.Slot, lock *sync.RWMutex) bool {
@@ -642,6 +650,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
+
+	if !featureset.Enabled(featureset.DisableDutiesCache) {
+		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+	}
 
 	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
 	if err != nil {

@@ -189,6 +189,9 @@ type Mock struct {
 	IsActiveFunc                           func() bool
 	IsSyncedFunc                           func() bool
 	CachedValidatorsFunc                   func(ctx context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error)
+	CachedAttesterDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
+	CachedProposerDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	CachedSyncCommDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
 	AttestationDataFunc                    func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error)
 	AttesterDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error)
 	BlockFunc                              func(ctx context.Context, stateID string) (*eth2spec.VersionedSignedBeaconBlock, error)
@@ -343,6 +346,26 @@ func (m Mock) ActiveValidators(ctx context.Context) (eth2wrap.ActiveValidators, 
 func (m Mock) CompleteValidators(ctx context.Context) (eth2wrap.CompleteValidators, error) {
 	_, complete, err := m.CachedValidatorsFunc(ctx)
 	return complete, err
+}
+
+func (Mock) SetDutiesCache(
+	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error),
+	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error),
+	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error),
+) {
+	// Ignore this, only rely on duties functional option.
+}
+
+func (m Mock) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+	return m.CachedAttesterDutiesFunc(ctx, epoch, vidxs)
+}
+
+func (m Mock) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	return m.CachedProposerDutiesFunc(ctx, epoch, vidxs)
+}
+
+func (m Mock) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	return m.CachedSyncCommDutiesFunc(ctx, epoch, vidxs)
 }
 
 func (m Mock) Genesis(ctx context.Context, opts *eth2api.GenesisOpts) (*eth2api.Response[*eth2v1.Genesis], error) {
