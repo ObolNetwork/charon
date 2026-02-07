@@ -1175,7 +1175,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 			duties[i].PubKey = pubshare
 		}
 
-		return wrapResponse(duties), nil
+		return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
 	} else {
 		duties, err := c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
 		if err != nil {
