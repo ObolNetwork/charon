@@ -23,6 +23,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/version"
@@ -1152,12 +1153,24 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
-	if err != nil {
-		return nil, err
-	}
+	var (
+		duties []*eth2v1.AttesterDuty
+		err    error
+	)
 
-	duties := eth2Resp.Data
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		duties = eth2Resp.Data
+	} else {
+		duties, err = c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Replace root public keys with public shares.
 	for i := range len(duties) {
@@ -1173,7 +1186,7 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		duties[i].PubKey = pubshare
 	}
 
-	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
+	return wrapResponse(duties), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
