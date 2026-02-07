@@ -1137,8 +1137,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 
 		pubshare, ok := c.getPubShareFunc(duty.PubKey)
 		if !ok {
-			// Ignore unknown validators since ProposerDuties returns ALL proposers for the epoch if validatorIndices is empty.
-			continue
+			return nil, errors.New("pubshare not found")
 		}
 
 		duty.PubKey = pubshare

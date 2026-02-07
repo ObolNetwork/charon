@@ -121,6 +121,7 @@ func (s *Scheduler) Stop() {
 func (s *Scheduler) getSubmittedRegistrationEpoch() uint64 {
 	s.registrationMutex.Lock()
 	defer s.registrationMutex.Unlock()
+
 	return s.submittedRegistrationEpoch
 }
 
@@ -128,6 +129,7 @@ func (s *Scheduler) getSubmittedRegistrationEpoch() uint64 {
 func (s *Scheduler) setSubmittedRegistrationEpoch(epoch uint64) {
 	s.registrationMutex.Lock()
 	defer s.registrationMutex.Unlock()
+
 	s.submittedRegistrationEpoch = epoch
 }
 
@@ -810,6 +812,7 @@ func (s *Scheduler) submitValidatorRegistrationsDelayed(ctx context.Context, slo
 		log.Warn(ctx, "Failed to fetch slot duration for delayed registration", err)
 		// Fall back to immediate submission
 		s.submitValidatorRegistrations(ctx, slot.Epoch())
+
 		return
 	}
 
