@@ -93,14 +93,14 @@ func TestMulti_SetValidatorCache(t *testing.T) {
 }
 
 func TestMulti_SetDutiesCache(t *testing.T) {
-	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-		return nil, nil
+	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		return eth2wrap.ProposerDutyWithMeta{}, nil
 	}
-	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-		return nil, nil
+	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
+		return eth2wrap.AttesterDutyWithMeta{}, nil
 	}
-	syncDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-		return nil, nil
+	syncDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
+		return eth2wrap.SyncDutyWithMeta{}, nil
 	}
 
 	client := mocks.NewClient(t)

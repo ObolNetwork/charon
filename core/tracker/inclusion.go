@@ -653,7 +653,7 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 
 						attesterDuties = []*eth2v1.AttesterDuty{}
 					} else {
-						attesterDuties = cachedResp
+						attesterDuties = cachedResp.Duties
 					}
 				}
 			}

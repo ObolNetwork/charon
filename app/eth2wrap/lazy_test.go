@@ -102,14 +102,14 @@ func TestLazy_ClientForAddress(t *testing.T) {
 }
 
 func TestLazy_SetDutiesCache(t *testing.T) {
-	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-		return nil, nil
+	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		return eth2wrap.ProposerDutyWithMeta{}, nil
 	}
-	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-		return nil, nil
+	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
+		return eth2wrap.AttesterDutyWithMeta{}, nil
 	}
-	syncDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-		return nil, nil
+	syncDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
+		return eth2wrap.SyncDutyWithMeta{}, nil
 	}
 
 	client := mocks.NewClient(t)
@@ -130,7 +130,7 @@ func TestLazy_ProposerDutiesCache(t *testing.T) {
 
 	proposerDuties2, err := l.ProposerDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
-	require.Equal(t, proposerDuties, proposerDuties2)
+	require.Equal(t, proposerDuties, proposerDuties2.Duties)
 }
 
 func TestLazy_AttesterDutiesCache(t *testing.T) {
@@ -144,7 +144,7 @@ func TestLazy_AttesterDutiesCache(t *testing.T) {
 
 	attesterDuties2, err := l.AttesterDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
-	require.Equal(t, attesterDuties, attesterDuties2)
+	require.Equal(t, attesterDuties, attesterDuties2.Duties)
 }
 
 func TestLazy_SyncDutiesCache(t *testing.T) {
@@ -158,5 +158,5 @@ func TestLazy_SyncDutiesCache(t *testing.T) {
 
 	syncDuties2, err := l.SyncCommDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
-	require.Equal(t, syncDuties, syncDuties2)
+	require.Equal(t, syncDuties, syncDuties2.Duties)
 }

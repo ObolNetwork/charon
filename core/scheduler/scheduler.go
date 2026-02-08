@@ -489,7 +489,7 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 			return err
 		}
 
-		attDuties = cachedResp
+		attDuties = cachedResp.Duties
 	}
 
 	// Check if any of the attester duties returned are nil.
@@ -576,7 +576,7 @@ func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals v
 			return err
 		}
 
-		proDuties = cachedResp
+		proDuties = cachedResp.Duties
 	}
 
 	// Check if any of the proposer duties returned are nil.
@@ -636,7 +636,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 			return err
 		}
 
-		duties = cachedResp
+		duties = cachedResp.Duties
 	}
 
 	// Check if any of the sync committee duties returned are nil.

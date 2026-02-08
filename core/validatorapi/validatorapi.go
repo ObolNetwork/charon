@@ -1121,8 +1121,8 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	defer span.End()
 
 	var (
-		duties []*eth2v1.ProposerDuty
-		err    error
+		duties   []*eth2v1.ProposerDuty
+		metadata map[string]any
 	)
 
 	if featureset.Enabled(featureset.DisableDutiesCache) {
@@ -1132,11 +1132,15 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 		}
 
 		duties = eth2Resp.Data
+		metadata = eth2Resp.Metadata
 	} else {
-		duties, err = c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
+		dutiesMeta, err := c.eth2Cl.ProposerDutiesCache(ctx, opts.Epoch, opts.Indices)
 		if err != nil {
 			return nil, err
 		}
+
+		duties = dutiesMeta.Duties
+		metadata = dutiesMeta.Metadata
 	}
 
 	// Replace root public keys with public shares.
@@ -1154,7 +1158,7 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 		d.PubKey = pubshare
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, metadata), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -1166,8 +1170,8 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	defer span.End()
 
 	var (
-		duties []*eth2v1.AttesterDuty
-		err    error
+		duties   []*eth2v1.AttesterDuty
+		metadata map[string]any
 	)
 
 	if featureset.Enabled(featureset.DisableDutiesCache) {
@@ -1177,11 +1181,15 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		}
 
 		duties = eth2Resp.Data
+		metadata = eth2Resp.Metadata
 	} else {
-		duties, err = c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
+		dutiesMeta, err := c.eth2Cl.AttesterDutiesCache(ctx, opts.Epoch, opts.Indices)
 		if err != nil {
 			return nil, err
 		}
+
+		duties = dutiesMeta.Duties
+		metadata = dutiesMeta.Metadata
 	}
 
 	// Replace root public keys with public shares.
@@ -1198,15 +1206,12 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 		d.PubKey = pubshare
 	}
 
-	return wrapResponse(duties), nil
+	return wrapResponseWithMetadata(duties, metadata), nil
 }
 
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
 func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
-	var (
-		duties []*eth2v1.SyncCommitteeDuty
-		err    error
-	)
+	var duties []*eth2v1.SyncCommitteeDuty
 
 	if featureset.Enabled(featureset.DisableDutiesCache) {
 		eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, opts)
@@ -1216,10 +1221,12 @@ func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCo
 
 		duties = eth2Resp.Data
 	} else {
-		duties, err = c.eth2Cl.SyncCommDutiesCache(ctx, opts.Epoch, opts.Indices)
+		dutiesMeta, err := c.eth2Cl.SyncCommDutiesCache(ctx, opts.Epoch, opts.Indices)
 		if err != nil {
 			return nil, err
 		}
+
+		duties = dutiesMeta.Duties
 	}
 
 	// Replace root public keys with public shares.

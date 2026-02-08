@@ -1782,14 +1782,17 @@ func TestComponent_Duties(t *testing.T) {
 			}}, nil
 		}
 
-		bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))
 			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
 
-			return []*eth2v1.ProposerDuty{{
-				PubKey:         eth2Pubkey,
-				ValidatorIndex: vIdx,
-			}}, nil
+			return eth2wrap.ProposerDutyWithMeta{
+				Duties: []*eth2v1.ProposerDuty{{
+					PubKey:         eth2Pubkey,
+					ValidatorIndex: vIdx,
+				}},
+				Metadata: map[string]any{},
+			}, nil
 		}
 
 		// Construct the validator api component
@@ -1819,14 +1822,17 @@ func TestComponent_Duties(t *testing.T) {
 			}}, nil
 		}
 
-		bmock.CachedAttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+		bmock.CachedAttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))
 			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
 
-			return []*eth2v1.AttesterDuty{{
-				PubKey:         eth2Pubkey,
-				ValidatorIndex: vIdx,
-			}}, nil
+			return eth2wrap.AttesterDutyWithMeta{
+				Duties: []*eth2v1.AttesterDuty{{
+					PubKey:         eth2Pubkey,
+					ValidatorIndex: vIdx,
+				}},
+				Metadata: map[string]any{},
+			}, nil
 		}
 
 		// Construct the validator api component
@@ -1856,14 +1862,17 @@ func TestComponent_Duties(t *testing.T) {
 			}}, nil
 		}
 
-		bmock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+		bmock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))
 			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
 
-			return []*eth2v1.SyncCommitteeDuty{{
-				PubKey:         eth2Pubkey,
-				ValidatorIndex: vIdx,
-			}}, nil
+			return eth2wrap.SyncDutyWithMeta{
+				Duties: []*eth2v1.SyncCommitteeDuty{{
+					PubKey:         eth2Pubkey,
+					ValidatorIndex: vIdx,
+				}},
+				Metadata: map[string]any{},
+			}, nil
 		}
 
 		// Construct the validator api component
