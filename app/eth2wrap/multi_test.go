@@ -112,7 +112,7 @@ func TestMulti_SetDutiesCache(t *testing.T) {
 
 func TestMulti_ProposerDutiesCache(t *testing.T) {
 	ctx := context.Background()
-	proposerDuties := make([]*eth2v1.ProposerDuty, 0)
+	proposerDuties := eth2wrap.ProposerDutyWithMeta{Duties: []*eth2v1.ProposerDuty{}, Metadata: nil}
 
 	client := mocks.NewClient(t)
 	client.On("ProposerDutiesCache", mock.Anything, mock.Anything, mock.Anything).Return(proposerDuties, nil).Once()
@@ -126,7 +126,7 @@ func TestMulti_ProposerDutiesCache(t *testing.T) {
 
 func TestMulti_AttesterDutiesCache(t *testing.T) {
 	ctx := context.Background()
-	attesterDuties := make([]*eth2v1.AttesterDuty, 0)
+	attesterDuties := eth2wrap.AttesterDutyWithMeta{Duties: []*eth2v1.AttesterDuty{}, Metadata: nil}
 
 	client := mocks.NewClient(t)
 	client.On("AttesterDutiesCache", mock.Anything, mock.Anything, mock.Anything).Return(attesterDuties, nil).Once()
@@ -140,7 +140,7 @@ func TestMulti_AttesterDutiesCache(t *testing.T) {
 
 func TestMulti_SyncDutiesCache(t *testing.T) {
 	ctx := context.Background()
-	syncDuties := make([]*eth2v1.SyncCommitteeDuty, 0)
+	syncDuties := eth2wrap.SyncDutyWithMeta{Duties: []*eth2v1.SyncCommitteeDuty{}, Metadata: nil}
 
 	client := mocks.NewClient(t)
 	client.On("SyncCommDutiesCache", mock.Anything, mock.Anything, mock.Anything).Return(syncDuties, nil).Once()
