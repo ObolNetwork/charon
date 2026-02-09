@@ -99,6 +99,16 @@ func TestReshareProtocolStep(t *testing.T) {
 
 	group, gctx := errgroup.WithContext(t.Context())
 
+	// Create a cluster lock with the expected validator public keys
+	lock := &cluster.Lock{
+		Validators: make([]cluster.DistValidator, numVals),
+	}
+	for i, pubKey := range oldPubKeys {
+		lock.Validators[i] = cluster.DistValidator{
+			PubKey: pedersen.MustDecodeHex(t, pubKey),
+		}
+	}
+
 	for n := range nodes {
 		group.Go(func() error {
 			nodes[n].Config.Reshare = &pedersen.ReshareConfig{TotalShares: numVals, NewThreshold: threshold}
@@ -109,6 +119,7 @@ func TestReshareProtocolStep(t *testing.T) {
 			}
 			pctx := &ProtocolContext{
 				Shares: oldShares[n],
+				Lock:   lock,
 			}
 
 			return step.Run(gctx, pctx)
