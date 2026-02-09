@@ -21,10 +21,10 @@ type Operator struct {
 	ENR string `config_hash:"-" definition_hash:"1" json:"enr" ssz:"ByteList[1024]"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
-	ConfigSignature []byte `json:"config_signature,0xhex" ssz:"Bytes65|ByteList[384]" config_hash:"-" definition_hash:"2"`
+	ConfigSignature []byte `json:"config_signature,0xhex" ssz:"ByteList[384]" config_hash:"-" definition_hash:"2"`
 
 	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
-	ENRSignature []byte `json:"enr_signature,0xhex" ssz:"Bytes65|ByteList[384]" config_hash:"-" definition_hash:"3"`
+	ENRSignature []byte `json:"enr_signature,0xhex" ssz:"ByteList[384]" config_hash:"-" definition_hash:"3"`
 }
 
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.

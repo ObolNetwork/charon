@@ -637,6 +637,11 @@ func hashDefinitionV1x11(d Definition, hh ssz.HashWalker, configOnly bool) error
 	// Field (14) 'Compounding' bool
 	hh.PutBool(d.Compounding)
 
+	// Field (15) 'ConfigHash' Bytes32 (only for full definition hash)
+	if !configOnly {
+		hh.PutBytes(d.ConfigHash[:])
+	}
+
 	hh.Merkleize(indx)
 
 	return nil
