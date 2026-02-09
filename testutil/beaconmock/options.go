@@ -463,7 +463,7 @@ func WithNoProposerDuties() Option {
 		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return nil, nil
 		}
-		mock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		mock.CachedProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 			return eth2wrap.ProposerDutyWithMeta{}, nil
 		}
 	}
@@ -475,7 +475,7 @@ func WithNoAttesterDuties() Option {
 		mock.AttesterDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return nil, nil
 		}
-		mock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
+		mock.CachedAttesterDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 			return eth2wrap.AttesterDutyWithMeta{}, nil
 		}
 	}
@@ -487,7 +487,7 @@ func WithNoSyncCommitteeDuties() Option {
 		mock.SyncCommitteeDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			return nil, nil
 		}
-		mock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
+		mock.CachedSyncCommDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
 			return eth2wrap.SyncDutyWithMeta{}, nil
 		}
 	}
