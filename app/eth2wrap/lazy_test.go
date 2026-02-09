@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"testing"
 
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -121,7 +120,7 @@ func TestLazy_SetDutiesCache(t *testing.T) {
 
 func TestLazy_ProposerDutiesCache(t *testing.T) {
 	ctx := context.Background()
-	proposerDuties := make([]*eth2v1.ProposerDuty, 0)
+	proposerDuties := eth2wrap.ProposerDutyWithMeta{}
 
 	client := mocks.NewClient(t)
 	client.On("ProposerDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(proposerDuties, nil).Once()
@@ -130,12 +129,12 @@ func TestLazy_ProposerDutiesCache(t *testing.T) {
 
 	proposerDuties2, err := l.ProposerDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
-	require.Equal(t, proposerDuties, proposerDuties2.Duties)
+	require.Equal(t, proposerDuties, proposerDuties2)
 }
 
 func TestLazy_AttesterDutiesCache(t *testing.T) {
 	ctx := context.Background()
-	attesterDuties := make([]*eth2v1.AttesterDuty, 0)
+	attesterDuties := eth2wrap.AttesterDutyWithMeta{}
 
 	client := mocks.NewClient(t)
 	client.On("AttesterDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(attesterDuties, nil).Once()
@@ -144,12 +143,12 @@ func TestLazy_AttesterDutiesCache(t *testing.T) {
 
 	attesterDuties2, err := l.AttesterDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
-	require.Equal(t, attesterDuties, attesterDuties2.Duties)
+	require.Equal(t, attesterDuties, attesterDuties2)
 }
 
 func TestLazy_SyncDutiesCache(t *testing.T) {
 	ctx := context.Background()
-	syncDuties := make([]*eth2v1.SyncCommitteeDuty, 0)
+	syncDuties := eth2wrap.SyncDutyWithMeta{}
 
 	client := mocks.NewClient(t)
 	client.On("SyncCommDutiesCache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(syncDuties, nil).Once()
@@ -158,5 +157,5 @@ func TestLazy_SyncDutiesCache(t *testing.T) {
 
 	syncDuties2, err := l.SyncCommDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
-	require.Equal(t, syncDuties, syncDuties2.Duties)
+	require.Equal(t, syncDuties, syncDuties2)
 }
