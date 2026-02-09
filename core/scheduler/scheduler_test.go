@@ -250,13 +250,15 @@ func TestSchedulerDuties(t *testing.T) {
 				return origFunc(ctx, epoch, indices)
 			}
 
-			eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 				if test.PropErrs > 0 {
 					test.PropErrs--
-					return nil, errors.New("test error")
+					return eth2wrap.ProposerDutyWithMeta{}, errors.New("test error")
 				}
 
-				return origFunc(ctx, epoch, indices)
+				origResp, err := origFunc(ctx, epoch, indices)
+
+				return eth2wrap.ProposerDutyWithMeta{Duties: origResp, Metadata: nil}, err
 			}
 
 			// Construct scheduler
@@ -559,7 +561,9 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 
 		if registrations == nil {
 			callMutex.Lock()
+
 			registrations = regs
+
 			callMutex.Unlock()
 
 			select {
@@ -609,7 +613,9 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 		// With 4 slots per epoch, we need at least 9 slots (slots 0-8 cover epochs 0, 1, 2)
 		if slotCount >= 9 && !stopped {
 			<-callDone
+
 			stopped = true
+
 			sched.Stop()
 		}
 

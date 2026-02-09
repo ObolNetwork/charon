@@ -11,6 +11,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -56,17 +57,17 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return res, nil
 	}
 
-	eth2Cl.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+	eth2Cl.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 		res, err := oldAttesterFunc(ctx, epoch, indices)
 		if err != nil {
-			return nil, err
+			return eth2wrap.AttesterDutyWithMeta{}, err
 		}
 
 		for idx := range len(res) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
-		return res, nil
+		return eth2wrap.AttesterDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
 	eth2Cl.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
@@ -82,17 +83,17 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return res, nil
 	}
 
-	eth2Cl.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+	eth2Cl.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
 		res, err := oldSyncFunc(ctx, epoch, validatorIndices)
 		if err != nil {
-			return nil, err
+			return eth2wrap.SyncDutyWithMeta{}, err
 		}
 
 		for idx := range len(res) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
-		return res, nil
+		return eth2wrap.SyncDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
 	eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -108,17 +109,17 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return res, nil
 	}
 
-	eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 		res, err := oldProposerFunc(ctx, epoch, indices)
 		if err != nil {
-			return nil, err
+			return eth2wrap.ProposerDutyWithMeta{}, err
 		}
 
 		for idx := range len(res) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
-		return res, nil
+		return eth2wrap.ProposerDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
 	var schedVals validators

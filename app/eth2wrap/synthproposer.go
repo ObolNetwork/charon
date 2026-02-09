@@ -85,13 +85,13 @@ func (h *synthWrapper) ProposerDuties(ctx context.Context, opts *eth2api.Propose
 }
 
 // ProposerDutiesCache wraps ProposerDuties. We are not using cache for synthproposer.
-func (h *synthWrapper) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+func (h *synthWrapper) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
 	eth2Resp, err := h.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
 	if err != nil {
-		return nil, err
+		return ProposerDutyWithMeta{}, err
 	}
 
-	return eth2Resp.Data, nil
+	return ProposerDutyWithMeta{Duties: eth2Resp.Data, Metadata: eth2Resp.Metadata}, nil
 }
 
 func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {

@@ -12,6 +12,8 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
+
+	"github.com/obolnetwork/charon/app/eth2wrap"
 )
 
 // WithBeaconMockFuzzer configures the beaconmock to return random responses for the all the functions consumed by charon.
@@ -98,8 +100,13 @@ func WithBeaconMockFuzzer() Option {
 
 			return duties, nil
 		}
-		mock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
-			return mock.AttesterDutiesFunc(ctx, epoch, vidxs)
+		mock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
+			d, err := mock.AttesterDutiesFunc(ctx, epoch, vidxs)
+			if err != nil {
+				return eth2wrap.AttesterDutyWithMeta{}, err
+			}
+
+			return eth2wrap.AttesterDutyWithMeta{Duties: d, Metadata: nil}, nil
 		}
 
 		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -108,11 +115,11 @@ func WithBeaconMockFuzzer() Option {
 
 			return duties, nil
 		}
-		mock.CachedProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		mock.CachedProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 			var duties []*eth2v1.ProposerDuty
 			fuzz.New().Fuzz(&duties)
 
-			return duties, nil
+			return eth2wrap.ProposerDutyWithMeta{Duties: duties, Metadata: nil}, nil
 		}
 
 		mock.AttestationDataFunc = func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -182,8 +189,13 @@ func WithBeaconMockFuzzer() Option {
 
 			return duties, nil
 		}
-		mock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
-			return mock.SyncCommitteeDutiesFunc(ctx, epoch, vidxs)
+		mock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
+			d, err := mock.SyncCommitteeDutiesFunc(ctx, epoch, vidxs)
+			if err != nil {
+				return eth2wrap.SyncDutyWithMeta{}, err
+			}
+
+			return eth2wrap.SyncDutyWithMeta{Duties: d, Metadata: nil}, nil
 		}
 
 		mock.SyncCommitteeContributionFunc = func(context.Context, eth2p0.Slot, uint64, eth2p0.Root) (*altair.SyncCommitteeContribution, error) {

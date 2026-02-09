@@ -631,18 +631,30 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 				indices = append(indices, *att.ValidatorIndex)
 			}
 
-			// check if there are pending unchecked submissions are made
-			if len(indices) == 0 {
+			// if feature flag attestation inclusion is disabled, don't check submissions
+			// otherwise, check if there are pending unchecked submissions made
+			if !featureset.Enabled(featureset.AttestationInclusion) || len(indices) == 0 {
 				attesterDuties = []*eth2v1.AttesterDuty{}
 			} else {
 				// TODO: This can be optimised by not calling attester duties on every slot, in the case of small clusters, where there are <32 validators per cluster.
-				resp, err := a.eth2Cl.AttesterDutiesCache(ctx, epoch, indices)
-				if err != nil {
-					log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
+				if featureset.Enabled(featureset.DisableDutiesCache) {
+					eth2Resp, err := a.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: indices})
+					if err != nil {
+						log.Warn(ctx, "Failed to fetch attester duties for epoch", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
 
-					attesterDuties = []*eth2v1.AttesterDuty{}
+						attesterDuties = []*eth2v1.AttesterDuty{}
+					} else {
+						attesterDuties = eth2Resp.Data
+					}
 				} else {
-					attesterDuties = resp
+					cachedResp, err := a.eth2Cl.AttesterDutiesCache(ctx, epoch, indices)
+					if err != nil {
+						log.Warn(ctx, "Failed to fetch attester duties for epoch from cache", err, z.U64("epoch", uint64(epoch)), z.Any("indices", indices))
+
+						attesterDuties = []*eth2v1.AttesterDuty{}
+					} else {
+						attesterDuties = cachedResp.Duties
+					}
 				}
 			}
 

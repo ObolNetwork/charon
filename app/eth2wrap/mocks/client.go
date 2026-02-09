@@ -60,26 +60,6 @@ func (_m *Client) ActiveValidators(_a0 context.Context) (eth2wrap.ActiveValidato
 	return r0, r1
 }
 
-// ClientForAddress provides a mock function with given fields: addr
-func (_m *Client) ClientForAddress(addr string) eth2wrap.Client {
-	ret := _m.Called(addr)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ClientForAddress")
-	}
-
-	var r0 eth2wrap.Client
-	if rf, ok := ret.Get(0).(func(string) eth2wrap.Client); ok {
-		r0 = rf(addr)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(eth2wrap.Client)
-		}
-	}
-
-	return r0
-}
-
 // Address provides a mock function with no fields
 func (_m *Client) Address() string {
 	ret := _m.Called()
@@ -189,24 +169,22 @@ func (_m *Client) AttesterDuties(ctx context.Context, opts *api.AttesterDutiesOp
 }
 
 // AttesterDutiesCache provides a mock function with given fields: _a0, _a1, _a2
-func (_m *Client) AttesterDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) ([]*v1.AttesterDuty, error) {
+func (_m *Client) AttesterDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 	ret := _m.Called(_a0, _a1, _a2)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AttesterDutiesCache")
 	}
 
-	var r0 []*v1.AttesterDuty
+	var r0 eth2wrap.AttesterDutyWithMeta
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.AttesterDuty, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error)); ok {
 		return rf(_a0, _a1, _a2)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) []*v1.AttesterDuty); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) eth2wrap.AttesterDutyWithMeta); ok {
 		r0 = rf(_a0, _a1, _a2)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*v1.AttesterDuty)
-		}
+		r0 = ret.Get(0).(eth2wrap.AttesterDutyWithMeta)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
@@ -336,6 +314,26 @@ func (_m *Client) BeaconCommittees(ctx context.Context, opts *api.BeaconCommitte
 	}
 
 	return r0, r1
+}
+
+// ClientForAddress provides a mock function with given fields: addr
+func (_m *Client) ClientForAddress(addr string) eth2wrap.Client {
+	ret := _m.Called(addr)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClientForAddress")
+	}
+
+	var r0 eth2wrap.Client
+	if rf, ok := ret.Get(0).(func(string) eth2wrap.Client); ok {
+		r0 = rf(addr)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(eth2wrap.Client)
+		}
+	}
+
+	return r0
 }
 
 // CompleteValidators provides a mock function with given fields: _a0
@@ -622,6 +620,36 @@ func (_m *Client) Name() string {
 	return r0
 }
 
+// NodeIdentity provides a mock function with given fields: ctx, opts
+func (_m *Client) NodeIdentity(ctx context.Context, opts *api.NodeIdentityOpts) (*api.Response[*v1.NodeIdentity], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for NodeIdentity")
+	}
+
+	var r0 *api.Response[*v1.NodeIdentity]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeIdentityOpts) (*api.Response[*v1.NodeIdentity], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeIdentityOpts) *api.Response[*v1.NodeIdentity]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*v1.NodeIdentity])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.NodeIdentityOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // NodePeerCount provides a mock function with given fields: ctx, opts
 func (_m *Client) NodePeerCount(ctx context.Context, opts *api.NodePeerCountOpts) (*api.Response[*v1.PeerCount], error) {
 	ret := _m.Called(ctx, opts)
@@ -712,36 +740,6 @@ func (_m *Client) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*
 	return r0, r1
 }
 
-// NodeIdentity provides a mock function with given fields: ctx
-func (_m *Client) NodeIdentity(ctx context.Context, opts *api.NodeIdentityOpts) (*api.Response[*v1.NodeIdentity], error) {
-	ret := _m.Called(ctx, opts)
-
-	if len(ret) == 0 {
-		panic("no return value specified for NodeIdentity")
-	}
-
-	var r0 *api.Response[*v1.NodeIdentity]
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeIdentityOpts) (*api.Response[*v1.NodeIdentity], error)); ok {
-		return rf(ctx, opts)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeIdentityOpts) *api.Response[*v1.NodeIdentity]); ok {
-		r0 = rf(ctx, opts)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Response[*v1.NodeIdentity])
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *api.NodeIdentityOpts) error); ok {
-		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // Proposal provides a mock function with given fields: ctx, opts
 func (_m *Client) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
 	ret := _m.Called(ctx, opts)
@@ -803,24 +801,22 @@ func (_m *Client) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOp
 }
 
 // ProposerDutiesCache provides a mock function with given fields: _a0, _a1, _a2
-func (_m *Client) ProposerDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) ([]*v1.ProposerDuty, error) {
+func (_m *Client) ProposerDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 	ret := _m.Called(_a0, _a1, _a2)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ProposerDutiesCache")
 	}
 
-	var r0 []*v1.ProposerDuty
+	var r0 eth2wrap.ProposerDutyWithMeta
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.ProposerDuty, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)); ok {
 		return rf(_a0, _a1, _a2)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) []*v1.ProposerDuty); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) eth2wrap.ProposerDutyWithMeta); ok {
 		r0 = rf(_a0, _a1, _a2)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*v1.ProposerDuty)
-		}
+		r0 = ret.Get(0).(eth2wrap.ProposerDutyWithMeta)
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
@@ -863,11 +859,7 @@ func (_m *Client) Proxy(ctx context.Context, req *http.Request) (*http.Response,
 }
 
 // SetDutiesCache provides a mock function with given fields: _a0, _a1, _a2
-func (_m *Client) SetDutiesCache(
-	_a0 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.ProposerDuty, error),
-	_a1 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.AttesterDuty, error),
-	_a2 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.SyncCommitteeDuty, error),
-) {
+func (_m *Client) SetDutiesCache(_a0 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error), _a1 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error), _a2 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error)) {
 	_m.Called(_a0, _a1, _a2)
 }
 
@@ -1195,6 +1187,34 @@ func (_m *Client) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0
 	return r0
 }
 
+// SyncCommDutiesCache provides a mock function with given fields: _a0, _a1, _a2
+func (_m *Client) SyncCommDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
+	ret := _m.Called(_a0, _a1, _a2)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SyncCommDutiesCache")
+	}
+
+	var r0 eth2wrap.SyncDutyWithMeta
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error)); ok {
+		return rf(_a0, _a1, _a2)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) eth2wrap.SyncDutyWithMeta); ok {
+		r0 = rf(_a0, _a1, _a2)
+	} else {
+		r0 = ret.Get(0).(eth2wrap.SyncDutyWithMeta)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
+		r1 = rf(_a0, _a1, _a2)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // SyncCommitteeContribution provides a mock function with given fields: ctx, opts
 func (_m *Client) SyncCommitteeContribution(ctx context.Context, opts *api.SyncCommitteeContributionOpts) (*api.Response[*altair.SyncCommitteeContribution], error) {
 	ret := _m.Called(ctx, opts)
@@ -1283,41 +1303,6 @@ func (_m *Client) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCom
 	}
 
 	return r0, r1
-}
-
-// SyncCommDutiesCache provides a mock function with given fields: _a0, _a1, _a2
-func (_m *Client) SyncCommDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) ([]*v1.SyncCommitteeDuty, error) {
-	ret := _m.Called(_a0, _a1, _a2)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SyncCommDutiesCache")
-	}
-
-	var r0 []*v1.SyncCommitteeDuty
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) ([]*v1.SyncCommitteeDuty, error)); ok {
-		return rf(_a0, _a1, _a2)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) []*v1.SyncCommitteeDuty); ok {
-		r0 = rf(_a0, _a1, _a2)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*v1.SyncCommitteeDuty)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
-		r1 = rf(_a0, _a1, _a2)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// UpdateCacheIndices provides a mock function with given fields: _a0, _a1
-func (_m *Client) UpdateCacheIndices(_a0 context.Context, _a1 []phase0.ValidatorIndex) {
-	_m.Called(_a0, _a1)
 }
 
 // Validators provides a mock function with given fields: ctx, opts

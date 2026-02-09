@@ -257,29 +257,29 @@ func TestSynthProposer(t *testing.T) {
 				activeVals++
 				return cachedValidators(ctx)
 			}
-			bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			bmock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 				duties, err := bmock.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vidxs})
 				if err != nil {
-					return nil, err
+					return eth2wrap.ProposerDutyWithMeta{}, err
 				}
 
-				return duties.Data, nil
+				return eth2wrap.ProposerDutyWithMeta{Duties: duties.Data, Metadata: duties.Metadata}, nil
 			}
-			bmock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
+			bmock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 				duties, err := bmock.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: vidxs})
 				if err != nil {
-					return nil, err
+					return eth2wrap.AttesterDutyWithMeta{}, err
 				}
 
-				return duties.Data, nil
+				return eth2wrap.AttesterDutyWithMeta{Duties: duties.Data, Metadata: duties.Metadata}, nil
 			}
-			bmock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
+			bmock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
 				duties, err := bmock.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
 				if err != nil {
-					return nil, err
+					return eth2wrap.SyncDutyWithMeta{}, err
 				}
 
-				return duties.Data, nil
+				return eth2wrap.SyncDutyWithMeta{Duties: duties.Data, Metadata: duties.Metadata}, nil
 			}
 			bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 				resp := test.versionedSignedBlock
