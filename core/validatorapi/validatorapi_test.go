@@ -1791,7 +1791,7 @@ func TestComponent_Duties(t *testing.T) {
 					PubKey:         eth2Pubkey,
 					ValidatorIndex: vIdx,
 				}},
-				Metadata: map[string]any{},
+				Metadata: nil,
 			}, nil
 		}
 
@@ -1831,7 +1831,7 @@ func TestComponent_Duties(t *testing.T) {
 					PubKey:         eth2Pubkey,
 					ValidatorIndex: vIdx,
 				}},
-				Metadata: map[string]any{},
+				Metadata: nil,
 			}, nil
 		}
 
@@ -1871,7 +1871,7 @@ func TestComponent_Duties(t *testing.T) {
 					PubKey:         eth2Pubkey,
 					ValidatorIndex: vIdx,
 				}},
-				Metadata: map[string]any{},
+				Metadata: nil,
 			}, nil
 		}
 

@@ -396,7 +396,7 @@ func WithDeterministicAttesterDuties(factor int) Option {
 				return eth2wrap.AttesterDutyWithMeta{}, err
 			}
 
-			return eth2wrap.AttesterDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.AttesterDutyWithMeta{Duties: d, Metadata: nil}, nil
 		}
 	}
 }
@@ -452,7 +452,7 @@ func WithDeterministicProposerDuties(factor int) Option {
 				return eth2wrap.ProposerDutyWithMeta{}, err
 			}
 
-			return eth2wrap.ProposerDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.ProposerDutyWithMeta{Duties: d, Metadata: nil}, nil
 		}
 	}
 }
@@ -464,12 +464,7 @@ func WithNoProposerDuties() Option {
 			return nil, nil
 		}
 		mock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
-			d, err := mock.ProposerDutiesFunc(ctx, epoch, vidxs)
-			if err != nil {
-				return eth2wrap.ProposerDutyWithMeta{}, err
-			}
-
-			return eth2wrap.ProposerDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.ProposerDutyWithMeta{}, nil
 		}
 	}
 }
@@ -481,12 +476,7 @@ func WithNoAttesterDuties() Option {
 			return nil, nil
 		}
 		mock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
-			d, err := mock.AttesterDutiesFunc(ctx, epoch, vidxs)
-			if err != nil {
-				return eth2wrap.AttesterDutyWithMeta{}, err
-			}
-
-			return eth2wrap.AttesterDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.AttesterDutyWithMeta{}, nil
 		}
 	}
 }
@@ -498,12 +488,7 @@ func WithNoSyncCommitteeDuties() Option {
 			return nil, nil
 		}
 		mock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
-			d, err := mock.SyncCommitteeDutiesFunc(ctx, epoch, vidxs)
-			if err != nil {
-				return eth2wrap.SyncDutyWithMeta{}, err
-			}
-
-			return eth2wrap.SyncDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.SyncDutyWithMeta{}, nil
 		}
 	}
 }
@@ -552,7 +537,7 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 				return eth2wrap.SyncDutyWithMeta{}, err
 			}
 
-			return eth2wrap.SyncDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.SyncDutyWithMeta{Duties: d, Metadata: nil}, nil
 		}
 
 		mock.overrides = append(mock.overrides, staticOverride{
@@ -635,13 +620,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return []*eth2v1.ProposerDuty{}, nil
 		},
 		CachedProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
-			return eth2wrap.ProposerDutyWithMeta{Duties: []*eth2v1.ProposerDuty{}, Metadata: map[string]any{}}, nil
+			return eth2wrap.ProposerDutyWithMeta{Duties: []*eth2v1.ProposerDuty{}, Metadata: nil}, nil
 		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
 		CachedAttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
-			return eth2wrap.AttesterDutyWithMeta{Duties: []*eth2v1.AttesterDuty{}, Metadata: map[string]any{}}, nil
+			return eth2wrap.AttesterDutyWithMeta{Duties: []*eth2v1.AttesterDuty{}, Metadata: nil}, nil
 		},
 		BeaconBlockAttestationsFunc: func(context.Context, *eth2api.BeaconBlockAttestationsOpts) ([]*eth2spec.VersionedAttestation, error) {
 			return []*eth2spec.VersionedAttestation{}, nil
@@ -741,7 +726,7 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			return []*eth2v1.SyncCommitteeDuty{}, nil
 		},
 		CachedSyncCommDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
-			return eth2wrap.SyncDutyWithMeta{Duties: []*eth2v1.SyncCommitteeDuty{}, Metadata: map[string]any{}}, nil
+			return eth2wrap.SyncDutyWithMeta{Duties: []*eth2v1.SyncCommitteeDuty{}, Metadata: nil}, nil
 		},
 		SyncCommitteeSelectionsFunc: func(_ context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) ([]*eth2v1.SyncCommitteeSelection, error) {
 			return opts.Selections, nil

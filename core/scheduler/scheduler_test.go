@@ -258,7 +258,7 @@ func TestSchedulerDuties(t *testing.T) {
 
 				origResp, err := origFunc(ctx, epoch, indices)
 
-				return eth2wrap.ProposerDutyWithMeta{Duties: origResp, Metadata: map[string]any{}}, err
+				return eth2wrap.ProposerDutyWithMeta{Duties: origResp, Metadata: nil}, err
 			}
 
 			// Construct scheduler

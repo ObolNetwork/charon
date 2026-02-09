@@ -105,7 +105,7 @@ func WithBeaconMockFuzzer() Option {
 				return eth2wrap.AttesterDutyWithMeta{}, err
 			}
 
-			return eth2wrap.AttesterDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.AttesterDutyWithMeta{Duties: d, Metadata: nil}, nil
 		}
 
 		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -118,7 +118,7 @@ func WithBeaconMockFuzzer() Option {
 			var duties []*eth2v1.ProposerDuty
 			fuzz.New().Fuzz(&duties)
 
-			return eth2wrap.ProposerDutyWithMeta{Duties: duties, Metadata: map[string]any{}}, nil
+			return eth2wrap.ProposerDutyWithMeta{Duties: duties, Metadata: nil}, nil
 		}
 
 		mock.AttestationDataFunc = func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
@@ -194,7 +194,7 @@ func WithBeaconMockFuzzer() Option {
 				return eth2wrap.SyncDutyWithMeta{}, err
 			}
 
-			return eth2wrap.SyncDutyWithMeta{Duties: d, Metadata: map[string]any{}}, nil
+			return eth2wrap.SyncDutyWithMeta{Duties: d, Metadata: nil}, nil
 		}
 
 		mock.SyncCommitteeContributionFunc = func(context.Context, eth2p0.Slot, uint64, eth2p0.Root) (*altair.SyncCommitteeContribution, error) {

@@ -67,7 +67,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
-		return eth2wrap.AttesterDutyWithMeta{Duties: res, Metadata: map[string]any{}}, nil
+		return eth2wrap.AttesterDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
 	eth2Cl.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
@@ -93,7 +93,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
-		return eth2wrap.SyncDutyWithMeta{Duties: res, Metadata: map[string]any{}}, nil
+		return eth2wrap.SyncDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
 	eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -119,7 +119,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 			res[idx].PubKey = testutil.RandomEth2PubKey(t)
 		}
 
-		return eth2wrap.ProposerDutyWithMeta{Duties: res, Metadata: map[string]any{}}, nil
+		return eth2wrap.ProposerDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
 	var schedVals validators

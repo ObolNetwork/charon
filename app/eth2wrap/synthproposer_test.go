@@ -263,7 +263,7 @@ func TestSynthProposer(t *testing.T) {
 					return eth2wrap.ProposerDutyWithMeta{}, err
 				}
 
-				return eth2wrap.ProposerDutyWithMeta{Duties: duties.Data, Metadata: map[string]any{}}, nil
+				return eth2wrap.ProposerDutyWithMeta{Duties: duties.Data, Metadata: duties.Metadata}, nil
 			}
 			bmock.CachedAttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 				duties, err := bmock.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: vidxs})
@@ -271,7 +271,7 @@ func TestSynthProposer(t *testing.T) {
 					return eth2wrap.AttesterDutyWithMeta{}, err
 				}
 
-				return eth2wrap.AttesterDutyWithMeta{Duties: duties.Data, Metadata: map[string]any{}}, nil
+				return eth2wrap.AttesterDutyWithMeta{Duties: duties.Data, Metadata: duties.Metadata}, nil
 			}
 			bmock.CachedSyncCommDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
 				duties, err := bmock.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: vidxs})
@@ -279,7 +279,7 @@ func TestSynthProposer(t *testing.T) {
 					return eth2wrap.SyncDutyWithMeta{}, err
 				}
 
-				return eth2wrap.SyncDutyWithMeta{Duties: duties.Data, Metadata: map[string]any{}}, nil
+				return eth2wrap.SyncDutyWithMeta{Duties: duties.Data, Metadata: duties.Metadata}, nil
 			}
 			bmock.SignedBeaconBlockFunc = func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 				resp := test.versionedSignedBlock
