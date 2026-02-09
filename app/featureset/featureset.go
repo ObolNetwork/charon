@@ -96,7 +96,7 @@ var (
 		Linear:                   statusAlpha,
 		SSEReorgDuties:           statusAlpha,
 		AttestationInclusion:     statusAlpha,
-		ProposalTimeout:          statusAlpha,
+		ProposalTimeout:          statusStable,
 		QUIC:                     statusAlpha,
 		FetchOnlyCommIdx0:        statusAlpha,
 		ChainSplitHalt:           statusAlpha,
