@@ -64,10 +64,11 @@ func NewValidatorCache(eth2Cl Client, pubkeys []eth2p0.BLSPubKey) *ValidatorCach
 
 // ValidatorCache caches active validators.
 type ValidatorCache struct {
+	sync.RWMutex
+
 	eth2Cl  Client
 	pubkeys []eth2p0.BLSPubKey
 
-	sync.RWMutex
 	active   ActiveValidators
 	complete CompleteValidators
 }
@@ -199,6 +200,7 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 // ProposerDuties is a map of proposer duties per epoch.
 type ProposerDuties struct {
 	sync.RWMutex
+
 	duties   map[eth2p0.Epoch][]eth2v1.ProposerDuty
 	metadata map[eth2p0.Epoch]map[string]any
 }
@@ -206,6 +208,7 @@ type ProposerDuties struct {
 // AttesterDuties is a map of attester duties per epoch.
 type AttesterDuties struct {
 	sync.RWMutex
+
 	duties   map[eth2p0.Epoch][]eth2v1.AttesterDuty
 	metadata map[eth2p0.Epoch]map[string]any
 }
@@ -213,6 +216,7 @@ type AttesterDuties struct {
 // SyncDuties is a map of sync committee duties per epoch.
 type SyncDuties struct {
 	sync.RWMutex
+
 	duties   map[eth2p0.Epoch][]eth2v1.SyncCommitteeDuty
 	metadata map[eth2p0.Epoch]map[string]any
 }
