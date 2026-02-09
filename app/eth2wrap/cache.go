@@ -67,7 +67,7 @@ type ValidatorCache struct {
 	eth2Cl  Client
 	pubkeys []eth2p0.BLSPubKey
 
-	mu       sync.RWMutex
+	sync.RWMutex
 	active   ActiveValidators
 	complete CompleteValidators
 }
@@ -75,8 +75,8 @@ type ValidatorCache struct {
 // Trim trims the cache.
 // This should be called on epoch boundary.
 func (c *ValidatorCache) Trim() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Lock()
+	defer c.Unlock()
 
 	c.active = nil
 	c.complete = nil
@@ -84,16 +84,16 @@ func (c *ValidatorCache) Trim() {
 
 // activeCached returns the cached active validators and true if they are available.
 func (c *ValidatorCache) activeCached() (ActiveValidators, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.RLock()
+	defer c.RUnlock()
 
 	return c.active, c.active != nil
 }
 
 // cached returns the cached complete validators and true if they are available.
 func (c *ValidatorCache) cached() (CompleteValidators, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.RLock()
+	defer c.RUnlock()
 
 	return c.complete, c.complete != nil
 }
@@ -112,8 +112,8 @@ func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, Compl
 
 	// This code is only ever invoked by scheduler's slot ticking method.
 	// It's fine locking this way.
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Lock()
+	defer c.Unlock()
 
 	opts := &eth2api.ValidatorsOpts{
 		State:   "head",
@@ -150,8 +150,8 @@ func (c *ValidatorCache) GetByHead(ctx context.Context) (ActiveValidators, Compl
 // GetBySlot fetches active and complete validator by slot populating the cache.
 // If it fails to fetch by slot, it falls back to head state and retries to fetch by slot next slot.
 func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveValidators, CompleteValidators, bool, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.Lock()
+	defer c.Unlock()
 
 	missedCacheCount.WithLabelValues("validators").Inc()
 
@@ -198,21 +198,21 @@ func (c *ValidatorCache) GetBySlot(ctx context.Context, slot uint64) (ActiveVali
 
 // ProposerDuties is a map of proposer duties per epoch.
 type ProposerDuties struct {
-	mu       sync.RWMutex
+	sync.RWMutex
 	duties   map[eth2p0.Epoch][]eth2v1.ProposerDuty
 	metadata map[eth2p0.Epoch]map[string]any
 }
 
 // AttesterDuties is a map of attester duties per epoch.
 type AttesterDuties struct {
-	mu       sync.RWMutex
+	sync.RWMutex
 	duties   map[eth2p0.Epoch][]eth2v1.AttesterDuty
 	metadata map[eth2p0.Epoch]map[string]any
 }
 
 // SyncDuties is a map of sync committee duties per epoch.
 type SyncDuties struct {
-	mu       sync.RWMutex
+	sync.RWMutex
 	duties   map[eth2p0.Epoch][]eth2v1.SyncCommitteeDuty
 	metadata map[eth2p0.Epoch]map[string]any
 }
@@ -441,8 +441,8 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 // fetchProposerDuties returns the cached proposer duties and true if they are available.
 func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]eth2v1.ProposerDuty, map[string]any, bool) {
-	c.proposerDuties.mu.RLock()
-	defer c.proposerDuties.mu.RUnlock()
+	c.proposerDuties.RLock()
+	defer c.proposerDuties.RUnlock()
 
 	duties, ok := c.proposerDuties.duties[epoch]
 	if !ok {
@@ -459,8 +459,8 @@ func (c *DutiesCache) fetchProposerDuties(epoch eth2p0.Epoch) ([]eth2v1.Proposer
 
 // fetchAttesterDuties returns the cached attester duties and true if they are available.
 func (c *DutiesCache) fetchAttesterDuties(epoch eth2p0.Epoch) ([]eth2v1.AttesterDuty, map[string]any, bool) {
-	c.attesterDuties.mu.RLock()
-	defer c.attesterDuties.mu.RUnlock()
+	c.attesterDuties.RLock()
+	defer c.attesterDuties.RUnlock()
 
 	duties, ok := c.attesterDuties.duties[epoch]
 	if !ok {
@@ -477,8 +477,8 @@ func (c *DutiesCache) fetchAttesterDuties(epoch eth2p0.Epoch) ([]eth2v1.Attester
 
 // fetchSyncDuties returns the cached sync duties and true if they are available.
 func (c *DutiesCache) fetchSyncDuties(epoch eth2p0.Epoch) ([]eth2v1.SyncCommitteeDuty, map[string]any, bool) {
-	c.syncDuties.mu.RLock()
-	defer c.syncDuties.mu.RUnlock()
+	c.syncDuties.RLock()
+	defer c.syncDuties.RUnlock()
 
 	duties, ok := c.syncDuties.duties[epoch]
 	if !ok {
@@ -495,8 +495,8 @@ func (c *DutiesCache) fetchSyncDuties(epoch eth2p0.Epoch) ([]eth2v1.SyncCommitte
 
 // storeProposerDuties stores proposer duties in the cache for the given epoch if they don't exist and false if they already exists.
 func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []eth2v1.ProposerDuty, metadata map[string]any) bool {
-	c.proposerDuties.mu.Lock()
-	defer c.proposerDuties.mu.Unlock()
+	c.proposerDuties.Lock()
+	defer c.proposerDuties.Unlock()
 
 	_, ok := c.proposerDuties.duties[epoch]
 	if ok {
@@ -511,8 +511,8 @@ func (c *DutiesCache) storeProposerDuties(epoch eth2p0.Epoch, duties []eth2v1.Pr
 
 // storeAttesterDuties stores attester duties in the cache for the given epoch if they don't exist and false if they already exists.
 func (c *DutiesCache) storeAttesterDuties(epoch eth2p0.Epoch, duties []eth2v1.AttesterDuty, metadata map[string]any) bool {
-	c.attesterDuties.mu.Lock()
-	defer c.attesterDuties.mu.Unlock()
+	c.attesterDuties.Lock()
+	defer c.attesterDuties.Unlock()
 
 	_, ok := c.attesterDuties.duties[epoch]
 	if ok {
@@ -527,8 +527,8 @@ func (c *DutiesCache) storeAttesterDuties(epoch eth2p0.Epoch, duties []eth2v1.At
 
 // storeSyncDuties stores sync duties in the cache for the given epoch if they don't exist and false if they already exists.
 func (c *DutiesCache) storeSyncDuties(epoch eth2p0.Epoch, duties []eth2v1.SyncCommitteeDuty, metadata map[string]any) bool {
-	c.syncDuties.mu.Lock()
-	defer c.syncDuties.mu.Unlock()
+	c.syncDuties.Lock()
+	defer c.syncDuties.Unlock()
 
 	_, ok := c.syncDuties.duties[epoch]
 	if ok {
@@ -543,8 +543,8 @@ func (c *DutiesCache) storeSyncDuties(epoch eth2p0.Epoch, duties []eth2v1.SyncCo
 
 // trimBeforeProposerDuties removes cached proposer duties before the given epoch and returns if any were removed.
 func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
-	c.proposerDuties.mu.Lock()
-	defer c.proposerDuties.mu.Unlock()
+	c.proposerDuties.Lock()
+	defer c.proposerDuties.Unlock()
 
 	ok := false
 
@@ -562,8 +562,8 @@ func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 
 // trimBeforeAttesterDuties removes cached attester duties before the given epoch and returns if any were removed.
 func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
-	c.attesterDuties.mu.Lock()
-	defer c.attesterDuties.mu.Unlock()
+	c.attesterDuties.Lock()
+	defer c.attesterDuties.Unlock()
 
 	ok := false
 
@@ -581,8 +581,8 @@ func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 
 // trimBeforeSyncDuties removes cached sync duties before the given epoch and returns if any were removed.
 func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
-	c.syncDuties.mu.Lock()
-	defer c.syncDuties.mu.Unlock()
+	c.syncDuties.Lock()
+	defer c.syncDuties.Unlock()
 
 	ok := false
 
@@ -600,8 +600,8 @@ func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 
 // trimAfterProposerDuties removes cached proposer duties after the given epoch and returns if any were removed.
 func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
-	c.proposerDuties.mu.Lock()
-	defer c.proposerDuties.mu.Unlock()
+	c.proposerDuties.Lock()
+	defer c.proposerDuties.Unlock()
 
 	ok := false
 
@@ -619,8 +619,8 @@ func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 
 // trimAfterAttesterDuties removes cached attester duties after the given epoch and returns if any were removed.
 func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
-	c.attesterDuties.mu.Lock()
-	defer c.attesterDuties.mu.Unlock()
+	c.attesterDuties.Lock()
+	defer c.attesterDuties.Unlock()
 
 	ok := false
 
@@ -638,8 +638,8 @@ func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 
 // trimAfterSyncDuties removes cached sync duties after the given epoch and returns if any were removed.
 func (c *DutiesCache) trimAfterSyncDuties(epoch eth2p0.Epoch) bool {
-	c.syncDuties.mu.Lock()
-	defer c.syncDuties.mu.Unlock()
+	c.syncDuties.Lock()
+	defer c.syncDuties.Unlock()
 
 	ok := false
 
