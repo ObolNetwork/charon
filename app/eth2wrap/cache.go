@@ -302,10 +302,10 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	}
 
 	if invalidated {
-		log.Debug(ctx, "reorg occurred through epoch transition, invalidating duties cache", z.U64("reorged_back_to_epoch", uint64(epoch)))
+		log.Debug(ctx, "Reorg occurred through epoch transition, invalidating duties cache", z.U64("reorged_back_to_epoch", uint64(epoch)))
 		invalidatedCacheDueReorgCount.WithLabelValues("validators").Inc()
 	} else {
-		log.Debug(ctx, "reorg occurred, but it was not through epoch transition, duties cache is not invalidated", z.U64("reorged_epoch", uint64(epoch)))
+		log.Debug(ctx, "Reorg occurred, but it was not through epoch transition, duties cache is not invalidated", z.U64("reorged_epoch", uint64(epoch)))
 	}
 }
 
@@ -348,7 +348,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	ok = c.storeProposerDuties(epoch, dutiesDeref, eth2Resp.Metadata)
 	if !ok {
-		log.Debug(ctx, "failed to cache proposer duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
+		log.Debug(ctx, "Failed to cache proposer duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
 	}
 
 	return ProposerDutyWithMeta{Duties: eth2Resp.Data, Metadata: eth2Resp.Metadata}, nil
@@ -388,7 +388,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	ok = c.storeAttesterDuties(epoch, dutiesDeref, eth2Resp.Metadata)
 	if !ok {
-		log.Debug(ctx, "failed to cache attester duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
+		log.Debug(ctx, "Failed to cache attester duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
 	}
 
 	return AttesterDutyWithMeta{Duties: eth2Resp.Data, Metadata: eth2Resp.Metadata}, nil
@@ -433,7 +433,7 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 
 	ok = c.storeSyncDuties(epoch, dutiesDeref, eth2Resp.Metadata)
 	if !ok {
-		log.Debug(ctx, "failed to cache sync duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
+		log.Debug(ctx, "Failed to cache sync duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
 	}
 
 	return SyncDutyWithMeta{Duties: eth2Resp.Data, Metadata: eth2Resp.Metadata}, nil

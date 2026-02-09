@@ -12,6 +12,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
+
 	"github.com/obolnetwork/charon/app/eth2wrap"
 )
 
