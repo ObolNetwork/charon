@@ -98,7 +98,7 @@ var (
 		AttestationInclusion:     statusAlpha,
 		ProposalTimeout:          statusStable,
 		QUIC:                     statusAlpha,
-		FetchOnlyCommIdx0:        statusAlpha,
+		FetchOnlyCommIdx0:        statusStable,
 		ChainSplitHalt:           statusAlpha,
 		FetchAttOnBlock:          statusAlpha,
 		FetchAttOnBlockWithDelay: statusAlpha,
