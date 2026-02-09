@@ -140,8 +140,13 @@ func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *p
 				return errors.New("invalid round 1 casts message")
 			}
 
+			peerNode, ok := peers[pID]
+			if !ok {
+				return errors.New("unknown peer in round 1 cast", z.Any("peer", p2p.PeerName(pID)))
+			}
+
 			for _, cast := range msg.GetCasts() {
-				if int(cast.GetKey().GetSourceId()) != peers[pID].ShareIdx {
+				if int(cast.GetKey().GetSourceId()) != peerNode.ShareIdx {
 					return errors.New("invalid round 1 cast source ID")
 				} else if cast.GetKey().GetTargetId() != 0 {
 					return errors.New("invalid round 1 cast target ID")
@@ -174,8 +179,13 @@ func newBcastCallback(peers map[peer.ID]cluster.NodeIdx, round1CastsRecv chan *p
 				return errors.New("invalid round 2 casts message")
 			}
 
+			peerNode, ok := peers[pID]
+			if !ok {
+				return errors.New("unknown peer in round 2 cast", z.Any("peer", p2p.PeerName(pID)))
+			}
+
 			for _, cast := range msg.GetCasts() {
-				if int(cast.GetKey().GetSourceId()) != peers[pID].ShareIdx {
+				if int(cast.GetKey().GetSourceId()) != peerNode.ShareIdx {
 					return errors.New("invalid round 2 cast source ID")
 				} else if cast.GetKey().GetTargetId() != 0 {
 					return errors.New("invalid round 2 cast target ID")
@@ -209,10 +219,20 @@ func newP2PCallback(p2pNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1
 			return nil, false, errors.New("invalid round 1 p2p message")
 		}
 
+		sourcePeer, ok := peers[pID]
+		if !ok {
+			return nil, false, errors.New("unknown source peer in round 1 p2p", z.Any("peer", p2p.PeerName(pID)))
+		}
+
+		targetPeer, ok := peers[p2pNode.ID()]
+		if !ok {
+			return nil, false, errors.New("unknown target peer in round 1 p2p", z.Any("peer", p2p.PeerName(p2pNode.ID())))
+		}
+
 		for _, share := range msg.GetShares() {
-			if int(share.GetKey().GetSourceId()) != peers[pID].ShareIdx {
+			if int(share.GetKey().GetSourceId()) != sourcePeer.ShareIdx {
 				return nil, false, errors.New("invalid round 1 p2p source ID")
-			} else if int(share.GetKey().GetTargetId()) != peers[p2pNode.ID()].ShareIdx {
+			} else if int(share.GetKey().GetTargetId()) != targetPeer.ShareIdx {
 				return nil, false, errors.New("invalid round 1 p2p target ID")
 			} else if int(share.GetKey().GetValIdx()) < 0 || int(share.GetKey().GetValIdx()) >= numVals {
 				return nil, false, errors.New("invalid round 1 p2p validator index")
@@ -220,7 +240,7 @@ func newP2PCallback(p2pNode host.Host, peers map[peer.ID]cluster.NodeIdx, round1
 		}
 
 		if dedupRound1P2P[pID] {
-			log.Debug(ctx, "Ignoring duplicate round 2 message", z.Any("peer", p2p.PeerName(pID)))
+			log.Debug(ctx, "Ignoring duplicate round 1 message", z.Any("peer", p2p.PeerName(pID)))
 			return nil, false, nil
 		}
 
@@ -452,7 +472,7 @@ func round1CastFromProto(cast *pb.FrostRound1Cast) (msgKey, frost.Round1Bcast, e
 
 	ci, err := curve.Scalar.SetBytes(cast.GetCi())
 	if err != nil {
-		return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode c1 scalar")
+		return msgKey{}, frost.Round1Bcast{}, errors.Wrap(err, "decode ci scalar")
 	}
 
 	var comms []curves.Point
@@ -498,7 +518,7 @@ func round2CastFromProto(cast *pb.FrostRound2Cast) (msgKey, frost.Round2Bcast, e
 
 	vkShare, err := curve.Point.FromAffineCompressed(cast.GetVkShare())
 	if err != nil {
-		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode c1 scalar")
+		return msgKey{}, frost.Round2Bcast{}, errors.Wrap(err, "decode verification key share")
 	}
 
 	key, err := keyFromProto(cast.GetKey())
