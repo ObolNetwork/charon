@@ -26,6 +26,11 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
+const (
+	// maxDefinitionSize is the maximum allowed size for a cluster definition file (16MB).
+	maxDefinitionSize = 16 * 1024 * 1024
+)
+
 // FetchDefinition fetches cluster definition file from a remote URI.
 func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -47,9 +52,15 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 
 	defer resp.Body.Close()
 
-	buf, err := io.ReadAll(resp.Body)
+	limitedReader := io.LimitReader(resp.Body, maxDefinitionSize+1)
+
+	buf, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return Definition{}, errors.Wrap(err, "read response body")
+	}
+
+	if len(buf) > maxDefinitionSize {
+		return Definition{}, errors.New("definition file too large", z.Int("max_bytes", maxDefinitionSize))
 	}
 
 	var res Definition
