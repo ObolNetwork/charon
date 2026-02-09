@@ -44,7 +44,7 @@
   "target_gas_limit": 30000000,
   "compounding": false,
   "config_hash": "0x9f889a6e78ca1f4637fab903ccaef6919e70ff35bcc43022512dbb843232d575",
-  "definition_hash": "0x21d6a14240b899aa12ffa630dad43f723d918cd1d3269a7c723e49fa438314e3"
+  "definition_hash": "0x3c2c092d9cda006262fc49ef5e8b889e410a4d7b7c215d3f6d90bf3ce3359639"
  },
  "distributed_validators": [
   {
@@ -109,7 +109,7 @@
   }
  ],
  "signature_aggregate": "0x1c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb",
- "lock_hash": "0x44255a0ec5f8e81479be2cab94383912b9026908ccd64d334fbb629a6f77eeb2",
+ "lock_hash": "0x0b7de0e4590ef54d994ac294602caebb899922fbb8dbb54af60ed14b9d08166b",
  "node_signatures": [
   "0xfa3f85b8a62708caebbac880b5b89b93da53810164402104e648b6226a1b7802",
   "0x1851f5d9ac0f313a89ddfc454c5f8f72ac89b38b19f53784c19e9beac03c875a"
