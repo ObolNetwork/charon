@@ -1,7 +1,6 @@
-name: Prepare Minor Full Release
+name: Minor release step 3 - Release branch to stable version
 description: |
-  This workflow creates pull requests to update version files for a minor full release.
-  After the PRs are merged, a tag for the stable release should be created manually.
+  Create pull request to update version.go file in latest `main-vX.Y` from `vX.Y-rc` to `vX.Y`.
 
 on:
   workflow_dispatch:

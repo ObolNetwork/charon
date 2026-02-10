@@ -1,4 +1,7 @@
-name: Bump Patch Version
+name: Patch release step 1 - Create new release branch
+description: |
+  Create a PR to update version.go file from `vX.Y` to `vX.Y-rc` in latest `main-vX.Y` release branch.
+  Next, developers should merge this PR and open manually PRs to `main-vX.Y` with the desired cherry-picked commits from `main`.
 
 on:
   workflow_dispatch:
