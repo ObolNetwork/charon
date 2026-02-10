@@ -158,13 +158,9 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		}
 	}
 
-	// Validate node classification
-	if len(config.Reshare.RemovedPeers) > 0 && len(oldNodes) == 0 {
-		return nil, errors.New("remove operation requires at least one node with existing shares to participate")
-	}
-
-	if len(config.Reshare.AddedPeers) > 0 && len(newNodes) <= len(oldNodes) {
-		return nil, errors.New("add operation requires new nodes to join, but all nodes already exist in the cluster")
+	// Validate old/new node counts against the reshare operation being performed.
+	if err := validateReshareNodeCounts(len(oldNodes), len(newNodes), config.Threshold, config.Reshare); err != nil {
+		return nil, err
 	}
 
 	// In add operations, old nodes must have shares to contribute
@@ -373,4 +369,19 @@ func generateNonce(nodes []kdkg.Node) ([]byte, error) {
 	hash := sha256.Sum256(buf.Bytes())
 
 	return hash[:], nil
+}
+
+// validateReshareNodeCounts validates that there are enough nodes to complete the reshare.
+// KDKG requires at least oldThreshold old nodes to reconstruct the secret polynomial.
+func validateReshareNodeCounts(oldNodesCount, newNodesCount, oldThreshold int, reshare *ReshareConfig) error {
+	if len(reshare.RemovedPeers) > 0 && oldNodesCount < oldThreshold {
+		return errors.New("remove operation requires at least threshold nodes with existing shares to participate",
+			z.Int("old_nodes", oldNodesCount), z.Int("threshold", oldThreshold))
+	}
+
+	if len(reshare.AddedPeers) > 0 && newNodesCount <= oldNodesCount {
+		return errors.New("add operation requires new nodes to join, but all nodes already exist in the cluster")
+	}
+
+	return nil
 }
