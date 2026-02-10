@@ -130,9 +130,8 @@ func VerifyShares(t *testing.T, nodes []*TestNode, numVals, threshold int) {
 
 	for v := range numVals {
 		var (
-			sigs    []tbls.Signature
-			pshares []tbls.PublicKey
-			secrets = make(map[int]tbls.PrivateKey)
+			sigsByIdx = make(map[int]tbls.Signature)
+			secrets   = make(map[int]tbls.PrivateKey)
 		)
 
 		for _, node := range nodes {
@@ -145,15 +144,16 @@ func VerifyShares(t *testing.T, nodes []*TestNode, numVals, threshold int) {
 			err = tbls.Verify(pubKeyShare, msg, sig)
 			require.NoError(t, err)
 
-			sigs = append(sigs, sig)
-			pshares = append(pshares, pubKeyShare)
+			sigsByIdx[node.NodeIdx.ShareIdx] = sig
 			secrets[node.NodeIdx.ShareIdx] = node.Shares[v].SecretShare
 		}
 
-		aggSig, err := tbls.Aggregate(sigs)
+		// Use ThresholdAggregate (Lagrange interpolation) instead of simple Aggregate
+		// to ensure share indices are correct - this is what production uses.
+		aggSig, err := tbls.ThresholdAggregate(sigsByIdx)
 		require.NoError(t, err)
 
-		err = tbls.VerifyAggregate(pshares, aggSig, msg)
+		err = tbls.Verify(nodes[0].Shares[v].PubKey, msg, aggSig)
 		require.NoError(t, err)
 
 		recSecret, err := tbls.RecoverSecret(secrets, uint(len(nodes)), uint(threshold))

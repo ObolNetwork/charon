@@ -94,6 +94,11 @@ func TestFetchDefinition(t *testing.T) {
 			_, _ = w.Write(b)
 		case "/nonok":
 			w.WriteHeader(http.StatusInternalServerError)
+		case "/tooLarge":
+			// Simulate a response that exceeds maxDefinitionSize (16MB)
+			// Write 17MB of data to trigger the size limit
+			largeData := make([]byte, 17*1024*1024)
+			_, _ = w.Write(largeData)
 		}
 	}))
 	defer server.Close()
@@ -103,6 +108,7 @@ func TestFetchDefinition(t *testing.T) {
 		url     string
 		want    Definition
 		wantErr bool
+		errMsg  string
 	}{
 		{
 			name:    "Fetch valid definition",
@@ -122,12 +128,25 @@ func TestFetchDefinition(t *testing.T) {
 			want:    invalidDef,
 			wantErr: true,
 		},
+		{
+			name:    "Definition file too large (memory exhaustion protection)",
+			url:     fmt.Sprintf("%s/%s", server.URL, "tooLarge"),
+			want:    invalidDef,
+			wantErr: true,
+			errMsg:  "definition file too large",
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := FetchDefinition(context.Background(), tt.url)
 			if tt.wantErr {
 				require.Error(t, err)
+
+				if tt.errMsg != "" {
+					require.ErrorContains(t, err, tt.errMsg)
+				}
+
 				return
 			}
 

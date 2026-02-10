@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -145,6 +146,65 @@ func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
 	})
 
 	verifyClusterValidators(t, numValidators, outputNodeDirs)
+}
+
+func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
+	const (
+		numValidators = 3
+		numNodes      = 4
+		threshold     = 3
+	)
+
+	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
+	dstClusterDir := t.TempDir()
+
+	lockFilePath := path.Join(nodeDir(srcClusterDir, 0), clusterLockFile)
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
+	require.NoError(t, err)
+
+	// Attempt to remove all nodes from the original cluster
+	oldENRs := []string{
+		lock.Operators[0].ENR,
+		lock.Operators[1].ENR,
+		lock.Operators[2].ENR,
+		lock.Operators[3].ENR,
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	var errorReported atomic.Bool
+
+	runProtocol(t, numNodes, func(relayAddr string, n int) error {
+		dkgConfig := createDKGConfig(t, relayAddr)
+		ndir := nodeDir(srcClusterDir, n)
+		removeConfig := dkg.RemoveOperatorsConfig{
+			LockFilePath:     path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:   p2p.KeyPath(ndir),
+			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
+			OutputDir:        nodeDir(dstClusterDir, n),
+			RemovingENRs:     oldENRs,
+			ParticipatingENRs: []string{
+				lock.Operators[0].ENR,
+				lock.Operators[1].ENR,
+				lock.Operators[2].ENR,
+				lock.Operators[3].ENR,
+			},
+		}
+
+		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
+		if err != nil {
+			if strings.Contains(err.Error(), "remove operation would remove all nodes from original cluster") {
+				errorReported.Store(true)
+			}
+
+			return nil
+		}
+
+		return err
+	})
+
+	require.True(t, errorReported.Load(), "Expected error when attempting to remove all nodes from original cluster")
 }
 
 func TestRunAddOperatorsProtocol(t *testing.T) {
@@ -482,35 +542,37 @@ func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) { //n
 	}
 
 	data := []byte("test data")
-	allSigs := make([][]tbls.Signature, numVals)
-	clusterPubKeys := make([][]tbls.PublicKey, numVals)
+	allSigs := make([]map[int]tbls.Signature, numVals)
+	validatorPubKeys := make([]tbls.PublicKey, numVals)
 
 	for valIdx := range numVals {
-		sigs := make([]tbls.Signature, numNodes)
+		sigsByIdx := make(map[int]tbls.Signature)
 
 		for nodeIdx := range numNodes {
 			sig, err := tbls.Sign(clusterSecrets[nodeIdx][valIdx], data)
 			require.NoError(t, err)
 
-			sigs[nodeIdx] = sig
+			// Use 1-based share indices as production does
+			sigsByIdx[nodeIdx+1] = sig
 		}
 
-		allSigs[valIdx] = sigs
-		clusterPubKeys[valIdx] = make([]tbls.PublicKey, numNodes)
+		allSigs[valIdx] = sigsByIdx
 
-		for nodeIdx := range numNodes {
-			pubKey, err := tbls.SecretToPublicKey(clusterSecrets[nodeIdx][valIdx])
-			require.NoError(t, err)
+		// Get the validator's full public key for verification
+		lockFilePath := path.Join(nodeDirs[0], clusterLockFile)
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
+		require.NoError(t, err)
 
-			clusterPubKeys[valIdx][nodeIdx] = pubKey
-		}
+		validatorPubKeys[valIdx] = tbls.PublicKey(lock.Validators[valIdx].PubKey)
 	}
 
 	for valIdx := range numVals {
-		aSig, err := tbls.Aggregate(allSigs[valIdx])
+		// Use ThresholdAggregate (Lagrange interpolation) instead of simple Aggregate
+		// to ensure share indices are correct - this is what production uses.
+		aSig, err := tbls.ThresholdAggregate(allSigs[valIdx])
 		require.NoError(t, err)
 
-		err = tbls.VerifyAggregate(clusterPubKeys[valIdx], aSig, data)
+		err = tbls.Verify(validatorPubKeys[valIdx], data, aSig)
 		require.NoError(t, err)
 	}
 }

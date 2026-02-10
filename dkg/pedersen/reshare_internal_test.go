@@ -5,6 +5,9 @@ package pedersen
 import (
 	"testing"
 
+	kbls "github.com/drand/kyber-bls12381"
+	kdkg "github.com/drand/kyber/share/dkg"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/dkg/share"
@@ -53,4 +56,187 @@ func TestRestoreDistKeyShare(t *testing.T) {
 		_, err := restoreDistKeyShare(sshare, 3, 0)
 		require.Error(t, err)
 	})
+}
+
+func TestValidateReshareNodeCounts(t *testing.T) {
+	tests := []struct {
+		name          string
+		oldNodesCount int
+		newNodesCount int
+		oldThreshold  int
+		reshare       *ReshareConfig
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "no removals or additions - always valid",
+			oldNodesCount: 4,
+			newNodesCount: 4,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{},
+			expectError:   false,
+		},
+		{
+			name:          "removals with enough old nodes",
+			oldNodesCount: 3,
+			newNodesCount: 3,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}},
+			expectError:   false,
+		},
+		{
+			name:          "removals with more than threshold old nodes",
+			oldNodesCount: 4,
+			newNodesCount: 3,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}},
+			expectError:   false,
+		},
+		{
+			name:          "removals with insufficient old nodes",
+			oldNodesCount: 2,
+			newNodesCount: 2,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}},
+			expectError:   true,
+			errorContains: "remove operation requires at least threshold nodes",
+		},
+		{
+			name:          "removals with zero old nodes (complete replacement)",
+			oldNodesCount: 0,
+			newNodesCount: 5,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}, AddedPeers: []peer.ID{"peer2"}},
+			expectError:   true,
+			errorContains: "remove operation requires at least threshold nodes",
+		},
+		{
+			name:          "additions with new nodes joining",
+			oldNodesCount: 4,
+			newNodesCount: 5,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{AddedPeers: []peer.ID{"peer1"}},
+			expectError:   false,
+		},
+		{
+			name:          "additions without new nodes joining",
+			oldNodesCount: 4,
+			newNodesCount: 4,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{AddedPeers: []peer.ID{"peer1"}},
+			expectError:   true,
+			errorContains: "add operation requires new nodes to join",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateReshareNodeCounts(tc.oldNodesCount, tc.newNodesCount, tc.oldThreshold, tc.reshare)
+			if tc.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestRestoreCommitsOutOfBounds(t *testing.T) {
+	tests := []struct {
+		name         string
+		publicShares map[int][][]byte
+		shareNum     int
+		threshold    int
+		expectError  bool
+	}{
+		{
+			name: "share number exceeds available shares",
+			publicShares: map[int][][]byte{
+				0: {[]byte("share0_0"), []byte("share0_1")},
+				1: {[]byte("share1_0"), []byte("share1_1")},
+				2: {[]byte("share2_0"), []byte("share2_1")},
+			},
+			shareNum:    2, // Requesting index 2, but only 0 and 1 exist
+			threshold:   2,
+			expectError: true,
+		},
+		{
+			name: "one node has insufficient shares",
+			publicShares: map[int][][]byte{
+				0: {[]byte("share0_0"), []byte("share0_1"), []byte("share0_2")},
+				1: {[]byte("share1_0"), []byte("share1_1")}, // Only 2 shares
+				2: {[]byte("share2_0"), []byte("share2_1"), []byte("share2_2")},
+			},
+			shareNum:    2, // Node 1 doesn't have index 2
+			threshold:   2,
+			expectError: true,
+		},
+		{
+			name: "empty shares with non-zero shareNum",
+			publicShares: map[int][][]byte{
+				0: {},
+				1: {},
+			},
+			shareNum:    0,
+			threshold:   1,
+			expectError: true,
+		},
+		{
+			name: "valid access within bounds",
+			publicShares: map[int][][]byte{
+				0: {[]byte("share0_0"), []byte("share0_1"), []byte("share0_2")},
+				1: {[]byte("share1_0"), []byte("share1_1"), []byte("share1_2")},
+			},
+			shareNum:    1,
+			threshold:   2,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := restoreCommits(tt.publicShares, tt.shareNum, tt.threshold, nil)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "insufficient public key shares from node")
+			} else if err != nil {
+				// Valid cases might still error due to invalid key data,
+				// but should not error with bounds message
+				require.NotContains(t, err.Error(), "insufficient public key shares")
+			}
+		})
+	}
+}
+
+func TestGenerateNonce(t *testing.T) {
+	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
+	_, pub1 := randomKeyPair(suite)
+	_, pub2 := randomKeyPair(suite)
+	_, pub3 := randomKeyPair(suite)
+
+	nodes := []kdkg.Node{
+		{Index: 1, Public: pub1},
+		{Index: 2, Public: pub2},
+		{Index: 3, Public: pub3},
+	}
+
+	nonce1, err := generateNonce(nodes, 0)
+	require.NoError(t, err)
+
+	nonce2, err := generateNonce(nodes, 1)
+	require.NoError(t, err)
+
+	require.NotEqual(t, nonce1, nonce2)
+
+	nodes = []kdkg.Node{
+		{Index: 1, Public: pub1},
+		{Index: 2, Public: pub2},
+	}
+
+	nonce3, err := generateNonce(nodes, 1)
+	require.NoError(t, err)
+
+	require.NotEqual(t, nonce2, nonce3)
 }

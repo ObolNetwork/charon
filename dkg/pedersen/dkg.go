@@ -13,6 +13,8 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -51,17 +53,22 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 		return int(a.Index) - int(b.Index)
 	})
 
-	nonce, err := generateNonce(nodes)
-	if err != nil {
+	threshold := config.Threshold
+	if threshold <= 0 {
+		threshold = cluster.Threshold(len(nodes))
+
+		log.Info(ctx, "Using default threshold", z.Int("threshold", threshold))
+	}
+
+	if err := validateThreshold(len(nodes), threshold); err != nil {
 		return nil, err
 	}
 
 	dkgConfig := &kdkg.Config{
 		Longterm:  nodePrivateKey,
-		Nonce:     nonce,
 		Suite:     config.Suite,
 		NewNodes:  nodes,
-		Threshold: config.Threshold,
+		Threshold: threshold,
 		FastSync:  true,
 		Auth:      drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
 		Log:       newLogger(log.WithTopic(ctx, "pedersen")),
@@ -71,7 +78,14 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 
 	shares := make([]share.Share, 0, numVals)
 
-	for range numVals {
+	for i := range numVals {
+		nonce, err := generateNonce(nodes, i)
+		if err != nil {
+			return nil, err
+		}
+
+		dkgConfig.Nonce = nonce
+
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
 		protocol, err := kdkg.NewProtocol(
@@ -181,10 +195,10 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 
 	publicShares := make(map[int]tbls.PublicKey)
 
-	for i, oi := range oldShareIndices {
+	for _, oi := range oldShareIndices {
 		var pk tbls.PublicKey
 		copy(pk[:], oldShareRevMap[oi])
-		publicShares[i+1] = pk
+		publicShares[oi] = pk
 	}
 
 	return share.Share{
@@ -207,4 +221,18 @@ func readBoardChannel[T any](ctx context.Context, ch <-chan T, count int) ([]T, 
 	}
 
 	return pubKeys, nil
+}
+
+// validateThreshold verifies that the threshold is between 1 and nodeCount.
+// Note that in case of rotation we cannot increase the threshold beyond the original cluster size.
+func validateThreshold(nodeCount, threshold int) error {
+	if threshold < 1 {
+		return errors.New("threshold is too low", z.Int("threshold", threshold))
+	}
+
+	if threshold > nodeCount {
+		return errors.New("threshold exceeds node count", z.Int("threshold", threshold), z.Int("nodes", nodeCount))
+	}
+
+	return nil
 }

@@ -437,16 +437,17 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		}
 	}
 
-	// 	Ensure keystores can generate valid tbls aggregate signature.
+	// 	Ensure keystores can generate valid tbls threshold aggregate signature.
 	for i := range def.NumValidators {
-		var sigs []tbls.Signature
+		sigsByIdx := make(map[int]tbls.Signature)
+		msg := []byte("data")
 
 		for j := range len(def.Operators) {
-			msg := []byte("data")
 			sig, err := tbls.Sign(secretShares[i][j], msg)
 			require.NoError(t, err)
 
-			sigs = append(sigs, sig)
+			// Use 1-based share indices as production does
+			sigsByIdx[j+1] = sig
 
 			// Ensure all public shares can verify the partial signature
 			for _, lock := range locks {
@@ -461,7 +462,13 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 			}
 		}
 
-		_, err := tbls.Aggregate(sigs)
+		// Use ThresholdAggregate (Lagrange interpolation) instead of simple Aggregate
+		// to ensure share indices are correct - this is what production uses.
+		aSig, err := tbls.ThresholdAggregate(sigsByIdx)
+		require.NoError(t, err)
+
+		// Verify against the validator's full public key
+		err = tbls.Verify(tbls.PublicKey(locks[0].Validators[i].PubKey), msg, aSig)
 		require.NoError(t, err)
 	}
 }

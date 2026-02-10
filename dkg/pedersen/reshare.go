@@ -5,7 +5,6 @@ package pedersen
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"slices"
 
 	"github.com/drand/kyber"
@@ -13,16 +12,18 @@ import (
 	kshare "github.com/drand/kyber/share"
 	kdkg "github.com/drand/kyber/share/dkg"
 	drandbls "github.com/drand/kyber/sign/bdn"
+	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
 )
 
 // RunReshareDKG runs the core reshare protocol for add/remove operators or just reshare.
-func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []share.Share) ([]share.Share, error) {
+func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []share.Share, expectedValidatorPubKeys []tbls.PublicKey) ([]share.Share, error) {
 	if config.Reshare == nil {
 		return nil, errors.New("reshare config is nil")
 	}
@@ -158,13 +159,19 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		}
 	}
 
-	// Validate node classification
-	if len(config.Reshare.RemovedPeers) > 0 && len(oldNodes) == 0 {
-		return nil, errors.New("remove operation requires at least one node with existing shares to participate")
+	// For remove-only operations, reassign compact indices to newNodes.
+	// This ensures new shares are evaluated at x=1,2,3,...,n (compact) rather than
+	// the original gapped indices. The oldNodes keep their original indices for
+	// correct Lagrange interpolation of contributed shares.
+	if len(config.Reshare.RemovedPeers) > 0 && len(config.Reshare.AddedPeers) == 0 {
+		for i := range newNodes {
+			newNodes[i].Index = kdkg.Index(i)
+		}
 	}
 
-	if len(config.Reshare.AddedPeers) > 0 && len(newNodes) <= len(oldNodes) {
-		return nil, errors.New("add operation requires new nodes to join, but all nodes already exist in the cluster")
+	// Validate old/new node counts against the reshare operation being performed.
+	if err := validateReshareNodeCounts(len(oldNodes), len(newNodes), config.Threshold, config.Reshare); err != nil {
+		return nil, err
 	}
 
 	// In add operations, old nodes must have shares to contribute
@@ -173,18 +180,46 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return nil, errors.New("existing node in add operation must have shares to contribute")
 	}
 
-	nonce, err := generateNonce(nodes)
-	if err != nil {
-		return nil, err
+	// Validate that at least one old node remains after removal operation
+	if len(config.Reshare.RemovedPeers) > 0 {
+		oldNodesRemaining := 0
+
+		for _, oldNode := range oldNodes {
+			// Check if this old node is in the new cluster
+			for _, newNode := range newNodes {
+				if oldNode.Index == newNode.Index {
+					oldNodesRemaining++
+					break
+				}
+			}
+		}
+
+		if oldNodesRemaining == 0 {
+			return nil, errors.New("remove operation would remove all nodes from original cluster, at least one original node must remain",
+				z.Int("old_nodes", len(oldNodes)),
+				z.Int("removed_peers", len(config.Reshare.RemovedPeers)),
+			)
+		}
+	}
+
+	newThreshold := config.Reshare.NewThreshold
+	if newThreshold <= 0 {
+		newThreshold = cluster.Threshold(len(newNodes))
+
+		log.Info(ctx, "Using default new threshold", z.Int("new_threshold", newThreshold))
+	}
+
+	// Validate new threshold against resulting cluster size
+	if err := validateThreshold(len(newNodes), newThreshold); err != nil {
+		return nil, errors.Wrap(err, "invalid new threshold")
 	}
 
 	reshareConfig := &kdkg.Config{
 		Longterm:     nodePrivateKey,
-		Nonce:        nonce,
 		Suite:        config.Suite,
 		NewNodes:     newNodes,
 		OldNodes:     oldNodes,
-		Threshold:    config.Reshare.NewThreshold,
+		Threshold:    newThreshold,
 		OldThreshold: config.Threshold,
 		FastSync:     true,
 		Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
@@ -193,12 +228,19 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 
 	log.Info(ctx, "Starting pedersen reshare...",
 		z.Int("oldNodes", len(oldNodes)), z.Int("newNodes", len(newNodes)),
-		z.Int("oldThreshold", config.Threshold), z.Int("newThreshold", config.Reshare.NewThreshold),
+		z.Int("oldThreshold", config.Threshold), z.Int("newThreshold", newThreshold),
 		z.Bool("thisIsOldNode", thisIsOldNode), z.Bool("thisIsRemovedNode", thisIsRemovedNode))
 
 	newShares := make([]share.Share, 0, config.Reshare.TotalShares)
 
 	for shareNum := range config.Reshare.TotalShares {
+		nonce, err := generateNonce(nodes, shareNum)
+		if err != nil {
+			return nil, err
+		}
+
+		reshareConfig.Nonce = nonce
+
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
 		// Nodes with existing shares provide their share to the reshare protocol.
@@ -211,7 +253,13 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 			reshareConfig.PublicCoeffs = nil
 		} else {
 			// This is a new node - restore public coefficients from exchanged public key shares
-			commits, err := restoreCommits(pubKeyShares, shareNum, config.Threshold)
+			// Validate that the recovered group public key matches the expected validator public key
+			var expectedPubKey *tbls.PublicKey
+			if shareNum < len(expectedValidatorPubKeys) {
+				expectedPubKey = &expectedValidatorPubKeys[shareNum]
+			}
+
+			commits, err := restoreCommits(pubKeyShares, shareNum, config.Threshold, expectedPubKey)
 			if err != nil {
 				return nil, errors.Wrap(err, "restore commits")
 			}
@@ -274,7 +322,8 @@ func broadcastNoneKey(ctx context.Context, config *Config, board *Board) error {
 
 // restoreCommitsFromPubShares recovers public polynomial commits from a map of public key shares.
 // The nodeIdx in the map is 0-indexed.
-func restoreCommitsFromPubShares(pubSharesBytes map[int][]byte, threshold int) ([]kyber.Point, error) {
+// If expectedValidatorPubKey is provided, validates that the recovered group public key matches.
+func restoreCommitsFromPubShares(pubSharesBytes map[int][]byte, threshold int, expectedValidatorPubKey *tbls.PublicKey) ([]kyber.Point, error) {
 	var (
 		suite          = kbls.NewBLS12381Suite()
 		kyberPubShares []*kshare.PubShare
@@ -300,6 +349,22 @@ func restoreCommitsFromPubShares(pubSharesBytes map[int][]byte, threshold int) (
 
 	_, commits := pubPoly.Info()
 
+	// Validate the recovered group public key against the expected validator public key.
+	if expectedValidatorPubKey != nil {
+		if len(commits) == 0 {
+			return nil, errors.New("no commits recovered")
+		}
+
+		recoveredPubKeyBytes, err := commits[0].MarshalBinary()
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal recovered public key")
+		}
+
+		if !bytes.Equal(recoveredPubKeyBytes, expectedValidatorPubKey[:]) {
+			return nil, errors.New("recovered group public key does not match expected validator public key")
+		}
+	}
+
 	return commits, nil
 }
 
@@ -310,7 +375,7 @@ func restoreDistKeyShare(keyShare share.Share, threshold int, nodeIdx int) (*kdk
 		pubSharesBytes[shareIdx-1] = pks[:]
 	}
 
-	commits, err := restoreCommitsFromPubShares(pubSharesBytes, threshold)
+	commits, err := restoreCommitsFromPubShares(pubSharesBytes, threshold, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "restore commits")
 	}
@@ -345,32 +410,78 @@ func restoreDistKeyShare(keyShare share.Share, threshold int, nodeIdx int) (*kdk
 	return dks, nil
 }
 
-func restoreCommits(publicShares map[int][][]byte, shareNum, threshold int) ([]kyber.Point, error) {
+func restoreCommits(publicShares map[int][][]byte, shareNum, threshold int, expectedValidatorPubKey *tbls.PublicKey) ([]kyber.Point, error) {
+	// Validate that all nodes have sufficient shares before accessing
+	for nodeIdx, pks := range publicShares {
+		if shareNum >= len(pks) {
+			return nil, errors.New("insufficient public key shares from node",
+				z.Int("node_index", nodeIdx),
+				z.Int("share_num", shareNum),
+				z.Int("available_shares", len(pks)),
+			)
+		}
+	}
+
 	// Extract the specific share's public keys for all nodes
 	pubSharesBytes := make(map[int][]byte)
 	for nodeIdx, pks := range publicShares {
 		pubSharesBytes[nodeIdx] = pks[shareNum]
 	}
 
-	return restoreCommitsFromPubShares(pubSharesBytes, threshold)
+	return restoreCommitsFromPubShares(pubSharesBytes, threshold, expectedValidatorPubKey)
 }
 
-func generateNonce(nodes []kdkg.Node) ([]byte, error) {
-	var buf bytes.Buffer
+func generateNonce(nodes []kdkg.Node, iteration int) ([]byte, error) {
+	hh := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hh)
 
-	for _, node := range nodes {
-		pkBytes, err := node.Public.MarshalBinary()
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal node public key")
+	indx := hh.Index()
+
+	// Field (0) 'iteration'
+	hh.PutUint32(uint32(iteration))
+
+	// Field (1) 'nodes' - list of (index, pubkey) pairs
+	{
+		subIndx := hh.Index()
+
+		for _, node := range nodes {
+			elemIndx := hh.Index()
+
+			hh.PutUint32(node.Index)
+
+			pkBytes, err := node.Public.MarshalBinary()
+			if err != nil {
+				return nil, errors.Wrap(err, "marshal node public key")
+			}
+
+			hh.PutBytes(pkBytes)
+			hh.Merkleize(elemIndx)
 		}
 
-		_, err = buf.Write(pkBytes)
-		if err != nil {
-			return nil, errors.Wrap(err, "hash node public key")
-		}
+		hh.MerkleizeWithMixin(subIndx, uint64(len(nodes)), uint64(len(nodes)))
 	}
 
-	hash := sha256.Sum256(buf.Bytes())
+	hh.Merkleize(indx)
+
+	hash, err := hh.HashRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "hash root")
+	}
 
 	return hash[:], nil
+}
+
+// validateReshareNodeCounts validates that there are enough nodes to complete the reshare.
+// KDKG requires at least oldThreshold old nodes to reconstruct the secret polynomial.
+func validateReshareNodeCounts(oldNodesCount, newNodesCount, oldThreshold int, reshare *ReshareConfig) error {
+	if len(reshare.RemovedPeers) > 0 && oldNodesCount < oldThreshold {
+		return errors.New("remove operation requires at least threshold nodes with existing shares to participate",
+			z.Int("old_nodes", oldNodesCount), z.Int("threshold", oldThreshold))
+	}
+
+	if len(reshare.AddedPeers) > 0 && newNodesCount <= oldNodesCount {
+		return errors.New("add operation requires new nodes to join, but all nodes already exist in the cluster")
+	}
+
+	return nil
 }
