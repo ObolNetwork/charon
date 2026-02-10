@@ -78,7 +78,7 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 
 	shares := make([]share.Share, 0, numVals)
 
-	for i := 0; i < numVals; i++ {
+	for i := range numVals {
 		nonce, err := generateNonce(nodes, i)
 		if err != nil {
 			return nil, err
