@@ -79,10 +79,20 @@ func TestRunReshare(t *testing.T) {
 
 	group, gctx := errgroup.WithContext(t.Context())
 
+	// Extract expected validator public keys from old shares
+	// All nodes should have the same validator public keys
+	var expectedValidatorPubKeys []tbls.PublicKey
+	if len(oldShares) > 0 && len(oldShares[0]) > 0 {
+		expectedValidatorPubKeys = make([]tbls.PublicKey, len(oldShares[0]))
+		for i, share := range oldShares[0] {
+			expectedValidatorPubKeys[i] = share.PubKey
+		}
+	}
+
 	for n := range nodes {
 		group.Go(func() error {
 			nodes[n].Config.Reshare = &pedersen.ReshareConfig{TotalShares: numVals, NewThreshold: threshold}
-			shares, err := pedersen.RunReshareDKG(gctx, nodes[n].Config, nodes[n].Board, oldShares[n])
+			shares, err := pedersen.RunReshareDKG(gctx, nodes[n].Config, nodes[n].Board, oldShares[n], expectedValidatorPubKeys)
 			nodes[n].Shares = shares
 
 			return err
