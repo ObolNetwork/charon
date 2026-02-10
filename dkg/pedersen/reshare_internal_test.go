@@ -5,6 +5,7 @@ package pedersen
 import (
 	"testing"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/dkg/share"
@@ -53,4 +54,88 @@ func TestRestoreDistKeyShare(t *testing.T) {
 		_, err := restoreDistKeyShare(sshare, 3, 0)
 		require.Error(t, err)
 	})
+}
+
+func TestValidateReshareNodeCounts(t *testing.T) {
+	tests := []struct {
+		name          string
+		oldNodesCount int
+		newNodesCount int
+		oldThreshold  int
+		reshare       *ReshareConfig
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "no removals or additions - always valid",
+			oldNodesCount: 4,
+			newNodesCount: 4,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{},
+			expectError:   false,
+		},
+		{
+			name:          "removals with enough old nodes",
+			oldNodesCount: 3,
+			newNodesCount: 3,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}},
+			expectError:   false,
+		},
+		{
+			name:          "removals with more than threshold old nodes",
+			oldNodesCount: 4,
+			newNodesCount: 3,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}},
+			expectError:   false,
+		},
+		{
+			name:          "removals with insufficient old nodes",
+			oldNodesCount: 2,
+			newNodesCount: 2,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}},
+			expectError:   true,
+			errorContains: "remove operation requires at least threshold nodes",
+		},
+		{
+			name:          "removals with zero old nodes (complete replacement)",
+			oldNodesCount: 0,
+			newNodesCount: 5,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{RemovedPeers: []peer.ID{"peer1"}, AddedPeers: []peer.ID{"peer2"}},
+			expectError:   true,
+			errorContains: "remove operation requires at least threshold nodes",
+		},
+		{
+			name:          "additions with new nodes joining",
+			oldNodesCount: 4,
+			newNodesCount: 5,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{AddedPeers: []peer.ID{"peer1"}},
+			expectError:   false,
+		},
+		{
+			name:          "additions without new nodes joining",
+			oldNodesCount: 4,
+			newNodesCount: 4,
+			oldThreshold:  3,
+			reshare:       &ReshareConfig{AddedPeers: []peer.ID{"peer1"}},
+			expectError:   true,
+			errorContains: "add operation requires new nodes to join",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateReshareNodeCounts(tc.oldNodesCount, tc.newNodesCount, tc.oldThreshold, tc.reshare)
+			if tc.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.errorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
