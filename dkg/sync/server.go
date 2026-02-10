@@ -27,7 +27,11 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const protocolID = "/charon/dkg/sync/1.0.0/"
+const (
+	protocolID = "/charon/dkg/sync/1.0.0/"
+
+	maxMessageSize = 32 * 1024 * 1024 // 32 MB
+)
 
 // Protocols returns the list of supported Protocols in order of precedence.
 func Protocols() []protocol.ID {
@@ -348,7 +352,7 @@ func writeSizedProto(writer io.Writer, msg proto.Message) error {
 
 	err = binary.Write(writer, binary.LittleEndian, size)
 	if err != nil {
-		return errors.Wrap(err, "read size")
+		return errors.Wrap(err, "write size")
 	}
 
 	n, err := writer.Write(buf)
@@ -368,6 +372,10 @@ func readSizedProto(reader io.Reader, msg proto.Message) error {
 	err := binary.Read(reader, binary.LittleEndian, &size)
 	if err != nil {
 		return errors.Wrap(err, "read size")
+	}
+
+	if size <= 0 || size > maxMessageSize {
+		return errors.New("invalid message size")
 	}
 
 	buf := make([]byte, size)
