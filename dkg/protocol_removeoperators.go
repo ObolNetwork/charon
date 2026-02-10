@@ -149,7 +149,7 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 		nodeIdx := slices.Index(newPeerIDs, pctx.ThisPeerID)
 		pctx.ThisNodeIdx = cluster.NodeIdx{
 			PeerIdx:  nodeIdx,
-			ShareIdx: nodeIdx + 1,
+			ShareIdx: peerMap[pctx.ThisPeerID].ShareIdx,
 		}
 		pctx.SigExchanger = newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
 	}
