@@ -118,7 +118,7 @@ func (n *nodeSigBcast) setSig(sig []byte, slot int) {
 }
 
 // broadcastCallback is the default bcast.Callback for nodeSigBcast.
-func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ string, msg proto.Message) error {
+func (n *nodeSigBcast) broadcastCallback(ctx context.Context, senderID peer.ID, _ string, msg proto.Message) error {
 	nodeSig, ok := msg.(*dkgpb.MsgNodeSig)
 	if !ok {
 		return errors.New("invalid node sig type")
@@ -136,6 +136,11 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, _ peer.ID, _ strin
 
 	if (msgPeerIdx == n.nodeIdx.PeerIdx) || (msgPeerIdx < 0 || msgPeerIdx >= len(n.peers)) {
 		return errors.New("invalid peer index")
+	}
+
+	// Verify that the actual sender's peer ID matches the claimed peer index
+	if n.peers[msgPeerIdx].ID != senderID {
+		return errors.New("sender peer ID does not match claimed peer index")
 	}
 
 	lockHash, err := n.lockHash(ctx)
