@@ -1,4 +1,8 @@
-name: Bump Minor Version
+name: Minor release step 1 - Create new release branch
+description: |
+  Create a new `main-vX.Y`` branch based on latest release branch.
+  Create a pull request to update version.go file from `vX.Y` to `vX.Y-rc`.
+  Next, developers should merge this PR.
 
 on:
   workflow_dispatch:
