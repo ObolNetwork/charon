@@ -33,7 +33,18 @@ type reshareProtocolStep struct {
 }
 
 func (s *reshareProtocolStep) Run(ctx context.Context, pctx *ProtocolContext) error {
-	shares, err := pedersen.RunReshareDKG(ctx, s.config, s.board, pctx.Shares)
+	// Extract expected validator public keys from the cluster lock
+	expectedValidatorPubKeys := make([]tbls.PublicKey, len(pctx.Lock.Validators))
+	for i, validator := range pctx.Lock.Validators {
+		pubKey, err := validator.PublicKey()
+		if err != nil {
+			return errors.Wrap(err, "get validator public key", z.Int("validator_index", i))
+		}
+
+		expectedValidatorPubKeys[i] = pubKey
+	}
+
+	shares, err := pedersen.RunReshareDKG(ctx, s.config, s.board, pctx.Shares, expectedValidatorPubKeys)
 	if err != nil {
 		return err
 	}

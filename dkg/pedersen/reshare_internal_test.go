@@ -139,3 +139,71 @@ func TestValidateReshareNodeCounts(t *testing.T) {
 		})
 	}
 }
+
+func TestRestoreCommitsOutOfBounds(t *testing.T) {
+	tests := []struct {
+		name         string
+		publicShares map[int][][]byte
+		shareNum     int
+		threshold    int
+		expectError  bool
+	}{
+		{
+			name: "share number exceeds available shares",
+			publicShares: map[int][][]byte{
+				0: {[]byte("share0_0"), []byte("share0_1")},
+				1: {[]byte("share1_0"), []byte("share1_1")},
+				2: {[]byte("share2_0"), []byte("share2_1")},
+			},
+			shareNum:    2, // Requesting index 2, but only 0 and 1 exist
+			threshold:   2,
+			expectError: true,
+		},
+		{
+			name: "one node has insufficient shares",
+			publicShares: map[int][][]byte{
+				0: {[]byte("share0_0"), []byte("share0_1"), []byte("share0_2")},
+				1: {[]byte("share1_0"), []byte("share1_1")}, // Only 2 shares
+				2: {[]byte("share2_0"), []byte("share2_1"), []byte("share2_2")},
+			},
+			shareNum:    2, // Node 1 doesn't have index 2
+			threshold:   2,
+			expectError: true,
+		},
+		{
+			name: "empty shares with non-zero shareNum",
+			publicShares: map[int][][]byte{
+				0: {},
+				1: {},
+			},
+			shareNum:    0,
+			threshold:   1,
+			expectError: true,
+		},
+		{
+			name: "valid access within bounds",
+			publicShares: map[int][][]byte{
+				0: {[]byte("share0_0"), []byte("share0_1"), []byte("share0_2")},
+				1: {[]byte("share1_0"), []byte("share1_1"), []byte("share1_2")},
+			},
+			shareNum:    1,
+			threshold:   2,
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := restoreCommits(tt.publicShares, tt.shareNum, tt.threshold, nil)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "insufficient public key shares from node")
+			} else if err != nil {
+				// Valid cases might still error due to invalid key data,
+				// but should not error with bounds message
+				require.NotContains(t, err.Error(), "insufficient public key shares")
+			}
+		})
+	}
+}
