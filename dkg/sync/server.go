@@ -30,7 +30,7 @@ import (
 const (
 	protocolID = "/charon/dkg/sync/1.0.0/"
 
-	maxMessageSize = 10 * 1024 * 1024 // 10 MB
+	maxMessageSize = 32 * 1024 * 1024 // 32 MB
 )
 
 // Protocols returns the list of supported Protocols in order of precedence.
