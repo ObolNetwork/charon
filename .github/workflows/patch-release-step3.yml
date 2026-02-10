@@ -1,4 +1,6 @@
-name: Prepare Patch Full Release
+name: Patch release step 3 - Release branch to stable version
+description: |
+  Create pull request to update version.go file in latest `main-vX.Y` from `vX.Y-rc` to `vX.Y`.
 
 on:
   workflow_dispatch:
