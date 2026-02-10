@@ -1,6 +1,6 @@
 # Charon Architecture
 
-This document describes the Charon middleware architecture both from cluster level and a node level.
+This document describes the Charon middleware architecture from both cluster and node levels.
 
 ## Cluster Architecture
 
