@@ -5,7 +5,6 @@ package pedersen
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"slices"
 
 	"github.com/drand/kyber"
@@ -13,6 +12,7 @@ import (
 	kshare "github.com/drand/kyber/share"
 	kdkg "github.com/drand/kyber/share/dkg"
 	drandbls "github.com/drand/kyber/sign/bdn"
+	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -214,14 +214,8 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return nil, errors.Wrap(err, "invalid new threshold")
 	}
 
-	nonce, err := generateNonce(nodes)
-	if err != nil {
-		return nil, err
-	}
-
 	reshareConfig := &kdkg.Config{
 		Longterm:     nodePrivateKey,
-		Nonce:        nonce,
 		Suite:        config.Suite,
 		NewNodes:     newNodes,
 		OldNodes:     oldNodes,
@@ -240,6 +234,13 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 	newShares := make([]share.Share, 0, config.Reshare.TotalShares)
 
 	for shareNum := range config.Reshare.TotalShares {
+		nonce, err := generateNonce(nodes, shareNum)
+		if err != nil {
+			return nil, err
+		}
+
+		reshareConfig.Nonce = nonce
+
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
 		// Nodes with existing shares provide their share to the reshare protocol.
@@ -430,22 +431,42 @@ func restoreCommits(publicShares map[int][][]byte, shareNum, threshold int, expe
 	return restoreCommitsFromPubShares(pubSharesBytes, threshold, expectedValidatorPubKey)
 }
 
-func generateNonce(nodes []kdkg.Node) ([]byte, error) {
-	var buf bytes.Buffer
+func generateNonce(nodes []kdkg.Node, iteration int) ([]byte, error) {
+	hh := ssz.DefaultHasherPool.Get()
+	defer ssz.DefaultHasherPool.Put(hh)
 
-	for _, node := range nodes {
-		pkBytes, err := node.Public.MarshalBinary()
-		if err != nil {
-			return nil, errors.Wrap(err, "marshal node public key")
+	indx := hh.Index()
+
+	// Field (0) 'iteration'
+	hh.PutUint32(uint32(iteration))
+
+	// Field (1) 'nodes' - list of (index, pubkey) pairs
+	{
+		subIndx := hh.Index()
+
+		for _, node := range nodes {
+			elemIndx := hh.Index()
+
+			hh.PutUint32(node.Index)
+
+			pkBytes, err := node.Public.MarshalBinary()
+			if err != nil {
+				return nil, errors.Wrap(err, "marshal node public key")
+			}
+
+			hh.PutBytes(pkBytes)
+			hh.Merkleize(elemIndx)
 		}
 
-		_, err = buf.Write(pkBytes)
-		if err != nil {
-			return nil, errors.Wrap(err, "hash node public key")
-		}
+		hh.MerkleizeWithMixin(subIndx, uint64(len(nodes)), uint64(len(nodes)))
 	}
 
-	hash := sha256.Sum256(buf.Bytes())
+	hh.Merkleize(indx)
+
+	hash, err := hh.HashRoot()
+	if err != nil {
+		return nil, errors.Wrap(err, "hash root")
+	}
 
 	return hash[:], nil
 }
