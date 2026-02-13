@@ -2,6 +2,7 @@
 
 // Package errors provides errors with structured fields and stack traces.
 // It is a drop-in replacement for stdlib errors and should be used as such throughout the app.
+// nolint:revive
 package errors
 
 import (
