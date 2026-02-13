@@ -176,7 +176,9 @@ func (db *MemDB) store(k key, value core.ParSignedData) ([]core.ParSignedData, b
 	default:
 	}
 
-	parsigStored.WithLabelValues(k.Duty.Type.String(), strconv.FormatInt(int64(value.ShareIdx), 10)).Observe(timeSinceSlotStart)
+	// Observe time since slot start for received partial signatures, with share index as label for better visibility of late partial signatures.
+	// Subtracting 1 from share index to have 0-based index.
+	parsigStored.WithLabelValues(k.Duty.Type.String(), strconv.FormatInt(int64(value.ShareIdx-1), 10)).Observe(timeSinceSlotStart)
 
 	for _, s := range db.entries[k] {
 		if s.ShareIdx == value.ShareIdx {
