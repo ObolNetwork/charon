@@ -10,7 +10,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/drand/kyber v1.3.2
 	github.com/drand/kyber-bls12381 v0.3.4
-	github.com/ethereum/go-ethereum v1.16.8
+	github.com/ethereum/go-ethereum v1.17.0
 	github.com/ferranbt/fastssz v1.0.0
 	github.com/golang/snappy v1.0.0
 	github.com/google/gofuzz v1.2.0
@@ -99,7 +99,6 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.17.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/crate-crypto/go-eth-kzg v1.4.0 // indirect
-	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
@@ -115,7 +114,6 @@ require (
 	github.com/emicklei/dot v1.8.0 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.5 // indirect
 	github.com/ethereum/go-bigmodexpfix v0.0.0-20250911101455-f9e208c548ab // indirect
-	github.com/ethereum/go-verkle v0.2.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -133,6 +131,8 @@ require (
 	github.com/google/cel-go v0.26.1 // indirect
 	github.com/google/go-containerregistry v0.20.6 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/grafana/pyroscope-go v1.2.7 // indirect
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/graph-gophers/graphql-go v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7 // indirect
 	github.com/hashicorp/go-bexpr v0.1.14 // indirect
@@ -191,7 +191,6 @@ require (
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
-	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/onsi/gomega v1.36.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
