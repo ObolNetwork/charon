@@ -269,7 +269,7 @@ func TestDutiesCache(t *testing.T) {
 	}
 
 	// Create a cache.
-	valCache := eth2wrap.NewDutiesCache(eth2Cl)
+	valCache := eth2wrap.NewDutiesCache(eth2Cl, slices.Collect(maps.Keys(valSet)))
 	ctx := t.Context()
 
 	// First call should populate the cache

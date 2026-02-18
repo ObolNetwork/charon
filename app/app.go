@@ -508,7 +508,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	// Setup duties cache, refreshing it every epoch.
 	var dutiesCache *eth2wrap.DutiesCache
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
-		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl)
+		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
 		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 	}
@@ -552,10 +552,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
 		}
 
-		_, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
+		activeValidators, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)
 		if err != nil {
 			log.Error(ctx, "Failed to refresh validator cache", err)
 			return err
+		}
+
+		if !featureset.Enabled(featureset.DisableDutiesCache) {
+			dutiesCache.UpdateActiveValIndices(ctx, activeValidators.Indices())
 		}
 
 		refreshedBySlot = refresh
