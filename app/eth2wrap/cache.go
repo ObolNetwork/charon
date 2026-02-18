@@ -345,38 +345,38 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	dutiesResult := make([]*eth2v1.ProposerDuty, 0, len(vidxs))
 
 	if ok {
-		// Check if the request was for all validators, so that we skip more expensive operations. This is the common case for validator clients and Charon, which usually request duties for all active validators.
+		// If the request was for all validators, skip more expensive operations. This is the common case for most validator clients and Charon, which usually request duties for all active validators.
 		if len(allActive) == len(requestVidxs) {
 			for _, d := range duties {
 				dutiesResult = append(dutiesResult, &d)
 			}
 			cacheUsed = true
 			return ProposerDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
-		} else {
-			// Filter out the found duties.
-			for _, d := range duties {
-				if slices.Contains(requestVidxs, d.ValidatorIndex) {
-					dutiesResult = append(dutiesResult, &d)
-				}
-			}
-
-			if len(dutiesResult) > 0 {
-				cacheUsed = true
-			}
-
-			// Check if all requested duties were found in the cache (being a subset of it).
-			if len(dutiesResult) == len(requestVidxs) {
-				return ProposerDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
-			}
-
-			for _, duty := range duties {
-				requestVidxs = slices.DeleteFunc(requestVidxs, func(requestVidx eth2p0.ValidatorIndex) bool {
-					return requestVidx == duty.ValidatorIndex
-				})
-			}
-
-			log.Debug(ctx, "Cached proposer duties do not contain all requested validator indices, fetching from beacon node...", z.Any("missing_validator_indices", requestVidxs), z.Any("requested_validator_indices", vidxs))
 		}
+
+		// Filter out the found duties.
+		for _, d := range duties {
+			if slices.Contains(requestVidxs, d.ValidatorIndex) {
+				dutiesResult = append(dutiesResult, &d)
+			}
+		}
+
+		if len(dutiesResult) > 0 {
+			cacheUsed = true
+		}
+
+		// Check if all requested duties were found in the cache (= being a subset of it).
+		if len(dutiesResult) == len(requestVidxs) {
+			return ProposerDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
+		}
+
+		for _, duty := range duties {
+			requestVidxs = slices.DeleteFunc(requestVidxs, func(requestVidx eth2p0.ValidatorIndex) bool {
+				return requestVidx == duty.ValidatorIndex
+			})
+		}
+
+		log.Debug(ctx, "Cached proposer duties do not contain all requested validator indices, fetching from beacon node...", z.Any("missing_validator_indices", requestVidxs), z.Any("requested_validator_indices", vidxs))
 	}
 
 	eth2Resp, err := c.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: requestVidxs})
@@ -436,38 +436,38 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	dutiesResult := make([]*eth2v1.AttesterDuty, 0, len(vidxs))
 
 	if ok {
-		// Check if the request was for all validators, so that we skip more expensive operations. This is the common case for validator clients and Charon, which usually request duties for all active validators.
+		// If the request was for all validators, skip more expensive operations. This is the common case for most validator clients and Charon, which usually request duties for all active validators.
 		if len(allActive) == len(requestVidxs) {
 			for _, d := range duties {
 				dutiesResult = append(dutiesResult, &d)
 			}
 			cacheUsed = true
 			return AttesterDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
-		} else {
-			// Filter out the found duties.
-			for _, d := range duties {
-				if slices.Contains(requestVidxs, d.ValidatorIndex) {
-					dutiesResult = append(dutiesResult, &d)
-				}
-			}
-
-			if len(dutiesResult) > 0 {
-				cacheUsed = true
-			}
-
-			// Check if all requested duties were found in the cache (being a subset of it).
-			if len(dutiesResult) == len(requestVidxs) {
-				return AttesterDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
-			}
-
-			for _, duty := range duties {
-				requestVidxs = slices.DeleteFunc(requestVidxs, func(requestVidx eth2p0.ValidatorIndex) bool {
-					return requestVidx == duty.ValidatorIndex
-				})
-			}
-
-			log.Debug(ctx, "Cached attester duties do not contain all requested validator indices, fetching from beacon node...", z.Any("missing_validator_indices", requestVidxs), z.Any("requested_validator_indices", vidxs))
 		}
+
+		// Filter out the found duties.
+		for _, d := range duties {
+			if slices.Contains(requestVidxs, d.ValidatorIndex) {
+				dutiesResult = append(dutiesResult, &d)
+			}
+		}
+
+		if len(dutiesResult) > 0 {
+			cacheUsed = true
+		}
+
+		// Check if all requested duties were found in the cache (= being a subset of it).
+		if len(dutiesResult) == len(requestVidxs) {
+			return AttesterDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
+		}
+
+		for _, duty := range duties {
+			requestVidxs = slices.DeleteFunc(requestVidxs, func(requestVidx eth2p0.ValidatorIndex) bool {
+				return requestVidx == duty.ValidatorIndex
+			})
+		}
+
+		log.Debug(ctx, "Cached attester duties do not contain all requested validator indices, fetching from beacon node...", z.Any("missing_validator_indices", requestVidxs), z.Any("requested_validator_indices", vidxs))
 	}
 
 	eth2Resp, err := c.eth2Cl.AttesterDuties(ctx, &eth2api.AttesterDutiesOpts{Epoch: epoch, Indices: requestVidxs})
@@ -519,38 +519,37 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	duties, metadata, ok := c.fetchSyncDuties(epoch)
 
 	if ok {
-		// Check if the request was for all validators, so that we skip more expensive operations. This is the common case for validator clients and Charon, which usually request duties for all active validators.
+		// If the request was for all validators, skip more expensive operations. This is the common case for most validator clients and Charon, which usually request duties for all active validators.
 		if len(allActive) == len(requestVidxs) {
 			for _, d := range duties {
 				dutiesResult = append(dutiesResult, &d)
 			}
 			cacheUsed = true
 			return SyncDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
-		} else {
-			// Filter out the found duties.
-			for _, d := range duties {
-				if slices.Contains(requestVidxs, d.ValidatorIndex) {
-					dutiesResult = append(dutiesResult, &d)
-				}
-			}
-
-			if len(dutiesResult) > 0 {
-				cacheUsed = true
-			}
-
-			// Check if all requested duties were found in the cache (being a subset of it).
-			if len(dutiesResult) == len(requestVidxs) {
-				return SyncDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
-			}
-
-			for _, duty := range duties {
-				requestVidxs = slices.DeleteFunc(requestVidxs, func(requestVidx eth2p0.ValidatorIndex) bool {
-					return requestVidx == duty.ValidatorIndex
-				})
-			}
-
-			log.Debug(ctx, "Cached sync duties do not contain all requested validator indices, fetching from beacon node...", z.Any("missing_validator_indices", requestVidxs), z.Any("requested_validator_indices", vidxs))
 		}
+		// Filter out the found duties.
+		for _, d := range duties {
+			if slices.Contains(requestVidxs, d.ValidatorIndex) {
+				dutiesResult = append(dutiesResult, &d)
+			}
+		}
+
+		if len(dutiesResult) > 0 {
+			cacheUsed = true
+		}
+
+		// Check if all requested duties were found in the cache (= being a subset of it).
+		if len(dutiesResult) == len(requestVidxs) {
+			return SyncDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
+		}
+
+		for _, duty := range duties {
+			requestVidxs = slices.DeleteFunc(requestVidxs, func(requestVidx eth2p0.ValidatorIndex) bool {
+				return requestVidx == duty.ValidatorIndex
+			})
+		}
+
+		log.Debug(ctx, "Cached sync duties do not contain all requested validator indices, fetching from beacon node...", z.Any("missing_validator_indices", requestVidxs), z.Any("requested_validator_indices", vidxs))
 	}
 
 	eth2Resp, err := c.eth2Cl.SyncCommitteeDuties(ctx, &eth2api.SyncCommitteeDutiesOpts{Epoch: epoch, Indices: requestVidxs})
