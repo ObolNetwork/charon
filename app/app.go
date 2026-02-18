@@ -559,7 +559,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		}
 
 		if !featureset.Enabled(featureset.DisableDutiesCache) {
-			dutiesCache.UpdateActiveValIndices(ctx, activeValidators.Indices())
+			dutiesCache.UpdateActiveValIndices(activeValidators.Indices())
 		}
 
 		refreshedBySlot = refresh

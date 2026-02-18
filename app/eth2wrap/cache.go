@@ -225,6 +225,7 @@ type SyncDuties struct {
 // ValIdxs is a slice of active validator indices.
 type ValIdxs struct {
 	sync.RWMutex
+
 	valIdxs []eth2p0.ValidatorIndex
 }
 type ProposerDutyWithMeta struct {
@@ -324,6 +325,7 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available, populating the cache with the newly fetched ones.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
 	cacheUsed := false
+
 	defer func() {
 		if cacheUsed {
 			usedCacheCount.WithLabelValues("proposer_duties").Inc()
@@ -350,7 +352,9 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 			for _, d := range duties {
 				dutiesResult = append(dutiesResult, &d)
 			}
+
 			cacheUsed = true
+
 			return ProposerDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
 		}
 
@@ -405,7 +409,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 }
 
 // UpdateActiveValIndices updates the active validator indices in the cache.
-func (c *DutiesCache) UpdateActiveValIndices(ctx context.Context, vidxs []eth2p0.ValidatorIndex) {
+func (c *DutiesCache) UpdateActiveValIndices(vidxs []eth2p0.ValidatorIndex) {
 	c.activeValIdxs.Lock()
 	defer c.activeValIdxs.Unlock()
 
@@ -415,6 +419,7 @@ func (c *DutiesCache) UpdateActiveValIndices(ctx context.Context, vidxs []eth2p0
 // AttesterDutiesCache returns the cached attester duties, or fetches them if not available, populating the cache with the newly fetched ones.
 func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error) {
 	cacheUsed := false
+
 	defer func() {
 		if cacheUsed {
 			usedCacheCount.WithLabelValues("attester_duties").Inc()
@@ -441,7 +446,9 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 			for _, d := range duties {
 				dutiesResult = append(dutiesResult, &d)
 			}
+
 			cacheUsed = true
+
 			return AttesterDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
 		}
 
@@ -498,6 +505,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 // SyncCommDutiesCache returns the cached sync duties, or fetches them if not available, populating the cache with the newly fetched ones.
 func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error) {
 	cacheUsed := false
+
 	defer func() {
 		if cacheUsed {
 			usedCacheCount.WithLabelValues("sync_committee_duties").Inc()
@@ -524,7 +532,9 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 			for _, d := range duties {
 				dutiesResult = append(dutiesResult, &d)
 			}
+
 			cacheUsed = true
+
 			return SyncDutyWithMeta{Duties: dutiesResult, Metadata: metadata}, nil
 		}
 		// Filter out the found duties.
