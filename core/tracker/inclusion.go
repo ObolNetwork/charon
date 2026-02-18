@@ -687,12 +687,7 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 
 	block := eth2Resp.Data
 
-	var found bool
-	if block != nil {
-		found = true
-	} else {
-		found = false
-	}
+	found := block != nil
 
 	a.checkBlockFunc(ctx, slot, found)
 
