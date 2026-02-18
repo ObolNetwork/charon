@@ -232,6 +232,10 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		return errors.New("older version signatures not supported")
 	}
 
+	if err := d.validateCreatorSignatureLength(); err != nil {
+		return err
+	}
+
 	// Check valid operator config signature for each operator.
 	operatorConfigHashDigest, err := digestEIP712(getOperatorEIP712Type(d.Version), d, Operator{})
 	if err != nil {
@@ -253,6 +257,10 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 
 		if len(o.ConfigSignature) == 0 {
 			return errors.New("empty operator config signature", z.Any("operator_address", o.Address))
+		}
+
+		if err := d.validateOperatorSignatureLengths(o); err != nil {
+			return err
 		}
 
 		// Check that we have a valid config signature for each operator.
@@ -315,6 +323,62 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		} else if !ok {
 			return errors.New("invalid creator config signature")
 		}
+	}
+
+	return nil
+}
+
+// validateCreatorSignatureLength validates creator signature length for v1.11.0+.
+func (d Definition) validateCreatorSignatureLength() error {
+	if !isAnyVersion(d.Version, v1_11) {
+		return nil // Skip validation for older versions
+	}
+
+	if err := validateSignatureLength(d.Creator.ConfigSignature, "creator config signature"); err != nil {
+		return errors.Wrap(err, "invalid signature length", z.Str("address", d.Creator.Address))
+	}
+
+	return nil
+}
+
+// validateOperatorSignatureLengths validates a single operator's signature lengths for v1.11.0+.
+func (d Definition) validateOperatorSignatureLengths(op Operator) error {
+	if !isAnyVersion(d.Version, v1_11) {
+		return nil // Skip validation for older versions
+	}
+
+	if err := validateSignatureLength(op.ConfigSignature, "operator config signature"); err != nil {
+		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
+	}
+	if err := validateSignatureLength(op.ENRSignature, "operator enr signature"); err != nil {
+		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
+	}
+
+	return nil
+}
+
+// validateSignatureLength validates that a signature is either empty or a multiple of 65 bytes.
+// Safe/Gnosis Safe multisig signatures are concatenated ECDSA signatures: threshold × 65 bytes.
+func validateSignatureLength(sig []byte, fieldName string) error {
+	if len(sig) == 0 {
+		return nil // Empty signatures are valid
+	}
+
+	if len(sig)%65 != 0 {
+		return errors.New("signature must be multiple of 65 bytes",
+			z.Str("field", fieldName),
+			z.Int("length", len(sig)),
+			z.Int("remainder", len(sig)%65),
+		)
+	}
+
+	if len(sig) > sszMaxSignature {
+		return errors.New("signature exceeds maximum length",
+			z.Str("field", fieldName),
+			z.Int("length", len(sig)),
+			z.Int("max", sszMaxSignature),
+			z.Int("max_threshold", sszMaxSignature/65),
+		)
 	}
 
 	return nil
@@ -439,8 +503,8 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return marshalDefinitionV1x8(d2)
 	case isAnyVersion(d2.Version, v1_9):
 		return marshalDefinitionV1x9(d2)
-	case isAnyVersion(d2.Version, v1_10):
-		return marshalDefinitionV1x10(d2)
+	case isAnyVersion(d2.Version, v1_10, v1_11):
+		return marshalDefinitionV1x10to11(d2)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -496,8 +560,8 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-	case isAnyVersion(version.Version, v1_10):
-		def, err = unmarshalDefinitionV1x10(data)
+	case isAnyVersion(version.Version, v1_10, v1_11):
+		def, err = unmarshalDefinitionV1x10to11(data)
 		if err != nil {
 			return err
 		}
@@ -623,7 +687,7 @@ func marshalDefinitionV1x4(def Definition) ([]byte, error) {
 }
 
 func marshalDefinitionV1x5to7(def Definition) ([]byte, error) {
-	resp, err := json.Marshal(definitionJSONv1x5{
+	resp, err := json.Marshal(definitionJSONv1x5to7{
 		Name:               def.Name,
 		UUID:               def.UUID,
 		Version:            def.Version,
@@ -703,8 +767,8 @@ func marshalDefinitionV1x9(def Definition) ([]byte, error) {
 	return resp, nil
 }
 
-func marshalDefinitionV1x10(def Definition) ([]byte, error) {
-	resp, err := json.Marshal(definitionJSONv1x10{
+func marshalDefinitionV1x10to11(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x10to11{
 		Name:               def.Name,
 		UUID:               def.UUID,
 		Version:            def.Version,
@@ -832,7 +896,7 @@ func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 }
 
 func unmarshalDefinitionV1x5to7(data []byte) (def Definition, err error) {
-	var defJSON definitionJSONv1x5
+	var defJSON definitionJSONv1x5to7
 	if err := json.Unmarshal(data, &defJSON); err != nil {
 		return Definition{}, errors.Wrap(err, "unmarshal definition v1_5")
 	}
@@ -932,10 +996,10 @@ func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 	}, nil
 }
 
-func unmarshalDefinitionV1x10(data []byte) (def Definition, err error) {
-	var defJSON definitionJSONv1x10
+func unmarshalDefinitionV1x10to11(data []byte) (def Definition, err error) {
+	var defJSON definitionJSONv1x10to11
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1_10")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1_10 to v1_11")
 	}
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
@@ -1053,8 +1117,8 @@ type definitionJSONv1x4 struct {
 	DefinitionHash      ethHex                    `json:"definition_hash"`
 }
 
-// definitionJSONv1x5 is the json formatter of Definition for versions v1.5 to v1.7.
-type definitionJSONv1x5 struct {
+// definitionJSONv1x5to7 is the json formatter of Definition for versions v1.5 to v1.7.
+type definitionJSONv1x5to7 struct {
 	Name               string                    `json:"name,omitempty"`
 	Creator            creatorJSON               `json:"creator"`
 	Operators          []operatorJSONv1x2orLater `json:"operators"`
@@ -1107,8 +1171,8 @@ type definitionJSONv1x9 struct {
 	DefinitionHash     ethHex                    `json:"definition_hash"`
 }
 
-// definitionJSONv1x10 is the json formatter of Definition for versions v1.10 or later.
-type definitionJSONv1x10 struct {
+// definitionJSONv1x10to11 is the json formatter of Definition for versions v1.10 and v1.11.
+type definitionJSONv1x10to11 struct {
 	Name               string                    `json:"name,omitempty"`
 	Creator            creatorJSON               `json:"creator"`
 	Operators          []operatorJSONv1x2orLater `json:"operators"`
