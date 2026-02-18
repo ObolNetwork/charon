@@ -118,6 +118,11 @@ linters:
           disabled: true
         - name: comment-spacings
           disabled: true
+        - name: var-naming
+          arguments:
+            - [] # AllowList
+            - [] # DenyList
+            - - skip-package-name-collision-with-go-std: true
         - name: range-val-address
           disabled: true
         - name: unhandled-error
