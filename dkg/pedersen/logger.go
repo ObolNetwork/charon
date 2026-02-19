@@ -42,7 +42,7 @@ func concatKeyVals(keyvals []any) (str string, err error) {
 		if maybeErr, ok := v.(error); ok {
 			err = maybeErr
 		} else {
-			strSb38.WriteString(fmt.Sprintf("%v", v))
+			fmt.Fprintf(&strSb38, "%v", v)
 		}
 	}
 

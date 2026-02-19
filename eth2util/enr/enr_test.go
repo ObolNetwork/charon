@@ -101,7 +101,7 @@ func TestNew(t *testing.T) {
 	r, err := enr.New(privkey)
 	require.NoError(t, err)
 
-	require.Equal(t, "enr:-HW4QEp-BLhP30tqTGFbR9n2PdUKWP9qc0zphIRmn8_jpm4BYkgekztXQaPA_znRW8RvNYHo0pUwyPEwUGGeZu26XlKAgmlkgnY0iXNlY3AyNTZrMaEDG4TFVnsSZECZXT7VqroFZdceGDRgSBn_nBf16dXdB48", r.String())
+	require.Equal(t, "enr:-HW4QBw9borfkmpb5xeaTHMmfp7WAcdb7CH8bf24v6eAaijpfJhg5Q08WMxnJB6em5G8qz4qARuocKJk_wpw1meAILKAgmlkgnY0iXNlY3AyNTZrMaECuCIfkhjDeJcudF71FYmSoL9xBwxjvGAF877_5a4AB_U", r.String())
 }
 
 const (

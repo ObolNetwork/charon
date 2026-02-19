@@ -12,6 +12,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"testing/cryptotest"
 	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
@@ -1666,28 +1667,20 @@ func RandomDepositMsg(t *testing.T) eth2p0.DepositMessage {
 	}
 }
 
-// constReader is a workaround. It counter-acts the Go library's attempt at
-// making ECDSA signatures non-deterministic.
-// Refer: https://cs.opensource.google/go/go/+/refs/tags/go1.20.2:src/crypto/ecdsa/ecdsa.go;l=155
-type constReader byte
-
-func (c constReader) Read(buf []byte) (int, error) {
-	for i := range len(buf) {
-		buf[i] = byte(c)
-	}
-
-	return len(buf), nil
-}
-
 // GenerateInsecureK1Key returns a new deterministic insecure secp256k1 private using the provided seed for testing purposes only.
 // For random keys, rather use k1.GeneratePrivateKey().
 func GenerateInsecureK1Key(t *testing.T, seed int) *k1.PrivateKey {
 	t.Helper()
 
 	// Add 1 to seed to avoid passing 0 as seed which can trigger infinite loop.
-	k, err := ecdsa.GenerateKey(k1.S256(), constReader(seed+1))
+	cryptotest.SetGlobalRandom(t, uint64(seed+1))
+	// Reader is nil as it was deprecated in go 1.26 and is ignored by the library.
+	k, err := ecdsa.GenerateKey(k1.S256(), nil)
 	require.NoError(t, err)
 
+	//nolint:staticcheck // We are using it in tests in a safely manner in testing.
+	// We expect a bit more utility functions to be implemented in the k1 package in the future
+	// This is currently the only way to get deterministic keys for testing.
 	return k1.PrivKeyFromBytes(k.D.Bytes())
 }
 

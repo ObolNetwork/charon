@@ -8,13 +8,13 @@
   "operators": [
    {
     "address": "0xe0255aa5b7d44bec40f84c892b9bffd43629b022",
-    "enr": "enr:-HW4QNHE5aL5CrfBtTF9Hi2VrssawbiC4xuTUzuk0Mu3wRQSL2mA-XQtlmSQ7brloyZAZKKagpag6KJHOa124gXyklOAgmlkgnY0iXNlY3AyNTZrMaECdAJRmH_MYH0n6WfA_wtyIp3jHSHnNAivFMYGZJlY9Hk",
+    "enr": "enr:-HW4QODeB3AVJFkDYomS49MS5zbgdawwMP9X9jdldV3DeNiDCnYxAQVQ-DXcZYzu7Qk0AjXaWMdpykStZDy035vViLWAgmlkgnY0iXNlY3AyNTZrMaECJ-LHSLqRGKa3j7oOwpC2TjLLOBtKYEKxUZEkAw3bUac",
     "config_signature": "0x4294040374f6924b98cbf8713f8d962d7c8d019192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea6f5b3af6de0374366c4719e43a00",
     "enr_signature": "0x067d89bc7f01f1f573981659a44ff17a4c7215a3b539eb1e5849c6077dbb5722f5717a289a266f97647981998ebea89c0b4b373970115e82ed6f4125c8fa73111b"
    },
    {
     "address": "0xd7defa922daae7786667f7e936cd4f24abf7df86",
-    "enr": "enr:-HW4QHWdfdJ6sz5b0NUvnc8gVkv-uBLNhKmPK-uh2CzWzcnFP-TZZoGZkJj9Aavr47GinAQTrOTdvXKYe_0dkvkXnYmAgmlkgnY0iXNlY3AyNTZrMaECRm1_yuVj5csJoNGHC7WANEgEYXh5oUlJzyIoXxuuPyc",
+    "enr": "enr:-HW4QNytPitaPqLC7PRLYbP7pKoF7TC2IRnthkiDejNiGQ5qEKqZ_u3zI-a1LpKLTd5oqbpgrEvUI9ehue-uDPZw9DuAgmlkgnY0iXNlY3AyNTZrMaEDKkUr0_RzAWCHn6i6_d76CGaGOZClTFwSdoj1SfoS6-o",
     "config_signature": "0xf4a8b0993ebdf8883a0ad8be9c3978b04883e56a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4da6430105220d0b29688b734b8ea000",
     "enr_signature": "0xca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b39f32b7c7822ba64f84ab43ca0c6e61b"
    }
@@ -41,7 +41,7 @@
    "16000000000"
   ],
   "config_hash": "0xbe27726f562e31025947b013115e3e33cc1e832f57bea9ccff3bde4bde51bfa0",
-  "definition_hash": "0x43424dc5bc7748f41b6d68a0a8752d8ae8008913471068769be8887ecc485258"
+  "definition_hash": "0x7943e20552f77f416bac4495bff9759c14dedbcfc7fddca46ba880f02d6c8c01"
  },
  "distributed_validators": [
   {
@@ -106,7 +106,7 @@
   }
  ],
  "signature_aggregate": "0x1c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb",
- "lock_hash": "0xefbdb47840715c7a3bb0fa795089afd713a863c8f523bfcb46e0ff8950b01b0d",
+ "lock_hash": "0x8d8c170b43767add9310c9cb6e359e49a7bf76d1321eb5930f1d67329a4b3a2d",
  "node_signatures": [
   "0xfa3f85b8a62708caebbac880b5b89b93da53810164402104e648b6226a1b7802",
   "0x1851f5d9ac0f313a89ddfc454c5f8f72ac89b38b19f53784c19e9beac03c875a"

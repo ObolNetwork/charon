@@ -3,14 +3,14 @@
  "operators": [
   {
    "address": "0x86b14323a6bc8f9e7df1d929333ff993933bea6f",
-   "enr": "enr:-HW4QMIZ10BTPuSp6xOGrD15Enk-TM1WbNARH6yPJmGSWkWdfUUaSNg1T4BHao3RUJdboINPCKsm_X38Xyj1uFPKdoWAgmlkgnY0iXNlY3AyNTZrMaEDTLCHkTEDlpKqN4fRxuEsh_Amst07WBUyiL8z1_ba8Qw",
+   "enr": "enr:-HW4QO65Nqk0Fh7y1DbN1Hq1y2yFpLIHJTyfPDK80tpzASr9cXxctwIh9Os68JzmLMbBqfjUS-7_K0Q51gh-s03fwc2AgmlkgnY0iXNlY3AyNTZrMaEDRqBTGTdOxbk4moVEfgKES8-35U0lbqRq6X8t-qQXwAk",
    "nonce": 0,
    "config_signature": "",
    "enr_signature": ""
   },
   {
    "address": "0x40e9a1d007f033c2823061bdd0eaa59f8e4da643",
-   "enr": "enr:-HW4QBt3PTM5MBcYQKiUA0hgcqopF-42-R8sCs6PoLPI11qCAoftNLfKq6cLrKfhhmrGD9w5CWAuJsBSNUo08y2PTyGAgmlkgnY0iXNlY3AyNTZrMaED8Lz22L8jIlhbkAo5dMNIhVgcPg-8-1_7XeYejqxno-4",
+   "enr": "enr:-HW4QDP7PLpjtH9ezawlXODXgJhoM6UvtutPf3vpcvksY95eejYHaboINe-V9sFn9tyeRtR3nWgV4wx2edtwxnapb5GAgmlkgnY0iXNlY3AyNTZrMaECqGWQO_QwtVqFv-Q9bvNrlz9fW3duWwnh0OYkQbgbCHo",
    "nonce": 0,
    "config_signature": "",
    "enr_signature": ""
@@ -26,5 +26,5 @@
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
  "config_hash": "JSNZW161qkmBRJw50hFXoXAgxBgGR02yZsoOWs00lMA=",
- "definition_hash": "cxiiCHLD1/2uq0pOp/zKfaEti6JEDhLZeHZLl1zOBlQ="
+ "definition_hash": "fzzQkicXSL5ESuZ+l7Si/abrioDZk3+bE1ri8TqJMYY="
 }

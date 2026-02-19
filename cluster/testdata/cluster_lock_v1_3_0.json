@@ -4,13 +4,13 @@
   "operators": [
    {
     "address": "0x86b14323a6bc8f9e7df1d929333ff993933bea6f",
-    "enr": "enr:-HW4QMIZ10BTPuSp6xOGrD15Enk-TM1WbNARH6yPJmGSWkWdfUUaSNg1T4BHao3RUJdboINPCKsm_X38Xyj1uFPKdoWAgmlkgnY0iXNlY3AyNTZrMaEDTLCHkTEDlpKqN4fRxuEsh_Amst07WBUyiL8z1_ba8Qw",
+    "enr": "enr:-HW4QO65Nqk0Fh7y1DbN1Hq1y2yFpLIHJTyfPDK80tpzASr9cXxctwIh9Os68JzmLMbBqfjUS-7_K0Q51gh-s03fwc2AgmlkgnY0iXNlY3AyNTZrMaEDRqBTGTdOxbk4moVEfgKES8-35U0lbqRq6X8t-qQXwAk",
     "config_signature": "0x1b067d89bc7f01f1f573981659a44ff17a4c7215a3b539eb1e5849c6077dbb5722f5717a289a266f97647981998ebea89c0b4b373970115e82ed6f4125c8fa7301",
     "enr_signature": "0xe4d7defa922daae7786667f7e936cd4f24abf7df866baa56038367ad6145de1ee8f4a8b0993ebdf8883a0ad8be9c3978b04883e56a156a8de563afa467d49dec1b"
    },
    {
     "address": "0x40e9a1d007f033c2823061bdd0eaa59f8e4da643",
-    "enr": "enr:-HW4QBt3PTM5MBcYQKiUA0hgcqopF-42-R8sCs6PoLPI11qCAoftNLfKq6cLrKfhhmrGD9w5CWAuJsBSNUo08y2PTyGAgmlkgnY0iXNlY3AyNTZrMaED8Lz22L8jIlhbkAo5dMNIhVgcPg-8-1_7XeYejqxno-4",
+    "enr": "enr:-HW4QDP7PLpjtH9ezawlXODXgJhoM6UvtutPf3vpcvksY95eejYHaboINe-V9sFn9tyeRtR3nWgV4wx2edtwxnapb5GAgmlkgnY0iXNlY3AyNTZrMaECqGWQO_QwtVqFv-Q9bvNrlz9fW3duWwnh0OYkQbgbCHo",
     "config_signature": "0xf3ca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b39f32b7c7822ba64f84ab43ca0c601",
     "enr_signature": "0xb91c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb6865fcf92b0c3a17c9028be9914eb7649c6c9347800979d1830356f2a54c3d01"
    }
@@ -25,7 +25,7 @@
   "dkg_algorithm": "default",
   "fork_version": "0x90000069",
   "config_hash": "0xfa71973a6ba32e6c933ace935b0cfc7aebfe27d6ad338cc4c8ae2c77a30aa6d0",
-  "definition_hash": "0xed4bca0a33e950c0bc6836227a411b631d308d6a7eeaa227d9829f92f5985dd8"
+  "definition_hash": "0x1fd867553e7dd1f851e08b1fba8bbd3f521ac6cdcff78275c08f439a2aa2bd10"
  },
  "distributed_validators": [
   {
@@ -44,5 +44,5 @@
   }
  ],
  "signature_aggregate": "0xb2a4b4475d63afbe8fb56987c77f5818526f1814be823350eab13935f31d8448",
- "lock_hash": "0xafcdd37f6bca760fee75c9b425425f1ba3320bacbe9949f874981a0363325259"
+ "lock_hash": "0x47b51f52d7d25447305d797adfedf8930e61034505eee5f603900421b0d51e6d"
 }

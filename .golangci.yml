@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.25"
+  go: "1.26"
 linters:
   default: all
   disable:
@@ -62,6 +62,9 @@ linters:
     gosec:
       excludes:
         - G115
+        - G703
+        - G704
+        - G705
     govet:
       disable:
         - fieldalignment
