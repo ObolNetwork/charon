@@ -1656,19 +1656,19 @@ func eventsHandler(h Handler) http.HandlerFunc {
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
 		// Extend default proxy director with basic auth and host header
-		defaultDirector := proxy.Director
-		proxy.Director = func(req *http.Request) {
+		defaultDirector := proxy.Rewrite
+		proxy.Rewrite = func(req *httputil.ProxyRequest) {
 			if targetURL.User != nil {
 				password, _ := targetURL.User.Password()
-				req.SetBasicAuth(targetURL.User.Username(), password)
+				req.Out.SetBasicAuth(targetURL.User.Username(), password)
 			}
 
-			req.Host = targetURL.Host
+			req.Out.Host = targetURL.Host
 			defaultDirector(req)
 
 			// Apply user provided beacon node headers
 			for k, v := range headers {
-				req.Header.Set(k, v)
+				req.Out.Header.Set(k, v)
 			}
 		}
 

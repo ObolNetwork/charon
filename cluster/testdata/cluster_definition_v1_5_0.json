@@ -7,13 +7,13 @@
  "operators": [
   {
    "address": "0xe0255aa5b7d44bec40f84c892b9bffd43629b022",
-   "enr": "enr:-HW4QNHE5aL5CrfBtTF9Hi2VrssawbiC4xuTUzuk0Mu3wRQSL2mA-XQtlmSQ7brloyZAZKKagpag6KJHOa124gXyklOAgmlkgnY0iXNlY3AyNTZrMaECdAJRmH_MYH0n6WfA_wtyIp3jHSHnNAivFMYGZJlY9Hk",
+   "enr": "enr:-HW4QODeB3AVJFkDYomS49MS5zbgdawwMP9X9jdldV3DeNiDCnYxAQVQ-DXcZYzu7Qk0AjXaWMdpykStZDy035vViLWAgmlkgnY0iXNlY3AyNTZrMaECJ-LHSLqRGKa3j7oOwpC2TjLLOBtKYEKxUZEkAw3bUac",
    "config_signature": "0x4294040374f6924b98cbf8713f8d962d7c8d019192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea6f5b3af6de0374366c4719e43a00",
    "enr_signature": "0x067d89bc7f01f1f573981659a44ff17a4c7215a3b539eb1e5849c6077dbb5722f5717a289a266f97647981998ebea89c0b4b373970115e82ed6f4125c8fa73111b"
   },
   {
    "address": "0xd7defa922daae7786667f7e936cd4f24abf7df86",
-   "enr": "enr:-HW4QHWdfdJ6sz5b0NUvnc8gVkv-uBLNhKmPK-uh2CzWzcnFP-TZZoGZkJj9Aavr47GinAQTrOTdvXKYe_0dkvkXnYmAgmlkgnY0iXNlY3AyNTZrMaECRm1_yuVj5csJoNGHC7WANEgEYXh5oUlJzyIoXxuuPyc",
+   "enr": "enr:-HW4QNytPitaPqLC7PRLYbP7pKoF7TC2IRnthkiDejNiGQ5qEKqZ_u3zI-a1LpKLTd5oqbpgrEvUI9ehue-uDPZw9DuAgmlkgnY0iXNlY3AyNTZrMaEDKkUr0_RzAWCHn6i6_d76CGaGOZClTFwSdoj1SfoS6-o",
    "config_signature": "0xf4a8b0993ebdf8883a0ad8be9c3978b04883e56a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4da6430105220d0b29688b734b8ea000",
    "enr_signature": "0xca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b39f32b7c7822ba64f84ab43ca0c6e61b"
   }
@@ -36,5 +36,5 @@
  "dkg_algorithm": "default",
  "fork_version": "0x90000069",
  "config_hash": "0x50afebc6e36c3d31e42d782cfada36bae422ef47b102d356943bbdc20e4b73a7",
- "definition_hash": "0xb0876460555b5c02faa09e4dcba322ff15e53a4170acec0e584a78cbdbe2a9cc"
+ "definition_hash": "0x0c857d42a053f99488d25fbdbd8cd0d4275bee89b5a8f250472b8e9b580c0a11"
 }

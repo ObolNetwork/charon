@@ -25,7 +25,7 @@ func TestNewPeer(t *testing.T) {
 	p, err := p2p.NewPeerFromENR(record, 0)
 	require.NoError(t, err)
 
-	require.Equal(t, "16Uiu2HAkzdQ5Y9SYT91K1ue5SxXwgmajXntfScGnLYeip5hHyWmT", p.ID.String())
+	require.Equal(t, "16Uiu2HAm3M9eZQnzWVvpT12qPmAVipHETMcnzUkmXLjPeU7sxqEa", p.ID.String())
 }
 
 func TestNewTCPHost(t *testing.T) {

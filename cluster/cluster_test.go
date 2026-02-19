@@ -308,7 +308,7 @@ func TestDefinitionPeers(t *testing.T) {
 	peers, err := lock.Peers()
 	require.NoError(t, err)
 
-	names := []string{"curious-land", "adventurous-age", "witty-industry", "cute-group"}
+	names := []string{"worried-mirror", "cautious-face", "nervous-jewelry", "jolly-pillow"}
 
 	for i, peer := range peers {
 		require.Equal(t, i, peer.Index)
