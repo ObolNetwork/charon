@@ -126,21 +126,25 @@ func (n *nodeSigBcast) broadcastCallback(ctx context.Context, senderID peer.ID, 
 
 	msgPeerIdx := int(nodeSig.GetPeerIndex())
 
-	sig := nodeSig.GetSignature()
-	if bytes.Equal(sig, noneData) {
-		// For certain protocols we allow exchanging nil signatures.
-		n.setSig(noneData, msgPeerIdx)
-
-		return nil
+	if msgPeerIdx < 0 || msgPeerIdx >= len(n.peers) {
+		return errors.New("invalid peer index")
 	}
 
-	if (msgPeerIdx == n.nodeIdx.PeerIdx) || (msgPeerIdx < 0 || msgPeerIdx >= len(n.peers)) {
+	if msgPeerIdx == n.nodeIdx.PeerIdx {
 		return errors.New("invalid peer index")
 	}
 
 	// Verify that the actual sender's peer ID matches the claimed peer index
 	if n.peers[msgPeerIdx].ID != senderID {
 		return errors.New("sender peer ID does not match claimed peer index")
+	}
+
+	sig := nodeSig.GetSignature()
+	if bytes.Equal(sig, noneData) {
+		// For certain protocols we allow exchanging nil signatures.
+		n.setSig(noneData, msgPeerIdx)
+
+		return nil
 	}
 
 	lockHash, err := n.lockHash(ctx)

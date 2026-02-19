@@ -245,6 +245,22 @@ func TestSigsCallbacks(t *testing.T) {
 		require.ErrorContains(t, err, "sender peer ID does not match claimed peer index")
 	})
 
+	t.Run("sender ID checked before noneData", func(t *testing.T) {
+		msg := &dkgpb.MsgNodeSig{
+			Signature: noneData,
+			PeerIndex: uint32(2), // Claims to be from peer 2
+		}
+
+		// But actually sent by peer 1 - should fail even with noneData signature
+		err := ns.broadcastCallback(context.Background(),
+			peers[1],
+			"",
+			msg,
+		)
+
+		require.ErrorContains(t, err, "sender peer ID does not match claimed peer index")
+	})
+
 	t.Run("signature verification failed", func(t *testing.T) {
 		ns.lockHashData = bytes.Repeat([]byte{42}, 32)
 
