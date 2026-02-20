@@ -227,7 +227,7 @@ func isTimeoutError(err error) bool {
 // isSyncingError returns true if error message contains the word "syncing".
 func isSyncingError(err error) bool {
 	msg := err.Error()
-	return strings.Contains(msg, "syncing")
+	return strings.Contains(msg, "syncing") || strings.Contains(msg, "HeadBlockNotFullyVerified")
 }
 
 // isBadGateway returns true when the error indicates a connectivity or upstream gateway issue.
