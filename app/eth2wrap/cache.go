@@ -358,6 +358,7 @@ func (c *DutiesCache) UpdateActiveValIndices(vidxs []eth2p0.ValidatorIndex) {
 }
 
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available, populating the cache with the newly fetched ones.
+// nolint: dupl // The logic is very similar between proposer, attester and sync duties, but the code is not easily reusable without adding complexity, hence the duplication.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
 	cacheUsed := false
 
@@ -445,6 +446,7 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 }
 
 // AttesterDutiesCache returns the cached attester duties, or fetches them if not available, populating the cache with the newly fetched ones.
+// nolint: dupl // The logic is very similar between proposer, attester and sync duties, but the code is not easily reusable without adding complexity, hence the duplication.
 func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error) {
 	cacheUsed := false
 
@@ -532,6 +534,7 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 }
 
 // SyncCommDutiesCache returns the cached sync duties, or fetches them if not available, populating the cache with the newly fetched ones.
+// nolint: dupl // The logic is very similar between proposer, attester and sync duties, but the code is not easily reusable without adding complexity, hence the duplication.
 func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error) {
 	cacheUsed := false
 
