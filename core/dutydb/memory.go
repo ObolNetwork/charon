@@ -5,6 +5,8 @@ package dutydb
 import (
 	"context"
 	"encoding/hex"
+	"maps"
+	"slices"
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -289,7 +291,7 @@ func (db *MemDB) PubKeyByAttestation(_ context.Context, slot, commIdx, valIdx ui
 
 	pubkey, ok := db.attPubKeys[key]
 	if !ok {
-		return "", errors.New("pubkey not found")
+		return "", errors.New("pubkey not found", z.Any("key", key), z.Any("available_keys", slices.Collect(maps.Keys(db.attPubKeys))))
 	}
 
 	return *pubkey, nil
