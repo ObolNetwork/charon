@@ -35,6 +35,7 @@ const (
 // Supported returns the supported minor versions in order of precedence.
 func Supported() []SemVer {
 	return []SemVer{
+		{major: 1, minor: 10},
 		{major: 1, minor: 9},
 		{major: 1, minor: 8},
 		{major: 1, minor: 7},
