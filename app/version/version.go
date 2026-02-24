@@ -36,7 +36,6 @@ const (
 func Supported() []SemVer {
 	return []SemVer{
 		{major: 1, minor: 9},
-		{major: 1, minor: 9},
 		{major: 1, minor: 8},
 		{major: 1, minor: 7},
 		{major: 1, minor: 6},
