@@ -7,7 +7,7 @@ require (
 	github.com/attestantio/go-builder-client v0.7.2
 	github.com/attestantio/go-eth2-client v0.27.1
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/drand/kyber v1.3.2
 	github.com/drand/kyber-bls12381 v0.3.4
 	github.com/ethereum/go-ethereum v1.17.0
