@@ -58,6 +58,9 @@ type testServer struct {
 	// store the partial deposits by the validator pubkey
 	partialDeposits map[string]depositBlob
 
+	// store the partial fee recipient registrations by lock_hash/validator_pubkey
+	partialFeeRecipients map[string]feeRecipientBlob
+
 	// store the lock file by its lock hash
 	lockFiles map[string]cluster.Lock
 
@@ -108,12 +111,13 @@ func cleanTmpl(tmpl string) string {
 // It returns a http.Handler to be served over HTTP, and a function to add cluster lock files to its database.
 func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lock cluster.Lock)) {
 	ts := testServer{
-		lock:            sync.Mutex{},
-		partialExits:    map[string][]exitBlob{},
-		partialDeposits: map[string]depositBlob{},
-		lockFiles:       map[string]cluster.Lock{},
-		dropOnePsig:     dropOnePsig,
-		beacon:          beacon,
+		lock:                 sync.Mutex{},
+		partialExits:         map[string][]exitBlob{},
+		partialDeposits:      map[string]depositBlob{},
+		partialFeeRecipients: map[string]feeRecipientBlob{},
+		lockFiles:            map[string]cluster.Lock{},
+		dropOnePsig:          dropOnePsig,
+		beacon:               beacon,
 	}
 
 	router := mux.NewRouter()
@@ -130,6 +134,9 @@ func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lo
 
 	router.HandleFunc(submitPartialDepositTmpl, ts.HandleSubmitPartialDeposit).Methods(http.MethodPost)
 	router.HandleFunc(fetchFullDepositTmpl, ts.HandleGetFullDeposit).Methods(http.MethodGet)
+
+	router.HandleFunc(submitPartialFeeRecipientTmpl, ts.HandleSubmitPartialFeeRecipient).Methods(http.MethodPost)
+	router.HandleFunc(fetchPartialFeeRecipientTmpl, ts.HandleGetPartialFeeRecipient).Methods(http.MethodGet)
 
 	return router, ts.addLockFiles
 }
