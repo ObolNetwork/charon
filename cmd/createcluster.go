@@ -963,10 +963,10 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	var sb strings.Builder
 
 	_, _ = sb.WriteString("Created charon cluster:\n")
-	_, _ = sb.WriteString(fmt.Sprintf(" --split-existing-keys=%v\n", splitKeys))
+	_, _ = fmt.Fprintf(&sb, " --split-existing-keys=%v\n", splitKeys)
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString(strings.TrimSuffix(absClusterDir, "/") + "/\n")
-	_, _ = sb.WriteString(fmt.Sprintf("├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1))
+	_, _ = fmt.Fprintf(&sb, "├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1)
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 
@@ -978,7 +978,7 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	}
 
 	if zipped {
-		_, _ = sb.WriteString(fmt.Sprintf("\nFiles compressed and archived to:\n%s/cluster.tar.gz\n", absClusterDir))
+		_, _ = fmt.Fprintf(&sb, "\nFiles compressed and archived to:\n%s/cluster.tar.gz\n", absClusterDir)
 	}
 
 	_, _ = fmt.Fprint(out, sb.String())

@@ -140,7 +140,7 @@ func NewDefinition(name string, numVals int, threshold int, feeRecipientAddresse
 
 // Definition defines an intended charon cluster configuration excluding validators.
 // Note the following struct tag meanings:
-//   - json: json field name. Suffix 0xhex indicates bytes are formatted as 0x prefixed hex strings.
+//   - json: json field name.
 //   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
 //     for variable length strings, or CompositeList[MaxN] for nested object arrays.
 //   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
@@ -169,7 +169,7 @@ type Definition struct {
 	DKGAlgorithm string `config_hash:"6" definition_hash:"6" json:"dkg_algorithm" ssz:"ByteList[32]"`
 
 	// ForkVersion defines the cluster's 4 byte beacon chain fork version (network/chain identifier).
-	ForkVersion []byte `json:"fork_version,0xhex" ssz:"Bytes4" config_hash:"7" definition_hash:"7"`
+	ForkVersion []byte `config_hash:"7" definition_hash:"7" json:"fork_version" ssz:"Bytes4"`
 
 	// Operators define the charon nodes in the cluster and their operators. Max 256 operators.
 	Operators []Operator `config_hash:"8" definition_hash:"8" json:"operators" ssz:"CompositeList[256]"`
@@ -193,10 +193,10 @@ type Definition struct {
 	Compounding bool `config_hash:"14" definition_hash:"14" json:"compounding" ssz:"bool"`
 
 	// ConfigHash uniquely identifies a cluster definition excluding operator ENRs and signatures.
-	ConfigHash []byte `json:"config_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"15"`
+	ConfigHash []byte `config_hash:"-" definition_hash:"15" json:"config_hash" ssz:"Bytes32"`
 
 	// DefinitionHash uniquely identifies a cluster definition including operator ENRs and signatures.
-	DefinitionHash []byte `json:"definition_hash,0xhex" ssz:"Bytes32" config_hash:"-" definition_hash:"-"`
+	DefinitionHash []byte `config_hash:"-" definition_hash:"-" json:"definition_hash" ssz:"Bytes32"`
 }
 
 // NodeIdx returns the node index for the peer.
@@ -1130,17 +1130,17 @@ type definitionJSONv1x10 struct {
 
 // Creator identifies the creator of a cluster definition.
 // Note the following struct tag meanings:
-//   - json: json field name. Suffix 0xhex indicates bytes are formatted as 0x prefixed hex strings.
+//   - json: json field name.
 //   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
 //     for variable length strings, or CompositeList[MaxN] for nested object arrays.
 //   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Creator struct {
 	// The 20 byte Ethereum address of the creator
-	Address string `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
+	Address string `config_hash:"0" definition_hash:"0" json:"address" ssz:"Bytes20"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to creator Ethereum Address.
-	ConfigSignature []byte `json:"config_signature,0xhex" ssz:"Bytes65" config_hash:"-" definition_hash:"1"`
+	ConfigSignature []byte `config_hash:"-" definition_hash:"1" json:"config_signature" ssz:"Bytes65"`
 }
 
 // creatorJSON is the json formatter of Creator.
@@ -1152,10 +1152,10 @@ type creatorJSON struct {
 // ValidatorAddresses defines addresses of a validator.
 type ValidatorAddresses struct {
 	// FeeRecipientAddress 20 byte Ethereum address.
-	FeeRecipientAddress string `json:"fee_recipient_address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
+	FeeRecipientAddress string `config_hash:"0" definition_hash:"0" json:"fee_recipient_address" ssz:"Bytes20"`
 
 	// WithdrawalAddress 20 byte Ethereum address.
-	WithdrawalAddress string `json:"withdrawal_address,0xhex" ssz:"Bytes20" config_hash:"1" definition_hash:"1"`
+	WithdrawalAddress string `config_hash:"1" definition_hash:"1" json:"withdrawal_address" ssz:"Bytes20"`
 }
 
 // validatorAddressesJSON is the json formatter of ValidatorAddresses.

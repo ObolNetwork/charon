@@ -71,8 +71,8 @@ func writeExpandedEnr(w io.Writer, r enr.Record, privKey *k1.PrivateKey) {
 
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** Decoded ENR (see https://enr-viewer.com/ for additional fields) **********************\n")
-	_, _ = sb.WriteString(fmt.Sprintf("secp256k1 pubkey: %#x\n", privKey.PubKey().SerializeCompressed()))
-	_, _ = sb.WriteString(fmt.Sprintf("signature: %#x\n", r.Signature))
+	_, _ = fmt.Fprintf(&sb, "secp256k1 pubkey: %#x\n", privKey.PubKey().SerializeCompressed())
+	_, _ = fmt.Fprintf(&sb, "signature: %#x\n", r.Signature)
 	_, _ = sb.WriteString("********************************************************************************************************\n")
 	_, _ = sb.WriteString("\n")
 
