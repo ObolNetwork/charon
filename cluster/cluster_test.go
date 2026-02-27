@@ -21,6 +21,7 @@ import (
 //go:generate go test . -v -update -clean
 
 const (
+	v1_11 = "v1.11.0"
 	v1_10 = "v1.10.0"
 	v1_9  = "v1.9.0"
 	v1_8  = "v1.8.0"
@@ -64,12 +65,12 @@ func TestEncode(t *testing.T) {
 			}
 
 			var partialAmounts []int
-			if isAnyVersion(version, v1_8, v1_9, v1_10) {
+			if isAnyVersion(version, v1_8, v1_9, v1_10, v1_11) {
 				partialAmounts = []int{16, 16}
 			}
 
 			targetGasLimit := uint(0)
-			if isAnyVersion(version, v1_10) {
+			if isAnyVersion(version, v1_10, v1_11) {
 				targetGasLimit = 30000000
 			}
 
@@ -314,6 +315,85 @@ func TestDefinitionPeers(t *testing.T) {
 		require.Equal(t, i, peer.Index)
 		require.Equal(t, names[i], peer.Name)
 	}
+}
+
+// TestV1x11SafeSignatures tests that v1.11 supports variable-length signatures (Safe multisig).
+func TestV1x11SafeSignatures(t *testing.T) {
+	r := rand.New(rand.NewSource(1))
+
+	// Create 130-byte signatures (Safe threshold=2: 2 × 65 bytes)
+	safeSignature130 := make([]byte, 130)
+	_, _ = r.Read(safeSignature130)
+
+	// Create 195-byte signatures (Safe threshold=3: 3 × 65 bytes)
+	safeSignature195 := make([]byte, 195)
+	_, _ = r.Read(safeSignature195)
+
+	// Create 65-byte EOA signature
+	eoaSignature65 := testutil.RandomSecp256k1SignatureSeed(r)
+
+	_, enr1 := testutil.RandomENR(t, 1)
+	_, enr2 := testutil.RandomENR(t, 2)
+
+	def, err := cluster.NewDefinition(
+		"Safe multisig cluster",
+		1,
+		2,
+		[]string{testutil.RandomETHAddressSeed(r)},
+		[]string{testutil.RandomETHAddressSeed(r)},
+		eth2util.Sepolia.GenesisForkVersionHex,
+		cluster.Creator{
+			Address:         testutil.RandomETHAddressSeed(r),
+			ConfigSignature: safeSignature130, // Safe threshold=2
+		},
+		[]cluster.Operator{
+			{
+				Address:         testutil.RandomETHAddressSeed(r),
+				ENR:             enr1.String(),
+				ConfigSignature: safeSignature195, // Safe threshold=3
+				ENRSignature:    safeSignature130, // Safe threshold=2
+			},
+			{
+				Address:         testutil.RandomETHAddressSeed(r),
+				ENR:             enr2.String(),
+				ConfigSignature: eoaSignature65, // EOA (65 bytes)
+				ENRSignature:    eoaSignature65, // EOA (65 bytes)
+			},
+		},
+		[]int{32}, // Deposit amounts (32 ETH)
+		"abft",    // Consensus protocol
+		30000000,  // Target gas limit
+		false,     // Compounding
+		r,         // Random reader
+		func(d *cluster.Definition) {
+			d.Version = v1_11
+			d.Timestamp = "2024-01-01T00:00:00Z"
+		},
+	)
+	require.NoError(t, err)
+
+	// Test SetDefinitionHashes with variable-length signatures
+	defWithHashes, err := def.SetDefinitionHashes()
+	require.NoError(t, err, "SetDefinitionHashes should succeed with Safe signatures")
+	require.NotEmpty(t, defWithHashes.ConfigHash, "ConfigHash should be computed")
+	require.NotEmpty(t, defWithHashes.DefinitionHash, "DefinitionHash should be computed")
+
+	// Test JSON marshaling/unmarshaling
+	jsonBytes, err := json.Marshal(defWithHashes)
+	require.NoError(t, err, "JSON marshal should succeed")
+
+	var unmarshaled cluster.Definition
+	err = json.Unmarshal(jsonBytes, &unmarshaled)
+	require.NoError(t, err, "JSON unmarshal should succeed")
+
+	// Verify signatures are preserved
+	require.Equal(t, 130, len(unmarshaled.Creator.ConfigSignature), "Creator Safe signature length")
+	require.Equal(t, 195, len(unmarshaled.Operators[0].ConfigSignature), "Operator 0 config Safe signature length")
+	require.Equal(t, 130, len(unmarshaled.Operators[0].ENRSignature), "Operator 0 ENR Safe signature length")
+	require.Equal(t, 65, len(unmarshaled.Operators[1].ConfigSignature), "Operator 1 EOA signature length")
+
+	// Test VerifyHashes
+	require.NoError(t, defWithHashes.VerifyHashes(), "VerifyHashes should succeed")
 }
 
 func isAnyVersion(version string, list ...string) bool {
