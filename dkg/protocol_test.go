@@ -432,6 +432,78 @@ func (s *someStep) Run(ctx context.Context, pctx *dkg.ProtocolContext) error {
 	return nil
 }
 
+// TestRunProtocol_ShutdownRace tests that the shutdown synchronization works correctly.
+// This test verifies the fix for a race condition where one node completing shutdown
+// would tear down P2P before other nodes finished their shutdown sync. The fix adds
+// a "shutdown ready" sync step before any node begins teardown.
+//
+// Note: If a node crashes (closes P2P host), the protocol will still fail as expected.
+// The fix only prevents failures from transient network issues during normal shutdown.
+func TestRunProtocol_ShutdownRace(t *testing.T) {
+	const (
+		numValidators = 2
+		numNodes      = 4
+		threshold     = 3
+	)
+
+	clusterDir := createTestCluster(t, numNodes, threshold, numValidators)
+
+	var (
+		completed atomic.Int32
+		failed    atomic.Int32
+	)
+
+	// Test with very short shutdown delay - the sync barrier ensures
+	// all nodes are ready before teardown begins.
+	runProtocolAllowFailures(t, numNodes, func(relayAddr string, n int) error {
+		protocol := newTestProtocol()
+		ndir := nodeDir(clusterDir, n)
+
+		config := dkg.Config{
+			ShutdownDelay: 10 * time.Millisecond, // Very short delay - sync barrier should handle coordination
+			Timeout:       time.Minute,
+			P2P: p2p.Config{
+				Relays:   []string{relayAddr},
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+			},
+		}
+
+		lockFilePath := path.Join(ndir, clusterLockFile)
+		privateKeyPath := p2p.KeyPath(ndir)
+		validatorKeysDir := path.Join(ndir, validatorKeysDir)
+
+		err := dkg.RunProtocol(t.Context(), protocol, lockFilePath, privateKeyPath, validatorKeysDir, config)
+		if err != nil {
+			t.Logf("Node %d failed: %v", n, err)
+			failed.Add(1)
+		} else {
+			completed.Add(1)
+		}
+
+		return nil
+	})
+
+	t.Logf("Completed nodes: %d, Failed nodes: %d", completed.Load(), failed.Load())
+	require.Equal(t, int32(numNodes), completed.Load(), "All nodes should complete successfully")
+}
+
+// runProtocolAllowFailures is like runProtocol but doesn't fail the test if nodes return errors.
+func runProtocolAllowFailures(t *testing.T, numNodes int, nodeFunc func(string, int) error) {
+	t.Helper()
+
+	eg := new(errgroup.Group)
+	relayAddr := relay.StartRelay(t.Context(), t)
+
+	for n := range numNodes {
+		eg.Go(func() error {
+			return nodeFunc(relayAddr, n)
+		})
+	}
+
+	// Ignore errors - the test will check completed/failed counts
+	_ = eg.Wait()
+}
+
 func createTestCluster(t *testing.T, numNodes, threshold, numValidators int) string {
 	t.Helper()
 
