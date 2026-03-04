@@ -37,10 +37,99 @@ It helps expand an existing cluster with new validators, given the same operator
 
 The script will execute `node_merge.sh` for each `nodeX` subfolder found in the source cluster.
 
+## Monitoring and Diagnostics Scripts
+
+The following scripts query Obol's Grafana/Prometheus/Loki observability stack and require the `OBOL_GRAFANA_API_TOKEN` environment variable to be set:
+
+```bash
+export OBOL_GRAFANA_API_TOKEN=<your-grafana-api-token>
+```
+
+### `grafana-datasources.sh`
+
+Discovers Prometheus and Loki datasource proxy URLs from Grafana. Used internally by the other monitoring scripts.
+
+#### Usage
+
+```bash
+./grafana-datasources.sh
+```
+
+Outputs two lines:
+```
+PROMETHEUS_URL=https://grafana.monitoring.gcp.obol.tech/api/datasources/proxy/<id>/api/v1/
+LOKI_URL=https://grafana.monitoring.gcp.obol.tech/api/datasources/proxy/<id>/loki/api/v1/
+```
+
+### `cluster-config.sh`
+
+Fetches cluster configuration metrics (version, operators, threshold, validators, and per-peer info) from Prometheus via Grafana proxy.
+
+#### Usage
+
+```bash
+./cluster-config.sh <cluster_name> [network]
+```
+
+- *<cluster_name>*: Human-readable cluster name (e.g., `"Lido x Obol: Ethereal Elf"`).
+- *[network]*: Network name — `mainnet` (default), `hoodi`, `sepolia`, etc.
+
+#### Example
+
+```bash
+./cluster-config.sh "Lido x Obol: Ethereal Elf" mainnet
+```
+
+### `consensus-leader.sh`
+
+Calculates the consensus leader sequence for a given slot and cluster using the QBFT leader election formula: `(slot + dutyType + round) % nodes`.
+
+#### Usage
+
+```bash
+./consensus-leader.sh <cluster_name> <slot> [network] [duty_type]
+```
+
+- *<cluster_name>*: Human-readable cluster name.
+- *<slot>*: Beacon chain slot number (e.g., `13813408`).
+- *[network]*: Network name — `mainnet` (default), `hoodi`, `sepolia`, etc.
+- *[duty_type]*: Duty type — `proposer` (default), `attester`, `randao`, etc.
+
+#### Example
+
+```bash
+./consensus-leader.sh "Lido x Obol: Ethereal Elf" 13813408 mainnet proposer
+```
+
+### `duty-timeline.sh`
+
+Generates a comprehensive chronological timeline of events for a specific duty across all peers, pulling logs from Loki and cluster metrics from Prometheus. Useful for post-mortem analysis of missed blocks or attestations.
+
+#### Usage
+
+```bash
+./duty-timeline.sh <cluster_name> <slot> [network] [duty_type]
+```
+
+- *<cluster_name>*: Human-readable cluster name.
+- *<slot>*: Beacon chain slot number (e.g., `13813408`).
+- *[network]*: Network name — `mainnet` (default), `hoodi`, `sepolia`, etc.
+- *[duty_type]*: Duty type — `proposer` (default), `attester`, `randao`, etc.
+
+#### Example
+
+```bash
+./duty-timeline.sh "Lido x Obol: Ethereal Elf" 13813408 mainnet proposer
+```
+
+The script outputs duty info, expected consensus leaders, a chronological event timeline with offsets relative to slot start, and a summary covering consensus outcome, broadcast status, block inclusion, and peer participation.
+
 ## Requirements
 
-Both scripts require **bash** (standard on Linux/macOS) and **jq** (version 1.5+).
+All scripts require **bash** (standard on Linux/macOS) and **jq** (version 1.5+).
 Install via `sudo apt-get install jq` (Debian/Ubuntu) or `brew install jq` (macOS).
+
+The monitoring and diagnostics scripts additionally require **curl** and **bc**.
 
 ## Important Warnings
 
