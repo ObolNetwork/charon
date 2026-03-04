@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION="v2.5.0"
+VERSION="2.10.1"
 
 if ! command -v golangci-lint &>/dev/null; then
     echo "golangci-lint could not be found"

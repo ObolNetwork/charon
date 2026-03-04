@@ -8,23 +8,23 @@ import (
 
 // Operator identifies the operator of a charon node and its ENR.
 // Note the following struct tag meanings:
-//   - json: json field name. Suffix 0xhex indicates bytes are formatted as 0x prefixed hex strings.
+//   - json: json field name.
 //   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
 //     for variable length strings, or CompositeList[MaxN] for nested object arrays.
 //   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Operator struct {
 	// The 20 byte Ethereum address of the operator
-	Address string `json:"address,0xhex" ssz:"Bytes20" config_hash:"0" definition_hash:"0"`
+	Address string `config_hash:"0" definition_hash:"0" json:"address" ssz:"Bytes20"`
 
 	// ENR identifies the charon node. Max 1024 chars.
 	ENR string `config_hash:"-" definition_hash:"1" json:"enr" ssz:"ByteList[1024]"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
-	ConfigSignature []byte `json:"config_signature,0xhex" ssz:"Bytes65" config_hash:"-" definition_hash:"2"`
+	ConfigSignature []byte `config_hash:"-" definition_hash:"2" json:"config_signature" ssz:"Bytes65"`
 
 	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
-	ENRSignature []byte `json:"enr_signature,0xhex" ssz:"Bytes65" config_hash:"-" definition_hash:"3"`
+	ENRSignature []byte `config_hash:"-" definition_hash:"3" json:"enr_signature" ssz:"Bytes65"`
 }
 
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.

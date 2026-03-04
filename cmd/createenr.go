@@ -68,7 +68,7 @@ func writeEnrWarning(w io.Writer, keyPath string) {
 	_, _ = sb.WriteString("***************** WARNING: Backup key **********************\n")
 	_, _ = sb.WriteString(" PLEASE BACKUP YOUR KEY IMMEDIATELY! IF YOU LOSE YOUR KEY,\n")
 	_, _ = sb.WriteString(" YOU WON'T BE ABLE TO PARTICIPATE IN RUNNING A CHARON CLUSTER.\n\n")
-	_, _ = sb.WriteString(fmt.Sprintf(" YOU CAN FIND YOUR KEY IN %s\n", keyPath))
+	_, _ = fmt.Fprintf(&sb, " YOU CAN FIND YOUR KEY IN %s\n", keyPath)
 	_, _ = sb.WriteString("****************************************************************\n")
 	_, _ = sb.WriteString("\n")
 

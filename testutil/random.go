@@ -1684,10 +1684,14 @@ func (c constReader) Read(buf []byte) (int, error) {
 func GenerateInsecureK1Key(t *testing.T, seed int) *k1.PrivateKey {
 	t.Helper()
 
+	t.Setenv("GODEBUG", "cryptocustomrand=1")
 	// Add 1 to seed to avoid passing 0 as seed which can trigger infinite loop.
 	k, err := ecdsa.GenerateKey(k1.S256(), constReader(seed+1))
 	require.NoError(t, err)
 
+	//nolint:staticcheck // We are using it in tests in a safely manner in testing.
+	// We expect a bit more utility functions to be implemented in the k1 package in the future
+	// This is currently the only way to get deterministic keys for testing.
 	return k1.PrivKeyFromBytes(k.D.Bytes())
 }
 
