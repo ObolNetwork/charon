@@ -138,7 +138,7 @@ echo ""
 # Query Loki for all logs related to this slot and duty
 # Match various log formats for the duty
 DUTY_PATTERN="${SLOT}/${DUTY_TYPE}"
-LOGQL="{cluster_name=\"${CLUSTER_NAME}\",cluster_network=\"${NETWORK}\"} |~ \`${DUTY_PATTERN}|duty=${DUTY_TYPE}.*slot=${SLOT}|slot.*${SLOT}.*${DUTY_TYPE}\`"
+LOGQL="{cluster_name=\"${CLUSTER_NAME}\",cluster_network=\"${NETWORK}\"} |~ \`${DUTY_PATTERN}|duty=${DUTY_TYPE}.*slot=${SLOT}|slot.*${SLOT}.*${DUTY_TYPE}|block_slot=${SLOT}\`"
 
 loki_query() {
   local query="$1"
