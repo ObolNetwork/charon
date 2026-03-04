@@ -31,4 +31,6 @@ Present the results to the user in a readable format:
 - **Active Validators**: currently active validators
 - **Total Validators**: total validators in the cluster
 
+The peers table includes: index, peer name, operator nickname, version, and **feature flags** (comma-separated list of enabled flags, or `-` if none / not reporting).
+
 If the script exits with an error (cluster not found), relay the error and suggest the user double-check the cluster name spelling or try a different network.

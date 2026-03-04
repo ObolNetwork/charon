@@ -82,9 +82,11 @@ fi
 # app_peerinfo_* metrics use 'peer' label (= cluster_peer value of the described peer).
 # app_peer_name uses 'cluster_peer' as key and 'peer_name' as the human-readable name.
 # Multiple nodes report peerinfo for all peers, so results are deduplicated by peer.
+# app_feature_flags is reported by each node for itself, keyed by 'cluster_peer'.
 idx_raw=$(prom_query "app_peerinfo_index")
 nick_raw=$(prom_query "app_peerinfo_nickname")
 ver_raw=$(prom_query "app_peerinfo_version")
+flags_raw=$(prom_query "app_feature_flags")
 
 echo "=== Cluster Info ==="
 echo "Name:       ${CLUSTER_NAME}"
@@ -99,17 +101,19 @@ jq -rn \
   --argjson idx   "$idx_raw" \
   --argjson nicks "$nick_raw" \
   --argjson vers  "$ver_raw" \
+  --argjson flags "$flags_raw" \
   '
-  ($nicks.data.result | map({(.metric.peer): (.metric.peer_nickname // "?")}) | add // {}) as $nick_map |
-  ($vers.data.result  | map({(.metric.peer): (.metric.version       // "?")}) | add // {}) as $ver_map  |
-  ["INDEX", "PEER", "NICKNAME", "VERSION"],
+  ($nicks.data.result | map({(.metric.peer): (.metric.peer_nickname // "?")}) | add // {}) as $nick_map  |
+  ($vers.data.result  | map({(.metric.peer): (.metric.version       // "?")}) | add // {}) as $ver_map   |
+  ($flags.data.result | map({(.metric.cluster_peer): (.metric.feature_flags // "")}) | add // {}) as $flags_map |
+  ["INDEX", "PEER", "NICKNAME", "VERSION", "FEATURE_FLAGS"],
   (
     $idx.data.result
     | map({peer: .metric.peer, index: (.value[1] | tonumber)})
     | unique_by(.peer)
     | sort_by(.index)
     | .[]
-    | [(.index | tostring), .peer, ($nick_map[.peer] // "?"), ($ver_map[.peer] // "?")]
+    | [(.index | tostring), .peer, ($nick_map[.peer] // "?"), ($ver_map[.peer] // "?"), ($flags_map[.peer] // "-")]
   )
   | @tsv
   ' | column -t -s $'\t'
