@@ -74,9 +74,10 @@ SLOT_TIMESTAMP=$((GENESIS + SLOT * SECONDS_PER_SLOT))
 START_NS=$(( (SLOT_TIMESTAMP - 15) * 1000000000 ))
 END_NS=$(( (SLOT_TIMESTAMP + 500) * 1000000000 ))  # ~8 minutes for tracker inclusion checks
 
-# Discover Loki URL
+# Discover Loki and Prometheus URLs
 DATASOURCES=$("$SCRIPT_DIR/grafana-datasources.sh")
 LOKI_URL=$(echo "$DATASOURCES" | grep '^LOKI_URL=' | cut -d= -f2-)
+PROM_URL=$(echo "$DATASOURCES" | grep '^PROMETHEUS_URL=' | cut -d= -f2-)
 
 if [ -z "$LOKI_URL" ]; then
   echo "Error: could not discover Loki URL" >&2
@@ -151,6 +152,36 @@ loki_query() {
     "${LOKI_URL}query_range"
 }
 
+# Query core_tracker_inclusion_missed_total metric delta around the slot's inclusion check window.
+# InclCheckLag=6 slots, InclMissedLag=32 slots (from core/tracker/inclusion.go).
+# We sample the counter just before the check window opens and just after it closes.
+INCL_METRIC_DELTA="unknown"
+if [ -n "$PROM_URL" ] && [ "$DUTY_TYPE" = "proposer" ]; then
+  INCL_CHECK_LAG=6
+  INCL_MISSED_LAG=32
+  INCL_BEFORE_TIME=$(( SLOT_TIMESTAMP + INCL_CHECK_LAG * SECONDS_PER_SLOT - 1 ))
+  INCL_AFTER_TIME=$(( SLOT_TIMESTAMP + (INCL_MISSED_LAG + 2) * SECONDS_PER_SLOT ))
+  METRIC_QUERY="core_tracker_inclusion_missed_total{cluster_name=\"${CLUSTER_NAME}\",cluster_network=\"${NETWORK}\",duty=\"proposer\"}"
+  # Sum across all peers to get cluster-wide delta
+  VAL_BEFORE_SUM=$(curl -sf -G \
+    -H "$AUTH" \
+    --data-urlencode "query=sum(${METRIC_QUERY})" \
+    --data-urlencode "time=${INCL_BEFORE_TIME}" \
+    "${PROM_URL}query" | jq -r 'if .data.result | length == 0 then "0" else .data.result[0].value[1] end' 2>/dev/null || echo "0")
+  VAL_AFTER_SUM=$(curl -sf -G \
+    -H "$AUTH" \
+    --data-urlencode "query=sum(${METRIC_QUERY})" \
+    --data-urlencode "time=${INCL_AFTER_TIME}" \
+    "${PROM_URL}query" | jq -r 'if .data.result | length == 0 then "0" else .data.result[0].value[1] end' 2>/dev/null || echo "0")
+  # Use integer arithmetic to determine delta
+  DELTA=$(echo "$VAL_BEFORE_SUM $VAL_AFTER_SUM" | awk '{d=$2-$1; if(d<0) d=0; printf "%d", d}')
+  if [ "$DELTA" -gt 0 ] 2>/dev/null; then
+    INCL_METRIC_DELTA="missed"
+  elif [ "$VAL_AFTER_SUM" != "0" ] || [ "$VAL_BEFORE_SUM" != "0" ]; then
+    INCL_METRIC_DELTA="not_missed"
+  fi
+fi
+
 echo "=== Fetching Logs ==="
 LOGS_RAW=$(loki_query "$LOGQL")
 
@@ -164,7 +195,7 @@ python3 - "$LOKI_TMPFILE" "$SLOT" "$SLOT_TIMESTAMP" "$DUTY_TYPE" \
   "$LEADER_PEER_R1" "$LEADER_R1" \
   "$LEADER_PEER_R2" "$LEADER_R2" \
   "$LEADER_PEER_R3" "$LEADER_R3" \
-  "$SLOT_TIME" <<'PYTHON_SCRIPT'
+  "$SLOT_TIME" "$INCL_METRIC_DELTA" <<'PYTHON_SCRIPT'
 import json
 import re
 import sys
@@ -178,6 +209,7 @@ leader_peer_r1, leader_idx_r1 = sys.argv[5], sys.argv[6]
 leader_peer_r2, leader_idx_r2 = sys.argv[7], sys.argv[8]
 leader_peer_r3, leader_idx_r3 = sys.argv[9], sys.argv[10]
 slot_time = sys.argv[11]
+incl_metric_delta = sys.argv[12]  # "missed", "not_missed", or "unknown"
 
 slot_timestamp_ns = slot_timestamp * 1_000_000_000
 
@@ -258,6 +290,7 @@ tracker_all = False
 tracker_partial = False
 tracker_absent = ""
 tracker_missed = False
+tracker_included = False
 tracker_broadcast_delay = ""
 error_peers = defaultdict(list)  # peer -> [error messages]
 
@@ -407,6 +440,17 @@ for ts_ns, peer, line in entries:
                 "Not all peers participated",
                 f"Absent: {tracker_absent}")))
 
+    elif msg in ("Broadcasted block included on-chain", "Broadcasted blinded block included on-chain"):
+        if "tracker_included" not in seen_first:
+            seen_first.add("tracker_included")
+            tracker_included = True
+            pubkey = extract_logfmt(line, "pubkey")
+            tracker_broadcast_delay = extract_logfmt(line, "broadcast_delay")
+            label = "BLINDED BLOCK included on-chain" if "blinded" in msg else "BLOCK included on-chain"
+            timeline.append((ts_ns, 61, fmt(offset, "TRACKER",
+                label,
+                f"Pubkey: {pubkey}, Broadcast delay: {tracker_broadcast_delay}")))
+
     elif msg == "Broadcasted block never included on-chain":
         if "tracker_missed" not in seen_first:
             seen_first.add("tracker_missed")
@@ -506,16 +550,23 @@ if duty_type == "proposer":
     if tracker_missed:
         delay_part = f" (broadcast_delay={tracker_broadcast_delay})" if tracker_broadcast_delay else ""
         print(f"Inclusion:     MISSED - block never included on-chain{delay_part}")
-    elif tracker_all:
-        print("Inclusion:     Block included on-chain")
+    elif tracker_included:
+        delay_part = f" (broadcast_delay={tracker_broadcast_delay})" if tracker_broadcast_delay else ""
+        print(f"Inclusion:     Block included on-chain{delay_part}")
+    elif incl_metric_delta == "missed":
+        print("Inclusion:     MISSED - inferred from core_tracker_inclusion_missed_total metric (no tracker log found)")
+    elif incl_metric_delta == "not_missed":
+        print("Inclusion:     Block likely included on-chain (metric counter did not increase)")
     else:
-        print("Inclusion:     Unknown (tracker event not found)")
+        print("Inclusion:     Unknown (no tracker log or metric data found)")
 
 # Participation summary
 if tracker_partial:
     print(f"Participation: Not all peers participated (absent: {tracker_absent})")
 elif tracker_all:
     print("Participation: All peers participated")
+else:
+    print("Participation: Unknown (tracker event not found)")
 
 # Error summary
 if error_peers:
