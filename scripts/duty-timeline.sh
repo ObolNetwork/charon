@@ -154,302 +154,375 @@ loki_query() {
 echo "=== Fetching Logs ==="
 LOGS_RAW=$(loki_query "$LOGQL")
 
-if [ -z "$LOGS_RAW" ] || [ "$(echo "$LOGS_RAW" | jq -r '.data.result | length')" = "0" ]; then
-  echo ""
-  echo "ERROR: No logs found for ${DUTY_PATTERN}"
-  echo "This could mean:"
-  echo "  - The cluster did not have this duty in slot ${SLOT}"
-  echo "  - Logs have been rotated/deleted"
-  echo "  - The cluster name or network is incorrect"
-  exit 1
-fi
+# Save raw Loki JSON to temp file for Python processing
+LOKI_TMPFILE=$(mktemp)
+trap 'rm -f "$LOKI_TMPFILE"' EXIT
+echo "$LOGS_RAW" > "$LOKI_TMPFILE"
 
-LOG_COUNT=$(echo "$LOGS_RAW" | jq '[.data.result[].values[]] | length')
-echo "Found ${LOG_COUNT} log entries"
-echo ""
+# Process logs with Python (handles nanosecond timestamps correctly)
+python3 - "$LOKI_TMPFILE" "$SLOT" "$SLOT_TIMESTAMP" "$DUTY_TYPE" \
+  "$LEADER_PEER_R1" "$LEADER_R1" \
+  "$LEADER_PEER_R2" "$LEADER_R2" \
+  "$LEADER_PEER_R3" "$LEADER_R3" \
+  "$SLOT_TIME" <<'PYTHON_SCRIPT'
+import json
+import re
+import sys
+from collections import defaultdict
 
-# Helper function to extract value from logfmt line
-extract_logfmt() {
-  local line="$1"
-  local field="$2"
-  echo "$line" | grep -oE "${field}=\"[^\"]*\"|${field}=[^ ]*" | head -1 | sed -E "s/${field}=\"?([^\"]*)\"?/\1/" || true
-}
+loki_file = sys.argv[1]
+slot = int(sys.argv[2])
+slot_timestamp = int(sys.argv[3])
+duty_type = sys.argv[4]
+leader_peer_r1, leader_idx_r1 = sys.argv[5], sys.argv[6]
+leader_peer_r2, leader_idx_r2 = sys.argv[7], sys.argv[8]
+leader_peer_r3, leader_idx_r3 = sys.argv[9], sys.argv[10]
+slot_time = sys.argv[11]
 
-# Calculate offset from slot start using Loki nanosecond timestamp
-SLOT_TIMESTAMP_NS=$((SLOT_TIMESTAMP * 1000000000))
-calc_offset() {
-  local loki_ts_ns="$1"
-  local offset_ms=$(( (loki_ts_ns - SLOT_TIMESTAMP_NS) / 1000000 ))
-  local offset_s=$(echo "scale=3; $offset_ms / 1000" | bc)
-  printf "%+.3fs" "$offset_s"
-}
+slot_timestamp_ns = slot_timestamp * 1_000_000_000
 
-# Parse logs and extract key events
-# Each stream has labels and values; values are [timestamp, log_line]
-PARSED_LOGS=$(echo "$LOGS_RAW" | jq -r '
-  .data.result[] |
-  .stream as $labels |
-  .values[] |
-  {
-    ts: .[0],
-    peer: $labels.cluster_peer,
-    line: .[1]
-  }
-' | jq -s 'sort_by(.ts)')
+with open(loki_file) as f:
+    data = json.load(f)
 
-echo "=== Event Timeline ==="
-echo "(Offset relative to slot start time: ${SLOT_TIME})"
-echo ""
+results = data.get("data", {}).get("result", [])
+if not results:
+    print()
+    print(f"ERROR: No logs found for {slot}/{duty_type}")
+    print("This could mean:")
+    print(f"  - The cluster did not have this duty in slot {slot}")
+    print("  - Logs have been rotated/deleted")
+    print("  - The cluster name or network is incorrect")
+    sys.exit(1)
 
-# Track key events
-declare -A SEEN_EVENTS
-CONSENSUS_STARTED=false
-CONSENSUS_DECIDED=false
-DECIDED_ROUND=""
-DECIDED_LEADER=""
-declare -A ROUND_TIMEOUT_REASONS
+# Parse all log entries
+entries = []
+for stream in results:
+    peer = stream.get("stream", {}).get("cluster_peer", "unknown")
+    for ts_str, line in stream.get("values", []):
+        entries.append((int(ts_str), peer, line))
 
-# Process each log line and extract key events
-while IFS= read -r entry; do
-  [ -z "$entry" ] && continue
+entries.sort(key=lambda x: x[0])
+print(f"Found {len(entries)} log entries")
+print()
 
-  PEER=$(echo "$entry" | jq -r '.peer')
-  LINE=$(echo "$entry" | jq -r '.line')
-  LOKI_TS=$(echo "$entry" | jq -r '.ts')
 
-  # Extract fields from log line
-  MSG=$(extract_logfmt "$LINE" "msg")
-  LEVEL=$(extract_logfmt "$LINE" "level")
-  CALLER=$(extract_logfmt "$LINE" "caller")
+def extract_logfmt(line, field):
+    """Extract a field value from a logfmt-formatted line."""
+    # Try quoted value first
+    m = re.search(rf'{field}="([^"]*)"', line)
+    if m:
+        return m.group(1)
+    # Try unquoted value
+    m = re.search(rf'{field}=(\S+)', line)
+    if m:
+        return m.group(1)
+    return ""
 
-  # Determine component from caller (e.g., qbft/qbft.go -> qbft)
-  COMPONENT=$(echo "$CALLER" | cut -d/ -f1)
 
-  if [ -z "$MSG" ]; then
-    continue
-  fi
+def calc_offset(ts_ns):
+    """Calculate offset from slot start in seconds."""
+    offset_ms = (ts_ns - slot_timestamp_ns) / 1_000_000
+    offset_s = offset_ms / 1000
+    return f"{offset_s:+.3f}s"
 
-  # Calculate offset from slot start using Loki nanosecond timestamp
-  OFFSET=$(calc_offset "$LOKI_TS" 2>/dev/null || echo "+?.???s")
 
-  # Create unique event key to avoid duplicate output
-  EVENT_KEY="${MSG}:${PEER}"
+def fmt(offset, tag, msg, indent_continuation=None):
+    """Format a timeline row."""
+    line = f"  {offset}  [{tag}]{' ' * max(1, 10 - len(tag))} {msg}"
+    if indent_continuation:
+        line += f"\n{'':24s} {indent_continuation}"
+    return line
 
-  # Process different event types
-  case "$MSG" in
-    "Slot ticked")
-      if [ -z "${SEEN_EVENTS[slot_ticked]:-}" ]; then
-        echo "  ${OFFSET}  [SCHED]    Slot ${SLOT} started"
-        SEEN_EVENTS[slot_ticked]=1
-      fi
-      ;;
 
-    "Resolved proposer duty"|"Resolved attester duty")
-      PUBKEY=$(extract_logfmt "$LINE" "pubkey")
-      VIDX=$(extract_logfmt "$LINE" "vidx")
-      EVENT_KEY="resolved:${PUBKEY}"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [SCHED]    Resolved ${DUTY_TYPE} duty (vidx=${VIDX}, pubkey=${PUBKEY})"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+# --- Collect events ---
+# We'll build a list of (ts_ns, sort_priority, formatted_line) tuples
+# sort_priority breaks ties: lower = earlier in output for same timestamp
+timeline = []
 
-    "Calling beacon node endpoint...")
-      ENDPOINT=$(extract_logfmt "$LINE" "endpoint")
-      EVENT_KEY="fetch_start:${ENDPOINT}"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [FETCHER]  Calling beacon node: ${ENDPOINT}"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+# Track state for summary
+consensus_started = False
+consensus_decided = False
+decided_round = ""
+decided_leader = ""
+decided_index = ""
+round_timeout_reasons = {}
+seen_first = set()  # for first-only events
 
-    "Beacon node call finished")
-      ENDPOINT=$(extract_logfmt "$LINE" "endpoint")
-      EVENT_KEY="fetch_done:${ENDPOINT}"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [FETCHER]  Beacon node call finished: ${ENDPOINT}"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+# Per-peer tracking for summary
+bn_call_rtts = {}       # peer -> rtt string
+broadcast_delays = {}   # peer -> delay string
+block_type = None       # "blinded" or "unblinded"
+broadcast_success = False
+broadcast_timeout = False
+tracker_all = False
+tracker_partial = False
+tracker_absent = ""
+tracker_missed = False
+tracker_broadcast_delay = ""
+error_peers = defaultdict(list)  # peer -> [error messages]
 
-    "Beacon node call took longer than expected")
-      ENDPOINT=$(extract_logfmt "$LINE" "endpoint")
-      RTT=$(extract_logfmt "$LINE" "rtt")
-      EVENT_KEY="fetch_slow:${ENDPOINT}"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [FETCHER]  ⚠️  SLOW beacon node call: ${ENDPOINT} (RTT=${RTT})"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+for ts_ns, peer, line in entries:
+    msg = extract_logfmt(line, "msg")
+    level = extract_logfmt(line, "level")
+    if not msg:
+        continue
 
-    "QBFT consensus instance starting")
-      if [ "$CONSENSUS_STARTED" = false ]; then
-        CONSENSUS_STARTED=true
-        echo "  ${OFFSET}  [QBFT]     Consensus started"
-      fi
-      ;;
+    offset = calc_offset(ts_ns)
 
-    "QBFT round changed")
-      OLD_ROUND=$(extract_logfmt "$LINE" "round")
-      NEW_ROUND=$(extract_logfmt "$LINE" "new_round")
-      REASON=$(extract_logfmt "$LINE" "timeout_reason")
-      if [ -z "${ROUND_TIMEOUT_REASONS[$OLD_ROUND]:-}" ]; then
-        echo "  ${OFFSET}  [QBFT]     ⚠️  Round ${OLD_ROUND} TIMEOUT -> Round ${NEW_ROUND}"
-        echo "                        Reason: ${REASON}"
-        ROUND_TIMEOUT_REASONS[$OLD_ROUND]="$REASON"
-      fi
-      ;;
+    # --- SCHEDULER ---
+    if msg == "Slot ticked":
+        if "slot_ticked" not in seen_first:
+            seen_first.add("slot_ticked")
+            timeline.append((ts_ns, 0, fmt(offset, "SCHED", f"Slot {slot} started")))
 
-    "QBFT consensus decided")
-      if [ "$CONSENSUS_DECIDED" = false ]; then
-        CONSENSUS_DECIDED=true
-        DECIDED_ROUND=$(extract_logfmt "$LINE" "round")
-        DECIDED_LEADER=$(extract_logfmt "$LINE" "leader_name")
-        DECIDED_INDEX=$(extract_logfmt "$LINE" "leader_index")
-        echo "  ${OFFSET}  [QBFT]     ✓ Consensus DECIDED in round ${DECIDED_ROUND}"
-        echo "                        Leader: ${DECIDED_LEADER} (index ${DECIDED_INDEX})"
-      fi
-      ;;
+    elif msg in ("Resolved proposer duty", "Resolved attester duty"):
+        pubkey = extract_logfmt(line, "pubkey")
+        vidx = extract_logfmt(line, "vidx")
+        key = f"resolved:{pubkey}"
+        if key not in seen_first:
+            seen_first.add(key)
+            timeline.append((ts_ns, 1, fmt(offset, "SCHED",
+                f"Resolved {duty_type} duty (vidx={vidx}, pubkey={pubkey})")))
 
-    "Successfully aggregated partial signatures to reach threshold")
-      VAPI_ENDPOINT=$(extract_logfmt "$LINE" "vapi_endpoint")
-      if [ -n "$VAPI_ENDPOINT" ]; then
-        EVENT_KEY="sigagg:${VAPI_ENDPOINT}"
-      else
-        EVENT_KEY="sigagg:${DUTY_TYPE}"
-      fi
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        if [ -n "$VAPI_ENDPOINT" ]; then
-          echo "  ${OFFSET}  [SIGAGG]   ✓ Threshold signatures aggregated (${VAPI_ENDPOINT})"
-        else
-          echo "  ${OFFSET}  [SIGAGG]   ✓ Threshold signatures aggregated"
-        fi
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+    # --- FETCHER (per-peer) ---
+    elif msg == "Calling beacon node endpoint...":
+        endpoint = extract_logfmt(line, "endpoint")
+        timeline.append((ts_ns, 10, fmt(offset, "FETCHER",
+            f"BN call start: {endpoint} [{peer}]")))
 
-    "Beacon block proposal received from validator client")
-      BLOCK_VERSION=$(extract_logfmt "$LINE" "block_version")
-      EVENT_KEY="vapi_proposal"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [VAPI]     Block proposal received (version=${BLOCK_VERSION})"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+    elif msg == "Beacon node call finished":
+        endpoint = extract_logfmt(line, "endpoint")
+        rtt = extract_logfmt(line, "rtt")
+        rtt_part = f" (RTT={rtt})" if rtt else ""
+        timeline.append((ts_ns, 11, fmt(offset, "FETCHER",
+            f"BN call done:  {endpoint} [{peer}]{rtt_part}")))
+        if rtt:
+            bn_call_rtts[peer] = rtt
 
-    "Successfully submitted v2 attestations to beacon node"|"Successfully submitted proposal to beacon node")
-      DELAY=$(extract_logfmt "$LINE" "delay")
-      EVENT_KEY="bcast_success:${MSG}"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        if [ -n "$DELAY" ]; then
-          echo "  ${OFFSET}  [BCAST]    ✓ Broadcast SUCCESS (delay=${DELAY})"
-        else
-          echo "  ${OFFSET}  [BCAST]    ✓ Broadcast SUCCESS"
-        fi
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+    elif msg == "Beacon node call took longer than expected":
+        endpoint = extract_logfmt(line, "endpoint")
+        rtt = extract_logfmt(line, "rtt")
+        timeline.append((ts_ns, 12, fmt(offset, "FETCHER",
+            f"SLOW BN call:  {endpoint} [{peer}] (RTT={rtt})")))
+        if rtt:
+            bn_call_rtts[peer] = rtt
 
-    "Timeout calling bcast/broadcast, duty expired")
-      VAPI_ENDPOINT=$(extract_logfmt "$LINE" "vapi_endpoint")
-      EVENT_KEY="bcast_timeout:${VAPI_ENDPOINT}"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [BCAST]    ❌ TIMEOUT: duty expired (${VAPI_ENDPOINT})"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+    # --- CONSENSUS ---
+    elif msg == "QBFT consensus instance starting":
+        if not consensus_started:
+            consensus_started = True
+            timeline.append((ts_ns, 20, fmt(offset, "QBFT", "Consensus started")))
 
-    "All peers participated in duty")
-      EVENT_KEY="tracker_all"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [TRACKER]  ✓ All peers participated"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+    elif msg == "QBFT round changed":
+        old_round = extract_logfmt(line, "round")
+        new_round = extract_logfmt(line, "new_round")
+        reason = extract_logfmt(line, "timeout_reason")
+        if old_round not in round_timeout_reasons:
+            round_timeout_reasons[old_round] = reason
+            timeline.append((ts_ns, 21, fmt(offset, "QBFT",
+                f"Round {old_round} TIMEOUT -> Round {new_round}",
+                f"Reason: {reason}")))
 
-    "Not all peers participated in duty")
-      ABSENT=$(extract_logfmt "$LINE" "absent")
-      EVENT_KEY="tracker_partial"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [TRACKER]  ⚠️  Not all peers participated"
-        echo "                        Absent: ${ABSENT}"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+    elif msg == "QBFT consensus decided":
+        if not consensus_decided:
+            consensus_decided = True
+            decided_round = extract_logfmt(line, "round")
+            decided_leader = extract_logfmt(line, "leader_name")
+            decided_index = extract_logfmt(line, "leader_index")
+            timeline.append((ts_ns, 22, fmt(offset, "QBFT",
+                f"Consensus DECIDED in round {decided_round}",
+                f"Leader: {decided_leader} (index {decided_index})")))
 
-    "Broadcasted block never included on-chain")
-      PUBKEY=$(extract_logfmt "$LINE" "pubkey")
-      BLOCK_SLOT=$(extract_logfmt "$LINE" "block_slot")
-      BROADCAST_DELAY=$(extract_logfmt "$LINE" "broadcast_delay")
-      EVENT_KEY="tracker_missed"
-      if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-        echo "  ${OFFSET}  [TRACKER]  ❌ BLOCK MISSED: never included on-chain"
-        echo "                        Pubkey: ${PUBKEY}, Broadcast delay: ${BROADCAST_DELAY}"
-        SEEN_EVENTS[$EVENT_KEY]=1
-      fi
-      ;;
+    # --- VALIDATOR API (per-peer) ---
+    elif msg == "Beacon block proposal received from validator client":
+        block_version = extract_logfmt(line, "block_version")
+        block_type = "unblinded"
+        timeline.append((ts_ns, 30, fmt(offset, "VAPI",
+            f"Block proposal received [{peer}] (version={block_version})")))
 
-    *"consensus timeout"*|*"duty expired"*)
-      if [[ "$LEVEL" == "error" ]]; then
-        EVENT_KEY="error:${MSG:0:50}"
-        if [ -z "${SEEN_EVENTS[$EVENT_KEY]:-}" ]; then
-          echo "  ${OFFSET}  [ERROR]    ❌ ${MSG}"
-          SEEN_EVENTS[$EVENT_KEY]=1
-        fi
-      fi
-      ;;
-  esac
-done < <(echo "$PARSED_LOGS" | jq -c '.[]')
+    elif msg == "Blinded beacon block received from validator client":
+        block_version = extract_logfmt(line, "block_version")
+        block_type = "blinded"
+        timeline.append((ts_ns, 30, fmt(offset, "VAPI",
+            f"Blinded block received [{peer}] (version={block_version})")))
 
-echo ""
-echo "=== Summary ==="
+    # --- SIG AGGREGATION (per-peer) ---
+    elif msg == "Successfully aggregated partial signatures to reach threshold":
+        vapi_endpoint = extract_logfmt(line, "vapi_endpoint")
+        ep_part = f" ({vapi_endpoint})" if vapi_endpoint else ""
+        timeline.append((ts_ns, 40, fmt(offset, "SIGAGG",
+            f"Threshold reached [{peer}]{ep_part}")))
+
+    # --- BROADCAST (per-peer) ---
+    elif msg in ("Successfully submitted proposal to beacon node",
+                 "Successfully submitted block proposal to beacon node",
+                 "Successfully submitted v2 attestations to beacon node"):
+        delay = extract_logfmt(line, "delay")
+        broadcast_success = True
+        delay_part = f" (delay={delay})" if delay else ""
+        timeline.append((ts_ns, 50, fmt(offset, "BCAST",
+            f"Broadcast SUCCESS [{peer}]{delay_part}")))
+        if delay:
+            broadcast_delays[peer] = delay
+
+    elif msg == "Timeout calling bcast/broadcast, duty expired":
+        vapi_endpoint = extract_logfmt(line, "vapi_endpoint")
+        broadcast_timeout = True
+        timeline.append((ts_ns, 51, fmt(offset, "BCAST",
+            f"TIMEOUT: duty expired [{peer}] ({vapi_endpoint})")))
+
+    # --- SSE EVENTS (per-peer for "too late", first for normal) ---
+    elif msg == "Beacon node received block_gossip event too late":
+        gossip_delay = extract_logfmt(line, "gossip_delay") or extract_logfmt(line, "delay")
+        delay_part = f" (delay={gossip_delay})" if gossip_delay else ""
+        timeline.append((ts_ns, 55, fmt(offset, "SSE",
+            f"block_gossip TOO LATE [{peer}]{delay_part}")))
+
+    elif msg == "Beacon node received block event too late":
+        block_delay = extract_logfmt(line, "block_delay") or extract_logfmt(line, "delay")
+        delay_part = f" (delay={block_delay})" if block_delay else ""
+        timeline.append((ts_ns, 55, fmt(offset, "SSE",
+            f"block event TOO LATE [{peer}]{delay_part}")))
+
+    elif msg in ("SSE block gossip event", "SSE head event", "SSE block event"):
+        key = f"sse:{msg}"
+        if key not in seen_first:
+            seen_first.add(key)
+            timeline.append((ts_ns, 56, fmt(offset, "SSE", msg)))
+
+    # --- TRACKER (first only) ---
+    elif msg == "All peers participated in duty":
+        if "tracker_all" not in seen_first:
+            seen_first.add("tracker_all")
+            tracker_all = True
+            timeline.append((ts_ns, 60, fmt(offset, "TRACKER",
+                "All peers participated")))
+
+    elif msg == "Not all peers participated in duty":
+        if "tracker_partial" not in seen_first:
+            seen_first.add("tracker_partial")
+            tracker_partial = True
+            tracker_absent = extract_logfmt(line, "absent")
+            timeline.append((ts_ns, 60, fmt(offset, "TRACKER",
+                "Not all peers participated",
+                f"Absent: {tracker_absent}")))
+
+    elif msg == "Broadcasted block never included on-chain":
+        if "tracker_missed" not in seen_first:
+            seen_first.add("tracker_missed")
+            tracker_missed = True
+            pubkey = extract_logfmt(line, "pubkey")
+            tracker_broadcast_delay = extract_logfmt(line, "broadcast_delay")
+            timeline.append((ts_ns, 61, fmt(offset, "TRACKER",
+                "BLOCK MISSED: never included on-chain",
+                f"Pubkey: {pubkey}, Broadcast delay: {tracker_broadcast_delay}")))
+
+    elif msg == "Broadcasted blinded block never included on-chain":
+        if "tracker_missed_blinded" not in seen_first:
+            seen_first.add("tracker_missed_blinded")
+            tracker_missed = True
+            pubkey = extract_logfmt(line, "pubkey")
+            tracker_broadcast_delay = extract_logfmt(line, "broadcast_delay")
+            timeline.append((ts_ns, 61, fmt(offset, "TRACKER",
+                "BLINDED BLOCK MISSED: never included on-chain",
+                f"Pubkey: {pubkey}, Broadcast delay: {tracker_broadcast_delay}")))
+
+    # --- ERRORS (per-peer) ---
+    elif level == "error" and ("consensus timeout" in msg.lower() or "permanent failure" in msg.lower()):
+        error_peers[peer].append(msg)
+        timeline.append((ts_ns, 70, fmt(offset, "ERROR",
+            f"{msg} [{peer}]")))
+
+# Sort and print timeline
+timeline.sort(key=lambda x: (x[0], x[1]))
+
+print("=== Event Timeline ===")
+print(f"(Offset relative to slot start time: {slot_time})")
+print()
+
+for _, _, line in timeline:
+    print(line)
+
+print()
+print("=== Summary ===")
 
 # Consensus summary
-if [ "$CONSENSUS_STARTED" = true ]; then
-  if [ "$CONSENSUS_DECIDED" = true ]; then
-    NUM_TIMEOUTS=${#ROUND_TIMEOUT_REASONS[@]}
-    if [ "$NUM_TIMEOUTS" -eq 0 ]; then
-      echo "Consensus:  ✓ Completed in round 1 (optimal)"
-    else
-      echo "Consensus:  ✓ Completed in round ${DECIDED_ROUND} after ${NUM_TIMEOUTS} timeout(s)"
-      echo "            Leader: ${DECIDED_LEADER} (index ${DECIDED_INDEX})"
-      if [ -n "${ROUND_TIMEOUT_REASONS[1]:-}" ]; then
-        echo "            ⚠️  Round 1 leader ${LEADER_PEER_R1} failed"
-      fi
-    fi
-  else
-    echo "Consensus:  ❌ Did NOT complete"
-  fi
-else
-  echo "Consensus:  ⚠️  Not started (logs may be incomplete)"
-fi
+if consensus_started:
+    if consensus_decided:
+        num_timeouts = len(round_timeout_reasons)
+        if num_timeouts == 0:
+            print("Consensus:     Completed in round 1 (optimal)")
+        else:
+            print(f"Consensus:     Completed in round {decided_round} after {num_timeouts} timeout(s)")
+            print(f"               Leader: {decided_leader} (index {decided_index})")
+            if "1" in round_timeout_reasons:
+                print(f"               Round 1 leader {leader_peer_r1} failed")
+    else:
+        print("Consensus:     Did NOT complete")
+else:
+    print("Consensus:     Not started (logs may be incomplete)")
+
+# Block type
+if block_type:
+    print(f"Block type:    {block_type}")
 
 # Broadcast summary
-if [ -n "${SEEN_EVENTS[bcast_timeout:submit_proposal_v2]:-}" ] || [ -n "${SEEN_EVENTS[bcast_timeout:submit_attestation]:-}" ]; then
-  echo "Broadcast:  ❌ TIMEOUT - duty expired before broadcast"
-elif [ -n "${SEEN_EVENTS[bcast_success:Successfully submitted v2 attestations to beacon node]:-}" ] || \
-     [ -n "${SEEN_EVENTS[bcast_success:Successfully submitted proposal to beacon node]:-}" ]; then
-  echo "Broadcast:  ✓ Successfully submitted to beacon node"
-else
-  echo "Broadcast:  ⚠️  No broadcast event found in logs"
-fi
+if broadcast_timeout:
+    print("Broadcast:     TIMEOUT - duty expired before broadcast")
+elif broadcast_success:
+    if broadcast_delays:
+        delays_str = ", ".join(f"{p}={d}" for p, d in sorted(broadcast_delays.items()))
+        # Parse delay values for min-max
+        delay_vals = []
+        for d in broadcast_delays.values():
+            m = re.search(r'[\d.]+', d)
+            if m:
+                delay_vals.append(float(m.group()))
+        if len(delay_vals) >= 2:
+            print(f"Broadcast:     Successfully submitted (delay range: {min(delay_vals):.1f}s-{max(delay_vals):.1f}s)")
+        else:
+            print(f"Broadcast:     Successfully submitted ({delays_str})")
+    else:
+        print("Broadcast:     Successfully submitted to beacon node")
+else:
+    print("Broadcast:     No broadcast event found in logs")
+
+# BN call RTT summary
+if bn_call_rtts:
+    rtt_vals = []
+    for r in bn_call_rtts.values():
+        m = re.search(r'[\d.]+', r)
+        if m:
+            rtt_vals.append(float(m.group()))
+    if rtt_vals:
+        if len(rtt_vals) >= 2:
+            print(f"BN call RTT:   {min(rtt_vals):.1f}s-{max(rtt_vals):.1f}s across {len(rtt_vals)} peers")
+        else:
+            rtts_str = ", ".join(f"{p}={r}" for p, r in sorted(bn_call_rtts.items()))
+            print(f"BN call RTT:   {rtts_str}")
 
 # Inclusion summary (for proposer)
-if [ "$DUTY_TYPE" = "proposer" ]; then
-  if [ -n "${SEEN_EVENTS[tracker_missed]:-}" ]; then
-    echo "Inclusion:  ❌ MISSED - block never included on-chain"
-  elif [ -n "${SEEN_EVENTS[tracker_all]:-}" ]; then
-    echo "Inclusion:  ✓ Block included on-chain"
-  else
-    echo "Inclusion:  ⚠️  Unknown (tracker event not found)"
-  fi
-fi
+if duty_type == "proposer":
+    if tracker_missed:
+        delay_part = f" (broadcast_delay={tracker_broadcast_delay})" if tracker_broadcast_delay else ""
+        print(f"Inclusion:     MISSED - block never included on-chain{delay_part}")
+    elif tracker_all:
+        print("Inclusion:     Block included on-chain")
+    else:
+        print("Inclusion:     Unknown (tracker event not found)")
 
 # Participation summary
-if [ -n "${SEEN_EVENTS[tracker_partial]:-}" ]; then
-  echo "Participation: ⚠️  Not all peers participated"
-elif [ -n "${SEEN_EVENTS[tracker_all]:-}" ]; then
-  echo "Participation: ✓ All peers participated"
-fi
+if tracker_partial:
+    print(f"Participation: Not all peers participated (absent: {tracker_absent})")
+elif tracker_all:
+    print("Participation: All peers participated")
 
-echo ""
+# Error summary
+if error_peers:
+    print("Errors:")
+    for p, msgs in sorted(error_peers.items()):
+        for m in msgs:
+            print(f"  - [{p}] {m}")
+
+print()
+PYTHON_SCRIPT
