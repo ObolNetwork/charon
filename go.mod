@@ -1,6 +1,6 @@
 module github.com/obolnetwork/charon
 
-go 1.25
+go 1.26
 
 require (
 	github.com/OffchainLabs/go-bitfield v0.0.0-20251031151322-f427d04d8506
