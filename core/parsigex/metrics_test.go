@@ -16,7 +16,7 @@ import (
 var updateMarkdown = flag.Bool("update-markdown", false, "Update markdown documentation")
 
 func TestMetricReference(t *testing.T) {
-	metrics := parsigex.ParSigExMetrics()
+	metrics := parsigex.Metrics()
 
 	docPath := filepath.Join(findRepoRoot(t), "docs", "metrics.md")
 	content, err := os.ReadFile(docPath)
@@ -82,6 +82,7 @@ func insertMetricEntry(content, entry, metricName string) string {
 }
 
 func findRepoRoot(t *testing.T) string {
+	t.Helper()
 	// Walk up from current directory to find go.mod
 	dir, err := os.Getwd()
 	if err != nil {

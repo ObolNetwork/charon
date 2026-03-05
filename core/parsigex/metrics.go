@@ -12,8 +12,8 @@ type MetricReference struct {
 	Labels string
 }
 
-// ParSigExMetrics returns the list of metrics exposed by this package.
-func ParSigExMetrics() []MetricReference {
+// Metrics returns the list of metrics exposed by this package.
+func Metrics() []MetricReference {
 	return []MetricReference{
 		{
 			Name:   "core_parsigex_set_verification_seconds",

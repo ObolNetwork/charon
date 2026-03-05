@@ -12,8 +12,8 @@ type MetricReference struct {
 	Labels string
 }
 
-// SigAggMetrics returns the list of metrics exposed by this package.
-func SigAggMetrics() []MetricReference {
+// Metrics returns the list of metrics exposed by this package.
+func Metrics() []MetricReference {
 	return []MetricReference{
 		{
 			Name:   "core_sigagg_slot_aggregation_seconds",
