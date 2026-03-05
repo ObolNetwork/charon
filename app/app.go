@@ -303,15 +303,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	wirePeerInfo(life, p2pNode, peerIDs, lock.LockHash, sender, conf.BuilderAPI, conf.Nickname)
 
-	// seenPubkeys channel to send seen public keys from validatorapi to monitoringapi.
-	seenPubkeys := make(chan core.PubKey)
-	seenPubkeysFunc := func(pk core.PubKey) {
-		select {
-		case <-ctx.Done():
-		case seenPubkeys <- pk:
-		}
-	}
-
 	vapiCalls := make(chan struct{})
 	vapiCallsFunc := func() {
 		select {
@@ -328,10 +319,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 	consensusDebugger := consensus.NewDebugger()
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, p2pNode, eth2Cl, conf.BeaconNodeAddrs, peerIDs,
-		promRegistry, consensusDebugger, pubkeys, seenPubkeys, vapiCalls, len(lock.Validators))
+		promRegistry, consensusDebugger, pubkeys, vapiCalls, len(lock.Validators))
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, p2pNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, consensusDebugger, pubkeys, seenPubkeysFunc, sseListener, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, pubkeys, sseListener, vapiCallsFunc)
 	if err != nil {
 		return err
 	}
@@ -418,7 +409,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock *cluster.Lock, nodeIdx cluster.NodeIdx, p2pNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
-	consensusDebugger consensus.Debugger, pubkeys []core.PubKey, seenPubkeys func(core.PubKey),
+	consensusDebugger consensus.Debugger, pubkeys []core.PubKey,
 	sseListener sse.Listener, vapiCalls func(),
 ) error {
 	// Convert and prep public keys and public shares
@@ -597,7 +588,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc, conf.BuilderAPI, lock.TargetGasLimit, seenPubkeys)
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc, conf.BuilderAPI, lock.TargetGasLimit)
 	if err != nil {
 		return err
 	}
