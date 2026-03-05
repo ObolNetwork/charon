@@ -10,8 +10,8 @@ import (
 	"context"
 	"time"
 
-	"go.opentelemetry.io/otel/codes"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
