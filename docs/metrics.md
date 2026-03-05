@@ -61,6 +61,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was blinded (1) or local (2) |  |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_parsigdb_store` | Histogram | Latency of partial signatures received since earliest expected time, per duty, per peer index | `duty, peer_idx` |
+| `core_parsigex_set_verification_seconds` | Histogram | Duration to verify all partial signatures in a received set, in seconds | `duty` |
 | `core_scheduler_current_epoch` | Gauge | The current epoch |  |
 | `core_scheduler_current_slot` | Gauge | The current slot |  |
 | `core_scheduler_duty_total` | Counter | The total count of duties scheduled by type | `duty` |
@@ -70,6 +71,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_scheduler_validator_balance_gwei` | Gauge | Total balance of a validator by public key | `pubkey_full, pubkey` |
 | `core_scheduler_validator_status` | Gauge | Gauge with validator pubkey and status as labels, value=1 is current status, value=0 is previous. | `pubkey_full, pubkey, status` |
 | `core_scheduler_validators_active` | Gauge | Number of active validators |  |
+| `core_sigagg_slot_aggregation_seconds` | Histogram | Total duration to aggregate all validators for a duty in a slot, in seconds | `duty` |
 | `core_tracker_attestation_expect_total` | Counter | Total number of expected attestations for the slot (counts individual attestations, not duties) |  |
 | `core_tracker_attestation_success_total` | Counter | Total number of successful attestations for the slot (counts individual attestations, not duties) |  |
 | `core_tracker_expect_duties_total` | Counter | Total number of expected duties (failed + success) by type | `duty` |
