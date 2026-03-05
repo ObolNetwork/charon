@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -505,7 +506,10 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 	server := sync.NewServer(p2pNode, len(peerIDs)-1, defHash, minorVersion)
 	server.Start(ctx)
 
-	var clients []*sync.Client
+	var (
+		clients         []*sync.Client
+		shutdownStarted atomic.Bool
+	)
 
 	for _, pID := range peerIDs {
 		if p2pNode.ID() == pID {
@@ -519,7 +523,9 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 		go func() {
 			err := client.Run(ctx)
-			if err != nil && !errors.Is(err, context.Canceled) { // Only log and fail if this peer errored.
+			// Only log and fail if this peer errored and shutdown hasn't started.
+			// During shutdown, connection errors are expected and should not fail the protocol.
+			if err != nil && !errors.Is(err, context.Canceled) && !shutdownStarted.Load() {
 				log.Error(ctx, "Failed to sync with peer during DKG. Check network connectivity and peer availability", err)
 				onFailure()
 			}
@@ -559,10 +565,8 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		time.Sleep(time.Millisecond * 250)
 	}
 
-	// Disable reconnecting clients to other peer's server once all clients are connected.
-	for _, client := range clients {
-		client.DisableReconnect()
-	}
+	// Note: We no longer disable reconnect here. Reconnect is disabled in shutdownFunc
+	// to allow recovery from transient connection drops during the protocol.
 
 	err = server.AwaitAllConnected(ctx)
 	if err != nil {
@@ -594,6 +598,20 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 	// Shutdown function stops all clients and server
 	shutdownFunc = func(ctx context.Context) error {
+		// Mark shutdown as started so client errors don't trigger onFailure.
+		shutdownStarted.Store(true)
+
+		// Sync all peers to a "shutdown ready" step before sending shutdown messages.
+		// This ensures all peers have completed their work before any starts teardown.
+		if err := stepSyncFunc(ctx); err != nil {
+			return errors.Wrap(err, "sync shutdown ready step")
+		}
+
+		// Now disable reconnect - we're about to shut down intentionally.
+		for _, client := range clients {
+			client.DisableReconnect()
+		}
+
 		for _, client := range clients {
 			err := client.Shutdown(ctx)
 			if err != nil {
