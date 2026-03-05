@@ -40,7 +40,6 @@ var (
 	errReadyBeaconNodeSyncing   = errors.New("beacon node not synced")
 	errReadyBeaconNodeZeroPeers = errors.New("beacon node has zero peers")
 	errReadyVCNotConnected      = errors.New("vc not connected")
-	errReadyVCMissingVals       = errors.New("vc missing validators")
 )
 
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
@@ -48,7 +47,7 @@ var (
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, debugAddr string,
 	p2pNode host.Host, eth2Cl eth2wrap.Client, beaconNodeAddrs []string,
 	peerIDs []peer.ID, registry *prometheus.Registry, consensusDebugger http.Handler,
-	pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
+	pubkeys []core.PubKey, vapiCalls <-chan struct{},
 	numValidators int,
 ) {
 	beaconNodeVersionMetric(ctx, eth2Cl, beaconNodeAddrs, clockwork.NewRealClock())
@@ -65,8 +64,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 		writeResponse(w, http.StatusOK, "ok")
 	}))
 
-	readyErrFunc := startReadyChecker(ctx, p2pNode, eth2Cl, peerIDs, clockwork.NewRealClock(),
-		pubkeys, seenPubkeys, vapiCalls)
+	readyErrFunc := startReadyChecker(ctx, p2pNode, eth2Cl, peerIDs, clockwork.NewRealClock(), vapiCalls)
 
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, _ *http.Request) {
 		readyErr := readyErrFunc()
@@ -121,7 +119,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 
 // startReadyChecker returns function which returns an error resulting from ready checks periodically.
 func startReadyChecker(ctx context.Context, p2pNode host.Host, eth2Cl eth2wrap.Client, peerIDs []peer.ID,
-	clock clockwork.Clock, pubkeys []core.PubKey, seenPubkeys <-chan core.PubKey, vapiCalls <-chan struct{},
+	clock clockwork.Clock, vapiCalls <-chan struct{},
 ) func() error {
 	const minNotConnected = 6 // Require 6 rounds (1min) of too few connected
 
@@ -159,12 +157,6 @@ func startReadyChecker(ctx context.Context, p2pNode host.Host, eth2Cl eth2wrap.C
 
 		currVAPICount := 0
 		prevVAPICount := 1 // Assume connected.
-		currPKs := make(map[core.PubKey]struct{})
-
-		prevPKs := make(map[core.PubKey]struct{})
-		for _, pubkey := range pubkeys { // Assume all validators seen.
-			prevPKs[pubkey] = struct{}{}
-		}
 
 		// beaconNodePeerCount queries beacon node peer count and sets the peer count gauge if err is nil.
 		beaconNodePeerCount := func() {
@@ -198,7 +190,6 @@ func startReadyChecker(ctx context.Context, p2pNode host.Host, eth2Cl eth2wrap.C
 				evaluatedEpoch := currentEpochFunc()
 				if evaluatedEpoch != currentEpoch {
 					currentEpoch = evaluatedEpoch
-					prevPKs, currPKs = currPKs, make(map[core.PubKey]struct{})
 					prevVAPICount, currVAPICount = currVAPICount, 0
 				}
 
@@ -228,10 +219,6 @@ func startReadyChecker(ctx context.Context, p2pNode host.Host, eth2Cl eth2wrap.C
 					err = errReadyVCNotConnected
 
 					readyzGauge.Set(readyzVCNotConnected)
-				} else if len(prevPKs) < len(pubkeys) && len(currPKs) < len(pubkeys) {
-					err = errReadyVCMissingVals
-
-					readyzGauge.Set(readyzVCMissingValidators)
 				} else {
 					readyzGauge.Set(readyzReady)
 				}
@@ -241,8 +228,6 @@ func startReadyChecker(ctx context.Context, p2pNode host.Host, eth2Cl eth2wrap.C
 				readyErr = err
 
 				mu.Unlock()
-			case pubkey := <-seenPubkeys:
-				currPKs[pubkey] = struct{}{}
 			case <-vapiCalls:
 				currVAPICount++
 			}

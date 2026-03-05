@@ -19,7 +19,9 @@ func TestBackwardsENR(t *testing.T) {
 		k, err := ecdsa.GenerateKey(k1.S256(), random)
 		require.NoError(t, err)
 
-		key := k1.PrivKeyFromBytes(k.D.Bytes())
+		// We expect a bit more utility functions to be implemented in the k1 package in the future
+		// This is currently the only way to get deterministic keys for testing.
+		key := k1.PrivKeyFromBytes(k.D.Bytes()) //nolint:staticcheck // We are using it in tests in a safely manner in testing.
 
 		record, err := New(key)
 		require.NoError(t, err)
