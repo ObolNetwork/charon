@@ -15,13 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestStartChecker(t *testing.T) {
-	pubkeys := []core.PubKey{testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t), testutil.RandomCorePubKey(t)}
 	tests := []struct {
 		name        string
 		isSyncing   bool
@@ -29,7 +27,6 @@ func TestStartChecker(t *testing.T) {
 		zeroBNPeers bool
 		bnFarBehind bool
 		absentPeers int
-		seenPubkeys []core.PubKey
 		noVAPICalls bool
 		err         error
 	}{
@@ -38,28 +35,24 @@ func TestStartChecker(t *testing.T) {
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 0,
-			seenPubkeys: pubkeys,
 		},
 		{
 			name:        "syncing",
 			isSyncing:   true,
 			numPeers:    5,
 			absentPeers: 0,
-			seenPubkeys: pubkeys,
 			err:         errReadyBeaconNodeSyncing,
 		},
 		{
 			name:        "zero BN peers",
 			numPeers:    5,
 			zeroBNPeers: true,
-			seenPubkeys: pubkeys,
 			err:         errReadyBeaconNodeZeroPeers,
 		},
 		{
 			name:        "BN far behind",
 			numPeers:    5,
 			bnFarBehind: true,
-			seenPubkeys: pubkeys,
 			err:         errReadyBeaconNodeFarBehind,
 		},
 		{
@@ -67,7 +60,6 @@ func TestStartChecker(t *testing.T) {
 			isSyncing:   false,
 			numPeers:    5,
 			absentPeers: 3,
-			seenPubkeys: pubkeys,
 			err:         errReadyInsufficientPeers,
 		},
 		{
@@ -79,19 +71,10 @@ func TestStartChecker(t *testing.T) {
 			err:         errReadyVCNotConnected,
 		},
 		{
-			name:        "vc missing validators",
-			isSyncing:   false,
-			numPeers:    4,
-			absentPeers: 0,
-			seenPubkeys: []core.PubKey{pubkeys[0]},
-			err:         errReadyVCMissingVals,
-		},
-		{
 			name:        "success",
 			isSyncing:   false,
 			numPeers:    4,
 			absentPeers: 1,
-			seenPubkeys: pubkeys,
 		},
 	}
 
@@ -146,14 +129,8 @@ func TestStartChecker(t *testing.T) {
 			}
 
 			clock := clockwork.NewFakeClock()
-			seenPubkeys := make(chan core.PubKey)
 			vapiCalls := make(chan struct{})
-			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock,
-				pubkeys, seenPubkeys, vapiCalls)
-
-			for _, pubkey := range tt.seenPubkeys {
-				seenPubkeys <- pubkey
-			}
+			readyErrFunc := startReadyChecker(ctx, hosts[0], bmock, peers, clock, vapiCalls)
 
 			if !tt.noVAPICalls {
 				vapiCalls <- struct{}{}
