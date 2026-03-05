@@ -29,7 +29,7 @@ var slotAggregationDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 	Subsystem: "sigagg",
 	Name:      "slot_aggregation_seconds",
 	Help:      "Total duration to aggregate all validators for a duty in a slot, in seconds",
-	Buckets:   []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 25},
+	Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
 }, []string{"duty"})
 
 // New returns a new aggregator instance.
