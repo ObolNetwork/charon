@@ -37,6 +37,11 @@ It helps expand an existing cluster with new validators, given the same operator
 
 The script will execute `node_merge.sh` for each `nodeX` subfolder found in the source cluster.
 
+## Requirements
+
+Both scripts require **bash** (standard on Linux/macOS) and **jq** (version 1.5+).
+Install via `sudo apt-get install jq` (Debian/Ubuntu) or `brew install jq` (macOS).
+
 ## Important Warnings
 
 - Always back up your `cluster-lock.json`, node folders, and `validator_keys` folders before use.
