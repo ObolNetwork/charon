@@ -156,7 +156,9 @@ keys/
 coverage.out
 cli-reference.txt
 changelog.md
-.claude/
+.claude/*
+!.claude/skills/
+
 .charon**
 .anthropic/
 .serena/
