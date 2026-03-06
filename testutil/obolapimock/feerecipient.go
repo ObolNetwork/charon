@@ -58,14 +58,14 @@ func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter
 		return
 	}
 
-	shareIndex, err := strconv.ParseUint(shareIndexVar, 10, 64)
+	shareIndex, err := strconv.Atoi(shareIndexVar)
 	if err != nil {
 		writeErr(writer, http.StatusBadRequest, "malformed share index")
 		return
 	}
 
 	// check that share index is valid
-	if shareIndex == 0 || shareIndex > uint64(len(lock.Operators)) {
+	if shareIndex <= 0 || shareIndex > len(lock.Operators) {
 		writeErr(writer, http.StatusBadRequest, "invalid share index")
 		return
 	}
@@ -84,7 +84,7 @@ func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter
 
 		for _, v := range lock.Validators {
 			if strings.TrimPrefix(v.PublicKeyHex(), "0x") == validatorPubkeyHex {
-				publicKeyShare, err = v.PublicShare(int(shareIndex) - 1)
+				publicKeyShare, err = v.PublicShare(shareIndex - 1)
 				if err != nil {
 					writeErr(writer, http.StatusBadRequest, "cannot fetch public share: "+err.Error())
 					return
@@ -114,8 +114,8 @@ func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter
 			}
 		}
 
-		existing.partials[int(shareIndex)] = obolapi.PartialFeeRecipientResponsePartial{
-			ShareIdx:  int(shareIndex),
+		existing.partials[shareIndex] = obolapi.PartialFeeRecipientResponsePartial{
+			ShareIdx:  shareIndex,
 			Message:   partialReg.Message,
 			Signature: partialReg.Signature[:],
 		}
