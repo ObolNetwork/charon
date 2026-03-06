@@ -126,6 +126,26 @@ func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter
 			}
 		}
 
+		// Check message consistency with existing partials.
+		for _, p := range existing.partials {
+			if p.Message.FeeRecipient != partialReg.Message.FeeRecipient {
+				writeErr(writer, http.StatusBadRequest, "fee_recipient mismatch with existing partial")
+				return
+			}
+
+			if !p.Message.Timestamp.Equal(partialReg.Message.Timestamp) {
+				writeErr(writer, http.StatusBadRequest, "timestamp mismatch with existing partial")
+				return
+			}
+
+			if p.Message.GasLimit != partialReg.Message.GasLimit {
+				writeErr(writer, http.StatusBadRequest, "gas_limit mismatch with existing partial")
+				return
+			}
+
+			break // Only need to check against one existing partial.
+		}
+
 		existing.partials[shareIndex] = feeRecipientPartial{
 			ShareIdx:  shareIndex,
 			Message:   partialReg.Message,
@@ -161,16 +181,16 @@ func (ts *testServer) HandleGetFeeRecipient(writer http.ResponseWriter, request 
 		validators    []obolapi.FeeRecipientValidatorStatus
 	)
 
-	for _, v := range lock.Validators {
-		pubkeyHex := strings.TrimPrefix(v.PublicKeyHex(), "0x")
-		key := lockHash + "/" + pubkeyHex
-
-		existing, hasPartials := ts.partialFeeRecipients[key]
-
-		partialCount := 0
-		if hasPartials {
-			partialCount = len(existing.partials)
+	// Only iterate over validators that have partial signatures submitted.
+	for key, existing := range ts.partialFeeRecipients {
+		// Key format: "lockHash/pubkeyHex"
+		if !strings.HasPrefix(key, lockHash+"/") {
+			continue
 		}
+
+		pubkeyHex := strings.TrimPrefix(key, lockHash+"/")
+
+		partialCount := len(existing.partials)
 
 		status := "pending"
 		if partialCount >= lock.Threshold {
@@ -181,15 +201,29 @@ func (ts *testServer) HandleGetFeeRecipient(writer http.ResponseWriter, request 
 			Pubkey:       "0x" + pubkeyHex,
 			Status:       status,
 			PartialCount: partialCount,
-			Threshold:    lock.Threshold,
 		})
 
 		if status != "complete" {
 			continue
 		}
 
+		// Find the validator in the lock to get public shares for aggregation.
+		var v *cluster.DistValidator
+
+		for i := range lock.Validators {
+			if strings.TrimPrefix(lock.Validators[i].PublicKeyHex(), "0x") == pubkeyHex {
+				v = &lock.Validators[i]
+				break
+			}
+		}
+
+		if v == nil {
+			writeErr(writer, http.StatusInternalServerError, "validator not found in lock")
+			return
+		}
+
 		// Aggregate partial signatures server-side.
-		signedReg, err := ts.aggregateFeeRecipient(lock, v, existing)
+		signedReg, err := ts.aggregateFeeRecipient(lock, *v, existing)
 		if err != nil {
 			writeErr(writer, http.StatusInternalServerError, "aggregate error: "+err.Error())
 			return
