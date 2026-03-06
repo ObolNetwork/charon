@@ -7,6 +7,10 @@ updates:
   ignore:
   - dependency-name: "github.com/herumi/bls-eth-go-binary"
     update-types: ["version-update:semver-major","version-update:semver-minor"]
+  groups:
+    go-dependencies:
+      patterns:
+        - "*"
 - package-ecosystem: "docker"
   directories:
     - "/"
@@ -16,3 +20,7 @@ updates:
     - "/testutil/compose/static/lighthouse/"
   schedule:
     interval: "daily"
+  groups:
+    docker-dependencies:
+      patterns:
+        - "*"
