@@ -6,7 +6,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"strconv"
 	"strings"
+	"time"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -29,6 +31,7 @@ type feerecipientSignConfig struct {
 	feerecipientConfig
 
 	FeeRecipient string
+	Timestamp    string
 }
 
 func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig) error) *cobra.Command {
@@ -50,6 +53,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "validator-public-keys")
 		mustMarkFlagRequired(cmd, "fee-recipient")
+		mustMarkFlagRequired(cmd, "timestamp")
 
 		return nil
 	})
@@ -59,6 +63,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 
 func bindFeeRecipientSignFlags(cmd *cobra.Command, config *feerecipientSignConfig) {
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
+	cmd.Flags().StringVar(&config.Timestamp, "timestamp", "", "[REQUIRED] Unix timestamp for the builder registration message (e.g. 1704067200).")
 }
 
 func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) error {
@@ -122,6 +127,14 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 	var feeRecipient [20]byte
 	copy(feeRecipient[:], feeRecipientBytes)
 
+	// Parse timestamp.
+	unixTimestamp, err := strconv.ParseInt(config.Timestamp, 10, 64)
+	if err != nil {
+		return errors.Wrap(err, "invalid timestamp, expected unix timestamp", z.Str("timestamp", config.Timestamp))
+	}
+
+	timestamp := time.Unix(unixTimestamp, 0)
+
 	// Build partial registrations.
 	partialRegs := make([]obolapi.PartialRegistration, 0, len(pubkeys))
 
@@ -140,11 +153,19 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 			return errors.New("no existing builder registration found for validator", z.Str("pubkey", hex.EncodeToString(pubkey[:])))
 		}
 
-		// Create new registration with updated fee recipient, keeping gas limit and timestamp.
+		if !timestamp.After(existingReg.Message.Timestamp) {
+			return errors.New("timestamp must be higher than existing builder registration timestamp",
+				z.Str("pubkey", hex.EncodeToString(pubkey[:])),
+				z.I64("existing_timestamp", existingReg.Message.Timestamp.Unix()),
+				z.I64("provided_timestamp", timestamp.Unix()),
+			)
+		}
+
+		// Create new registration with updated fee recipient and timestamp, keeping gas limit.
 		regMsg := &eth2v1.ValidatorRegistration{
 			FeeRecipient: feeRecipient,
 			GasLimit:     uint64(existingReg.Message.GasLimit),
-			Timestamp:    existingReg.Message.Timestamp,
+			Timestamp:    timestamp,
 			Pubkey:       pubkey,
 		}
 

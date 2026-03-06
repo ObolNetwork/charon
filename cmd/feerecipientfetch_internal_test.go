@@ -78,31 +78,30 @@ func TestFeeRecipientFetchValid(t *testing.T) {
 				PublishTimeout:      10 * time.Second,
 			},
 			FeeRecipient: newFeeRecipient,
+			Timestamp:    "9999999999",
 		}
 
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator %d submit feerecipient sign", opIdx)
 	}
 
-	// Now fetch the aggregated registration.
-	outputDir := filepath.Join(root, "builder_registrations")
+	// Now fetch the aggregated registrations.
+	dataDir := filepath.Join(root, "output")
 
 	fetchConfig := feerecipientFetchConfig{
 		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{validatorPubkey},
-			PrivateKeyPath:      filepath.Join(root, "op0", "charon-enr-private-key"),
-			LockFilePath:        filepath.Join(root, "op0", "cluster-lock.json"),
-			PublishAddress:      srv.URL,
-			PublishTimeout:      10 * time.Second,
+			LockFilePath:   filepath.Join(root, "op0", "cluster-lock.json"),
+			PublishAddress: srv.URL,
+			PublishTimeout: 10 * time.Second,
 		},
-		OutputDir: outputDir,
+		DataDir: dataDir,
 	}
 
 	require.NoError(t, runFeeRecipientFetch(ctx, fetchConfig))
 
-	// Verify output file exists.
-	files, err := os.ReadDir(outputDir)
+	// Verify output file exists and contains registrations.
+	data, err := os.ReadFile(filepath.Join(dataDir, builderRegistrationsOverridesFilename))
 	require.NoError(t, err)
-	require.Len(t, files, 1)
+	require.NotEmpty(t, data)
 }
 
 func TestFeeRecipientFetchCLI(t *testing.T) {
@@ -118,7 +117,7 @@ func TestFeeRecipientFetchCLI(t *testing.T) {
 				"--lock-file=test",
 				"--publish-address=test",
 				"--publish-timeout=1ms",
-				"--output-dir=test",
+				"--data-dir=test",
 			},
 		},
 	}
