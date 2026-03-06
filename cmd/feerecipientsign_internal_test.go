@@ -76,6 +76,7 @@ func TestFeeRecipientSignValid(t *testing.T) {
 	signConfig := feerecipientSignConfig{
 		feerecipientConfig: config,
 		FeeRecipient:       "0x0000000000000000000000000000000000001234",
+		Timestamp:          "9999999999",
 	}
 
 	require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator index submit feerecipient sign: %v", idx)
@@ -93,6 +94,7 @@ func TestFeeRecipientSignCLI(t *testing.T) {
 			flags: []string{
 				"--validator-public-keys=test",
 				"--fee-recipient=0x0000000000000000000000000000000000001234",
+				"--timestamp=9999999999",
 				"--private-key-file=test",
 				"--validator-keys-dir=test",
 				"--lock-file=test",
@@ -105,6 +107,7 @@ func TestFeeRecipientSignCLI(t *testing.T) {
 			expectedErr: "required flag(s) \"validator-public-keys\" not set",
 			flags: []string{
 				"--fee-recipient=0x0000000000000000000000000000000000001234",
+				"--timestamp=9999999999",
 				"--private-key-file=test",
 				"--validator-keys-dir=test",
 				"--lock-file=test",
@@ -117,6 +120,20 @@ func TestFeeRecipientSignCLI(t *testing.T) {
 			expectedErr: "required flag(s) \"fee-recipient\" not set",
 			flags: []string{
 				"--validator-public-keys=test",
+				"--timestamp=9999999999",
+				"--private-key-file=test",
+				"--validator-keys-dir=test",
+				"--lock-file=test",
+				"--publish-address=test",
+				"--publish-timeout=1ms",
+			},
+		},
+		{
+			name:        "missing timestamp",
+			expectedErr: "required flag(s) \"timestamp\" not set",
+			flags: []string{
+				"--validator-public-keys=test",
+				"--fee-recipient=0x0000000000000000000000000000000000001234",
 				"--private-key-file=test",
 				"--validator-keys-dir=test",
 				"--lock-file=test",

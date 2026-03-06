@@ -15,7 +15,7 @@ import (
 
 const (
 	submitPartialFeeRecipientTmpl = "/fee_recipient/partial/" + lockHashPath + "/" + shareIndexPath
-	fetchPartialFeeRecipientTmpl  = "/fee_recipient/" + lockHashPath + "/" + valPubkeyPath
+	fetchFeeRecipientTmpl         = "/fee_recipient/" + lockHashPath
 )
 
 // submitPartialFeeRecipientURL returns the partial fee recipient Obol API URL for a given lock hash.
@@ -28,14 +28,12 @@ func submitPartialFeeRecipientURL(lockHash string, shareIndex uint64) string {
 	).Replace(submitPartialFeeRecipientTmpl)
 }
 
-// fetchPartialFeeRecipientURL returns the partial fee recipient Obol API URL for a given validator public key.
-func fetchPartialFeeRecipientURL(valPubkey, lockHash string) string {
+// fetchFeeRecipientURL returns the fee recipient Obol API URL for a given lock hash.
+func fetchFeeRecipientURL(lockHash string) string {
 	return strings.NewReplacer(
-		valPubkeyPath,
-		valPubkey,
 		lockHashPath,
 		lockHash,
-	).Replace(fetchPartialFeeRecipientTmpl)
+	).Replace(fetchFeeRecipientTmpl)
 }
 
 // PostPartialFeeRecipients POSTs partial fee recipient registrations to the Obol API.
@@ -70,14 +68,14 @@ func (c Client) PostPartialFeeRecipients(ctx context.Context, lockHash []byte, s
 	return nil
 }
 
-// GetPartialFeeRecipients fetches partial fee recipient registrations from the Obol API.
+// GetFeeRecipients fetches aggregated fee recipient registrations and per-validator status from the Obol API.
 // It respects the timeout specified in the Client instance.
-func (c Client) GetPartialFeeRecipients(ctx context.Context, valPubkey string, lockHash []byte, _ int) (PartialFeeRecipientResponse, error) {
-	path := fetchPartialFeeRecipientURL(valPubkey, "0x"+hex.EncodeToString(lockHash))
+func (c Client) GetFeeRecipients(ctx context.Context, lockHash []byte) (FeeRecipientFetchResponse, error) {
+	path := fetchFeeRecipientURL("0x" + hex.EncodeToString(lockHash))
 
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
-		return PartialFeeRecipientResponse{}, errors.Wrap(err, "bad Obol API url")
+		return FeeRecipientFetchResponse{}, errors.Wrap(err, "bad Obol API url")
 	}
 
 	u.Path = path
@@ -87,18 +85,14 @@ func (c Client) GetPartialFeeRecipients(ctx context.Context, valPubkey string, l
 
 	respBody, err := httpGet(ctx, u, map[string]string{})
 	if err != nil {
-		return PartialFeeRecipientResponse{}, errors.Wrap(err, "http Obol API GET request")
+		return FeeRecipientFetchResponse{}, errors.Wrap(err, "http Obol API GET request")
 	}
 
 	defer respBody.Close()
 
-	var resp PartialFeeRecipientResponse
+	var resp FeeRecipientFetchResponse
 	if err := json.NewDecoder(respBody).Decode(&resp); err != nil {
-		return PartialFeeRecipientResponse{}, errors.Wrap(err, "unmarshal response")
-	}
-
-	if len(resp.Partials) == 0 {
-		return PartialFeeRecipientResponse{}, ErrNoValue
+		return FeeRecipientFetchResponse{}, errors.Wrap(err, "unmarshal response")
 	}
 
 	return resp, nil

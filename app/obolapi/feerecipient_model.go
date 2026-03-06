@@ -3,6 +3,7 @@
 package obolapi
 
 import (
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 
 	"github.com/obolnetwork/charon/tbls"
@@ -19,14 +20,16 @@ type PartialFeeRecipientRequest struct {
 	PartialRegistrations []PartialRegistration `json:"partial_registrations"`
 }
 
-// PartialFeeRecipientResponsePartial represents a single partial registration in the response.
-type PartialFeeRecipientResponsePartial struct {
-	ShareIdx  int                           `json:"share_index"`
-	Message   *eth2v1.ValidatorRegistration `json:"message"`
-	Signature []byte                        `json:"signature"`
+// FeeRecipientValidatorStatus represents the aggregation status for a single validator.
+type FeeRecipientValidatorStatus struct {
+	Pubkey       string `json:"pubkey"`
+	Status       string `json:"status"` // "pending" or "complete"
+	PartialCount int    `json:"partial_count"`
+	Threshold    int    `json:"threshold"`
 }
 
-// PartialFeeRecipientResponse represents the response body when fetching partial fee recipient registrations.
-type PartialFeeRecipientResponse struct {
-	Partials []PartialFeeRecipientResponsePartial `json:"partial_registrations"`
+// FeeRecipientFetchResponse represents the response for fetching fee recipient registrations for a cluster.
+type FeeRecipientFetchResponse struct {
+	Registrations []*eth2api.VersionedSignedValidatorRegistration `json:"registrations"`
+	Validators    []FeeRecipientValidatorStatus                   `json:"validators"`
 }
