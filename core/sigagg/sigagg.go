@@ -8,18 +8,29 @@ package sigagg
 
 import (
 	"context"
+	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/tracer"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
+
+var slotAggregationDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "core",
+	Subsystem: "sigagg",
+	Name:      "slot_aggregation_seconds",
+	Help:      "Total duration to aggregate all validators for a duty in a slot, in seconds",
+	Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
+}, []string{"duty"})
 
 // New returns a new aggregator instance.
 func New(threshold int, verifyFunc func(context.Context, core.PubKey, core.SignedData) error) (*Aggregator, error) {
@@ -56,6 +67,9 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core
 
 	output := make(core.SignedDataSet)
 
+	// Measure total slot aggregation time
+	slotAggregateStart := time.Now()
+
 	for pubkey, parSigs := range set {
 		signed, err := a.aggregate(ctx, pubkey, parSigs)
 		if err != nil {
@@ -64,6 +78,8 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core
 
 		output[pubkey] = signed
 	}
+
+	slotAggregationDuration.WithLabelValues(duty.Type.String()).Observe(time.Since(slotAggregateStart).Seconds())
 
 	log.Debug(ctx, "Successfully aggregated partial signatures to reach threshold")
 

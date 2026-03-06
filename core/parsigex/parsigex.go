@@ -4,22 +4,33 @@ package parsigex
 
 import (
 	"context"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 )
+
+var setVerificationDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	Namespace: "core",
+	Subsystem: "parsigex",
+	Name:      "set_verification_seconds",
+	Help:      "Duration to verify all partial signatures in a received set, in seconds",
+	Buckets:   []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
+}, []string{"duty"})
 
 const protocolID2 = "/charon/parsigex/2.0.0"
 
@@ -95,12 +106,14 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 		defer span.End()
 	}
 
-	// Verify partial signature
+	// Verify partial signatures and record timing
+	verifyStart := time.Now()
 	for pubkey, data := range set {
 		if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
 			return nil, false, errors.Wrap(err, "invalid partial signature")
 		}
 	}
+	setVerificationDuration.WithLabelValues(duty.Type.String()).Observe(time.Since(verifyStart).Seconds())
 
 	for _, sub := range m.subs {
 		// TODO(corver): Call this async
