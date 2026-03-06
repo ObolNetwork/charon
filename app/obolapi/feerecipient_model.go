@@ -25,11 +25,10 @@ type FeeRecipientValidatorStatus struct {
 	Pubkey       string `json:"pubkey"`
 	Status       string `json:"status"` // "pending" or "complete"
 	PartialCount int    `json:"partial_count"`
-	Threshold    int    `json:"threshold"`
 }
 
 // FeeRecipientFetchResponse represents the response for fetching fee recipient registrations for a cluster.
 type FeeRecipientFetchResponse struct {
 	Registrations []*eth2api.VersionedSignedValidatorRegistration `json:"registrations"`
-	Validators    []FeeRecipientValidatorStatus                   `json:"validators"`
+	Validators    []FeeRecipientValidatorStatus                   `json:"status"`
 }
