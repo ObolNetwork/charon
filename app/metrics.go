@@ -22,9 +22,10 @@ const (
 	readyzInsufficientPeers = 4
 	// readyzVCNotConnected indicates that readyz is returning 500s since VC is connected to this node.
 	readyzVCNotConnected = 5
+	// Deprecated: readyzVCMissingValidators was inconsistent in the reporting and no consistent way was found
 	// readyVCMissingValidators indicates that readyz is returning 500s since VC is not configured correctly
 	// and missing some/all validators.
-	readyzVCMissingValidators = 6
+	// readyzVCMissingValidators = 6
 	// readyzBeaconNodeZeroPeers indicates that readyz is returning 500s since the Beacon Node has zero peers
 	// and hence cannot sync.
 	readyzBeaconNodeZeroPeers = 7
