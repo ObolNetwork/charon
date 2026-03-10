@@ -146,7 +146,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			returnErrCh <- nil
 		},
 
-		NewTimer: roundTimer.Timer,
+		NewTimer: timer.NewLoggingRoundTimer(roundTimer).Timer,
 
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,

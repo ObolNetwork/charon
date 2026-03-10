@@ -3,6 +3,7 @@
 package timer
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +11,8 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -332,4 +335,48 @@ func NewLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) 
 		clock: clock,
 		duty:  duty,
 	}
+}
+
+type loggingRoundTimer struct {
+	RoundTimer
+}
+
+func NewLoggingRoundTimer(roundTimer RoundTimer) RoundTimer {
+	return loggingRoundTimer{RoundTimer: roundTimer}
+}
+
+func (t loggingRoundTimer) Type() Type {
+	return t.RoundTimer.Type()
+}
+
+func (t loggingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
+	timerType := string(t.Type())
+	start := time.Now()
+	log.Debug(context.Background(), "Starting round timer", z.I64("round", round), z.Str("type", timerType))
+
+	innerC, stop := t.RoundTimer.Timer(round)
+
+	proxyC := make(chan time.Time, 1)
+	stopped := make(chan struct{})
+
+	wrappedStop := func() {
+		stop()
+		close(stopped)
+	}
+
+	go func() {
+		select {
+		case tick := <-innerC:
+			log.Debug(context.Background(), "Round timer expired",
+				z.I64("round", round),
+				z.Str("type", timerType),
+				z.Str("interval", time.Since(start).Round(time.Millisecond).String()),
+			)
+			proxyC <- tick
+		case <-stopped:
+			log.Debug(context.Background(), "Round timer stopped", z.I64("round", round), z.Str("type", timerType))
+		}
+	}()
+
+	return proxyC, wrappedStop
 }

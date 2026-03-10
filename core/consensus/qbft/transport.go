@@ -12,6 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -141,6 +143,12 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 		}
 	}()
 
+	log.Debug(ctx, "QBFT broadcasting msg",
+		z.Str("duty", duty.String()),
+		z.I64("round", round),
+		z.Str("type", typ.String()),
+		z.I64("peer_idx", peerIdx))
+
 	return t.broadcaster.Broadcast(ctx, msg.ToConsensusMsg())
 }
 
@@ -157,6 +165,12 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan Msg) {
 			case <-ctx.Done():
 				return
 			case t.recvBuffer <- msg:
+				log.Debug(ctx, "QBFT received msg",
+					z.Str("duty", msg.msg.GetDuty().String()),
+					z.I64("round", msg.msg.GetRound()),
+					z.Str("type", qbft.MsgType(msg.msg.GetType()).String()),
+					z.I64("peer_idx", msg.msg.GetPeerIdx()))
+
 				t.sniffer.Add(msg.ToConsensusMsg())
 			}
 		}
