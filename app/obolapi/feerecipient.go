@@ -36,7 +36,7 @@ func fetchFeeRecipientURL(lockHash string) string {
 	).Replace(fetchFeeRecipientTmpl)
 }
 
-// PostPartialFeeRecipients POSTs partial fee recipient registrations to the Obol API.
+// PostPartialFeeRecipients POSTs partial builder registrations to the Obol API.
 // It respects the timeout specified in the Client instance.
 func (c Client) PostPartialFeeRecipients(ctx context.Context, lockHash []byte, shareIndex uint64, partialRegs []PartialRegistration) error {
 	lockHashStr := "0x" + hex.EncodeToString(lockHash)
@@ -68,7 +68,7 @@ func (c Client) PostPartialFeeRecipients(ctx context.Context, lockHash []byte, s
 	return nil
 }
 
-// PostFeeRecipientsFetch fetches aggregated fee recipient registrations and per-validator status from the Obol API.
+// PostFeeRecipientsFetch fetches aggregated builder registrations and per-validator status from the Obol API.
 // If pubkeys is non-empty, only the specified validators are included in the response.
 // If pubkeys is empty, status for all validators in the cluster is returned.
 // It respects the timeout specified in the Client instance.

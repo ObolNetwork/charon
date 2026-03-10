@@ -17,19 +17,19 @@ type PartialRegistration struct {
 	Signature tbls.Signature                `json:"signature"`
 }
 
-// PartialFeeRecipientRequest represents the request body for posting partial fee recipient registrations.
+// PartialFeeRecipientRequest represents the request body for posting partial builder registrations.
 type PartialFeeRecipientRequest struct {
 	PartialRegistrations []PartialRegistration `json:"partial_registrations"`
 }
 
-// FeeRecipientFetchRequest represents the request body for fetching fee recipient registrations.
+// FeeRecipientFetchRequest represents the request body for fetching builder registrations.
 // Pubkeys is an optional list of validator public keys to filter the response.
 // If empty, all validators in the cluster are returned.
 type FeeRecipientFetchRequest struct {
 	Pubkeys []string `json:"pubkeys"`
 }
 
-// FeeRecipientStatus represents the aggregation status for a validator's fee recipient registration.
+// FeeRecipientStatus represents the aggregation status for a validator's builder registration.
 type FeeRecipientStatus string
 
 const (
@@ -45,11 +45,12 @@ const (
 type FeeRecipientValidatorStatus struct {
 	Pubkey       string             `json:"pubkey"`
 	Status       FeeRecipientStatus `json:"status"`
+	FeeRecipient string             `json:"fee_recipient"`
 	Timestamp    time.Time          `json:"timestamp"`
 	PartialCount int                `json:"partial_count"`
 }
 
-// FeeRecipientFetchResponse represents the response for fetching fee recipient registrations for a cluster.
+// FeeRecipientFetchResponse represents the response for fetching builder registrations for a cluster.
 type FeeRecipientFetchResponse struct {
 	Registrations []*eth2api.VersionedSignedValidatorRegistration `json:"registrations"`
 	Validators    []FeeRecipientValidatorStatus                   `json:"status"`

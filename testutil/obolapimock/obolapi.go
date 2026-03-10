@@ -58,7 +58,7 @@ type testServer struct {
 	// store the partial deposits by the validator pubkey
 	partialDeposits map[string]depositBlob
 
-	// store the partial fee recipient registrations by lock_hash/validator_pubkey
+	// store the partial builder registrations by lock_hash/validator_pubkey
 	partialFeeRecipients map[string]feeRecipientBlob
 
 	// store the lock file by its lock hash

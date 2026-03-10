@@ -5,6 +5,7 @@ package obolapimock
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -27,14 +28,14 @@ const (
 	fetchFeeRecipientTmpl         = "/fee_recipient/" + lockHashPath
 )
 
-// feeRecipientPartial represents a single partial fee recipient registration.
+// feeRecipientPartial represents a single partial builder registration.
 type feeRecipientPartial struct {
 	ShareIdx  int
 	Message   *eth2v1.ValidatorRegistration
 	Signature []byte
 }
 
-// feeRecipientBlob represents partial fee recipient registrations for a validator.
+// feeRecipientBlob represents partial builder registrations for a validator.
 type feeRecipientBlob struct {
 	partials map[int]feeRecipientPartial // keyed by share index
 }
@@ -229,9 +230,17 @@ func (ts *testServer) HandlePostFeeRecipientFetch(writer http.ResponseWriter, re
 			status = obolapi.FeeRecipientStatusComplete
 		}
 
+		// Extract fee recipient from the first partial (all partials have the same message).
+		var feeRecipient string
+		for _, p := range existing.partials {
+			feeRecipient = fmt.Sprintf("0x%x", p.Message.FeeRecipient)
+			break
+		}
+
 		validators = append(validators, obolapi.FeeRecipientValidatorStatus{
 			Pubkey:       "0x" + t.pubkeyHex,
 			Status:       status,
+			FeeRecipient: feeRecipient,
 			PartialCount: partialCount,
 		})
 

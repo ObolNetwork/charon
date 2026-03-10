@@ -26,7 +26,7 @@ func newFeeRecipientFetchCmd(runFunc func(context.Context, feerecipientFetchConf
 
 	cmd := &cobra.Command{
 		Use:   "fetch",
-		Short: "Fetch aggregated fee recipient registrations.",
+		Short: "Fetch aggregated builder registrations.",
 		Long:  "Fetches aggregated builder registration messages with updated fee recipients from a remote API for validators that have had partial signatures submitted, and writes them to a local JSON file.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -70,6 +70,7 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 		for _, vs := range vals {
 			log.Info(ctx, "  Complete registration",
 				z.Str("pubkey", vs.Pubkey),
+				z.Str("fee_recipient", vs.FeeRecipient),
 				z.I64("timestamp_unix", vs.Timestamp.UTC().Unix()),
 				z.Str("timestamp", vs.Timestamp.String()))
 		}
@@ -81,6 +82,7 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 		for _, vs := range vals {
 			log.Info(ctx, "  Partial registration",
 				z.Str("pubkey", vs.Pubkey),
+				z.Str("fee_recipient", vs.FeeRecipient),
 				z.I64("timestamp_unix", vs.Timestamp.UTC().Unix()),
 				z.Str("timestamp", vs.Timestamp.String()),
 				z.Int("partial_count", vs.PartialCount))

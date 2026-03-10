@@ -24,7 +24,7 @@ type feerecipientConfig struct {
 func newFeeRecipientCmd(cmds ...*cobra.Command) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "feerecipient",
-		Short: "Sign and fetch updated fee recipient registrations.",
+		Short: "Sign and fetch updated builder registrations.",
 		Long:  "Sign and fetch updated builder registration messages with new fee recipients using a remote API, enabling the modification of fee recipient addresses without cluster restart.",
 	}
 

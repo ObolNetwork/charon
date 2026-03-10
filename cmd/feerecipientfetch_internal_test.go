@@ -78,7 +78,6 @@ func TestFeeRecipientFetchValid(t *testing.T) {
 				PublishTimeout:      10 * time.Second,
 			},
 			FeeRecipient: newFeeRecipient,
-			Timestamp:    "9999999999",
 		}
 
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator %d submit feerecipient sign", opIdx)

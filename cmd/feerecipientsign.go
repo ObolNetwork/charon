@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +30,6 @@ type feerecipientSignConfig struct {
 	feerecipientConfig
 
 	FeeRecipient string
-	Timestamp    string
 }
 
 func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig) error) *cobra.Command {
@@ -39,7 +37,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 
 	cmd := &cobra.Command{
 		Use:   "sign",
-		Short: "Sign partial fee recipient registration messages.",
+		Short: "Sign partial builder registration messages.",
 		Long:  "Signs new partial builder registration messages with updated fee recipients and publishes them to a remote API.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -49,12 +47,13 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 
 	bindFeeRecipientCharonFilesFlags(cmd, &config.feerecipientConfig)
 	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
-	bindFeeRecipientSignFlags(cmd, &config)
+
+	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
+	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "validator-public-keys")
 		mustMarkFlagRequired(cmd, "fee-recipient")
-		mustMarkFlagRequired(cmd, "timestamp")
 
 		return nil
 	})
@@ -62,13 +61,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	return cmd
 }
 
-func bindFeeRecipientSignFlags(cmd *cobra.Command, config *feerecipientSignConfig) {
-	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
-	cmd.Flags().StringVar(&config.Timestamp, "timestamp", "", "[REQUIRED] Unix timestamp for the builder registration message (e.g. 1704067200).")
-}
-
 func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) error {
-	// Validate fee recipient address.
 	if _, err := eth2util.ChecksumAddress(config.FeeRecipient); err != nil {
 		return errors.Wrap(err, "invalid fee recipient address", z.Str("fee_recipient", config.FeeRecipient))
 	}
@@ -108,39 +101,127 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
 	}
 
-	// Parse requested validator pubkeys.
-	pubkeys := make([]eth2p0.BLSPubKey, 0, len(config.ValidatorPublicKeys))
-	for _, valPubKey := range config.ValidatorPublicKeys {
-		pubkey, err := hex.DecodeString(strings.TrimPrefix(valPubKey, "0x"))
-		if err != nil {
-			return errors.Wrap(err, "decode pubkey", z.Str("validator_public_key", valPubKey))
-		}
-
-		pubkeys = append(pubkeys, eth2p0.BLSPubKey(pubkey))
+	// Filter pubkeys based on their current status on the remote API.
+	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient)
+	if err != nil {
+		return err
 	}
 
-	// Parse fee recipient address.
-	feeRecipientBytes, err := hex.DecodeString(strings.TrimPrefix(config.FeeRecipient, "0x"))
+	if len(pubkeysToSign) == 0 {
+		log.Info(ctx, "No validators require signing")
+		return nil
+	}
+
+	// Build and sign partial registrations.
+	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, time.Now(), pubkeysToSign, *cl, shares)
 	if err != nil {
-		return errors.Wrap(err, "decode fee recipient address")
+		return err
+	}
+
+	for _, reg := range partialRegs {
+		log.Info(ctx, "Signed partial builder registration",
+			z.Str("validator_pubkey", hex.EncodeToString(reg.Message.Pubkey[:])),
+			z.Str("fee_recipient", config.FeeRecipient),
+			z.I64("timestamp", reg.Message.Timestamp.Unix()),
+		)
+	}
+
+	log.Info(ctx, "Submitting partial builder registrations", z.Int("count", len(partialRegs)))
+
+	err = oAPI.PostPartialFeeRecipients(ctx, cl.LockHash, shareIdx, partialRegs)
+	if err != nil {
+		return errors.Wrap(err, "submit partial builder registrations to Obol API")
+	}
+
+	log.Info(ctx, "Successfully submitted partial builder registrations", z.Int("count", len(partialRegs)))
+
+	return nil
+}
+
+// filterPubkeysByStatus fetches the current status for each pubkey from the remote API and returns
+// only those that need signing. Complete registrations are skipped, partial registrations with
+// mismatched fee recipients cause an error, and unknown/partial with matching fee recipients proceed.
+func filterPubkeysByStatus(
+	ctx context.Context,
+	oAPI obolapi.Client,
+	lockHash []byte,
+	requestedPubkeys []string,
+	feeRecipient string,
+) ([]eth2p0.BLSPubKey, error) {
+	resp, err := oAPI.PostFeeRecipientsFetch(ctx, lockHash, requestedPubkeys)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch builder registration status from Obol API")
+	}
+
+	statusByPubkey := make(map[string]obolapi.FeeRecipientValidatorStatus)
+	for _, vs := range resp.Validators {
+		statusByPubkey[strings.ToLower(vs.Pubkey)] = vs
+	}
+
+	var pubkeysToSign []eth2p0.BLSPubKey
+
+	for _, valPubKey := range requestedPubkeys {
+		normalizedKey := strings.ToLower(valPubKey)
+		if !strings.HasPrefix(normalizedKey, "0x") {
+			normalizedKey = "0x" + normalizedKey
+		}
+
+		vs, ok := statusByPubkey[normalizedKey]
+
+		if ok && vs.Status == obolapi.FeeRecipientStatusComplete {
+			log.Info(ctx, "Validator already has a complete builder registration, skipping",
+				z.Str("pubkey", valPubKey),
+				z.Str("fee_recipient", vs.FeeRecipient))
+
+			continue
+		}
+
+		if ok && vs.Status == obolapi.FeeRecipientStatusPartial {
+			if !strings.EqualFold(vs.FeeRecipient, feeRecipient) {
+				return nil, errors.New("fee recipient mismatch with existing partial registration",
+					z.Str("pubkey", valPubKey),
+					z.Str("existing_fee_recipient", vs.FeeRecipient),
+					z.Str("requested_fee_recipient", feeRecipient),
+				)
+			}
+
+			log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
+				z.Str("pubkey", valPubKey),
+				z.Str("fee_recipient", vs.FeeRecipient),
+				z.Int("partial_count", vs.PartialCount))
+		}
+
+		pubkeyBytes, err := hex.DecodeString(strings.TrimPrefix(valPubKey, "0x"))
+		if err != nil {
+			return nil, errors.Wrap(err, "decode pubkey", z.Str("validator_public_key", valPubKey))
+		}
+
+		pubkeysToSign = append(pubkeysToSign, eth2p0.BLSPubKey(pubkeyBytes))
+	}
+
+	return pubkeysToSign, nil
+}
+
+// buildPartialRegistrations creates partial builder registration messages for each pubkey,
+// signs them with the operator's key share, and returns the signed partial registrations.
+func buildPartialRegistrations(
+	feeRecipientHex string,
+	timestamp time.Time,
+	pubkeys []eth2p0.BLSPubKey,
+	cl cluster.Lock,
+	shares keystore.ValidatorShares,
+) ([]obolapi.PartialRegistration, error) {
+	feeRecipientBytes, err := hex.DecodeString(strings.TrimPrefix(feeRecipientHex, "0x"))
+	if err != nil {
+		return nil, errors.Wrap(err, "decode fee recipient address")
 	}
 
 	var feeRecipient [20]byte
 	copy(feeRecipient[:], feeRecipientBytes)
 
-	// Parse timestamp.
-	unixTimestamp, err := strconv.ParseInt(config.Timestamp, 10, 64)
-	if err != nil {
-		return errors.Wrap(err, "invalid timestamp, expected unix timestamp", z.Str("timestamp", config.Timestamp))
-	}
-
-	timestamp := time.Unix(unixTimestamp, 0)
-
-	// Build partial registrations.
 	partialRegs := make([]obolapi.PartialRegistration, 0, len(pubkeys))
 
 	for _, pubkey := range pubkeys {
-		// Find existing builder registration in cluster lock.
 		var existingReg *cluster.BuilderRegistration
 
 		for _, dv := range cl.Validators {
@@ -151,18 +232,9 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		}
 
 		if existingReg == nil || existingReg.Message.Timestamp.IsZero() {
-			return errors.New("no existing builder registration found for validator", z.Str("pubkey", hex.EncodeToString(pubkey[:])))
+			return nil, errors.New("no existing builder registration found for validator", z.Str("pubkey", hex.EncodeToString(pubkey[:])))
 		}
 
-		if !timestamp.After(existingReg.Message.Timestamp) {
-			return errors.New("timestamp must be higher than existing builder registration timestamp",
-				z.Str("pubkey", hex.EncodeToString(pubkey[:])),
-				z.I64("existing_timestamp", existingReg.Message.Timestamp.Unix()),
-				z.I64("provided_timestamp", timestamp.Unix()),
-			)
-		}
-
-		// Create new registration with updated fee recipient and timestamp, keeping gas limit.
 		regMsg := &eth2v1.ValidatorRegistration{
 			FeeRecipient: feeRecipient,
 			GasLimit:     uint64(existingReg.Message.GasLimit),
@@ -170,50 +242,31 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 			Pubkey:       pubkey,
 		}
 
-		// Get signing root.
 		sigRoot, err := registration.GetMessageSigningRoot(regMsg, eth2p0.Version(cl.ForkVersion))
 		if err != nil {
-			return errors.Wrap(err, "get signing root for registration message")
+			return nil, errors.Wrap(err, "get signing root for registration message")
 		}
 
-		// Get the secret share for this validator.
 		corePubkey, err := core.PubKeyFromBytes(pubkey[:])
 		if err != nil {
-			return errors.Wrap(err, "convert pubkey to core pubkey")
+			return nil, errors.Wrap(err, "convert pubkey to core pubkey")
 		}
 
 		secretShare, ok := shares[corePubkey]
 		if !ok {
-			return errors.New("no key share found for validator pubkey", z.Str("pubkey", hex.EncodeToString(pubkey[:])))
+			return nil, errors.New("no key share found for validator pubkey", z.Str("pubkey", hex.EncodeToString(pubkey[:])))
 		}
 
-		// Sign with threshold BLS.
 		sig, err := tbls.Sign(secretShare.Share, sigRoot[:])
 		if err != nil {
-			return errors.Wrap(err, "sign registration message")
+			return nil, errors.Wrap(err, "sign registration message")
 		}
 
 		partialRegs = append(partialRegs, obolapi.PartialRegistration{
 			Message:   regMsg,
 			Signature: sig,
 		})
-
-		log.Info(ctx, "Signed partial fee recipient registration",
-			z.Str("validator_pubkey", hex.EncodeToString(pubkey[:])),
-			z.Str("fee_recipient", config.FeeRecipient),
-		)
 	}
 
-	log.Info(ctx, "Submitting partial fee recipient registrations")
-
-	err = oAPI.PostPartialFeeRecipients(ctx, cl.LockHash, shareIdx, partialRegs)
-	if err != nil {
-		return errors.Wrap(err, "submit partial fee recipient registrations to Obol API")
-	}
-
-	log.Info(ctx, "Successfully submitted partial fee recipient registrations",
-		z.Int("count", len(partialRegs)),
-	)
-
-	return nil
+	return partialRegs, nil
 }
