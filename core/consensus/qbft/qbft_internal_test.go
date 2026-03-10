@@ -31,7 +31,7 @@ func TestDebugRoundChange(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		msgs   []qbft.Msg[core.Duty, [32]byte, proto.Message]
+		msgs   []qbft.Msg[core.Duty, [32]byte]
 		round  int64
 		leader int
 	}{
@@ -45,7 +45,7 @@ func TestDebugRoundChange(t *testing.T) {
 		},
 		{
 			name: "quorum",
-			msgs: []qbft.Msg[core.Duty, [32]byte, proto.Message]{
+			msgs: []qbft.Msg[core.Duty, [32]byte]{
 				m(0, qbft.MsgRoundChange),
 				m(1, qbft.MsgRoundChange),
 				m(2, qbft.MsgRoundChange),
@@ -125,7 +125,7 @@ func (t testMsg) PreparedValue() [32]byte {
 	panic("implement me")
 }
 
-func (t testMsg) Justification() []qbft.Msg[core.Duty, [32]byte, proto.Message] {
+func (t testMsg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	panic("implement me")
 }
 
