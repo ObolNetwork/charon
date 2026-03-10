@@ -142,7 +142,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
 		require.NoError(t, err)
 
-		c, err := qbft.NewConsensus(t.Context(), bmock, hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer, false)
+		c, err := qbft.NewConsensus(t.Context(), bmock, hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set

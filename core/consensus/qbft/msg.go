@@ -41,7 +41,7 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 		}
 	}
 
-	var justImpls []qbft.Msg[core.Duty, [32]byte, proto.Message]
+	var justImpls []qbft.Msg[core.Duty, [32]byte]
 
 	for _, j := range justification {
 		impl, err := newMsg(j, nil, values)
@@ -62,7 +62,7 @@ func newMsg(pbMsg *pbv1.QBFTMsg, justification []*pbv1.QBFTMsg, values map[[32]b
 	}, nil
 }
 
-// Msg wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte, proto.Message].
+// Msg wraps *pbv1.QBFTMsg and justifications and implements qbft.Msg[core.Duty, [32]byte].
 type Msg struct {
 	msg               *pbv1.QBFTMsg
 	valueHash         [32]byte
@@ -70,7 +70,7 @@ type Msg struct {
 	values            map[[32]byte]*anypb.Any
 
 	justificationProtos []*pbv1.QBFTMsg
-	justification       []qbft.Msg[core.Duty, [32]byte, proto.Message]
+	justification       []qbft.Msg[core.Duty, [32]byte]
 }
 
 func (m Msg) Type() qbft.MsgType {
@@ -118,7 +118,7 @@ func (m Msg) PreparedValue() [32]byte {
 	return m.preparedValueHash
 }
 
-func (m Msg) Justification() []qbft.Msg[core.Duty, [32]byte, proto.Message] {
+func (m Msg) Justification() []qbft.Msg[core.Duty, [32]byte] {
 	return m.justification
 }
 
@@ -227,4 +227,4 @@ func toHash32(val []byte) ([32]byte, bool) {
 	return resp, true
 }
 
-var _ qbft.Msg[core.Duty, [32]byte, proto.Message] = Msg{} // Interface assertion
+var _ qbft.Msg[core.Duty, [32]byte] = Msg{} // Interface assertion
