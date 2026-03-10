@@ -123,59 +123,6 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 	}
 }
 
-func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet, attLocalSet *pbv1.UnsignedDataSet) error {
-	attLocalSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLocalSet)
-	if err != nil {
-		return errors.Wrap(err, "attLocal to unsigned data set duty attester")
-	}
-
-	attLeaderSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLeaderSet)
-	if err != nil {
-		return errors.Wrap(err, "attLeader to unsigned data set duty attester")
-	}
-
-	for attLeaderKey, attLeaderData := range attLeaderSetCore {
-		attLocalData, ok := attLocalSetCore[attLeaderKey]
-		if !ok {
-			log.Warn(ctx, "", errors.New("no local attestation found, skipping"), z.Any("pk", attLeaderKey))
-			continue
-		}
-
-		attLeaderAttestationData, ok := attLeaderData.(core.AttestationData)
-		if !ok {
-			return errors.New("unable to parse leader unsigned data to core attestation data", z.Any("data", attLeaderData))
-		}
-
-		attLocalAttestationData, ok := attLocalData.(core.AttestationData)
-		if !ok {
-			return errors.New("unable to parse local unsigned data to core attestation data", z.Any("data", attLocalData))
-		}
-
-		mismatch := ""
-		if attLeaderAttestationData.Data.Source.Epoch != attLocalAttestationData.Data.Source.Epoch {
-			mismatch += "leader attestation source epoch differs from local source epoch;"
-		}
-
-		if attLeaderAttestationData.Data.Source.Root != attLocalAttestationData.Data.Source.Root {
-			mismatch += "leader attestation source root differs from local source root;"
-		}
-
-		if attLeaderAttestationData.Data.Target.Epoch != attLocalAttestationData.Data.Target.Epoch {
-			mismatch += "leader attestation target epoch differs from local target epoch;"
-		}
-
-		if attLeaderAttestationData.Data.Target.Root != attLocalAttestationData.Data.Target.Root {
-			mismatch += "leader attestation target root differs from local target root;"
-		}
-
-		if mismatch != "" {
-			return errors.New(mismatch, z.Any("public_key", attLeaderKey), z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data))
-		}
-	}
-
-	return nil
-}
-
 // NewConsensus returns a new consensus QBFT component.
 func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
 	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance),
