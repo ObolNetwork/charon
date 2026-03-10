@@ -459,8 +459,22 @@ func compare[I any, V comparable, C any](ctx context.Context, d Definition[I, V,
 			return inputValueSource, nil
 		case inputValueSource = <-compareValue:
 		case <-timerChan:
-			log.Warn(ctx, "", errors.New("timeout waiting for local data, used for comparing with leader's proposed data"))
-			return inputValueSource, errTimeout
+			// When the eager timer fires at an absolute deadline, d.Compare may have
+			// already completed (e.g. instantly when compareAttestations is disabled).
+			// Go's select picks randomly among ready channels, so check compareErr
+			// before declaring a timeout to avoid spurious round changes.
+			select {
+			case err := <-compareErr:
+				if err != nil {
+					log.Warn(ctx, errCompare.Error(), err)
+					return inputValueSource, errCompare
+				}
+
+				return inputValueSource, nil
+			default:
+				log.Warn(ctx, "", errors.New("timeout waiting for local data, used for comparing with leader's proposed data"))
+				return inputValueSource, errTimeout
+			}
 		}
 	}
 }
