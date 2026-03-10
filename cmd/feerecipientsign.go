@@ -26,10 +26,20 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
+// pubkeyToSign pairs a validator public key with the timestamp to use when signing its registration.
+// For validators with no existing partial registration (unknown status), the timestamp is set to
+// time.Now() by the first operator. For validators already in partial status, the timestamp is
+// adopted from the existing partial registration so all operators sign the same message.
+type pubkeyToSign struct {
+	Pubkey    eth2p0.BLSPubKey
+	Timestamp time.Time
+}
+
 type feerecipientSignConfig struct {
 	feerecipientConfig
 
-	FeeRecipient string
+	ValidatorKeysDir string
+	FeeRecipient     string
 }
 
 func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig) error) *cobra.Command {
@@ -45,9 +55,10 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 		},
 	}
 
-	bindFeeRecipientCharonFilesFlags(cmd, &config.feerecipientConfig)
 	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
 
+	cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "Path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", "Path to the charon enr private key file.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
@@ -87,6 +98,23 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
 
+	// Validate all requested pubkeys exist in the cluster lock before making any API calls.
+	clusterPubkeys := make(map[string]struct{}, len(cl.Validators))
+	for _, dv := range cl.Validators {
+		clusterPubkeys[strings.ToLower(dv.PublicKeyHex())] = struct{}{}
+	}
+
+	for _, valPubKey := range config.ValidatorPublicKeys {
+		normalized := strings.ToLower(valPubKey)
+		if !strings.HasPrefix(normalized, "0x") {
+			normalized = "0x" + normalized
+		}
+
+		if _, ok := clusterPubkeys[normalized]; !ok {
+			return errors.New("validator pubkey not found in cluster lock", z.Str("pubkey", valPubKey))
+		}
+	}
+
 	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
 	if err != nil {
 		return errors.Wrap(err, "load keystore, check if path exists", z.Str("validator_keys_dir", config.ValidatorKeysDir))
@@ -103,7 +131,7 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 	}
 
 	// Filter pubkeys based on their current status on the remote API.
-	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient)
+	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, time.Now)
 	if err != nil {
 		return err
 	}
@@ -114,7 +142,7 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 	}
 
 	// Build and sign partial registrations.
-	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, time.Now(), pubkeysToSign, *cl, shares)
+	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, pubkeysToSign, *cl, shares)
 	if err != nil {
 		return err
 	}
@@ -140,15 +168,19 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 }
 
 // filterPubkeysByStatus fetches the current status for each pubkey from the remote API and returns
-// only those that need signing. Complete registrations are skipped, partial registrations with
-// mismatched fee recipients cause an error, and unknown/partial with matching fee recipients proceed.
+// only those that need signing, each paired with the timestamp to use for signing.
+// Complete registrations are skipped. Partial registrations with mismatched fee recipients cause
+// an error. For unknown validators, now() is used as the timestamp (first signer anchors it).
+// For partial validators with a matching fee recipient, the existing timestamp from the API is
+// adopted so all operators sign the identical message.
 func filterPubkeysByStatus(
 	ctx context.Context,
 	oAPI obolapi.Client,
 	lockHash []byte,
 	requestedPubkeys []string,
 	feeRecipient string,
-) ([]eth2p0.BLSPubKey, error) {
+	now func() time.Time,
+) ([]pubkeyToSign, error) {
 	resp, err := oAPI.PostFeeRecipientsFetch(ctx, lockHash, requestedPubkeys)
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch builder registration status from Obol API")
@@ -159,7 +191,7 @@ func filterPubkeysByStatus(
 		statusByPubkey[strings.ToLower(vs.Pubkey)] = vs
 	}
 
-	var pubkeysToSign []eth2p0.BLSPubKey
+	var pubkeysToSign []pubkeyToSign
 
 	for _, valPubKey := range requestedPubkeys {
 		normalizedKey := strings.ToLower(valPubKey)
@@ -177,19 +209,27 @@ func filterPubkeysByStatus(
 			continue
 		}
 
+		var timestamp time.Time
+
 		if ok && vs.Status == obolapi.FeeRecipientStatusPartial {
 			if !strings.EqualFold(vs.FeeRecipient, feeRecipient) {
-				return nil, errors.New("fee recipient mismatch with existing partial registration",
+				return nil, errors.New("fee recipient mismatch with existing partial registration; wait for the in-progress registration to complete or coordinate with your cluster operators",
 					z.Str("pubkey", valPubKey),
 					z.Str("existing_fee_recipient", vs.FeeRecipient),
 					z.Str("requested_fee_recipient", feeRecipient),
 				)
 			}
 
+			// Adopt the timestamp from the existing partial so all operators sign the same message.
+			timestamp = vs.Timestamp
+
 			log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
 				z.Str("pubkey", valPubKey),
 				z.Str("fee_recipient", vs.FeeRecipient),
 				z.Int("partial_count", vs.PartialCount))
+		} else {
+			// First signer for this validator: anchor the timestamp now.
+			timestamp = now()
 		}
 
 		pubkeyBytes, err := hex.DecodeString(strings.TrimPrefix(valPubKey, "0x"))
@@ -201,7 +241,10 @@ func filterPubkeysByStatus(
 			return nil, errors.New("invalid pubkey length", z.Int("length", len(pubkeyBytes)), z.Str("validator_public_key", valPubKey))
 		}
 
-		pubkeysToSign = append(pubkeysToSign, eth2p0.BLSPubKey(pubkeyBytes))
+		pubkeysToSign = append(pubkeysToSign, pubkeyToSign{
+			Pubkey:    eth2p0.BLSPubKey(pubkeyBytes),
+			Timestamp: timestamp,
+		})
 	}
 
 	return pubkeysToSign, nil
@@ -211,8 +254,7 @@ func filterPubkeysByStatus(
 // signs them with the operator's key share, and returns the signed partial registrations.
 func buildPartialRegistrations(
 	feeRecipientHex string,
-	timestamp time.Time,
-	pubkeys []eth2p0.BLSPubKey,
+	pubkeys []pubkeyToSign,
 	cl cluster.Lock,
 	shares keystore.ValidatorShares,
 ) ([]obolapi.PartialRegistration, error) {
@@ -226,25 +268,25 @@ func buildPartialRegistrations(
 
 	partialRegs := make([]obolapi.PartialRegistration, 0, len(pubkeys))
 
-	for _, pubkey := range pubkeys {
+	for _, p := range pubkeys {
 		var existingReg *cluster.BuilderRegistration
 
 		for _, dv := range cl.Validators {
-			if bytes.Equal(dv.PubKey, pubkey[:]) {
+			if bytes.Equal(dv.PubKey, p.Pubkey[:]) {
 				existingReg = &dv.BuilderRegistration
 				break
 			}
 		}
 
 		if existingReg == nil || existingReg.Message.Timestamp.IsZero() {
-			return nil, errors.New("no existing builder registration found for validator", z.Str("pubkey", hex.EncodeToString(pubkey[:])))
+			return nil, errors.New("no existing builder registration found for validator", z.Str("pubkey", hex.EncodeToString(p.Pubkey[:])))
 		}
 
 		regMsg := &eth2v1.ValidatorRegistration{
 			FeeRecipient: feeRecipient,
 			GasLimit:     uint64(existingReg.Message.GasLimit),
-			Timestamp:    timestamp,
-			Pubkey:       pubkey,
+			Timestamp:    p.Timestamp,
+			Pubkey:       p.Pubkey,
 		}
 
 		sigRoot, err := registration.GetMessageSigningRoot(regMsg, eth2p0.Version(cl.ForkVersion))
@@ -252,14 +294,14 @@ func buildPartialRegistrations(
 			return nil, errors.Wrap(err, "get signing root for registration message")
 		}
 
-		corePubkey, err := core.PubKeyFromBytes(pubkey[:])
+		corePubkey, err := core.PubKeyFromBytes(p.Pubkey[:])
 		if err != nil {
 			return nil, errors.Wrap(err, "convert pubkey to core pubkey")
 		}
 
 		secretShare, ok := shares[corePubkey]
 		if !ok {
-			return nil, errors.New("no key share found for validator pubkey", z.Str("pubkey", hex.EncodeToString(pubkey[:])))
+			return nil, errors.New("no key share found for validator pubkey", z.Str("pubkey", hex.EncodeToString(p.Pubkey[:])))
 		}
 
 		sig, err := tbls.Sign(secretShare.Share, sigRoot[:])

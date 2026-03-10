@@ -36,8 +36,9 @@ func newFeeRecipientFetchCmd(runFunc func(context.Context, feerecipientFetchConf
 	}
 
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", []string{}, "Optional comma-separated list of validator public keys to fetch builder registrations for.")
+	cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "Path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.OverridesFilePath, "overrides-file", ".charon/builder_registrations_overrides.json", "Path to the builder registrations overrides file.")
 
-	bindFeeRecipientCharonFilesFlags(cmd, &config.feerecipientConfig)
 	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
 
 	return cmd

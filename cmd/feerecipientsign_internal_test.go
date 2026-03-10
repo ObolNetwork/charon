@@ -64,18 +64,16 @@ func TestFeeRecipientSignValid(t *testing.T) {
 
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
 
-	config := feerecipientConfig{
-		ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
-		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
-		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-		PublishAddress:      srv.URL,
-		PublishTimeout:      10 * time.Second,
-	}
-
 	signConfig := feerecipientSignConfig{
-		feerecipientConfig: config,
-		FeeRecipient:       "0x0000000000000000000000000000000000001234",
+		feerecipientConfig: feerecipientConfig{
+			ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
+			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:      srv.URL,
+			PublishTimeout:      10 * time.Second,
+		},
+		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+		FeeRecipient:     "0x0000000000000000000000000000000000001234",
 	}
 
 	require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator index submit feerecipient sign: %v", idx)

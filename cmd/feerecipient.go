@@ -14,7 +14,6 @@ type feerecipientConfig struct {
 	ValidatorPublicKeys []string
 	PrivateKeyPath      string
 	LockFilePath        string
-	ValidatorKeysDir    string
 	OverridesFilePath   string
 	PublishAddress      string
 	PublishTimeout      time.Duration
@@ -31,12 +30,6 @@ func newFeeRecipientCmd(cmds ...*cobra.Command) *cobra.Command {
 	root.AddCommand(cmds...)
 
 	return root
-}
-
-func bindFeeRecipientCharonFilesFlags(cmd *cobra.Command, config *feerecipientConfig) {
-	cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", "Path to the charon enr private key file.")
-	cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "Path to the cluster lock file defining the distributed validator cluster.")
-	cmd.Flags().StringVar(&config.OverridesFilePath, "overrides-file", ".charon/builder_registrations_overrides.json", "Path to the builder registrations overrides file.")
 }
 
 func bindFeeRecipientRemoteAPIFlags(cmd *cobra.Command, config *feerecipientConfig) {

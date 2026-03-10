@@ -72,12 +72,12 @@ func TestFeeRecipientFetchValid(t *testing.T) {
 			feerecipientConfig: feerecipientConfig{
 				ValidatorPublicKeys: []string{validatorPubkey},
 				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-				ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
 				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
 				PublishAddress:      srv.URL,
 				PublishTimeout:      10 * time.Second,
 			},
-			FeeRecipient: newFeeRecipient,
+			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+			FeeRecipient:     newFeeRecipient,
 		}
 
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator %d submit feerecipient sign", opIdx)
