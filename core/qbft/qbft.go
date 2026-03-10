@@ -200,9 +200,9 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 	// === State ===
 
 	var (
-		round                 int64 = 1
-		inputValue            V
-		inputValueSource      C
+		round      int64 = 1
+		inputValue V
+		// inputValueSource      C
 		ppjCache              []Msg[I, V, C] // Cached pre-prepare justification for the current round (nil value is unset).
 		preparedRound         int64
 		preparedValue         V
@@ -348,29 +348,29 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
-				var errC error
+				// var errC error
 
-				inputValueSource, errC = compare(ctx, d, msg, inputValueSourceCh, inputValueSource, timerChan)
-				if errC != nil {
-					switch {
-					case errors.Is(errC, errCompare):
-						compareFailureRound = msg.Round()
-					case errors.Is(errC, errTimeout):
-						// As compare function is blocking on waiting local data, round might timeout in the meantime.
-						// If this happens, we trigger round change.
-						// Algorithm 3:1
-						changeRound(round+1, UponRoundTimeout)
+				// inputValueSource, errC = compare(ctx, d, msg, inputValueSourceCh, inputValueSource, timerChan)
+				// if errC != nil {
+				// 	switch {
+				// 	case errors.Is(errC, errCompare):
+				// 		compareFailureRound = msg.Round()
+				// 	case errors.Is(errC, errTimeout):
+				// 		// As compare function is blocking on waiting local data, round might timeout in the meantime.
+				// 		// If this happens, we trigger round change.
+				// 		// Algorithm 3:1
+				// 		changeRound(round+1, UponRoundTimeout)
 
-						stopTimer()
-						timerChan, stopTimer = d.NewTimer(round)
+				// 		stopTimer()
+				// 		timerChan, stopTimer = d.NewTimer(round)
 
-						err = broadcastRoundChange()
-					default:
-						err = errors.New("bug: expected only comparison or timeout error")
-					}
-				} else {
-					err = broadcastMsg(MsgPrepare, msg.Value(), nil)
-				}
+				// 		err = broadcastRoundChange()
+				// 	default:
+				// 		err = errors.New("bug: expected only comparison or timeout error")
+				// 	}
+				// } else {
+				// 	err = broadcastMsg(MsgPrepare, msg.Value(), nil)
+				// }
 			case UponQuorumPrepares: // Algorithm 2:4
 				// Only applicable to current round
 				preparedRound = round /* == msg.Round*/
