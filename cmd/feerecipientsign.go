@@ -48,6 +48,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	bindFeeRecipientCharonFilesFlags(cmd, &config.feerecipientConfig)
 	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
 
+	cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
 
@@ -194,6 +195,10 @@ func filterPubkeysByStatus(
 		pubkeyBytes, err := hex.DecodeString(strings.TrimPrefix(valPubKey, "0x"))
 		if err != nil {
 			return nil, errors.Wrap(err, "decode pubkey", z.Str("validator_public_key", valPubKey))
+		}
+
+		if len(pubkeyBytes) != len(eth2p0.BLSPubKey{}) {
+			return nil, errors.New("invalid pubkey length", z.Int("length", len(pubkeyBytes)), z.Str("validator_public_key", valPubKey))
 		}
 
 		pubkeysToSign = append(pubkeysToSign, eth2p0.BLSPubKey(pubkeyBytes))

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -230,10 +231,16 @@ func (ts *testServer) HandlePostFeeRecipientFetch(writer http.ResponseWriter, re
 			status = obolapi.FeeRecipientStatusComplete
 		}
 
-		// Extract fee recipient from the first partial (all partials have the same message).
-		var feeRecipient string
+		// Extract fee recipient and timestamp from the first partial (all partials have the same message).
+		var (
+			feeRecipient string
+			timestamp    time.Time
+		)
+
 		for _, p := range existing.partials {
 			feeRecipient = fmt.Sprintf("0x%x", p.Message.FeeRecipient)
+			timestamp = p.Message.Timestamp
+
 			break
 		}
 
@@ -241,6 +248,7 @@ func (ts *testServer) HandlePostFeeRecipientFetch(writer http.ResponseWriter, re
 			Pubkey:       "0x" + t.pubkeyHex,
 			Status:       status,
 			FeeRecipient: feeRecipient,
+			Timestamp:    timestamp,
 			PartialCount: partialCount,
 		})
 

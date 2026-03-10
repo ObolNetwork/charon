@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	"github.com/spf13/cobra"
@@ -120,6 +121,10 @@ func writeSignedValidatorRegistrations(filename string, regs []*eth2api.Versione
 	data, err := json.MarshalIndent(regs, "", "  ")
 	if err != nil {
 		return errors.Wrap(err, "marshal registrations to JSON")
+	}
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+		return errors.Wrap(err, "create output directory")
 	}
 
 	err = os.WriteFile(filename, data, 0o644) //nolint:gosec // G306: world-readable output file is intentional
