@@ -136,7 +136,7 @@ func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lo
 	router.HandleFunc(fetchFullDepositTmpl, ts.HandleGetFullDeposit).Methods(http.MethodGet)
 
 	router.HandleFunc(submitPartialFeeRecipientTmpl, ts.HandleSubmitPartialFeeRecipient).Methods(http.MethodPost)
-	router.HandleFunc(fetchFeeRecipientTmpl, ts.HandleGetFeeRecipient).Methods(http.MethodGet)
+	router.HandleFunc(fetchFeeRecipientTmpl, ts.HandlePostFeeRecipientFetch).Methods(http.MethodPost)
 
 	return router, ts.addLockFiles
 }

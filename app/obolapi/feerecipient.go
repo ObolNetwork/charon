@@ -68,9 +68,11 @@ func (c Client) PostPartialFeeRecipients(ctx context.Context, lockHash []byte, s
 	return nil
 }
 
-// GetFeeRecipients fetches aggregated fee recipient registrations and per-validator status from the Obol API.
+// PostFeeRecipientsFetch fetches aggregated fee recipient registrations and per-validator status from the Obol API.
+// If pubkeys is non-empty, only the specified validators are included in the response.
+// If pubkeys is empty, status for all validators in the cluster is returned.
 // It respects the timeout specified in the Client instance.
-func (c Client) GetFeeRecipients(ctx context.Context, lockHash []byte) (FeeRecipientFetchResponse, error) {
+func (c Client) PostFeeRecipientsFetch(ctx context.Context, lockHash []byte, pubkeys []string) (FeeRecipientFetchResponse, error) {
 	path := fetchFeeRecipientURL("0x" + hex.EncodeToString(lockHash))
 
 	u, err := url.ParseRequestURI(c.baseURL)
@@ -80,12 +82,19 @@ func (c Client) GetFeeRecipients(ctx context.Context, lockHash []byte) (FeeRecip
 
 	u.Path = path
 
+	req := FeeRecipientFetchRequest{Pubkeys: pubkeys}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		return FeeRecipientFetchResponse{}, errors.Wrap(err, "json marshal error")
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	respBody, err := httpGet(ctx, u, map[string]string{})
+	respBody, err := httpPostWithResponse(ctx, u, data, nil)
 	if err != nil {
-		return FeeRecipientFetchResponse{}, errors.Wrap(err, "http Obol API GET request")
+		return FeeRecipientFetchResponse{}, errors.Wrap(err, "http Obol API POST request")
 	}
 
 	defer respBody.Close()

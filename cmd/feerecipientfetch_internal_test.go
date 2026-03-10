@@ -85,21 +85,22 @@ func TestFeeRecipientFetchValid(t *testing.T) {
 	}
 
 	// Now fetch the aggregated registrations.
-	dataDir := filepath.Join(root, "output")
+	overridesFile := filepath.Join(root, "output", "builder_registrations_overrides.json")
+	require.NoError(t, os.MkdirAll(filepath.Dir(overridesFile), 0o755))
 
 	fetchConfig := feerecipientFetchConfig{
 		feerecipientConfig: feerecipientConfig{
-			LockFilePath:   filepath.Join(root, "op0", "cluster-lock.json"),
-			PublishAddress: srv.URL,
-			PublishTimeout: 10 * time.Second,
+			LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
+			OverridesFilePath: overridesFile,
+			PublishAddress:    srv.URL,
+			PublishTimeout:    10 * time.Second,
 		},
-		DataDir: dataDir,
 	}
 
 	require.NoError(t, runFeeRecipientFetch(ctx, fetchConfig))
 
 	// Verify output file exists and contains registrations.
-	data, err := os.ReadFile(filepath.Join(dataDir, builderRegistrationsOverridesFilename))
+	data, err := os.ReadFile(overridesFile)
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 }
@@ -117,7 +118,7 @@ func TestFeeRecipientFetchCLI(t *testing.T) {
 				"--lock-file=test",
 				"--publish-address=test",
 				"--publish-timeout=1ms",
-				"--data-dir=test",
+				"--overrides-file=test",
 			},
 		},
 	}

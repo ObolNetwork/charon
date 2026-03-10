@@ -15,6 +15,7 @@ type feerecipientConfig struct {
 	PrivateKeyPath      string
 	LockFilePath        string
 	ValidatorKeysDir    string
+	OverridesFilePath   string
 	PublishAddress      string
 	PublishTimeout      time.Duration
 	Log                 log.Config
@@ -32,11 +33,14 @@ func newFeeRecipientCmd(cmds ...*cobra.Command) *cobra.Command {
 	return root
 }
 
-func bindFeeRecipientFlags(cmd *cobra.Command, config *feerecipientConfig) {
-	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", []string{}, "Comma-separated list of validator public keys to update (required for the sign subcommand).")
+func bindFeeRecipientCharonFilesFlags(cmd *cobra.Command, config *feerecipientConfig) {
 	cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", "Path to the charon enr private key file.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "Path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.OverridesFilePath, "overrides-file", ".charon/builder_registrations_overrides.json", "Path to the builder registrations overrides file.")
+}
+
+func bindFeeRecipientRemoteAPIFlags(cmd *cobra.Command, config *feerecipientConfig) {
 	cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", "The URL of the remote API.")
-	cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 5*time.Minute, "Timeout for publishing to the publish-address API.")
+	cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 5*time.Minute, "Timeout for accessing the remote API.")
 }

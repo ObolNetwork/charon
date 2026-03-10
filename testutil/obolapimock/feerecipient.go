@@ -158,7 +158,7 @@ func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter
 	writer.WriteHeader(http.StatusOK)
 }
 
-func (ts *testServer) HandleGetFeeRecipient(writer http.ResponseWriter, request *http.Request) {
+func (ts *testServer) HandlePostFeeRecipientFetch(writer http.ResponseWriter, request *http.Request) {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
 
@@ -176,54 +176,71 @@ func (ts *testServer) HandleGetFeeRecipient(writer http.ResponseWriter, request 
 		return
 	}
 
+	var fetchReq obolapi.FeeRecipientFetchRequest
+	if err := json.NewDecoder(request.Body).Decode(&fetchReq); err != nil {
+		writeErr(writer, http.StatusBadRequest, "invalid body")
+		return
+	}
+
+	// Build a set of requested pubkeys for filtering.
+	pubkeyFilter := make(map[string]bool)
+	for _, pk := range fetchReq.Pubkeys {
+		pubkeyFilter[strings.ToLower(strings.TrimPrefix(pk, "0x"))] = true
+	}
+
+	// Determine which validators to report on: filtered list or all in the cluster.
+	type validatorInfo struct {
+		pubkeyHex string
+		validator *cluster.DistValidator
+	}
+
+	var targets []validatorInfo
+
+	for i := range lock.Validators {
+		pkHex := strings.TrimPrefix(lock.Validators[i].PublicKeyHex(), "0x")
+		if len(pubkeyFilter) > 0 && !pubkeyFilter[strings.ToLower(pkHex)] {
+			continue
+		}
+
+		targets = append(targets, validatorInfo{
+			pubkeyHex: pkHex,
+			validator: &lock.Validators[i],
+		})
+	}
+
 	var (
 		registrations []*eth2api.VersionedSignedValidatorRegistration
 		validators    []obolapi.FeeRecipientValidatorStatus
 	)
 
-	// Only iterate over validators that have partial signatures submitted.
-	for key, existing := range ts.partialFeeRecipients {
-		// Key format: "lockHash/pubkeyHex"
-		if !strings.HasPrefix(key, lockHash+"/") {
-			continue
+	for _, t := range targets {
+		key := lockHash + "/" + t.pubkeyHex
+		existing, hasPartials := ts.partialFeeRecipients[key]
+
+		partialCount := 0
+		if hasPartials {
+			partialCount = len(existing.partials)
 		}
 
-		pubkeyHex := strings.TrimPrefix(key, lockHash+"/")
-
-		partialCount := len(existing.partials)
-
-		status := "pending"
-		if partialCount >= lock.Threshold {
-			status = "complete"
+		status := obolapi.FeeRecipientStatusUnknown
+		if partialCount > 0 && partialCount < lock.Threshold {
+			status = obolapi.FeeRecipientStatusPartial
+		} else if partialCount >= lock.Threshold {
+			status = obolapi.FeeRecipientStatusComplete
 		}
 
 		validators = append(validators, obolapi.FeeRecipientValidatorStatus{
-			Pubkey:       "0x" + pubkeyHex,
+			Pubkey:       "0x" + t.pubkeyHex,
 			Status:       status,
 			PartialCount: partialCount,
 		})
 
-		if status != "complete" {
+		if status != obolapi.FeeRecipientStatusComplete {
 			continue
 		}
 
-		// Find the validator in the lock to get public shares for aggregation.
-		var v *cluster.DistValidator
-
-		for i := range lock.Validators {
-			if strings.TrimPrefix(lock.Validators[i].PublicKeyHex(), "0x") == pubkeyHex {
-				v = &lock.Validators[i]
-				break
-			}
-		}
-
-		if v == nil {
-			writeErr(writer, http.StatusInternalServerError, "validator not found in lock")
-			return
-		}
-
 		// Aggregate partial signatures server-side.
-		signedReg, err := ts.aggregateFeeRecipient(lock, *v, existing)
+		signedReg, err := ts.aggregateFeeRecipient(lock, *t.validator, existing)
 		if err != nil {
 			writeErr(writer, http.StatusInternalServerError, "aggregate error: "+err.Error())
 			return

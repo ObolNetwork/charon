@@ -47,7 +47,8 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 		},
 	}
 
-	bindFeeRecipientFlags(cmd, &config.feerecipientConfig)
+	bindFeeRecipientCharonFilesFlags(cmd, &config.feerecipientConfig)
+	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
 	bindFeeRecipientSignFlags(cmd, &config)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
