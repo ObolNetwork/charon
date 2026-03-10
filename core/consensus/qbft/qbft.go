@@ -431,13 +431,13 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return errors.New("input channel full")
 	}
 
-	if c.compareAttestations {
-		select {
-		case inst.VerifyCh <- value:
-		default:
-			return errors.New("input channel full")
-		}
-	}
+	// if c.compareAttestations {
+	// 	select {
+	// 	case inst.VerifyCh <- value:
+	// 	default:
+	// 		return errors.New("input channel full")
+	// 	}
+	// }
 
 	// Instrument consensus duration using decidedAt output.
 	proposedAt := time.Now()
