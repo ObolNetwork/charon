@@ -572,15 +572,8 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("duty expired", z.Any("duty", duty), c.dropFilter)
 	}
 
-	recvBuffer := c.getRecvBuffer(duty)
-	log.Debug(ctx, "QBFT recv buffer enqueue",
-		z.Any("duty", duty),
-		z.Int("buffer_len", len(recvBuffer)),
-		z.Int("buffer_cap", cap(recvBuffer)),
-	)
-
 	select {
-	case recvBuffer <- msg:
+	case c.getRecvBuffer(duty) <- msg:
 		return nil, false, nil
 	case <-ctx.Done():
 		return nil, false, errors.Wrap(ctx.Err(), "timeout enqueuing receive buffer",
