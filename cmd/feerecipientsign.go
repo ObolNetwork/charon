@@ -3,12 +3,14 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
+	"os"
 	"strings"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
@@ -26,13 +28,15 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-// pubkeyToSign pairs a validator public key with the timestamp to use when signing its registration.
-// For validators with no existing partial registration (unknown status), the timestamp is set to
-// time.Now() by the first operator. For validators already in partial status, the timestamp is
-// adopted from the existing partial registration so all operators sign the same message.
+// pubkeyToSign pairs a validator public key with the timestamp and gas limit to use when signing
+// its registration. For validators with no existing partial registration (unknown status), the
+// timestamp is set to time.Now() by the first operator and the gas limit is resolved from the
+// config override or cluster lock. For validators already in partial status, the timestamp and
+// gas limit are adopted from the existing partial registration so all operators sign the same message.
 type pubkeyToSign struct {
 	Pubkey    eth2p0.BLSPubKey
 	Timestamp time.Time
+	GasLimit  uint64
 }
 
 type feerecipientSignConfig struct {
@@ -59,11 +63,12 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
 
 	cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "Path to the cluster lock file defining the distributed validator cluster.")
+	cmd.Flags().StringVar(&config.OverridesFilePath, "overrides-file", ".charon/builder_registrations_overrides.json", "Path to the builder registrations overrides file.")
 	cmd.Flags().StringVar(&config.PrivateKeyPath, privateKeyPath.String(), ".charon/charon-enr-private-key", "Path to the charon enr private key file.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
-	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the existing gas limit from the cluster lock is used.")
+	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the existing gas limit from the cluster lock or overrides file is used.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "validator-public-keys")
@@ -132,8 +137,13 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
 	}
 
+	overrides, err := loadOverridesRegistrations(config.OverridesFilePath)
+	if err != nil {
+		return err
+	}
+
 	// Filter pubkeys based on their current status on the remote API.
-	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, time.Now)
+	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, config.GasLimit, *cl, overrides, time.Now)
 	if err != nil {
 		return err
 	}
@@ -144,7 +154,7 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 	}
 
 	// Build and sign partial registrations.
-	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, config.GasLimit, pubkeysToSign, *cl, shares)
+	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, pubkeysToSign, *cl, shares)
 	if err != nil {
 		return err
 	}
@@ -171,17 +181,21 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 }
 
 // filterPubkeysByStatus fetches the current registration groups for each pubkey from the remote
-// API and returns only those that need signing, each paired with the timestamp to use for signing.
-// Validators with a quorum-complete registration for the requested fee recipient are skipped.
-// In-progress (non-quorum) registrations with a mismatched fee recipient cause an error.
-// For validators with a matching in-progress registration, the existing timestamp is adopted so
-// all operators sign the identical message. For unknown validators, now() is used.
+// API and returns only those that need signing, each paired with the timestamp and gas limit to
+// use for signing. Validators with a quorum-complete registration for the requested fee recipient
+// are skipped. In-progress (non-quorum) registrations with a mismatched fee recipient cause an error.
+// For validators with a matching in-progress registration, the existing timestamp and gas limit are
+// adopted so all operators sign the identical message. For unknown validators, now() and the
+// gas limit from the config override or cluster lock are used.
 func filterPubkeysByStatus(
 	ctx context.Context,
 	oAPI obolapi.Client,
 	lockHash []byte,
 	requestedPubkeys []string,
 	feeRecipient string,
+	gasLimitOverride uint64,
+	cl cluster.Lock,
+	overrides map[string]eth2v1.ValidatorRegistration,
 	now func() time.Time,
 ) ([]pubkeyToSign, error) {
 	resp, err := oAPI.PostFeeRecipientsFetch(ctx, lockHash, requestedPubkeys)
@@ -203,7 +217,10 @@ func filterPubkeysByStatus(
 
 		v, ok := validatorByPubkey[normalizedKey]
 
-		var timestamp time.Time
+		var (
+			timestamp time.Time
+			gasLimit  uint64
+		)
 
 		if ok {
 			var quorumGroup, incompleteGroup *obolapi.FeeRecipientBuilderRegistration
@@ -234,20 +251,23 @@ func filterPubkeysByStatus(
 					)
 				}
 
-				// Adopt the timestamp from the in-progress group so all operators sign the same message.
+				// Adopt the timestamp and gas limit from the in-progress group so all operators sign the same message.
 				timestamp = incompleteGroup.Message.Timestamp
+				gasLimit = incompleteGroup.Message.GasLimit
 
 				log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
 					z.Str("pubkey", valPubKey),
 					z.Str("fee_recipient", incompleteGroup.Message.FeeRecipient.String()),
 					z.Int("partial_count", len(incompleteGroup.PartialSignatures)))
 			} else {
-				// No in-progress group: anchor the timestamp now.
+				// No in-progress group: anchor the timestamp and resolve gas limit now.
 				timestamp = now()
+				gasLimit = resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
 			}
 		} else {
-			// Unknown validator: first signer anchors the timestamp.
+			// Unknown validator: first signer anchors the timestamp and resolves gas limit.
 			timestamp = now()
+			gasLimit = resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
 		}
 
 		pubkeyBytes, err := hex.DecodeString(normalizedKey)
@@ -262,18 +282,77 @@ func filterPubkeysByStatus(
 		pubkeysToSign = append(pubkeysToSign, pubkeyToSign{
 			Pubkey:    eth2p0.BLSPubKey(pubkeyBytes),
 			Timestamp: timestamp,
+			GasLimit:  gasLimit,
 		})
 	}
 
 	return pubkeysToSign, nil
 }
 
+// resolveGasLimit returns gasLimitOverride if non-zero. Otherwise it picks the gas limit from
+// whichever source (cluster lock or overrides file) has the higher timestamp for the given
+// validator pubkey. This ensures the most recent registration's gas limit is used.
+func resolveGasLimit(gasLimitOverride uint64, cl cluster.Lock, overrides map[string]eth2v1.ValidatorRegistration, normalizedPubkeyHex string) uint64 {
+	if gasLimitOverride != 0 {
+		return gasLimitOverride
+	}
+
+	var (
+		bestGasLimit  uint64
+		bestTimestamp time.Time
+	)
+
+	for _, dv := range cl.Validators {
+		if strings.EqualFold(dv.PublicKeyHex(), "0x"+normalizedPubkeyHex) {
+			bestGasLimit = uint64(dv.BuilderRegistration.Message.GasLimit)
+			bestTimestamp = dv.BuilderRegistration.Message.Timestamp
+
+			break
+		}
+	}
+
+	if override, ok := overrides[normalizedPubkeyHex]; ok {
+		if override.Timestamp.After(bestTimestamp) {
+			bestGasLimit = override.GasLimit
+		}
+	}
+
+	return bestGasLimit
+}
+
+// loadOverridesRegistrations reads the builder registrations overrides file and returns
+// a map keyed by normalized (lowercase, no 0x prefix) validator pubkey hex. If the file
+// does not exist, an empty map is returned.
+func loadOverridesRegistrations(path string) (map[string]eth2v1.ValidatorRegistration, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return make(map[string]eth2v1.ValidatorRegistration), nil
+	} else if err != nil {
+		return nil, errors.Wrap(err, "read overrides file", z.Str("path", path))
+	}
+
+	var regs []*eth2api.VersionedSignedValidatorRegistration
+	if err := json.Unmarshal(data, &regs); err != nil {
+		return nil, errors.Wrap(err, "unmarshal overrides file", z.Str("path", path))
+	}
+
+	result := make(map[string]eth2v1.ValidatorRegistration, len(regs))
+	for _, reg := range regs {
+		if reg == nil || reg.V1 == nil || reg.V1.Message == nil {
+			continue
+		}
+
+		key := strings.ToLower(hex.EncodeToString(reg.V1.Message.Pubkey[:]))
+		result[key] = *reg.V1.Message
+	}
+
+	return result, nil
+}
+
 // buildPartialRegistrations creates partial builder registration messages for each pubkey,
 // signs them with the operator's key share, and returns the signed partial registrations.
-// If gasLimitOverride is non-zero it is used; otherwise the existing gas limit from the cluster lock is used.
 func buildPartialRegistrations(
 	feeRecipientHex string,
-	gasLimitOverride uint64,
 	pubkeys []pubkeyToSign,
 	cl cluster.Lock,
 	shares keystore.ValidatorShares,
@@ -289,27 +368,9 @@ func buildPartialRegistrations(
 	partialRegs := make([]obolapi.PartialRegistration, 0, len(pubkeys))
 
 	for _, p := range pubkeys {
-		var existingReg *cluster.BuilderRegistration
-
-		for _, dv := range cl.Validators {
-			if bytes.Equal(dv.PubKey, p.Pubkey[:]) {
-				existingReg = &dv.BuilderRegistration
-				break
-			}
-		}
-
-		if existingReg == nil || existingReg.Message.Timestamp.IsZero() {
-			return nil, errors.New("no existing builder registration found for validator", z.Str("pubkey", hex.EncodeToString(p.Pubkey[:])))
-		}
-
-		gasLimit := uint64(existingReg.Message.GasLimit)
-		if gasLimitOverride != 0 {
-			gasLimit = gasLimitOverride
-		}
-
 		regMsg := &eth2v1.ValidatorRegistration{
 			FeeRecipient: feeRecipient,
-			GasLimit:     gasLimit,
+			GasLimit:     p.GasLimit,
 			Timestamp:    p.Timestamp,
 			Pubkey:       p.Pubkey,
 		}
