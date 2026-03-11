@@ -4,7 +4,6 @@ package core
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -20,9 +19,7 @@ import (
 const (
 	// marginFactor defines the fraction of the slot duration to use as a margin.
 	// This is to consider network delays and other factors that may affect the timing.
-	marginFactor      = 12
-	expiredBufferSize = 10
-	tickerInterval    = time.Second
+	marginFactor = 12
 )
 
 // DeadlineFunc is a function that returns the deadline for a duty.
@@ -42,15 +39,19 @@ type Deadliner interface {
 	C() <-chan Duty
 }
 
+// deadlineInput represents the input to inputChan.
+type deadlineInput struct {
+	duty    Duty
+	success chan<- bool
+}
+
 // deadliner implements the Deadliner interface.
 type deadliner struct {
-	lock         sync.Mutex
 	label        string
-	deadlineFunc DeadlineFunc
-	duties       map[Duty]time.Time
-	expiredChan  chan Duty
+	inputChan    chan deadlineInput
+	deadlineChan chan Duty
 	clock        clockwork.Clock
-	done         chan struct{}
+	quit         chan struct{}
 }
 
 // NewDeadlinerForT returns a Deadline for use in tests.
@@ -63,7 +64,7 @@ func NewDeadlinerForT(ctx context.Context, t *testing.T, deadlineFunc DeadlineFu
 // NewDeadliner returns a new instance of Deadline.
 //
 // It also starts a goroutine which is responsible for reading and storing duties,
-// and sending the deadlined duty to receiver's expiredChan until the context is closed.
+// and sending the deadlined duty to receiver's deadlineChan until the context is closed.
 func NewDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc) Deadliner {
 	return newDeadliner(ctx, label, deadlineFunc, clockwork.NewRealClock())
 }
@@ -112,103 +113,134 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 
 // newDeadliner returns a new Deadliner, this is for internal use only.
 func newDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc, clock clockwork.Clock) Deadliner {
+	// outputBuffer big enough to support all duty types, which can expire at the same time
+	// while external consumer is synchronously adding duties (so not reading output).
+	const outputBuffer = 10
+
 	d := &deadliner{
 		label:        label,
-		deadlineFunc: deadlineFunc,
-		duties:       make(map[Duty]time.Time),
-		expiredChan:  make(chan Duty, expiredBufferSize),
+		inputChan:    make(chan deadlineInput), // Not buffering this since writer wait for response.
+		deadlineChan: make(chan Duty, outputBuffer),
 		clock:        clock,
-		done:         make(chan struct{}),
+		quit:         make(chan struct{}),
 	}
 
-	go d.run(ctx)
+	go d.run(ctx, deadlineFunc)
 
 	return d
 }
 
-func (d *deadliner) run(ctx context.Context) {
-	defer close(d.done)
+func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
+	duties := make(map[Duty]bool)
+	currDuty, currDeadline := getCurrDuty(duties, deadlineFunc)
+	currTimer := d.clock.NewTimer(currDeadline.Sub(d.clock.Now()))
 
-	// The simple approach does not require a min-heap or priority queue to store the duties and their deadlines,
-	// but it is sufficient for our use case as the number of duties is expected to be small.
-	// A disadvantage of this approach is the expiration precision is rounded to the nearest second.
-	timer := d.clock.NewTicker(tickerInterval)
-	defer timer.Stop()
+	defer func() {
+		close(d.quit)
+		currTimer.Stop()
+	}()
 
+	setCurrState := func() {
+		currTimer.Stop()
+
+		currDuty, currDeadline = getCurrDuty(duties, deadlineFunc)
+		currTimer = d.clock.NewTimer(currDeadline.Sub(d.clock.Now()))
+	}
+
+	// TODO(dhruv): optimise getCurrDuty and updating current state if earlier deadline detected,
+	//  using min heap or ordered map
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-timer.Chan():
-			// Get all expired duties at the current time.
-			expiredDuties := d.getExpiredDuties(d.clock.Now())
-			if len(expiredDuties) == 0 {
+		case input := <-d.inputChan:
+			log.Debug(ctx, "Deadliner.run() received duty", z.Any("duty", input.duty))
+
+			deadline, canExpire := deadlineFunc(input.duty)
+			if !canExpire {
+				// Drop duties that never expire
+				input.success <- false
 				continue
 			}
 
-			log.Debug(ctx, "Deadliner.run() got expired duties", z.Int("count", len(expiredDuties)))
+			expired := deadline.Before(d.clock.Now())
 
-			for _, expiredDuty := range expiredDuties {
-				// Send the expired duty to the receiver.
-				select {
-				case <-ctx.Done():
-					return
-				case d.expiredChan <- expiredDuty:
-				}
+			input.success <- !expired
+
+			// Ignore expired duties
+			if expired {
+				continue
 			}
+
+			duties[input.duty] = true
+
+			if deadline.Before(currDeadline) {
+				setCurrState()
+			}
+		case <-currTimer.Chan():
+			log.Debug(ctx, "Deadliner.run() currTimer expired", z.Any("currDuty", currDuty), z.Int("deadlineChanLen", len(d.deadlineChan)))
+
+			// Send deadlined duty to receiver.
+			select {
+			case <-ctx.Done():
+				return
+			case d.deadlineChan <- currDuty:
+			default:
+				log.Warn(ctx, "Deadliner output channel full", nil,
+					z.Str("label", d.label),
+					z.Any("duty", currDuty),
+				)
+			}
+
+			delete(duties, currDuty)
+			setCurrState()
 		}
 	}
 }
 
 // Add adds a duty to be notified of the deadline. It returns true if the duty was added successfully.
 func (d *deadliner) Add(duty Duty) bool {
-	log.Debug(context.Background(), "Deadliner.Add()", z.Any("duty", duty))
+	log.Debug(context.Background(), "Deadliner.Add() adding duty", z.Any("duty", duty))
+
+	success := make(chan bool)
 
 	select {
-	case <-d.done:
-		// Run goroutine has stopped, ignore new duties.
+	case <-d.quit:
 		return false
-	default:
+	case d.inputChan <- deadlineInput{duty: duty, success: success}:
 	}
 
-	deadline, canExpire := d.deadlineFunc(duty)
-	if !canExpire {
-		// Drop duties that never expire
+	select {
+	case <-d.quit:
 		return false
+	case ok := <-success:
+		return ok
 	}
-
-	expired := deadline.Before(d.clock.Now())
-	if expired {
-		// Drop expired duties
-		return false
-	}
-
-	d.lock.Lock()
-	defer d.lock.Unlock()
-
-	d.duties[duty] = deadline
-
-	return true
 }
 
 // C returns the deadline channel.
 func (d *deadliner) C() <-chan Duty {
-	return d.expiredChan
+	return d.deadlineChan
 }
 
-// getExpiredDuties selects all expired duties.
-func (d *deadliner) getExpiredDuties(now time.Time) []Duty {
-	expiredDuties := []Duty{}
+// getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the latest deadline.
+func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Time) {
+	var currDuty Duty
 
-	d.lock.Lock()
-	defer d.lock.Unlock()
+	currDeadline := time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	for duty, deadline := range d.duties {
-		if deadline.Before(now) {
-			expiredDuties = append(expiredDuties, duty)
-			delete(d.duties, duty)
+	for duty := range duties {
+		dutyDeadline, ok := deadlineFunc(duty)
+		if !ok {
+			// Ignore the duties that never expire.
+			continue
+		}
+
+		if currDeadline.After(dutyDeadline) {
+			currDuty = duty
+			currDeadline = dutyDeadline
 		}
 	}
 
-	return expiredDuties
+	return currDuty, currDeadline
 }
