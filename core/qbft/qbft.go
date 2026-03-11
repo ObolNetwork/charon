@@ -233,6 +233,8 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 		fifo = append(fifo, msg)
 		if len(fifo) > d.FIFOLimit {
+			d.LogDebug(ctx, instance, process, msg, "new QBFT message - FIFO Limit reached")
+
 			fifo = fifo[len(fifo)-d.FIFOLimit:]
 		}
 
