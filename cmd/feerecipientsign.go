@@ -40,6 +40,7 @@ type feerecipientSignConfig struct {
 
 	ValidatorKeysDir string
 	FeeRecipient     string
+	GasLimit         uint64
 }
 
 func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig) error) *cobra.Command {
@@ -62,6 +63,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
+	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the existing gas limit from the cluster lock is used.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "validator-public-keys")
@@ -142,7 +144,7 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 	}
 
 	// Build and sign partial registrations.
-	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, pubkeysToSign, *cl, shares)
+	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, config.GasLimit, pubkeysToSign, *cl, shares)
 	if err != nil {
 		return err
 	}
@@ -151,6 +153,7 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		log.Info(ctx, "Signed partial builder registration",
 			z.Str("validator_pubkey", hex.EncodeToString(reg.Message.Pubkey[:])),
 			z.Str("fee_recipient", config.FeeRecipient),
+			z.U64("gas_limit", reg.Message.GasLimit),
 			z.I64("timestamp", reg.Message.Timestamp.Unix()),
 		)
 	}
@@ -167,12 +170,12 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 	return nil
 }
 
-// filterPubkeysByStatus fetches the current status for each pubkey from the remote API and returns
-// only those that need signing, each paired with the timestamp to use for signing.
-// Complete registrations are skipped. Partial registrations with mismatched fee recipients cause
-// an error. For unknown validators, now() is used as the timestamp (first signer anchors it).
-// For partial validators with a matching fee recipient, the existing timestamp from the API is
-// adopted so all operators sign the identical message.
+// filterPubkeysByStatus fetches the current registration groups for each pubkey from the remote
+// API and returns only those that need signing, each paired with the timestamp to use for signing.
+// Validators with a quorum-complete registration for the requested fee recipient are skipped.
+// In-progress (non-quorum) registrations with a mismatched fee recipient cause an error.
+// For validators with a matching in-progress registration, the existing timestamp is adopted so
+// all operators sign the identical message. For unknown validators, now() is used.
 func filterPubkeysByStatus(
 	ctx context.Context,
 	oAPI obolapi.Client,
@@ -186,53 +189,68 @@ func filterPubkeysByStatus(
 		return nil, errors.Wrap(err, "fetch builder registration status from Obol API")
 	}
 
-	statusByPubkey := make(map[string]obolapi.FeeRecipientValidatorStatus)
-	for _, vs := range resp.Validators {
-		statusByPubkey[strings.ToLower(vs.Pubkey)] = vs
+	validatorByPubkey := make(map[string]obolapi.FeeRecipientValidator)
+
+	for _, v := range resp.Validators {
+		normalizedKey := strings.ToLower(strings.TrimPrefix(v.Pubkey, "0x"))
+		validatorByPubkey[normalizedKey] = v
 	}
 
 	var pubkeysToSign []pubkeyToSign
 
 	for _, valPubKey := range requestedPubkeys {
-		normalizedKey := strings.ToLower(valPubKey)
-		if !strings.HasPrefix(normalizedKey, "0x") {
-			normalizedKey = "0x" + normalizedKey
-		}
+		normalizedKey := strings.ToLower(strings.TrimPrefix(valPubKey, "0x"))
 
-		vs, ok := statusByPubkey[normalizedKey]
-
-		if ok && vs.Status == obolapi.FeeRecipientStatusComplete {
-			log.Info(ctx, "Validator already has a complete builder registration, skipping",
-				z.Str("pubkey", valPubKey),
-				z.Str("fee_recipient", vs.FeeRecipient))
-
-			continue
-		}
+		v, ok := validatorByPubkey[normalizedKey]
 
 		var timestamp time.Time
 
-		if ok && vs.Status == obolapi.FeeRecipientStatusPartial {
-			if !strings.EqualFold(vs.FeeRecipient, feeRecipient) {
-				return nil, errors.New("fee recipient mismatch with existing partial registration; wait for the in-progress registration to complete or coordinate with your cluster operators",
-					z.Str("pubkey", valPubKey),
-					z.Str("existing_fee_recipient", vs.FeeRecipient),
-					z.Str("requested_fee_recipient", feeRecipient),
-				)
+		if ok {
+			var quorumGroup, incompleteGroup *obolapi.FeeRecipientBuilderRegistration
+
+			for i := range v.BuilderRegistrations {
+				reg := &v.BuilderRegistrations[i]
+				if reg.Quorum && quorumGroup == nil {
+					quorumGroup = reg
+				} else if !reg.Quorum && incompleteGroup == nil {
+					incompleteGroup = reg
+				}
 			}
 
-			// Adopt the timestamp from the existing partial so all operators sign the same message.
-			timestamp = vs.Timestamp
+			if quorumGroup != nil && strings.EqualFold(quorumGroup.Message.FeeRecipient.String(), feeRecipient) {
+				log.Info(ctx, "Validator already has a complete builder registration, skipping",
+					z.Str("pubkey", valPubKey),
+					z.Str("fee_recipient", quorumGroup.Message.FeeRecipient.String()))
 
-			log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
-				z.Str("pubkey", valPubKey),
-				z.Str("fee_recipient", vs.FeeRecipient),
-				z.Int("partial_count", vs.PartialCount))
+				continue
+			}
+
+			if incompleteGroup != nil {
+				if !strings.EqualFold(incompleteGroup.Message.FeeRecipient.String(), feeRecipient) {
+					return nil, errors.New("fee recipient mismatch with existing partial registration; wait for the in-progress registration to complete or coordinate with your cluster operators",
+						z.Str("pubkey", valPubKey),
+						z.Str("existing_fee_recipient", incompleteGroup.Message.FeeRecipient.String()),
+						z.Str("requested_fee_recipient", feeRecipient),
+					)
+				}
+
+				// Adopt the timestamp from the in-progress group so all operators sign the same message.
+				timestamp = incompleteGroup.Message.Timestamp
+
+				log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
+					z.Str("pubkey", valPubKey),
+					z.Str("fee_recipient", incompleteGroup.Message.FeeRecipient.String()),
+					z.Int("partial_count", len(incompleteGroup.PartialSignatures)))
+			} else {
+				// No in-progress group: anchor the timestamp now.
+				timestamp = now()
+			}
 		} else {
-			// First signer for this validator: anchor the timestamp now.
+			// Unknown validator: first signer anchors the timestamp.
 			timestamp = now()
 		}
 
-		pubkeyBytes, err := hex.DecodeString(strings.TrimPrefix(valPubKey, "0x"))
+		pubkeyBytes, err := hex.DecodeString(normalizedKey)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode pubkey", z.Str("validator_public_key", valPubKey))
 		}
@@ -252,8 +270,10 @@ func filterPubkeysByStatus(
 
 // buildPartialRegistrations creates partial builder registration messages for each pubkey,
 // signs them with the operator's key share, and returns the signed partial registrations.
+// If gasLimitOverride is non-zero it is used; otherwise the existing gas limit from the cluster lock is used.
 func buildPartialRegistrations(
 	feeRecipientHex string,
+	gasLimitOverride uint64,
 	pubkeys []pubkeyToSign,
 	cl cluster.Lock,
 	shares keystore.ValidatorShares,
@@ -282,9 +302,14 @@ func buildPartialRegistrations(
 			return nil, errors.New("no existing builder registration found for validator", z.Str("pubkey", hex.EncodeToString(p.Pubkey[:])))
 		}
 
+		gasLimit := uint64(existingReg.Message.GasLimit)
+		if gasLimitOverride != 0 {
+			gasLimit = gasLimitOverride
+		}
+
 		regMsg := &eth2v1.ValidatorRegistration{
 			FeeRecipient: feeRecipient,
-			GasLimit:     uint64(existingReg.Message.GasLimit),
+			GasLimit:     gasLimit,
 			Timestamp:    p.Timestamp,
 			Pubkey:       p.Pubkey,
 		}

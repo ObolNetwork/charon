@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -16,6 +19,8 @@ import (
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 type feerecipientFetchConfig struct {
@@ -60,58 +65,83 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 		return errors.Wrap(err, "fetch builder registrations from Obol API")
 	}
 
-	// Group validators by status.
-	grouped := make(map[obolapi.FeeRecipientStatus][]obolapi.FeeRecipientValidatorStatus)
-	for _, vs := range resp.Validators {
-		grouped[vs.Status] = append(grouped[vs.Status], vs)
-	}
+	var (
+		aggregatedRegs  []*eth2api.VersionedSignedValidatorRegistration
+		completeCount   int
+		incompleteCount int
+		noRegCount      int
+	)
 
-	if vals := grouped[obolapi.FeeRecipientStatusComplete]; len(vals) > 0 {
-		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", len(vals)))
+	for _, val := range resp.Validators {
+		var hasQuorum, hasIncomplete bool
 
-		for _, vs := range vals {
-			log.Info(ctx, "  Complete registration",
-				z.Str("pubkey", vs.Pubkey),
-				z.Str("fee_recipient", vs.FeeRecipient),
-				z.I64("timestamp_unix", vs.Timestamp.UTC().Unix()),
-				z.Str("timestamp", vs.Timestamp.String()))
+		for _, reg := range val.BuilderRegistrations {
+			if reg.Quorum {
+				hasQuorum = true
+
+				partialSigs := make(map[int]tbls.Signature)
+
+				for _, ps := range reg.PartialSignatures {
+					sig, err := tblsconv.SignatureFromBytes(ps.Signature[:])
+					if err != nil {
+						return errors.Wrap(err, "parse partial signature", z.Str("pubkey", val.Pubkey))
+					}
+
+					partialSigs[ps.ShareIndex] = sig
+				}
+
+				fullSig, err := tbls.ThresholdAggregate(partialSigs)
+				if err != nil {
+					return errors.Wrap(err, "aggregate partial signatures", z.Str("pubkey", val.Pubkey))
+				}
+
+				aggregatedRegs = append(aggregatedRegs, &eth2api.VersionedSignedValidatorRegistration{
+					Version: eth2spec.BuilderVersionV1,
+					V1: &eth2v1.SignedValidatorRegistration{
+						Message:   reg.Message,
+						Signature: eth2p0.BLSSignature(fullSig),
+					},
+				})
+			} else {
+				hasIncomplete = true
+			}
+		}
+
+		switch {
+		case hasQuorum:
+			completeCount++
+		case hasIncomplete:
+			incompleteCount++
+		default:
+			noRegCount++
 		}
 	}
 
-	if vals := grouped[obolapi.FeeRecipientStatusPartial]; len(vals) > 0 {
-		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", len(vals)))
-
-		for _, vs := range vals {
-			log.Info(ctx, "  Partial registration",
-				z.Str("pubkey", vs.Pubkey),
-				z.Str("fee_recipient", vs.FeeRecipient),
-				z.I64("timestamp_unix", vs.Timestamp.UTC().Unix()),
-				z.Str("timestamp", vs.Timestamp.String()),
-				z.Int("partial_count", vs.PartialCount))
-		}
+	if completeCount > 0 {
+		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", completeCount))
 	}
 
-	if vals := grouped[obolapi.FeeRecipientStatusUnknown]; len(vals) > 0 {
-		log.Info(ctx, "Validators unknown to the API", z.Int("count", len(vals)))
-
-		for _, vs := range vals {
-			log.Info(ctx, "  Unknown validator", z.Str("pubkey", vs.Pubkey))
-		}
+	if incompleteCount > 0 {
+		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", incompleteCount))
 	}
 
-	if len(resp.Registrations) == 0 {
+	if noRegCount > 0 {
+		log.Info(ctx, "Validators unknown to the API", z.Int("count", noRegCount))
+	}
+
+	if len(aggregatedRegs) == 0 {
 		log.Warn(ctx, "No fully signed builder registrations available yet", nil)
 
 		return nil
 	}
 
-	err = writeSignedValidatorRegistrations(config.OverridesFilePath, resp.Registrations)
+	err = writeSignedValidatorRegistrations(config.OverridesFilePath, aggregatedRegs)
 	if err != nil {
 		return errors.Wrap(err, "write builder registrations overrides", z.Str("path", config.OverridesFilePath))
 	}
 
 	log.Info(ctx, "Successfully wrote builder registrations overrides",
-		z.Int("count", len(resp.Registrations)),
+		z.Int("count", len(aggregatedRegs)),
 		z.Str("path", config.OverridesFilePath),
 	)
 

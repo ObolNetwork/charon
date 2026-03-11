@@ -3,9 +3,9 @@
 package obolapi
 
 import (
-	"time"
+	"encoding/json"
+	"fmt"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 
 	"github.com/obolnetwork/charon/tbls"
@@ -29,29 +29,60 @@ type FeeRecipientFetchRequest struct {
 	Pubkeys []string `json:"pubkeys"`
 }
 
-// FeeRecipientStatus represents the aggregation status for a validator's builder registration.
-type FeeRecipientStatus string
-
-const (
-	// FeeRecipientStatusUnknown indicates no partial signatures received.
-	FeeRecipientStatusUnknown FeeRecipientStatus = "unknown"
-	// FeeRecipientStatusPartial indicates some but not all partial signatures received.
-	FeeRecipientStatusPartial FeeRecipientStatus = "partial"
-	// FeeRecipientStatusComplete indicates enough partial signatures received to produce a complete signature.
-	FeeRecipientStatusComplete FeeRecipientStatus = "complete"
-)
-
-// FeeRecipientValidatorStatus represents the aggregation status for a single validator.
-type FeeRecipientValidatorStatus struct {
-	Pubkey       string             `json:"pubkey"`
-	Status       FeeRecipientStatus `json:"status"`
-	FeeRecipient string             `json:"fee_recipient"`
-	Timestamp    time.Time          `json:"timestamp"`
-	PartialCount int                `json:"partial_count"`
+// FeeRecipientPartialSig is a partial BLS signature with its share index.
+// The signature is encoded as a 0x-prefixed hex string on the wire.
+type FeeRecipientPartialSig struct {
+	ShareIndex int
+	Signature  tbls.Signature
 }
 
-// FeeRecipientFetchResponse represents the response for fetching builder registrations for a cluster.
+// feeRecipientPartialSigDTO is the wire representation of FeeRecipientPartialSig.
+type feeRecipientPartialSigDTO struct {
+	ShareIndex int    `json:"share_index"`
+	Signature  string `json:"signature"`
+}
+
+func (f *FeeRecipientPartialSig) UnmarshalJSON(data []byte) error {
+	var dto feeRecipientPartialSigDTO
+	if err := json.Unmarshal(data, &dto); err != nil {
+		//nolint:wrapcheck // caller will wrap
+		return err
+	}
+
+	sigBytes, err := from0x(dto.Signature, 96)
+	if err != nil {
+		return err
+	}
+
+	f.ShareIndex = dto.ShareIndex
+	copy(f.Signature[:], sigBytes)
+
+	return nil
+}
+
+func (f FeeRecipientPartialSig) MarshalJSON() ([]byte, error) {
+	//nolint:wrapcheck // caller will wrap
+	return json.Marshal(feeRecipientPartialSigDTO{
+		ShareIndex: f.ShareIndex,
+		Signature:  fmt.Sprintf("%#x", f.Signature),
+	})
+}
+
+// FeeRecipientBuilderRegistration is one registration group sharing the same message,
+// with partial signatures from individual operators.
+type FeeRecipientBuilderRegistration struct {
+	Message           *eth2v1.ValidatorRegistration `json:"message"`
+	PartialSignatures []FeeRecipientPartialSig      `json:"partial_signatures"`
+	Quorum            bool                          `json:"quorum"`
+}
+
+// FeeRecipientValidator is the per-validator entry in the fetch response.
+type FeeRecipientValidator struct {
+	Pubkey               string                            `json:"pubkey"`
+	BuilderRegistrations []FeeRecipientBuilderRegistration `json:"builder_registrations"`
+}
+
+// FeeRecipientFetchResponse is the response for the fee recipient fetch endpoint.
 type FeeRecipientFetchResponse struct {
-	Registrations []*eth2api.VersionedSignedValidatorRegistration `json:"registrations"`
-	Validators    []FeeRecipientValidatorStatus                   `json:"status"`
+	Validators []FeeRecipientValidator `json:"validators"`
 }

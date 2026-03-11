@@ -9,11 +9,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 
@@ -21,7 +18,6 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 const (
@@ -36,9 +32,15 @@ type feeRecipientPartial struct {
 	Signature []byte
 }
 
-// feeRecipientBlob represents partial builder registrations for a validator.
+// feeRecipientBlob holds partial registrations for a validator, grouped by message identity.
+// The outer key is a message hash (fee_recipient|timestamp|gas_limit), the inner key is share index.
 type feeRecipientBlob struct {
-	partials map[int]feeRecipientPartial // keyed by share index
+	groups map[string]map[int]feeRecipientPartial
+}
+
+// msgKey returns a stable string key identifying a registration message's content.
+func msgKey(msg *eth2v1.ValidatorRegistration) string {
+	return fmt.Sprintf("%s|%d|%d", msg.FeeRecipient.String(), msg.Timestamp.Unix(), msg.GasLimit)
 }
 
 func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter, request *http.Request) {
@@ -78,14 +80,12 @@ func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter
 		return
 	}
 
-	// check that share index is valid
 	if shareIndex <= 0 || shareIndex > len(lock.Operators) {
 		writeErr(writer, http.StatusBadRequest, "invalid share index")
 		return
 	}
 
 	for _, partialReg := range data.PartialRegistrations {
-		// Verify the partial signature using the public share.
 		sigRoot, err := registration.GetMessageSigningRoot(partialReg.Message, eth2p0.Version(lock.ForkVersion))
 		if err != nil {
 			writeErr(writer, http.StatusInternalServerError, "cannot calculate signing root")
@@ -118,42 +118,29 @@ func (ts *testServer) HandleSubmitPartialFeeRecipient(writer http.ResponseWriter
 			return
 		}
 
-		// Store the partial registration.
 		key := lockHash + "/" + validatorPubkeyHex
 
 		existing, ok := ts.partialFeeRecipients[key]
 		if !ok {
 			existing = feeRecipientBlob{
-				partials: make(map[int]feeRecipientPartial),
+				groups: make(map[string]map[int]feeRecipientPartial),
 			}
 		}
 
-		// Check message consistency with existing partials.
-		for _, p := range existing.partials {
-			if p.Message.FeeRecipient != partialReg.Message.FeeRecipient {
-				writeErr(writer, http.StatusBadRequest, "fee_recipient mismatch with existing partial")
-				return
-			}
+		mk := msgKey(partialReg.Message)
 
-			if !p.Message.Timestamp.Equal(partialReg.Message.Timestamp) {
-				writeErr(writer, http.StatusBadRequest, "timestamp mismatch with existing partial")
-				return
-			}
-
-			if p.Message.GasLimit != partialReg.Message.GasLimit {
-				writeErr(writer, http.StatusBadRequest, "gas_limit mismatch with existing partial")
-				return
-			}
-
-			break // Only need to check against one existing partial.
+		group, ok := existing.groups[mk]
+		if !ok {
+			group = make(map[int]feeRecipientPartial)
 		}
 
-		existing.partials[shareIndex] = feeRecipientPartial{
+		group[shareIndex] = feeRecipientPartial{
 			ShareIdx:  shareIndex,
 			Message:   partialReg.Message,
 			Signature: partialReg.Signature[:],
 		}
 
+		existing.groups[mk] = group
 		ts.partialFeeRecipients[key] = existing
 	}
 
@@ -184,13 +171,11 @@ func (ts *testServer) HandlePostFeeRecipientFetch(writer http.ResponseWriter, re
 		return
 	}
 
-	// Build a set of requested pubkeys for filtering.
 	pubkeyFilter := make(map[string]bool)
 	for _, pk := range fetchReq.Pubkeys {
 		pubkeyFilter[strings.ToLower(strings.TrimPrefix(pk, "0x"))] = true
 	}
 
-	// Determine which validators to report on: filtered list or all in the cluster.
 	type validatorInfo struct {
 		pubkeyHex string
 		validator *cluster.DistValidator
@@ -210,124 +195,93 @@ func (ts *testServer) HandlePostFeeRecipientFetch(writer http.ResponseWriter, re
 		})
 	}
 
-	var (
-		registrations []*eth2api.VersionedSignedValidatorRegistration
-		validators    []obolapi.FeeRecipientValidatorStatus
-	)
+	var validators []obolapi.FeeRecipientValidator
 
 	for _, t := range targets {
 		key := lockHash + "/" + t.pubkeyHex
 		existing, hasPartials := ts.partialFeeRecipients[key]
 
-		partialCount := 0
-		if hasPartials {
-			partialCount = len(existing.partials)
+		if !hasPartials || len(existing.groups) == 0 {
+			continue // omit validators with no registration data
 		}
 
-		status := obolapi.FeeRecipientStatusUnknown
-		if partialCount > 0 && partialCount < lock.Threshold {
-			status = obolapi.FeeRecipientStatusPartial
-		} else if partialCount >= lock.Threshold {
-			status = obolapi.FeeRecipientStatusComplete
-		}
+		var builderRegs []obolapi.FeeRecipientBuilderRegistration
 
-		// Extract fee recipient and timestamp from the first partial (all partials have the same message).
 		var (
-			feeRecipient string
-			timestamp    time.Time
+			latestQuorum     *obolapi.FeeRecipientBuilderRegistration
+			latestIncomplete *obolapi.FeeRecipientBuilderRegistration
 		)
 
-		for _, p := range existing.partials {
-			feeRecipient = fmt.Sprintf("0x%x", p.Message.FeeRecipient)
-			timestamp = p.Message.Timestamp
+		for _, group := range existing.groups {
+			// Pick a representative message from the group (all entries share the same message).
+			var msg *eth2v1.ValidatorRegistration
+			for _, p := range group {
+				msg = p.Message
+				break
+			}
 
-			break
+			// Build partial_signatures list; apply dropOnePsig if set.
+			partials := make([]feeRecipientPartial, 0, len(group))
+			for _, p := range group {
+				partials = append(partials, p)
+			}
+
+			if ts.dropOnePsig && len(partials) > 0 {
+				partials = partials[:len(partials)-1]
+			}
+
+			partialSigs := make([]obolapi.FeeRecipientPartialSig, 0, len(partials))
+			for _, p := range partials {
+				var sig tbls.Signature
+				copy(sig[:], p.Signature)
+
+				partialSigs = append(partialSigs, obolapi.FeeRecipientPartialSig{
+					ShareIndex: p.ShareIdx,
+					Signature:  sig,
+				})
+			}
+
+			quorum := len(group) >= lock.Threshold
+
+			reg := obolapi.FeeRecipientBuilderRegistration{
+				Message:           msg,
+				PartialSignatures: partialSigs,
+				Quorum:            quorum,
+			}
+
+			if quorum {
+				if latestQuorum == nil || msg.Timestamp.After(latestQuorum.Message.Timestamp) {
+					regCopy := reg
+					latestQuorum = &regCopy
+				}
+			} else {
+				if latestIncomplete == nil || msg.Timestamp.After(latestIncomplete.Message.Timestamp) {
+					regCopy := reg
+					latestIncomplete = &regCopy
+				}
+			}
 		}
 
-		validators = append(validators, obolapi.FeeRecipientValidatorStatus{
-			Pubkey:       "0x" + t.pubkeyHex,
-			Status:       status,
-			FeeRecipient: feeRecipient,
-			Timestamp:    timestamp,
-			PartialCount: partialCount,
+		// Return at most one quorum group and one incomplete group per spec.
+		if latestQuorum != nil {
+			builderRegs = append(builderRegs, *latestQuorum)
+		}
+
+		if latestIncomplete != nil {
+			builderRegs = append(builderRegs, *latestIncomplete)
+		}
+
+		validators = append(validators, obolapi.FeeRecipientValidator{
+			Pubkey:               t.pubkeyHex, // no 0x prefix per spec
+			BuilderRegistrations: builderRegs,
 		})
-
-		if status != obolapi.FeeRecipientStatusComplete {
-			continue
-		}
-
-		// Aggregate partial signatures server-side.
-		signedReg, err := ts.aggregateFeeRecipient(lock, *t.validator, existing)
-		if err != nil {
-			writeErr(writer, http.StatusInternalServerError, "aggregate error: "+err.Error())
-			return
-		}
-
-		registrations = append(registrations, signedReg)
 	}
 
 	resp := obolapi.FeeRecipientFetchResponse{
-		Registrations: registrations,
-		Validators:    validators,
+		Validators: validators,
 	}
 
 	if err := json.NewEncoder(writer).Encode(resp); err != nil {
 		writeErr(writer, http.StatusInternalServerError, "cannot encode response")
 	}
-}
-
-// aggregateFeeRecipient aggregates partial BLS signatures into a fully signed registration.
-func (ts *testServer) aggregateFeeRecipient(lock cluster.Lock, v cluster.DistValidator, blob feeRecipientBlob) (*eth2api.VersionedSignedValidatorRegistration, error) {
-	// Use the message from the first partial (all should have the same message).
-	var msg *eth2v1.ValidatorRegistration
-	for _, p := range blob.partials {
-		msg = p.Message
-		break
-	}
-
-	// Collect partial signatures.
-	partialSigs := make(map[int]tbls.Signature)
-	for _, p := range blob.partials {
-		if ts.dropOnePsig && len(partialSigs) == len(blob.partials)-1 {
-			continue
-		}
-
-		sig, err := tblsconv.SignatureFromBytes(p.Signature)
-		if err != nil {
-			return nil, err
-		}
-
-		partialSigs[p.ShareIdx] = sig
-	}
-
-	// Aggregate signatures.
-	fullSig, err := tbls.ThresholdAggregate(partialSigs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify aggregated signature against the group public key.
-	pubkeyBytes := v.PubKey
-
-	groupPubkey, err := tblsconv.PubkeyFromBytes(pubkeyBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	sigRoot, err := registration.GetMessageSigningRoot(msg, eth2p0.Version(lock.ForkVersion))
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tbls.Verify(groupPubkey, sigRoot[:], fullSig); err != nil {
-		return nil, err
-	}
-
-	return &eth2api.VersionedSignedValidatorRegistration{
-		Version: eth2spec.BuilderVersionV1,
-		V1: &eth2v1.SignedValidatorRegistration{
-			Message:   msg,
-			Signature: eth2p0.BLSSignature(fullSig),
-		},
-	}, nil
 }
