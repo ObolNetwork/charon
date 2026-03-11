@@ -43,6 +43,8 @@ type Definition[I any, V comparable] struct {
 	LogRoundChange func(ctx context.Context, instance I, process, round, newRound int64, uponRule UponRule, msgs []Msg[I, V])
 	// LogUnjust allows debug logging of unjust messages.
 	LogUnjust func(ctx context.Context, instance I, process int64, msg Msg[I, V])
+	// LogDebug allows arbitrary debug logging.
+	LogDebug func(ctx context.Context, instance I, process int64, msg Msg[I, V], logMsg string)
 
 	// Nodes is the total number of nodes/processes participating in consensus.
 	Nodes int
@@ -265,52 +267,71 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 	// === Algorithm ===
 
 	{ // Algorithm 1:11
+		d.LogDebug(ctx, instance, process, nil, "QBFT check if leader")
 		if d.IsLeader(instance, round, process) { // Note round==1 at this point.
+			d.LogDebug(ctx, instance, process, nil, "QBFT leader, broadcast own pre-prepare")
 			err := broadcastOwnPrePrepare([]Msg[I, V]{}) // Empty justification since round==1
+			d.LogDebug(ctx, instance, process, nil, "QBFT leader, broadcast own pre-prepare finished")
 			if err != nil {
 				return err
 			}
 		}
 
+		d.LogDebug(ctx, instance, process, nil, "QBFT new timer")
 		timerChan, stopTimer = d.NewTimer(round)
 	}
 
+	d.LogDebug(ctx, instance, process, nil, "QBFT start handling events")
 	// Handle events until cancelled.
 	for {
 		var err error
 
 		select {
 		case inputValue = <-inputValueCh:
+			d.LogDebug(ctx, instance, process, nil, "QBFT new inputValue - step 1 received")
+
 			if isZeroVal(inputValue) {
 				return errors.New("zero input value not supported")
 			}
 
 			if ppjCache != nil {
 				// Broadcast the pre-prepare now that we have a input value using the cached justification.
+				d.LogDebug(ctx, instance, process, nil, "QBFT new inputValue - step 2 broadcast")
 				err = broadcastMsg(MsgPrePrepare, inputValue, ppjCache)
+				d.LogDebug(ctx, instance, process, nil, "QBFT new inputValue - step 3 broadcast finished")
 			}
 
 			inputValueCh = nil // Don't read from this channel again.
+			d.LogDebug(ctx, instance, process, nil, "QBFT new inputValue - step 2-4 finished")
 
 		case msg := <-t.Receive:
+			d.LogDebug(ctx, instance, process, msg, "new QBFT message - received")
 			// Just send Qcommit if consensus already decided
 			if len(qCommit) > 0 {
+				d.LogDebug(ctx, instance, process, msg, "new QBFT message - qCommits greater than 0")
 				if msg.Source() != process && msg.Type() == MsgRoundChange { // Algorithm 3:17
+					d.LogDebug(ctx, instance, process, msg, "new QBFT message - consensus already decided, broadcast")
 					err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
+					d.LogDebug(ctx, instance, process, msg, "new QBFT message - consensus already decided, broadcast finished")
 				}
 
 				break
 			}
 
 			if !isJustified(d, instance, msg) { // Drop unjust messages
+				d.LogDebug(ctx, instance, process, msg, "new QBFT message - unjustified, dropping")
 				d.LogUnjust(ctx, instance, process, msg)
 				break
 			}
 
+			d.LogDebug(ctx, instance, process, msg, "new QBFT message - buffering")
 			bufferMsg(msg)
+			d.LogDebug(ctx, instance, process, msg, "new QBFT message - buffered")
 
+			d.LogDebug(ctx, instance, process, msg, "new QBFT message - classifying")
 			rule, justification := classify(d, instance, round, process, buffer, msg)
 			if rule == UponNothing || isDuplicatedRule(rule, msg.Round()) {
+				d.LogDebug(ctx, instance, process, msg, "new QBFT message - classified as duplicate")
 				// Do nothing more if no rule or duplicate rule was triggered
 				break
 			}
@@ -319,53 +340,73 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 
 			switch rule {
 			case UponJustifiedPrePrepare: // Algorithm 2:1
+				d.LogDebug(ctx, instance, process, msg, "UponJustifiedPrePrepare QBFT step 1 - starting procedure")
 				// Applicable to current or future rounds (since justified)
 				changeRound(msg.Round(), rule)
 
+				d.LogDebug(ctx, instance, process, msg, "UponJustifiedPrePrepare QBFT step 2 - stop timer")
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
+				d.LogDebug(ctx, instance, process, msg, "UponJustifiedPrePrepare QBFT step 3 - broadcast")
 				err = broadcastMsg(MsgPrepare, msg.Value(), nil)
+				d.LogDebug(ctx, instance, process, msg, "UponJustifiedPrePrepare QBFT step 3 - broadcast finished")
 
 			case UponQuorumPrepares: // Algorithm 2:4
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumPrepares QBFT step 1 - starting procedure")
 				// Only applicable to current round
 				preparedRound = round /* == msg.Round*/
 				preparedValue = msg.Value()
 				preparedJustification = justification
 
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumPrepares QBFT step 2 - broadcast")
 				err = broadcastMsg(MsgCommit, preparedValue, nil)
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumPrepares QBFT step 3 - broadcast finished")
 
 			case UponQuorumCommits, UponJustifiedDecided: // Algorithm 2:8
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumCommits, UponJustifiedDecided QBFT step 1 - starting procedure")
 				// Applicable to any round (since can be justified)
 				changeRound(msg.Round(), rule)
 
 				qCommit = justification
 
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumCommits, UponJustifiedDecided QBFT step 2 - stop timer")
 				stopTimer()
 
 				timerChan = nil
 
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumCommits, UponJustifiedDecided QBFT step 3 - decide")
 				d.Decide(ctx, instance, msg.Value(), justification)
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumCommits, UponJustifiedDecided QBFT step 4 - decided")
 
 			case UponFPlus1RoundChanges: // Algorithm 3:5
+				d.LogDebug(ctx, instance, process, msg, "UponFPlus1RoundChanges QBFT step 1 - starting procedure")
 				// Only applicable to future rounds
 				changeRound(nextMinRound(d, justification, round /* < msg.Round */), rule)
 
+				d.LogDebug(ctx, instance, process, msg, "UponFPlus1RoundChanges QBFT step 2 - stop timer")
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
 
+				d.LogDebug(ctx, instance, process, msg, "UponFPlus1RoundChanges QBFT step 3 - broadcast round change")
 				err = broadcastRoundChange()
+				d.LogDebug(ctx, instance, process, msg, "UponFPlus1RoundChanges QBFT step 4 - broadcasted round change")
 
 			case UponQuorumRoundChanges: // Algorithm 3:11
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumRoundChanges QBFT step 1 - starting procedure")
 				// Only applicable to current round (round > 1)
 				if _, pv, ok := getSingleJustifiedPrPv(d, justification); ok {
 					// Send pre-prepare using prepared value (not our own input value)
+					d.LogDebug(ctx, instance, process, msg, "UponQuorumRoundChanges QBFT step 2 - broadcast pre-prepare with prepared value")
 					err = broadcastMsg(MsgPrePrepare, pv, justification)
 				} else {
 					// Send pre-prepare using our own input value
+					d.LogDebug(ctx, instance, process, msg, "UponQuorumRoundChanges QBFT step 2 - broadcast pre-prepare with own input value")
 					err = broadcastOwnPrePrepare(justification)
 				}
+				d.LogDebug(ctx, instance, process, msg, "UponQuorumRoundChanges QBFT step 3 - broadcasted pre-prepare")
 			case UponUnjustQuorumRoundChanges:
+				d.LogDebug(ctx, instance, process, msg, "UponUnjustQuorumRoundChanges QBFT step 1 - starting procedure")
 				// Ignore bug or byzantine
 
 			default:
@@ -373,18 +414,24 @@ func Run[I any, V comparable](ctx context.Context, d Definition[I, V], t Transpo
 			}
 
 		case <-timerChan: // Algorithm 3:1
+			d.LogDebug(ctx, instance, process, nil, "RoundTimeout QBFT - step 1 starting procedure")
 			changeRound(round+1, UponRoundTimeout)
 
+			d.LogDebug(ctx, instance, process, nil, "RoundTimeout QBFT - step 2 stop timer")
 			stopTimer()
 			timerChan, stopTimer = d.NewTimer(round)
 
+			d.LogDebug(ctx, instance, process, nil, "RoundTimeout QBFT - step 3 broadcast round change")
 			err = broadcastRoundChange()
+			d.LogDebug(ctx, instance, process, nil, "RoundTimeout QBFT - step 4 broadcast finished")
 
 		case <-ctx.Done(): // Cancelled
+			d.LogDebug(ctx, instance, process, nil, "QBFT event handling context done")
 			return ctx.Err()
 		}
 
 		if err != nil { // Errors are considered fatal.
+			d.LogDebug(ctx, instance, process, nil, "QBFT fatal error")
 			return err
 		}
 	}
