@@ -332,6 +332,14 @@ func testQBFT(t *testing.T, test test) {
 			t.Logf("Unjust: %#v", msg)
 			cancel()
 		},
+		LogDebug: func(_ context.Context, instance int64, process int64, msg Msg[int64, int64], logMsg string) {
+			if test.Fuzz {
+				return // Ignore debug messages when fuzzing.
+			}
+
+			t.Logf("Debug: %s - %#v", logMsg, msg)
+			cancel()
+		},
 		Nodes:     n,
 		FIFOLimit: fifoLimit,
 	}
@@ -747,4 +755,5 @@ var noopDef = Definition[int64, int64]{
 	LogUponRule:    func(context.Context, int64, int64, int64, Msg[int64, int64], UponRule) {},
 	LogRoundChange: func(context.Context, int64, int64, int64, int64, UponRule, []Msg[int64, int64]) {},
 	LogUnjust:      func(context.Context, int64, int64, Msg[int64, int64]) {},
+	LogDebug:       func(context.Context, int64, int64, Msg[int64, int64], string) {},
 }
