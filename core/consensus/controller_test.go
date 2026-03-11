@@ -66,7 +66,7 @@ func TestConsensusController(t *testing.T) {
 	bmock, err := beaconmock.New(ctx)
 	require.NoError(t, err)
 
-	controller, err := consensus.NewConsensusController(ctx, bmock, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger)
+	controller, err := consensus.NewConsensusController(ctx, bmock, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger, false)
 	require.NoError(t, err)
 	require.NotNil(t, controller)
 

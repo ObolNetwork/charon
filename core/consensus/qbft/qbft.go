@@ -5,6 +5,7 @@ package qbft
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -36,20 +37,22 @@ import (
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
+var supportedCompareDuties = []core.DutyType{core.DutyAttester}
+
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
-	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte]),
-) qbft.Definition[core.Duty, [32]byte] {
-	quorum := qbft.Definition[int, int]{Nodes: nodes}.Quorum()
+	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]), compareAttestations bool,
+) qbft.Definition[core.Duty, [32]byte, proto.Message] {
+	quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
 
-	return qbft.Definition[core.Duty, [32]byte]{
+	return qbft.Definition[core.Duty, [32]byte, proto.Message]{
 		// IsLeader is a deterministic leader election function.
 		IsLeader: func(duty core.Duty, round, process int64) bool {
 			return leader(duty, round, nodes) == process
 		},
 
 		// Decide sends consensus output to subscribers.
-		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte]) {
+		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			msg, ok := qcommit[0].(Msg)
 			if !ok {
 				log.Error(ctx, "Internal error: Invalid message type in qcommit. This indicates a consensus protocol bug that should be reported", nil, z.Str("got_type", fmt.Sprintf("%T", qcommit[0])))
@@ -77,18 +80,84 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			}
 		},
 
+		Compare: func(ctx context.Context, msg qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueSourceCh <-chan proto.Message, inputValueSource proto.Message, returnErrCh chan error, returnProtoCh chan proto.Message) {
+			if !compareAttestations {
+				returnErrCh <- nil
+				return
+			}
+
+			if !slices.Contains(supportedCompareDuties, msg.Instance().Type) {
+				returnErrCh <- nil
+				return
+			}
+
+			attLeaderAnyPbProto, err := msg.ValueSource()
+			if err != nil {
+				returnErrCh <- errors.Wrap(err, "msg has no value source", z.Any("msg", msg))
+				return
+			}
+
+			attLeaderAnyPb, ok := attLeaderAnyPbProto.(*anypb.Any)
+			if !ok {
+				returnErrCh <- errors.New("protoMessage interface to *anypb.Any struct", z.Any("attLeaderAnyPbProto", attLeaderAnyPbProto))
+				return
+			}
+
+			attLeaderSetProto, err := attLeaderAnyPb.UnmarshalNew()
+			if err != nil {
+				returnErrCh <- errors.Wrap(err, "unmarshal *anypb.Any", z.Any("attLeaderAnyPb", attLeaderAnyPb))
+				return
+			}
+
+			attLeaderSet, ok := attLeaderSetProto.(*pbv1.UnsignedDataSet)
+			if !ok {
+				returnErrCh <- errors.New("protoMessage interface to *pbv1.UnsignedDataSet struct", z.Any("attLeaderSetProto", attLeaderSetProto))
+				return
+			}
+
+			switch msg.Instance().Type {
+			case core.DutyAttester:
+				if inputValueSource == nil {
+					select {
+					case <-ctx.Done():
+						returnErrCh <- errors.New("timeout on waiting for local value")
+						return
+					case inputValueSource = <-inputValueSourceCh:
+						returnProtoCh <- inputValueSource
+					}
+				}
+
+				attLocalSet, ok := inputValueSource.(*pbv1.UnsignedDataSet)
+				if !ok {
+					returnErrCh <- errors.New("inputValueSource to pbv1.UnsignedDataSet")
+					return
+				}
+
+				err = attestationChecker(ctx, attLeaderSet, attLocalSet)
+				if err != nil {
+					returnErrCh <- errors.Wrap(err, "attestation checker failed")
+					return
+				}
+			default:
+				returnErrCh <- errors.New("bug: checking not supported duty", z.Any("duty", msg.Instance().Type))
+				return
+			}
+
+			returnErrCh <- nil
+		},
+
 		NewTimer: roundTimer.Timer,
 
 		// LogUponRule logs upon rules at debug level.
 		LogUponRule: func(ctx context.Context, _ core.Duty, _, round int64,
-			_ qbft.Msg[core.Duty, [32]byte], uponRule qbft.UponRule,
+			_ qbft.Msg[core.Duty, [32]byte, proto.Message], uponRule qbft.UponRule,
 		) {
 			log.Debug(ctx, "QBFT upon rule triggered", z.Any("rule", uponRule), z.I64("round", round))
 		},
 
 		// LogRoundChange logs round changes at debug level.
 		LogRoundChange: func(ctx context.Context, duty core.Duty, process, round, newRound int64, //nolint:revive // keep process variable name for clarity
-			uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
+			uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte, proto.Message],
 		) {
 			fields := []z.Field{
 				z.Any("rule", uponRule),
@@ -108,22 +177,11 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			log.Debug(ctx, "QBFT round changed", fields...)
 		},
 
-		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte]) {
+		LogUnjust: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			log.Warn(ctx, "Unjustified consensus message from peer", nil,
 				z.Any("type", msg.Type()),
 				z.I64("peer", msg.Source()),
 			)
-		},
-
-		LogDebug: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte], logMsg string) {
-			if msg != nil {
-				log.Debug(ctx, logMsg,
-					z.Any("type", msg.Type()),
-					z.I64("peer", msg.Source()),
-				)
-			} else {
-				log.Debug(ctx, logMsg)
-			}
 		},
 
 		// Nodes is the number of nodes.
@@ -134,9 +192,62 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 	}
 }
 
+func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet, attLocalSet *pbv1.UnsignedDataSet) error {
+	attLocalSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLocalSet)
+	if err != nil {
+		return errors.Wrap(err, "attLocal to unsigned data set duty attester")
+	}
+
+	attLeaderSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLeaderSet)
+	if err != nil {
+		return errors.Wrap(err, "attLeader to unsigned data set duty attester")
+	}
+
+	for attLeaderKey, attLeaderData := range attLeaderSetCore {
+		attLocalData, ok := attLocalSetCore[attLeaderKey]
+		if !ok {
+			log.Warn(ctx, "", errors.New("no local attestation found, skipping"), z.Any("pk", attLeaderKey))
+			continue
+		}
+
+		attLeaderAttestationData, ok := attLeaderData.(core.AttestationData)
+		if !ok {
+			return errors.New("unable to parse leader unsigned data to core attestation data", z.Any("data", attLeaderData))
+		}
+
+		attLocalAttestationData, ok := attLocalData.(core.AttestationData)
+		if !ok {
+			return errors.New("unable to parse local unsigned data to core attestation data", z.Any("data", attLocalData))
+		}
+
+		mismatch := ""
+		if attLeaderAttestationData.Data.Source.Epoch != attLocalAttestationData.Data.Source.Epoch {
+			mismatch += "leader attestation source epoch differs from local source epoch;"
+		}
+
+		if attLeaderAttestationData.Data.Source.Root != attLocalAttestationData.Data.Source.Root {
+			mismatch += "leader attestation source root differs from local source root;"
+		}
+
+		if attLeaderAttestationData.Data.Target.Epoch != attLocalAttestationData.Data.Target.Epoch {
+			mismatch += "leader attestation target epoch differs from local target epoch;"
+		}
+
+		if attLeaderAttestationData.Data.Target.Root != attLocalAttestationData.Data.Target.Root {
+			mismatch += "leader attestation target root differs from local target root;"
+		}
+
+		if mismatch != "" {
+			return errors.New(mismatch, z.Any("public_key", attLeaderKey), z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data))
+		}
+	}
+
+	return nil
+}
+
 // NewConsensus returns a new consensus QBFT component.
 func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance),
+	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance), compareAttestations bool,
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -164,18 +275,19 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host
 	}
 
 	c := &Consensus{
-		p2pNode:     p2pNode,
-		sender:      sender,
-		peers:       peers,
-		peerLabels:  labels,
-		privkey:     p2pKey,
-		pubkeys:     keys,
-		deadliner:   deadliner,
-		snifferFunc: snifferFunc,
-		gaterFunc:   gaterFunc,
-		dropFilter:  log.Filter(),
-		timerFunc:   timer.GetRoundTimerFunc(genesisTime, slotDuration),
-		metrics:     metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
+		p2pNode:             p2pNode,
+		sender:              sender,
+		peers:               peers,
+		peerLabels:          labels,
+		privkey:             p2pKey,
+		pubkeys:             keys,
+		deadliner:           deadliner,
+		snifferFunc:         snifferFunc,
+		gaterFunc:           gaterFunc,
+		dropFilter:          log.Filter(),
+		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration),
+		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
+		compareAttestations: compareAttestations,
 	}
 	c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 
@@ -185,19 +297,20 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host
 // Consensus implements core.Consensus & priority.coreConsensus.
 type Consensus struct {
 	// Immutable state
-	p2pNode     host.Host
-	sender      *p2p.Sender
-	peerLabels  []string
-	peers       []p2p.Peer
-	pubkeys     map[int64]*k1.PublicKey
-	privkey     *k1.PrivateKey
-	subs        []subscriber
-	deadliner   core.Deadliner
-	snifferFunc func(*pbv1.SniffedConsensusInstance)
-	gaterFunc   core.DutyGaterFunc
-	dropFilter  z.Field // Filter buffer overflow errors (possible DDoS)
-	timerFunc   timer.RoundTimerFunc
-	metrics     metrics.ConsensusMetrics
+	p2pNode             host.Host
+	sender              *p2p.Sender
+	peerLabels          []string
+	peers               []p2p.Peer
+	pubkeys             map[int64]*k1.PublicKey
+	privkey             *k1.PrivateKey
+	subs                []subscriber
+	deadliner           core.Deadliner
+	snifferFunc         func(*pbv1.SniffedConsensusInstance)
+	gaterFunc           core.DutyGaterFunc
+	dropFilter          z.Field // Filter buffer overflow errors (possible DDoS)
+	timerFunc           timer.RoundTimerFunc
+	metrics             metrics.ConsensusMetrics
+	compareAttestations bool
 
 	// Mutable state
 	mutable struct {
@@ -318,6 +431,14 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 		return errors.New("input channel full")
 	}
 
+	if c.compareAttestations {
+		select {
+		case inst.VerifyCh <- value:
+		default:
+			return errors.New("input channel full")
+		}
+	}
+
 	// Instrument consensus duration using decidedAt output.
 	proposedAt := time.Now()
 
@@ -397,12 +518,6 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		z.Any("timer", string(roundTimer.Type())),
 	)
 
-	log.Debug(ctx, "QBFT fetching instance IO",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	inst := c.getInstanceIO(duty)
 
 	defer func() {
@@ -411,31 +526,14 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 
 	var span trace.Span
 
-	log.Debug(ctx, "QBFT starting duty trace",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/qbft.runInstance")
 
-	log.Debug(ctx, "QBFT checking if duty is expired",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
 	if !c.deadliner.Add(duty) {
 		span.AddEvent("Expired Duty Skipped")
 		log.Warn(ctx, "Skipping consensus for expired duty", nil)
 
 		return nil
 	}
-
-	log.Debug(ctx, "QBFT getting peer index",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
 
 	peerIdx, err := c.getPeerIdx()
 	if err != nil {
@@ -458,7 +556,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.End()
 	}()
 
-	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte]) {
+	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 		round := qcommit[0].Round()
 		decided = true
 
@@ -485,16 +583,10 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		cancel()
 	}
 
-	log.Debug(ctx, "QBFT create new definition",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	// Create a new qbft definition for this instance.
-	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
+	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback, c.compareAttestations)
 	origLogRoundChange := def.LogRoundChange
-	def.LogRoundChange = func(ctx context.Context, instance core.Duty, process, round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte]) {
+	def.LogRoundChange = func(ctx context.Context, instance core.Duty, process, round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 		if origLogRoundChange != nil {
 			origLogRoundChange(ctx, instance, process, round, newRound, uponRule, msgs)
 		}
@@ -503,43 +595,25 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.SetAttributes(attribute.Int64("new_round", newRound))
 	}
 
-	log.Debug(ctx, "QBFT create new transport",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	// Create a new transport that handles sending and receiving for this instance.
-	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), newSniffer(int64(def.Nodes), peerIdx))
+	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte, proto.Message]), newSniffer(int64(def.Nodes), peerIdx))
 
 	// Provide sniffed buffer to snifferFunc at the end.
 	defer func() {
 		c.snifferFunc(t.SnifferInstance())
 	}()
 
-	log.Debug(ctx, "QBFT start a receiving go routine",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	// Start a receiving goroutine.
 	go t.ProcessReceives(ctx, c.getRecvBuffer(duty))
 
 	// Create a qbft transport from the transport
-	qt := qbft.Transport[core.Duty, [32]byte]{
+	qt := qbft.Transport[core.Duty, [32]byte, proto.Message]{
 		Broadcast: t.Broadcast,
 		Receive:   t.RecvBuffer(),
 	}
 
-	log.Debug(ctx, "QBFT run",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	// Run the algo, blocking until the context is cancelled.
-	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.HashCh)
+	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.HashCh, inst.VerifyCh)
 	if err != nil && !isContextErr(err) {
 		span.AddEvent("qbft.Error")
 		c.metrics.IncConsensusError()
@@ -613,15 +687,8 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("duty expired", z.Any("duty", duty), c.dropFilter)
 	}
 
-	recvBuffer := c.getRecvBuffer(duty)
-	log.Debug(ctx, "QBFT recv buffer enqueue",
-		z.Any("duty", duty),
-		z.Int("buffer_len", len(recvBuffer)),
-		z.Int("buffer_cap", cap(recvBuffer)),
-	)
-
 	select {
-	case recvBuffer <- msg:
+	case c.getRecvBuffer(duty) <- msg:
 		return nil, false, nil
 	case <-ctx.Done():
 		return nil, false, errors.Wrap(ctx.Err(), "timeout enqueuing receive buffer",
@@ -730,7 +797,7 @@ type roundStep struct {
 }
 
 // groupRoundMessages groups messages by type and returns which peers were present and missing for each type.
-func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte], peers int, round int64, leader int) []roundStep {
+func groupRoundMessages(msgs []qbft.Msg[core.Duty, [32]byte, proto.Message], peers int, round int64, leader int) []roundStep {
 	// checkPeers returns two slices of peer indexes, one with peers
 	// present with the message type and one with messing peers.
 	checkPeers := func(typ qbft.MsgType) (present []int, missing []int) {

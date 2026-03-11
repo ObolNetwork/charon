@@ -18,6 +18,8 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
+//go:generate go test .
+
 func TestDeadliner(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -42,10 +44,6 @@ func TestDeadliner(t *testing.T) {
 	}
 
 	deadliner := core.NewDeadlinerForT(ctx, t, deadlineFuncProvider(), clock)
-
-	// Wait for the run goroutine to be waiting on the ticker before interacting.
-	err := clock.BlockUntilContext(ctx, 1)
-	require.NoError(t, err)
 
 	wg := &sync.WaitGroup{}
 
@@ -75,9 +73,8 @@ func TestDeadliner(t *testing.T) {
 		}
 	}
 
-	// Advance clock past the latest deadline to trigger expiration of all non-expired duties.
-	// Use maxSlot+1 because Before() is strict (not <=).
-	clock.Advance(time.Duration(maxSlot+1) * time.Second)
+	// Advance clock to trigger deadline of all non-expired duties.
+	clock.Advance(time.Duration(maxSlot) * time.Second)
 
 	var actualDuties []core.Duty
 	for range len(nonExpiredDuties) {
