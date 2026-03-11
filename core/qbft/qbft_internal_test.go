@@ -338,7 +338,6 @@ func testQBFT(t *testing.T, test test) {
 			}
 
 			t.Logf("Debug: %s - %#v", logMsg, msg)
-			cancel()
 		},
 		Nodes:     n,
 		FIFOLimit: fifoLimit,
