@@ -12,8 +12,6 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
@@ -29,7 +27,7 @@ type transport struct {
 	// Immutable state
 	broadcaster broadcaster
 	privkey     *k1.PrivateKey
-	recvBuffer  chan qbft.Msg[core.Duty, [32]byte] // Instance inner receive buffer.
+	recvBuffer  chan qbft.Msg[core.Duty, [32]byte, proto.Message] // Instance inner receive buffer.
 	sniffer     *sniffer
 
 	// Mutable state
@@ -40,7 +38,7 @@ type transport struct {
 
 // newTransport creates a new qbftTransport.
 func newTransport(broadcaster broadcaster, privkey *k1.PrivateKey, valueCh <-chan proto.Message,
-	recvBuffer chan qbft.Msg[core.Duty, [32]byte], sniffer *sniffer,
+	recvBuffer chan qbft.Msg[core.Duty, [32]byte, proto.Message], sniffer *sniffer,
 ) *transport {
 	return &transport{
 		broadcaster: broadcaster,
@@ -94,7 +92,7 @@ func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 // Broadcast creates a msg and sends it to all peers (including self).
 func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, valueHash [32]byte, pr int64, pvHash [32]byte,
-	justification []qbft.Msg[core.Duty, [32]byte],
+	justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
 ) error {
 	// Get all hashes
 	var hashes [][32]byte
@@ -143,12 +141,6 @@ func (t *transport) Broadcast(ctx context.Context, typ qbft.MsgType, duty core.D
 		}
 	}()
 
-	log.Debug(ctx, "QBFT broadcasting msg",
-		z.Str("duty", duty.String()),
-		z.I64("round", round),
-		z.Str("type", typ.String()),
-		z.I64("peer_idx", peerIdx))
-
 	return t.broadcaster.Broadcast(ctx, msg.ToConsensusMsg())
 }
 
@@ -165,12 +157,6 @@ func (t *transport) ProcessReceives(ctx context.Context, outerBuffer chan Msg) {
 			case <-ctx.Done():
 				return
 			case t.recvBuffer <- msg:
-				log.Debug(ctx, "QBFT received msg",
-					z.Str("duty", msg.msg.GetDuty().String()),
-					z.I64("round", msg.msg.GetRound()),
-					z.Str("type", qbft.MsgType(msg.msg.GetType()).String()),
-					z.I64("peer_idx", msg.msg.GetPeerIdx()))
-
 				t.sniffer.Add(msg.ToConsensusMsg())
 			}
 		}
@@ -183,7 +169,7 @@ func (t *transport) SnifferInstance() *pbv1.SniffedConsensusInstance {
 }
 
 // RecvBuffer returns the inner receive buffer.
-func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte] {
+func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte, proto.Message] {
 	return t.recvBuffer
 }
 
@@ -191,7 +177,7 @@ func (t *transport) RecvBuffer() chan qbft.Msg[core.Duty, [32]byte] {
 // and wrapping that in a msg type.
 func createMsg(typ qbft.MsgType, duty core.Duty,
 	peerIdx int64, round int64, vHash [32]byte, pr int64, pvHash [32]byte,
-	values map[[32]byte]*anypb.Any, justification []qbft.Msg[core.Duty, [32]byte],
+	values map[[32]byte]*anypb.Any, justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
 	privkey *k1.PrivateKey,
 ) (Msg, error) {
 	pbMsg := &pbv1.QBFTMsg{

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	RecvBufferSize = 512 // Allow buffering some initial messages when this node is late to start an instance.
+	RecvBufferSize = 100 // Allow buffering some initial messages when this node is late to start an instance.
 )
 
 // NewIO returns a new instanceIO.
