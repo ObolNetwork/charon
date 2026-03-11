@@ -497,7 +497,6 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 		},
 		NewTimer:  roundTimer.Timer,
 		LogUnjust: func(context.Context, core.Duty, int64, qbft.Msg[core.Duty, [32]byte]) {},
-		LogDebug:  func(context.Context, core.Duty, int64, qbft.Msg[core.Duty, [32]byte], string) {},
 		LogRoundChange: func(ctx context.Context, duty core.Duty, process,
 			round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte],
 		) {

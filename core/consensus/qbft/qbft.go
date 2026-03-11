@@ -115,17 +115,6 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 			)
 		},
 
-		LogDebug: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte], logMsg string) {
-			if msg != nil {
-				log.Debug(ctx, logMsg,
-					z.Any("type", msg.Type()),
-					z.I64("peer", msg.Source()),
-				)
-			} else {
-				log.Debug(ctx, logMsg)
-			}
-		},
-
 		// Nodes is the number of nodes.
 		Nodes: nodes,
 
@@ -490,12 +479,6 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		Broadcast: t.Broadcast,
 		Receive:   t.RecvBuffer(),
 	}
-
-	log.Debug(ctx, "QBFT run",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
 
 	// Run the algo, blocking until the context is cancelled.
 	err = qbft.Run(ctx, def, qt, duty, peerIdx, inst.HashCh)
