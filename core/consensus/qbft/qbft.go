@@ -397,12 +397,6 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		z.Any("timer", string(roundTimer.Type())),
 	)
 
-	log.Debug(ctx, "QBFT fetching instance IO",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	inst := c.getInstanceIO(duty)
 
 	defer func() {
@@ -411,31 +405,14 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 
 	var span trace.Span
 
-	log.Debug(ctx, "QBFT starting duty trace",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/qbft.runInstance")
 
-	log.Debug(ctx, "QBFT checking if duty is expired",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
 	if !c.deadliner.Add(duty) {
 		span.AddEvent("Expired Duty Skipped")
 		log.Warn(ctx, "Skipping consensus for expired duty", nil)
 
 		return nil
 	}
-
-	log.Debug(ctx, "QBFT getting peer index",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
 
 	peerIdx, err := c.getPeerIdx()
 	if err != nil {
@@ -485,12 +462,6 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		cancel()
 	}
 
-	log.Debug(ctx, "QBFT create new definition",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback)
 	origLogRoundChange := def.LogRoundChange
@@ -503,12 +474,6 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.SetAttributes(attribute.Int64("new_round", newRound))
 	}
 
-	log.Debug(ctx, "QBFT create new transport",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
-
 	// Create a new transport that handles sending and receiving for this instance.
 	t := newTransport(c, c.privkey, inst.ValueCh, make(chan qbft.Msg[core.Duty, [32]byte]), newSniffer(int64(def.Nodes), peerIdx))
 
@@ -516,12 +481,6 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	defer func() {
 		c.snifferFunc(t.SnifferInstance())
 	}()
-
-	log.Debug(ctx, "QBFT start a receiving go routine",
-		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
-		z.Any("peers", c.peerLabels),
-		z.Any("timer", string(roundTimer.Type())),
-	)
 
 	// Start a receiving goroutine.
 	go t.ProcessReceives(ctx, c.getRecvBuffer(duty))
