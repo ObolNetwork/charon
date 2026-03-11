@@ -117,12 +117,12 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 
 		LogDebug: func(ctx context.Context, _ core.Duty, _ int64, msg qbft.Msg[core.Duty, [32]byte], logMsg string) {
 			if msg != nil {
-				log.Warn(ctx, logMsg, nil,
+				log.Debug(ctx, logMsg,
 					z.Any("type", msg.Type()),
 					z.I64("peer", msg.Source()),
 				)
 			} else {
-				log.Warn(ctx, logMsg, nil)
+				log.Debug(ctx, logMsg)
 			}
 		},
 
