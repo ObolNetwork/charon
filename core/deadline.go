@@ -47,9 +47,10 @@ type deadliner struct {
 	lock         sync.Mutex
 	label        string
 	deadlineFunc DeadlineFunc
-	duties       map[Duty]struct{}
+	duties       map[Duty]time.Time
 	expiredChan  chan Duty
 	clock        clockwork.Clock
+	done         chan struct{}
 }
 
 // NewDeadlinerForT returns a Deadline for use in tests.
@@ -114,9 +115,10 @@ func newDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc, 
 	d := &deadliner{
 		label:        label,
 		deadlineFunc: deadlineFunc,
-		duties:       make(map[Duty]struct{}),
+		duties:       make(map[Duty]time.Time),
 		expiredChan:  make(chan Duty, expiredBufferSize),
 		clock:        clock,
+		done:         make(chan struct{}),
 	}
 
 	go d.run(ctx)
@@ -125,6 +127,8 @@ func newDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc, 
 }
 
 func (d *deadliner) run(ctx context.Context) {
+	defer close(d.done)
+
 	// The simple approach does not require a min-heap or priority queue to store the duties and their deadlines,
 	// but it is sufficient for our use case as the number of duties is expected to be small.
 	// A disadvantage of this approach is the expiration precision is rounded to the nearest second.
@@ -160,6 +164,13 @@ func (d *deadliner) run(ctx context.Context) {
 func (d *deadliner) Add(duty Duty) bool {
 	log.Debug(context.Background(), "Deadliner.Add()", z.Any("duty", duty))
 
+	select {
+	case <-d.done:
+		// Run goroutine has stopped, ignore new duties.
+		return false
+	default:
+	}
+
 	deadline, canExpire := d.deadlineFunc(duty)
 	if !canExpire {
 		// Drop duties that never expire
@@ -175,7 +186,7 @@ func (d *deadliner) Add(duty Duty) bool {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
-	d.duties[duty] = struct{}{}
+	d.duties[duty] = deadline
 
 	return true
 }
@@ -192,14 +203,8 @@ func (d *deadliner) getExpiredDuties(now time.Time) []Duty {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
-	for duty := range d.duties {
-		dutyDeadline, ok := d.deadlineFunc(duty)
-		if !ok {
-			// Ignore the duties that never expire. Should not be in the map.
-			continue
-		}
-
-		if dutyDeadline.Before(now) {
+	for duty, deadline := range d.duties {
+		if deadline.Before(now) {
 			expiredDuties = append(expiredDuties, duty)
 			delete(d.duties, duty)
 		}
