@@ -154,6 +154,8 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 		case <-ctx.Done():
 			return
 		case input := <-d.inputChan:
+			log.Debug(ctx, "Deadliner.run() received duty", z.Any("duty", input.duty))
+
 			deadline, canExpire := deadlineFunc(input.duty)
 			if !canExpire {
 				// Drop duties that never expire
@@ -176,6 +178,8 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 				setCurrState()
 			}
 		case <-currTimer.Chan():
+			log.Debug(ctx, "Deadliner.run() currTimer expired", z.Any("currDuty", currDuty), z.Int("deadlineChanLen", len(d.deadlineChan)))
+
 			// Send deadlined duty to receiver.
 			select {
 			case <-ctx.Done():
@@ -196,6 +200,8 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 
 // Add adds a duty to be notified of the deadline. It returns true if the duty was added successfully.
 func (d *deadliner) Add(duty Duty) bool {
+	log.Debug(context.Background(), "Deadliner.Add() adding duty", z.Any("duty", duty))
+
 	success := make(chan bool)
 
 	select {
