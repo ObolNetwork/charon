@@ -32,6 +32,7 @@ const (
 	batchWait     = 1 * time.Second
 	batchMax      = 5 * 1 << 20 // 5MB
 	maxLogLineLen = 4 << 10     // 4096B
+	inputBuffer   = 1000        // Buffered channel capacity for log lines
 )
 
 // lazyLabelsFunc abstracts lazy loading of labels, logs will only be sent when it returns true.
@@ -59,7 +60,7 @@ func newInternal(endpoint string, serviceLabel string, batchWait time.Duration, 
 		endpoint:       endpoint,
 		done:           make(chan struct{}),
 		quit:           make(chan struct{}),
-		input:          make(chan string),
+		input:          make(chan string, inputBuffer),
 		batchMax:       batchMax,
 		batchWait:      batchWait,
 		maxLogLineLen:  maxLogLineLen,
@@ -156,6 +157,8 @@ func (c *Client) Add(line string) {
 	select {
 	case c.input <- line:
 	case <-c.quit:
+	default:
+		droppedTotal.Inc()
 	}
 }
 
