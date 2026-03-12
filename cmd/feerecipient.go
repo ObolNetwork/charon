@@ -33,7 +33,6 @@ func newFeeRecipientCmd(cmds ...*cobra.Command) *cobra.Command {
 }
 
 func bindFeeRecipientRemoteAPIFlags(cmd *cobra.Command, config *feerecipientConfig) {
-	cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://obol-api-nonprod-dev.dev.obol.tech/v1", "The URL of the remote API.")
-	// cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", "The URL of the remote API.")
+	cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", "The URL of the remote API.")
 	cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 5*time.Minute, "Timeout for accessing the remote API.")
 }

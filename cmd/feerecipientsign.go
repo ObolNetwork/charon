@@ -29,10 +29,9 @@ import (
 )
 
 // pubkeyToSign pairs a validator public key with the timestamp and gas limit to use when signing
-// its registration. For validators with no existing partial registration (unknown status), the
-// timestamp is set to time.Now() by the first operator and the gas limit is resolved from the
-// config override or cluster lock. For validators already in partial status, the timestamp and
-// gas limit are adopted from the existing partial registration so all operators sign the same message.
+// its registration. For validators with no existing partial registration, the timestamp is set to time.Now() by the first operator.
+// For validators already having partials, the timestamp and gas limit are adopted from the existing partial registration,
+// so all operators sign the same message.
 type pubkeyToSign struct {
 	Pubkey    eth2p0.BLSPubKey
 	Timestamp time.Time
@@ -80,6 +79,73 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	return cmd
 }
 
+// normalizePubkey converts a validator public key to lowercase and removes the 0x prefix.
+func normalizePubkey(pubkey string) string {
+	return strings.ToLower(strings.TrimPrefix(pubkey, "0x"))
+}
+
+// parsePubkey decodes a hex-encoded validator public key and validates its length.
+func parsePubkey(pubkeyHex string) (eth2p0.BLSPubKey, error) {
+	normalizedKey := normalizePubkey(pubkeyHex)
+
+	pubkeyBytes, err := hex.DecodeString(normalizedKey)
+	if err != nil {
+		return eth2p0.BLSPubKey{}, errors.Wrap(err, "decode pubkey", z.Str("validator_public_key", pubkeyHex))
+	}
+
+	if len(pubkeyBytes) != len(eth2p0.BLSPubKey{}) {
+		return eth2p0.BLSPubKey{}, errors.New("invalid pubkey length", z.Int("length", len(pubkeyBytes)), z.Str("validator_public_key", pubkeyHex))
+	}
+
+	return eth2p0.BLSPubKey(pubkeyBytes), nil
+}
+
+// validatePubkeysInCluster verifies that all requested validator public keys exist in the cluster lock.
+func validatePubkeysInCluster(pubkeys []string, cl cluster.Lock) error {
+	clusterPubkeys := make(map[string]struct{}, len(cl.Validators))
+	for _, dv := range cl.Validators {
+		clusterPubkeys[strings.ToLower(dv.PublicKeyHex())] = struct{}{}
+	}
+
+	for _, valPubKey := range pubkeys {
+		normalized := strings.ToLower(valPubKey)
+		if !strings.HasPrefix(normalized, "0x") {
+			normalized = "0x" + normalized
+		}
+
+		if _, ok := clusterPubkeys[normalized]; !ok {
+			return errors.New("validator pubkey not found in cluster lock", z.Str("pubkey", valPubKey))
+		}
+	}
+
+	return nil
+}
+
+// buildValidatorLookup creates a map of validators keyed by normalized public key.
+func buildValidatorLookup(validators []obolapi.FeeRecipientValidator) map[string]obolapi.FeeRecipientValidator {
+	result := make(map[string]obolapi.FeeRecipientValidator, len(validators))
+	for _, v := range validators {
+		normalizedKey := normalizePubkey(v.Pubkey)
+		result[normalizedKey] = v
+	}
+
+	return result
+}
+
+// findRegistrationGroups finds the quorum and matching incomplete registration groups for a validator.
+func findRegistrationGroups(v *obolapi.FeeRecipientValidator, feeRecipient string) (quorum, matchingIncomplete *obolapi.FeeRecipientBuilderRegistration) {
+	for i := range v.BuilderRegistrations {
+		reg := &v.BuilderRegistrations[i]
+		if reg.Quorum && quorum == nil {
+			quorum = reg
+		} else if !reg.Quorum && matchingIncomplete == nil && strings.EqualFold(reg.Message.FeeRecipient.String(), feeRecipient) {
+			matchingIncomplete = reg
+		}
+	}
+
+	return quorum, matchingIncomplete
+}
+
 func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) error {
 	if _, err := eth2util.ChecksumAddress(config.FeeRecipient); err != nil {
 		return errors.Wrap(err, "invalid fee recipient address", z.Str("fee_recipient", config.FeeRecipient))
@@ -105,21 +171,8 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
 
-	// Validate all requested pubkeys exist in the cluster lock before making any API calls.
-	clusterPubkeys := make(map[string]struct{}, len(cl.Validators))
-	for _, dv := range cl.Validators {
-		clusterPubkeys[strings.ToLower(dv.PublicKeyHex())] = struct{}{}
-	}
-
-	for _, valPubKey := range config.ValidatorPublicKeys {
-		normalized := strings.ToLower(valPubKey)
-		if !strings.HasPrefix(normalized, "0x") {
-			normalized = "0x" + normalized
-		}
-
-		if _, ok := clusterPubkeys[normalized]; !ok {
-			return errors.New("validator pubkey not found in cluster lock", z.Str("pubkey", valPubKey))
-		}
+	if err := validatePubkeysInCluster(config.ValidatorPublicKeys, *cl); err != nil {
+		return err
 	}
 
 	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
@@ -142,7 +195,6 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return err
 	}
 
-	// Filter pubkeys based on their current status on the remote API.
 	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, config.GasLimit, *cl, overrides, time.Now)
 	if err != nil {
 		return err
@@ -153,7 +205,6 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return nil
 	}
 
-	// Build and sign partial registrations.
 	partialRegs, err := buildPartialRegistrations(config.FeeRecipient, pubkeysToSign, *cl, shares)
 	if err != nil {
 		return err
@@ -203,42 +254,26 @@ func filterPubkeysByStatus(
 		return nil, errors.Wrap(err, "fetch builder registration status from Obol API")
 	}
 
-	validatorByPubkey := make(map[string]obolapi.FeeRecipientValidator)
-
-	for _, v := range resp.Validators {
-		normalizedKey := strings.ToLower(strings.TrimPrefix(v.Pubkey, "0x"))
-		validatorByPubkey[normalizedKey] = v
-	}
+	validatorByPubkey := buildValidatorLookup(resp.Validators)
 
 	var pubkeysToSign []pubkeyToSign
 
 	for _, valPubKey := range requestedPubkeys {
-		normalizedKey := strings.ToLower(strings.TrimPrefix(valPubKey, "0x"))
+		normalizedKey := normalizePubkey(valPubKey)
 
 		v, ok := validatorByPubkey[normalizedKey]
 
-		var (
-			timestamp time.Time
-			gasLimit  uint64
-		)
+		// Default: anchor new timestamp and resolve gas limit.
+		// These will be overridden if there's a matching incomplete registration.
+		timestamp := now()
+		gasLimit := resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
 
 		if ok {
-			var quorumGroup *obolapi.FeeRecipientBuilderRegistration
-
-			// Find the first incomplete group whose fee matches the requested one.
-			// Stale incompletes (different fee) are ignored — they may linger on the
-			// API after quorum was reached for a previous fee and must not block new
+			// Find the first incomplete group whose fee recipient matches the requested one.
+			// Stale incompletes (different fee recipient) are ignored — they may linger on the
+			// API after quorum was reached for a previous fee recipient and must not block new
 			// fee recipient changes.
-			var matchingIncomplete *obolapi.FeeRecipientBuilderRegistration
-
-			for i := range v.BuilderRegistrations {
-				reg := &v.BuilderRegistrations[i]
-				if reg.Quorum && quorumGroup == nil {
-					quorumGroup = reg
-				} else if !reg.Quorum && matchingIncomplete == nil && strings.EqualFold(reg.Message.FeeRecipient.String(), feeRecipient) {
-					matchingIncomplete = reg
-				}
-			}
+			quorumGroup, matchingIncomplete := findRegistrationGroups(&v, feeRecipient)
 
 			if quorumGroup != nil && strings.EqualFold(quorumGroup.Message.FeeRecipient.String(), feeRecipient) {
 				log.Info(ctx, "Validator already has a complete builder registration, skipping",
@@ -258,7 +293,7 @@ func filterPubkeysByStatus(
 					z.Str("fee_recipient", matchingIncomplete.Message.FeeRecipient.String()),
 					z.Int("partial_count", len(matchingIncomplete.PartialSignatures)))
 			} else if quorumGroup == nil {
-				// Check if there's ANY incomplete group (with a different fee) and no quorum yet.
+				// Check if there's any incomplete group (with a different fee recipient) and no quorum yet.
 				// This means another operator started a fee change that hasn't completed — block.
 				for _, reg := range v.BuilderRegistrations {
 					if !reg.Quorum {
@@ -269,32 +304,19 @@ func filterPubkeysByStatus(
 						)
 					}
 				}
-
-				// No in-progress group and no quorum: anchor the timestamp and resolve gas limit now.
-				timestamp = now()
-				gasLimit = resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
-			} else {
-				// Quorum exists with different fee, no matching incomplete: start fresh.
-				timestamp = now()
-				gasLimit = resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
+				// No in-progress group and no quorum: use defaults set above.
 			}
-		} else {
-			// Unknown validator: first signer anchors the timestamp and resolves gas limit.
-			timestamp = now()
-			gasLimit = resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
+			// else: Quorum exists with different fee, no matching incomplete: use defaults set above.
 		}
+		// else: Unknown validator: use defaults set above.
 
-		pubkeyBytes, err := hex.DecodeString(normalizedKey)
+		pubkey, err := parsePubkey(valPubKey)
 		if err != nil {
-			return nil, errors.Wrap(err, "decode pubkey", z.Str("validator_public_key", valPubKey))
-		}
-
-		if len(pubkeyBytes) != len(eth2p0.BLSPubKey{}) {
-			return nil, errors.New("invalid pubkey length", z.Int("length", len(pubkeyBytes)), z.Str("validator_public_key", valPubKey))
+			return nil, err
 		}
 
 		pubkeysToSign = append(pubkeysToSign, pubkeyToSign{
-			Pubkey:    eth2p0.BLSPubKey(pubkeyBytes),
+			Pubkey:    pubkey,
 			Timestamp: timestamp,
 			GasLimit:  gasLimit,
 		})

@@ -73,19 +73,17 @@ func (c Client) PostPartialFeeRecipients(ctx context.Context, lockHash []byte, s
 	return nil
 }
 
-// PostFeeRecipientsFetch fetches aggregated builder registrations and per-validator status from the Obol API.
+// PostFeeRecipientsFetch fetches builder registrations from the Obol API.
 // If pubkeys is non-empty, only the specified validators are included in the response.
 // If pubkeys is empty, status for all validators in the cluster is returned.
 // It respects the timeout specified in the Client instance.
 func (c Client) PostFeeRecipientsFetch(ctx context.Context, lockHash []byte, pubkeys []string) (FeeRecipientFetchResponse, error) {
-	path := fetchFeeRecipientURL("0x" + hex.EncodeToString(lockHash))
-
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
 		return FeeRecipientFetchResponse{}, errors.Wrap(err, "bad Obol API url")
 	}
 
-	u.Path = path
+	u.Path = fetchFeeRecipientURL("0x" + hex.EncodeToString(lockHash))
 
 	req := FeeRecipientFetchRequest{Pubkeys: pubkeys}
 

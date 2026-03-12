@@ -20,7 +20,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/tbls"
-	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
 type feerecipientFetchConfig struct {
@@ -33,7 +32,7 @@ func newFeeRecipientFetchCmd(runFunc func(context.Context, feerecipientFetchConf
 	cmd := &cobra.Command{
 		Use:   "fetch",
 		Short: "Fetch aggregated builder registrations.",
-		Long:  "Fetches aggregated builder registration messages with updated fee recipients from a remote API for validators that have had partial signatures submitted, and writes them to a local JSON file.",
+		Long:  "Fetches builder registration messages from a remote API and aggregates those with quorum, writing fully signed registrations to a local JSON file.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)
@@ -47,6 +46,107 @@ func newFeeRecipientFetchCmd(runFunc func(context.Context, feerecipientFetchConf
 	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
 
 	return cmd
+}
+
+// validatorCategories holds categorized validator public keys by registration status.
+type validatorCategories struct {
+	Complete   []string
+	Incomplete []string
+	NoReg      []string
+}
+
+// aggregatePartialSignatures converts partial signatures into a full aggregated signature.
+func aggregatePartialSignatures(partialSigs []obolapi.FeeRecipientPartialSig, pubkey string) (eth2p0.BLSSignature, error) {
+	sigsMap := make(map[int]tbls.Signature)
+
+	for _, ps := range partialSigs {
+		sigsMap[ps.ShareIndex] = ps.Signature
+	}
+
+	fullSig, err := tbls.ThresholdAggregate(sigsMap)
+	if err != nil {
+		return eth2p0.BLSSignature{}, errors.Wrap(err, "aggregate partial signatures", z.Str("pubkey", pubkey))
+	}
+
+	return eth2p0.BLSSignature(fullSig), nil
+}
+
+// processValidators aggregates signatures for validators with quorum and categorizes all validators by status.
+func processValidators(validators []obolapi.FeeRecipientValidator) ([]*eth2api.VersionedSignedValidatorRegistration, validatorCategories, map[string]int, error) {
+	var (
+		aggregatedRegs []*eth2api.VersionedSignedValidatorRegistration
+		cats           validatorCategories
+		// maxPartialSigs tracks the highest partial signature count across
+		// all incomplete registrations for a given validator pubkey.
+		maxPartialSigs = make(map[string]int)
+	)
+
+	for _, val := range validators {
+		var hasQuorum, hasIncomplete bool
+
+		for _, reg := range val.BuilderRegistrations {
+			if reg.Quorum {
+				hasQuorum = true
+
+				fullSig, err := aggregatePartialSignatures(reg.PartialSignatures, val.Pubkey)
+				if err != nil {
+					return nil, validatorCategories{}, nil, err
+				}
+
+				aggregatedRegs = append(aggregatedRegs, &eth2api.VersionedSignedValidatorRegistration{
+					Version: eth2spec.BuilderVersionV1,
+					V1: &eth2v1.SignedValidatorRegistration{
+						Message:   reg.Message,
+						Signature: fullSig,
+					},
+				})
+			} else {
+				hasIncomplete = true
+
+				if n := len(reg.PartialSignatures); n > maxPartialSigs[val.Pubkey] {
+					maxPartialSigs[val.Pubkey] = n
+				}
+			}
+		}
+
+		switch {
+		case hasQuorum:
+			cats.Complete = append(cats.Complete, val.Pubkey)
+		case hasIncomplete:
+			cats.Incomplete = append(cats.Incomplete, val.Pubkey)
+		default:
+			cats.NoReg = append(cats.NoReg, val.Pubkey)
+		}
+	}
+
+	return aggregatedRegs, cats, maxPartialSigs, nil
+}
+
+// logValidatorStatus logs categorized validators with their current registration status.
+func logValidatorStatus(ctx context.Context, cats validatorCategories, maxPartialSigs map[string]int) {
+	if len(cats.Complete) > 0 {
+		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", len(cats.Complete)))
+
+		for _, pubkey := range cats.Complete {
+			log.Info(ctx, "  Complete", z.Str("pubkey", pubkey))
+		}
+	}
+
+	if len(cats.Incomplete) > 0 {
+		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", len(cats.Incomplete)))
+
+		for _, pubkey := range cats.Incomplete {
+			log.Info(ctx, "  Incomplete", z.Str("pubkey", pubkey), z.Int("partial_signatures", maxPartialSigs[pubkey]))
+		}
+	}
+
+	if len(cats.NoReg) > 0 {
+		log.Info(ctx, "Validators unknown to the API", z.Int("count", len(cats.NoReg)))
+
+		for _, pubkey := range cats.NoReg {
+			log.Info(ctx, "  No registrations", z.Str("pubkey", pubkey))
+		}
+	}
 }
 
 func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) error {
@@ -65,89 +165,12 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 		return errors.Wrap(err, "fetch builder registrations from Obol API")
 	}
 
-	var (
-		aggregatedRegs    []*eth2api.VersionedSignedValidatorRegistration
-		completePubkeys   []string
-		incompletePubkeys []string
-		noRegPubkeys      []string
-	)
-
-	// maxPartialSigs tracks the highest partial signature count across
-	// all incomplete registrations for a given validator pubkey.
-	maxPartialSigs := make(map[string]int)
-
-	for _, val := range resp.Validators {
-		var hasQuorum, hasIncomplete bool
-
-		for _, reg := range val.BuilderRegistrations {
-			if reg.Quorum {
-				hasQuorum = true
-
-				partialSigs := make(map[int]tbls.Signature)
-
-				for _, ps := range reg.PartialSignatures {
-					sig, err := tblsconv.SignatureFromBytes(ps.Signature[:])
-					if err != nil {
-						return errors.Wrap(err, "parse partial signature", z.Str("pubkey", val.Pubkey))
-					}
-
-					partialSigs[ps.ShareIndex] = sig
-				}
-
-				fullSig, err := tbls.ThresholdAggregate(partialSigs)
-				if err != nil {
-					return errors.Wrap(err, "aggregate partial signatures", z.Str("pubkey", val.Pubkey))
-				}
-
-				aggregatedRegs = append(aggregatedRegs, &eth2api.VersionedSignedValidatorRegistration{
-					Version: eth2spec.BuilderVersionV1,
-					V1: &eth2v1.SignedValidatorRegistration{
-						Message:   reg.Message,
-						Signature: eth2p0.BLSSignature(fullSig),
-					},
-				})
-			} else {
-				hasIncomplete = true
-
-				if n := len(reg.PartialSignatures); n > maxPartialSigs[val.Pubkey] {
-					maxPartialSigs[val.Pubkey] = n
-				}
-			}
-		}
-
-		switch {
-		case hasQuorum:
-			completePubkeys = append(completePubkeys, val.Pubkey)
-		case hasIncomplete:
-			incompletePubkeys = append(incompletePubkeys, val.Pubkey)
-		default:
-			noRegPubkeys = append(noRegPubkeys, val.Pubkey)
-		}
+	aggregatedRegs, cats, maxPartialSigs, err := processValidators(resp.Validators)
+	if err != nil {
+		return err
 	}
 
-	if len(completePubkeys) > 0 {
-		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", len(completePubkeys)))
-
-		for _, pubkey := range completePubkeys {
-			log.Info(ctx, "  Complete", z.Str("pubkey", pubkey))
-		}
-	}
-
-	if len(incompletePubkeys) > 0 {
-		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", len(incompletePubkeys)))
-
-		for _, pubkey := range incompletePubkeys {
-			log.Info(ctx, "  Incomplete", z.Str("pubkey", pubkey), z.Int("partial_signatures", maxPartialSigs[pubkey]))
-		}
-	}
-
-	if len(noRegPubkeys) > 0 {
-		log.Info(ctx, "Validators unknown to the API", z.Int("count", len(noRegPubkeys)))
-
-		for _, pubkey := range noRegPubkeys {
-			log.Info(ctx, "  No registrations", z.Str("pubkey", pubkey))
-		}
-	}
+	logValidatorStatus(ctx, cats, maxPartialSigs)
 
 	if len(aggregatedRegs) == 0 {
 		log.Info(ctx, "No fully signed builder registrations available yet")
