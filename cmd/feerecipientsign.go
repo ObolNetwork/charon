@@ -223,14 +223,20 @@ func filterPubkeysByStatus(
 		)
 
 		if ok {
-			var quorumGroup, incompleteGroup *obolapi.FeeRecipientBuilderRegistration
+			var quorumGroup *obolapi.FeeRecipientBuilderRegistration
+
+			// Find the first incomplete group whose fee matches the requested one.
+			// Stale incompletes (different fee) are ignored — they may linger on the
+			// API after quorum was reached for a previous fee and must not block new
+			// fee recipient changes.
+			var matchingIncomplete *obolapi.FeeRecipientBuilderRegistration
 
 			for i := range v.BuilderRegistrations {
 				reg := &v.BuilderRegistrations[i]
 				if reg.Quorum && quorumGroup == nil {
 					quorumGroup = reg
-				} else if !reg.Quorum && incompleteGroup == nil {
-					incompleteGroup = reg
+				} else if !reg.Quorum && matchingIncomplete == nil && strings.EqualFold(reg.Message.FeeRecipient.String(), feeRecipient) {
+					matchingIncomplete = reg
 				}
 			}
 
@@ -242,25 +248,33 @@ func filterPubkeysByStatus(
 				continue
 			}
 
-			if incompleteGroup != nil {
-				if !strings.EqualFold(incompleteGroup.Message.FeeRecipient.String(), feeRecipient) {
-					return nil, errors.New("fee recipient mismatch with existing partial registration; wait for the in-progress registration to complete or coordinate with your cluster operators",
-						z.Str("pubkey", valPubKey),
-						z.Str("existing_fee_recipient", incompleteGroup.Message.FeeRecipient.String()),
-						z.Str("requested_fee_recipient", feeRecipient),
-					)
-				}
-
+			if matchingIncomplete != nil {
 				// Adopt the timestamp and gas limit from the in-progress group so all operators sign the same message.
-				timestamp = incompleteGroup.Message.Timestamp
-				gasLimit = incompleteGroup.Message.GasLimit
+				timestamp = matchingIncomplete.Message.Timestamp
+				gasLimit = matchingIncomplete.Message.GasLimit
 
 				log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
 					z.Str("pubkey", valPubKey),
-					z.Str("fee_recipient", incompleteGroup.Message.FeeRecipient.String()),
-					z.Int("partial_count", len(incompleteGroup.PartialSignatures)))
+					z.Str("fee_recipient", matchingIncomplete.Message.FeeRecipient.String()),
+					z.Int("partial_count", len(matchingIncomplete.PartialSignatures)))
+			} else if quorumGroup == nil {
+				// Check if there's ANY incomplete group (with a different fee) and no quorum yet.
+				// This means another operator started a fee change that hasn't completed — block.
+				for _, reg := range v.BuilderRegistrations {
+					if !reg.Quorum {
+						return nil, errors.New("fee recipient mismatch with existing partial registration; wait for the in-progress registration to complete or coordinate with your cluster operators",
+							z.Str("pubkey", valPubKey),
+							z.Str("existing_fee_recipient", reg.Message.FeeRecipient.String()),
+							z.Str("requested_fee_recipient", feeRecipient),
+						)
+					}
+				}
+
+				// No in-progress group and no quorum: anchor the timestamp and resolve gas limit now.
+				timestamp = now()
+				gasLimit = resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
 			} else {
-				// No in-progress group: anchor the timestamp and resolve gas limit now.
+				// Quorum exists with different fee, no matching incomplete: start fresh.
 				timestamp = now()
 				gasLimit = resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
 			}
