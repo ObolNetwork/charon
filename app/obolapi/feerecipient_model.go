@@ -12,9 +12,42 @@ import (
 )
 
 // PartialRegistration represents a partial builder registration with a partial BLS signature.
+// The signature is encoded as a 0x-prefixed hex string on the wire.
 type PartialRegistration struct {
+	Message   *eth2v1.ValidatorRegistration
+	Signature tbls.Signature
+}
+
+// partialRegistrationDTO is the wire representation of PartialRegistration.
+type partialRegistrationDTO struct {
 	Message   *eth2v1.ValidatorRegistration `json:"message"`
-	Signature tbls.Signature                `json:"signature"`
+	Signature string                        `json:"signature"`
+}
+
+func (p PartialRegistration) MarshalJSON() ([]byte, error) {
+	//nolint:wrapcheck // caller will wrap
+	return json.Marshal(partialRegistrationDTO{
+		Message:   p.Message,
+		Signature: fmt.Sprintf("%#x", p.Signature),
+	})
+}
+
+func (p *PartialRegistration) UnmarshalJSON(data []byte) error {
+	var dto partialRegistrationDTO
+	if err := json.Unmarshal(data, &dto); err != nil {
+		//nolint:wrapcheck // caller will wrap
+		return err
+	}
+
+	sigBytes, err := from0x(dto.Signature, 96)
+	if err != nil {
+		return err
+	}
+
+	p.Message = dto.Message
+	copy(p.Signature[:], sigBytes)
+
+	return nil
 }
 
 // PartialFeeRecipientRequest represents the request body for posting partial builder registrations.

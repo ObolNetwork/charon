@@ -66,11 +66,15 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 	}
 
 	var (
-		aggregatedRegs  []*eth2api.VersionedSignedValidatorRegistration
-		completeCount   int
-		incompleteCount int
-		noRegCount      int
+		aggregatedRegs    []*eth2api.VersionedSignedValidatorRegistration
+		completePubkeys   []string
+		incompletePubkeys []string
+		noRegPubkeys      []string
 	)
+
+	// maxPartialSigs tracks the highest partial signature count across
+	// all incomplete registrations for a given validator pubkey.
+	maxPartialSigs := make(map[string]int)
 
 	for _, val := range resp.Validators {
 		var hasQuorum, hasIncomplete bool
@@ -104,33 +108,49 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 				})
 			} else {
 				hasIncomplete = true
+
+				if n := len(reg.PartialSignatures); n > maxPartialSigs[val.Pubkey] {
+					maxPartialSigs[val.Pubkey] = n
+				}
 			}
 		}
 
 		switch {
 		case hasQuorum:
-			completeCount++
+			completePubkeys = append(completePubkeys, val.Pubkey)
 		case hasIncomplete:
-			incompleteCount++
+			incompletePubkeys = append(incompletePubkeys, val.Pubkey)
 		default:
-			noRegCount++
+			noRegPubkeys = append(noRegPubkeys, val.Pubkey)
 		}
 	}
 
-	if completeCount > 0 {
-		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", completeCount))
+	if len(completePubkeys) > 0 {
+		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", len(completePubkeys)))
+
+		for _, pubkey := range completePubkeys {
+			log.Info(ctx, "  Complete", z.Str("pubkey", pubkey))
+		}
 	}
 
-	if incompleteCount > 0 {
-		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", incompleteCount))
+	if len(incompletePubkeys) > 0 {
+		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", len(incompletePubkeys)))
+
+		for _, pubkey := range incompletePubkeys {
+			log.Info(ctx, "  Incomplete", z.Str("pubkey", pubkey), z.Int("partial_signatures", maxPartialSigs[pubkey]))
+		}
 	}
 
-	if noRegCount > 0 {
-		log.Info(ctx, "Validators unknown to the API", z.Int("count", noRegCount))
+	if len(noRegPubkeys) > 0 {
+		log.Info(ctx, "Validators unknown to the API", z.Int("count", len(noRegPubkeys)))
+
+		for _, pubkey := range noRegPubkeys {
+			log.Info(ctx, "  No registrations", z.Str("pubkey", pubkey))
+		}
 	}
 
 	if len(aggregatedRegs) == 0 {
-		log.Warn(ctx, "No fully signed builder registrations available yet", nil)
+		log.Info(ctx, "No fully signed builder registrations available yet")
 
 		return nil
 	}

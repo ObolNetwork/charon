@@ -117,35 +117,6 @@ func httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string
 	return nil
 }
 
-func httpPostWithResponse(ctx context.Context, url *url.URL, body []byte, headers map[string]string) (io.ReadCloser, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), bytes.NewReader(body))
-	if err != nil {
-		return nil, errors.Wrap(err, "create POST request")
-	}
-
-	req.Header.Add("Content-Type", "application/json")
-
-	for key, val := range headers {
-		req.Header.Set(key, val)
-	}
-
-	res, err := new(http.Client).Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "call POST endpoint")
-	}
-
-	if res.StatusCode/100 != 2 {
-		data, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))
-		}
-
-		return nil, errors.New("http POST failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
-	}
-
-	return res.Body, nil
-}
-
 func httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
 	if err != nil {

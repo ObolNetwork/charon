@@ -3,19 +3,26 @@
 package obolapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 const (
 	submitPartialFeeRecipientTmpl = "/fee_recipient/partial/" + lockHashPath + "/" + shareIndexPath
 	fetchFeeRecipientTmpl         = "/fee_recipient/" + lockHashPath
+
+	errNoPartialsRegistrations = "no partial registrations found"
+	errLockNotFound            = "lock not found"
 )
 
 // submitPartialFeeRecipientURL returns the partial fee recipient Obol API URL for a given lock hash.
@@ -41,14 +48,12 @@ func fetchFeeRecipientURL(lockHash string) string {
 func (c Client) PostPartialFeeRecipients(ctx context.Context, lockHash []byte, shareIndex uint64, partialRegs []PartialRegistration) error {
 	lockHashStr := "0x" + hex.EncodeToString(lockHash)
 
-	path := submitPartialFeeRecipientURL(lockHashStr, shareIndex)
-
 	u, err := url.ParseRequestURI(c.baseURL)
 	if err != nil {
 		return errors.Wrap(err, "bad Obol API url")
 	}
 
-	u.Path = path
+	u.Path = submitPartialFeeRecipientURL(lockHashStr, shareIndex)
 
 	req := PartialFeeRecipientRequest{PartialRegistrations: partialRegs}
 
@@ -92,15 +97,40 @@ func (c Client) PostFeeRecipientsFetch(ctx context.Context, lockHash []byte, pub
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	respBody, err := httpPostWithResponse(ctx, u, data, nil)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(data))
 	if err != nil {
-		return FeeRecipientFetchResponse{}, errors.Wrap(err, "http Obol API POST request")
+		return FeeRecipientFetchResponse{}, errors.Wrap(err, "create POST request")
 	}
 
-	defer respBody.Close()
+	httpReq.Header.Add("Content-Type", "application/json")
+
+	httpResp, err := new(http.Client).Do(httpReq)
+	if err != nil {
+		return FeeRecipientFetchResponse{}, errors.Wrap(err, "call POST endpoint")
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode/100 != 2 {
+		body, err := io.ReadAll(httpResp.Body)
+		if err != nil {
+			return FeeRecipientFetchResponse{}, errors.Wrap(err, "read response", z.Int("status", httpResp.StatusCode))
+		}
+
+		if httpResp.StatusCode == http.StatusNotFound {
+			if strings.Contains(string(body), errNoPartialsRegistrations) {
+				return FeeRecipientFetchResponse{}, nil
+			}
+
+			if strings.Contains(string(body), errLockNotFound) {
+				return FeeRecipientFetchResponse{}, errors.New("cluster is unknown to the API, publish the lock file first")
+			}
+		}
+
+		return FeeRecipientFetchResponse{}, errors.New("http POST failed", z.Int("status", httpResp.StatusCode), z.Str("body", string(body)))
+	}
 
 	var resp FeeRecipientFetchResponse
-	if err := json.NewDecoder(respBody).Decode(&resp); err != nil {
+	if err := json.NewDecoder(httpResp.Body).Decode(&resp); err != nil {
 		return FeeRecipientFetchResponse{}, errors.Wrap(err, "unmarshal response")
 	}
 
