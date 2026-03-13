@@ -71,15 +71,25 @@ func aggregatePartialSignatures(partialSigs []obolapi.FeeRecipientPartialSig, pu
 	return eth2p0.BLSSignature(fullSig), nil
 }
 
+// processedValidators holds the results of processing the API response.
+type processedValidators struct {
+	AggregatedRegs    []*eth2api.VersionedSignedValidatorRegistration
+	Categories        validatorCategories
+	PartialSigIndices map[string][]int
+	// QuorumMessages maps validator pubkey to the quorum registration message details.
+	QuorumMessages map[string]*eth2v1.ValidatorRegistration
+	// IncompleteMessages maps validator pubkey to the incomplete registration message
+	// with the most partial signatures.
+	IncompleteMessages map[string]*eth2v1.ValidatorRegistration
+}
+
 // processValidators aggregates signatures for validators with quorum and categorizes all validators by status.
-func processValidators(validators []obolapi.FeeRecipientValidator) ([]*eth2api.VersionedSignedValidatorRegistration, validatorCategories, map[string]int, error) {
-	var (
-		aggregatedRegs []*eth2api.VersionedSignedValidatorRegistration
-		cats           validatorCategories
-		// maxPartialSigs tracks the highest partial signature count across
-		// all incomplete registrations for a given validator pubkey.
-		maxPartialSigs = make(map[string]int)
-	)
+func processValidators(validators []obolapi.FeeRecipientValidator) (processedValidators, error) {
+	result := processedValidators{
+		PartialSigIndices:  make(map[string][]int),
+		QuorumMessages:     make(map[string]*eth2v1.ValidatorRegistration),
+		IncompleteMessages: make(map[string]*eth2v1.ValidatorRegistration),
+	}
 
 	for _, val := range validators {
 		var hasQuorum, hasIncomplete bool
@@ -90,45 +100,67 @@ func processValidators(validators []obolapi.FeeRecipientValidator) ([]*eth2api.V
 
 				fullSig, err := aggregatePartialSignatures(reg.PartialSignatures, val.Pubkey)
 				if err != nil {
-					return nil, validatorCategories{}, nil, err
+					return processedValidators{}, err
 				}
 
-				aggregatedRegs = append(aggregatedRegs, &eth2api.VersionedSignedValidatorRegistration{
+				result.AggregatedRegs = append(result.AggregatedRegs, &eth2api.VersionedSignedValidatorRegistration{
 					Version: eth2spec.BuilderVersionV1,
 					V1: &eth2v1.SignedValidatorRegistration{
 						Message:   reg.Message,
 						Signature: fullSig,
 					},
 				})
+
+				result.QuorumMessages[val.Pubkey] = reg.Message
 			} else {
 				hasIncomplete = true
 
-				if n := len(reg.PartialSignatures); n > maxPartialSigs[val.Pubkey] {
-					maxPartialSigs[val.Pubkey] = n
+				if len(reg.PartialSignatures) > len(result.PartialSigIndices[val.Pubkey]) {
+					indices := make([]int, 0, len(reg.PartialSignatures))
+					for _, ps := range reg.PartialSignatures {
+						indices = append(indices, ps.ShareIndex)
+					}
+
+					result.PartialSigIndices[val.Pubkey] = indices
+					result.IncompleteMessages[val.Pubkey] = reg.Message
 				}
 			}
 		}
 
-		switch {
-		case hasQuorum:
-			cats.Complete = append(cats.Complete, val.Pubkey)
-		case hasIncomplete:
-			cats.Incomplete = append(cats.Incomplete, val.Pubkey)
-		default:
-			cats.NoReg = append(cats.NoReg, val.Pubkey)
+		if hasQuorum {
+			result.Categories.Complete = append(result.Categories.Complete, val.Pubkey)
+		}
+
+		if hasIncomplete {
+			result.Categories.Incomplete = append(result.Categories.Incomplete, val.Pubkey)
+		}
+
+		if !hasQuorum && !hasIncomplete {
+			result.Categories.NoReg = append(result.Categories.NoReg, val.Pubkey)
 		}
 	}
 
-	return aggregatedRegs, cats, maxPartialSigs, nil
+	return result, nil
 }
 
 // logValidatorStatus logs categorized validators with their current registration status.
-func logValidatorStatus(ctx context.Context, cats validatorCategories, maxPartialSigs map[string]int) {
+func logValidatorStatus(ctx context.Context, pv processedValidators) {
+	cats := pv.Categories
+
 	if len(cats.Complete) > 0 {
 		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", len(cats.Complete)))
 
 		for _, pubkey := range cats.Complete {
-			log.Info(ctx, "  Complete", z.Str("pubkey", pubkey))
+			if msg := pv.QuorumMessages[pubkey]; msg != nil {
+				log.Info(ctx, "  Complete",
+					z.Str("pubkey", pubkey),
+					z.Str("fee_recipient", msg.FeeRecipient.String()),
+					z.U64("gas_limit", msg.GasLimit),
+					z.I64("timestamp", msg.Timestamp.Unix()),
+				)
+			} else {
+				log.Info(ctx, "  Complete", z.Str("pubkey", pubkey))
+			}
 		}
 	}
 
@@ -136,7 +168,22 @@ func logValidatorStatus(ctx context.Context, cats validatorCategories, maxPartia
 		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", len(cats.Incomplete)))
 
 		for _, pubkey := range cats.Incomplete {
-			log.Info(ctx, "  Incomplete", z.Str("pubkey", pubkey), z.Int("partial_signatures", maxPartialSigs[pubkey]))
+			indices := pv.PartialSigIndices[pubkey]
+			fields := []z.Field{
+				z.Str("pubkey", pubkey),
+				z.Int("partial_signatures", len(indices)),
+				z.Any("submitted_indices", indices),
+			}
+
+			if msg := pv.IncompleteMessages[pubkey]; msg != nil {
+				fields = append(fields,
+					z.Str("fee_recipient", msg.FeeRecipient.String()),
+					z.U64("gas_limit", msg.GasLimit),
+					z.I64("timestamp", msg.Timestamp.Unix()),
+				)
+			}
+
+			log.Info(ctx, "  Incomplete", fields...)
 		}
 	}
 
@@ -165,26 +212,26 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 		return errors.Wrap(err, "fetch builder registrations from Obol API")
 	}
 
-	aggregatedRegs, cats, maxPartialSigs, err := processValidators(resp.Validators)
+	pv, err := processValidators(resp.Validators)
 	if err != nil {
 		return err
 	}
 
-	logValidatorStatus(ctx, cats, maxPartialSigs)
+	logValidatorStatus(ctx, pv)
 
-	if len(aggregatedRegs) == 0 {
+	if len(pv.AggregatedRegs) == 0 {
 		log.Info(ctx, "No fully signed builder registrations available yet")
 
 		return nil
 	}
 
-	err = writeSignedValidatorRegistrations(config.OverridesFilePath, aggregatedRegs)
+	err = writeSignedValidatorRegistrations(config.OverridesFilePath, pv.AggregatedRegs)
 	if err != nil {
 		return errors.Wrap(err, "write builder registrations overrides", z.Str("path", config.OverridesFilePath))
 	}
 
 	log.Info(ctx, "Successfully wrote builder registrations overrides",
-		z.Int("count", len(aggregatedRegs)),
+		z.Int("count", len(pv.AggregatedRegs)),
 		z.Str("path", config.OverridesFilePath),
 	)
 

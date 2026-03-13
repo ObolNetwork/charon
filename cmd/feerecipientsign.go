@@ -44,6 +44,7 @@ type feerecipientSignConfig struct {
 	ValidatorKeysDir string
 	FeeRecipient     string
 	GasLimit         uint64
+	Timestamp        int64
 }
 
 func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig) error) *cobra.Command {
@@ -68,6 +69,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
 	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the existing gas limit from the cluster lock or overrides file is used.")
+	cmd.Flags().Int64Var(&config.Timestamp, "timestamp", 0, "Optional Unix timestamp for the builder registration message. When set, all operators can sign independently with the same timestamp. If not set, the current time is used for new registrations.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "validator-public-keys")
@@ -195,7 +197,17 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return err
 	}
 
-	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, config.GasLimit, *cl, overrides, time.Now)
+	nowFunc := time.Now
+
+	if config.Timestamp != 0 {
+		if err := validateTimestamp(config.Timestamp, config.ValidatorPublicKeys, *cl, overrides); err != nil {
+			return err
+		}
+
+		nowFunc = func() time.Time { return time.Unix(config.Timestamp, 0) }
+	}
+
+	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, config.GasLimit, *cl, overrides, nowFunc)
 	if err != nil {
 		return err
 	}
@@ -323,6 +335,42 @@ func filterPubkeysByStatus(
 	}
 
 	return pubkeysToSign, nil
+}
+
+// validateTimestamp checks that the provided timestamp is strictly greater than any existing
+// registration timestamp (from the cluster lock or overrides file) for the requested validators.
+func validateTimestamp(timestamp int64, pubkeys []string, cl cluster.Lock, overrides map[string]eth2v1.ValidatorRegistration) error {
+	ts := time.Unix(timestamp, 0)
+
+	for _, pubkey := range pubkeys {
+		normalized := normalizePubkey(pubkey)
+
+		for _, dv := range cl.Validators {
+			if strings.EqualFold(dv.PublicKeyHex(), "0x"+normalized) {
+				if !ts.After(dv.BuilderRegistration.Message.Timestamp) {
+					return errors.New("timestamp must be greater than existing registration timestamp",
+						z.Str("pubkey", pubkey),
+						z.I64("provided_timestamp", timestamp),
+						z.I64("existing_timestamp", dv.BuilderRegistration.Message.Timestamp.Unix()),
+					)
+				}
+
+				break
+			}
+		}
+
+		if override, ok := overrides[normalized]; ok {
+			if !ts.After(override.Timestamp) {
+				return errors.New("timestamp must be greater than existing overrides registration timestamp",
+					z.Str("pubkey", pubkey),
+					z.I64("provided_timestamp", timestamp),
+					z.I64("existing_timestamp", override.Timestamp.Unix()),
+				)
+			}
+		}
+	}
+
+	return nil
 }
 
 // resolveGasLimit returns gasLimitOverride if non-zero. Otherwise it picks the gas limit from

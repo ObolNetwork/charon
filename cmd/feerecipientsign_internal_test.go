@@ -81,6 +81,63 @@ func TestFeeRecipientSignValid(t *testing.T) {
 	require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator index submit feerecipient sign: %v", idx)
 }
 
+func TestFeeRecipientSignWithTimestamp(t *testing.T) {
+	ctx := t.Context()
+	ctx = log.WithCtx(ctx, z.Str("test_case", t.Name()))
+
+	valAmt := 1
+	operatorAmt := 4
+
+	random := rand.New(rand.NewSource(0))
+
+	lock, enrs, keyShares := cluster.NewForT(t, valAmt, operatorAmt, operatorAmt, 0, random)
+
+	root := t.TempDir()
+
+	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
+	for opIdx := range operatorAmt {
+		for _, share := range keyShares {
+			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
+		}
+	}
+
+	lockJSON, err := json.Marshal(lock)
+	require.NoError(t, err)
+
+	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+
+	handler, addLockFiles := obolapimock.MockServer(false, nil)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	addLockFiles(lock)
+
+	// All operators sign independently with the same fixed timestamp.
+	newFeeRecipient := "0x0000000000000000000000000000000000001234"
+	validatorPubkey := lock.Validators[0].PublicKeyHex()
+	fixedTimestamp := int64(1700000000)
+
+	for opIdx := range lock.Threshold {
+		baseDir := filepath.Join(root, fmt.Sprintf("op%d", opIdx))
+
+		signConfig := feerecipientSignConfig{
+			feerecipientConfig: feerecipientConfig{
+				ValidatorPublicKeys: []string{validatorPubkey},
+				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+				PublishAddress:      srv.URL,
+				PublishTimeout:      10 * time.Second,
+			},
+			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
+			FeeRecipient:     newFeeRecipient,
+			Timestamp:        fixedTimestamp,
+		}
+
+		require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator %d sign with timestamp", opIdx)
+	}
+}
+
 func TestFeeRecipientSignInvalidFeeRecipient(t *testing.T) {
 	config := feerecipientSignConfig{
 		feerecipientConfig: feerecipientConfig{
@@ -223,6 +280,20 @@ func TestFeeRecipientSignCLI(t *testing.T) {
 				"--lock-file=test",
 				"--publish-address=test",
 				"--publish-timeout=1ms",
+			},
+		},
+		{
+			name:        "correct flags with timestamp",
+			expectedErr: "load identity key: read private key from disk: open test: no such file or directory",
+			flags: []string{
+				"--validator-public-keys=test",
+				"--fee-recipient=0x0000000000000000000000000000000000001234",
+				"--private-key-file=test",
+				"--validator-keys-dir=test",
+				"--lock-file=test",
+				"--publish-address=test",
+				"--publish-timeout=1ms",
+				"--timestamp=1700000000",
 			},
 		},
 		{
