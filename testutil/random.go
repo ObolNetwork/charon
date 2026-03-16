@@ -1686,7 +1686,7 @@ func GenerateInsecureK1Key(t *testing.T, seed int) *k1.PrivateKey {
 
 	t.Setenv("GODEBUG", "cryptocustomrand=1")
 	// Add 1 to seed to avoid passing 0 as seed which can trigger infinite loop.
-	k, err := ecdsa.GenerateKey(k1.S256(), constReader(seed+1))
+	k, err := ecdsa.GenerateKey(k1.S256(), constReader(seed+1)) //nolint:staticcheck // We are using it in tests in a safely manner in testing.
 	require.NoError(t, err)
 
 	//nolint:staticcheck // We are using it in tests in a safely manner in testing.
