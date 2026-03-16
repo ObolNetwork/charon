@@ -229,8 +229,9 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAd
 
 	// Fetch attestation data early without triggering consensus
 	// Use background context to prevent cancellation if SSE connection drops
+	//nolint:gosec // The use of background context is intentional.
 	go func() {
-		fetchCtx := log.CopyFields(context.Background(), ctx) //nolint:gosec // The use of background context is intentional.
+		fetchCtx := log.CopyFields(context.Background(), ctx)
 		if err := s.fetcherFetchOnly(fetchCtx, duty, clonedDefSet, bnAddr); err != nil {
 			log.Warn(fetchCtx, "Early attestation data fetch failed", err, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 		}
@@ -509,9 +510,11 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 		if i.Slot < j.Slot {
 			return -1
 		}
+
 		if i.Slot > j.Slot {
 			return 1
 		}
+
 		return 0
 	})
 
