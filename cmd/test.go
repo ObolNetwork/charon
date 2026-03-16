@@ -15,7 +15,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -538,8 +537,16 @@ func filterTests(supportedTestCases []testCaseName, cfg testConfig) []testCaseNa
 }
 
 func sortTests(tests []testCaseName) {
-	sort.Slice(tests, func(i, j int) bool {
-		return tests[i].order < tests[j].order
+	slices.SortFunc(tests, func(a, b testCaseName) int {
+		if a.order < b.order {
+			return -1
+		}
+
+		if a.order > b.order {
+			return 1
+		}
+
+		return 0
 	})
 }
 

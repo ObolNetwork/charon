@@ -4,7 +4,7 @@ package priority
 
 import (
 	"bytes"
-	"sort"
+	"slices"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -70,8 +70,16 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 		}
 
 		// Order by score decreasing
-		sort.Slice(allPriorities, func(i, j int) bool {
-			return scores[allPriorities[i]] > scores[allPriorities[j]]
+		slices.SortFunc(allPriorities, func(i, j [32]byte) int {
+			if scores[i] > scores[j] {
+				return -1
+			}
+
+			if scores[i] < scores[j] {
+				return 1
+			}
+
+			return 0
 		})
 
 		// Extract scores with min required count.
@@ -125,8 +133,8 @@ func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopi
 		})
 	}
 
-	sort.Slice(tuples, func(i, j int) bool {
-		return bytes.Compare(tuples[i].Hash, tuples[j].Hash) < 0
+	slices.SortFunc(tuples, func(i, j tuple) int {
+		return bytes.Compare(i.Hash, j.Hash)
 	})
 
 	var resp []*pbv1.PriorityTopicResult
@@ -141,8 +149,16 @@ func orderTopicResults(values []*pbv1.PriorityTopicResult) ([]*pbv1.PriorityTopi
 // by peer.
 func sortInput(msgs []*pbv1.PriorityMsg) []*pbv1.PriorityMsg {
 	resp := append([]*pbv1.PriorityMsg(nil), msgs...) // Copy to not mutate input param.
-	sort.Slice(resp, func(i, j int) bool {
-		return resp[i].GetPeerId() < resp[j].GetPeerId()
+	slices.SortFunc(resp, func(i, j *pbv1.PriorityMsg) int {
+		if i.GetPeerId() < j.GetPeerId() {
+			return -1
+		}
+
+		if i.GetPeerId() > j.GetPeerId() {
+			return 1
+		}
+
+		return 0
 	})
 
 	return resp

@@ -2,6 +2,8 @@
 
 // Package errors provides errors with structured fields and stack traces.
 // It is a drop-in replacement for stdlib errors and should be used as such throughout the app.
+
+//nolint:revive,nolintlint // somehow the nolintlint linter catches revive as unnecessary, while it is
 package errors
 
 import (

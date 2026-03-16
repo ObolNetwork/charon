@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -86,8 +86,16 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 	u.Path = path
 
 	// sort by validator index ascending
-	sort.Slice(exitBlobs, func(i, j int) bool {
-		return exitBlobs[i].SignedExitMessage.Message.ValidatorIndex < exitBlobs[j].SignedExitMessage.Message.ValidatorIndex
+	slices.SortFunc(exitBlobs, func(i, j ExitBlob) int {
+		if i.SignedExitMessage.Message.ValidatorIndex < j.SignedExitMessage.Message.ValidatorIndex {
+			return -1
+		}
+
+		if i.SignedExitMessage.Message.ValidatorIndex > j.SignedExitMessage.Message.ValidatorIndex {
+			return 1
+		}
+
+		return 0
 	})
 
 	msg := UnsignedPartialExitRequest{

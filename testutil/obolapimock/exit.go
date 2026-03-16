@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -210,8 +209,16 @@ func (ts *testServer) HandleGetFullExit(writer http.ResponseWriter, request *htt
 	var ret obolapi.FullExitResponse
 
 	// order partial exits by share index
-	sort.Slice(partialExits, func(i, j int) bool {
-		return partialExits[i].shareIdx < partialExits[j].shareIdx
+	slices.SortFunc(partialExits, func(i, j exitBlob) int {
+		if i.shareIdx < j.shareIdx {
+			return -1
+		}
+
+		if i.shareIdx > j.shareIdx {
+			return 1
+		}
+
+		return 0
 	})
 
 	for _, pExit := range partialExits {

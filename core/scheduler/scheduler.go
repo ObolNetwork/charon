@@ -5,7 +5,7 @@ package scheduler
 import (
 	"context"
 	"math"
-	"sort"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -229,6 +229,7 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAd
 
 	// Fetch attestation data early without triggering consensus
 	// Use background context to prevent cancellation if SSE connection drops
+	//nolint:gosec // The use of background context is intentional.
 	go func() {
 		fetchCtx := log.CopyFields(context.Background(), ctx)
 		if err := s.fetcherFetchOnly(fetchCtx, duty, clonedDefSet, bnAddr); err != nil {
@@ -505,8 +506,16 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 	}
 
 	// Sort so logging below in ascending slot order.
-	sort.Slice(attDuties, func(i, j int) bool {
-		return attDuties[i].Slot < attDuties[j].Slot
+	slices.SortFunc(attDuties, func(i, j *eth2v1.AttesterDuty) int {
+		if i.Slot < j.Slot {
+			return -1
+		}
+
+		if i.Slot > j.Slot {
+			return 1
+		}
+
+		return 0
 	})
 
 	for _, attDuty := range attDuties {

@@ -152,6 +152,7 @@ func (s *Sender) addResult(ctx context.Context, peerID peer.ID, err error) {
 func (s *Sender) SendAsync(parent context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID,
 	msg proto.Message, opts ...SendRecvOption,
 ) error {
+	//nolint:gosec // The use of background context is intentional.
 	go func() {
 		// Clone the context since parent context may be closed soon.
 		ctx := log.CopyFields(context.Background(), parent)

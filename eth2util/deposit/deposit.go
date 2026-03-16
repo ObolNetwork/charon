@@ -11,7 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -137,8 +136,16 @@ func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]by
 		})
 	}
 
-	sort.Slice(ddList, func(i, j int) bool {
-		return ddList[i].PubKey < ddList[j].PubKey
+	slices.SortFunc(ddList, func(i, j depositDataJSON) int {
+		if i.PubKey < j.PubKey {
+			return -1
+		}
+
+		if i.PubKey > j.PubKey {
+			return 1
+		}
+
+		return 0
 	})
 
 	bytes, err := json.MarshalIndent(ddList, "", " ")

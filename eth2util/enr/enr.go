@@ -6,7 +6,7 @@ package enr
 import (
 	"encoding/base64"
 	"net"
-	"sort"
+	"slices"
 	"strings"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -188,7 +188,7 @@ func encodeElements(signature []byte, kvs map[string][]byte) []byte {
 		keys = append(keys, k)
 	}
 
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	elements := [][]byte{toBigEndian(0)} // Sequence number=0
 	for _, key := range keys {

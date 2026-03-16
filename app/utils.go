@@ -81,7 +81,7 @@ func BundleOutput(targetDir string, filename string) error {
 			return errors.Wrap(err, "write header")
 		}
 
-		f, err := os.Open(path)
+		f, err := os.Open(path) //nolint:gosec // no TOCTOU condition as BundleOutput is used only in CLI non-concurrent context.
 		if err != nil {
 			return errors.Wrap(err, "open file")
 		}
@@ -244,7 +244,7 @@ func CompareDirectories(originalDir, extractedDir string) error {
 		}
 
 		// Read and compare file contents
-		originalContent, err := os.ReadFile(path)
+		originalContent, err := os.ReadFile(path) //nolint:gosec // no TOCTOU condition as CompareDirectories is used only in CLI non-concurrent context.
 		if err != nil {
 			return errors.Wrap(err, "read original file", z.Str("path", path))
 		}

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -210,13 +210,17 @@ func newENRHandler(ctx context.Context, p2pNode host.Host, p2pKey *k1.PrivateKey
 		}
 
 		// Order public addresses first.
-		sort.SliceStable(addrs, func(i, j int) bool {
-			iPublic, jPublic := manet.IsPublicAddr(addrs[i]), manet.IsPublicAddr(addrs[j])
+		slices.SortStableFunc(addrs, func(i, j ma.Multiaddr) int {
+			iPublic, jPublic := manet.IsPublicAddr(i), manet.IsPublicAddr(j)
 			if jPublic && !iPublic {
-				return true // Only swap if j is public and i is not.
+				return 1 // j should come before i as it is public
 			}
 
-			return false
+			if iPublic && !jPublic {
+				return -1 // i should come before j as it is public
+			}
+
+			return 0 // no change
 		})
 
 		var (
