@@ -69,7 +69,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
 	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the existing gas limit from the cluster lock or overrides file is used.")
-	cmd.Flags().Int64Var(&config.Timestamp, "timestamp", 0, "Optional Unix timestamp for the builder registration message. When set, all operators can sign independently with the same timestamp. If not set, the current time is used for new registrations.")
+	cmd.Flags().Int64Var(&config.Timestamp, "timestamp", 0, "Optional Unix timestamp for the builder registration message. When set, all operators can sign independently with the same timestamp. If not set, either the current time is used for new registrations or if another peer already submitted partial signature to the API, its timestamp is used.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "validator-public-keys")
