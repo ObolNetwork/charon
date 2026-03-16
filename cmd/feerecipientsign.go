@@ -52,8 +52,8 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 
 	cmd := &cobra.Command{
 		Use:   "sign",
-		Short: "Sign partial builder registration messages.",
-		Long:  "Signs new partial builder registration messages with updated fee recipients and publishes them to a remote API.",
+		Short: "Sign new builder registration messages.",
+		Long:  "Signs new builder registration messages to update the preferred fee recipient and publishes them to a remote API.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)

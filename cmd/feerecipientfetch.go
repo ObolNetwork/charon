@@ -31,8 +31,8 @@ func newFeeRecipientFetchCmd(runFunc func(context.Context, feerecipientFetchConf
 
 	cmd := &cobra.Command{
 		Use:   "fetch",
-		Short: "Fetch aggregated builder registrations.",
-		Long:  "Fetches builder registration messages from a remote API and aggregates those with quorum, writing fully signed registrations to a local JSON file.",
+		Short: "Fetch new fee recipients (builder registrations).",
+		Long:  "Fetches builder registration messages from a remote API and aggregates those with quorum, writing them to a local JSON file.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)
