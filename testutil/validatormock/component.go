@@ -4,7 +4,7 @@ package validatormock
 
 import (
 	"context"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -411,8 +411,16 @@ func orderByTime(duties map[scheduleTuple]struct{}) []scheduleTuple {
 		resp = append(resp, duty)
 	}
 
-	sort.Slice(resp, func(i, j int) bool {
-		return resp[i].startTime.Before(resp[j].startTime)
+	slices.SortFunc(resp, func(i, j scheduleTuple) int {
+		if i.startTime.Before(j.startTime) {
+			return -1
+		}
+
+		if i.startTime.After(j.startTime) {
+			return 1
+		}
+
+		return 0
 	})
 
 	return resp

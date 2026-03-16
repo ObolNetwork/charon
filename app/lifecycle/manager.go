@@ -15,7 +15,7 @@ package lifecycle
 
 import (
 	"context"
-	"sort"
+	"slices"
 	"sync"
 )
 
@@ -74,11 +74,11 @@ func (m *Manager) Run(appCtx context.Context) error {
 
 	m.mu.Unlock()
 
-	sort.Slice(startHooks, func(i, j int) bool {
-		return startHooks[i].Order < startHooks[j].Order
+	slices.SortFunc(startHooks, func(a, b hook) int {
+		return a.Order - b.Order
 	})
-	sort.Slice(stopHooks, func(i, j int) bool {
-		return stopHooks[i].Order < stopHooks[j].Order
+	slices.SortFunc(stopHooks, func(a, b hook) int {
+		return a.Order - b.Order
 	})
 
 	return runHooks(appCtx, startHooks, stopHooks)

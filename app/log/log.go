@@ -3,6 +3,8 @@
 // Package log provides global logging functions to be used throughout the charon app.
 // It supports contextual logging via WithCtx and structured logging and structured errors
 // via z.Field.
+//
+//nolint:revive
 package log
 
 import (

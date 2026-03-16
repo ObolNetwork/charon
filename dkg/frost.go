@@ -4,7 +4,7 @@ package dkg
 
 import (
 	"context"
-	"sort"
+	"slices"
 
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/dkg/frost"
@@ -231,7 +231,7 @@ func makeShares(
 		vIdxs = append(vIdxs, int(vIdx))
 	}
 
-	sort.Ints(vIdxs)
+	slices.Sort(vIdxs)
 
 	// Construct DKG result shares.
 	var shares []share.Share

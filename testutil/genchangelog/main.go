@@ -23,7 +23,6 @@ import (
 	"os/exec"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -301,8 +300,16 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		catSlice = append(catSlice, cat)
 	}
 
-	sort.Slice(catSlice, func(i, j int) bool {
-		return categoryOrder[catSlice[i].Name] < categoryOrder[catSlice[j].Name]
+	slices.SortFunc(catSlice, func(i, j tplCategory) int {
+		if categoryOrder[i.Name] < categoryOrder[j.Name] {
+			return -1
+		}
+
+		if categoryOrder[i.Name] > categoryOrder[j.Name] {
+			return 1
+		}
+
+		return 0
 	})
 
 	tag := "v0.0.0"

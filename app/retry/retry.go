@@ -76,7 +76,7 @@ func newInternal[T any](
 	backoffProvider func() func(int) *time.Timer,
 ) *Retryer[T] {
 	// Create a fresh context used as parent of all async contexts
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // Context cancelation is in fact called, just outside of this function.
 
 	return &Retryer[T]{
 		asyncCtx:        ctx,

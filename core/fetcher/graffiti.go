@@ -66,6 +66,7 @@ func NewGraffitiBuilder(pubkeys []core.PubKey, graffiti []string, disableClientA
 
 	// Handle multiple graffiti case
 	for idx, pubkey := range pubkeys {
+		//nolint: gosec // Slice is not out of bounds as we make this check couple of lines above.
 		builder.graffiti[pubkey] = buildGraffiti(graffiti[idx], token, disableClientAppend)
 	}
 

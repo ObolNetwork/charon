@@ -5,7 +5,6 @@ package pedersen
 import (
 	"context"
 	"slices"
-	"sort"
 
 	kbls "github.com/drand/kyber-bls12381"
 	kdkg "github.com/drand/kyber/share/dkg"
@@ -191,7 +190,7 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 		oldShareRevMap[shareIndex] = spk.ValidatorPubKey
 	}
 
-	sort.Ints(oldShareIndices)
+	slices.Sort(oldShareIndices)
 
 	publicShares := make(map[int]tbls.PublicKey)
 

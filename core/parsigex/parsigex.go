@@ -108,11 +108,13 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 
 	// Verify partial signatures and record timing
 	verifyStart := time.Now()
+
 	for pubkey, data := range set {
 		if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
 			return nil, false, errors.Wrap(err, "invalid partial signature")
 		}
 	}
+
 	setVerificationDuration.WithLabelValues(duty.Type.String()).Observe(time.Since(verifyStart).Seconds())
 
 	for _, sub := range m.subs {

@@ -154,7 +154,7 @@ func (s *Sender) SendAsync(parent context.Context, p2pNode host.Host, protoID pr
 ) error {
 	go func() {
 		// Clone the context since parent context may be closed soon.
-		ctx := log.CopyFields(context.Background(), parent)
+		ctx := log.CopyFields(context.Background(), parent) //nolint:gosec // The use of background context is intentional.
 
 		err := withRelayRetry(func() error {
 			return Send(ctx, p2pNode, protoID, peerID, msg, opts...)

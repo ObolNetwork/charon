@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -103,8 +103,16 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex, uuid string, callbac
 
 		reset()
 
-		sort.Slice(addrs, func(i, j int) bool {
-			return addrs[i].String() < addrs[j].String()
+		slices.SortFunc(addrs, func(i, j ma.Multiaddr) int {
+			if i.String() < j.String() {
+				return -1
+			}
+
+			if i.String() > j.String() {
+				return 1
+			}
+
+			return 0
 		})
 
 		newAddrs := fmt.Sprint(addrs)

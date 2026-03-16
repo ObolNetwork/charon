@@ -3,7 +3,7 @@
 package share
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/obolnetwork/charon/tbls"
 )
@@ -34,7 +34,7 @@ func MsgFromShare(s Share) Msg {
 		pubSharesIDs = append(pubSharesIDs, id)
 	}
 
-	sort.Ints(pubSharesIDs)
+	slices.Sort(pubSharesIDs)
 
 	var pubShares [][]byte
 
