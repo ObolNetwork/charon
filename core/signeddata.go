@@ -412,7 +412,7 @@ func (p VersionedSignedProposal) Clone() (SignedData, error) {
 func (p VersionedSignedProposal) clone() (VersionedSignedProposal, error) {
 	var resp VersionedSignedProposal
 
-	err := cloneJSONMarshaler(p, &resp)
+	err := cloneSSZMarshaler(p, &resp)
 	if err != nil {
 		return VersionedSignedProposal{}, errors.Wrap(err, "clone proposal")
 	}
@@ -637,7 +637,7 @@ func (a Attestation) Clone() (SignedData, error) {
 func (a Attestation) clone() (Attestation, error) {
 	var resp Attestation
 
-	err := cloneJSONMarshaler(a, &resp)
+	err := cloneSSZMarshaler(a, &resp)
 	if err != nil {
 		return Attestation{}, errors.Wrap(err, "clone attestation")
 	}
@@ -759,7 +759,7 @@ func (a VersionedAttestation) Clone() (SignedData, error) {
 func (a VersionedAttestation) clone() (VersionedAttestation, error) {
 	var resp VersionedAttestation
 
-	err := cloneJSONMarshaler(a, &resp)
+	err := cloneSSZMarshaler(a, &resp)
 	if err != nil {
 		return VersionedAttestation{}, errors.Wrap(err, "clone attestation")
 	}
@@ -1405,7 +1405,7 @@ func (s SignedAggregateAndProof) Clone() (SignedData, error) {
 func (s SignedAggregateAndProof) clone() (SignedAggregateAndProof, error) {
 	var resp SignedAggregateAndProof
 
-	err := cloneJSONMarshaler(s, &resp)
+	err := cloneSSZMarshaler(s, &resp)
 	if err != nil {
 		return SignedAggregateAndProof{}, errors.Wrap(err, "clone signed aggregate and proof")
 	}
@@ -1616,7 +1616,7 @@ func (ap VersionedSignedAggregateAndProof) Clone() (SignedData, error) {
 func (ap VersionedSignedAggregateAndProof) clone() (VersionedSignedAggregateAndProof, error) {
 	var resp VersionedSignedAggregateAndProof
 
-	err := cloneJSONMarshaler(ap, &resp)
+	err := cloneSSZMarshaler(ap, &resp)
 	if err != nil {
 		return VersionedSignedAggregateAndProof{}, errors.Wrap(err, "clone signed aggregate and proof")
 	}
@@ -1887,7 +1887,7 @@ func (s SignedSyncMessage) Clone() (SignedData, error) {
 func (s SignedSyncMessage) clone() (SignedSyncMessage, error) {
 	var resp SignedSyncMessage
 
-	err := cloneJSONMarshaler(s, &resp)
+	err := cloneSSZMarshaler(s, &resp)
 	if err != nil {
 		return SignedSyncMessage{}, errors.Wrap(err, "clone signed sync message")
 	}
@@ -1972,7 +1972,7 @@ func (s SyncContributionAndProof) Clone() (SignedData, error) {
 func (s SyncContributionAndProof) clone() (SyncContributionAndProof, error) {
 	var resp SyncContributionAndProof
 
-	err := cloneJSONMarshaler(s, &resp)
+	err := cloneSSZMarshaler(s, &resp)
 	if err != nil {
 		return SyncContributionAndProof{}, errors.Wrap(err, "clone sync contribution and proof")
 	}
@@ -2060,7 +2060,7 @@ func (s SignedSyncContributionAndProof) Clone() (SignedData, error) {
 func (s SignedSyncContributionAndProof) clone() (SignedSyncContributionAndProof, error) {
 	var resp SignedSyncContributionAndProof
 
-	err := cloneJSONMarshaler(s, &resp)
+	err := cloneSSZMarshaler(s, &resp)
 	if err != nil {
 		return SignedSyncContributionAndProof{}, errors.Wrap(err, "clone signed sync contribution")
 	}
@@ -2101,6 +2101,21 @@ func cloneJSONMarshaler(data json.Marshaler, v any) error {
 	}
 
 	if err := json.Unmarshal(bytes, v); err != nil {
+		return errors.Wrap(err, "unmarshal data")
+	}
+
+	return nil
+}
+
+// cloneSSZMarshaler clones the marshaler by serialising to-from ssz
+// since eth2 types contain pointers. The result is stored in the value pointed to by v.
+func cloneSSZMarshaler(data ssz.Marshaler, v ssz.Unmarshaler) error {
+	bytes, err := data.MarshalSSZ()
+	if err != nil {
+		return errors.Wrap(err, "marshal data")
+	}
+
+	if err := v.UnmarshalSSZ(bytes); err != nil {
 		return errors.Wrap(err, "unmarshal data")
 	}
 

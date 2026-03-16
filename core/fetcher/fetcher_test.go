@@ -9,7 +9,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -450,7 +449,7 @@ func TestFetchSyncContribution(t *testing.T) {
 				Slot:              slot,
 				BeaconBlockRoot:   beaconBlockRoot,
 				SubcommitteeIndex: subcommitteeIndex,
-				AggregationBits:   bitfield.Bitvector128(testutil.RandomBitList(1)),
+				AggregationBits:   testutil.RandomBitVec128(),
 				Signature:         testutil.RandomEth2Signature(),
 			}, nil
 		}

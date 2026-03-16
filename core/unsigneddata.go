@@ -56,7 +56,7 @@ type AttestationData struct {
 func (a AttestationData) Clone() (UnsignedData, error) {
 	var resp AttestationData
 
-	err := cloneJSONMarshaler(a, &resp)
+	err := cloneSSZMarshaler(a, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone attestation")
 	}
@@ -106,7 +106,7 @@ type AggregatedAttestation struct {
 func (a AggregatedAttestation) Clone() (UnsignedData, error) {
 	var resp AggregatedAttestation
 
-	err := cloneJSONMarshaler(a, &resp)
+	err := cloneSSZMarshaler(a, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone aggregated attestation")
 	}
@@ -191,7 +191,7 @@ type VersionedAggregatedAttestation struct {
 func (a VersionedAggregatedAttestation) Clone() (UnsignedData, error) {
 	var resp VersionedAggregatedAttestation
 
-	err := cloneJSONMarshaler(a, &resp)
+	err := cloneSSZMarshaler(a, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone aggregated attestation")
 	}
@@ -352,10 +352,18 @@ func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
 func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposal, error) {
 	switch proposal.Version {
 	case eth2spec.DataVersionPhase0:
+		if proposal.Blinded {
+			return VersionedProposal{}, errors.New("phase0 blocks do not support blinding")
+		}
+
 		if proposal.Phase0 == nil {
 			return VersionedProposal{}, errors.New("no phase0 block")
 		}
 	case eth2spec.DataVersionAltair:
+		if proposal.Blinded {
+			return VersionedProposal{}, errors.New("altair blocks do not support blinding")
+		}
+
 		if proposal.Altair == nil {
 			return VersionedProposal{}, errors.New("no altair block")
 		}
@@ -414,7 +422,7 @@ type VersionedProposal struct {
 func (p VersionedProposal) Clone() (UnsignedData, error) {
 	var resp VersionedProposal
 
-	err := cloneJSONMarshaler(p, &resp)
+	err := cloneSSZMarshaler(p, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone block")
 	}
@@ -622,7 +630,7 @@ type SyncContribution struct {
 func (s SyncContribution) Clone() (UnsignedData, error) {
 	var resp SyncContribution
 
-	err := cloneJSONMarshaler(s, &resp)
+	err := cloneSSZMarshaler(s, &resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "clone sync contribution")
 	}
