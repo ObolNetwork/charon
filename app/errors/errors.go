@@ -33,7 +33,7 @@ func New(msg string, fields ...z.Field) error {
 //	func check() error {
 //	  ok := checkMap["foo"]
 //	  if !ok {
-//	    return errors.Wrap(ErrNotFound, "far not found")
+//	    return errors.Wrap(ErrNotFound, "foo not found")
 //	  }
 //	  return nil
 //	}
