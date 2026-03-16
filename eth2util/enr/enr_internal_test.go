@@ -16,7 +16,7 @@ import (
 func TestBackwardsENR(t *testing.T) {
 	random := rand.New(rand.NewSource(time.Now().Unix()))
 	for range 100 {
-		k, err := ecdsa.GenerateKey(k1.S256(), random)
+		k, err := ecdsa.GenerateKey(k1.S256(), random) //nolint:staticcheck // We are using it in tests in a safely manner in testing.
 		require.NoError(t, err)
 
 		// We expect a bit more utility functions to be implemented in the k1 package in the future
