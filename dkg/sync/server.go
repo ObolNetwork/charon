@@ -3,7 +3,7 @@
 // Package sync provides Client and Server APIs that ensures robust network connectivity between all peers in the DKG.
 // It supports cluster_definition verification, soft shutdown and reconnect on connection loss.
 //
-
+//nolint:revive,nolintlint // somehow the nolintlint linter catches revive as unnecessary, while it is
 package sync
 
 import (
