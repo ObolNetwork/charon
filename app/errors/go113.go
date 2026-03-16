@@ -1,6 +1,6 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-//nolint:wrapcheck,revive
+//nolint:wrapcheck,revive,nolintlint // somehow the nolintlint linter catches revive as unnecessary, while it is
 package errors
 
 import (
