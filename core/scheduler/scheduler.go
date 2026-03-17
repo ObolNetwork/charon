@@ -36,12 +36,12 @@ type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 type schedSlotFunc func(ctx context.Context, slot core.Slot)
 
 // NewForT returns a new scheduler for testing using a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrations []*eth2api.VersionedSignedValidatorRegistration,
+func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrationsFunc func() []*eth2api.VersionedSignedValidatorRegistration,
 	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc, builderEnabled bool,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(builderRegistrations, eth2Cl, builderEnabled)
+	s, err := New(builderRegistrationsFunc, eth2Cl, builderEnabled)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -52,10 +52,10 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 }
 
 // New returns a new scheduler.
-func New(builderRegistrations []*eth2api.VersionedSignedValidatorRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+func New(builderRegistrationsFunc func() []*eth2api.VersionedSignedValidatorRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:                     eth2Cl,
-		builderRegistrations:       builderRegistrations,
+		builderRegistrationsFunc:   builderRegistrationsFunc,
 		submittedRegistrationEpoch: math.MaxUint64,
 		quit:                       make(chan struct{}),
 		duties:                     make(map[core.Duty]core.DutyDefinitionSet),
@@ -74,7 +74,7 @@ func New(builderRegistrations []*eth2api.VersionedSignedValidatorRegistration, e
 
 type Scheduler struct {
 	eth2Cl                     eth2wrap.Client
-	builderRegistrations       []*eth2api.VersionedSignedValidatorRegistration
+	builderRegistrationsFunc   func() []*eth2api.VersionedSignedValidatorRegistration
 	submittedRegistrationEpoch uint64
 	registrationMutex          sync.Mutex
 	quit                       chan struct{}
@@ -878,12 +878,14 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context, epoch uint
 
 	submitRegistrationCounter.Add(1)
 
-	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, s.builderRegistrations)
+	regs := s.builderRegistrationsFunc()
+
+	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, regs)
 	if err != nil {
 		submitRegistrationErrors.Add(1)
 		log.Error(ctx, "Failed to submit validator registrations", err, z.U64("epoch", epoch))
 	} else {
-		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(s.builderRegistrations)), z.U64("epoch", epoch))
+		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(regs)), z.U64("epoch", epoch))
 		s.setSubmittedRegistrationEpoch(epoch)
 	}
 }

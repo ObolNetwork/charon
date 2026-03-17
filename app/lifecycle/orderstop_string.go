@@ -28,8 +28,9 @@ const _OrderStop_name = "SchedulerPrivkeyLockRetryerDutyDBBeaconMockValidatorAPI
 var _OrderStop_index = [...]uint8{0, 9, 20, 27, 33, 43, 55, 62, 71, 78, 86, 99}
 
 func (i OrderStop) String() string {
-	if i < 0 || i >= OrderStop(len(_OrderStop_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_OrderStop_index)-1 {
 		return "OrderStop(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _OrderStop_name[_OrderStop_index[i]:_OrderStop_index[i+1]]
+	return _OrderStop_name[_OrderStop_index[idx]:_OrderStop_index[idx+1]]
 }

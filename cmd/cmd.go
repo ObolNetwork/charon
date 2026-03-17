@@ -77,6 +77,7 @@ func New() *cobra.Command {
 		newFeeRecipientCmd(
 			newFeeRecipientSignCmd(runFeeRecipientSign),
 			newFeeRecipientFetchCmd(runFeeRecipientFetch),
+			newFeeRecipientListCmd(runFeeRecipientList),
 		),
 		newUnsafeCmd(newRunCmd(app.Run, true)),
 	)

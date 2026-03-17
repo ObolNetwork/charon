@@ -77,7 +77,7 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	s, err := scheduler.New(valRegs, eth2Cl, false)
+	s, err := scheduler.New(func() []*eth2api.VersionedSignedValidatorRegistration { return valRegs }, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -265,7 +265,7 @@ func TestSchedulerDuties(t *testing.T) {
 			clock := newTestClock(t0)
 			delayer := new(delayer)
 			valRegs := beaconmock.BuilderRegistrationSetA
-			sched := scheduler.NewForT(t, clock, delayer.delay, valRegs, eth2Cl, nil, false)
+			sched := scheduler.NewForT(t, clock, delayer.delay, func() []*eth2api.VersionedSignedValidatorRegistration { return valRegs }, eth2Cl, nil, false)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -366,7 +366,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	clock := newTestClock(t0)
 	dd := new(delayer)
 	valRegs := beaconmock.BuilderRegistrationSetA
-	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, nil, false)
+	sched := scheduler.NewForT(t, clock, dd.delay, func() []*eth2api.VersionedSignedValidatorRegistration { return valRegs }, eth2Cl, nil, false)
 
 	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
@@ -495,7 +495,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	clock := newTestClock(t0)
 	dd := new(delayer)
 	valRegs := beaconmock.BuilderRegistrationSetA
-	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc, false)
+	sched := scheduler.NewForT(t, clock, dd.delay, func() []*eth2api.VersionedSignedValidatorRegistration { return valRegs }, eth2Cl, schedSlotFunc, false)
 
 	doneCh := make(chan error, 1)
 
@@ -586,7 +586,7 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 	clock := newTestClock(t0)
 	dd := new(delayer)
 	valRegs := beaconmock.BuilderRegistrationSetA
-	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc, true)
+	sched := scheduler.NewForT(t, clock, dd.delay, func() []*eth2api.VersionedSignedValidatorRegistration { return valRegs }, eth2Cl, schedSlotFunc, true)
 
 	doneCh := make(chan error, 1)
 
