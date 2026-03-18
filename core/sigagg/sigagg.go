@@ -81,7 +81,9 @@ func (a *Aggregator) Aggregate(ctx context.Context, duty core.Duty, set map[core
 
 	slotAggregationDuration.WithLabelValues(duty.Type.String()).Observe(time.Since(slotAggregateStart).Seconds())
 
-	log.Debug(ctx, "Successfully aggregated partial signatures to reach threshold")
+	log.Debug(ctx, "Successfully aggregated partial signatures to reach threshold",
+		z.Int("pubkeys", len(set)),
+	)
 
 	// Call subscriptions.
 	for _, sub := range a.subs {
