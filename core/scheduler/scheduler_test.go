@@ -32,6 +32,15 @@ import (
 
 var integration = flag.Bool("integration", false, "enable integration test, requires BEACON_URL vars.")
 
+// stubRegProvider implements scheduler.BuilderRegistrationProvider for tests.
+type stubRegProvider struct {
+	regs []*eth2api.VersionedSignedValidatorRegistration
+}
+
+func (s *stubRegProvider) Registrations() []*eth2api.VersionedSignedValidatorRegistration {
+	return s.regs
+}
+
 // TestIntegration runs an integration test for the Scheduler.
 // It expects the above flag to enabled and a BEACON_URL env var.
 // It then generates a fake manifest with actual mainnet validators
@@ -77,7 +86,7 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	s, err := scheduler.New(valRegs, eth2Cl, false)
+	s, err := scheduler.New(&stubRegProvider{regs: valRegs}, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -265,7 +274,7 @@ func TestSchedulerDuties(t *testing.T) {
 			clock := newTestClock(t0)
 			delayer := new(delayer)
 			valRegs := beaconmock.BuilderRegistrationSetA
-			sched := scheduler.NewForT(t, clock, delayer.delay, valRegs, eth2Cl, nil, false)
+			sched := scheduler.NewForT(t, clock, delayer.delay, &stubRegProvider{regs: valRegs}, eth2Cl, nil, false)
 
 			// Only test scheduler output for first N slots, so Stop scheduler (and slotTicker) after that.
 			const stopAfter = 3
@@ -366,7 +375,7 @@ func TestScheduler_GetDuty(t *testing.T) {
 	clock := newTestClock(t0)
 	dd := new(delayer)
 	valRegs := beaconmock.BuilderRegistrationSetA
-	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, nil, false)
+	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: valRegs}, eth2Cl, nil, false)
 
 	_, err = sched.GetDutyDefinition(ctx, core.NewAttesterDuty(slot))
 	require.ErrorContains(t, err, "epoch not resolved yet")
@@ -495,7 +504,7 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	clock := newTestClock(t0)
 	dd := new(delayer)
 	valRegs := beaconmock.BuilderRegistrationSetA
-	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc, false)
+	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: valRegs}, eth2Cl, schedSlotFunc, false)
 
 	doneCh := make(chan error, 1)
 
@@ -586,7 +595,7 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 	clock := newTestClock(t0)
 	dd := new(delayer)
 	valRegs := beaconmock.BuilderRegistrationSetA
-	sched := scheduler.NewForT(t, clock, dd.delay, valRegs, eth2Cl, schedSlotFunc, true)
+	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: valRegs}, eth2Cl, schedSlotFunc, true)
 
 	doneCh := make(chan error, 1)
 

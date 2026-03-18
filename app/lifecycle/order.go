@@ -28,6 +28,7 @@ const (
 	StartP2PConsensus
 	StartSimulator
 	StartScheduler
+	StartBuilderRegWatcher
 	StartP2PEventCollector
 	StartPeerInfo
 	StartParSigDB

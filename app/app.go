@@ -108,6 +108,7 @@ type Config struct {
 	GraffitiDisableClientAppend bool
 	VCTLSCertFile               string
 	VCTLSKeyFile                string
+	BuilderRegOverridesFilePath string
 
 	TestConfig TestConfig
 }
@@ -462,6 +463,20 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		builderRegistrations = append(builderRegistrations, builderRegistration)
 	}
 
+	builderRegSvc, err := NewBuilderRegistrationService(
+		ctx,
+		conf.BuilderRegOverridesFilePath,
+		eth2p0.Version(lock.ForkVersion),
+		builderRegistrations,
+		feeRecipientAddrByCorePubkey,
+	)
+	if err != nil {
+		return err
+	}
+
+	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartBuilderRegWatcher,
+		lifecycle.HookFuncCtx(builderRegSvc.Run))
+
 	peers, err := lock.Peers()
 	if err != nil {
 		return err
@@ -476,7 +491,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	sched, err := scheduler.New(builderRegistrations, eth2Cl, conf.BuilderAPI)
+	sched, err := scheduler.New(builderRegSvc, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -484,10 +499,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	sseListener.SubscribeChainReorgEvent(sched.HandleChainReorgEvent)
 	sseListener.SubscribeBlockEvent(sched.HandleBlockEvent)
 
-	feeRecipientFunc := func(pubkey core.PubKey) string {
-		return feeRecipientAddrByCorePubkey[pubkey]
-	}
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, feeRecipientFunc))
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, builderRegSvc.FeeRecipient))
 
 	// Setup validator cache, refreshing it every epoch.
 	valCache := eth2wrap.NewValidatorCache(eth2Cl, eth2Pubkeys)
@@ -581,14 +593,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	electraSlot := eth2p0.Slot(uint64(forkSchedule[eth2wrap.Electra].Epoch) * slotsPerEpoch)
 
-	fetch, err := fetcher.New(eth2Cl, feeRecipientFunc, conf.BuilderAPI, graffitiBuilder, electraSlot, featureset.Enabled(featureset.FetchOnlyCommIdx0))
+	fetch, err := fetcher.New(eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder, electraSlot, featureset.Enabled(featureset.FetchOnlyCommIdx0))
 	if err != nil {
 		return err
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, feeRecipientFunc, conf.BuilderAPI, lock.TargetGasLimit)
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit)
 	if err != nil {
 		return err
 	}

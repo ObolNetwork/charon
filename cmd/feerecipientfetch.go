@@ -148,7 +148,7 @@ func logValidatorStatus(ctx context.Context, pv processedValidators) {
 	cats := pv.Categories
 
 	if len(cats.Complete) > 0 {
-		log.Info(ctx, "Validators with complete builder registrations", z.Int("count", len(cats.Complete)))
+		log.Info(ctx, "Validators with complete builder registrations", z.Int("total", len(cats.Complete)))
 
 		for _, pubkey := range cats.Complete {
 			if msg := pv.QuorumMessages[pubkey]; msg != nil {
@@ -165,7 +165,7 @@ func logValidatorStatus(ctx context.Context, pv processedValidators) {
 	}
 
 	if len(cats.Incomplete) > 0 {
-		log.Info(ctx, "Validators with partial builder registrations", z.Int("count", len(cats.Incomplete)))
+		log.Info(ctx, "Validators with partial builder registrations", z.Int("total", len(cats.Incomplete)))
 
 		for _, pubkey := range cats.Incomplete {
 			indices := pv.PartialSigIndices[pubkey]
@@ -188,7 +188,7 @@ func logValidatorStatus(ctx context.Context, pv processedValidators) {
 	}
 
 	if len(cats.NoReg) > 0 {
-		log.Info(ctx, "Validators unknown to the API", z.Int("count", len(cats.NoReg)))
+		log.Info(ctx, "Validators unknown to the API", z.Int("total", len(cats.NoReg)))
 
 		for _, pubkey := range cats.NoReg {
 			log.Info(ctx, "  No registrations", z.Str("pubkey", pubkey))
@@ -231,7 +231,7 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 	}
 
 	log.Info(ctx, "Successfully wrote builder registrations overrides",
-		z.Int("count", len(pv.AggregatedRegs)),
+		z.Int("total", len(pv.AggregatedRegs)),
 		z.Str("path", config.OverridesFilePath),
 	)
 

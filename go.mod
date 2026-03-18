@@ -12,6 +12,7 @@ require (
 	github.com/drand/kyber-bls12381 v0.3.4
 	github.com/ethereum/go-ethereum v1.17.1
 	github.com/ferranbt/fastssz v1.0.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/golang/snappy v1.0.0
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
@@ -116,7 +117,6 @@ require (
 	github.com/ethereum/go-bigmodexpfix v0.0.0-20250911101455-f9e208c548ab // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/getsentry/sentry-go v0.31.1 // indirect
 	github.com/go-chi/chi/v5 v5.2.3 // indirect

@@ -108,6 +108,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().BoolVar(&config.GraffitiDisableClientAppend, "graffiti-disable-client-append", false, "Disables appending \"OB<CL_TYPE>\" suffix to graffiti. Increases maximum bytes per graffiti to 32.")
 	cmd.Flags().StringVar(&config.VCTLSCertFile, "vc-tls-cert-file", "", "The path to the TLS certificate file used by charon for the validator client API endpoint.")
 	cmd.Flags().StringVar(&config.VCTLSKeyFile, "vc-tls-key-file", "", "The path to the TLS private key file associated with the provided TLS certificate.")
+	cmd.Flags().StringVar(&config.BuilderRegOverridesFilePath, "overrides-file", ".charon/builder_registrations_overrides.json", "Path to the builder registrations overrides file.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {

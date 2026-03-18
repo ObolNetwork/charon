@@ -5,16 +5,14 @@ package cmd
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
-	"os"
 	"strings"
 	"time"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
@@ -192,7 +190,7 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
 	}
 
-	overrides, err := loadOverridesRegistrations(config.OverridesFilePath)
+	overrides, err := loadOverridesRegistrations(config.OverridesFilePath, cl.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -231,14 +229,14 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		)
 	}
 
-	log.Info(ctx, "Submitting partial builder registrations", z.Int("count", len(partialRegs)))
+	log.Info(ctx, "Submitting partial builder registrations", z.Int("total", len(partialRegs)))
 
 	err = oAPI.PostPartialFeeRecipients(ctx, cl.LockHash, shareIdx, partialRegs)
 	if err != nil {
 		return errors.Wrap(err, "submit partial builder registrations to Obol API")
 	}
 
-	log.Info(ctx, "Successfully submitted partial builder registrations", z.Int("count", len(partialRegs)))
+	log.Info(ctx, "Successfully submitted partial builder registrations", z.Int("total", len(partialRegs)))
 
 	return nil
 }
@@ -407,17 +405,10 @@ func resolveGasLimit(gasLimitOverride uint64, cl cluster.Lock, overrides map[str
 // loadOverridesRegistrations reads the builder registrations overrides file and returns
 // a map keyed by normalized (lowercase, no 0x prefix) validator pubkey hex. If the file
 // does not exist, an empty map is returned.
-func loadOverridesRegistrations(path string) (map[string]eth2v1.ValidatorRegistration, error) {
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return make(map[string]eth2v1.ValidatorRegistration), nil
-	} else if err != nil {
-		return nil, errors.Wrap(err, "read overrides file", z.Str("path", path))
-	}
-
-	var regs []*eth2api.VersionedSignedValidatorRegistration
-	if err := json.Unmarshal(data, &regs); err != nil {
-		return nil, errors.Wrap(err, "unmarshal overrides file", z.Str("path", path))
+func loadOverridesRegistrations(path string, forkVersion []byte) (map[string]eth2v1.ValidatorRegistration, error) {
+	regs, err := app.LoadBuilderRegistrationOverrides(path, eth2p0.Version(forkVersion))
+	if err != nil {
+		return nil, err
 	}
 
 	result := make(map[string]eth2v1.ValidatorRegistration, len(regs))
