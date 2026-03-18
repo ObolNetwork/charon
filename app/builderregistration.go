@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -25,8 +24,6 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
-
-const fileWatchDebounce = 500 * time.Millisecond
 
 // BuilderRegistrationService provides thread-safe access to current builder
 // registrations and fee recipient addresses with runtime override support.
@@ -115,8 +112,6 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 
 	baseName := filepath.Base(s.path)
 
-	var debounce <-chan time.Time
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -134,16 +129,11 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 				continue
 			}
 
-			// Debounce rapid events (editors may write multiple times).
-			debounce = time.After(fileWatchDebounce)
-		case <-debounce:
 			if err := s.reload(ctx); err != nil {
 				log.Warn(ctx, "Failed to reload builder registration overrides", err)
 			} else {
 				log.Info(ctx, "Reloaded builder registration overrides from file", z.Str("path", s.path))
 			}
-
-			debounce = nil
 		case err, ok := <-watcher.Errors:
 			if !ok {
 				return
