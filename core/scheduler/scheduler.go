@@ -28,6 +28,11 @@ import (
 
 const trimEpochOffset = 3 // Trim cached duties after 3 epochs. Note inclusion delay calculation requires now-32 slot duties.
 
+// BuilderRegistrationProvider provides access to current builder registrations.
+type BuilderRegistrationProvider interface {
+	Registrations() []*eth2api.VersionedSignedValidatorRegistration
+}
+
 // delayFunc abstracts slot offset delaying/sleeping for deterministic tests.
 type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 
@@ -36,12 +41,12 @@ type delayFunc func(duty core.Duty, deadline time.Time) <-chan time.Time
 type schedSlotFunc func(ctx context.Context, slot core.Slot)
 
 // NewForT returns a new scheduler for testing using a fake clock.
-func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegistrationsFunc func() []*eth2api.VersionedSignedValidatorRegistration,
+func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRegProvider BuilderRegistrationProvider,
 	eth2Cl eth2wrap.Client, schedSlotFunc schedSlotFunc, builderEnabled bool,
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(builderRegistrationsFunc, eth2Cl, builderEnabled)
+	s, err := New(builderRegProvider, eth2Cl, builderEnabled)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -52,10 +57,10 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 }
 
 // New returns a new scheduler.
-func New(builderRegistrationsFunc func() []*eth2api.VersionedSignedValidatorRegistration, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+func New(builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
 	return &Scheduler{
 		eth2Cl:                     eth2Cl,
-		builderRegistrationsFunc:   builderRegistrationsFunc,
+		builderRegProvider:         builderRegProvider,
 		submittedRegistrationEpoch: math.MaxUint64,
 		quit:                       make(chan struct{}),
 		duties:                     make(map[core.Duty]core.DutyDefinitionSet),
@@ -74,7 +79,7 @@ func New(builderRegistrationsFunc func() []*eth2api.VersionedSignedValidatorRegi
 
 type Scheduler struct {
 	eth2Cl                     eth2wrap.Client
-	builderRegistrationsFunc   func() []*eth2api.VersionedSignedValidatorRegistration
+	builderRegProvider         BuilderRegistrationProvider
 	submittedRegistrationEpoch uint64
 	registrationMutex          sync.Mutex
 	quit                       chan struct{}
@@ -878,7 +883,7 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context, epoch uint
 
 	submitRegistrationCounter.Add(1)
 
-	regs := s.builderRegistrationsFunc()
+	regs := s.builderRegProvider.Registrations()
 
 	err := s.eth2Cl.SubmitValidatorRegistrations(ctx, regs)
 	if err != nil {

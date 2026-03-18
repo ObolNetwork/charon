@@ -5,6 +5,7 @@ package cmd
 import (
 	"context"
 	"encoding/hex"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,7 +22,6 @@ type feerecipientListConfig struct {
 	ValidatorPublicKeys []string
 	LockFilePath        string
 	OverridesFilePath   string
-	Log                 log.Config
 }
 
 func newFeeRecipientListCmd(runFunc func(context.Context, feerecipientListConfig) error) *cobra.Command {
@@ -29,8 +29,8 @@ func newFeeRecipientListCmd(runFunc func(context.Context, feerecipientListConfig
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List latest builder registration data per validator.",
-		Long:  "Lists the latest builder registration data for each validator, picking the entry with the highest timestamp from the cluster lock or overrides file.",
+		Short: "Display the latest builder registration details for each validator.",
+		Long:  "Displays the most recent builder registration for each validator, selecting the entry with the highest timestamp from either the cluster lock file or the overrides file.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)
@@ -49,12 +49,12 @@ type registrationEntry struct {
 	Pubkey       string
 	FeeRecipient string
 	GasLimit     uint64
-	Timestamp    int64
+	Timestamp    time.Time
 }
 
 // resolveLatestRegistrations returns the latest builder registration for each validator
 // by comparing timestamps from the cluster lock and overrides file.
-func resolveLatestRegistrations(cl cluster.Lock, overrides map[string]registrationSource, pubkeyFilter map[string]struct{}) []registrationEntry {
+func resolveLatestRegistrations(cl cluster.Lock, overrides map[string]registrationEntry, pubkeyFilter map[string]struct{}) []registrationEntry {
 	var entries []registrationEntry
 
 	for _, dv := range cl.Validators {
@@ -83,7 +83,7 @@ func resolveLatestRegistrations(cl cluster.Lock, overrides map[string]registrati
 			Pubkey:       pubkeyHex,
 			FeeRecipient: feeRecipient,
 			GasLimit:     gasLimit,
-			Timestamp:    timestamp.Unix(),
+			Timestamp:    timestamp,
 		})
 	}
 
@@ -102,7 +102,7 @@ func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) err
 		}
 	}
 
-	overrides, err := loadOverridesAsSource(config.OverridesFilePath, cl.ForkVersion)
+	overrides, err := loadOverrides(config.OverridesFilePath, cl.ForkVersion)
 	if err != nil {
 		return err
 	}
@@ -115,9 +115,15 @@ func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) err
 	entries := resolveLatestRegistrations(*cl, overrides, pubkeyFilter)
 
 	if len(entries) == 0 {
-		log.Info(ctx, "No builder registrations found")
+		log.Info(ctx, "No builder registrations found", nil)
+
 		return nil
 	}
+
+	// Organize output by fee recipient for better readability, using stable sort to maintain original order where fee recipients are the same.
+	slices.SortStableFunc(entries, func(a, b registrationEntry) int {
+		return strings.Compare(a.FeeRecipient, b.FeeRecipient)
+	})
 
 	log.Info(ctx, "Builder registrations", z.Int("total", len(entries)))
 
@@ -125,29 +131,22 @@ func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) err
 		log.Info(ctx, "Builder registration for "+e.Pubkey,
 			z.Str("fee_recipient", e.FeeRecipient),
 			z.U64("gas_limit", e.GasLimit),
-			z.I64("timestamp", e.Timestamp),
+			z.I64("timestamp", e.Timestamp.Unix()),
 		)
 	}
 
 	return nil
 }
 
-// registrationSource holds fee recipient data extracted from overrides file.
-type registrationSource struct {
-	FeeRecipient string
-	GasLimit     uint64
-	Timestamp    time.Time
-}
-
-// loadOverridesAsSource reads the builder registrations overrides file and returns
+// loadOverrides reads the builder registrations overrides file and returns
 // a map keyed by normalized validator pubkey hex with the registration details needed for comparison.
-func loadOverridesAsSource(path string, forkVersion []byte) (map[string]registrationSource, error) {
+func loadOverrides(path string, forkVersion []byte) (map[string]registrationEntry, error) {
 	regs, err := app.LoadBuilderRegistrationOverrides(path, eth2p0.Version(forkVersion))
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string]registrationSource, len(regs))
+	result := make(map[string]registrationEntry, len(regs))
 
 	for _, reg := range regs {
 		if reg == nil || reg.V1 == nil || reg.V1.Message == nil {
@@ -155,7 +154,7 @@ func loadOverridesAsSource(path string, forkVersion []byte) (map[string]registra
 		}
 
 		key := strings.ToLower(hex.EncodeToString(reg.V1.Message.Pubkey[:]))
-		result[key] = registrationSource{
+		result[key] = registrationEntry{
 			FeeRecipient: reg.V1.Message.FeeRecipient.String(),
 			GasLimit:     reg.V1.Message.GasLimit,
 			Timestamp:    reg.V1.Message.Timestamp,

@@ -210,7 +210,7 @@ func TestResolveLatestRegistrations(t *testing.T) {
 	})
 
 	t.Run("override with newer timestamp wins", func(t *testing.T) {
-		overrides := map[string]registrationSource{
+		overrides := map[string]registrationEntry{
 			normalizedPubkey: {
 				FeeRecipient: "0x0000000000000000000000000000000000005678",
 				GasLimit:     99999,
@@ -226,7 +226,7 @@ func TestResolveLatestRegistrations(t *testing.T) {
 	})
 
 	t.Run("override with older timestamp loses", func(t *testing.T) {
-		overrides := map[string]registrationSource{
+		overrides := map[string]registrationEntry{
 			normalizedPubkey: {
 				FeeRecipient: "0x0000000000000000000000000000000000005678",
 				GasLimit:     99999,

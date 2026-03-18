@@ -491,7 +491,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	sched, err := scheduler.New(builderRegSvc.Registrations, eth2Cl, conf.BuilderAPI)
+	sched, err := scheduler.New(builderRegSvc, eth2Cl, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}

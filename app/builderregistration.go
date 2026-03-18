@@ -28,10 +28,20 @@ import (
 
 const fileWatchDebounce = 500 * time.Millisecond
 
-// BuilderRegistrationService manages builder registration state including
-// runtime monitoring of the overrides file for changes. It provides thread-safe
-// access to current registrations and fee recipient addresses.
-type BuilderRegistrationService struct {
+// BuilderRegistrationService provides thread-safe access to current builder
+// registrations and fee recipient addresses with runtime override support.
+type BuilderRegistrationService interface {
+	// Registrations returns the current effective builder registrations.
+	Registrations() []*eth2api.VersionedSignedValidatorRegistration
+	// FeeRecipient returns the current fee recipient address for the given pubkey.
+	FeeRecipient(pubkey core.PubKey) string
+	// Run watches the overrides file for changes and reloads when modified.
+	// It blocks until ctx is cancelled.
+	Run(ctx context.Context)
+}
+
+// builderRegistrationService implements BuilderRegistrationService.
+type builderRegistrationService struct {
 	mu                sync.RWMutex
 	path              string
 	forkVersion       eth2p0.Version
@@ -49,8 +59,8 @@ func NewBuilderRegistrationService(
 	forkVersion eth2p0.Version,
 	baseRegistrations []*eth2api.VersionedSignedValidatorRegistration,
 	baseFeeRecipients map[core.PubKey]string,
-) (*BuilderRegistrationService, error) {
-	svc := &BuilderRegistrationService{
+) (BuilderRegistrationService, error) {
+	svc := &builderRegistrationService{
 		path:              path,
 		forkVersion:       forkVersion,
 		baseRegistrations: baseRegistrations,
@@ -66,7 +76,7 @@ func NewBuilderRegistrationService(
 }
 
 // Registrations returns the current effective builder registrations.
-func (s *BuilderRegistrationService) Registrations() []*eth2api.VersionedSignedValidatorRegistration {
+func (s *builderRegistrationService) Registrations() []*eth2api.VersionedSignedValidatorRegistration {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -74,7 +84,7 @@ func (s *BuilderRegistrationService) Registrations() []*eth2api.VersionedSignedV
 }
 
 // FeeRecipient returns the current fee recipient address for the given pubkey.
-func (s *BuilderRegistrationService) FeeRecipient(pubkey core.PubKey) string {
+func (s *builderRegistrationService) FeeRecipient(pubkey core.PubKey) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -83,7 +93,7 @@ func (s *BuilderRegistrationService) FeeRecipient(pubkey core.PubKey) string {
 
 // Run watches the overrides file for changes and reloads when modified.
 // It blocks until ctx is cancelled.
-func (s *BuilderRegistrationService) Run(ctx context.Context) {
+func (s *builderRegistrationService) Run(ctx context.Context) {
 	if s.path == "" {
 		return
 	}
@@ -129,6 +139,8 @@ func (s *BuilderRegistrationService) Run(ctx context.Context) {
 		case <-debounce:
 			if err := s.reload(ctx); err != nil {
 				log.Warn(ctx, "Failed to reload builder registration overrides", err)
+			} else {
+				log.Info(ctx, "Reloaded builder registration overrides from file", z.Str("path", s.path))
 			}
 
 			debounce = nil
@@ -143,7 +155,7 @@ func (s *BuilderRegistrationService) Run(ctx context.Context) {
 }
 
 // reload reads the overrides file and re-applies overrides against base state.
-func (s *BuilderRegistrationService) reload(ctx context.Context) error {
+func (s *builderRegistrationService) reload(ctx context.Context) error {
 	feeRecipients := maps.Clone(s.baseFeeRecipients)
 
 	if s.path == "" {
@@ -282,10 +294,7 @@ func applyBuilderRegistrationOverrides(
 
 		feeRecipientByPubkey[corePubkey] = "0x" + hex.EncodeToString(override.V1.Message.FeeRecipient[:])
 
-		log.Info(ctx, "Applied builder registration override",
-			z.Str("pubkey", "0x"+key),
-			z.Str("fee_recipient", feeRecipientByPubkey[corePubkey]),
-		)
+		log.Info(ctx, "Applied builder registration override for 0x"+key, z.Str("fee_recipient", feeRecipientByPubkey[corePubkey]))
 	}
 
 	return result
