@@ -9,17 +9,14 @@ import (
 	"path/filepath"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2spec "github.com/attestantio/go-eth2-client/spec"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 
+	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
-	"github.com/obolnetwork/charon/tbls"
 )
 
 type feerecipientFetchConfig struct {
@@ -48,103 +45,8 @@ func newFeeRecipientFetchCmd(runFunc func(context.Context, feerecipientFetchConf
 	return cmd
 }
 
-// validatorCategories holds categorized validator public keys by registration status.
-type validatorCategories struct {
-	Complete   []string
-	Incomplete []string
-	NoReg      []string
-}
-
-// aggregatePartialSignatures converts partial signatures into a full aggregated signature.
-func aggregatePartialSignatures(partialSigs []obolapi.FeeRecipientPartialSig, pubkey string) (eth2p0.BLSSignature, error) {
-	sigsMap := make(map[int]tbls.Signature)
-
-	for _, ps := range partialSigs {
-		sigsMap[ps.ShareIndex] = ps.Signature
-	}
-
-	fullSig, err := tbls.ThresholdAggregate(sigsMap)
-	if err != nil {
-		return eth2p0.BLSSignature{}, errors.Wrap(err, "aggregate partial signatures", z.Str("pubkey", pubkey))
-	}
-
-	return eth2p0.BLSSignature(fullSig), nil
-}
-
-// processedValidators holds the results of processing the API response.
-type processedValidators struct {
-	AggregatedRegs    []*eth2api.VersionedSignedValidatorRegistration
-	Categories        validatorCategories
-	PartialSigIndices map[string][]int
-	// QuorumMessages maps validator pubkey to the quorum registration message details.
-	QuorumMessages map[string]*eth2v1.ValidatorRegistration
-	// IncompleteMessages maps validator pubkey to the incomplete registration message
-	// with the most partial signatures.
-	IncompleteMessages map[string]*eth2v1.ValidatorRegistration
-}
-
-// processValidators aggregates signatures for validators with quorum and categorizes all validators by status.
-func processValidators(validators []obolapi.FeeRecipientValidator) (processedValidators, error) {
-	result := processedValidators{
-		PartialSigIndices:  make(map[string][]int),
-		QuorumMessages:     make(map[string]*eth2v1.ValidatorRegistration),
-		IncompleteMessages: make(map[string]*eth2v1.ValidatorRegistration),
-	}
-
-	for _, val := range validators {
-		var hasQuorum, hasIncomplete bool
-
-		for _, reg := range val.BuilderRegistrations {
-			if reg.Quorum {
-				hasQuorum = true
-
-				fullSig, err := aggregatePartialSignatures(reg.PartialSignatures, val.Pubkey)
-				if err != nil {
-					return processedValidators{}, err
-				}
-
-				result.AggregatedRegs = append(result.AggregatedRegs, &eth2api.VersionedSignedValidatorRegistration{
-					Version: eth2spec.BuilderVersionV1,
-					V1: &eth2v1.SignedValidatorRegistration{
-						Message:   reg.Message,
-						Signature: fullSig,
-					},
-				})
-
-				result.QuorumMessages[val.Pubkey] = reg.Message
-			} else {
-				hasIncomplete = true
-
-				if len(reg.PartialSignatures) > len(result.PartialSigIndices[val.Pubkey]) {
-					indices := make([]int, 0, len(reg.PartialSignatures))
-					for _, ps := range reg.PartialSignatures {
-						indices = append(indices, ps.ShareIndex)
-					}
-
-					result.PartialSigIndices[val.Pubkey] = indices
-					result.IncompleteMessages[val.Pubkey] = reg.Message
-				}
-			}
-		}
-
-		if hasQuorum {
-			result.Categories.Complete = append(result.Categories.Complete, val.Pubkey)
-		}
-
-		if hasIncomplete {
-			result.Categories.Incomplete = append(result.Categories.Incomplete, val.Pubkey)
-		}
-
-		if !hasQuorum && !hasIncomplete {
-			result.Categories.NoReg = append(result.Categories.NoReg, val.Pubkey)
-		}
-	}
-
-	return result, nil
-}
-
 // logValidatorStatus logs categorized validators with their current registration status.
-func logValidatorStatus(ctx context.Context, pv processedValidators) {
+func logValidatorStatus(ctx context.Context, pv app.ProcessedValidators) {
 	cats := pv.Categories
 
 	if len(cats.Complete) > 0 {
@@ -212,7 +114,7 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 		return errors.Wrap(err, "fetch builder registrations from Obol API")
 	}
 
-	pv, err := processValidators(resp.Validators)
+	pv, err := app.ProcessValidators(resp.Validators)
 	if err != nil {
 		return err
 	}

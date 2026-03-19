@@ -109,6 +109,8 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.VCTLSCertFile, "vc-tls-cert-file", "", "The path to the TLS certificate file used by charon for the validator client API endpoint.")
 	cmd.Flags().StringVar(&config.VCTLSKeyFile, "vc-tls-key-file", "", "The path to the TLS private key file associated with the provided TLS certificate.")
 	cmd.Flags().StringVar(&config.BuilderRegOverridesFilePath, "overrides-file", ".charon/builder_registrations_overrides.json", "Path to the builder registrations overrides file.")
+	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech/v1", "The URL of the remote API for background fee recipient fetching.")
+	cmd.Flags().DurationVar(&config.PublishTimeout, "publish-timeout", 5*time.Minute, "Timeout for accessing the remote API.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
