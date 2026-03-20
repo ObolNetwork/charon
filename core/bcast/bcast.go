@@ -163,6 +163,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		log.Info(ctx, "Successfully submitted v2 attestations to beacon node",
 			z.Any("delay", b.delayFunc(duty.Slot, core.DutyAttester)),
+			z.Int("amount", len(atts)),
 		)
 
 		return nil
@@ -261,6 +262,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		log.Info(ctx, "Successfully submitted v2 attestation aggregations to beacon node",
 			z.Any("delay", b.delayFunc(duty.Slot, core.DutyAggregator)),
+			z.Int("amount", len(aggAndProofs.SignedAggregateAndProofs)),
 		)
 
 		return nil
