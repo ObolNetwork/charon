@@ -199,6 +199,8 @@ Flags:
       --private-key-file string                  The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
       --private-key-file-lock                    Enables private key locking to prevent multiple instances using the same key.
       --proc-directory string                    Directory to look into in order to detect other stack components running on the host.
+      --publish-address string                   The URL of the remote API for background fee recipient fetching. (default "https://api.obol.tech/v1")
+      --publish-timeout duration                 Timeout for accessing the remote API. (default 5m0s)
       --simnet-beacon-mock                       Enables an internal mock beacon node for running a simnet.
       --simnet-beacon-mock-fuzz                  Configures simnet beaconmock to return fuzzed responses.
       --simnet-slot-duration duration            Configures slot duration in simnet beacon mock. (default 1s)
