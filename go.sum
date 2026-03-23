@@ -34,6 +34,8 @@ github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
 github.com/DataDog/zstd v1.5.7/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
+github.com/ObolNetwork/go-builder-client v0.0.0-20260319131832-9f3465599f38 h1:gbo1se2O0jKnVrr6Lt4euc3bjhGU0PPV20oiu7XEj80=
+github.com/ObolNetwork/go-builder-client v0.0.0-20260319131832-9f3465599f38/go.mod h1:cQ7jj82IUs5w/DTP9mDz6Vp2rP5mXqNXs8UN1KXGfVU=
 github.com/ObolNetwork/go-eth2-client v0.28.0-obol.2-gloas-v1.7.0-alpha2 h1:l4/QrxMR9RskJ/to2u3PwpIO6PyFG15GEayvwpPE7uY=
 github.com/ObolNetwork/go-eth2-client v0.28.0-obol.2-gloas-v1.7.0-alpha2/go.mod h1:lwj0l8l51hIjqdQpODPea01JfE33nyM++1VGjBZau08=
 github.com/ObolNetwork/kryptology v0.1.0 h1:AhoG4My70+xMhEJSpVaJay/t+T/vIUNHQYLjsDJHulI=
@@ -51,8 +53,6 @@ github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYW
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
-github.com/attestantio/go-builder-client v0.7.2 h1:bOrtysEIZd9bEM+mAeT6OtAo6LSAft/qylBLwFoFwZ0=
-github.com/attestantio/go-builder-client v0.7.2/go.mod h1:+NADxbaknI5yxl+0mCkMa/VciVsesxRMGNP/poDfV08=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
 github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
