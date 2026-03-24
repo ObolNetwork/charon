@@ -300,8 +300,11 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 			log.Warn(ctx, "File watcher error for builder registration overrides", err)
 
 		case <-fetchCh:
-			hasIncomplete := s.fetchFromAPI(ctx)
-			if hasIncomplete {
+			hasIncomplete, err := s.fetchFromAPI(ctx)
+			if err != nil {
+				log.Warn(ctx, "Builder registration API fetch failed", err)
+				fetchTimer.Reset(fetchIntervalIncomplete)
+			} else if hasIncomplete {
 				fetchTimer.Reset(fetchIntervalIncomplete)
 			} else {
 				fetchTimer.Reset(fetchIntervalComplete)
@@ -324,19 +327,16 @@ func (s *builderRegistrationService) reloadFromFile(ctx context.Context) error {
 }
 
 // fetchFromAPI calls the Obol API, processes the response, stores API overrides,
-// and calls recompute. Returns true if any validators have incomplete registrations
-// or if an error occurred (to retry sooner).
-func (s *builderRegistrationService) fetchFromAPI(ctx context.Context) (hasIncomplete bool) {
+// and calls recompute. Returns true if any validators have incomplete registrations.
+func (s *builderRegistrationService) fetchFromAPI(ctx context.Context) (bool, error) {
 	resp, err := s.obolClient.PostFeeRecipientsFetch(ctx, s.lockHash, nil)
 	if err != nil {
-		log.Warn(ctx, "Failed to fetch builder registrations from Obol API", err)
-		return true
+		return false, errors.Wrap(err, "fetch builder registrations from Obol API")
 	}
 
 	pv, err := ProcessValidators(resp.Validators)
 	if err != nil {
-		log.Warn(ctx, "Failed to process fetched builder registrations", err)
-		return true
+		return false, errors.Wrap(err, "process fetched builder registrations")
 	}
 
 	if len(pv.AggregatedRegs) > 0 {
@@ -365,7 +365,7 @@ func (s *builderRegistrationService) fetchFromAPI(ctx context.Context) (hasIncom
 	s.apiOverrides = pv.AggregatedRegs
 	s.recompute(ctx)
 
-	return len(pv.Categories.Incomplete) > 0
+	return len(pv.Categories.Incomplete) > 0, nil
 }
 
 // recompute merges file and API overrides, applies them against base registrations,
