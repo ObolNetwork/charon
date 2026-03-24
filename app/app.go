@@ -112,6 +112,7 @@ type Config struct {
 	BuilderRegOverridesFilePath string
 	PublishAddress              string
 	PublishTimeout              time.Duration
+	FetchFeerecipientUpdates    bool
 
 	TestConfig TestConfig
 }
@@ -468,7 +469,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	var obolClient *obolapi.Client
 
-	if conf.PublishAddress != "" {
+	if conf.FetchFeerecipientUpdates && conf.PublishAddress != "" {
 		cl, err := obolapi.New(conf.PublishAddress, obolapi.WithTimeout(conf.PublishTimeout))
 		if err != nil {
 			return err
