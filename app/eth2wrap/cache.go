@@ -694,6 +694,8 @@ func (c *DutiesCache) fetchSyncDuties(epoch eth2p0.Epoch) (SyncDutiesForEpoch, b
 }
 
 // storeOrAmendProposerDuties stores proposer duties in the cache for the given epoch if they don't exist and false if they already exists.
+//
+//nolint:unparam // The duties saved may differ from the duties requested to be saved, that's why we also return them, even though we don't currently use this info.
 func (c *DutiesCache) storeOrAmendProposerDuties(epoch eth2p0.Epoch, dutiesForEpoch ProposerDutiesForEpoch) ([]eth2v1.ProposerDuty, bool) {
 	c.proposerDuties.Lock()
 	defer c.proposerDuties.Unlock()
@@ -743,6 +745,8 @@ func (c *DutiesCache) storeOrAmendProposerDuties(epoch eth2p0.Epoch, dutiesForEp
 }
 
 // storeOrAmendAttesterDuties stores attester duties in the cache for the given epoch if they don't exist and false if they already exists.
+//
+//nolint:unparam // The duties saved may differ from the duties requested to be saved, that's why we also return them, even though we don't currently use this info.
 func (c *DutiesCache) storeOrAmendAttesterDuties(epoch eth2p0.Epoch, dutiesForEpoch AttesterDutiesForEpoch) ([]eth2v1.AttesterDuty, bool) {
 	c.attesterDuties.Lock()
 	defer c.attesterDuties.Unlock()
@@ -793,6 +797,8 @@ func (c *DutiesCache) storeOrAmendAttesterDuties(epoch eth2p0.Epoch, dutiesForEp
 
 // storeOrAmendSyncDuties stores sync duties in the cache for the given epoch. If the epoch already exists, it amends the new duties to the existing duties.
 // Returns the newly set duties and true if any new duties were added.
+//
+//nolint:unparam // The duties saved may differ from the duties requested to be saved, that's why we also return them, even though we don't currently use this info.
 func (c *DutiesCache) storeOrAmendSyncDuties(epoch eth2p0.Epoch, dutiesForEpoch SyncDutiesForEpoch) ([]eth2v1.SyncCommitteeDuty, bool) {
 	c.syncDuties.Lock()
 	defer c.syncDuties.Unlock()
@@ -852,6 +858,7 @@ func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 		if k < epoch {
 			delete(c.proposerDuties.duties, k)
 			delete(c.proposerDuties.metadata, k)
+			delete(c.proposerDuties.requestedIdxs, k)
 
 			ok = true
 		}
@@ -871,6 +878,7 @@ func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 		if k < epoch {
 			delete(c.attesterDuties.duties, k)
 			delete(c.attesterDuties.metadata, k)
+			delete(c.attesterDuties.requestedIdxs, k)
 
 			ok = true
 		}
@@ -890,6 +898,7 @@ func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 		if k < epoch {
 			delete(c.syncDuties.duties, k)
 			delete(c.syncDuties.metadata, k)
+			delete(c.syncDuties.requestedIdxs, k)
 
 			ok = true
 		}
@@ -909,6 +918,7 @@ func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 		if k > epoch {
 			delete(c.proposerDuties.duties, k)
 			delete(c.proposerDuties.metadata, k)
+			delete(c.proposerDuties.requestedIdxs, k)
 
 			ok = true
 		}
@@ -928,6 +938,7 @@ func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 		if k > epoch {
 			delete(c.attesterDuties.duties, k)
 			delete(c.attesterDuties.metadata, k)
+			delete(c.attesterDuties.requestedIdxs, k)
 
 			ok = true
 		}
@@ -947,6 +958,7 @@ func (c *DutiesCache) trimAfterSyncDuties(epoch eth2p0.Epoch) bool {
 		if k > epoch {
 			delete(c.syncDuties.duties, k)
 			delete(c.syncDuties.metadata, k)
+			delete(c.syncDuties.requestedIdxs, k)
 
 			ok = true
 		}
