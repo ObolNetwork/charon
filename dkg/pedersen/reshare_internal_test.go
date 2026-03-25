@@ -240,3 +240,39 @@ func TestGenerateNonce(t *testing.T) {
 
 	require.NotEqual(t, nonce2, nonce3)
 }
+
+func TestGenerateNonceDeterminism(t *testing.T) {
+	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
+	_, pub1 := randomKeyPair(suite)
+	_, pub2 := randomKeyPair(suite)
+	_, pub3 := randomKeyPair(suite)
+
+	oneNode := []kdkg.Node{{Index: 1, Public: pub1}}
+	twoNodes := []kdkg.Node{{Index: 1, Public: pub1}, {Index: 2, Public: pub2}}
+	threeNodes := []kdkg.Node{{Index: 1, Public: pub1}, {Index: 2, Public: pub2}, {Index: 3, Public: pub3}}
+
+	tests := []struct {
+		name      string
+		nodes     []kdkg.Node
+		iteration int
+	}{
+		{name: "one_node_iter0", nodes: oneNode, iteration: 0},
+		{name: "one_node_iter1", nodes: oneNode, iteration: 1},
+		{name: "two_nodes_iter0", nodes: twoNodes, iteration: 0},
+		{name: "two_nodes_iter5", nodes: twoNodes, iteration: 5},
+		{name: "three_nodes_iter0", nodes: threeNodes, iteration: 0},
+		{name: "three_nodes_iter99", nodes: threeNodes, iteration: 99},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nonce1, err := generateNonce(tt.nodes, tt.iteration)
+			require.NoError(t, err)
+
+			nonce2, err := generateNonce(tt.nodes, tt.iteration)
+			require.NoError(t, err)
+
+			require.Equal(t, nonce1, nonce2, "same inputs must produce the same nonce")
+		})
+	}
+}

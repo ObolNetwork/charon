@@ -17,15 +17,34 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestEpochHashRoot(t *testing.T) {
-	epoch := eth2util.SignedEpoch{Epoch: 2}
+func TestSignedEpochHashTreeRoot(t *testing.T) {
+	tests := []struct {
+		name     string
+		epoch    eth2p0.Epoch
+		expected string
+	}{
+		{
+			name:     "epoch_12345",
+			epoch:    12345,
+			expected: "3930000000000000000000000000000000000000000000000000000000000000",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Signature is not included in the hash; verify same epoch with different
+			// signatures produces the same hash root.
+			se1 := eth2util.SignedEpoch{Epoch: tt.epoch}
+			se2 := eth2util.SignedEpoch{Epoch: tt.epoch, Signature: eth2p0.BLSSignature(testutil.RandomBytes96())}
 
-	resp, err := epoch.HashTreeRoot()
-	require.NoError(t, err)
-	require.Equal(t,
-		"0200000000000000000000000000000000000000000000000000000000000000",
-		hex.EncodeToString(resp[:]),
-	)
+			got1, err := se1.HashTreeRoot()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, hex.EncodeToString(got1[:]))
+
+			got2, err := se2.HashTreeRoot()
+			require.NoError(t, err)
+			require.Equal(t, got1, got2)
+		})
+	}
 }
 
 func TestUnmarshallingSignedEpoch(t *testing.T) {

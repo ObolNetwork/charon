@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/obolnetwork/charon/core"
+
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -2344,6 +2346,84 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	}
 
 	return mux
+}
+
+func TestUnmarshalSSZ(t *testing.T) {
+	phase0Proposal := core.VersionedSignedProposal{
+		VersionedSignedProposal: eth2api.VersionedSignedProposal{
+			Version: eth2spec.DataVersionPhase0,
+			Phase0: &eth2p0.SignedBeaconBlock{
+				Message: &eth2p0.BeaconBlock{
+					Slot:          1,
+					ProposerIndex: 2,
+					ParentRoot:    eth2p0.Root{0x01},
+					StateRoot:     eth2p0.Root{0x02},
+					Body: &eth2p0.BeaconBlockBody{
+						RANDAOReveal: eth2p0.BLSSignature{0xAA},
+						ETH1Data: &eth2p0.ETH1Data{
+							DepositRoot:  eth2p0.Root{0x03},
+							DepositCount: 5,
+							BlockHash:    append([]byte{0x04}, make([]byte, 31)...),
+						},
+						Graffiti: [32]byte{0x05},
+					},
+				},
+				Signature: eth2p0.BLSSignature{0xBB},
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		proposal *core.VersionedSignedProposal
+		errBytes []byte
+		errMsg   string
+	}{
+		{
+			name:     "phase0",
+			proposal: &phase0Proposal,
+		},
+		{
+			name:     "empty_body",
+			errBytes: []byte{},
+			errMsg:   "empty request body",
+		},
+		{
+			name:     "truncated_body",
+			errBytes: []byte{0x01, 0x02},
+			errMsg:   "failed parsing ssz request body",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b []byte
+			if tt.errBytes != nil {
+				b = tt.errBytes
+			} else {
+				var err error
+				b, err = ssz.MarshalSSZ(tt.proposal)
+				require.NoError(t, err)
+			}
+
+			got := new(core.VersionedSignedProposal)
+			err := unmarshal(contentTypeSSZ, b, got)
+
+			if tt.errMsg != "" {
+				require.ErrorContains(t, err, tt.errMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, *tt.proposal, *got)
+		})
+	}
+
+	// Types without SSZ support must return the appropriate error.
+	t.Run("no_ssz_support", func(t *testing.T) {
+		err := unmarshal(contentTypeSSZ, []byte{0x01}, new(struct{}))
+		require.ErrorContains(t, err, "internal type doesn't support ssz unmarshalling")
+	})
 }
 
 // nest returns a json nested version the data objected. Note nests must be provided in inverse order.

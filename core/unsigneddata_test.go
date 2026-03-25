@@ -3,11 +3,14 @@
 package core_test
 
 import (
+	"encoding/hex"
 	"fmt"
 	"testing"
 
+	bitfield "github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
@@ -489,6 +492,97 @@ func TestVersionedProposal(t *testing.T) {
 					require.ErrorContains(t, err, "unmarshal "+test.proposal.Version.String())
 				}
 			}
+		})
+	}
+}
+
+func TestAggregatedAttestationMarshalSSZ(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    core.AggregatedAttestation
+		expected string
+	}{
+		{
+			name: "sentinel_only/slot10",
+			value: core.NewAggregatedAttestation(&eth2p0.Attestation{
+				AggregationBits: bitfield.Bitlist{0x01},
+				Data: &eth2p0.AttestationData{
+					Slot:   10,
+					Index:  0,
+					Source: new(eth2p0.Checkpoint),
+					Target: new(eth2p0.Checkpoint),
+				},
+			}),
+			expected: "0xe40000000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+		},
+		{
+			name: "one_bit_set/slot42",
+			value: core.NewAggregatedAttestation(&eth2p0.Attestation{
+				AggregationBits: bitfield.Bitlist{0x03},
+				Data: &eth2p0.AttestationData{
+					Slot:   42,
+					Index:  3,
+					Source: new(eth2p0.Checkpoint),
+					Target: new(eth2p0.Checkpoint),
+				},
+			}),
+			expected: "0xe40000002a0000000000000003000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000003",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := tt.value.MarshalSSZ()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, "0x"+hex.EncodeToString(b))
+
+			var got core.AggregatedAttestation
+			require.NoError(t, got.UnmarshalSSZ(b))
+			require.Equal(t, tt.value, got)
+		})
+	}
+}
+
+func TestSyncContributionMarshalSSZ(t *testing.T) {
+	allBitsSet := bitfield.NewBitvector128()
+	for i := range 16 {
+		allBitsSet.SetBitAt(uint64(i), true)
+	}
+
+	tests := []struct {
+		name     string
+		value    core.SyncContribution
+		expected string
+	}{
+		{
+			name: "zeros",
+			value: core.NewSyncContribution(&altair.SyncCommitteeContribution{
+				Slot:              1,
+				SubcommitteeIndex: 0,
+				AggregationBits:   bitfield.NewBitvector128(),
+			}),
+			expected: "0x01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		},
+		{
+			name: "slot100_subcommittee2_all_bits",
+			value: core.NewSyncContribution(&altair.SyncCommitteeContribution{
+				Slot:              100,
+				SubcommitteeIndex: 2,
+				AggregationBits:   allBitsSet,
+			}),
+			expected: "0x640000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000ffff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := tt.value.MarshalSSZ()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, "0x"+hex.EncodeToString(b))
+
+			var got core.SyncContribution
+			require.NoError(t, got.UnmarshalSSZ(b))
+			require.Equal(t, tt.value, got)
 		})
 	}
 }
