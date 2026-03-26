@@ -1120,7 +1120,7 @@ func TestVersionedSignedProposalSSZ(t *testing.T) {
 	phase0Block := &eth2p0.SignedBeaconBlock{
 		Message: &eth2p0.BeaconBlock{
 			Body: &eth2p0.BeaconBlockBody{
-				ETH1Data: new(eth2p0.ETH1Data),
+				ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 			},
 		},
 	}
@@ -1128,7 +1128,7 @@ func TestVersionedSignedProposalSSZ(t *testing.T) {
 	altairBlock := &altair.SignedBeaconBlock{
 		Message: &altair.BeaconBlock{
 			Body: &altair.BeaconBlockBody{
-				ETH1Data: new(eth2p0.ETH1Data),
+				ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 				SyncAggregate: &altair.SyncAggregate{
 					SyncCommitteeBits: bitfield.Bitvector512(make([]byte, 64)),
 				},
@@ -1139,11 +1139,11 @@ func TestVersionedSignedProposalSSZ(t *testing.T) {
 	electraBlindedBlock := &eth2electra.SignedBlindedBeaconBlock{
 		Message: &eth2electra.BlindedBeaconBlock{
 			Body: &eth2electra.BlindedBeaconBlockBody{
-				ETH1Data: new(eth2p0.ETH1Data),
+				ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 				SyncAggregate: &altair.SyncAggregate{
 					SyncCommitteeBits: bitfield.Bitvector512(make([]byte, 64)),
 				},
-				ExecutionPayloadHeader: new(deneb.ExecutionPayloadHeader),
+				ExecutionPayloadHeader: testutil.ZeroDenebExecutionPayloadHeader(),
 				ExecutionRequests:      new(electra.ExecutionRequests),
 			},
 		},
@@ -1153,11 +1153,11 @@ func TestVersionedSignedProposalSSZ(t *testing.T) {
 		SignedBlock: &deneb.SignedBeaconBlock{
 			Message: &deneb.BeaconBlock{
 				Body: &deneb.BeaconBlockBody{
-					ETH1Data: new(eth2p0.ETH1Data),
+					ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 					SyncAggregate: &altair.SyncAggregate{
 						SyncCommitteeBits: bitfield.Bitvector512(make([]byte, 64)),
 					},
-					ExecutionPayload: &deneb.ExecutionPayload{},
+					ExecutionPayload: testutil.ZeroDenebExecutionPayload(),
 				},
 			},
 		},
@@ -1218,13 +1218,13 @@ func TestVersionedSignedProposalSSZ(t *testing.T) {
 func TestVersionedProposalSSZ(t *testing.T) {
 	phase0Block := &eth2p0.BeaconBlock{
 		Body: &eth2p0.BeaconBlockBody{
-			ETH1Data: new(eth2p0.ETH1Data),
+			ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 		},
 	}
 
 	altairBlock := &altair.BeaconBlock{
 		Body: &altair.BeaconBlockBody{
-			ETH1Data: new(eth2p0.ETH1Data),
+			ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 			SyncAggregate: &altair.SyncAggregate{
 				SyncCommitteeBits: bitfield.Bitvector512(make([]byte, 64)),
 			},
@@ -1233,11 +1233,11 @@ func TestVersionedProposalSSZ(t *testing.T) {
 
 	electraBlindedBlock := &eth2electra.BlindedBeaconBlock{
 		Body: &eth2electra.BlindedBeaconBlockBody{
-			ETH1Data: new(eth2p0.ETH1Data),
+			ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 			SyncAggregate: &altair.SyncAggregate{
 				SyncCommitteeBits: bitfield.Bitvector512(make([]byte, 64)),
 			},
-			ExecutionPayloadHeader: new(deneb.ExecutionPayloadHeader),
+			ExecutionPayloadHeader: testutil.ZeroDenebExecutionPayloadHeader(),
 			ExecutionRequests:      new(electra.ExecutionRequests),
 		},
 	}
@@ -1245,11 +1245,11 @@ func TestVersionedProposalSSZ(t *testing.T) {
 	denebBlock := &eth2deneb.BlockContents{
 		Block: &deneb.BeaconBlock{
 			Body: &deneb.BeaconBlockBody{
-				ETH1Data: new(eth2p0.ETH1Data),
+				ETH1Data: &eth2p0.ETH1Data{BlockHash: make([]byte, 32)},
 				SyncAggregate: &altair.SyncAggregate{
 					SyncCommitteeBits: bitfield.Bitvector512(make([]byte, 64)),
 				},
-				ExecutionPayload: &deneb.ExecutionPayload{},
+				ExecutionPayload: testutil.ZeroDenebExecutionPayload(),
 			},
 		},
 	}

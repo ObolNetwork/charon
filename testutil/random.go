@@ -1151,6 +1151,24 @@ func RandomDenebExecutionPayloadHeader() *deneb.ExecutionPayloadHeader {
 	}
 }
 
+// ZeroDenebExecutionPayloadHeader returns a deneb ExecutionPayloadHeader with all-zero values.
+func ZeroDenebExecutionPayloadHeader() *deneb.ExecutionPayloadHeader {
+	return &deneb.ExecutionPayloadHeader{
+		BaseFeePerGas: new(uint256.Int),
+		ExtraData:     []byte{},
+	}
+}
+
+// ZeroDenebExecutionPayload returns a deneb ExecutionPayload with all-zero values.
+func ZeroDenebExecutionPayload() *deneb.ExecutionPayload {
+	return &deneb.ExecutionPayload{
+		BaseFeePerGas: new(uint256.Int),
+		ExtraData:     []byte{},
+		Transactions:  []bellatrix.Transaction{},
+		Withdrawals:   []*capella.Withdrawal{},
+	}
+}
+
 func RandomAttestationDuty(t *testing.T) *eth2v1.AttesterDuty {
 	t.Helper()
 	return RandomAttestationDutySeed(t, NewSeedRand())

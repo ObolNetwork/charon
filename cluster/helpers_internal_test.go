@@ -111,12 +111,14 @@ func TestPutByteList(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn := func(hh ssz.HashWalker) error { return putByteList(hh, tt.b, tt.limit, "field") }
+
 			var got string
 			if tt.setup != nil {
 				got = hashRootWithPrefix(t, tt.setup, fn)
 			} else {
 				got = hashRootOf(t, fn)
 			}
+
 			require.Equal(t, tt.expected, got)
 		})
 	}
@@ -179,12 +181,14 @@ func TestPutBytesN(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn := func(hh ssz.HashWalker) error { return putBytesN(hh, tt.b, tt.n) }
+
 			var got string
 			if tt.setup != nil {
 				got = hashRootWithPrefix(t, tt.setup, fn)
 			} else {
 				got = hashRootOf(t, fn)
 			}
+
 			require.Equal(t, tt.expected, got)
 		})
 	}
@@ -231,12 +235,14 @@ func TestPutHexBytes20(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fn := func(hh ssz.HashWalker) error { return putHexBytes20(hh, tt.addr) }
+
 			var got string
 			if tt.setup != nil {
 				got = hashRootWithPrefix(t, tt.setup, fn)
 			} else {
 				got = hashRootOf(t, fn)
 			}
+
 			require.Equal(t, tt.expected, got)
 		})
 	}

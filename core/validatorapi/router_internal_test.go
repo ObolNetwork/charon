@@ -20,8 +20,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/obolnetwork/charon/core"
-
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -42,6 +40,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -2365,7 +2364,12 @@ func TestUnmarshalSSZ(t *testing.T) {
 							DepositCount: 5,
 							BlockHash:    append([]byte{0x04}, make([]byte, 31)...),
 						},
-						Graffiti: [32]byte{0x05},
+						Graffiti:          [32]byte{0x05},
+						ProposerSlashings: []*eth2p0.ProposerSlashing{},
+						AttesterSlashings: []*eth2p0.AttesterSlashing{},
+						Attestations:      []*eth2p0.Attestation{},
+						Deposits:          []*eth2p0.Deposit{},
+						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
 					},
 				},
 				Signature: eth2p0.BLSSignature{0xBB},
@@ -2402,6 +2406,7 @@ func TestUnmarshalSSZ(t *testing.T) {
 				b = tt.errBytes
 			} else {
 				var err error
+
 				b, err = ssz.MarshalSSZ(tt.proposal)
 				require.NoError(t, err)
 			}

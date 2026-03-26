@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
 
@@ -80,6 +80,7 @@ func TestHashDefinitionLegacy(t *testing.T) {
 			d: func() Definition {
 				d := baseDef(v1_0)
 				d.Timestamp = "" // v1.0 had no timestamp
+
 				return d
 			}(),
 			configOnly: true,
@@ -180,6 +181,7 @@ func TestHashDefinitionV1x8(t *testing.T) {
 			d: func() Definition {
 				d := baseDef(v1_8)
 				d.DepositAmounts = []eth2p0.Gwei{32000000000}
+
 				return d
 			}(),
 			configOnly: true,
@@ -207,6 +209,7 @@ func TestHashDefinitionV1x9(t *testing.T) {
 				d := baseDef(v1_9)
 				d.DepositAmounts = []eth2p0.Gwei{32000000000}
 				d.ConsensusProtocol = "abft"
+
 				return d
 			}(),
 			configOnly: true,
@@ -236,6 +239,7 @@ func TestHashDefinitionV1x10(t *testing.T) {
 				d.ConsensusProtocol = "abft"
 				d.TargetGasLimit = 30000000
 				d.Compounding = true
+
 				return d
 			}(),
 			configOnly: true,
