@@ -3,10 +3,12 @@
 package core_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"testing"
 
+	bitfield "github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
@@ -20,6 +22,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -1092,3 +1095,252 @@ func TestVersionedSignedAggregateAndProofUtilFunctions(t *testing.T) {
 // 	require.NoError(t, err)
 // 	require.Equal(t, expectedStdHashStr, hex.EncodeToString(realHashStd[:]))
 // }
+
+func TestCloneSSZMarshaler(t *testing.T) {
+	var sig96 eth2p0.BLSSignature
+	for i := range sig96 {
+		sig96[i] = 0xcd
+	}
+
+	var root eth2p0.Root
+	for i := range root {
+		root[i] = 0xab
+	}
+
+	attestationData := &eth2p0.AttestationData{
+		Slot:            1,
+		Index:           2,
+		BeaconBlockRoot: root,
+		Source:          &eth2p0.Checkpoint{Epoch: 1, Root: root},
+		Target:          &eth2p0.Checkpoint{Epoch: 2, Root: root},
+	}
+
+	aggBits := bitfield.Bitlist{0x03}
+
+	phase0Att := &eth2p0.Attestation{
+		AggregationBits: aggBits,
+		Data:            attestationData,
+		Signature:       sig96,
+	}
+
+	tests := []struct {
+		name  string
+		value interface {
+			MarshalSSZ() ([]byte, error)
+		}
+		unmarshal func([]byte) (any, error)
+		expected  string
+	}{
+		{
+			name: "Attestation",
+			value: core.Attestation{
+				Attestation: *phase0Att,
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.Attestation
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0xe400000001000000000000000200000000000000abababababababababababababababababababababababababababababababab0100000000000000abababababababababababababababababababababababababababababababab0200000000000000ababababababababababababababababababababababababababababababababcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd03",
+		},
+		{
+			name: "SignedAggregateAndProof",
+			value: core.SignedAggregateAndProof{
+				SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{
+					Message: &eth2p0.AggregateAndProof{
+						AggregatorIndex: 3,
+						Aggregate:       phase0Att,
+						SelectionProof:  sig96,
+					},
+					Signature: sig96,
+				},
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.SignedAggregateAndProof
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0x64000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd03000000000000006c000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcde400000001000000000000000200000000000000abababababababababababababababababababababababababababababababab0100000000000000abababababababababababababababababababababababababababababababab0200000000000000ababababababababababababababababababababababababababababababababcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd03",
+		},
+		{
+			name: "SignedSyncMessage",
+			value: core.SignedSyncMessage{
+				SyncCommitteeMessage: altair.SyncCommitteeMessage{
+					Slot:            1,
+					BeaconBlockRoot: root,
+					ValidatorIndex:  2,
+					Signature:       sig96,
+				},
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.SignedSyncMessage
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0x0100000000000000abababababababababababababababababababababababababababababababab0200000000000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+		},
+		{
+			name: "SyncContributionAndProof",
+			value: core.SyncContributionAndProof{
+				ContributionAndProof: altair.ContributionAndProof{
+					AggregatorIndex: 1,
+					Contribution: &altair.SyncCommitteeContribution{
+						Slot:              1,
+						BeaconBlockRoot:   root,
+						SubcommitteeIndex: 0,
+						AggregationBits:   bitfield.Bitvector128(bytes.Repeat([]byte{0x01}, 16)),
+						Signature:         sig96,
+					},
+					SelectionProof: sig96,
+				},
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.SyncContributionAndProof
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0x01000000000000000100000000000000abababababababababababababababababababababababababababababababab000000000000000001010101010101010101010101010101cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+		},
+		{
+			name: "SignedSyncContributionAndProof",
+			value: core.SignedSyncContributionAndProof{
+				SignedContributionAndProof: altair.SignedContributionAndProof{
+					Message: &altair.ContributionAndProof{
+						AggregatorIndex: 1,
+						Contribution: &altair.SyncCommitteeContribution{
+							Slot:              1,
+							BeaconBlockRoot:   root,
+							SubcommitteeIndex: 0,
+							AggregationBits:   bitfield.Bitvector128(bytes.Repeat([]byte{0x01}, 16)),
+							Signature:         sig96,
+						},
+						SelectionProof: sig96,
+					},
+					Signature: sig96,
+				},
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.SignedSyncContributionAndProof
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0x01000000000000000100000000000000abababababababababababababababababababababababababababababababab000000000000000001010101010101010101010101010101cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+		},
+		{
+			name: "VersionedAttestation/fulu",
+			value: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &electra.Attestation{
+						AggregationBits: aggBits,
+						Data:            attestationData,
+						Signature:       sig96,
+						CommitteeBits:   bitfield.Bitvector64(bytes.Repeat([]byte{0x01}, 8)),
+					},
+				},
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.VersionedAttestation
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0x06000000000000000c000000ec00000001000000000000000200000000000000abababababababababababababababababababababababababababababababab0100000000000000abababababababababababababababababababababababababababababababab0200000000000000ababababababababababababababababababababababababababababababababcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd010101010101010103",
+		},
+		{
+			name: "VersionedSignedAggregateAndProof/fulu",
+			value: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &electra.SignedAggregateAndProof{
+						Message: &electra.AggregateAndProof{
+							AggregatorIndex: 3,
+							Aggregate: &electra.Attestation{
+								AggregationBits: aggBits,
+								Data:            attestationData,
+								Signature:       sig96,
+								CommitteeBits:   bitfield.Bitvector64(bytes.Repeat([]byte{0x01}, 8)),
+							},
+							SelectionProof: sig96,
+						},
+						Signature: sig96,
+					},
+				},
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.VersionedSignedAggregateAndProof
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0x06000000000000000c00000064000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd03000000000000006c000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdec00000001000000000000000200000000000000abababababababababababababababababababababababababababababababab0100000000000000abababababababababababababababababababababababababababababababab0200000000000000ababababababababababababababababababababababababababababababababcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd010101010101010103",
+		},
+		{
+			name: "VersionedSignedProposal/fulu",
+			value: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionFulu,
+					Fulu: &eth2fulu.SignedBlockContents{
+						SignedBlock: &electra.SignedBeaconBlock{
+							Message: &electra.BeaconBlock{
+								Slot:          1,
+								ProposerIndex: 2,
+								ParentRoot:    root,
+								StateRoot:     root,
+								Body: &electra.BeaconBlockBody{
+									RANDAOReveal: sig96,
+									ETH1Data: &eth2p0.ETH1Data{
+										DepositRoot:  root,
+										DepositCount: 0,
+										BlockHash:    root[:],
+									},
+									Graffiti:          [32]byte{0x01},
+									ProposerSlashings: []*eth2p0.ProposerSlashing{},
+									AttesterSlashings: []*electra.AttesterSlashing{},
+									Attestations:      []*electra.Attestation{},
+									Deposits:          []*eth2p0.Deposit{},
+									VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+									SyncAggregate: &altair.SyncAggregate{
+										SyncCommitteeBits:      bitfield.Bitvector512(bytes.Repeat([]byte{0x01}, 64)),
+										SyncCommitteeSignature: sig96,
+									},
+									ExecutionPayload: &deneb.ExecutionPayload{
+										ParentHash:    eth2p0.Hash32(root),
+										FeeRecipient:  bellatrix.ExecutionAddress{0xab},
+										StateRoot:     root,
+										ReceiptsRoot:  root,
+										LogsBloom:     [256]byte{0x01},
+										PrevRandao:    root,
+										BaseFeePerGas: new(uint256.Int),
+										BlockHash:     eth2p0.Hash32(root),
+										ExtraData:     []byte{},
+										Transactions:  []bellatrix.Transaction{},
+										Withdrawals:   []*capella.Withdrawal{},
+									},
+									BLSToExecutionChanges: []*capella.SignedBLSToExecutionChange{},
+									BlobKZGCommitments:    []deneb.KZGCommitment{},
+									ExecutionRequests: &electra.ExecutionRequests{
+										Deposits:       []*electra.DepositRequest{},
+										Withdrawals:    []*electra.WithdrawalRequest{},
+										Consolidations: []*electra.ConsolidationRequest{},
+									},
+								},
+							},
+							Signature: sig96,
+						},
+						KZGProofs: []deneb.KZGProof{},
+						Blobs:     []deneb.Blob{},
+					},
+				},
+			},
+			unmarshal: func(b []byte) (any, error) {
+				var v core.VersionedSignedProposal
+				return v, v.UnmarshalSSZ(b)
+			},
+			expected: "0x0600000000000000000d0000000c0000006c0400006c04000064000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd01000000000000000200000000000000abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab54000000cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdabababababababababababababababababababababababababababababababab0000000000000000abababababababababababababababababababababababababababababababab01000000000000000000000000000000000000000000000000000000000000008c0100008c0100008c0100008c0100008c01000001010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd8c0100009c0300009c0300009c030000ababababababababababababababababababababababababababababababababab00000000000000000000000000000000000000abababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000abababababababababababababababababababababababababababababababab0000000000000000000000000000000000000000000000000000000000000000100200000000000000000000000000000000000000000000000000000000000000000000abababababababababababababababababababababababababababababababab1002000010020000000000000000000000000000000000000c0000000c0000000c000000",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := tt.value.MarshalSSZ()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
+
+			got, err := tt.unmarshal(b)
+			require.NoError(t, err)
+			require.Equal(t, tt.value, got)
+		})
+	}
+}
