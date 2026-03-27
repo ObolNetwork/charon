@@ -84,6 +84,8 @@ func TestCmdFlags(t *testing.T) {
 				BeaconNodeTimeout:           2 * time.Second,
 				BeaconNodeSubmitTimeout:     2 * time.Second,
 				BuilderRegOverridesFilePath: ".charon/builder_registrations_overrides.json",
+				PublishAddress:              "https://api.obol.tech/v1",
+				PublishTimeout:              5 * time.Minute,
 			},
 		},
 		{
@@ -136,6 +138,8 @@ func TestCmdFlags(t *testing.T) {
 				BeaconNodeTimeout:           2 * time.Second,
 				BeaconNodeSubmitTimeout:     2 * time.Second,
 				BuilderRegOverridesFilePath: ".charon/builder_registrations_overrides.json",
+				PublishAddress:              "https://api.obol.tech/v1",
+				PublishTimeout:              5 * time.Minute,
 				TestConfig: app.TestConfig{
 					P2PFuzz: true,
 				},

@@ -169,6 +169,7 @@ Flags:
       --feature-set string                       Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
       --feature-set-disable strings              Comma-separated list of features to disable, overriding the default minimum feature set.
       --feature-set-enable strings               Comma-separated list of features to enable, overriding the default minimum feature set.
+      --fetch-feerecipient-updates               Fetches updated fee recipients from a remote API.
       --graffiti strings                         Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends "OB<CL_TYPE>" suffix to graffiti. Maximum 28 bytes per graffiti.
       --graffiti-disable-client-append           Disables appending "OB<CL_TYPE>" suffix to graffiti. Increases maximum bytes per graffiti to 32.
   -h, --help                                     Help for run
@@ -199,6 +200,8 @@ Flags:
       --private-key-file string                  The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
       --private-key-file-lock                    Enables private key locking to prevent multiple instances using the same key.
       --proc-directory string                    Directory to look into in order to detect other stack components running on the host.
+      --publish-address string                   The URL of the remote API for background fee recipient fetching. (default "https://api.obol.tech/v1")
+      --publish-timeout duration                 Timeout for accessing the remote API. (default 5m0s)
       --simnet-beacon-mock                       Enables an internal mock beacon node for running a simnet.
       --simnet-beacon-mock-fuzz                  Configures simnet beaconmock to return fuzzed responses.
       --simnet-slot-duration duration            Configures slot duration in simnet beacon mock. (default 1s)

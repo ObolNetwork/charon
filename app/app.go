@@ -34,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/peerinfo"
 	"github.com/obolnetwork/charon/app/privkeylock"
 	"github.com/obolnetwork/charon/app/promauto"
@@ -109,6 +110,9 @@ type Config struct {
 	VCTLSCertFile               string
 	VCTLSKeyFile                string
 	BuilderRegOverridesFilePath string
+	PublishAddress              string
+	PublishTimeout              time.Duration
+	FetchFeerecipientUpdates    bool
 
 	TestConfig TestConfig
 }
@@ -463,12 +467,25 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		builderRegistrations = append(builderRegistrations, builderRegistration)
 	}
 
+	var obolClient *obolapi.Client
+
+	if conf.FetchFeerecipientUpdates && conf.PublishAddress != "" {
+		cl, err := obolapi.New(conf.PublishAddress, obolapi.WithTimeout(conf.PublishTimeout))
+		if err != nil {
+			return err
+		}
+
+		obolClient = &cl
+	}
+
 	builderRegSvc, err := NewBuilderRegistrationService(
 		ctx,
 		conf.BuilderRegOverridesFilePath,
 		eth2p0.Version(lock.ForkVersion),
 		builderRegistrations,
 		feeRecipientAddrByCorePubkey,
+		obolClient,
+		lock.LockHash,
 	)
 	if err != nil {
 		return err

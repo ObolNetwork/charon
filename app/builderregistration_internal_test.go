@@ -193,7 +193,7 @@ func TestBuilderRegistrationService(t *testing.T) {
 	}
 
 	t.Run("no overrides file", func(t *testing.T) {
-		svc, err := NewBuilderRegistrationService(ctx, "", eth2p0.Version{}, baseRegs, baseFeeRecipients)
+		svc, err := NewBuilderRegistrationService(ctx, "", eth2p0.Version{}, baseRegs, baseFeeRecipients, nil, nil)
 		require.NoError(t, err)
 
 		require.Equal(t, baseRegs, svc.Registrations())
@@ -206,7 +206,7 @@ func TestBuilderRegistrationService(t *testing.T) {
 	t.Run("initial load with overrides", func(t *testing.T) {
 		path := writeOverridesFile(t, overrides)
 
-		svc, err := NewBuilderRegistrationService(ctx, path, eth2p0.Version(lock.ForkVersion), baseRegs, baseFeeRecipients)
+		svc, err := NewBuilderRegistrationService(ctx, path, eth2p0.Version(lock.ForkVersion), baseRegs, baseFeeRecipients, nil, nil)
 		require.NoError(t, err)
 
 		regs := svc.Registrations()
@@ -223,7 +223,7 @@ func TestBuilderRegistrationService(t *testing.T) {
 		path := filepath.Join(dir, "overrides.json")
 
 		// Start without overrides file.
-		svc, err := NewBuilderRegistrationService(ctx, path, eth2p0.Version(lock.ForkVersion), baseRegs, baseFeeRecipients)
+		svc, err := NewBuilderRegistrationService(ctx, path, eth2p0.Version(lock.ForkVersion), baseRegs, baseFeeRecipients, nil, nil)
 		require.NoError(t, err)
 		require.Equal(t, baseRegs, svc.Registrations())
 
