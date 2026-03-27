@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(go vet:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | { read -r f; echo \"$f\" | grep -q '\\.pb\\.go$' && exit 0; echo \"$f\" | grep -q '\\.go$' && gofmt -w \"$f\" && fiximports \"$f\"; } 2>/dev/null || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
