@@ -157,6 +157,7 @@ coverage.out
 cli-reference.txt
 changelog.md
 .claude/*
+!.claude/settings.json
 !.claude/skills/
 
 .charon**

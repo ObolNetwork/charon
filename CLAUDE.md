@@ -86,6 +86,10 @@ The heart of Charon is the **core workflow**, which processes validator duties t
 9. **AggSigDB** → Persists aggregated signatures
 10. **Bcast** → Broadcasts final aggregated signatures to beacon node
 
+Additional supporting components:
+- **Tracker** → Tracks duty lifecycle events and records failure reasons
+- **Priority** → Implements peer-aware priority ordering for consensus proposals
+
 ### Key Abstractions
 - **Duty**: Unit of work (slot + duty type). Cluster-level, not per-validator.
 - **PubKey**: DV root public key, the identifier for a validator in the workflow
@@ -96,7 +100,7 @@ The heart of Charon is the **core workflow**, which processes validator duties t
 ### Important Design Patterns
 - **Immutable values flowing between components**: Components consume and produce immutable values (like actors)
 - **Callback subscriptions**: Components are decoupled via subscriptions rather than direct calls
-- **Type-safe encoding**: Abstract types (UnsignedData, SignedData) are encoded/decoded via [core/encode.go](core/encode.go)
+- **Type-safe encoding**: Abstract types are encoded/decoded via dedicated files: [core/unsigneddata.go](core/unsigneddata.go), [core/signeddata.go](core/signeddata.go), [core/eth2signeddata.go](core/eth2signeddata.go), [core/ssz.go](core/ssz.go), [core/proto.go](core/proto.go)
 
 ### Consensus
 Charon uses **QBFT** (implementation of Istanbul BFT) for consensus. See [core/qbft/README.md](core/qbft/README.md). Each duty requires consensus to ensure all nodes sign identical data (required for BLS threshold signatures and slashing protection).
@@ -110,6 +114,7 @@ core/         # Core workflow business logic and component implementations
 dkg/          # Distributed Key Generation logic
 eth2util/     # ETH2 utilities (signing, deposits, keystores)
 p2p/          # libp2p networking and discv5 peer discovery
+scripts/      # Build and development scripts
 tbls/         # Threshold BLS signature scheme
 testutil/     # Test utilities, mocks, golden files
 ```
@@ -157,15 +162,16 @@ Requires Go 1.26 (enforced by pre-commit hooks)
 
 ### Working with the Core Workflow
 When modifying core workflow components:
-1. Check [docs/architecture.md](docs/architecture.md) for component interfaces and data flow
-2. Ensure immutability - call `.Clone()` before sharing/caching values
-3. Update component subscriptions in the stitching logic if interfaces change
-4. Component implementations are in `core/<component>/` directories
+1. Entry point: `main.go` → `app/app.go:Run()` → `wireCoreWorkflow()` assembles all components
+2. Check [docs/architecture.md](docs/architecture.md) for component interfaces and data flow
+3. Ensure immutability - call `.Clone()` before sharing/caching values
+4. Update component subscriptions in the stitching logic if interfaces change
+5. Component implementations are in `core/<component>/` directories
 
 ### Adding New Duty Types
 New duty types must be added to:
 - `core/types.go`: Add duty type constant
-- `core/encode.go`: Add encoding/decoding logic
+- `core/unsigneddata.go` / `core/signeddata.go`: Add encoding/decoding logic
 - Scheduler, Fetcher, and other relevant components
 
 ### Working with Cluster Lock Files
@@ -200,6 +206,7 @@ feature_flag: <optional, from app/featureset>
 - **DKG**: Requires matching MAJOR and MINOR versions (PATCH can differ)
 
 ## Important Notes
+- Feature flags are managed in `app/featureset/` — use them to gate new behavior behind flags
 - No `trace` logs - use `debug` with TODOs for temporary tracing
 - Review and clean up logs periodically
 - Prefer functions returning functions over creating new types with methods
