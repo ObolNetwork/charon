@@ -6,7 +6,8 @@ Usage: python kurtosis_alerts.py --from <start> --to <end>
   --from: Start time (ISO 8601 e.g. 2024-03-01T00:00:00Z, or epoch seconds)
   --to:   End time (ISO 8601 e.g. 2024-03-02T00:00:00Z, or epoch seconds)
 
-Outputs JSON array of alert history entries to stdout.
+Outputs a structured report to stdout.
+Exit code 0 if no firing alerts, 1 if firing alerts detected.
 """
 
 import argparse
@@ -16,10 +17,12 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import defaultdict
 from datetime import datetime, timezone
 
 GRAFANA_BASE = "https://grafana.monitoring.gcp.obol.tech"
 TARGET_FOLDER = "Charon Kurtosis Alerts"
+DASHBOARD_PATH = "/d/d6qujIJVk/charon-overview-v3"
 
 
 def get_auth_header() -> dict:
@@ -38,15 +41,15 @@ def fetch_json(url: str, headers: dict, silent: bool = False) -> dict | None:
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
         if not silent:
-            print(f"Error: HTTP {e.code} fetching {url}", file=sys.stderr)
+            print(f"Error: HTTP {e.code} fetching {url}", file=sys.stdout)
         return None
     except urllib.error.URLError as e:
         if not silent:
-            print(f"Error: {e.reason}", file=sys.stderr)
+            print(f"Error: {e.reason}", file=sys.stdout)
         return None
     except Exception as e:
         if not silent:
-            print(f"Error: {e}", file=sys.stderr)
+            print(f"Error: {e}", file=sys.stdout)
         return None
 
 
@@ -64,8 +67,13 @@ def parse_timestamp(value: str) -> int:
             dt = dt.replace(tzinfo=timezone.utc)
         return int(dt.timestamp() * 1000)
     except ValueError:
-        print(f"Error: cannot parse timestamp '{value}'", file=sys.stderr)
+        print(f"Error: cannot parse timestamp '{value}'", file=sys.stdout)
         sys.exit(1)
+
+
+def ms_to_human(ms: int) -> str:
+    """Convert epoch milliseconds to human-readable UTC string."""
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def fetch_kurtosis_folder_uid(headers: dict) -> str | None:
@@ -151,6 +159,101 @@ def format_alert_entry(annotation: dict) -> dict:
     }
 
 
+def build_grafana_link(cluster_name: str, cluster_hash: str, from_ms: int, to_ms: int) -> str:
+    """Build a Grafana dashboard link for a specific cluster."""
+    params = urllib.parse.urlencode({
+        "orgId": "1",
+        "refresh": "1m",
+        "var-interval": "$__auto",
+        "from": str(from_ms),
+        "to": str(to_ms),
+        "timezone": "browser",
+        "var-cluster_network": "kurtosis",
+        "var-cluster_name": cluster_name,
+        "var-cluster_hash": cluster_hash,
+        "var-job": "charon",
+        "var-duty": "$__all",
+    })
+    return f"{GRAFANA_BASE}{DASHBOARD_PATH}?{params}"
+
+
+def is_firing(entry: dict) -> bool:
+    """Check if an alert entry represents a firing alert."""
+    return entry["state"].lower() == "alerting"
+
+
+def print_report(entries: list[dict], from_ms: int, to_ms: int, rules: list[dict]):
+    """Print a structured human-readable report."""
+    firing = [e for e in entries if is_firing(e)]
+
+    # === Section A: Input Parameters ===
+    print("=== Input Parameters ===")
+    print(f"From: {ms_to_human(from_ms)}")
+    print(f"To:   {ms_to_human(to_ms)}")
+    print()
+
+    # === Section B: Alerts ===
+    rule_names = sorted(r["title"] for r in rules)
+    print(f"=== Alerts ({len(rules)}) ===")
+    for name in rule_names:
+        print(f"  - {name}")
+    print()
+
+    # === Section C: Clusters Observed ===
+    clusters = {}  # (cluster_name, cluster_hash) -> set
+    for e in entries:
+        name = e["labels"].get("cluster_name", "")
+        h = e["labels"].get("cluster_hash", "")
+        if name or h:
+            clusters[(name, h)] = True
+
+    print("=== Clusters Observed ===")
+    if not clusters:
+        print("  (none)")
+    else:
+        for i, (name, h) in enumerate(sorted(clusters.keys()), 1):
+            display_name = name or "(unknown)"
+            display_hash = h or "(unknown)"
+            print(f"{i}. {display_name} (hash: {display_hash})")
+            link = build_grafana_link(name, h, from_ms, to_ms)
+            print(f"   {link}")
+    print()
+
+    # === Section C: Firing Alerts ===
+    print("=== Firing Alerts ===")
+    if not firing:
+        print("  No firing alerts detected.")
+        return
+
+    # Group by alert name
+    by_alert = defaultdict(list)
+    for e in firing:
+        by_alert[e["alert_name"]].append(e)
+
+    # Sort alerts by occurrence count (desc)
+    for alert_name, alert_entries in sorted(by_alert.items(), key=lambda x: -len(x[1])):
+        print(f"--- {alert_name} ({len(alert_entries)} occurrences) ---")
+
+        # Group by cluster within this alert
+        by_cluster = defaultdict(int)
+        for e in alert_entries:
+            name = e["labels"].get("cluster_name", "(unknown)")
+            h = e["labels"].get("cluster_hash", "(unknown)")
+            by_cluster[(name, h)] += 1
+
+        for (name, h), count in sorted(by_cluster.items(), key=lambda x: -x[1]):
+            print(f"  {name} (hash: {h}): {count} occurrences")
+        print()
+
+
+def _has_folder_tag(annotation: dict, folder_title: str) -> bool:
+    """Check if an annotation's tags include the expected grafana_folder."""
+    tags = annotation.get("tags", [])
+    if not isinstance(tags, list):
+        return False
+    return f"grafana_folder:{folder_title}" in tags
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Fetch Grafana alert history for Charon Kurtosis alerts.",
@@ -176,29 +279,37 @@ def main():
     # Find the target folder
     folder_uid = fetch_kurtosis_folder_uid(headers)
     if not folder_uid:
-        print(f"Warning: folder '{TARGET_FOLDER}' not found", file=sys.stderr)
-        print(json.dumps([]))
+        print(f"Warning: folder '{TARGET_FOLDER}' not found", file=sys.stdout)
+        print("=== No data available ===")
         sys.exit(0)
 
     # Get alert rules in the folder
     rules = fetch_alert_rules(headers, folder_uid)
     if not rules:
-        print(f"Warning: no alert rules found in '{TARGET_FOLDER}'", file=sys.stderr)
-        print(json.dumps([]))
+        print(f"Warning: no alert rules found in '{TARGET_FOLDER}'", file=sys.stdout)
+        print("=== No data available ===")
         sys.exit(0)
 
-    rule_titles = {r["title"] for r in rules}
-    print(f"Found {len(rules)} alert rule(s): {', '.join(sorted(rule_titles))}", file=sys.stderr)
-
     # Fetch annotations and filter by rule titles
+    rule_titles = {r["title"] for r in rules}
+
     annotations = fetch_annotations(headers, from_ms, to_ms)
-    matching = [a for a in annotations if a.get("alertName") in rule_titles]
+    matching = [
+        a for a in annotations
+        if a.get("alertName") in rule_titles
+        and _has_folder_tag(a, TARGET_FOLDER)
+    ]
 
     # Format and sort by timestamp
     entries = [format_alert_entry(a) for a in matching]
     entries.sort(key=lambda e: e["timestamp"])
 
-    print(json.dumps(entries, indent=2))
+    # Print report
+    print_report(entries, from_ms, to_ms, rules)
+
+    # Exit code based on firing alerts
+    has_firing = any(is_firing(e) for e in entries)
+    sys.exit(1 if has_firing else 0)
 
 
 if __name__ == "__main__":
