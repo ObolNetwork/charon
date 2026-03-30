@@ -706,18 +706,15 @@ func (c *DutiesCache) storeOrAmendProposerDuties(epoch eth2p0.Epoch, dutiesForEp
 		return dutiesForEpoch.duties, true
 	}
 
-	fetchedVidxs := make([]eth2p0.ValidatorIndex, 0, len(alreadySavedDuties))
-	for _, d := range alreadySavedDuties {
-		fetchedVidxs = append(fetchedVidxs, d.ValidatorIndex)
-	}
-
 	appended := false
 
 	// In the scenarios where we reach this code, it's very likely that the validator client is making 1 call per validator index, hence those O(n^2) loops are not a problem.
 	newlyFetchedIdxs := []eth2p0.ValidatorIndex{}
 
+	alreadyRequestedIdxs := c.proposerDuties.requestedIdxs[epoch]
+
 	for _, idx := range dutiesForEpoch.requestedIdxs {
-		if !slices.Contains(fetchedVidxs, idx) {
+		if !slices.Contains(alreadyRequestedIdxs, idx) {
 			appended = true
 
 			newlyFetchedIdxs = append(newlyFetchedIdxs, idx)
@@ -757,18 +754,15 @@ func (c *DutiesCache) storeOrAmendAttesterDuties(epoch eth2p0.Epoch, dutiesForEp
 		return dutiesForEpoch.duties, true
 	}
 
-	fetchedVidxs := make([]eth2p0.ValidatorIndex, 0, len(alreadySavedDuties))
-	for _, d := range alreadySavedDuties {
-		fetchedVidxs = append(fetchedVidxs, d.ValidatorIndex)
-	}
-
 	appended := false
 
 	// In the scenarios where we reach this code, it's very likely that the validator client is making 1 call per validator index, hence those O(n^2) loops are not a problem.
 	newlyFetchedIdxs := []eth2p0.ValidatorIndex{}
 
+	alreadyRequestedIdxs := c.attesterDuties.requestedIdxs[epoch]
+
 	for _, idx := range dutiesForEpoch.requestedIdxs {
-		if !slices.Contains(fetchedVidxs, idx) {
+		if !slices.Contains(alreadyRequestedIdxs, idx) {
 			appended = true
 
 			newlyFetchedIdxs = append(newlyFetchedIdxs, idx)
@@ -809,18 +803,15 @@ func (c *DutiesCache) storeOrAmendSyncDuties(epoch eth2p0.Epoch, dutiesForEpoch 
 		return dutiesForEpoch.duties, true
 	}
 
-	fetchedVidxs := make([]eth2p0.ValidatorIndex, 0, len(alreadySavedDuties))
-	for _, d := range alreadySavedDuties {
-		fetchedVidxs = append(fetchedVidxs, d.ValidatorIndex)
-	}
-
 	appended := false
 
 	// In the scenarios where we reach this code, it's very likely that the validator client is making 1 call per validator index, hence those O(n^2) loops are not a problem.
 	newlyFetchedIdxs := []eth2p0.ValidatorIndex{}
 
+	alreadyRequestedIdxs := c.syncDuties.requestedIdxs[epoch]
+
 	for _, idx := range dutiesForEpoch.requestedIdxs {
-		if !slices.Contains(fetchedVidxs, idx) {
+		if !slices.Contains(alreadyRequestedIdxs, idx) {
 			appended = true
 
 			newlyFetchedIdxs = append(newlyFetchedIdxs, idx)
@@ -854,7 +845,22 @@ func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.proposerDuties.duties {
 		if k < epoch {
 			delete(c.proposerDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.metadata {
+		if k < epoch {
 			delete(c.proposerDuties.metadata, k)
+			delete(c.proposerDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.requestedIdxs {
+		if k < epoch {
 			delete(c.proposerDuties.requestedIdxs, k)
 
 			ok = true
@@ -874,7 +880,22 @@ func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.attesterDuties.duties {
 		if k < epoch {
 			delete(c.attesterDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.metadata {
+		if k < epoch {
 			delete(c.attesterDuties.metadata, k)
+			delete(c.attesterDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.requestedIdxs {
+		if k < epoch {
 			delete(c.attesterDuties.requestedIdxs, k)
 
 			ok = true
@@ -894,7 +915,22 @@ func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.syncDuties.duties {
 		if k < epoch {
 			delete(c.syncDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.metadata {
+		if k < epoch {
 			delete(c.syncDuties.metadata, k)
+			delete(c.syncDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.requestedIdxs {
+		if k < epoch {
 			delete(c.syncDuties.requestedIdxs, k)
 
 			ok = true
@@ -914,7 +950,22 @@ func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.proposerDuties.duties {
 		if k > epoch {
 			delete(c.proposerDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.metadata {
+		if k > epoch {
 			delete(c.proposerDuties.metadata, k)
+			delete(c.proposerDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.requestedIdxs {
+		if k > epoch {
 			delete(c.proposerDuties.requestedIdxs, k)
 
 			ok = true
@@ -934,7 +985,22 @@ func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.attesterDuties.duties {
 		if k > epoch {
 			delete(c.attesterDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.metadata {
+		if k > epoch {
 			delete(c.attesterDuties.metadata, k)
+			delete(c.attesterDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.requestedIdxs {
+		if k > epoch {
 			delete(c.attesterDuties.requestedIdxs, k)
 
 			ok = true
@@ -954,7 +1020,22 @@ func (c *DutiesCache) trimAfterSyncDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.syncDuties.duties {
 		if k > epoch {
 			delete(c.syncDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.metadata {
+		if k > epoch {
 			delete(c.syncDuties.metadata, k)
+			delete(c.syncDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.requestedIdxs {
+		if k > epoch {
 			delete(c.syncDuties.requestedIdxs, k)
 
 			ok = true
