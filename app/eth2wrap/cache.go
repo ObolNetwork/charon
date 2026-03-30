@@ -4,9 +4,13 @@ package eth2wrap
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -318,6 +322,105 @@ func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 	c.trimBeforeProposerDuties(epoch - dutiesCacheTrimThreshold)
 	c.trimBeforeAttesterDuties(epoch - dutiesCacheTrimThreshold)
 	c.trimBeforeSyncDuties(epoch - dutiesCacheTrimThreshold)
+
+	c.writeTrimReport(epoch)
+}
+
+// dutiesCacheReport is the structure written to duties_cache_report.json on each Trim call.
+type dutiesCacheReport struct {
+	Timestamp string                    `json:"timestamp"`
+	TrimEpoch uint64                    `json:"trim_epoch"`
+	Proposer  dutiesCacheReportDutyType `json:"proposer"`
+	Attester  dutiesCacheReportDutyType `json:"attester"`
+	Sync      dutiesCacheReportDutyType `json:"sync"`
+}
+
+type dutiesCacheReportDutyType struct {
+	RequestedIdxs map[uint64][]eth2p0.ValidatorIndex `json:"requested_idxs"`
+	Duties        map[uint64]any                     `json:"duties"`
+	Metadata      map[uint64]map[string]any          `json:"metadata"`
+}
+
+// writeTrimReport overwrites duties_cache_report.json with the current DutiesCache state.
+func (c *DutiesCache) writeTrimReport(epoch eth2p0.Epoch) {
+	c.proposerDuties.RLock()
+	proposerIdxs := make(map[uint64][]eth2p0.ValidatorIndex, len(c.proposerDuties.requestedIdxs))
+	for e, v := range c.proposerDuties.requestedIdxs {
+		proposerIdxs[uint64(e)] = v
+	}
+	proposerDuties := make(map[uint64]any, len(c.proposerDuties.duties))
+	for e, v := range c.proposerDuties.duties {
+		proposerDuties[uint64(e)] = v
+	}
+	proposerMeta := make(map[uint64]map[string]any, len(c.proposerDuties.metadata))
+	for e, v := range c.proposerDuties.metadata {
+		proposerMeta[uint64(e)] = v
+	}
+	c.proposerDuties.RUnlock()
+
+	c.attesterDuties.RLock()
+	attesterIdxs := make(map[uint64][]eth2p0.ValidatorIndex, len(c.attesterDuties.requestedIdxs))
+	for e, v := range c.attesterDuties.requestedIdxs {
+		attesterIdxs[uint64(e)] = v
+	}
+	attesterDuties := make(map[uint64]any, len(c.attesterDuties.duties))
+	for e, v := range c.attesterDuties.duties {
+		attesterDuties[uint64(e)] = v
+	}
+	attesterMeta := make(map[uint64]map[string]any, len(c.attesterDuties.metadata))
+	for e, v := range c.attesterDuties.metadata {
+		attesterMeta[uint64(e)] = v
+	}
+	c.attesterDuties.RUnlock()
+
+	c.syncDuties.RLock()
+	syncIdxs := make(map[uint64][]eth2p0.ValidatorIndex, len(c.syncDuties.requestedIdxs))
+	for e, v := range c.syncDuties.requestedIdxs {
+		syncIdxs[uint64(e)] = v
+	}
+	syncDuties := make(map[uint64]any, len(c.syncDuties.duties))
+	for e, v := range c.syncDuties.duties {
+		syncDuties[uint64(e)] = v
+	}
+	syncMeta := make(map[uint64]map[string]any, len(c.syncDuties.metadata))
+	for e, v := range c.syncDuties.metadata {
+		syncMeta[uint64(e)] = v
+	}
+	c.syncDuties.RUnlock()
+
+	report := dutiesCacheReport{
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		TrimEpoch: uint64(epoch),
+		Proposer:  dutiesCacheReportDutyType{RequestedIdxs: proposerIdxs, Duties: proposerDuties, Metadata: proposerMeta},
+		Attester:  dutiesCacheReportDutyType{RequestedIdxs: attesterIdxs, Duties: attesterDuties, Metadata: attesterMeta},
+		Sync:      dutiesCacheReportDutyType{RequestedIdxs: syncIdxs, Duties: syncDuties, Metadata: syncMeta},
+	}
+
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		log.Warn(context.Background(), "Failed to marshal duties cache report", err)
+		return
+	}
+
+	f, err := os.OpenFile("duties_cache_report.json", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		log.Warn(context.Background(), "Failed to open duties cache report file", err)
+		return
+	}
+	defer f.Close()
+
+	if _, err = f.Write(data); err != nil {
+		log.Warn(context.Background(), "Failed to write duties cache report", err)
+		return
+	}
+
+	absPath, err := filepath.Abs("duties_cache_report.json")
+	if err != nil {
+		log.Warn(context.Background(), "Failed to resolve duties cache report path", err)
+		return
+	}
+
+	log.Info(context.Background(), "Duties cache report written", z.Str("path", absPath))
 }
 
 // InvalidateCache handles chain reorg, invalidating cached duties.
@@ -706,18 +809,15 @@ func (c *DutiesCache) storeOrAmendProposerDuties(epoch eth2p0.Epoch, dutiesForEp
 		return dutiesForEpoch.duties, true
 	}
 
-	fetchedVidxs := make([]eth2p0.ValidatorIndex, 0, len(alreadySavedDuties))
-	for _, d := range alreadySavedDuties {
-		fetchedVidxs = append(fetchedVidxs, d.ValidatorIndex)
-	}
-
 	appended := false
 
 	// In the scenarios where we reach this code, it's very likely that the validator client is making 1 call per validator index, hence those O(n^2) loops are not a problem.
 	newlyFetchedIdxs := []eth2p0.ValidatorIndex{}
 
+	alreadyRequestedIdxs := c.proposerDuties.requestedIdxs[epoch]
+
 	for _, idx := range dutiesForEpoch.requestedIdxs {
-		if !slices.Contains(fetchedVidxs, idx) {
+		if !slices.Contains(alreadyRequestedIdxs, idx) {
 			appended = true
 
 			newlyFetchedIdxs = append(newlyFetchedIdxs, idx)
@@ -757,18 +857,15 @@ func (c *DutiesCache) storeOrAmendAttesterDuties(epoch eth2p0.Epoch, dutiesForEp
 		return dutiesForEpoch.duties, true
 	}
 
-	fetchedVidxs := make([]eth2p0.ValidatorIndex, 0, len(alreadySavedDuties))
-	for _, d := range alreadySavedDuties {
-		fetchedVidxs = append(fetchedVidxs, d.ValidatorIndex)
-	}
-
 	appended := false
 
 	// In the scenarios where we reach this code, it's very likely that the validator client is making 1 call per validator index, hence those O(n^2) loops are not a problem.
 	newlyFetchedIdxs := []eth2p0.ValidatorIndex{}
 
+	alreadyRequestedIdxs := c.attesterDuties.requestedIdxs[epoch]
+
 	for _, idx := range dutiesForEpoch.requestedIdxs {
-		if !slices.Contains(fetchedVidxs, idx) {
+		if !slices.Contains(alreadyRequestedIdxs, idx) {
 			appended = true
 
 			newlyFetchedIdxs = append(newlyFetchedIdxs, idx)
@@ -809,18 +906,15 @@ func (c *DutiesCache) storeOrAmendSyncDuties(epoch eth2p0.Epoch, dutiesForEpoch 
 		return dutiesForEpoch.duties, true
 	}
 
-	fetchedVidxs := make([]eth2p0.ValidatorIndex, 0, len(alreadySavedDuties))
-	for _, d := range alreadySavedDuties {
-		fetchedVidxs = append(fetchedVidxs, d.ValidatorIndex)
-	}
-
 	appended := false
 
 	// In the scenarios where we reach this code, it's very likely that the validator client is making 1 call per validator index, hence those O(n^2) loops are not a problem.
 	newlyFetchedIdxs := []eth2p0.ValidatorIndex{}
 
+	alreadyRequestedIdxs := c.syncDuties.requestedIdxs[epoch]
+
 	for _, idx := range dutiesForEpoch.requestedIdxs {
-		if !slices.Contains(fetchedVidxs, idx) {
+		if !slices.Contains(alreadyRequestedIdxs, idx) {
 			appended = true
 
 			newlyFetchedIdxs = append(newlyFetchedIdxs, idx)
@@ -854,7 +948,22 @@ func (c *DutiesCache) trimBeforeProposerDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.proposerDuties.duties {
 		if k < epoch {
 			delete(c.proposerDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.metadata {
+		if k < epoch {
 			delete(c.proposerDuties.metadata, k)
+			delete(c.proposerDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.requestedIdxs {
+		if k < epoch {
 			delete(c.proposerDuties.requestedIdxs, k)
 
 			ok = true
@@ -874,7 +983,22 @@ func (c *DutiesCache) trimBeforeAttesterDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.attesterDuties.duties {
 		if k < epoch {
 			delete(c.attesterDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.metadata {
+		if k < epoch {
 			delete(c.attesterDuties.metadata, k)
+			delete(c.attesterDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.requestedIdxs {
+		if k < epoch {
 			delete(c.attesterDuties.requestedIdxs, k)
 
 			ok = true
@@ -894,7 +1018,22 @@ func (c *DutiesCache) trimBeforeSyncDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.syncDuties.duties {
 		if k < epoch {
 			delete(c.syncDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.metadata {
+		if k < epoch {
 			delete(c.syncDuties.metadata, k)
+			delete(c.syncDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.requestedIdxs {
+		if k < epoch {
 			delete(c.syncDuties.requestedIdxs, k)
 
 			ok = true
@@ -914,7 +1053,22 @@ func (c *DutiesCache) trimAfterProposerDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.proposerDuties.duties {
 		if k > epoch {
 			delete(c.proposerDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.metadata {
+		if k > epoch {
 			delete(c.proposerDuties.metadata, k)
+			delete(c.proposerDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.proposerDuties.requestedIdxs {
+		if k > epoch {
 			delete(c.proposerDuties.requestedIdxs, k)
 
 			ok = true
@@ -934,7 +1088,22 @@ func (c *DutiesCache) trimAfterAttesterDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.attesterDuties.duties {
 		if k > epoch {
 			delete(c.attesterDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.metadata {
+		if k > epoch {
 			delete(c.attesterDuties.metadata, k)
+			delete(c.attesterDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.attesterDuties.requestedIdxs {
+		if k > epoch {
 			delete(c.attesterDuties.requestedIdxs, k)
 
 			ok = true
@@ -954,7 +1123,22 @@ func (c *DutiesCache) trimAfterSyncDuties(epoch eth2p0.Epoch) bool {
 	for k := range c.syncDuties.duties {
 		if k > epoch {
 			delete(c.syncDuties.duties, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.metadata {
+		if k > epoch {
 			delete(c.syncDuties.metadata, k)
+			delete(c.syncDuties.requestedIdxs, k)
+
+			ok = true
+		}
+	}
+
+	for k := range c.syncDuties.requestedIdxs {
+		if k > epoch {
 			delete(c.syncDuties.requestedIdxs, k)
 
 			ok = true
