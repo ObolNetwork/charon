@@ -175,6 +175,81 @@ func TestDutiesCacheTrimSequential(t *testing.T) {
 	require.True(t, epochCached(cache, 5), "epoch 5 should still be present after Trim(8)")
 }
 
+// TestDutiesCacheRequestedIdxsNoDuplicates verifies that storing duties for the same epoch
+// multiple times does not grow requestedIdxs when the indices were already requested,
+// even when those indices have no corresponding duty object (e.g. non-proposers).
+func TestDutiesCacheRequestedIdxsNoDuplicates(t *testing.T) {
+	const epoch = eth2p0.Epoch(5)
+
+	t.Run("proposer", func(t *testing.T) {
+		cache := NewDutiesCache(nil, nil)
+
+		// Only validator 1 has a proposer duty; validators 2,3 have none.
+		cache.storeOrAmendProposerDuties(epoch, ProposerDutiesForEpoch{
+			duties:        []eth2v1.ProposerDuty{{ValidatorIndex: 1}},
+			metadata:      map[string]any{},
+			requestedIdxs: []eth2p0.ValidatorIndex{1, 2, 3},
+		})
+
+		// Second call with same indices — no new duties (non-proposers return empty).
+		cache.storeOrAmendProposerDuties(epoch, ProposerDutiesForEpoch{
+			duties:        []eth2v1.ProposerDuty{},
+			metadata:      map[string]any{},
+			requestedIdxs: []eth2p0.ValidatorIndex{2, 3},
+		})
+
+		cache.proposerDuties.RLock()
+		got := len(cache.proposerDuties.requestedIdxs[epoch])
+		cache.proposerDuties.RUnlock()
+
+		require.Equal(t, 3, got, "requestedIdxs should not grow when re-requesting already-tracked indices")
+	})
+
+	t.Run("attester", func(t *testing.T) {
+		cache := NewDutiesCache(nil, nil)
+
+		cache.storeOrAmendAttesterDuties(epoch, AttesterDutiesForEpoch{
+			duties:        []eth2v1.AttesterDuty{{ValidatorIndex: 1}},
+			metadata:      map[string]any{},
+			requestedIdxs: []eth2p0.ValidatorIndex{1, 2, 3},
+		})
+
+		cache.storeOrAmendAttesterDuties(epoch, AttesterDutiesForEpoch{
+			duties:        []eth2v1.AttesterDuty{},
+			metadata:      map[string]any{},
+			requestedIdxs: []eth2p0.ValidatorIndex{2, 3},
+		})
+
+		cache.attesterDuties.RLock()
+		got := len(cache.attesterDuties.requestedIdxs[epoch])
+		cache.attesterDuties.RUnlock()
+
+		require.Equal(t, 3, got, "requestedIdxs should not grow when re-requesting already-tracked indices")
+	})
+
+	t.Run("sync", func(t *testing.T) {
+		cache := NewDutiesCache(nil, nil)
+
+		cache.storeOrAmendSyncDuties(epoch, SyncDutiesForEpoch{
+			duties:        []eth2v1.SyncCommitteeDuty{{ValidatorIndex: 1}},
+			metadata:      map[string]any{},
+			requestedIdxs: []eth2p0.ValidatorIndex{1, 2, 3},
+		})
+
+		cache.storeOrAmendSyncDuties(epoch, SyncDutiesForEpoch{
+			duties:        []eth2v1.SyncCommitteeDuty{},
+			metadata:      map[string]any{},
+			requestedIdxs: []eth2p0.ValidatorIndex{2, 3},
+		})
+
+		cache.syncDuties.RLock()
+		got := len(cache.syncDuties.requestedIdxs[epoch])
+		cache.syncDuties.RUnlock()
+
+		require.Equal(t, 3, got, "requestedIdxs should not grow when re-requesting already-tracked indices")
+	})
+}
+
 func TestDutiesCacheTrimThousandEpochs(t *testing.T) {
 	const total = 1000
 
