@@ -24,7 +24,7 @@ on:
           - "c6a.8xlarge"
           - "c6a.12xlarge"
       lifetime_minutes:
-        description: "Cluster lifetime in minutes (60-480)"
+        description: "Cluster lifetime in minutes (60-300)"
         required: false
         default: "60"
         type: string
@@ -40,7 +40,7 @@ permissions:
 jobs:
   kurtosis-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(inputs.lifetime_minutes) + 60 }}
+    timeout-minutes: 360
     steps:
       - name: Validate secrets
         env:
