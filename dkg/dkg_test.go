@@ -540,9 +540,6 @@ func verifyDistValidators(t *testing.T, lock cluster.Lock, def cluster.Definitio
 }
 
 func TestSyncFlow(t *testing.T) {
-	// Flaky test, skipping until fixed.
-	t.Skip()
-
 	tests := []struct {
 		name       string
 		connect    []int // Initial connections
@@ -639,6 +636,9 @@ func TestSyncFlow(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					require.Fail(t, "timeout waiting for peer to stop", "peer_index=%d", idx)
 				}
+
+				// Remove the private key lock file so the peer can be restarted.
+				_ = os.Remove(p2p.KeyPath(configs[idx].DataDir) + ".lock")
 			}
 
 			// Wait for remaining-initial peers to update connection counts.
