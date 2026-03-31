@@ -40,7 +40,7 @@ permissions:
 jobs:
   kurtosis-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJSON(inputs.lifetime_minutes) + 60 }}
+    timeout-minutes: 540
     steps:
       - name: Validate secrets
         env:
