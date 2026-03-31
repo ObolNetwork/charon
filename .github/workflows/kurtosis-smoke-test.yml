@@ -16,8 +16,13 @@ on:
       instance_type:
         description: "AWS EC2 instance type"
         required: false
-        default: "c6a.12xlarge"
-        type: string
+        default: "c6a.4xlarge"
+        type: choice
+        options:
+          - "c6a.2xlarge"
+          - "c6a.4xlarge"
+          - "c6a.8xlarge"
+          - "c6a.12xlarge"
       lifetime_minutes:
         description: "Cluster lifetime in minutes (60-480)"
         required: false
@@ -28,22 +33,24 @@ concurrency:
   group: kurtosis-smoke-test
   cancel-in-progress: false
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   kurtosis-smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: ${{ fromJSON(inputs.lifetime_minutes) + 60 }}
     steps:
       - name: Validate secrets
         env:
-          KURTOSIS_AWS_ACCESS_KEY_ID: ${{ secrets.KURTOSIS_AWS_ACCESS_KEY_ID }}
-          KURTOSIS_AWS_SECRET_ACCESS_KEY: ${{ secrets.KURTOSIS_AWS_SECRET_ACCESS_KEY }}
+          KURTOSIS_AWS_IAM_ROLE: ${{ secrets.KURTOSIS_AWS_IAM_ROLE }}
           KURTOSIS_AWS_REGION: ${{ secrets.KURTOSIS_AWS_REGION }}
           KURTOSIS_MONITORING_TOKEN: ${{ secrets.KURTOSIS_MONITORING_TOKEN }}
           OBOL_GRAFANA_API_TOKEN: ${{ secrets.OBOL_GRAFANA_API_TOKEN }}
         run: |
           missing=()
-          [ -z "$KURTOSIS_AWS_ACCESS_KEY_ID" ] && missing+=("KURTOSIS_AWS_ACCESS_KEY_ID")
-          [ -z "$KURTOSIS_AWS_SECRET_ACCESS_KEY" ] && missing+=("KURTOSIS_AWS_SECRET_ACCESS_KEY")
+          [ -z "$KURTOSIS_AWS_IAM_ROLE" ] && missing+=("KURTOSIS_AWS_IAM_ROLE")
           [ -z "$KURTOSIS_AWS_REGION" ] && missing+=("KURTOSIS_AWS_REGION")
           [ -z "$KURTOSIS_MONITORING_TOKEN" ] && missing+=("KURTOSIS_MONITORING_TOKEN")
           [ -z "$OBOL_GRAFANA_API_TOKEN" ] && missing+=("OBOL_GRAFANA_API_TOKEN")
@@ -52,6 +59,13 @@ jobs:
             exit 1
           fi
           echo "All required secrets are configured."
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
+        with:
+          role-to-assume: ${{ secrets.KURTOSIS_AWS_IAM_ROLE }}
+          role-session-name: github-actions-aws
+          aws-region: ${{ secrets.KURTOSIS_AWS_REGION }}
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -71,9 +85,6 @@ jobs:
       - name: Deploy Kurtosis clusters
         id: deploy
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.KURTOSIS_AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.KURTOSIS_AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.KURTOSIS_AWS_REGION }}
           CHARON_VERSION: "obolnetwork/charon:${{ inputs.charon_image_tag }}"
           KURTOSIS_MONITORING_TOKEN: ${{ secrets.KURTOSIS_MONITORING_TOKEN }}
           KURTOSIS_BRANCH: ${{ inputs.branch }}
