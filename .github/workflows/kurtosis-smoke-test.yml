@@ -93,12 +93,19 @@ jobs:
         run: |
           echo "deploy_start=$(date +%s)" >> "$GITHUB_OUTPUT"
           cd /tmp/kurtosis-charon/kurtosis-aws-runner
-          yes | python kurtosis_aws_runner.py \
+          set -o pipefail
+          echo y | python kurtosis_aws_runner.py \
             --branch "$KURTOSIS_BRANCH" \
             --lifetime "${LIFETIME_MINUTES}m" \
             --monitoring-token "$KURTOSIS_MONITORING_TOKEN" \
             --instance-type "$KURTOSIS_INSTANCE_TYPE" \
-            --on-demand
+            --on-demand 2>&1 | tee /tmp/deploy_output.txt
+          CLUSTER_COUNT=$(sed -n 's/.*Found \([0-9][0-9]*\) combinations.*/\1/p' /tmp/deploy_output.txt | head -1)
+          if [ -z "$CLUSTER_COUNT" ] || [ "$CLUSTER_COUNT" -lt 1 ] 2>/dev/null; then
+            echo "::error::Failed to extract cluster count from deploy output"
+            exit 1
+          fi
+          echo "cluster_count=$CLUSTER_COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Wait for clusters to finish
         env:
@@ -117,15 +124,17 @@ jobs:
           CHARON_IMAGE_TAG: ${{ inputs.charon_image_tag }}
           KURTOSIS_BRANCH: ${{ inputs.branch }}
           KURTOSIS_INSTANCE_TYPE: ${{ inputs.instance_type }}
+          EXPECTED_CLUSTERS: ${{ steps.deploy.outputs.cluster_count }}
         run: |
-          ALERT_FROM=$((DEPLOY_START + 15 * 60))
+          ALERT_FROM=$((DEPLOY_START + 20 * 60))
           ALERT_TO=$((DEPLOY_START + (LIFETIME_MINUTES - 5) * 60))
 
           echo "Alert window: $(date -u -d @${ALERT_FROM} +%Y-%m-%dT%H:%M:%SZ) to $(date -u -d @${ALERT_TO} +%Y-%m-%dT%H:%M:%SZ)"
 
           set +e
           python scripts/debug/kurtosis_alerts.py \
-            --from "$ALERT_FROM" --to "$ALERT_TO" | tee report.txt
+            --from "$ALERT_FROM" --to "$ALERT_TO" \
+            --expected-clusters "$EXPECTED_CLUSTERS" | tee report.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
@@ -153,7 +162,7 @@ jobs:
           ALERTS_EXIT_CODE: ${{ steps.alerts.outputs.alerts_exit_code }}
         run: |
           if [ "$ALERTS_EXIT_CODE" != "0" ]; then
-            echo "::error::Firing alerts detected during Kurtosis smoke test. See report artifact for details."
+            echo "::error::Smoke test failed: firing alerts detected or incomplete metrics coverage. See report artifact for details."
             exit 1
           fi
-          echo "No firing alerts detected. Smoke test passed."
+          echo "Smoke test passed: no firing alerts, all clusters reporting."
