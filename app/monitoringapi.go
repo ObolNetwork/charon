@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/health"
 	"github.com/obolnetwork/charon/app/lifecycle"
@@ -45,12 +46,12 @@ var (
 // wireMonitoringAPI constructs the monitoring API and registers it with the life cycle manager.
 // It serves prometheus metrics, pprof profiling and the runtime enr.
 func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, debugAddr string,
-	p2pNode host.Host, eth2Cl eth2wrap.Client, beaconNodeAddrs []string,
+	p2pNode host.Host, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner,
 	peerIDs []peer.ID, registry *prometheus.Registry, consensusDebugger http.Handler,
 	pubkeys []core.PubKey, vapiCalls <-chan struct{},
 	numValidators int,
 ) {
-	beaconNodeVersionMetric(ctx, eth2Cl, beaconNodeAddrs, clockwork.NewRealClock())
+	consensusAndExecutionVersionMetric(ctx, eth2Cl, beaconNodeAddrs, eth1Cl, clockwork.NewRealClock())
 
 	mux := http.NewServeMux()
 
@@ -253,12 +254,13 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 	return eth2Resp.Data.IsSyncing, eth2Resp.Data.SyncDistance, nil
 }
 
-// beaconNodeVersionMetric sets the beacon node version gauge.
-func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, clk clockwork.Clock) {
+// consensusAndExecutionVersionMetric sets the beacon node and execution engine version gauges.
+func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner, clk clockwork.Clock) {
 	nodeVersionTicker := clk.NewTicker(10 * time.Minute)
 
 	setNodeVersionAndID := func() {
 		beaconNodeVersionGauge.Reset()
+		executionEngineVersionGauge.Reset()
 
 		// Query each beacon node individually
 		for _, addr := range beaconNodeAddrs {
@@ -286,6 +288,17 @@ func beaconNodeVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beacon
 			beaconNodeVersionGauge.WithLabelValues(version, beaconID).Set(1)
 
 			eth2wrap.CheckBeaconNodeVersion(ctx, version)
+		}
+
+		// Query the execution engine version
+		elVersion, err := eth1Cl.ClientVersion(ctx)
+		if errors.Is(err, eth1wrap.ErrNoExecutionEngineAddr) { //nolint:revive
+			// No execution engine configured, skip.
+		} else if err != nil {
+			log.Warn(ctx, "Failed to fetch execution engine version", err)
+		} else {
+			executionEngineVersionGauge.WithLabelValues(elVersion).Set(1)
+			eth1wrap.CheckExecutionEngineVersion(ctx, elVersion)
 		}
 	}
 

@@ -72,6 +72,7 @@ type EthClientFactoryFn func(ctx context.Context, rawurl string) (EthClient, err
 type EthClientRunner interface {
 	Run(ctx context.Context)
 	VerifySmartContractBasedSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error)
+	ClientVersion(ctx context.Context) (string, error)
 }
 
 type Erc1271FactoryFn func(contractAddress string, client EthClient) (Erc1271, error)

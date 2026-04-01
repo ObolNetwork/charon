@@ -12,9 +12,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
+	eth1wrapmocks "github.com/obolnetwork/charon/app/eth1wrap/mocks"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -163,6 +166,96 @@ func TestStartChecker(t *testing.T) {
 					return readyErrFunc() == nil
 				}, waitFor, tickInterval)
 			}
+		})
+	}
+}
+
+func TestConsensusAndExecutionVersionMetric(t *testing.T) {
+	tests := []struct {
+		name                 string
+		beaconAddrs          []string
+		nodeVersionErr       error
+		elVersion            string
+		elErr                error
+		wantNodeVersionCalls int
+	}{
+		{
+			name:                 "success single beacon node with el",
+			beaconAddrs:          []string{"http://beacon1:5052"},
+			elVersion:            "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+			wantNodeVersionCalls: 1,
+		},
+		{
+			name:                 "success multiple beacon nodes with el",
+			beaconAddrs:          []string{"http://beacon1:5052", "http://beacon2:5052"},
+			elVersion:            "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+			wantNodeVersionCalls: 2,
+		},
+		{
+			name:                 "beacon node version error skips that node",
+			beaconAddrs:          []string{"http://beacon1:5052"},
+			nodeVersionErr:       errors.New("connection refused"),
+			wantNodeVersionCalls: 1,
+		},
+		{
+			name:        "no beacon nodes still queries el",
+			beaconAddrs: []string{},
+			elVersion:   "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+		},
+		{
+			name:                 "el error no addr silently skipped",
+			beaconAddrs:          []string{"http://beacon1:5052"},
+			elErr:                eth1wrap.ErrNoExecutionEngineAddr,
+			wantNodeVersionCalls: 1,
+		},
+		{
+			name:                 "el generic error does not panic",
+			beaconAddrs:          []string{"http://beacon1:5052"},
+			elErr:                errors.New("rpc connection error"),
+			wantNodeVersionCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			// done is closed by ClientVersion (always the last call in setNodeVersionAndID),
+			// providing a happens-before guarantee that nodeVersionCalls is safe to read after.
+			done := make(chan struct{})
+
+			var nodeVersionCalls int
+
+			bmock, err := beaconmock.New(t.Context())
+			require.NoError(t, err)
+
+			bmock.NodeVersionFunc = func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
+				nodeVersionCalls++
+
+				if tt.nodeVersionErr != nil {
+					return nil, tt.nodeVersionErr
+				}
+
+				return &eth2api.Response[string]{Data: "Lighthouse/v5.3.0-aa022f4/x86_64-linux"}, nil
+			}
+
+			eth1Cl := eth1wrapmocks.NewEthClientRunner(t)
+			eth1Cl.On("ClientVersion", mock.Anything).Run(func(_ mock.Arguments) {
+				close(done)
+			}).Return(tt.elVersion, tt.elErr).Once()
+
+			clock := clockwork.NewFakeClock()
+
+			consensusAndExecutionVersionMetric(ctx, bmock, tt.beaconAddrs, eth1Cl, clock)
+
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for ClientVersion call")
+			}
+
+			require.Equal(t, tt.wantNodeVersionCalls, nodeVersionCalls)
 		})
 	}
 }

@@ -143,6 +143,28 @@ func (noopClient) VerifySmartContractBasedSignature(_ string, _ [32]byte, _ []by
 	return false, ErrNoExecutionEngineAddr
 }
 
+func (noopClient) ClientVersion(_ context.Context) (string, error) {
+	return "", ErrNoExecutionEngineAddr
+}
+
+// ClientVersion returns the execution engine client version string via web3_clientVersion RPC.
+func (cl *client) ClientVersion(ctx context.Context) (string, error) {
+	cl.Lock()
+	defer cl.Unlock()
+
+	if cl.eth1client == nil {
+		return "", ErrEthClientNotConnected
+	}
+
+	var ver string
+	if err := cl.eth1client.Client().CallContext(ctx, &ver, "web3_clientVersion"); err != nil {
+		cl.maybeReconnect()
+		return "", errors.Wrap(err, "get execution layer client version")
+	}
+
+	return ver, nil
+}
+
 func (cl *client) maybeReconnect() {
 	cl.reconnectCh <- struct{}{}
 }
