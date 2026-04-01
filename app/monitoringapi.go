@@ -51,7 +51,7 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 	pubkeys []core.PubKey, vapiCalls <-chan struct{},
 	numValidators int,
 ) {
-	consensuAndExecutionVersionMetric(ctx, eth2Cl, beaconNodeAddrs, eth1Cl, clockwork.NewRealClock())
+	consensusAndExecutionVersionMetric(ctx, eth2Cl, beaconNodeAddrs, eth1Cl, clockwork.NewRealClock())
 
 	mux := http.NewServeMux()
 
