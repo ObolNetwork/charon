@@ -254,8 +254,8 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 	return eth2Resp.Data.IsSyncing, eth2Resp.Data.SyncDistance, nil
 }
 
-// consensuAndExecutionVersionMetric sets the beacon node and execution engine version gauges.
-func consensuAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner, clk clockwork.Clock) {
+// consensusAndExecutionVersionMetric sets the beacon node and execution engine version gauges.
+func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner, clk clockwork.Clock) {
 	nodeVersionTicker := clk.NewTicker(10 * time.Minute)
 
 	setNodeVersionAndID := func() {
