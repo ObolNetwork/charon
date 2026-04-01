@@ -323,8 +323,8 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	consensusDebugger := consensus.NewDebugger()
 
-	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, p2pNode, eth2Cl, conf.BeaconNodeAddrs, peerIDs,
-		promRegistry, consensusDebugger, pubkeys, vapiCalls, len(lock.Validators))
+	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, p2pNode, eth2Cl, conf.BeaconNodeAddrs, eth1Cl,
+		peerIDs, promRegistry, consensusDebugger, pubkeys, vapiCalls, len(lock.Validators))
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, p2pNode, p2pKey, eth2Cl, subEth2Cl,
 		peerIDs, sender, consensusDebugger, pubkeys, sseListener, vapiCallsFunc)

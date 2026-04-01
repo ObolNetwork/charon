@@ -90,6 +90,13 @@ var (
 		Help:      "Constant gauge with labels set to the version and beacon_id of the upstream beacon node",
 	}, []string{"version", "beacon_id"})
 
+	executionEngineVersionGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "execution_layer",
+		Name:      "version",
+		Help:      "Constant gauge with labels set to the version of the upstream execution layer",
+	}, []string{"version"})
+
 	thresholdGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "cluster",
 		Name:      "threshold",
