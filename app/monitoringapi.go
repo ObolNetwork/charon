@@ -292,7 +292,9 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 
 		// Query the execution engine version
 		elVersion, err := eth1Cl.ClientVersion(ctx)
-		if err != nil {
+		if errors.Is(err, eth1wrap.ErrNoExecutionEngineAddr) {
+			// No execution engine configured, skip.
+		} else if err != nil {
 			log.Warn(ctx, "Failed to fetch execution engine version", err)
 		} else {
 			executionEngineVersionGauge.WithLabelValues(elVersion).Set(1)
