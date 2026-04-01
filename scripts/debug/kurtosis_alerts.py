@@ -2,12 +2,14 @@
 """
 Fetches alert history for Charon Kurtosis alerts from Grafana.
 Requires OBOL_GRAFANA_API_TOKEN environment variable.
-Usage: python kurtosis_alerts.py --from <start> --to <end>
-  --from: Start time (ISO 8601 e.g. 2024-03-01T00:00:00Z, or epoch seconds)
-  --to:   End time (ISO 8601 e.g. 2024-03-02T00:00:00Z, or epoch seconds)
+Usage: python kurtosis_alerts.py --from <start> --to <end> [--expected-clusters N]
+  --from:               Start time (ISO 8601 e.g. 2024-03-01T00:00:00Z, or epoch seconds)
+  --to:                 End time (ISO 8601 e.g. 2024-03-02T00:00:00Z, or epoch seconds)
+  --expected-clusters:  Expected number of clusters (queries Prometheus to verify coverage)
 
 Outputs a structured report to stdout.
-Exit code 0 if no firing alerts, 1 if firing alerts detected.
+Exit code 0 if no firing alerts and all expected clusters report metrics.
+Exit code 1 if firing alerts detected or metrics coverage is incomplete.
 """
 
 import argparse
@@ -23,6 +25,10 @@ from datetime import datetime, timezone
 GRAFANA_BASE = "https://grafana.monitoring.gcp.obol.tech"
 TARGET_FOLDER = "Charon Kurtosis Alerts"
 DASHBOARD_PATH = "/d/d6qujIJVk/charon-overview-v3"
+MIN_QUERY_DURATION_SECONDS = 600
+
+# PromQL: find all unique kurtosis clusters that reported readiness metrics within the time window.
+METRICS_CLUSTER_QUERY = """group by (cluster_name, cluster_hash) (last_over_time(app_monitoring_readyz{{cluster_network="kurtosis"}}[{duration}s]))"""
 
 
 def get_auth_header() -> dict:
@@ -177,12 +183,59 @@ def build_grafana_link(cluster_name: str, cluster_hash: str, from_ms: int, to_ms
     return f"{GRAFANA_BASE}{DASHBOARD_PATH}?{params}"
 
 
+def fetch_prometheus_datasource_id(headers: dict) -> int | None:
+    """Find the ID of a Prometheus datasource in Grafana."""
+    url = f"{GRAFANA_BASE}/api/datasources"
+    datasources = fetch_json(url, headers)
+    if not datasources:
+        return None
+    for ds in datasources:
+        if ds.get("type") == "prometheus":
+            return ds.get("id")
+    return None
+
+
+def query_metrics_clusters(
+    headers: dict, ds_id: int, from_s: int, to_s: int,
+) -> list[tuple[str, str]] | None:
+    """Query Prometheus via Grafana for kurtosis clusters reporting metrics.
+
+    Returns sorted list of (cluster_name, cluster_hash) tuples, or None on error.
+    """
+    duration = max(to_s - from_s, MIN_QUERY_DURATION_SECONDS)
+    query = METRICS_CLUSTER_QUERY.format(duration=duration)
+    params = urllib.parse.urlencode({
+        "query": query,
+        "time": str(to_s),
+    })
+    url = f"{GRAFANA_BASE}/api/datasources/proxy/{ds_id}/api/v1/query?{params}"
+    result = fetch_json(url, headers, silent=True)
+    if not result or result.get("status") != "success":
+        return None
+
+    clusters = []
+    for series in result.get("data", {}).get("result", []):
+        metric = series.get("metric", {})
+        name = metric.get("cluster_name", "")
+        hash_val = metric.get("cluster_hash", "")
+        if name:
+            clusters.append((name, hash_val))
+    return sorted(clusters)
+
+
 def is_firing(entry: dict) -> bool:
     """Check if an alert entry represents a firing alert."""
     return entry["state"].lower() == "alerting"
 
 
-def print_report(entries: list[dict], from_ms: int, to_ms: int, rules: list[dict]):
+def print_report(
+    entries: list[dict],
+    from_ms: int,
+    to_ms: int,
+    rules: list[dict],
+    metrics_clusters: list[tuple[str, str]] | None = None,
+    expected_clusters: int = 0,
+):
     """Print a structured human-readable report."""
     firing = [e for e in entries if is_firing(e)]
 
@@ -219,7 +272,25 @@ def print_report(entries: list[dict], from_ms: int, to_ms: int, rules: list[dict
             print(f"   {link}")
     print()
 
-    # === Section C: Firing Alerts ===
+    # === Section: Metrics Coverage ===
+    if expected_clusters > 0:
+        print("=== Metrics Coverage ===")
+        if metrics_clusters is None:
+            print("  WARNING: Failed to query metrics from Prometheus")
+            print(f"  Expected clusters: {expected_clusters}")
+            print("  Clusters reporting metrics: unknown")
+        else:
+            print(f"  Expected clusters: {expected_clusters}")
+            print(f"  Clusters reporting metrics: {len(metrics_clusters)}")
+            if len(metrics_clusters) < expected_clusters:
+                print("  Reporting clusters:")
+                for name, h in metrics_clusters:
+                    print(f"    - {name} (hash: {h})")
+            else:
+                print("  All expected clusters are reporting metrics.")
+        print()
+
+    # === Section: Firing Alerts ===
     print("=== Firing Alerts ===")
     if not firing:
         print("  No firing alerts detected.")
@@ -266,6 +337,10 @@ def main():
         "--to", dest="time_to", required=True,
         help="End time (ISO 8601 or epoch seconds)",
     )
+    parser.add_argument(
+        "--expected-clusters", type=int, default=0,
+        help="Expected number of clusters (0 to skip metrics check)",
+    )
     args = parser.parse_args()
 
     from_ms = parse_timestamp(args.time_from)
@@ -304,12 +379,28 @@ def main():
     entries = [format_alert_entry(a) for a in matching]
     entries.sort(key=lambda e: e["timestamp"])
 
-    # Print report
-    print_report(entries, from_ms, to_ms, rules)
+    # Query Prometheus for metrics coverage if expected clusters specified
+    metrics_clusters = None
+    if args.expected_clusters > 0:
+        ds_id = fetch_prometheus_datasource_id(headers)
+        if ds_id is not None:
+            metrics_clusters = query_metrics_clusters(
+                headers, ds_id, from_ms // 1000, to_ms // 1000,
+            )
 
-    # Exit code based on firing alerts
+    # Print report
+    print_report(
+        entries, from_ms, to_ms, rules,
+        metrics_clusters, args.expected_clusters,
+    )
+
+    # Exit code based on firing alerts and metrics coverage
     has_firing = any(is_firing(e) for e in entries)
-    sys.exit(1 if has_firing else 0)
+    metrics_incomplete = (
+        args.expected_clusters > 0
+        and (metrics_clusters is None or len(metrics_clusters) < args.expected_clusters)
+    )
+    sys.exit(1 if has_firing or metrics_incomplete else 0)
 
 
 if __name__ == "__main__":
