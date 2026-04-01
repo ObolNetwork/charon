@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
@@ -176,6 +177,97 @@ func TestBody(t *testing.T) {
 				t.Fatalf("Expected error to contain '%s', got nil", test.Error)
 			} else if !strings.Contains(err.Error(), test.Error) {
 				t.Fatalf("Expected error to contain '%s', got: %v", test.Error, err)
+			}
+		})
+	}
+}
+
+func TestVerifyBotSkip(t *testing.T) {
+	tests := []struct {
+		Name    string
+		PR      PR
+		Skipped bool // true means verify() should return nil without format checks
+	}{
+		{
+			Name: "dependabot skipped",
+			PR: PR{
+				Title:   "build(deps): bump some-lib from 1.0 to 2.0",
+				Body:    "Bumps some-lib.",
+				ID:      "node_1",
+				Creator: PRUser{Login: "dependabot[bot]"},
+			},
+			Skipped: true,
+		},
+		{
+			Name: "renovate skipped",
+			PR: PR{
+				Title:   "chore(deps): update some-lib to v2",
+				Body:    "This PR contains the following updates.",
+				ID:      "node_2",
+				Creator: PRUser{Login: "renovate[bot]"},
+			},
+			Skipped: true,
+		},
+		{
+			Name: "dependabot title but wrong creator not skipped",
+			PR: PR{
+				Title:   "build(deps): bump some-lib from 1.0 to 2.0",
+				Body:    "Bumps some-lib.",
+				ID:      "node_3",
+				Creator: PRUser{Login: "someuser"},
+			},
+			Skipped: false,
+		},
+		{
+			Name: "renovate title but wrong creator not skipped",
+			PR: PR{
+				Title:   "chore(deps): update some-lib to v2",
+				Body:    "This PR contains the following updates.",
+				ID:      "node_4",
+				Creator: PRUser{Login: "someuser"},
+			},
+			Skipped: false,
+		},
+		{
+			Name: "dependabot creator but wrong title not skipped",
+			PR: PR{
+				Title:   "chore(deps): bump some-lib from 1.0 to 2.0",
+				Body:    "Bumps some-lib.",
+				ID:      "node_5",
+				Creator: PRUser{Login: "dependabot[bot]"},
+			},
+			Skipped: false,
+		},
+		{
+			Name: "renovate creator but wrong title not skipped",
+			PR: PR{
+				Title:   "build(deps): update some-lib to v2",
+				Body:    "This PR contains the following updates.",
+				ID:      "node_6",
+				Creator: PRUser{Login: "renovate[bot]"},
+			},
+			Skipped: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			b, err := json.Marshal(test.PR)
+			if err != nil {
+				t.Fatalf("marshal PR: %v", err)
+			}
+
+			t.Setenv("GITHUB_PR", string(b))
+
+			err = verify()
+			if test.Skipped {
+				if err != nil {
+					t.Fatalf("expected bot PR to be skipped (nil error), got: %v", err)
+				}
+			} else {
+				// Non-bot PRs will fail title/body format checks — that's expected.
+				if err == nil {
+					t.Fatalf("expected non-bot PR to fail format checks, got nil error")
+				}
 			}
 		})
 	}
