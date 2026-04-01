@@ -22,10 +22,15 @@ import (
 
 var titlePrefix = regexp.MustCompile(`^[*\w]+(/[*\w]+)?$`)
 
+type PRUser struct {
+	Login string `json:"login"`
+}
+
 type PR struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
-	ID    string `json:"node_id"`
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	ID      string `json:"node_id"`
+	Creator PRUser `json:"user"`
 }
 
 // PRFromEnv returns the PR by parsing it from "GITHUB_PR" env var or an error.
@@ -42,7 +47,7 @@ func PRFromEnv() (PR, error) {
 		return PR{}, errors.Wrap(err, "unmarshal PR body")
 	}
 
-	if pr.Title == "" || pr.Body == "" || pr.ID == "" {
+	if pr.Title == "" || pr.Body == "" || pr.ID == "" || pr.Creator.Login == "" {
 		return PR{}, errors.New("pr field not set")
 	}
 
@@ -61,12 +66,12 @@ func verify() error {
 	}
 
 	// Skip dependabot PRs.
-	if strings.Contains(pr.Title, "build(deps)") && strings.Contains(pr.Body, "dependabot") {
+	if strings.Contains(pr.Title, "build(deps)") && pr.Creator.Login == "dependabot[bot]" {
 		return nil
 	}
 
 	// Skip Renovate PRs.
-	if strings.Contains(pr.Title, "chore(deps)") && strings.Contains(pr.Body, "Renovate") {
+	if strings.Contains(pr.Title, "chore(deps)") && pr.Creator.Login == "renovate[bot]" {
 		return nil
 	}
 
