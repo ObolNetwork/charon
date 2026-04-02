@@ -2,7 +2,7 @@ name: Kurtosis Smoke Test
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       charon_image_tag:
@@ -168,3 +168,35 @@ jobs:
             exit 1
           fi
           echo "Smoke test passed: no firing alerts, all clusters reporting."
+
+      - name: Notify Slack on success
+        if: success()
+        uses: rtCamp/action-slack-notify@c8d87ceaa24406d9749a1c181fed3a7004bbd7aa # v2.3.2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_PROTOCOL_WEBHOOK }}
+          SLACK_COLOR: good
+          SLACK_TITLE: "Kurtosis Smoke Test Passed"
+          SLACK_MESSAGE: |
+            *Charon image:* `obolnetwork/charon:${{ inputs.charon_image_tag || 'next' }}`
+            *Branch:* `${{ inputs.branch || 'main' }}`
+            *Instance type:* `${{ inputs.instance_type || 'c6a.4xlarge' }}`
+            *Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>
+            *Report:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts|Download report>
+          SLACK_USERNAME: GitHub Actions
+          SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@c8d87ceaa24406d9749a1c181fed3a7004bbd7aa # v2.3.2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_PROTOCOL_WEBHOOK }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: "Kurtosis Smoke Test Failed"
+          SLACK_MESSAGE: |
+            *Charon image:* `obolnetwork/charon:${{ inputs.charon_image_tag || 'next' }}`
+            *Branch:* `${{ inputs.branch || 'main' }}`
+            *Instance type:* `${{ inputs.instance_type || 'c6a.4xlarge' }}`
+            *Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>
+            *Report:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts|Download report>
+          SLACK_USERNAME: GitHub Actions
+          SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
