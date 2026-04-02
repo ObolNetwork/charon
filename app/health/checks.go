@@ -31,11 +31,15 @@ type check struct {
 	// Severity of the health check.
 	Severity severity
 	// Func returns true if the health check is failing, false otherwise.
-	// Exactly one of Func or MemFunc must be set.
+	// Exactly one of Func, MemFunc, or MetricsFunc must be set.
 	Func func(query, Metadata) (bool, error)
 	// MemFunc is used for checks that need access to the long-term memory snapshot buffer.
-	// Exactly one of Func or MemFunc must be set.
+	// Exactly one of Func, MemFunc, or MetricsFunc must be set.
 	MemFunc func([]memorySnapshot, Metadata) (bool, error)
+	// MetricsFunc is used for checks that need access to the raw scrape history,
+	// e.g. to compute rates across the scrape window.
+	// Exactly one of Func, MemFunc, or MetricsFunc must be set.
+	MetricsFunc func([][]*pb.MetricFamily, Metadata) (bool, error)
 }
 
 // query abstracts the function to query the metric store returning a value by reducing the selected time series for a given metric name.
@@ -222,6 +226,12 @@ var checks = []check{
 
 			return maxVal > 0, nil
 		},
+	},
+	{
+		Name:        "high_beacon_node_sse_head_delay",
+		Description: "Beacon node SSE head delay exceeds 4s for >4% of blocks. Check beacon node block reception performance.",
+		Severity:    severityWarning,
+		MetricsFunc: sseHeadDelayCheck,
 	},
 	{
 		Name:        "high_goroutine_count",

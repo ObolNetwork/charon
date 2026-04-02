@@ -597,6 +597,117 @@ func TestHighGoroutineCountCheck(t *testing.T) {
 	})
 }
 
+func TestHighBeaconNodeSSEHeadDelayCheck(t *testing.T) {
+	// makeScrapes builds a two-scrape history for sseHeadDelayCheck.
+	// For each addr, firstLe4/firstTotal are the cumulative counts in scrape[0],
+	// and delta is the new blocks arriving between scrapes, with deltaLate above 4s.
+	makeScrapes := func(addr string, firstLe4, firstTotal, deltaLe4, deltaTotal uint64) [][]*pb.MetricFamily {
+		mkFam := func(le4, total uint64) []*pb.MetricFamily {
+			name := "app_beacon_node_sse_head_delay"
+			addrVal := addr
+			typ := pb.MetricType_HISTOGRAM
+			bound4 := 4.0
+			count := total
+			sum := 0.0
+
+			return []*pb.MetricFamily{{
+				Name: &name,
+				Type: &typ,
+				Metric: []*pb.Metric{{
+					Label: []*pb.LabelPair{{Name: func() *string { s := "addr"; return &s }(), Value: &addrVal}}, //nolint:goconst
+					Histogram: &pb.Histogram{
+						SampleCount: &count,
+						SampleSum:   &sum,
+						Bucket: []*pb.Bucket{{
+							UpperBound:      &bound4,
+							CumulativeCount: &le4,
+						}},
+					},
+				}},
+			}}
+		}
+
+		return [][]*pb.MetricFamily{
+			mkFam(firstLe4, firstTotal),
+			mkFam(firstLe4+deltaLe4, firstTotal+deltaTotal),
+		}
+	}
+
+	t.Run("no data", func(t *testing.T) {
+		failing, err := sseHeadDelayCheck(nil, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("single scrape only", func(t *testing.T) {
+		failing, err := sseHeadDelayCheck([][]*pb.MetricFamily{{}}, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("all blocks within 4s", func(t *testing.T) {
+		// 100 new blocks, all within 4s → 0% late
+		scrapes := makeScrapes("http://bn1:5052", 0, 0, 100, 100)
+		failing, err := sseHeadDelayCheck(scrapes, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("below 4% does not trigger", func(t *testing.T) {
+		// 100 new blocks, 3 late → 3% late
+		scrapes := makeScrapes("http://bn1:5052", 0, 0, 97, 100)
+		failing, err := sseHeadDelayCheck(scrapes, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("above 4% triggers warning", func(t *testing.T) {
+		// 100 new blocks, 5 late → 5% late
+		scrapes := makeScrapes("http://bn1:5052", 0, 0, 95, 100)
+		failing, err := sseHeadDelayCheck(scrapes, Metadata{})
+		require.NoError(t, err)
+		require.True(t, failing)
+	})
+
+	t.Run("historical dilution does not mask recent spike", func(t *testing.T) {
+		// 10000 prior blocks all good, then 100 new with 5 late → still 5% in window
+		scrapes := makeScrapes("http://bn1:5052", 10000, 10000, 95, 100)
+		failing, err := sseHeadDelayCheck(scrapes, Metadata{})
+		require.NoError(t, err)
+		require.True(t, failing)
+	})
+
+	t.Run("single bad beacon node triggers warning", func(t *testing.T) {
+		// Build two-addr scrapes manually: bn1 5% late, bn2 1% late
+		name := "app_beacon_node_sse_head_delay"
+		typ := pb.MetricType_HISTOGRAM
+		bound4 := 4.0
+
+		mkMetric := func(addr string, le4, total uint64) *pb.Metric {
+			addrVal := addr
+			sum := 0.0
+
+			return &pb.Metric{
+				Label: []*pb.LabelPair{{Name: func() *string { s := "addr"; return &s }(), Value: &addrVal}},
+				Histogram: &pb.Histogram{
+					SampleCount: &total,
+					SampleSum:   &sum,
+					Bucket:      []*pb.Bucket{{UpperBound: &bound4, CumulativeCount: &le4}},
+				},
+			}
+		}
+
+		scrapes := [][]*pb.MetricFamily{
+			{{Name: &name, Type: &typ, Metric: []*pb.Metric{mkMetric("http://bn1:5052", 0, 0), mkMetric("http://bn2:5052", 0, 0)}}},
+			{{Name: &name, Type: &typ, Metric: []*pb.Metric{mkMetric("http://bn1:5052", 95, 100), mkMetric("http://bn2:5052", 99, 100)}}},
+		}
+
+		failing, err := sseHeadDelayCheck(scrapes, Metadata{})
+		require.NoError(t, err)
+		require.True(t, failing)
+	})
+}
+
 func TestMemoryLeakCheck(t *testing.T) {
 	now := time.Now()
 	startSecs := float64(now.Add(-48 * time.Hour).Unix()) // started 48h ago, fully warmed up

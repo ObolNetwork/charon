@@ -18,8 +18,10 @@ import (
 const (
 	// scrapePeriod is the period between scrapes.
 	scrapePeriod = 30 * time.Second
-	// maxScrapes is the maximum number of scrapes to keep.
+	// maxScrapes is the maximum number of scrapes to keep (5 minutes at 30s intervals).
 	maxScrapes = 10
+	// maxSSEScrapes is the number of scrapes kept for the SSE head delay check (1 hour at 30s intervals).
+	maxSSEScrapes = 120
 	// labelsCardinalityThreshold is the threshold for single validator;
 	// for N validators, the threshold is N * labelsCardinalityThreshold.
 	labelsCardinalityThreshold = 100
@@ -54,6 +56,7 @@ func NewChecker(metadata Metadata, gatherer prometheus.Gatherer, numValidators i
 		gatherer:           gatherer,
 		scrapePeriod:       scrapePeriod,
 		maxScrapes:         maxScrapes,
+		maxSSEScrapes:      maxSSEScrapes,
 		logFilter:          log.Filter(),
 		numValidators:      numValidators,
 		memorySamplePeriod: memorySamplePeriod,
@@ -66,9 +69,11 @@ type Checker struct {
 	metadata           Metadata
 	checks             []check
 	metrics            [][]*pb.MetricFamily
+	sseMetrics         [][]*pb.MetricFamily
 	gatherer           prometheus.Gatherer
 	scrapePeriod       time.Duration
 	maxScrapes         int
+	maxSSEScrapes      int
 	logFilter          z.Field
 	numValidators      int
 	memorySnapshots    []memorySnapshot
@@ -111,9 +116,12 @@ func (c *Checker) instrument(ctx context.Context) {
 			err     error
 		)
 
-		if check.MemFunc != nil {
+		switch {
+		case check.MemFunc != nil:
 			failing, err = check.MemFunc(c.memorySnapshots, c.metadata)
-		} else {
+		case check.MetricsFunc != nil:
+			failing, err = check.MetricsFunc(c.sseMetrics, c.metadata)
+		default:
 			failing, err = check.Func(newQueryFunc(c.metrics), c.metadata)
 		}
 
@@ -172,9 +180,13 @@ func (c *Checker) scrape() error {
 	}
 
 	c.metrics = append(c.metrics, metrics)
-
 	if len(c.metrics) > c.maxScrapes {
 		c.metrics = c.metrics[1:]
+	}
+
+	c.sseMetrics = append(c.sseMetrics, metrics)
+	if len(c.sseMetrics) > c.maxSSEScrapes {
+		c.sseMetrics = c.sseMetrics[1:]
 	}
 
 	return nil
@@ -190,7 +202,7 @@ func (c *Checker) sampleMemory() {
 	var memBytes, startSecs float64
 
 	for _, fam := range metrics {
-		switch fam.GetName() { //nolint:revive
+		switch fam.GetName() {
 		case "go_memstats_heap_inuse_bytes":
 			if len(fam.GetMetric()) > 0 {
 				memBytes = fam.GetMetric()[0].GetGauge().GetValue()
@@ -215,6 +227,86 @@ func (c *Checker) sampleMemory() {
 	if len(c.memorySnapshots) > c.maxMemorySamples {
 		c.memorySnapshots = c.memorySnapshots[1:]
 	}
+}
+
+// sseHeadDelayCheck returns true if any beacon node delivered more than 4% of blocks with an SSE
+// head delay above 4s during the current scrape window.
+// It computes the increase in the le=4 and le=+Inf cumulative buckets across the scrape window
+// (first vs last scrape), mirroring the rate-based Grafana panel query.
+func sseHeadDelayCheck(scrapes [][]*pb.MetricFamily, _ Metadata) (bool, error) {
+	const (
+		metricName = "app_beacon_node_sse_head_delay"
+		threshold  = 0.04
+	)
+
+	if len(scrapes) < 2 {
+		return false, nil
+	}
+
+	type bucketCounts struct {
+		le4   float64
+		leInf float64
+	}
+
+	getBuckets := func(fams []*pb.MetricFamily) map[string]bucketCounts {
+		result := make(map[string]bucketCounts)
+
+		for _, fam := range fams {
+			if fam.GetName() != metricName {
+				continue
+			}
+
+			for _, metric := range fam.GetMetric() {
+				var addr string
+
+				for _, lbl := range metric.GetLabel() {
+					if lbl.GetName() == "addr" {
+						addr = lbl.GetValue()
+						break
+					}
+				}
+
+				h := metric.GetHistogram()
+
+				var le4 float64
+
+				for _, b := range h.GetBucket() {
+					if b.GetUpperBound() == 4.0 {
+						le4 = float64(b.GetCumulativeCount())
+						break
+					}
+				}
+
+				result[addr] = bucketCounts{
+					le4:   le4,
+					leInf: float64(h.GetSampleCount()),
+				}
+			}
+		}
+
+		return result
+	}
+
+	first := getBuckets(scrapes[0])
+	last := getBuckets(scrapes[len(scrapes)-1])
+
+	for addr, lastCounts := range last {
+		firstCounts := first[addr]
+		deltaInf := lastCounts.leInf - firstCounts.leInf
+
+		if deltaInf == 0 {
+			continue
+		}
+
+		deltaLe4 := lastCounts.le4 - firstCounts.le4
+		fraction := 1.0 - deltaLe4/deltaInf
+
+		if fraction > threshold {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // memoryLeakCheck returns true if average memory in the most recent 24h has grown by more than
