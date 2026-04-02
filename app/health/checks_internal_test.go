@@ -569,6 +569,53 @@ func TestHighPeerPingLatencyCheck(t *testing.T) {
 	})
 }
 
+func TestHighConsensusRoundsCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "high_consensus_rounds"
+	metricName := "core_consensus_decided_rounds"
+
+	proposerLabels := genLabels("duty", "proposer", "protocol", "qbft", "timer", "round_timeout")
+	attesterLabels := genLabels("duty", "attester", "protocol", "qbft", "timer", "round_timeout")
+	randaoLabels := genLabels("duty", "randao", "protocol", "qbft", "timer", "round_timeout")
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("single round proposer", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genGauge(proposerLabels, 1, 1, 1)),
+		)
+	})
+
+	t.Run("two rounds proposer", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName, genGauge(proposerLabels, 1, 1, 2)),
+		)
+	})
+
+	t.Run("two rounds attester", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName, genGauge(attesterLabels, 1, 1, 2)),
+		)
+	})
+
+	t.Run("high rounds other duty not triggered", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genGauge(randaoLabels, 5, 5, 5)),
+		)
+	})
+
+	t.Run("high rounds other duty does not mask attester", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGauge(randaoLabels, 5, 5, 5),
+				genGauge(attesterLabels, 1, 1, 2),
+			),
+		)
+	})
+}
+
 func TestLocalBlockProposalCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "local_block_proposal"

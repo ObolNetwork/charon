@@ -228,6 +228,21 @@ var checks = []check{
 		},
 	},
 	{
+		Name:        "high_consensus_rounds",
+		Description: "Consensus required >=2 rounds for proposer or attester duty. Check for peer connectivity or performance issues.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxVal, err := q("core_consensus_decided_rounds",
+				maxGaugeWhere([]*pb.LabelPair{l("duty", "^(proposer|attester)$")}),
+				gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxVal >= 2, nil
+		},
+	},
+	{
 		Name:        "local_block_proposal",
 		Description: "Local block proposal detected instead of blinded (MEV). Check MEV relay connectivity.",
 		Severity:    severityWarning,

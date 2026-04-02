@@ -85,6 +85,35 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 	}
 }
 
+// maxGaugeWhere returns a selector that finds the maximum gauge value across series matching all include labels.
+func maxGaugeWhere(include []*pb.LabelPair) labelSelector {
+	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+		if metricsFam.GetType() != pb.MetricType_GAUGE {
+			return nil, errors.New("bug: non-gauge metric passed")
+		}
+
+		var maxVal float64
+
+		for _, metric := range metricsFam.GetMetric() {
+			if len(include) > 0 && !labelsContain(metric.GetLabel(), include) {
+				continue
+			}
+
+			val := metric.GetGauge().GetValue()
+			if val > maxVal {
+				maxVal = val
+			}
+		}
+
+		ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+		return &pb.Metric{
+			Gauge:       &pb.Gauge{Value: &maxVal},
+			TimestampMs: &ts,
+		}, nil
+	}
+}
+
 // maxAbsGaugeLabels returns a selector that finds the maximum absolute gauge value across all label series.
 func maxAbsGaugeLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	if metricsFam.GetType() != pb.MetricType_GAUGE {
