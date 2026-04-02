@@ -98,7 +98,7 @@ func TestLongLines(t *testing.T) {
 
 	var (
 		ctx         = context.Background()
-		entriesChan = make(chan string)
+		entriesChan = make(chan string, 10) // buffered so handler never blocks on send
 	)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -110,11 +110,7 @@ func TestLongLines(t *testing.T) {
 		require.Contains(t, req.GetStreams()[0].GetLabels(), fmt.Sprintf(`service="%s"`, serviceLabel))
 
 		for _, entry := range req.GetStreams()[0].GetEntries() {
-			go func(entry string) {
-				entriesChan <- entry
-
-				close(entriesChan)
-			}(entry.GetLine())
+			entriesChan <- entry.GetLine()
 		}
 	}))
 
@@ -133,15 +129,23 @@ func TestLongLines(t *testing.T) {
 		cl.Add(huge)
 	}
 
+	// Wait for normal to arrive via the periodic ticker flush before stopping.
+	// Stop() only flushes whatever is already in the batch, so we must confirm
+	// delivery here rather than relying on the shutdown path.
+	select {
+	case entry := <-entriesChan:
+		require.Equal(t, normal, entry)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for log entry")
+	}
+
 	cl.Stop(ctx)
 
-	var entries []string
+	// Stop() guarantees all in-flight HTTP calls have completed, so closing
+	// here is safe. Drain any remaining entries and verify no huge lines leaked.
+	close(entriesChan)
 
 	for entry := range entriesChan {
 		require.NotEqual(t, huge, entry)
-		entries = append(entries, entry)
 	}
-
-	require.Len(t, entries, 1)
-	require.Equal(t, normal, entries[0])
 }
