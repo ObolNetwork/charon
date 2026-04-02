@@ -149,6 +149,19 @@ var checks = []check{
 		},
 	},
 	{
+		Name:        "high_peer_clock_offset",
+		Description: "Peer clock offset exceeds 200ms. Check NTP synchronization on affected nodes.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxAbs, err := q("app_peerinfo_clock_offset_seconds", maxAbsGaugeLabels, gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxAbs > 0.2, nil // 200ms threshold
+		},
+	},
+	{
 		Name:        "high_peer_ping_latency",
 		Description: "High peer ping latency detected (>150ms). Check network conditions between peers.",
 		Severity:    severityWarning,

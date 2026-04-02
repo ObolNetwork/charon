@@ -85,6 +85,33 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 	}
 }
 
+// maxAbsGaugeLabels returns a selector that finds the maximum absolute gauge value across all label series.
+func maxAbsGaugeLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+	if metricsFam.GetType() != pb.MetricType_GAUGE {
+		return nil, errors.New("bug: non-gauge metric passed")
+	}
+
+	var maxAbs float64
+
+	for _, metric := range metricsFam.GetMetric() {
+		val := metric.GetGauge().GetValue()
+		if val < 0 {
+			val = -val
+		}
+
+		if val > maxAbs {
+			maxAbs = val
+		}
+	}
+
+	ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+	return &pb.Metric{
+		Gauge:       &pb.Gauge{Value: &maxAbs},
+		TimestampMs: &ts,
+	}, nil
+}
+
 // histogramMaxAvg returns a selector that computes the average value for each histogram time series
 // and returns a synthetic gauge with the maximum average across all series.
 func histogramMaxAvg(metricsFam *pb.MetricFamily) (*pb.Metric, error) {

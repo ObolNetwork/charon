@@ -402,6 +402,62 @@ func TestUsingFallbackBeaconNodesCheck(t *testing.T) {
 	})
 }
 
+func TestHighPeerClockOffsetCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "high_peer_clock_offset"
+	metricName := "app_peerinfo_clock_offset_seconds"
+
+	peer1 := genLabels("peer", "1")
+	peer2 := genLabels("peer", "2")
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("low offset", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genGaugef(peer1, 0.1, 0.1, 0.1),
+				genGaugef(peer2, -0.05, -0.05, -0.05),
+			),
+		)
+	})
+
+	t.Run("high positive offset", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGaugef(peer1, 0.3, 0.3, 0.3),
+				genGaugef(peer2, 0.1, 0.1, 0.1),
+			),
+		)
+	})
+
+	t.Run("high negative offset", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGaugef(peer1, -0.3, -0.3, -0.3),
+				genGaugef(peer2, 0.1, 0.1, 0.1),
+			),
+		)
+	})
+
+	t.Run("exactly at threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genGaugef(peer1, 0.2, 0.2, 0.2),
+			),
+		)
+	})
+
+	t.Run("just above threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genGaugef(peer1, 0.201, 0.201, 0.201),
+			),
+		)
+	})
+}
+
 func TestHighPeerPingLatencyCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_peer_ping_latency"
@@ -627,6 +683,22 @@ func genCounter(labels []*pb.LabelPair, values ...int) []*pb.Metric {
 			Counter: &pb.Counter{
 				Value: &val,
 			},
+			TimestampMs: &ts,
+		})
+	}
+
+	return resp
+}
+
+func genGaugef(labels []*pb.LabelPair, values ...float64) []*pb.Metric {
+	var resp []*pb.Metric
+
+	for i, value := range values {
+		ts := startTime.Add(time.Duration(i) * time.Second).UnixMilli()
+		val := value
+		resp = append(resp, &pb.Metric{
+			Label:       labels,
+			Gauge:       &pb.Gauge{Value: &val},
 			TimestampMs: &ts,
 		})
 	}
