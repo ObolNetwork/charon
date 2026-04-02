@@ -569,6 +569,34 @@ func TestHighPeerPingLatencyCheck(t *testing.T) {
 	})
 }
 
+func TestHighGoroutineCountCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "high_goroutine_count"
+	metricName := "go_goroutines"
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("below threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genGauge(nil, 500, 500, 500)),
+		)
+	})
+
+	t.Run("exactly at threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genGauge(nil, 1000, 1000, 1000)),
+		)
+	})
+
+	t.Run("above threshold", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName, genGauge(nil, 500, 500, 1001)),
+		)
+	})
+}
+
 func TestMemoryLeakCheck(t *testing.T) {
 	now := time.Now()
 	startSecs := float64(now.Add(-48 * time.Hour).Unix()) // started 48h ago, fully warmed up

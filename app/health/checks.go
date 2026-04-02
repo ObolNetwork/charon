@@ -224,6 +224,19 @@ var checks = []check{
 		},
 	},
 	{
+		Name:        "high_goroutine_count",
+		Description: "Goroutine count exceeds 1000. Possible goroutine leak.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxVal, err := q("go_goroutines", noLabels, gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxVal > 1000, nil
+		},
+	},
+	{
 		Name:        "memory_leak",
 		Description: "Memory usage has grown >10% over the past 24h compared to the previous 24h. Possible memory leak.",
 		Severity:    severityWarning,
