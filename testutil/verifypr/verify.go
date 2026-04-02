@@ -1,6 +1,6 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-//nolint:revive,cyclop
+//nolint:cyclop
 package main
 
 import (
@@ -75,7 +75,7 @@ func verify() error {
 		return nil
 	}
 
-	log.Printf("Verifying charon PR against template\n")
+	log.Print("Verifying charon PR against template\n")
 	log.Printf("PR Title: %s\n", pr.Title)
 	log.Printf("## PR Body:\n%s\n####\n", pr.Body)
 
@@ -83,11 +83,7 @@ func verify() error {
 		return err
 	}
 
-	if err := verifyBody(pr.Body); err != nil {
-		return err
-	}
-
-	return nil
+	return verifyBody(pr.Body)
 }
 
 func verifyTitle(title string) error {
@@ -201,8 +197,7 @@ func verifyBody(body string) error {
 					return errors.New("ticket tag invalid url")
 				}
 				// URL is fine
-			} else if ticket == "none" {
-				// None is also fine
+			} else if ticket == "none" { //nolint:revive // None is fine, no action needed.
 			} else if after, ok := strings.CutPrefix(ticket, "#"); ok {
 				_, err := strconv.Atoi(after)
 				if err != nil {

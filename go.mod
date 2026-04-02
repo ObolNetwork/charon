@@ -295,7 +295,6 @@ tool (
 	github.com/bufbuild/buf/cmd/protoc-gen-buf-breaking
 	github.com/bufbuild/buf/cmd/protoc-gen-buf-lint
 	github.com/ethereum/go-ethereum/cmd/abigen
-	github.com/obolnetwork/charon/testutil/compose/compose
 	github.com/vektra/mockery/v2
 	golang.org/x/tools/cmd/stringer
 	google.golang.org/protobuf/cmd/protoc-gen-go

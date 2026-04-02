@@ -15,9 +15,6 @@ updates:
   directories:
     - "/"
     - "/testutil/promrated/"
-    - "/testutil/compose/static/vouch/"
-    - "/testutil/compose/static/lodestar/"
-    - "/testutil/compose/static/lighthouse/"
   schedule:
     interval: "daily"
   groups:
