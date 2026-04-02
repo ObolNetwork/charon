@@ -568,13 +568,15 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 	eth2Cl.SubmitValidatorRegistrationsFunc = func(ctx context.Context, regs []*eth2api.VersionedSignedValidatorRegistration) error {
 		callCount.Add(1)
 
-		if registrations == nil {
-			callMutex.Lock()
+		callMutex.Lock()
 
+		first := registrations == nil
+		if first {
 			registrations = regs
+		}
+		callMutex.Unlock()
 
-			callMutex.Unlock()
-
+		if first {
 			select {
 			case callDone <- struct{}{}:
 			default:
