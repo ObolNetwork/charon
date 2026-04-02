@@ -149,6 +149,38 @@ var checks = []check{
 		},
 	},
 	{
+		Name:        "high_beacon_node_latency",
+		Description: "Beacon node API latency exceeds 1s. Check beacon node performance.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			// Exclude proposal endpoints which have a higher threshold (see high_beacon_node_proposal_latency).
+			maxAvg, err := q("app_eth2_latency_seconds",
+				histogramMaxAvgWhere(nil, []*pb.LabelPair{l("endpoint", "^(proposal|submit_blinded_proposal)$")}),
+				gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxAvg > 1.0, nil
+		},
+	},
+	{
+		Name:        "high_beacon_node_proposal_latency",
+		Description: "Beacon node proposal API latency exceeds 2s. Check beacon node performance.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxAvg, err := q("app_eth2_latency_seconds",
+				histogramMaxAvgWhere([]*pb.LabelPair{l("endpoint", "^(proposal|submit_blinded_proposal)$")}, nil),
+				gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			// Includes also calls to MEV, so we do expect to go above 1s.
+			return maxAvg > 2.0, nil
+		},
+	},
+	{
 		Name:        "high_peer_clock_offset",
 		Description: "Peer clock offset exceeds 200ms. Check NTP synchronization on affected nodes.",
 		Severity:    severityWarning,

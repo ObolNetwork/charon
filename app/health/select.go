@@ -112,6 +112,46 @@ func maxAbsGaugeLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	}, nil
 }
 
+// histogramMaxAvgWhere returns a selector that computes max average across histogram series,
+// only including series whose labels match include (if non-nil) and excluding those matching exclude (if non-nil).
+// Label matching uses the same regex semantics as labelsContain.
+func histogramMaxAvgWhere(include, exclude []*pb.LabelPair) labelSelector {
+	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+		if metricsFam.GetType() != pb.MetricType_HISTOGRAM {
+			return nil, errors.New("bug: non-histogram metric passed")
+		}
+
+		var maxAvg float64
+
+		for _, metric := range metricsFam.GetMetric() {
+			if len(include) > 0 && !labelsContain(metric.GetLabel(), include) {
+				continue
+			}
+
+			if len(exclude) > 0 && labelsContain(metric.GetLabel(), exclude) {
+				continue
+			}
+
+			h := metric.GetHistogram()
+			if h.GetSampleCount() == 0 {
+				continue
+			}
+
+			avg := h.GetSampleSum() / float64(h.GetSampleCount())
+			if avg > maxAvg {
+				maxAvg = avg
+			}
+		}
+
+		ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+		return &pb.Metric{
+			Gauge:       &pb.Gauge{Value: &maxAvg},
+			TimestampMs: &ts,
+		}, nil
+	}
+}
+
 // histogramMaxAvg returns a selector that computes the average value for each histogram time series
 // and returns a synthetic gauge with the maximum average across all series.
 func histogramMaxAvg(metricsFam *pb.MetricFamily) (*pb.Metric, error) {

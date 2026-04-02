@@ -402,6 +402,66 @@ func TestUsingFallbackBeaconNodesCheck(t *testing.T) {
 	})
 }
 
+func TestHighBeaconNodeLatencyCheck(t *testing.T) {
+	m := Metadata{}
+	metricName := "app_eth2_latency_seconds"
+
+	attestation := genLabels("endpoint", "attestation")
+	proposal := genLabels("endpoint", "proposal")
+	submitBlinded := genLabels("endpoint", "submit_blinded_proposal")
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, "high_beacon_node_latency", false, nil)
+		testCheck(t, m, "high_beacon_node_proposal_latency", false, nil)
+	})
+
+	t.Run("all low latency", func(t *testing.T) {
+		fam := genHistFam(metricName,
+			genHistogram(attestation, 0.5, 1, 0.5, 1, 0.5, 1),
+			genHistogram(proposal, 0.8, 1, 0.8, 1, 0.8, 1),
+			genHistogram(submitBlinded, 0.9, 1, 0.9, 1, 0.9, 1),
+		)
+		testCheck(t, m, "high_beacon_node_latency", false, fam)
+		testCheck(t, m, "high_beacon_node_proposal_latency", false, fam)
+	})
+
+	t.Run("regular endpoint above 1s", func(t *testing.T) {
+		fam := genHistFam(metricName,
+			genHistogram(attestation, 1.5, 1, 1.5, 1, 1.5, 1),
+			genHistogram(proposal, 0.5, 1, 0.5, 1, 0.5, 1),
+		)
+		testCheck(t, m, "high_beacon_node_latency", true, fam)
+		testCheck(t, m, "high_beacon_node_proposal_latency", false, fam)
+	})
+
+	t.Run("proposal above 1s but below 2s does not trigger general check", func(t *testing.T) {
+		fam := genHistFam(metricName,
+			genHistogram(attestation, 0.5, 1, 0.5, 1, 0.5, 1),
+			genHistogram(proposal, 1.5, 1, 1.5, 1, 1.5, 1),
+		)
+		testCheck(t, m, "high_beacon_node_latency", false, fam)
+		testCheck(t, m, "high_beacon_node_proposal_latency", false, fam)
+	})
+
+	t.Run("proposal above 2s", func(t *testing.T) {
+		fam := genHistFam(metricName,
+			genHistogram(attestation, 0.5, 1, 0.5, 1, 0.5, 1),
+			genHistogram(proposal, 2.5, 1, 2.5, 1, 2.5, 1),
+		)
+		testCheck(t, m, "high_beacon_node_latency", false, fam)
+		testCheck(t, m, "high_beacon_node_proposal_latency", true, fam)
+	})
+
+	t.Run("submit_blinded_proposal above 2s", func(t *testing.T) {
+		fam := genHistFam(metricName,
+			genHistogram(attestation, 0.5, 1, 0.5, 1, 0.5, 1),
+			genHistogram(submitBlinded, 2.5, 1, 2.5, 1, 2.5, 1),
+		)
+		testCheck(t, m, "high_beacon_node_latency", false, fam)
+		testCheck(t, m, "high_beacon_node_proposal_latency", true, fam)
+	})
+}
+
 func TestHighPeerClockOffsetCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_peer_clock_offset"
