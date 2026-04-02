@@ -202,7 +202,7 @@ func (c *Checker) sampleMemory() {
 	var memBytes, startSecs float64
 
 	for _, fam := range metrics {
-		switch fam.GetName() {
+		switch fam.GetName() { //nolint:revive
 		case "go_memstats_heap_inuse_bytes":
 			if len(fam.GetMetric()) > 0 {
 				memBytes = fam.GetMetric()[0].GetGauge().GetValue()

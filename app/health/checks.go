@@ -228,6 +228,19 @@ var checks = []check{
 		},
 	},
 	{
+		Name:        "local_block_proposal",
+		Description: "Local block proposal detected instead of blinded (MEV). Check MEV relay connectivity.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxVal, err := q("core_fetcher_proposal_blinded", noLabels, gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxVal == 2, nil // 1=blinded (MEV), 2=local block
+		},
+	},
+	{
 		Name:        "high_beacon_node_sse_head_delay",
 		Description: "Beacon node SSE head delay exceeds 4s for >4% of blocks. Check beacon node block reception performance.",
 		Severity:    severityWarning,

@@ -569,6 +569,28 @@ func TestHighPeerPingLatencyCheck(t *testing.T) {
 	})
 }
 
+func TestLocalBlockProposalCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "local_block_proposal"
+	metricName := "core_fetcher_proposal_blinded"
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("blinded proposal (MEV)", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genGauge(nil, 1, 1, 1)),
+		)
+	})
+
+	t.Run("local block proposal", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName, genGauge(nil, 2, 2, 2)),
+		)
+	})
+}
+
 func TestHighGoroutineCountCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_goroutine_count"
