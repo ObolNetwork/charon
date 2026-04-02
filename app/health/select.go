@@ -85,6 +85,35 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 	}
 }
 
+// histogramMaxAvg returns a selector that computes the average value for each histogram time series
+// and returns a synthetic gauge with the maximum average across all series.
+func histogramMaxAvg(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+	if metricsFam.GetType() != pb.MetricType_HISTOGRAM {
+		return nil, errors.New("bug: non-histogram metric passed")
+	}
+
+	var maxAvg float64
+
+	for _, metric := range metricsFam.GetMetric() {
+		h := metric.GetHistogram()
+		if h.GetSampleCount() == 0 {
+			continue
+		}
+
+		avg := h.GetSampleSum() / float64(h.GetSampleCount())
+		if avg > maxAvg {
+			maxAvg = avg
+		}
+	}
+
+	ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+	return &pb.Metric{
+		Gauge:       &pb.Gauge{Value: &maxAvg},
+		TimestampMs: &ts,
+	}, nil
+}
+
 // labelsContain returns true if all of the label pairs in contain are found in labels.
 func labelsContain(labels, contain []*pb.LabelPair) bool {
 	for _, c := range contain {

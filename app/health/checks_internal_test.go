@@ -402,6 +402,57 @@ func TestUsingFallbackBeaconNodesCheck(t *testing.T) {
 	})
 }
 
+func TestHighPeerPingLatencyCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "high_peer_ping_latency"
+	metricName := "p2p_ping_latency_secs"
+
+	peer1 := genLabels("peer", "1")
+	peer2 := genLabels("peer", "2")
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("low latency", func(t *testing.T) {
+		// avg = 0.05s (50ms) per peer
+		testCheck(t, m, checkName, false,
+			genHistFam(metricName,
+				genHistogram(peer1, 0.05, 1, 0.05, 1, 0.05, 1),
+				genHistogram(peer2, 0.04, 1, 0.04, 1, 0.04, 1),
+			),
+		)
+	})
+
+	t.Run("high latency single peer", func(t *testing.T) {
+		// avg = 0.2s (200ms) for peer1
+		testCheck(t, m, checkName, true,
+			genHistFam(metricName,
+				genHistogram(peer1, 0.2, 1, 0.2, 1, 0.2, 1),
+				genHistogram(peer2, 0.05, 1, 0.05, 1, 0.05, 1),
+			),
+		)
+	})
+
+	t.Run("exactly at threshold", func(t *testing.T) {
+		// avg = 0.15s (150ms) — not over the threshold
+		testCheck(t, m, checkName, false,
+			genHistFam(metricName,
+				genHistogram(peer1, 0.15, 1, 0.15, 1, 0.15, 1),
+			),
+		)
+	})
+
+	t.Run("just above threshold", func(t *testing.T) {
+		// avg = 0.151s (151ms)
+		testCheck(t, m, checkName, true,
+			genHistFam(metricName,
+				genHistogram(peer1, 0.151, 1, 0.151, 1, 0.151, 1),
+			),
+		)
+	})
+}
+
 func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics []*pb.MetricFamily) {
 	t.Helper()
 
@@ -503,6 +554,63 @@ func genLabels(nameVals ...string) []*pb.LabelPair {
 			Name:  &nameVals[i],
 			Value: &nameVals[i+1],
 		})
+	}
+
+	return resp
+}
+
+func genHistogram(labels []*pb.LabelPair, sumCount ...float64) []*pb.Metric {
+	if len(sumCount)%2 != 0 {
+		panic("must have even number of sum/count pairs")
+	}
+
+	var resp []*pb.Metric
+
+	for i := 0; i < len(sumCount); i += 2 {
+		ts := startTime.Add(time.Duration(i/2) * time.Second).UnixMilli()
+		sum := sumCount[i]
+		count := uint64(sumCount[i+1])
+		typ := pb.MetricType_HISTOGRAM
+
+		resp = append(resp, &pb.Metric{
+			Label: labels,
+			Histogram: &pb.Histogram{
+				SampleSum:   &sum,
+				SampleCount: &count,
+			},
+			TimestampMs: &ts,
+		})
+
+		_ = typ
+	}
+
+	return resp
+}
+
+func genHistFam(name string, metrics ...[]*pb.Metric) []*pb.MetricFamily {
+	typ := pb.MetricType_HISTOGRAM
+
+	var maxVal int
+	for _, series := range metrics {
+		if len(series) > maxVal {
+			maxVal = len(series)
+		}
+	}
+
+	resp := make([]*pb.MetricFamily, maxVal)
+
+	for _, series := range metrics {
+		for i, metric := range series {
+			if resp[i] == nil {
+				resp[i] = &pb.MetricFamily{
+					Name:   &name,
+					Type:   &typ,
+					Metric: []*pb.Metric{},
+				}
+			}
+
+			resp[i].Metric = append(resp[i].Metric, metric)
+		}
 	}
 
 	return resp

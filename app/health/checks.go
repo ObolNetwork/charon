@@ -149,6 +149,19 @@ var checks = []check{
 		},
 	},
 	{
+		Name:        "high_peer_ping_latency",
+		Description: "High peer ping latency detected (>150ms). Check network conditions between peers.",
+		Severity:    severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxAvg, err := q("p2p_ping_latency_secs", histogramMaxAvg, gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxAvg > 0.15, nil // 150ms threshold
+		},
+	},
+	{
 		Name:        "using_fallback_beacon_nodes",
 		Description: "Using fallback beacon nodes. Please check primary beacon nodes health.",
 		Severity:    severityWarning,
