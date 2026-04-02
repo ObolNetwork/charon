@@ -15,6 +15,13 @@ var checkGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 	Help:      "Application health checks by name and severity. Set to 1 for failing, 0 for ok.",
 }, []string{"severity", "name"})
 
+var checkFailedCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+	Namespace: "app",
+	Subsystem: "health",
+	Name:      "checks_failed_total",
+	Help:      "Total number of times each health check has been observed failing. Allows querying historical failures via increase().",
+}, []string{"severity", "name"})
+
 var highCardinalityGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 	Namespace: "app",
 	Subsystem: "health",
