@@ -614,6 +614,7 @@ func TestMemoryLeakCheck(t *testing.T) {
 				capturedAt: capturedAt,
 			}
 		}
+
 		return snaps
 	}
 
@@ -643,6 +644,7 @@ func TestMemoryLeakCheck(t *testing.T) {
 		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
 			snaps[i].bytes = 105
 		}
+
 		failing, err := memoryLeakCheck(snaps, Metadata{})
 		require.NoError(t, err)
 		require.False(t, failing)
@@ -654,6 +656,7 @@ func TestMemoryLeakCheck(t *testing.T) {
 		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
 			snaps[i].bytes = 106
 		}
+
 		failing, err := memoryLeakCheck(snaps, Metadata{})
 		require.NoError(t, err)
 		require.True(t, failing)
@@ -666,6 +669,7 @@ func TestMemoryLeakCheck(t *testing.T) {
 		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
 			snaps[i].startSecs = recentStart
 		}
+
 		failing, err := memoryLeakCheck(snaps, Metadata{})
 		require.NoError(t, err)
 		require.False(t, failing) // not enough valid samples in recent window
@@ -675,13 +679,14 @@ func TestMemoryLeakCheck(t *testing.T) {
 		snaps := makeSnapshots([]float64{100})
 		olderStart := float64(now.Add(-46 * time.Hour).Unix()) // restarted 46h ago
 		// Mark first few older samples as warmup — but enough remain valid.
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			snaps[i].startSecs = olderStart
 		}
 		// Memory grew 20% in the recent window.
 		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
 			snaps[i].bytes = 120
 		}
+
 		failing, err := memoryLeakCheck(snaps, Metadata{})
 		require.NoError(t, err)
 		require.True(t, failing)

@@ -106,8 +106,10 @@ func (c *Checker) Run(ctx context.Context) {
 // instrument runs all health checks and updates the check gauge.
 func (c *Checker) instrument(ctx context.Context) {
 	for _, check := range c.checks {
-		var failing bool
-		var err error
+		var (
+			failing bool
+			err     error
+		)
 
 		if check.MemFunc != nil {
 			failing, err = check.MemFunc(c.memorySnapshots, c.metadata)
@@ -123,6 +125,7 @@ func (c *Checker) instrument(ctx context.Context) {
 		var val float64
 		if failing {
 			val = 1
+
 			checkFailedCounter.WithLabelValues(string(check.Severity), check.Name).Inc()
 		}
 
@@ -187,7 +190,7 @@ func (c *Checker) sampleMemory() {
 	var memBytes, startSecs float64
 
 	for _, fam := range metrics {
-		switch fam.GetName() {
+		switch fam.GetName() { //nolint:revive
 		case "go_memstats_heap_inuse_bytes":
 			if len(fam.GetMetric()) > 0 {
 				memBytes = fam.GetMetric()[0].GetGauge().GetValue()
@@ -241,8 +244,10 @@ func memoryLeakCheck(snapshots []memorySnapshot, _ Metadata) (bool, error) {
 // memoryWarmupPeriod of the process start (post-restart cool-down). Returns false if fewer than
 // minValidMemorySamples valid samples exist.
 func avgValidMemory(snapshots []memorySnapshot) (float64, bool) {
-	var sum float64
-	var count int
+	var (
+		sum   float64
+		count int
+	)
 
 	for _, s := range snapshots {
 		restartTime := time.Unix(int64(s.startSecs), 0)
