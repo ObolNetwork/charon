@@ -569,6 +569,97 @@ func TestHighPeerPingLatencyCheck(t *testing.T) {
 	})
 }
 
+func TestMemoryLeakCheck(t *testing.T) {
+	now := time.Now()
+	startSecs := float64(now.Add(-48 * time.Hour).Unix()) // started 48h ago, fully warmed up
+
+	// makeSnapshots builds a slice of maxMemorySamples snapshots with the given bytes values.
+	// The values slice is cycled if shorter than maxMemorySamples.
+	makeSnapshots := func(values []float64) []memorySnapshot {
+		snaps := make([]memorySnapshot, maxMemorySamples)
+		for i := range maxMemorySamples {
+			// Space snapshots memorySamplePeriod apart, oldest first.
+			capturedAt := now.Add(-time.Duration(maxMemorySamples-1-i) * memorySamplePeriod)
+			snaps[i] = memorySnapshot{
+				bytes:      values[i%len(values)],
+				startSecs:  startSecs,
+				capturedAt: capturedAt,
+			}
+		}
+		return snaps
+	}
+
+	t.Run("no data", func(t *testing.T) {
+		failing, err := memoryLeakCheck(nil, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("partial data", func(t *testing.T) {
+		snaps := makeSnapshots([]float64{100})[:50] // only 50 of 96
+		failing, err := memoryLeakCheck(snaps, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("stable memory", func(t *testing.T) {
+		snaps := makeSnapshots([]float64{500})
+		failing, err := memoryLeakCheck(snaps, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("exactly 5% growth is not above threshold", func(t *testing.T) {
+		snaps := makeSnapshots([]float64{100})
+		// Set recent half to exactly 105 (5% more).
+		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
+			snaps[i].bytes = 105
+		}
+		failing, err := memoryLeakCheck(snaps, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("above 5% growth triggers warning", func(t *testing.T) {
+		snaps := makeSnapshots([]float64{100})
+		// Set recent half to 106 (6% more).
+		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
+			snaps[i].bytes = 106
+		}
+		failing, err := memoryLeakCheck(snaps, Metadata{})
+		require.NoError(t, err)
+		require.True(t, failing)
+	})
+
+	t.Run("all recent samples in warmup", func(t *testing.T) {
+		snaps := makeSnapshots([]float64{100})
+		recentStart := float64(now.Add(-2 * time.Hour).Unix()) // restarted 2h ago
+		// Mark all recent-window snapshots as post-restart warmup.
+		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
+			snaps[i].startSecs = recentStart
+		}
+		failing, err := memoryLeakCheck(snaps, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing) // not enough valid samples in recent window
+	})
+
+	t.Run("restart in older window does not prevent check", func(t *testing.T) {
+		snaps := makeSnapshots([]float64{100})
+		olderStart := float64(now.Add(-46 * time.Hour).Unix()) // restarted 46h ago
+		// Mark first few older samples as warmup — but enough remain valid.
+		for i := 0; i < 4; i++ {
+			snaps[i].startSecs = olderStart
+		}
+		// Memory grew 20% in the recent window.
+		for i := maxMemorySamples / 2; i < maxMemorySamples; i++ {
+			snaps[i].bytes = 120
+		}
+		failing, err := memoryLeakCheck(snaps, Metadata{})
+		require.NoError(t, err)
+		require.True(t, failing)
+	})
+}
+
 func testCheck(t *testing.T, m Metadata, checkName string, expect bool, metrics []*pb.MetricFamily) {
 	t.Helper()
 

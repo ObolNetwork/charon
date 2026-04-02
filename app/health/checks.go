@@ -31,7 +31,11 @@ type check struct {
 	// Severity of the health check.
 	Severity severity
 	// Func returns true if the health check is failing, false otherwise.
+	// Exactly one of Func or MemFunc must be set.
 	Func func(query, Metadata) (bool, error)
+	// MemFunc is used for checks that need access to the long-term memory snapshot buffer.
+	// Exactly one of Func or MemFunc must be set.
+	MemFunc func([]memorySnapshot, Metadata) (bool, error)
 }
 
 // query abstracts the function to query the metric store returning a value by reducing the selected time series for a given metric name.
@@ -218,6 +222,12 @@ var checks = []check{
 
 			return maxVal > 0, nil
 		},
+	},
+	{
+		Name:        "memory_leak",
+		Description: "Memory usage has grown >10% over the past 24h compared to the previous 24h. Possible memory leak.",
+		Severity:    severityWarning,
+		MemFunc:     memoryLeakCheck,
 	},
 }
 
