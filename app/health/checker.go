@@ -134,10 +134,10 @@ func (c *Checker) instrument(ctx context.Context) {
 		if failing {
 			val = 1
 
-			checkFailedCounter.WithLabelValues(string(check.Severity), check.Name).Inc()
+			checkFailedCounter.WithLabelValues(string(check.Severity), check.Name, check.Description).Inc()
 		}
 
-		checkGauge.WithLabelValues(string(check.Severity), check.Name).Set(val)
+		checkGauge.WithLabelValues(string(check.Severity), check.Name, check.Description).Set(val)
 	}
 }
 
