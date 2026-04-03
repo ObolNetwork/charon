@@ -291,6 +291,25 @@ var checks = []check{
 		},
 	},
 	{
+		Name: "high_parsigdb_store_latency_proposer",
+		Description: `Proposer partial signatures from peers are received more than 3s after the expected time on average.
+		Late partial signatures may delay or miss signature aggregation, leading to failed proposals.
+
+		Check peer connectivity and ping latency. Ensuring direct connections (public IP) and bringing nodes geographically closer can help.
+		If peers are sending those partial signatures way too late, they may be erroring, check their logs. Especially if this healthcheck is failing in multiple other peers.`,
+		Severity: severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxAvg, err := q("core_parsigdb_store",
+				histogramMaxAvgWhere([]*pb.LabelPair{l("duty", "proposer")}, nil),
+				gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxAvg > 3.0, nil // 3s threshold
+		},
+	},
+	{
 		Name:        "high_goroutine_count",
 		Description: `Goroutine count exceeds 1000. Possible leak. Report to Obol technical team.`,
 		Severity:    severityWarning,

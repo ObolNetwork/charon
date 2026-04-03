@@ -518,6 +518,62 @@ func TestHighParsigdbStoreLatencyCheck(t *testing.T) {
 	})
 }
 
+func TestHighParsigdbStoreLatencyProposerCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "high_parsigdb_store_latency_proposer"
+	metricName := "core_parsigdb_store"
+
+	proposer0 := genLabels("duty", "proposer", "peer_idx", "0")
+	proposer1 := genLabels("duty", "proposer", "peer_idx", "1")
+	attester0 := genLabels("duty", "attester", "peer_idx", "0")
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("low latency", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genHistFam(metricName,
+				genHistogram(proposer0, 0.5, 1, 0.5, 1, 0.5, 1),
+				genHistogram(proposer1, 0.3, 1, 0.3, 1, 0.3, 1),
+			),
+		)
+	})
+
+	t.Run("high latency single peer triggers warning", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genHistFam(metricName,
+				genHistogram(proposer0, 3.5, 1, 3.5, 1, 3.5, 1),
+				genHistogram(proposer1, 0.3, 1, 0.3, 1, 0.3, 1),
+			),
+		)
+	})
+
+	t.Run("high latency for attester duty does not trigger", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genHistFam(metricName,
+				genHistogram(attester0, 5.0, 1, 5.0, 1, 5.0, 1),
+			),
+		)
+	})
+
+	t.Run("exactly at threshold does not trigger", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genHistFam(metricName,
+				genHistogram(proposer0, 3.0, 1, 3.0, 1, 3.0, 1),
+			),
+		)
+	})
+
+	t.Run("just above threshold triggers", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genHistFam(metricName,
+				genHistogram(proposer0, 3.1, 1, 3.1, 1, 3.1, 1),
+			),
+		)
+	})
+}
+
 func TestHighGoroutineCountCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_goroutine_count"
