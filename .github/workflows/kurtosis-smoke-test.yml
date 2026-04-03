@@ -173,7 +173,7 @@ jobs:
 
       - name: Notify Slack on success
         if: success()
-        uses: rtCamp/action-slack-notify@c8d87ceaa24406d9749a1c181fed3a7004bbd7aa # v2.3.2
+        uses: rtCamp/action-slack-notify@c33737706dea87cd7784c687dadc9adf1be59990 # v2.3.2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_PROTOCOL_WEBHOOK }}
           SLACK_COLOR: good
@@ -189,7 +189,7 @@ jobs:
 
       - name: Notify Slack on failure
         if: failure()
-        uses: rtCamp/action-slack-notify@c8d87ceaa24406d9749a1c181fed3a7004bbd7aa # v2.3.2
+        uses: rtCamp/action-slack-notify@c33737706dea87cd7784c687dadc9adf1be59990 # v2.3.2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_DEV_PROTOCOL_WEBHOOK }}
           SLACK_COLOR: danger
