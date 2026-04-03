@@ -50,12 +50,14 @@ jobs:
           KURTOSIS_AWS_REGION: ${{ secrets.KURTOSIS_AWS_REGION }}
           KURTOSIS_MONITORING_TOKEN: ${{ secrets.KURTOSIS_MONITORING_TOKEN }}
           OBOL_GRAFANA_API_TOKEN: ${{ secrets.OBOL_GRAFANA_API_TOKEN }}
+          SLACK_DEV_PROTOCOL_WEBHOOK: ${{ secrets.SLACK_DEV_PROTOCOL_WEBHOOK }}
         run: |
           missing=()
           [ -z "$KURTOSIS_AWS_IAM_ROLE" ] && missing+=("KURTOSIS_AWS_IAM_ROLE")
           [ -z "$KURTOSIS_AWS_REGION" ] && missing+=("KURTOSIS_AWS_REGION")
           [ -z "$KURTOSIS_MONITORING_TOKEN" ] && missing+=("KURTOSIS_MONITORING_TOKEN")
           [ -z "$OBOL_GRAFANA_API_TOKEN" ] && missing+=("OBOL_GRAFANA_API_TOKEN")
+          [ -z "$SLACK_DEV_PROTOCOL_WEBHOOK" ] && missing+=("SLACK_DEV_PROTOCOL_WEBHOOK")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required secrets: ${missing[*]}"
             exit 1
