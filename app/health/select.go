@@ -85,6 +85,131 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 	}
 }
 
+// maxGaugeWhere returns a selector that finds the maximum gauge value across series matching all include labels.
+func maxGaugeWhere(include []*pb.LabelPair) labelSelector {
+	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+		if metricsFam.GetType() != pb.MetricType_GAUGE {
+			return nil, errors.New("bug: non-gauge metric passed")
+		}
+
+		var maxVal float64
+
+		for _, metric := range metricsFam.GetMetric() {
+			if len(include) > 0 && !labelsContain(metric.GetLabel(), include) {
+				continue
+			}
+
+			val := metric.GetGauge().GetValue()
+			if val > maxVal {
+				maxVal = val
+			}
+		}
+
+		ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+		return &pb.Metric{
+			Gauge:       &pb.Gauge{Value: &maxVal},
+			TimestampMs: &ts,
+		}, nil
+	}
+}
+
+// maxAbsGaugeLabels returns a selector that finds the maximum absolute gauge value across all label series.
+func maxAbsGaugeLabels(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+	if metricsFam.GetType() != pb.MetricType_GAUGE {
+		return nil, errors.New("bug: non-gauge metric passed")
+	}
+
+	var maxAbs float64
+
+	for _, metric := range metricsFam.GetMetric() {
+		val := metric.GetGauge().GetValue()
+		if val < 0 {
+			val = -val
+		}
+
+		if val > maxAbs {
+			maxAbs = val
+		}
+	}
+
+	ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+	return &pb.Metric{
+		Gauge:       &pb.Gauge{Value: &maxAbs},
+		TimestampMs: &ts,
+	}, nil
+}
+
+// histogramMaxAvgWhere returns a selector that computes max average across histogram series,
+// only including series whose labels match include (if non-nil) and excluding those matching exclude (if non-nil).
+// Label matching uses the same regex semantics as labelsContain.
+func histogramMaxAvgWhere(include, exclude []*pb.LabelPair) labelSelector {
+	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+		if metricsFam.GetType() != pb.MetricType_HISTOGRAM {
+			return nil, errors.New("bug: non-histogram metric passed")
+		}
+
+		var maxAvg float64
+
+		for _, metric := range metricsFam.GetMetric() {
+			if len(include) > 0 && !labelsContain(metric.GetLabel(), include) {
+				continue
+			}
+
+			if len(exclude) > 0 && labelsContain(metric.GetLabel(), exclude) {
+				continue
+			}
+
+			h := metric.GetHistogram()
+			if h.GetSampleCount() == 0 {
+				continue
+			}
+
+			avg := h.GetSampleSum() / float64(h.GetSampleCount())
+			if avg > maxAvg {
+				maxAvg = avg
+			}
+		}
+
+		ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+		return &pb.Metric{
+			Gauge:       &pb.Gauge{Value: &maxAvg},
+			TimestampMs: &ts,
+		}, nil
+	}
+}
+
+// histogramMaxAvg returns a selector that computes the average value for each histogram time series
+// and returns a synthetic gauge with the maximum average across all series.
+func histogramMaxAvg(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+	if metricsFam.GetType() != pb.MetricType_HISTOGRAM {
+		return nil, errors.New("bug: non-histogram metric passed")
+	}
+
+	var maxAvg float64
+
+	for _, metric := range metricsFam.GetMetric() {
+		h := metric.GetHistogram()
+		if h.GetSampleCount() == 0 {
+			continue
+		}
+
+		avg := h.GetSampleSum() / float64(h.GetSampleCount())
+		if avg > maxAvg {
+			maxAvg = avg
+		}
+	}
+
+	ts := metricsFam.GetMetric()[0].GetTimestampMs()
+
+	return &pb.Metric{
+		Gauge:       &pb.Gauge{Value: &maxAvg},
+		TimestampMs: &ts,
+	}, nil
+}
+
 // labelsContain returns true if all of the label pairs in contain are found in labels.
 func labelsContain(labels, contain []*pb.LabelPair) bool {
 	for _, c := range contain {
