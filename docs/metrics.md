@@ -32,6 +32,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_feature_flags` | Gauge | Constant gauge with custom enabled feature flags | `feature_flags` |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
 | `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name, description` |
+| `app_health_checks_failed_total` | Counter | Total number of times each health check has been observed failing. Allows querying historical failures via increase(). | `severity, name, description` |
 | `app_health_metrics_high_cardinality` | Gauge | Metrics with high cardinality by name. | `name` |
 | `app_log_error_total` | Counter | Total count of logged errors by topic | `topic` |
 | `app_log_loki_dropped_total` | Counter | Total count of dropped log lines due to full buffer |  |
