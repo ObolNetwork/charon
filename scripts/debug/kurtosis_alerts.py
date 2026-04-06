@@ -223,9 +223,19 @@ def query_metrics_clusters(
     return sorted(clusters)
 
 
+_FIRING_STATES = {"alerting", "firing"}
+
+
 def is_firing(entry: dict) -> bool:
-    """Check if an alert entry represents a firing alert."""
-    return entry["state"].lower() == "alerting"
+    """Check if an alert entry indicates the alert was firing during the window.
+
+    An alert was firing if it transitioned INTO a firing state (newState is firing)
+    or transitioned OUT of a firing state (prevState is firing, meaning it was
+    firing before it resolved).
+    """
+    state = entry.get("state", "").lower()
+    prev = entry.get("previous_state", "").lower()
+    return state in _FIRING_STATES or prev in _FIRING_STATES
 
 
 def print_report(
@@ -378,6 +388,12 @@ def main():
     # Format and sort by timestamp
     entries = [format_alert_entry(a) for a in matching]
     entries.sort(key=lambda e: e["timestamp"])
+
+    firing = [e for e in entries if is_firing(e)]
+    print(f"=== Alert Summary ===")
+    print(f"  {len(annotations)} alert annotations found, {len(matching)} matched monitored rules.")
+    print(f"  {len(firing)} alerts were firing during this time window.")
+    print()
 
     # Query Prometheus for metrics coverage if expected clusters specified
     metrics_clusters = None
