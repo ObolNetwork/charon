@@ -25,7 +25,7 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]*core.PubKey),
 		attKeysBySlot:     make(map[uint64][]pkKey),
-		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
+		proDuties:         make(map[uint64]core.VersionedProposal),
 		aggDuties:         make(map[aggKey]core.VersionedAggregatedAttestation),
 		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
@@ -46,7 +46,7 @@ type MemDB struct {
 	attQueries    []attQuery
 
 	// DutyProposer
-	proDuties  map[uint64]*eth2api.VersionedProposal
+	proDuties  map[uint64]core.VersionedProposal
 	proQueries []proQuery
 
 	// DutyAggregator
@@ -105,9 +105,8 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 
 		db.resolveAttQueriesUnsafe()
 	case core.DutyAggregator:
-		var err error
 		for _, unsignedData := range unsignedSet {
-			err = db.storeAggAttestationUnsafe(unsignedData)
+			err := db.storeAggAttestationUnsafe(unsignedData)
 			if err != nil {
 				return err
 			}
@@ -155,7 +154,7 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 	cancel := make(chan struct{})
 	defer close(cancel)
 
-	response := make(chan *eth2api.VersionedProposal, 1)
+	response := make(chan core.VersionedProposal, 1) // Buffer size of one so resolving never blocks
 
 	db.mu.Lock()
 	db.proQueries = append(db.proQueries, proQuery{
@@ -171,8 +170,18 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 		return nil, errors.New("dutydb shutdown")
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case block := <-response:
-		return block, nil
+	case value := <-response:
+		cloned, err := value.Clone()
+		if err != nil {
+			return nil, err
+		}
+
+		proposal, ok := cloned.(core.VersionedProposal)
+		if !ok {
+			return nil, errors.New("invalid cloned proposal type")
+		}
+
+		return &proposal.VersionedProposal, nil
 	}
 }
 
@@ -428,7 +437,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 
 	slot := uint64(aggAttData.Slot)
 
-	// Store key and value for PubKeyByAttestation
+	// Store key and value for AwaitAggAttestation
 	key := aggKey{
 		Slot: slot,
 		Root: aggRoot,
@@ -469,7 +478,7 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 	return nil
 }
 
-// storeSyncContributionUnsafe stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
+// storeSyncContributionUnsafe stores the unsigned sync committee contribution. It is unsafe since it assumes the lock is held.
 func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
@@ -541,7 +550,7 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 			return errors.New("clashing blocks")
 		}
 	} else {
-		db.proDuties[uint64(slot)] = &proposal.VersionedProposal
+		db.proDuties[uint64(slot)] = proposal
 	}
 
 	return nil
@@ -704,7 +713,7 @@ type attQuery struct {
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
 	Key      uint64
-	Response chan<- *eth2api.VersionedProposal
+	Response chan<- core.VersionedProposal
 	Cancel   <-chan struct{}
 }
 
