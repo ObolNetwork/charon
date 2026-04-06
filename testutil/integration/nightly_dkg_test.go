@@ -9,7 +9,6 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"strings"
 	"testing"
 	"time"
 
@@ -173,8 +172,8 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			conf.DataDir = t.TempDir()
 
 			err := dkg.Run(ctx, conf)
-			if !strings.Contains(err.Error(), context.Canceled.Error()) {
-				panic("error is not of context canceled kind")
+			if err != nil && !errors.Is(err, context.Canceled) {
+				panic(fmt.Sprintf("error is not of context canceled kind: %v", err))
 			}
 		}(ctx)
 
