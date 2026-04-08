@@ -154,6 +154,7 @@ jobs:
           echo "alerts_exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
 
       - name: Upload report
+        id: upload_report
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
         with:
@@ -183,7 +184,7 @@ jobs:
             *Branch:* `${{ inputs.branch || 'main' }}`
             *Instance type:* `${{ inputs.instance_type || 'c6a.4xlarge' }}`
             *Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>
-            *Report:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts|Download report>
+            *Report:* <${{ steps.upload_report.outputs.artifact-url }}|Download report>
           SLACK_USERNAME: GitHub Actions
           SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
 
@@ -199,6 +200,6 @@ jobs:
             *Branch:* `${{ inputs.branch || 'main' }}`
             *Instance type:* `${{ inputs.instance_type || 'c6a.4xlarge' }}`
             *Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>
-            *Report:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts|Download report>
+            *Report:* <${{ steps.upload_report.outputs.artifact-url }}|Download report>
           SLACK_USERNAME: GitHub Actions
           SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
