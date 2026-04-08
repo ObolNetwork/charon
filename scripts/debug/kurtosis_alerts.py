@@ -225,7 +225,12 @@ def query_metrics_clusters(
 
 
 _FIRING_STATES = {"alerting", "firing"}
-_NORMAL_STATES = {"normal", "ok", "inactive"}
+_NORMAL_STATE_PREFIXES = ("normal", "ok", "inactive")
+
+
+def _is_normal_state(state: str) -> bool:
+    """Return True for any Grafana normal/resolved state, including variants like 'Normal (MissingSeries)'."""
+    return state.startswith(_NORMAL_STATE_PREFIXES)
 
 
 def _cluster_key(entry: dict) -> tuple:
@@ -242,16 +247,25 @@ def compute_firing(entries: list[dict], from_ms: int) -> list[dict]:
     Entries before from_ms are lookback data used to reconstruct pre-window state.
     An alert counts as firing during the window if:
       - It transitioned into a firing state within the window, OR
-      - It was already firing before the window and never recovered by window end.
+      - It was already firing at window start (its lookback annotation has no time_end
+        before from_ms) and never recovered by window end.
     """
     # Split into pre-window and in-window entries (already sorted by timestamp)
     pre_window = [e for e in entries if e["timestamp"] < from_ms]
     in_window = [e for e in entries if e["timestamp"] >= from_ms]
 
-    # Reconstruct state at window start from lookback annotations
+    # Reconstruct state at window start from lookback annotations.
+    # If an entry has a non-zero time_end before from_ms, the alert already resolved
+    # before the window — treat it as normal regardless of the state field.
     pre_window_state: dict[tuple, str] = {}
     for e in pre_window:
-        pre_window_state[_cluster_key(e)] = e["state"].lower()
+        time_end = e.get("time_end", 0)
+        ts = e["timestamp"]
+        # time_end == ts means Grafana set timeEnd to the evaluation time (still firing).
+        # Only treat as resolved if time_end is strictly after ts (actual end recorded).
+        resolved_before_window = time_end > ts and time_end < from_ms
+        state = "normal" if resolved_before_window else e["state"].lower()
+        pre_window_state[_cluster_key(e)] = state
 
     # Track which keys resolved during the window
     resolved_in_window: set[tuple] = set()
@@ -261,13 +275,13 @@ def compute_firing(entries: list[dict], from_ms: int) -> list[dict]:
         state = e["state"].lower()
         if state in _FIRING_STATES:
             fired_in_window.append(e)
-        elif state in _NORMAL_STATES:
+        elif _is_normal_state(state):
             resolved_in_window.add(key)
 
     # Keys that were firing before the window and never resolved during it
     carried_over = [
         key for key, state in pre_window_state.items()
-        if state in _FIRING_STATES and key not in resolved_in_window
+        if state in _FIRING_STATES and not _is_normal_state(state) and key not in resolved_in_window
     ]
 
     # Build synthetic entries for carried-over alerts so the report can display them
