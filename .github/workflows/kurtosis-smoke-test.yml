@@ -130,7 +130,8 @@ jobs:
           KURTOSIS_INSTANCE_TYPE: ${{ inputs.instance_type || 'c6a.4xlarge' }}
           EXPECTED_CLUSTERS: ${{ steps.deploy.outputs.cluster_count }}
         run: |
-          ALERT_FROM=$((DEPLOY_START + 20 * 60))
+          WARMUP_SECONDS=$((20 * 60))
+          ALERT_FROM=$((DEPLOY_START + WARMUP_SECONDS))
           ALERT_TO=$((DEPLOY_START + (LIFETIME_MINUTES - 5) * 60))
 
           echo "Alert window: $(date -u -d @${ALERT_FROM} +%Y-%m-%dT%H:%M:%SZ) to $(date -u -d @${ALERT_TO} +%Y-%m-%dT%H:%M:%SZ)"
@@ -138,6 +139,7 @@ jobs:
           set +e
           python scripts/debug/kurtosis_alerts.py \
             --from "$ALERT_FROM" --to "$ALERT_TO" \
+            --lookback "$WARMUP_SECONDS" \
             --expected-clusters "$EXPECTED_CLUSTERS" | tee report.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
