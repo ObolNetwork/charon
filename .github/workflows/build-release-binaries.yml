@@ -1,10 +1,10 @@
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
-    contents: write
+  contents: write
 
 name: Build and Release Binaries
 jobs:
@@ -12,95 +12,95 @@ jobs:
     runs-on: ubuntu-24.04
     name: Build Cross-Platform Binaries
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
-    - uses: ./.github/actions/setup-go
-      id: setup-go
+      - uses: ./.github/actions/setup-go
+        id: setup-go
 
-    - name: Set version from git tag
-      run: |
-        echo "VCS_REVISION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
-        echo "VCS_TIME=$(git log -1 --format="%cd" --date=iso-strict $GITHUB_SHA)" >> $GITHUB_ENV
-        echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set version from git tag
+        run: |
+          echo "VCS_REVISION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+          echo "VCS_TIME=$(git log -1 --format="%cd" --date=iso-strict $GITHUB_SHA)" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
 
-    - name: Construct LDFLAGS_VALUE
-      run: |
-        LDFLAGS_VALUE=$'-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }} -X github.com/obolnetwork/charon/app/version.vcsRevision=${{ env.VCS_REVISION }} -X github.com/obolnetwork/charon/app/version.vcsTime=${{ env.VCS_TIME }}'
-        echo "LDFLAGS_VALUE=${LDFLAGS_VALUE}" >> $GITHUB_ENV
+      - name: Construct LDFLAGS_VALUE
+        run: |
+          LDFLAGS_VALUE=$'-X github.com/obolnetwork/charon/app/version.version=${{ github.ref_name }} -X github.com/obolnetwork/charon/app/version.vcsRevision=${{ env.VCS_REVISION }} -X github.com/obolnetwork/charon/app/version.vcsTime=${{ env.VCS_TIME }}'
+          echo "LDFLAGS_VALUE=${LDFLAGS_VALUE}" >> $GITHUB_ENV
 
-    - name: Build x86_64 binary
-      env:
-        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
-        LDFLAGS_VALUE: ${{ env.LDFLAGS_VALUE }}
-      run: |
-        docker run --rm --platform linux/amd64 \
-          -v "$(pwd)":/workspace:z -w /workspace \
-          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
-          bash -c "
-            set -euo pipefail
-            set -x
-            apt-get update && apt-get install -y build-essential && \
-            export CGO_ENABLED=1 && \
-            export GOOS=linux && \
-            export GOARCH=amd64 && \
-            go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
-            -o dist/charon-$RELEASE_VERSION-linux-amd64
-          "
+      - name: Build x86_64 binary
+        env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+          LDFLAGS_VALUE: ${{ env.LDFLAGS_VALUE }}
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$(pwd)":/workspace:z -w /workspace \
+            golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
+            bash -c "
+              set -euo pipefail
+              set -x
+              apt-get update && apt-get install -y build-essential && \
+              export CGO_ENABLED=1 && \
+              export GOOS=linux && \
+              export GOARCH=amd64 && \
+              go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
+              -o dist/charon-$RELEASE_VERSION-linux-amd64
+            "
 
-    - name: Build ARM64 binary
-      env:
-        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
-        LDFLAGS_VALUE: ${{ env.LDFLAGS_VALUE }}
-      run: |
-        docker run --rm --platform linux/amd64 \
-          -v "$(pwd)":/workspace:z -w /workspace \
-          golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
-          bash -c "
-            set -euo pipefail
-            set -x
-            apt-get update && apt-get install -y build-essential gcc-aarch64-linux-gnu && \
-            export CGO_ENABLED=1 && \
-            export GOOS=linux && \
-            export GOARCH=arm64 && \
-            export CC=aarch64-linux-gnu-gcc && \
-            go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
-            -o dist/charon-$RELEASE_VERSION-linux-arm64
-          "
+      - name: Build ARM64 binary
+        env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+          LDFLAGS_VALUE: ${{ env.LDFLAGS_VALUE }}
+        run: |
+          docker run --rm --platform linux/amd64 \
+            -v "$(pwd)":/workspace:z -w /workspace \
+            golang:${{ steps.setup-go.outputs.go-version }}-bookworm \
+            bash -c "
+              set -euo pipefail
+              set -x
+              apt-get update && apt-get install -y build-essential gcc-aarch64-linux-gnu && \
+              export CGO_ENABLED=1 && \
+              export GOOS=linux && \
+              export GOARCH=arm64 && \
+              export CC=aarch64-linux-gnu-gcc && \
+              go build -buildvcs=false -tags=netgo,osusergo -ldflags '$LDFLAGS_VALUE -extldflags \"-static\"' \
+              -o dist/charon-$RELEASE_VERSION-linux-arm64
+            "
 
-    - name: Fix permissions for dist
-      run: sudo chown -R $USER:$USER dist
+      - name: Fix permissions for dist
+        run: sudo chown -R $USER:$USER dist
 
-    - name: Create release archives
-      env:
-        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
-      run: |
-        cd dist
-        tar czf charon-$RELEASE_VERSION-linux-amd64.tar.gz charon-$RELEASE_VERSION-linux-amd64
-        tar czf charon-$RELEASE_VERSION-linux-arm64.tar.gz charon-$RELEASE_VERSION-linux-arm64
-        echo "# Linux AMD64 (x86_64)" > checksums.txt
-        sha256sum charon-$RELEASE_VERSION-linux-amd64.tar.gz >> checksums.txt
-        echo -e "\n# Linux ARM64 (aarch64)" >> checksums.txt
-        sha256sum charon-$RELEASE_VERSION-linux-arm64.tar.gz >> checksums.txt
+      - name: Create release archives
+        env:
+          RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        run: |
+          cd dist
+          tar czf charon-$RELEASE_VERSION-linux-amd64.tar.gz charon-$RELEASE_VERSION-linux-amd64
+          tar czf charon-$RELEASE_VERSION-linux-arm64.tar.gz charon-$RELEASE_VERSION-linux-arm64
+          echo "# Linux AMD64 (x86_64)" > checksums.txt
+          sha256sum charon-$RELEASE_VERSION-linux-amd64.tar.gz >> checksums.txt
+          echo -e "\n# Linux ARM64 (aarch64)" >> checksums.txt
+          sha256sum charon-$RELEASE_VERSION-linux-arm64.tar.gz >> checksums.txt
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-      with:
-        name: charon-${{ env.RELEASE_VERSION }}-binaries
-        path: |
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
-          dist/checksums.txt
+      - name: Upload artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: charon-${{ env.RELEASE_VERSION }}-binaries
+          path: |
+            dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+            dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
+            dist/checksums.txt
 
-    - name: Attach to GitHub Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
-      with:
-        files: |
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
-          dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
-          dist/checksums.txt
-        draft: true
-        tag_name: ${{ github.ref_name }}
+      - name: Attach to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          files: |
+            dist/charon-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+            dist/charon-${{ env.RELEASE_VERSION }}-linux-arm64.tar.gz
+            dist/checksums.txt
+          draft: true
+          tag_name: ${{ github.ref_name }}
