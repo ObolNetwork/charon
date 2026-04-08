@@ -4,7 +4,7 @@ Fetches alert history for Charon Kurtosis alerts from Grafana.
 Requires OBOL_GRAFANA_API_TOKEN environment variable.
 Usage: python kurtosis_alerts.py --from <start> --to <end> [--expected-clusters N]
   --from:               Start time (ISO 8601 e.g. 2024-03-01T00:00:00Z, or epoch seconds)
-  --to:                 End time (ISO 8601 e.g. 2024-03-02T00:00:00Z, or epoch seconds)
+  --to:                 End time (ISO 8601 or epoch seconds)
   --expected-clusters:  Expected number of clusters (queries Prometheus to verify coverage)
 
 Outputs a structured report to stdout.
@@ -229,13 +229,12 @@ _FIRING_STATES = {"alerting", "firing"}
 def is_firing(entry: dict) -> bool:
     """Check if an alert entry indicates the alert was firing during the window.
 
-    An alert was firing if it transitioned INTO a firing state (newState is firing)
-    or transitioned OUT of a firing state (prevState is firing, meaning it was
-    firing before it resolved).
+    Only annotations where the alert transitioned INTO a firing state are counted.
+    Annotations where prevState is firing but newState is normal represent alerts
+    that fired before the window and resolved during it — those are not counted.
     """
     state = entry.get("state", "").lower()
-    prev = entry.get("previous_state", "").lower()
-    return state in _FIRING_STATES or prev in _FIRING_STATES
+    return state in _FIRING_STATES
 
 
 def print_report(
