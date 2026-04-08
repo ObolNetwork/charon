@@ -2,9 +2,10 @@
 """
 Fetches alert history for Charon Kurtosis alerts from Grafana.
 Requires OBOL_GRAFANA_API_TOKEN environment variable.
-Usage: python kurtosis_alerts.py --from <start> --to <end> [--expected-clusters N]
+Usage: python kurtosis_alerts.py --from <start> --to <end> [--lookback <seconds>] [--expected-clusters N]
   --from:               Start time (ISO 8601 e.g. 2024-03-01T00:00:00Z, or epoch seconds)
-  --to:                 End time (ISO 8601 e.g. 2024-03-02T00:00:00Z, or epoch seconds)
+  --to:                 End time (ISO 8601 or epoch seconds)
+  --lookback:           Seconds before --from to also fetch annotations from (default: 0)
   --expected-clusters:  Expected number of clusters (queries Prometheus to verify coverage)
 
 Outputs a structured report to stdout.
@@ -224,18 +225,78 @@ def query_metrics_clusters(
 
 
 _FIRING_STATES = {"alerting", "firing"}
+_NORMAL_STATE_PREFIXES = ("normal", "ok", "inactive")
 
 
-def is_firing(entry: dict) -> bool:
-    """Check if an alert entry indicates the alert was firing during the window.
+def _is_normal_state(state: str) -> bool:
+    """Return True for any Grafana normal/resolved state, including variants like 'Normal (MissingSeries)'."""
+    return state.startswith(_NORMAL_STATE_PREFIXES)
 
-    An alert was firing if it transitioned INTO a firing state (newState is firing)
-    or transitioned OUT of a firing state (prevState is firing, meaning it was
-    firing before it resolved).
+
+def _cluster_key(entry: dict) -> tuple:
+    return (
+        entry["alert_name"],
+        entry["labels"].get("cluster_name", ""),
+        entry["labels"].get("cluster_hash", ""),
+    )
+
+
+def compute_firing(entries: list[dict], from_ms: int) -> list[dict]:
+    """Compute which alerts were firing during the window [from_ms, ...].
+
+    Entries before from_ms are lookback data used to reconstruct pre-window state.
+    An alert counts as firing during the window if:
+      - It transitioned into a firing state within the window, OR
+      - It was already firing at window start (its lookback annotation has no time_end
+        before from_ms) and never recovered by window end.
     """
-    state = entry.get("state", "").lower()
-    prev = entry.get("previous_state", "").lower()
-    return state in _FIRING_STATES or prev in _FIRING_STATES
+    # Split into pre-window and in-window entries (already sorted by timestamp)
+    pre_window = [e for e in entries if e["timestamp"] < from_ms]
+    in_window = [e for e in entries if e["timestamp"] >= from_ms]
+
+    # Reconstruct state at window start from lookback annotations.
+    # If an entry has a non-zero time_end before from_ms, the alert already resolved
+    # before the window — treat it as normal regardless of the state field.
+    pre_window_state: dict[tuple, str] = {}
+    for e in pre_window:
+        time_end = e.get("time_end", 0)
+        ts = e["timestamp"]
+        # time_end == ts means Grafana set timeEnd to the evaluation time (still firing).
+        # Only treat as resolved if time_end is strictly after ts (actual end recorded).
+        resolved_before_window = time_end > ts and time_end < from_ms
+        state = "normal" if resolved_before_window else e["state"].lower()
+        pre_window_state[_cluster_key(e)] = state
+
+    # Track which keys resolved during the window
+    resolved_in_window: set[tuple] = set()
+    fired_in_window: list[dict] = []
+    for e in in_window:
+        key = _cluster_key(e)
+        state = e["state"].lower()
+        if state in _FIRING_STATES:
+            fired_in_window.append(e)
+        elif _is_normal_state(state):
+            resolved_in_window.add(key)
+
+    # Keys that were firing before the window and never resolved during it
+    carried_over = [
+        key for key, state in pre_window_state.items()
+        if state in _FIRING_STATES and not _is_normal_state(state) and key not in resolved_in_window
+    ]
+
+    # Build synthetic entries for carried-over alerts so the report can display them
+    carried_entries = []
+    for alert_name, cluster_name, cluster_hash in carried_over:
+        carried_entries.append({
+            "alert_name": alert_name,
+            "state": "alerting",
+            "previous_state": "",
+            "timestamp": from_ms,
+            "time_end": from_ms,
+            "labels": {"cluster_name": cluster_name, "cluster_hash": cluster_hash},
+        })
+
+    return fired_in_window + carried_entries
 
 
 def print_report(
@@ -243,12 +304,11 @@ def print_report(
     from_ms: int,
     to_ms: int,
     rules: list[dict],
+    firing: list[dict],
     metrics_clusters: list[tuple[str, str]] | None = None,
     expected_clusters: int = 0,
 ):
     """Print a structured human-readable report."""
-    firing = [e for e in entries if is_firing(e)]
-
     # === Section A: Input Parameters ===
     print("=== Input Parameters ===")
     print(f"From: {ms_to_human(from_ms)}")
@@ -263,7 +323,8 @@ def print_report(
     print()
 
     # === Section C: Clusters Observed ===
-    clusters = {}  # (cluster_name, cluster_hash) -> set
+    # Include clusters from all entries (including lookback) that appeared in any annotation
+    clusters: dict[tuple, bool] = {}
     for e in entries:
         name = e["labels"].get("cluster_name", "")
         h = e["labels"].get("cluster_hash", "")
@@ -307,7 +368,7 @@ def print_report(
         return
 
     # Group by alert name
-    by_alert = defaultdict(list)
+    by_alert: dict[str, list] = defaultdict(list)
     for e in firing:
         by_alert[e["alert_name"]].append(e)
 
@@ -316,7 +377,7 @@ def print_report(
         print(f"--- {alert_name} ({len(alert_entries)} occurrences) ---")
 
         # Group by cluster within this alert
-        by_cluster = defaultdict(int)
+        by_cluster: dict[tuple, int] = defaultdict(int)
         for e in alert_entries:
             name = e["labels"].get("cluster_name", "(unknown)")
             h = e["labels"].get("cluster_hash", "(unknown)")
@@ -348,6 +409,10 @@ def main():
         help="End time (ISO 8601 or epoch seconds)",
     )
     parser.add_argument(
+        "--lookback", type=int, default=0,
+        help="Seconds before --from to fetch annotations from, to catch alerts that started firing before the window (default: 0)",
+    )
+    parser.add_argument(
         "--expected-clusters", type=int, default=0,
         help="Expected number of clusters (0 to skip metrics check)",
     )
@@ -355,6 +420,7 @@ def main():
 
     from_ms = parse_timestamp(args.time_from)
     to_ms = parse_timestamp(args.time_to)
+    fetch_from_ms = from_ms - args.lookback * 1000
 
     headers = get_auth_header()
     if not headers:
@@ -375,10 +441,10 @@ def main():
         print("=== No data available ===")
         sys.exit(0)
 
-    # Fetch annotations and filter by rule titles
+    # Fetch annotations (including lookback period) and filter by rule titles
     rule_titles = {r["title"] for r in rules}
 
-    annotations = fetch_annotations(headers, from_ms, to_ms)
+    annotations = fetch_annotations(headers, fetch_from_ms, to_ms)
     matching = [
         a for a in annotations
         if a.get("alertName") in rule_titles
@@ -389,9 +455,17 @@ def main():
     entries = [format_alert_entry(a) for a in matching]
     entries.sort(key=lambda e: e["timestamp"])
 
-    firing = [e for e in entries if is_firing(e)]
-    print(f"=== Alert Summary ===")
-    print(f"  {len(annotations)} alert annotations found, {len(matching)} matched monitored rules.")
+    firing = compute_firing(entries, from_ms)
+
+    # Count only in-window annotations for the summary line
+    in_window_annotations = [a for a in annotations if a.get("time", 0) >= from_ms]
+    in_window_matching = [
+        a for a in in_window_annotations
+        if a.get("alertName") in rule_titles
+        and _has_folder_tag(a, TARGET_FOLDER)
+    ]
+    print("=== Alert Summary ===")
+    print(f"  {len(in_window_annotations)} alert annotations found, {len(in_window_matching)} matched monitored rules.")
     print(f"  {len(firing)} alerts were firing during this time window.")
     print()
 
@@ -406,17 +480,16 @@ def main():
 
     # Print report
     print_report(
-        entries, from_ms, to_ms, rules,
+        entries, from_ms, to_ms, rules, firing,
         metrics_clusters, args.expected_clusters,
     )
 
     # Exit code based on firing alerts and metrics coverage
-    has_firing = any(is_firing(e) for e in entries)
     metrics_incomplete = (
         args.expected_clusters > 0
         and (metrics_clusters is None or len(metrics_clusters) < args.expected_clusters)
     )
-    sys.exit(1 if has_firing or metrics_incomplete else 0)
+    sys.exit(1 if firing or metrics_incomplete else 0)
 
 
 if __name__ == "__main__":
