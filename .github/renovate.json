@@ -4,6 +4,7 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests"
   ],
+  "semanticCommits": "enabled",
   "enabledManagers": [
     "github-actions"
   ],
