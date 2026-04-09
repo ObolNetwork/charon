@@ -105,6 +105,7 @@ func TestLongWaitDKG(t *testing.T) {
 		p2pKey := p2pKeys[currIdx]
 		nodeDir := path.Join(dir, fmt.Sprintf("node%d", currIdx))
 		require.NoError(t, os.Mkdir(nodeDir, 0o750))
+		require.NoError(t, k1util.Save(p2pKey, p2p.KeyPath(nodeDir)))
 
 		conf := dkgConf
 		conf.DataDir = nodeDir
@@ -170,6 +171,10 @@ func mimicDKGNode(parentCtx context.Context, t *testing.T, dkgConf dkg.Config, w
 			// as it would find an existing private key lock file previously created by earlier DKGs.
 			conf := dkgConf
 			conf.DataDir = t.TempDir()
+
+			if err := k1util.Save(dkgConf.TestConfig.P2PKey, p2p.KeyPath(conf.DataDir)); err != nil {
+				panic(fmt.Sprintf("failed to save p2p key: %v", err))
+			}
 
 			err := dkg.Run(ctx, conf)
 			if err != nil && !errors.Is(err, context.Canceled) {
@@ -312,9 +317,13 @@ func TestDKGWithHighValidatorsAmt(t *testing.T) {
 			conf := dkgConf
 			conf.DataDir = path.Join(dir, fmt.Sprintf("node%d", idx))
 
-			require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
-			err := k1util.Save(p2pKeys[idx], p2p.KeyPath(conf.DataDir))
-			require.NoError(t, err)
+			if err := os.MkdirAll(conf.DataDir, 0o755); err != nil {
+				return errors.Wrap(err, "mkdir", z.Str("dir", conf.DataDir))
+			}
+
+			if err := k1util.Save(p2pKeys[idx], p2p.KeyPath(conf.DataDir)); err != nil {
+				return errors.Wrap(err, "save p2p key", z.Str("dir", conf.DataDir))
+			}
 
 			if err := dkg.Run(ctx, conf); err != nil {
 				return errors.Wrap(err, "dkg failed", z.Int("node_idx", idx))
