@@ -147,7 +147,7 @@ jobs:
 
       - name: 7. Create PR to Release Branch for Stable Version
         id: create_stable_pr
-        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
           commit-message: "app/version: bump v${{ steps.version.outputs.MAJOR }}.${{ steps.version.outputs.MINOR }} to stable"
@@ -223,7 +223,7 @@ jobs:
 
       - name: 10. Create PR to Main for Next Dev Version
         id: create_dev_pr
-        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.OBOL_PLATFORM_PAT }}
           commit-message: "app: bump version to ${{ steps.version.outputs.NEXT_DEV_VERSION }}"
