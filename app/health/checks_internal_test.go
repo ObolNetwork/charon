@@ -457,6 +457,28 @@ func TestLocalBlockProposalCheck(t *testing.T) {
 	})
 }
 
+func TestLocalProposalFeeRecipientMismatchCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "local_proposal_fee_recipient_mismatch"
+	metricName := "core_fetcher_proposal_local_mismatch_fee_recipient"
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("fee recipient matches", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genGauge(nil, 1, 1, 1)),
+		)
+	})
+
+	t.Run("fee recipient mismatch", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName, genGauge(nil, 2, 2, 2)),
+		)
+	})
+}
+
 func TestHighParsigdbStoreLatencyCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_parsigdb_store_latency"

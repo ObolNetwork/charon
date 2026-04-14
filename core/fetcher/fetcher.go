@@ -472,6 +472,9 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
 		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
+		proposalLocalMismatchFeeRecipientGauge.Set(2.0)
+	} else {
+		proposalLocalMismatchFeeRecipientGauge.Set(1.0)
 	}
 }
 

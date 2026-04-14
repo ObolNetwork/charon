@@ -262,6 +262,26 @@ var checks = []check{
 		},
 	},
 	{
+		Name: "local_proposal_fee_recipient_mismatch",
+		Description: `Local block proposal has a mismatched fee recipient.
+		The fee recipient in the fetched local proposal does not match the expected fee recipient configured for the validator.
+		This means block rewards are highly likely to be sent to the wrong address.
+
+		This usually happens in a rare scenario where Charon has multiple BNs set and a subset of them fail the prepare proposer call (https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/prepareBeaconProposer),
+		but another subsest succeed. Then when the proposal is fetched, it is fetched from the BN that failed the prepare proposer call, which returns a local block with an unexpected fee recipient (likely the zero burn address).
+
+		At this stage there is not straightforward fix for that. What an operator can do is to identify the faulty BN (by checking which one has failed prepare proposer calls in its logs) and remove it from the subset of BNs.`,
+		Severity: severityCritical,
+		Func: func(q query, _ Metadata) (bool, error) {
+			maxVal, err := q("core_fetcher_proposal_local_mismatch_fee_recipient", noLabels, gaugeMax)
+			if err != nil {
+				return false, err
+			}
+
+			return maxVal == 2.0, nil // 0.0=N/A, 1.0=match, 2.0=mismatch
+		},
+	},
+	{
 		Name: "high_beacon_node_sse_head_delay",
 		Description: `Beacon node SSE head received after 4s for >4% of the blocks in the past hour.
 		This impacts head vote accuracy in attestations.
