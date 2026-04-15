@@ -26,75 +26,40 @@ func TestVerifyFeeRecipient(t *testing.T) {
 			name: "bellatrix",
 			proposal: eth2api.VersionedProposal{
 				Version:   eth2spec.DataVersionBellatrix,
+				Blinded:   false,
 				Bellatrix: testutil.RandomBellatrixBeaconBlock(),
-			},
-		},
-		{
-			name: "bellatrix blinded",
-			proposal: eth2api.VersionedProposal{
-				Version:          eth2spec.DataVersionBellatrix,
-				BellatrixBlinded: testutil.RandomBellatrixBlindedBeaconBlock(),
-				Blinded:          true,
 			},
 		},
 		{
 			name: "capella",
 			proposal: eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionCapella,
+				Blinded: false,
 				Capella: testutil.RandomCapellaBeaconBlock(),
-			},
-		},
-		{
-			name: "capella blinded",
-			proposal: eth2api.VersionedProposal{
-				Version:        eth2spec.DataVersionCapella,
-				CapellaBlinded: testutil.RandomCapellaBlindedBeaconBlock(),
-				Blinded:        true,
 			},
 		},
 		{
 			name: "deneb",
 			proposal: eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionDeneb,
+				Blinded: false,
 				Deneb:   testutil.RandomDenebVersionedProposal().Deneb,
-			},
-		},
-		{
-			name: "deneb blinded",
-			proposal: eth2api.VersionedProposal{
-				Version:      eth2spec.DataVersionDeneb,
-				DenebBlinded: testutil.RandomDenebBlindedBeaconBlock(),
-				Blinded:      true,
 			},
 		},
 		{
 			name: "electra",
 			proposal: eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionElectra,
+				Blinded: false,
 				Electra: testutil.RandomElectraVersionedProposal().Electra,
-			},
-		},
-		{
-			name: "electra blinded",
-			proposal: eth2api.VersionedProposal{
-				Version:        eth2spec.DataVersionElectra,
-				ElectraBlinded: testutil.RandomElectraBlindedBeaconBlock(),
-				Blinded:        true,
 			},
 		},
 		{
 			name: "fulu",
 			proposal: eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionFulu,
+				Blinded: false,
 				Fulu:    testutil.RandomFuluVersionedProposal().Fulu,
-			},
-		},
-		{
-			name: "fulu blinded",
-			proposal: eth2api.VersionedProposal{
-				Version:     eth2spec.DataVersionFulu,
-				FuluBlinded: testutil.RandomElectraBlindedBeaconBlock(),
-				Blinded:     true,
 			},
 		},
 	}

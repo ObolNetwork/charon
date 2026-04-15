@@ -353,7 +353,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		proposal := eth2Resp.Data
 
 		// Builders set fee recipient to themselves so it's always different from validator's.
-		if !f.builderEnabled {
+		if !proposal.Blinded {
 			// Ensure fee recipient is correctly populated in proposal.
 			verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
 		}
@@ -456,35 +456,15 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 
 	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
-		if proposal.Blinded {
-			actualAddr = fmt.Sprintf("%#x", proposal.BellatrixBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
-		} else {
-			actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
-		}
+		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionCapella:
-		if proposal.Blinded {
-			actualAddr = fmt.Sprintf("%#x", proposal.CapellaBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
-		} else {
-			actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
-		}
+		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionDeneb:
-		if proposal.Blinded {
-			actualAddr = fmt.Sprintf("%#x", proposal.DenebBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
-		} else {
-			actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
-		}
+		actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionElectra:
-		if proposal.Blinded {
-			actualAddr = fmt.Sprintf("%#x", proposal.ElectraBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
-		} else {
-			actualAddr = fmt.Sprintf("%#x", proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient)
-		}
+		actualAddr = fmt.Sprintf("%#x", proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionFulu:
-		if proposal.Blinded {
-			actualAddr = fmt.Sprintf("%#x", proposal.FuluBlinded.Body.ExecutionPayloadHeader.FeeRecipient)
-		} else {
-			actualAddr = fmt.Sprintf("%#x", proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient)
-		}
+		actualAddr = fmt.Sprintf("%#x", proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient)
 	default:
 		return
 	}
@@ -492,6 +472,9 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
 		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
+		proposalLocalMismatchFeeRecipientGauge.Set(2.0)
+	} else {
+		proposalLocalMismatchFeeRecipientGauge.Set(1.0)
 	}
 }
 
