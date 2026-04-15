@@ -21,7 +21,7 @@ RUN \
 RUN echo "Built charon version=$(./charon version)"
 
 # Copy final binary into light stage.
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates fio wget \
   && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 ARG GITHUB_SHA=local

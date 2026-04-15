@@ -62,6 +62,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_consensus_error_total` | Counter | Total count of consensus errors by protocol | `protocol` |
 | `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was blinded (1) or local (2) |  |
+| `core_fetcher_proposal_local_mismatch_fee_recipient` | Gauge | Counts the number of times a local proposal has a mismatched fee recipient |  |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_parsigdb_store` | Histogram | Latency of partial signatures received since earliest expected time, per duty, per peer index | `duty, peer_idx` |
 | `core_parsigex_set_verification_seconds` | Histogram | Duration to verify all partial signatures in a received set, in seconds | `duty` |

@@ -14,3 +14,10 @@ var proposalBlindedGauge = promauto.NewGauge(prometheus.GaugeOpts{
 	Name:      "proposal_blinded",
 	Help:      "Whether the fetched proposal was blinded (1) or local (2)",
 })
+
+var proposalLocalMismatchFeeRecipientGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	Namespace: "core",
+	Subsystem: "fetcher",
+	Name:      "proposal_local_mismatch_fee_recipient",
+	Help:      "Counts the number of times a local proposal has a mismatched fee recipient",
+})
