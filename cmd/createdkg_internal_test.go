@@ -323,12 +323,6 @@ func TestLaunchpadLink(t *testing.T) {
 			result:     "https://launchpad.obol.org/dv#0x313233616263",
 		},
 		{
-			name:       "holesky",
-			network:    "holesky",
-			configHash: []byte("123abc"),
-			result:     "https://holesky.launchpad.obol.org/dv#0x313233616263",
-		},
-		{
 			name:       "hoodi",
 			network:    "hoodi",
 			configHash: []byte("123abc"),

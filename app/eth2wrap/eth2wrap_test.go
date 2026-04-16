@@ -559,27 +559,27 @@ func TestLazyDomain(t *testing.T) {
 		{
 			name:   "mainnet fork",
 			in:     eth2util.Mainnet.GenesisForkVersionHex[2:],
-			expRes: "04000000a39ec13dbafa3a331644f8d3a1513e57898fab998fec78f5ada4b8b0",
+			expRes: "04000000557790cf7b01e82d44bca35d23f6607182521e8a4c3d413b75f4a94f",
 		},
 		{
 			name:   "goerli fork",
 			in:     eth2util.Goerli.GenesisForkVersionHex[2:],
-			expRes: "04000000f1e25bda59286379f9a2b3ffeb090d650a4db4cfd089e1cc72388a33",
+			expRes: "040000004fa41e5390a28087a9a2aeb71fd81e5bf37cb5362ce977483990bf45",
 		},
 		{
 			name:   "gnosis fork",
 			in:     eth2util.Gnosis.GenesisForkVersionHex[2:],
-			expRes: "040000007c97bfcba5d28a3cdef2ab010944574e387f4b3c7963c215eed87f32",
+			expRes: "0400000037acf2e459d98ddae094e687269ef2dbac35b0cc3383f806736db141",
 		},
 		{
 			name:   "sepolia fork",
 			in:     eth2util.Sepolia.GenesisForkVersionHex[2:],
-			expRes: "0400000005b54270938f654bd779212d3be2a63f806a4f58794d455393d8dad8",
+			expRes: "0400000045bdf33ab56d9a98cf8b184fd27a14554ec3eb99b63f1d27debd80a0",
 		},
 		{
-			name:   "holesky fork",
-			in:     eth2util.Holesky.GenesisForkVersionHex[2:],
-			expRes: "0400000017e2dad36f1d3595152042a9ad23430197557e2e7e82bc7f7fc72972",
+			name:   "hoodi fork",
+			in:     eth2util.Hoodi.GenesisForkVersionHex[2:],
+			expRes: "0400000072bbc3705de0766b1ea9cfd60f0a5cc5f2dca3b942b222e8320b035b",
 		},
 		{
 			name:   "unknown fork",

@@ -157,7 +157,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 }
 
 func bindNetworkFlags(flags *pflag.FlagSet, network *string, testnetConfig *eth2util.Network) {
-	flags.StringVar(network, "network", "mainnet", "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, holesky, gnosis, chiado.")
+	flags.StringVar(network, "network", "mainnet", "Ethereum network to create validators for. Options: mainnet, goerli, sepolia, hoodi, gnosis, chiado.")
 	flags.StringVar(&testnetConfig.Name, "testnet-name", "", "Name of the custom test network.")
 	flags.StringVar(&testnetConfig.GenesisForkVersionHex, "testnet-fork-version", "", "Genesis fork version of the custom test network (in hex).")
 	flags.Uint64Var(&testnetConfig.ChainID, "testnet-chain-id", 0, "Chain ID of the custom test network.")

@@ -331,8 +331,6 @@ func generateLaunchpadLink(configHash []byte, network string) string {
 	switch network {
 	case "mainnet":
 		networkLink = ""
-	case "holesky":
-		networkLink = "holesky."
 	case "hoodi":
 		networkLink = "hoodi."
 	case "sepolia":

@@ -59,7 +59,7 @@
    }
   ],
   "dkg_algorithm": "default",
-  "fork_version": "0x01017000",
+  "fork_version": "0x10000910",
   "deposit_amounts": null,
   "consensus_protocol": "",
   "target_gas_limit": 60000000,

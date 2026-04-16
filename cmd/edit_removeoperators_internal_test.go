@@ -30,7 +30,7 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 		NumNodes:          7,
 		Threshold:         5,
 		NumDVs:            3,
-		Network:           eth2util.Holesky.Name,
+		Network:           eth2util.Hoodi.Name,
 		TargetGasLimit:    36000000,
 		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
 		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
