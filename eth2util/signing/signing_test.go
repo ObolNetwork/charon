@@ -41,7 +41,7 @@ func TestVerifyRegistrationReference(t *testing.T) {
 			"timestamp": "1646092800",
 			"pubkey": "0x86966350b672bd502bfbdb37a6ea8a7392e8fb7f5ebb5c5e2055f4ee168ebfab0fef63084f28c9f62c3ba71f825e527e"
 		  },
-		  "signature": "0xad393c5b42b382cf93cd14f302b0175b4f9ccb000c201d42c3a6389971b8d910a81333d55ad2944b836a9bb35ba968ab06635dcd706380516ad0c653f48b1c6d52b8771c78d708e943b3ea8da59392fbf909decde262adc944fe3e57120d9bb4"
+		  "signature": "0x838c82166e22fc27998fee74319daf42545f9fd32ae0e5d69319c888739a2c817f82aab48f04f165e32304d2ab8d317c1318d6d907dbe6372417fcfc4e3f0b550c357d5087abda4b80c021a64d2463e43efb017eeb1cef0dd92e38770b9628a1"
 		}`
 
 	reg := new(eth2v1.SignedValidatorRegistration)
@@ -51,7 +51,7 @@ func TestVerifyRegistrationReference(t *testing.T) {
 	sigRoot, err := reg.Message.HashTreeRoot()
 	require.NoError(t, err)
 
-	fork, err := eth2util.NetworkToForkVersionBytes("holesky")
+	fork, err := eth2util.NetworkToForkVersionBytes("hoodi")
 	require.NoError(t, err)
 
 	sigData, err := registration.GetMessageSigningRoot(reg.Message, eth2p0.Version(fork))
@@ -104,10 +104,10 @@ func TestConstantApplicationBuilder(t *testing.T) {
 
 	// Assert genesis domain is used for any fork schedule.
 	expect := eth2p0.Domain{
-		0x0, 0x0, 0x0, 0x1, 0x5b, 0x83, 0xa2, 0x37,
-		0x59, 0xc5, 0x60, 0xb2, 0xd0, 0xc6, 0x45, 0x76,
-		0xe1, 0xdc, 0xfc, 0x34, 0xea, 0x94, 0xc4, 0x98,
-		0x8f, 0x3e, 0xd, 0x9f, 0x77, 0xf0, 0x53, 0x87,
+		0x0, 0x0, 0x0, 0x1, 0x71, 0x91, 0x3, 0x51,
+		0x1e, 0xfa, 0x4f, 0x13, 0x62, 0xff, 0x2a, 0x50,
+		0x99, 0x6c, 0xcc, 0xf3, 0x29, 0xcc, 0x84, 0xcb,
+		0x41, 0xc, 0x5e, 0x5c, 0x7d, 0x35, 0x1d, 0x3,
 	}
 
 	for i := range len(forkSchedule) {

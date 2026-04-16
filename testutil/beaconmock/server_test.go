@@ -31,7 +31,7 @@ func TestStatic(t *testing.T) {
 
 	contractResp, err := eth2Cl.DepositContract(ctx, &eth2api.DepositContractOpts{})
 	require.NoError(t, err)
-	require.Equal(t, uint64(17000), contractResp.Data.ChainID)
+	require.Equal(t, uint64(560048), contractResp.Data.ChainID)
 
 	slotsPerEpoch, err := eth2Cl.SlotsPerEpoch(ctx)
 	require.NoError(t, err)

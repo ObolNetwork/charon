@@ -46,10 +46,11 @@
     }
   ],
   "dkg_algorithm": "default",
-  "fork_version": "0x01017000",
+  "fork_version": "0x10000910",
   "deposit_amounts": null,
   "consensus_protocol": "",
   "target_gas_limit": 30000000,
-  "config_hash": "0x10ac111410084511b00cbbbd3fe11c649425a53f2db97322a70520b287089b86",
-  "definition_hash": "0x51034f15f40b45458f5d2fd57b10a4662e745709b3e459c2ad0f715efefd0af3"
+  "compounding": false,
+  "config_hash": "0x8541038ffbda7cb3845bf7cd97cae13a5da1aa29038ddfaffbf8de77b0acd09b",
+  "definition_hash": "0x6e3792f2d1823b2f946cb37c9943964c226fe4ada5207ddde4d5958cdc8f02e3"
 }

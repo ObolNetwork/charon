@@ -78,15 +78,6 @@ var (
 		CapellaHardFork:       "0x90000072",
 		SlotDuration:          12,
 	}
-	// Holesky metadata taken from https://github.com/eth-clients/holesky#metadata.
-	Holesky = Network{
-		ChainID:               17000,
-		Name:                  "holesky",
-		GenesisForkVersionHex: "0x01017000",
-		GenesisTimestamp:      1696000704,
-		CapellaHardFork:       "0x04017000",
-		SlotDuration:          12,
-	}
 	// Hoodi metadata taken from https://github.com/eth-clients/hoodi/#metadata.
 	Hoodi = Network{
 		ChainID:               560048,
@@ -101,7 +92,7 @@ var (
 var (
 	networksMu        sync.Mutex
 	supportedNetworks = []Network{
-		Mainnet, Goerli, Gnosis, Chiado, Sepolia, Holesky, Hoodi,
+		Mainnet, Goerli, Gnosis, Chiado, Sepolia, Hoodi,
 	}
 )
 

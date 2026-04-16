@@ -30,7 +30,7 @@ func TestValidateReplaceOperatorConfig(t *testing.T) {
 		NumNodes:          4,
 		Threshold:         3,
 		NumDVs:            3,
-		Network:           eth2util.Holesky.Name,
+		Network:           eth2util.Hoodi.Name,
 		TargetGasLimit:    36000000,
 		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
 		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},

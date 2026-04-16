@@ -113,14 +113,14 @@ func TestVerifySignedRegistration(t *testing.T) {
 			"timestamp": "1646092800",
 			"pubkey": "0x86966350b672bd502bfbdb37a6ea8a7392e8fb7f5ebb5c5e2055f4ee168ebfab0fef63084f28c9f62c3ba71f825e527e"
 		  },
-		  "signature": "0xad393c5b42b382cf93cd14f302b0175b4f9ccb000c201d42c3a6389971b8d910a81333d55ad2944b836a9bb35ba968ab06635dcd706380516ad0c653f48b1c6d52b8771c78d708e943b3ea8da59392fbf909decde262adc944fe3e57120d9bb4"
+		  "signature": "0x838c82166e22fc27998fee74319daf42545f9fd32ae0e5d69319c888739a2c817f82aab48f04f165e32304d2ab8d317c1318d6d907dbe6372417fcfc4e3f0b550c357d5087abda4b80c021a64d2463e43efb017eeb1cef0dd92e38770b9628a1"
 		}`
 
 	reg := new(eth2v1.SignedValidatorRegistration)
 	err = json.Unmarshal([]byte(registrationJSON), reg)
 	require.NoError(t, err)
 
-	forkVersion, err := eth2util.NetworkToForkVersionBytes("holesky")
+	forkVersion, err := eth2util.NetworkToForkVersionBytes("hoodi")
 	require.NoError(t, err)
 
 	sigRoot, err := registration.GetMessageSigningRoot(reg.Message, eth2p0.Version(forkVersion))

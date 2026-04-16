@@ -74,7 +74,7 @@ func TestValidNetwork(t *testing.T) {
 		"mainnet",
 		"goerli",
 		"sepolia",
-		"holesky",
+		"hoodi",
 		"gnosis",
 		"chiado",
 	}

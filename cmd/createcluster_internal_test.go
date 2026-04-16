@@ -291,7 +291,7 @@ func TestCreateCluster(t *testing.T) {
 				NumNodes:       4,
 				Threshold:      3,
 				NumDVs:         3,
-				Network:        eth2util.Holesky.Name,
+				Network:        eth2util.Hoodi.Name,
 				TargetGasLimit: 36000000,
 			},
 		},
@@ -932,7 +932,7 @@ func TestClusterCLI(t *testing.T) {
 		{
 			name:          "threshold below minimum",
 			nodes:         "--nodes=3",
-			network:       "--network=holesky",
+			network:       "--network=hoodi",
 			numValidators: "--num-validators=1",
 			feeRecipient:  feeRecipientArg,
 			withdrawal:    withdrawalArg,
@@ -942,7 +942,7 @@ func TestClusterCLI(t *testing.T) {
 		{
 			name:          "threshold above maximum",
 			nodes:         "--nodes=4",
-			network:       "--network=holesky",
+			network:       "--network=hoodi",
 			numValidators: "--num-validators=1",
 			feeRecipient:  feeRecipientArg,
 			withdrawal:    withdrawalArg,
@@ -952,7 +952,7 @@ func TestClusterCLI(t *testing.T) {
 		{
 			name:          "no threshold provided",
 			nodes:         "--nodes=3",
-			network:       "--network=holesky",
+			network:       "--network=hoodi",
 			numValidators: "--num-validators=1",
 			feeRecipient:  feeRecipientArg,
 			withdrawal:    withdrawalArg,

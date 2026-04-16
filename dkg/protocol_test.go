@@ -515,7 +515,7 @@ func createTestCluster(t *testing.T, numNodes, threshold, numValidators int) str
 		"--nodes", strconv.Itoa(numNodes),
 		"--threshold", strconv.Itoa(threshold),
 		"--num-validators", strconv.Itoa(numValidators),
-		"--network", eth2util.Holesky.Name,
+		"--network", eth2util.Hoodi.Name,
 		"--fee-recipient-addresses", "0x0000000000000000000000000000000000000000",
 		"--withdrawal-addresses", "0x0000000000000000000000000000000000000000",
 	}

@@ -1,43 +1,53 @@
 {
   "/eth/v1/beacon/genesis": {
     "data": {
-      "genesis_time": "1695902400",
-      "genesis_validators_root": "0x9143aa7c615a7f7115e2b6aac319c03529df8242ae705fba9df39b79c59fa8b1",
-      "genesis_fork_version": "0x01017000"
+      "genesis_time": "1742213400",
+      "genesis_validators_root": "0x212f13fc4df078b6cb7db228f1c8307566dcecf900867401a92023d7ba99cb5f",
+      "genesis_fork_version": "0x10000910"
     }
   },
   "/eth/v1/config/deposit_contract": {
     "data": {
-      "chain_id": "17000",
-      "address": "0x4242424242424242424242424242424242424242"
+      "chain_id": "560048",
+      "address": "0x00000000219ab540356cBB839Cbe05303d7705Fa"
     }
   },
   "/eth/v1/config/fork_schedule": {
     "data": [
       {
-        "previous_version": "0x01017000",
-        "current_version": "0x01017000",
+        "previous_version": "0x10000910",
+        "current_version": "0x10000910",
         "epoch": "0"
       },
       {
-        "previous_version": "0x01017000",
-        "current_version": "0x02017000",
+        "previous_version": "0x10000910",
+        "current_version": "0x20000910",
         "epoch": "0"
       },
       {
-        "previous_version": "0x02017000",
-        "current_version": "0x03017000",
+        "previous_version": "0x20000910",
+        "current_version": "0x30000910",
         "epoch": "0"
       },
       {
-        "previous_version": "0x03017000",
-        "current_version": "0x04017000",
-        "epoch": "256"
+        "previous_version": "0x30000910",
+        "current_version": "0x40000910",
+        "epoch": "0"
       },
       {
-        "previous_version": "0x04017000",
-        "current_version": "0x05017000",
-        "epoch": "29696"
+        "previous_version": "0x40000910",
+        "current_version": "0x50000910",
+        "epoch": "0"
+      },
+      {
+        "previous_version": "0x50000910",
+        "current_version": "0x60000910",
+        "epoch": "2048"
+      },
+      {
+        "previous_version": "0x60000910",
+        "current_version": "0x70000910",
+        "epoch": "50688"
       }
     ]
   },
@@ -58,7 +68,7 @@
       "PENDING_PARTIAL_WITHDRAWALS_LIMIT": "134217728",
       "INACTIVITY_PENALTY_QUOTIENT": "67108864",
       "SAFE_SLOTS_TO_UPDATE_JUSTIFIED": "8",
-      "SECONDS_PER_ETH1_BLOCK": "14",
+      "SECONDS_PER_ETH1_BLOCK": "12",
       "MIN_SEED_LOOKAHEAD": "1",
       "VALIDATOR_REGISTRY_LIMIT": "1099511627776",
       "REORG_MAX_EPOCHS_SINCE_FINALIZATION": "2",
@@ -67,11 +77,11 @@
       "RESP_TIMEOUT": "10",
       "DOMAIN_VOLUNTARY_EXIT": "0x04000000",
       "MAX_VALIDATORS_PER_COMMITTEE": "2048",
-      "MIN_GENESIS_TIME": "1695902100",
+      "MIN_GENESIS_TIME": "1742212800",
       "ALTAIR_FORK_EPOCH": "0",
       "MAX_PER_EPOCH_ACTIVATION_EXIT_CHURN_LIMIT": "256000000000",
       "HYSTERESIS_QUOTIENT": "4",
-      "ALTAIR_FORK_VERSION": "0x02017000",
+      "ALTAIR_FORK_VERSION": "0x20000910",
       "MAX_BYTES_PER_TRANSACTION": "1073741824",
       "MAX_CHUNK_SIZE": "10485760",
       "TTFB_TIMEOUT": "5",
@@ -98,7 +108,7 @@
       "PENDING_DEPOSITS_LIMIT": "134217728",
       "MAX_ATTESTATIONS_ELECTRA": "8",
       "ATTESTATION_SUBNET_COUNT": "64",
-      "GENESIS_DELAY": "300",
+      "GENESIS_DELAY": "600",
       "MAX_SEED_LOOKAHEAD": "4",
       "ETH1_FOLLOW_DISTANCE": "2048",
       "KZG_COMMITMENTS_INCLUSION_PROOF_DEPTH": "4",
@@ -107,7 +117,7 @@
       "MIN_SYNC_COMMITTEE_PARTICIPANTS": "1",
       "DATA_COLUMN_SIDECAR_SUBNET_COUNT": "128",
       "MAX_PENDING_DEPOSITS_PER_EPOCH": "16",
-      "BELLATRIX_FORK_VERSION": "0x03017000",
+      "BELLATRIX_FORK_VERSION": "0x30000910",
       "PROPORTIONAL_SLASHING_MULTIPLIER_BELLATRIX": "3",
       "SAMPLES_PER_SLOT": "8",
       "EFFECTIVE_BALANCE_INCREMENT": "1000000000",
@@ -118,12 +128,12 @@
       "MIN_EPOCHS_TO_INACTIVITY_PENALTY": "4",
       "BASE_REWARD_FACTOR": "64",
       "MAX_EXTRA_DATA_BYTES": "32",
-      "CONFIG_NAME": "holesky",
+      "CONFIG_NAME": "hoodi",
       "MAX_PROPOSER_SLASHINGS": "16",
       "INACTIVITY_SCORE_RECOVERY_RATE": "16",
       "MIN_EPOCHS_FOR_BLOB_SIDECARS_REQUESTS": "4096",
       "MAX_TRANSACTIONS_PER_PAYLOAD": "1048576",
-      "DEPOSIT_CONTRACT_ADDRESS": "0x4242424242424242424242424242424242424242",
+      "DEPOSIT_CONTRACT_ADDRESS": "0x00000000219ab540356cBB839Cbe05303d7705Fa",
       "MIN_ATTESTATION_INCLUSION_DELAY": "1",
       "SHUFFLE_ROUND_COUNT": "90",
       "TERMINAL_BLOCK_HASH_ACTIVATION_EPOCH": "18446744073709551615",
@@ -132,7 +142,7 @@
       "DENEB_FORK_EPOCH": "0",
       "DOMAIN_SYNC_COMMITTEE": "0x07000000",
       "PROPOSER_SCORE_BOOST": "40",
-      "FULU_FORK_EPOCH": "18446744073709551615",
+      "FULU_FORK_EPOCH": "50688",
       "MAX_BLOBS_PER_BLOCK_FULU": "12",
       "DOMAIN_SELECTION_PROOF": "0x05000000",
       "MIN_SLASHING_PENALTY_QUOTIENT_BELLATRIX": "32",
@@ -153,10 +163,10 @@
       "UPDATE_TIMEOUT": "8192",
       "ELECTRA_FORK_EPOCH": "2048",
       "SYNC_COMMITTEE_BRANCH_LENGTH": "5",
-      "DEPOSIT_CHAIN_ID": "17000",
+      "DEPOSIT_CHAIN_ID": "560048",
       "MAX_BLOB_COMMITMENTS_PER_BLOCK": "4096",
       "DOMAIN_RANDAO": "0x02000000",
-      "CAPELLA_FORK_VERSION": "0x04017000",
+      "CAPELLA_FORK_VERSION": "0x40000910",
       "MAX_EFFECTIVE_BALANCE_ELECTRA": "2048000000000",
       "MIN_SLASHING_PENALTY_QUOTIENT_ALTAIR": "64",
       "EPOCHS_PER_ETH1_VOTING_PERIOD": "64",
@@ -175,7 +185,7 @@
       "PENDING_CONSOLIDATIONS_LIMIT": "262144",
       "HYSTERESIS_DOWNWARD_MULTIPLIER": "1",
       "MAX_PENDING_PARTIALS_PER_WITHDRAWALS_SWEEP": "8",
-      "FULU_FORK_VERSION": "0x07017000",
+      "FULU_FORK_VERSION": "0x70000910",
       "EPOCHS_PER_SYNC_COMMITTEE_PERIOD": "256",
       "BYTES_PER_LOGS_BLOOM": "256",
       "MAX_DEPOSIT_REQUESTS_PER_PAYLOAD": "8192",
@@ -185,18 +195,18 @@
       "MAX_REQUEST_BLOB_SIDECARS_ELECTRA": "1152",
       "MAX_ATTESTATIONS": "128",
       "MIN_EPOCHS_FOR_BLOCK_REQUESTS": "33024",
-      "DENEB_FORK_VERSION": "0x05017000",
-      "ELECTRA_FORK_VERSION": "0x06017000",
+      "DENEB_FORK_VERSION": "0x50000910",
+      "ELECTRA_FORK_VERSION": "0x60000910",
       "MAX_REQUEST_BLOCKS": "1024",
-      "GENESIS_FORK_VERSION": "0x01017000",
+      "GENESIS_FORK_VERSION": "0x10000910",
       "KZG_COMMITMENT_INCLUSION_PROOF_DEPTH": "17",
-      "DEPOSIT_NETWORK_ID": "17000",
+      "DEPOSIT_NETWORK_ID": "560048",
       "MAX_CONSOLIDATION_REQUESTS_PER_PAYLOAD": "2",
       "MAX_REQUEST_BLOCKS_DENEB": "128",
       "BLOB_SIDECAR_SUBNET_COUNT": "6",
       "SYNC_COMMITTEE_SUBNET_COUNT": "4",
-      "CAPELLA_FORK_EPOCH": "256",
-      "EJECTION_BALANCE": "28000000000",
+      "CAPELLA_FORK_EPOCH": "0",
+      "EJECTION_BALANCE": "16000000000",
       "ATTESTATION_SUBNET_EXTRA_BITS": "0",
       "NUMBER_OF_CUSTODY_GROUPS": "128",
       "MAX_COMMITTEES_PER_SLOT": "64",
