@@ -375,7 +375,8 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	allActive := c.activeValIdxs.valIdxs
 	c.activeValIdxs.RUnlock()
 
-	requestVidxs := vidxs
+	// Clone vidxs to avoid mutating the caller's slice via slices.DeleteFunc below.
+	requestVidxs := slices.Clone(vidxs)
 	if len(requestVidxs) == 0 {
 		requestVidxs = allActive
 	}
@@ -464,7 +465,8 @@ func (c *DutiesCache) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	allActive := c.activeValIdxs.valIdxs
 	c.activeValIdxs.RUnlock()
 
-	requestVidxs := vidxs
+	// Clone vidxs to avoid mutating the caller's slice via slices.DeleteFunc below.
+	requestVidxs := slices.Clone(vidxs)
 	if len(requestVidxs) == 0 {
 		requestVidxs = allActive
 	}
@@ -553,7 +555,8 @@ func (c *DutiesCache) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	allActive := c.activeValIdxs.valIdxs
 	c.activeValIdxs.RUnlock()
 
-	requestVidxs := vidxs
+	// Clone vidxs to avoid mutating the caller's slice via slices.DeleteFunc below.
+	requestVidxs := slices.Clone(vidxs)
 	if len(requestVidxs) == 0 {
 		requestVidxs = allActive
 	}
