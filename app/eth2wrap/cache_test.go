@@ -522,6 +522,42 @@ func runSingleThenSingleThenAll(t *testing.T, a cacheAdapter) {
 	require.Equal(t, expectedThirdCall, sortedIdxs((*bnCalls)[2]))
 }
 
+// runCallerSliceNotMutated covers the regression that used to make the cache mutate the
+// caller's vidxs via slices.DeleteFunc. Exercises both the non-empty vidxs path and the
+// len(vidxs)==0 "all active" path, across a cold miss and a subsequent call that needs to
+// fetch missing indices (so requestVidxs is narrowed internally).
+func runCallerSliceNotMutated(t *testing.T, a cacheAdapter) {
+	t.Helper()
+
+	const nValidators = 8
+
+	cache, allIdxs, _ := newCacheHarness(t, nValidators, a)
+	ctx := t.Context()
+
+	// Non-empty vidxs path: pre-seed the cache with one index, then request a subset
+	// that overlaps (forces the internal "narrow to missing" branch).
+	_, err := a.callCache(cache, ctx, []eth2p0.ValidatorIndex{allIdxs[0]})
+	require.NoError(t, err)
+
+	subset := []eth2p0.ValidatorIndex{allIdxs[0], allIdxs[1], allIdxs[2]}
+	original := slices.Clone(subset)
+	_, err = a.callCache(cache, ctx, subset)
+	require.NoError(t, err)
+	require.Equal(t, original, subset, "caller's vidxs must not be mutated")
+
+	// Empty vidxs path: the cache expands to allActive internally. Pass nil and an empty
+	// slice (both are valid "all validators" inputs) and assert they are unchanged.
+	var nilVidxs []eth2p0.ValidatorIndex
+	_, err = a.callCache(cache, ctx, nilVidxs)
+	require.NoError(t, err)
+	require.Nil(t, nilVidxs, "nil vidxs must remain nil")
+
+	emptyVidxs := []eth2p0.ValidatorIndex{}
+	_, err = a.callCache(cache, ctx, emptyVidxs)
+	require.NoError(t, err)
+	require.Empty(t, emptyVidxs, "empty vidxs must remain empty")
+}
+
 func TestProposerDutiesCache_AllValidators(t *testing.T) {
 	runAllThenAllCached(t, proposerCacheAdapter())
 }
@@ -556,4 +592,16 @@ func TestSyncCommDutiesCache_SingleThenAllThenCached(t *testing.T) {
 
 func TestSyncCommDutiesCache_SingleThenSingleThenAll(t *testing.T) {
 	runSingleThenSingleThenAll(t, syncCommitteeCacheAdapter())
+}
+
+func TestProposerDutiesCache_CallerSliceNotMutated(t *testing.T) {
+	runCallerSliceNotMutated(t, proposerCacheAdapter())
+}
+
+func TestAttesterDutiesCache_CallerSliceNotMutated(t *testing.T) {
+	runCallerSliceNotMutated(t, attesterCacheAdapter())
+}
+
+func TestSyncCommDutiesCache_CallerSliceNotMutated(t *testing.T) {
+	runCallerSliceNotMutated(t, syncCommitteeCacheAdapter())
 }
