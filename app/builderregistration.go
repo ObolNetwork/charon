@@ -226,19 +226,19 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 	if s.path != "" {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
-			log.Error(ctx, "Failed to create file watcher for builder registration overrides", err)
-			return
-		}
-		defer watcher.Close()
+			log.Warn(ctx, "Failed to create file watcher for builder registration overrides; file watching disabled", err)
+		} else {
+			dir := filepath.Dir(s.path)
+			if err := watcher.Add(dir); err != nil {
+				log.Warn(ctx, "Failed to watch directory for builder registration overrides; file watching disabled", err, z.Str("dir", dir))
+				watcher.Close()
+			} else {
+				defer watcher.Close()
 
-		dir := filepath.Dir(s.path)
-		if err := watcher.Add(dir); err != nil {
-			log.Error(ctx, "Failed to watch directory for builder registration overrides", err, z.Str("dir", dir))
-			return
+				fileEvents = watcher.Events
+				fileErrors = watcher.Errors
+			}
 		}
-
-		fileEvents = watcher.Events
-		fileErrors = watcher.Errors
 	}
 
 	// Optional API fetch timer (nil channel if obolClient == nil).
@@ -252,6 +252,10 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 		defer fetchTimer.Stop()
 
 		fetchCh = fetchTimer.C
+	}
+
+	if fileEvents == nil && fetchCh == nil {
+		return
 	}
 
 	baseName := filepath.Base(s.path)
