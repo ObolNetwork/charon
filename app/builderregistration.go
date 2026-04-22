@@ -228,12 +228,13 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 		if err != nil {
 			log.Warn(ctx, "Failed to create file watcher for builder registration overrides; file watching disabled", err)
 		} else {
-			defer watcher.Close()
-
 			dir := filepath.Dir(s.path)
 			if err := watcher.Add(dir); err != nil {
 				log.Warn(ctx, "Failed to watch directory for builder registration overrides; file watching disabled", err, z.Str("dir", dir))
+				watcher.Close()
 			} else {
+				defer watcher.Close()
+
 				fileEvents = watcher.Events
 				fileErrors = watcher.Errors
 			}
