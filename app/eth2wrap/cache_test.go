@@ -388,13 +388,17 @@ func syncCommitteeCacheAdapter() cacheAdapter {
 	}
 }
 
+// cacheHarnessValidators is the validator-set size used by every scenario runner; kept
+// as a shared constant so assertions can reference it without plumbing it through.
+const cacheHarnessValidators = 8
+
 // newCacheHarness builds a DutiesCache wired to a beaconmock whose duty endpoint (as
 // installed by the adapter) records every call. It returns the cache, the sorted list
 // of all validator indices, and a pointer to the growing slice of recorded BN calls.
-func newCacheHarness(t *testing.T, nValidators int, a cacheAdapter) (*eth2wrap.DutiesCache, []eth2p0.ValidatorIndex, *[][]eth2p0.ValidatorIndex) {
+func newCacheHarness(t *testing.T, a cacheAdapter) (*eth2wrap.DutiesCache, []eth2p0.ValidatorIndex, *[][]eth2p0.ValidatorIndex) {
 	t.Helper()
 
-	valSet := testutil.RandomValidatorSet(t, nValidators)
+	valSet := testutil.RandomValidatorSet(t, cacheHarnessValidators)
 	allIdxs := slices.Collect(maps.Keys(valSet))
 	slices.Sort(allIdxs)
 
@@ -422,22 +426,20 @@ func sortedIdxs(idxs []eth2p0.ValidatorIndex) []eth2p0.ValidatorIndex {
 func runAllThenAllCached(t *testing.T, a cacheAdapter) {
 	t.Helper()
 
-	const nValidators = 8
-
-	cache, allIdxs, bnCalls := newCacheHarness(t, nValidators, a)
+	cache, allIdxs, bnCalls := newCacheHarness(t, a)
 	ctx := t.Context()
 
 	// Call 1: all validators -> cache miss, BN fetch for all.
 	count, err := a.callCache(cache, ctx, slices.Clone(allIdxs))
 	require.NoError(t, err)
-	require.Equal(t, nValidators, count)
+	require.Equal(t, cacheHarnessValidators, count)
 	require.Len(t, *bnCalls, 1)
 	require.Equal(t, allIdxs, sortedIdxs((*bnCalls)[0]))
 
 	// Call 2: all validators -> fully served from cache, no BN call.
 	count, err = a.callCache(cache, ctx, slices.Clone(allIdxs))
 	require.NoError(t, err)
-	require.Equal(t, nValidators, count)
+	require.Equal(t, cacheHarnessValidators, count)
 	require.Len(t, *bnCalls, 1, "cache should serve without hitting the beacon node")
 }
 
@@ -448,9 +450,7 @@ func runAllThenAllCached(t *testing.T, a cacheAdapter) {
 func runSingleThenAllThenCached(t *testing.T, a cacheAdapter) {
 	t.Helper()
 
-	const nValidators = 8
-
-	cache, allIdxs, bnCalls := newCacheHarness(t, nValidators, a)
+	cache, allIdxs, bnCalls := newCacheHarness(t, a)
 	ctx := t.Context()
 
 	x := allIdxs[0]
@@ -466,7 +466,7 @@ func runSingleThenAllThenCached(t *testing.T, a cacheAdapter) {
 	// Call 2: all validators -> BN fetch for all-except-X; X is served from cache.
 	count, err = a.callCache(cache, ctx, slices.Clone(allIdxs))
 	require.NoError(t, err)
-	require.Equal(t, nValidators, count)
+	require.Equal(t, cacheHarnessValidators, count)
 	require.Len(t, *bnCalls, 2)
 
 	expectedSecondCall := slices.DeleteFunc(slices.Clone(allIdxs), func(i eth2p0.ValidatorIndex) bool {
@@ -488,9 +488,7 @@ func runSingleThenAllThenCached(t *testing.T, a cacheAdapter) {
 func runSingleThenSingleThenAll(t *testing.T, a cacheAdapter) {
 	t.Helper()
 
-	const nValidators = 8
-
-	cache, allIdxs, bnCalls := newCacheHarness(t, nValidators, a)
+	cache, allIdxs, bnCalls := newCacheHarness(t, a)
 	ctx := t.Context()
 
 	x := allIdxs[0]
@@ -513,7 +511,7 @@ func runSingleThenSingleThenAll(t *testing.T, a cacheAdapter) {
 	// Call 3: all validators -> BN fetch for all-except-{X,Y}; X and Y come from cache.
 	count, err = a.callCache(cache, ctx, slices.Clone(allIdxs))
 	require.NoError(t, err)
-	require.Equal(t, nValidators, count)
+	require.Equal(t, cacheHarnessValidators, count)
 	require.Len(t, *bnCalls, 3)
 
 	expectedThirdCall := slices.DeleteFunc(slices.Clone(allIdxs), func(i eth2p0.ValidatorIndex) bool {
@@ -529,9 +527,7 @@ func runSingleThenSingleThenAll(t *testing.T, a cacheAdapter) {
 func runCallerSliceNotMutated(t *testing.T, a cacheAdapter) {
 	t.Helper()
 
-	const nValidators = 8
-
-	cache, allIdxs, _ := newCacheHarness(t, nValidators, a)
+	cache, allIdxs, _ := newCacheHarness(t, a)
 	ctx := t.Context()
 
 	// Non-empty vidxs path: pre-seed the cache with one index, then request a subset
@@ -548,6 +544,7 @@ func runCallerSliceNotMutated(t *testing.T, a cacheAdapter) {
 	// Empty vidxs path: the cache expands to allActive internally. Pass nil and an empty
 	// slice (both are valid "all validators" inputs) and assert they are unchanged.
 	var nilVidxs []eth2p0.ValidatorIndex
+
 	_, err = a.callCache(cache, ctx, nilVidxs)
 	require.NoError(t, err)
 	require.Nil(t, nilVidxs, "nil vidxs must remain nil")
