@@ -218,6 +218,28 @@ func TestBuilderRegistrationService(t *testing.T) {
 		}
 	})
 
+	t.Run("missing directory returns without error", func(t *testing.T) {
+		// Path under a directory that does not exist. Watcher setup will fail,
+		// but with no API client configured, Run should return cleanly.
+		path := filepath.Join(t.TempDir(), "missing", "overrides.json")
+
+		svc, err := NewBuilderRegistrationService(ctx, path, eth2p0.Version{}, baseRegs, baseFeeRecipients, nil, nil)
+		require.NoError(t, err)
+
+		done := make(chan struct{})
+
+		go func() {
+			svc.Run(ctx)
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("Run did not return when file watcher setup failed and no API client is configured")
+		}
+	})
+
 	t.Run("file watcher reloads on change", func(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "overrides.json")
