@@ -52,8 +52,24 @@ jobs:
             exit 1
           fi
 
-          # Get the latest release branch (last in sorted list)
-          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
+          # Filter to branches whose minor has a released stable vX.Y.0 tag.
+          # Skips in-progress minors (RC-only, e.g. v1.10.0-rc3) so patching
+          # targets the most recent fully-released minor.
+          RELEASE_BRANCH=""
+          while IFS= read -r candidate; do
+            if [[ "$candidate" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+              CAND_MAJOR="${BASH_REMATCH[1]}"
+              CAND_MINOR="${BASH_REMATCH[2]}"
+              if git tag -l "v${CAND_MAJOR}.${CAND_MINOR}.0" | grep -q .; then
+                RELEASE_BRANCH="$candidate"
+              fi
+            fi
+          done <<< "$RELEASE_BRANCHES"
+
+          if [[ -z "$RELEASE_BRANCH" ]]; then
+            echo "::error::No minor release branches with a stable vX.Y.0 tag found"
+            exit 1
+          fi
 
           # Extract version from branch name (e.g., main-v1.8 -> 1.8)
           if [[ ! "$RELEASE_BRANCH" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
