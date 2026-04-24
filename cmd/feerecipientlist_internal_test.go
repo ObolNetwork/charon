@@ -3,7 +3,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -497,7 +496,8 @@ func TestFeeRecipientListFetchesRemote(t *testing.T) {
 }
 
 func TestFeeRecipientListRemoteOnlyTriggersSuggestion(t *testing.T) {
-	ctx, logs := captureListLogs(t, t.Context())
+	logs := initLogCapture(t)
+	ctx := t.Context()
 
 	valAmt := 4
 	operatorAmt := 4
@@ -566,7 +566,8 @@ func TestFeeRecipientListRemoteOnlyTriggersSuggestion(t *testing.T) {
 }
 
 func TestFeeRecipientListOverridesMatchRemote(t *testing.T) {
-	ctx, logs := captureListLogs(t, t.Context())
+	logs := initLogCapture(t)
+	ctx := t.Context()
 
 	valAmt := 4
 	operatorAmt := 4
@@ -647,7 +648,8 @@ func TestFeeRecipientListOverridesMatchRemote(t *testing.T) {
 }
 
 func TestFeeRecipientListRemoteUnreachable(t *testing.T) {
-	ctx, logs := captureListLogs(t, t.Context())
+	logs := initLogCapture(t)
+	ctx := t.Context()
 
 	valAmt := 4
 	operatorAmt := 4
@@ -685,7 +687,8 @@ func TestFeeRecipientListRemoteUnreachable(t *testing.T) {
 }
 
 func TestFeeRecipientListIncompleteNoQuorum(t *testing.T) {
-	ctx, logs := captureListLogs(t, t.Context())
+	logs := initLogCapture(t)
+	ctx := t.Context()
 
 	valAmt := 1
 	operatorAmt := 4
@@ -796,14 +799,15 @@ func TestRemoteOnlyPubkeys(t *testing.T) {
 	}
 }
 
-// captureListLogs returns a context that routes charon logs into a buffer.
-// Tests read the buffer bytes (as text) to assert on log content. The buffer
-// uses logfmt formatting so tests can assert on "key=value" pairs.
-func captureListLogs(t *testing.T, ctx context.Context) (context.Context, *zaptest.Buffer) {
+// initLogCapture points the process-global charon logger at a logfmt-encoded
+// buffer for the duration of the test and returns the buffer. Tests read the
+// buffer contents (as text) to assert on "key=value" pairs. Tests using this
+// helper must not run with t.Parallel(), since it mutates global state.
+func initLogCapture(t *testing.T) *zaptest.Buffer {
 	t.Helper()
 
 	buf := &zaptest.Buffer{}
 	log.InitLogfmtForT(t, buf)
 
-	return ctx, buf
+	return buf
 }
