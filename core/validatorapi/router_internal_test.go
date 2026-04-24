@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -135,7 +136,8 @@ func TestEventsHandlerProxy(t *testing.T) {
 	proxySrv := httptest.NewServer(router)
 	defer proxySrv.Close()
 
-	ctx, cancel := context.WithCancel(t.Context())
+	// Bound the request so a streaming regression (no flush, blocked read) fails fast.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, proxySrv.URL+"/eth/v1/events?topics=head", nil)
@@ -147,7 +149,10 @@ func TestEventsHandlerProxy(t *testing.T) {
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "text/event-stream", mediaType)
 
 	// Read one SSE frame to confirm streaming actually works end-to-end.
 	buf := make([]byte, 64)
