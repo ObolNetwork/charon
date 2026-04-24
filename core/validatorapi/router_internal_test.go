@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -102,6 +103,62 @@ func TestProxyShutdown(t *testing.T) {
 	// Wait for the request to complete.
 	err := <-errCh
 	require.NoError(t, err)
+}
+
+func TestEventsHandlerProxy(t *testing.T) {
+	// Upstream "beacon node" that serves an SSE stream with one head event.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/eth/v1/events", r.URL.Path)
+		require.Equal(t, "head", r.URL.Query().Get("topics"))
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+
+		flusher, ok := w.(http.Flusher)
+		require.True(t, ok)
+
+		_, err := io.WriteString(w, "event: head\ndata: {\"slot\":\"1\"}\n\n")
+		require.NoError(t, err)
+		flusher.Flush()
+
+		<-r.Context().Done()
+	}))
+	defer upstream.Close()
+
+	handler := testHandler{
+		AddressFunc: func() string { return upstream.URL },
+		HeadersFunc: func() map[string]string { return nil },
+	}
+
+	router, err := NewRouter(handler, true)
+	require.NoError(t, err)
+
+	proxySrv := httptest.NewServer(router)
+	defer proxySrv.Close()
+
+	// Bound the request so a streaming regression (no flush, blocked read) fails fast.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, proxySrv.URL+"/eth/v1/events?topics=head", nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "text/event-stream", mediaType)
+
+	// Read one SSE frame to confirm streaming actually works end-to-end.
+	buf := make([]byte, 64)
+	n, err := resp.Body.Read(buf)
+	require.NoError(t, err)
+	require.Contains(t, string(buf[:n]), "event: head")
 }
 
 func TestRouterIntegration(t *testing.T) {
