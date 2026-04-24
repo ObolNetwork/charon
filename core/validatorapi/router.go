@@ -1656,7 +1656,7 @@ func eventsHandler(h Handler) http.HandlerFunc {
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
 		// NewSingleHostReverseProxy sets Director; ServeHTTP rejects proxies with
 		// both Director and Rewrite set, so clear it before installing Rewrite.
-		proxy.Director = nil
+		proxy.Director = nil //nolint:staticcheck
 		proxy.Rewrite = func(req *httputil.ProxyRequest) {
 			if targetURL.User != nil {
 				password, _ := targetURL.User.Password()
