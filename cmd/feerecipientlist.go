@@ -121,20 +121,21 @@ func resolveLatestRegistrations(cl cluster.Lock, overrides, remote map[string]re
 	return entries
 }
 
-// countRemoteOnly returns the number of resolved entries whose winning record
-// comes strictly from the remote API — neither the lock default nor the
-// overrides file carries an equivalent record. These are the only cases where
-// running fetch would add information the operator doesn't already have.
-func countRemoteOnly(entries []registrationEntry) int {
-	var n int
+// remoteOnlyPubkeys returns the pubkeys of resolved entries whose winning
+// record comes strictly from the remote API — neither the lock default nor
+// the overrides file carries an equivalent record. These are the only cases
+// where running fetch would add information the operator doesn't already
+// have.
+func remoteOnlyPubkeys(entries []registrationEntry) []string {
+	var pubkeys []string
 
 	for _, e := range entries {
 		if len(e.Sources) == 1 && e.Sources[0] == sourceRemote {
-			n++
+			pubkeys = append(pubkeys, e.Pubkey)
 		}
 	}
 
-	return n
+	return pubkeys
 }
 
 // entriesEquivalent reports whether two candidate entries represent the same
@@ -213,13 +214,13 @@ func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) err
 		log.Info(ctx, "Validators unknown to remote API", z.Int("total", len(noReg)))
 	}
 
-	remoteOnly := countRemoteOnly(entries)
+	remoteOnly := remoteOnlyPubkeys(entries)
 
-	if remoteOnly > 0 {
+	if len(remoteOnly) > 0 {
 		log.Info(ctx, "Updated registrations are available. "+
 			"Use 'charon feerecipient fetch' to save them locally, "+
 			"or use 'charon run --fetch-feerecipient-updates' to have Charon check for updates daily.",
-			z.Int("total", remoteOnly),
+			z.Any("pubkeys", remoteOnly),
 		)
 	}
 

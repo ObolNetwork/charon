@@ -757,36 +757,41 @@ func TestFeeRecipientListIncompleteNoQuorum(t *testing.T) {
 	)
 }
 
-func TestCountRemoteOnly(t *testing.T) {
+func TestRemoteOnlyPubkeys(t *testing.T) {
+	type entry struct {
+		pubkey  string
+		sources []string
+	}
+
 	cases := []struct {
 		name    string
-		sources [][]string
-		want    int
+		entries []entry
+		want    []string
 	}{
-		{"empty", nil, 0},
-		{"lock only", [][]string{{"lock"}}, 0},
-		{"overrides only", [][]string{{"overrides"}}, 0},
-		{"remote only", [][]string{{"remote"}}, 1},
-		{"lock+remote (remote matches lock default)", [][]string{{"lock", "remote"}}, 0},
-		{"overrides+remote (already synced)", [][]string{{"overrides", "remote"}}, 0},
-		{"lock+overrides+remote", [][]string{{"lock", "overrides", "remote"}}, 0},
-		{"mixed", [][]string{
-			{"lock"},
-			{"remote"},
-			{"lock", "remote"},
-			{"remote"},
-			{"overrides", "remote"},
-		}, 2},
+		{"empty", nil, nil},
+		{"lock only", []entry{{"pk1", []string{"lock"}}}, nil},
+		{"overrides only", []entry{{"pk1", []string{"overrides"}}}, nil},
+		{"remote only", []entry{{"pk1", []string{"remote"}}}, []string{"pk1"}},
+		{"lock+remote (remote matches lock default)", []entry{{"pk1", []string{"lock", "remote"}}}, nil},
+		{"overrides+remote (already synced)", []entry{{"pk1", []string{"overrides", "remote"}}}, nil},
+		{"lock+overrides+remote", []entry{{"pk1", []string{"lock", "overrides", "remote"}}}, nil},
+		{"mixed", []entry{
+			{"pk1", []string{"lock"}},
+			{"pk2", []string{"remote"}},
+			{"pk3", []string{"lock", "remote"}},
+			{"pk4", []string{"remote"}},
+			{"pk5", []string{"overrides", "remote"}},
+		}, []string{"pk2", "pk4"}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			entries := make([]registrationEntry, len(tc.sources))
-			for i, s := range tc.sources {
-				entries[i] = registrationEntry{Sources: s}
+			entries := make([]registrationEntry, len(tc.entries))
+			for i, e := range tc.entries {
+				entries[i] = registrationEntry{Pubkey: e.pubkey, Sources: e.sources}
 			}
 
-			require.Equal(t, tc.want, countRemoteOnly(entries))
+			require.Equal(t, tc.want, remoteOnlyPubkeys(entries))
 		})
 	}
 }
