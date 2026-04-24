@@ -1654,17 +1654,17 @@ func eventsHandler(h Handler) http.HandlerFunc {
 		}
 
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
-
-		// Extend default proxy director with basic auth and host header
-		defaultDirector := proxy.Rewrite
+		// NewSingleHostReverseProxy sets Director; ServeHTTP rejects proxies with
+		// both Director and Rewrite set, so clear it before installing Rewrite.
+		proxy.Director = nil //nolint:staticcheck
 		proxy.Rewrite = func(req *httputil.ProxyRequest) {
 			if targetURL.User != nil {
 				password, _ := targetURL.User.Password()
 				req.Out.SetBasicAuth(targetURL.User.Username(), password)
 			}
 
+			req.SetURL(targetURL)
 			req.Out.Host = targetURL.Host
-			defaultDirector(req)
 
 			// Apply user provided beacon node headers
 			for k, v := range headers {
