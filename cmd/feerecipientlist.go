@@ -13,15 +13,15 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 )
 
 type feerecipientListConfig struct {
-	ValidatorPublicKeys []string
-	LockFilePath        string
-	OverridesFilePath   string
+	feerecipientConfig
 }
 
 func newFeeRecipientListCmd(runFunc func(context.Context, feerecipientListConfig) error) *cobra.Command {
@@ -30,7 +30,7 @@ func newFeeRecipientListCmd(runFunc func(context.Context, feerecipientListConfig
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Display the latest builder registration details for each validator.",
-		Long:  "Displays the most recent builder registration for each validator, selecting the entry with the highest timestamp from either the cluster lock file or the overrides file.",
+		Long:  "Displays the most recent builder registration for each validator, selecting the entry with the highest timestamp from the cluster lock file, the overrides file, or the remote API.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFunc(cmd.Context(), config)
@@ -41,6 +41,8 @@ func newFeeRecipientListCmd(runFunc func(context.Context, feerecipientListConfig
 	cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "Path to the cluster lock file defining the distributed validator cluster.")
 	cmd.Flags().StringVar(&config.OverridesFilePath, "overrides-file", ".charon/builder_registrations_overrides.json", "Path to the builder registrations overrides file.")
 
+	bindFeeRecipientRemoteAPIFlags(cmd, &config.feerecipientConfig)
+
 	return cmd
 }
 
@@ -50,11 +52,20 @@ type registrationEntry struct {
 	FeeRecipient string
 	GasLimit     uint64
 	Timestamp    time.Time
+	// Sources lists the source names (lock, overrides, remote) whose record
+	// is equivalent to this winning entry, in canonical order.
+	Sources []string
 }
 
+const (
+	sourceLock      = "lock"
+	sourceOverrides = "overrides"
+	sourceRemote    = "remote"
+)
+
 // resolveLatestRegistrations returns the latest builder registration for each validator
-// by comparing timestamps from the cluster lock and overrides file.
-func resolveLatestRegistrations(cl cluster.Lock, overrides map[string]registrationEntry, pubkeyFilter map[string]struct{}) []registrationEntry {
+// by comparing timestamps from the cluster lock, overrides file, and remote API quorum map.
+func resolveLatestRegistrations(cl cluster.Lock, overrides, remote map[string]registrationEntry, pubkeyFilter map[string]struct{}) []registrationEntry {
 	var entries []registrationEntry
 
 	for _, dv := range cl.Validators {
@@ -67,27 +78,79 @@ func resolveLatestRegistrations(cl cluster.Lock, overrides map[string]registrati
 			}
 		}
 
-		feeRecipient := "0x" + hex.EncodeToString(dv.BuilderRegistration.Message.FeeRecipient)
-		gasLimit := uint64(dv.BuilderRegistration.Message.GasLimit)
-		timestamp := dv.BuilderRegistration.Message.Timestamp
+		lockEntry := registrationEntry{
+			FeeRecipient: "0x" + hex.EncodeToString(dv.BuilderRegistration.Message.FeeRecipient),
+			GasLimit:     uint64(dv.BuilderRegistration.Message.GasLimit),
+			Timestamp:    dv.BuilderRegistration.Message.Timestamp,
+		}
 
-		if override, ok := overrides[normalized]; ok {
-			if override.Timestamp.After(timestamp) {
-				feeRecipient = override.FeeRecipient
-				gasLimit = override.GasLimit
-				timestamp = override.Timestamp
-			}
+		override, hasOverride := overrides[normalized]
+		remoteEntry, hasRemote := remote[normalized]
+
+		winner := lockEntry
+		if hasOverride && override.Timestamp.After(winner.Timestamp) {
+			winner = override
+		}
+
+		if hasRemote && remoteEntry.Timestamp.After(winner.Timestamp) {
+			winner = remoteEntry
+		}
+
+		var sources []string
+		if entriesEquivalent(winner, lockEntry) {
+			sources = append(sources, sourceLock)
+		}
+
+		if hasOverride && entriesEquivalent(winner, override) {
+			sources = append(sources, sourceOverrides)
+		}
+
+		if hasRemote && entriesEquivalent(winner, remoteEntry) {
+			sources = append(sources, sourceRemote)
 		}
 
 		entries = append(entries, registrationEntry{
 			Pubkey:       pubkeyHex,
-			FeeRecipient: feeRecipient,
-			GasLimit:     gasLimit,
-			Timestamp:    timestamp,
+			FeeRecipient: winner.FeeRecipient,
+			GasLimit:     winner.GasLimit,
+			Timestamp:    winner.Timestamp,
+			Sources:      sources,
 		})
 	}
 
 	return entries
+}
+
+// remoteOnlyPubkeys returns the pubkeys of resolved entries whose winning
+// record comes strictly from the remote API — neither the lock default nor
+// the overrides file carries an equivalent record. These are the only cases
+// where running fetch would add information the operator doesn't already
+// have.
+func remoteOnlyPubkeys(entries []registrationEntry) []string {
+	var pubkeys []string
+
+	for _, e := range entries {
+		if len(e.Sources) == 1 && e.Sources[0] == sourceRemote {
+			pubkeys = append(pubkeys, e.Pubkey)
+		}
+	}
+
+	return pubkeys
+}
+
+// entriesEquivalent reports whether two candidate entries represent the same
+// record (same fee recipient, gas limit, and timestamp). Pubkey is keyed by
+// the caller so is not compared.
+func entriesEquivalent(a, b registrationEntry) bool {
+	if a.GasLimit != b.GasLimit {
+		return false
+	}
+
+	if !a.Timestamp.Equal(b.Timestamp) {
+		return false
+	}
+
+	return strings.EqualFold(a.FeeRecipient, b.FeeRecipient)
 }
 
 func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) error {
@@ -112,7 +175,14 @@ func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) err
 		pubkeyFilter[normalizePubkey(pk)] = struct{}{}
 	}
 
-	entries := resolveLatestRegistrations(*cl, overrides, pubkeyFilter)
+	remote, incomplete, noReg, err := fetchRemoteQuorums(ctx, config, cl.LockHash)
+	if err != nil {
+		log.Warn(ctx, "Unable to fetch remote builder registrations; showing local data only", err)
+
+		remote, incomplete, noReg = nil, nil, nil
+	}
+
+	entries := resolveLatestRegistrations(*cl, overrides, remote, pubkeyFilter)
 
 	if len(entries) == 0 {
 		log.Info(ctx, "No builder registrations found", nil)
@@ -132,10 +202,65 @@ func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) err
 			z.Str("fee_recipient", e.FeeRecipient),
 			z.U64("gas_limit", e.GasLimit),
 			z.I64("timestamp", e.Timestamp.Unix()),
+			z.Str("source", strings.Join(e.Sources, "+")),
+		)
+	}
+
+	if len(incomplete) > 0 {
+		log.Info(ctx, "Validators with partial builder registrations on remote", z.Int("total", len(incomplete)))
+	}
+
+	if len(noReg) > 0 {
+		log.Info(ctx, "Validators unknown to remote API", z.Int("total", len(noReg)))
+	}
+
+	remoteOnly := remoteOnlyPubkeys(entries)
+
+	if len(remoteOnly) > 0 {
+		log.Info(ctx, "Updated registrations are available. "+
+			"Use 'charon feerecipient fetch' to save them locally, "+
+			"or use 'charon run --fetch-feerecipient-updates' to have Charon check for updates daily.",
+			z.Any("pubkeys", remoteOnly),
 		)
 	}
 
 	return nil
+}
+
+// fetchRemoteQuorums calls the Obol API and converts the response into a
+// pubkey-keyed quorum map plus the incomplete / no-registration pubkey
+// lists. Returns an error if the API is unreachable or the response can't
+// be processed; callers may choose to treat the error as soft.
+func fetchRemoteQuorums(ctx context.Context, config feerecipientListConfig, lockHash []byte) (remote map[string]registrationEntry, incomplete, noReg []string, err error) {
+	oAPI, err := obolapi.New(config.PublishAddress, obolapi.WithTimeout(config.PublishTimeout))
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
+	}
+
+	resp, err := oAPI.PostFeeRecipientsFetch(ctx, lockHash, config.ValidatorPublicKeys)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "fetch builder registrations from Obol API")
+	}
+
+	pv, err := app.ProcessValidators(resp.Validators)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	remote = make(map[string]registrationEntry, len(pv.QuorumMessages))
+	for pk, msg := range pv.QuorumMessages {
+		if msg == nil {
+			continue
+		}
+
+		remote[normalizePubkey(pk)] = registrationEntry{
+			FeeRecipient: msg.FeeRecipient.String(),
+			GasLimit:     msg.GasLimit,
+			Timestamp:    msg.Timestamp,
+		}
+	}
+
+	return remote, pv.Categories.Incomplete, pv.Categories.NoReg, nil
 }
 
 // loadOverrides reads the builder registrations overrides file and returns
