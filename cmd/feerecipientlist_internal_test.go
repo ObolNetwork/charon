@@ -757,6 +757,40 @@ func TestFeeRecipientListIncompleteNoQuorum(t *testing.T) {
 	)
 }
 
+func TestCountRemoteOnly(t *testing.T) {
+	cases := []struct {
+		name    string
+		sources [][]string
+		want    int
+	}{
+		{"empty", nil, 0},
+		{"lock only", [][]string{{"lock"}}, 0},
+		{"overrides only", [][]string{{"overrides"}}, 0},
+		{"remote only", [][]string{{"remote"}}, 1},
+		{"lock+remote (remote matches lock default)", [][]string{{"lock", "remote"}}, 0},
+		{"overrides+remote (already synced)", [][]string{{"overrides", "remote"}}, 0},
+		{"lock+overrides+remote", [][]string{{"lock", "overrides", "remote"}}, 0},
+		{"mixed", [][]string{
+			{"lock"},
+			{"remote"},
+			{"lock", "remote"},
+			{"remote"},
+			{"overrides", "remote"},
+		}, 2},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			entries := make([]registrationEntry, len(tc.sources))
+			for i, s := range tc.sources {
+				entries[i] = registrationEntry{Sources: s}
+			}
+
+			require.Equal(t, tc.want, countRemoteOnly(entries))
+		})
+	}
+}
+
 // captureListLogs returns a context that routes charon logs into a buffer.
 // Tests read the buffer bytes (as text) to assert on log content. The buffer
 // uses logfmt formatting so tests can assert on "key=value" pairs.

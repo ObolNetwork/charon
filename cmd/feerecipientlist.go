@@ -121,6 +121,22 @@ func resolveLatestRegistrations(cl cluster.Lock, overrides, remote map[string]re
 	return entries
 }
 
+// countRemoteOnly returns the number of resolved entries whose winning record
+// comes strictly from the remote API — neither the lock default nor the
+// overrides file carries an equivalent record. These are the only cases where
+// running fetch would add information the operator doesn't already have.
+func countRemoteOnly(entries []registrationEntry) int {
+	var n int
+
+	for _, e := range entries {
+		if len(e.Sources) == 1 && e.Sources[0] == sourceRemote {
+			n++
+		}
+	}
+
+	return n
+}
+
 // entriesEquivalent reports whether two candidate entries represent the same
 // record (same fee recipient, gas limit, and timestamp). Pubkey is keyed by
 // the caller so is not compared.
@@ -197,13 +213,7 @@ func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) err
 		log.Info(ctx, "Validators unknown to remote API", z.Int("total", len(noReg)))
 	}
 
-	remoteOnly := 0
-
-	for _, e := range entries {
-		if slices.Contains(e.Sources, sourceRemote) && !slices.Contains(e.Sources, sourceOverrides) {
-			remoteOnly++
-		}
-	}
+	remoteOnly := countRemoteOnly(entries)
 
 	if remoteOnly > 0 {
 		log.Info(ctx, "Updated registrations are available. "+
