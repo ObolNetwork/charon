@@ -6,6 +6,12 @@ description: |
 
 on:
   workflow_dispatch:
+    inputs:
+      target_minor:
+        description: 'Target minor version to patch, e.g. v1.8. Leave empty to default to the latest released minor.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   tag_patch_release_candidate:
@@ -39,22 +45,57 @@ jobs:
       - name: 3. Find Latest Release Branch
         id: find_branch
         run: |
-          # Fetch all remote branches
+          # Fetch all remote branches and tags
           git fetch --all
+          git fetch --tags
 
-          # Find all minor release branches matching pattern main-vX.Y
-          RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+          TARGET_MINOR="${{ inputs.target_minor }}"
 
-          if [[ -z "$RELEASE_BRANCHES" ]]; then
-            echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
-            exit 1
+          if [[ -n "$TARGET_MINOR" ]]; then
+            # Opt-in: patch a specific (non-latest) minor.
+            if [[ ! "$TARGET_MINOR" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Invalid target_minor format: '$TARGET_MINOR'. Expected 'vX.Y' (e.g. v1.8)"
+              exit 1
+            fi
+            RELEASE_BRANCH="main-${TARGET_MINOR}"
+            if ! git show-ref --verify --quiet "refs/remotes/origin/${RELEASE_BRANCH}"; then
+              echo "::error::Release branch ${RELEASE_BRANCH} does not exist on origin"
+              exit 1
+            fi
+            if ! git tag -l "${TARGET_MINOR}.0" | grep -q .; then
+              echo "::error::Minor ${TARGET_MINOR} has not been released (tag ${TARGET_MINOR}.0 does not exist)"
+              exit 1
+            fi
+            echo "::notice::Using explicitly targeted minor: ${RELEASE_BRANCH}"
+          else
+            # Default: latest minor with a released stable vX.Y.0 tag.
+            # Skips in-progress minors (RC-only, e.g. v1.10.0-rc3).
+            RELEASE_BRANCHES=$(git branch -r --format='%(refname:short)' | grep -E 'origin/main-v[0-9]+\.[0-9]+$' | sed 's|origin/||' | sort -V)
+
+            if [[ -z "$RELEASE_BRANCHES" ]]; then
+              echo "::error::No minor release branches found matching pattern 'main-vX.Y'"
+              exit 1
+            fi
+
+            RELEASE_BRANCH=""
+            while IFS= read -r candidate; do
+              if [[ "$candidate" =~ ^main-v([0-9]+)\.([0-9]+)$ ]]; then
+                CAND_MAJOR="${BASH_REMATCH[1]}"
+                CAND_MINOR="${BASH_REMATCH[2]}"
+                if git tag -l "v${CAND_MAJOR}.${CAND_MINOR}.0" | grep -q .; then
+                  RELEASE_BRANCH="$candidate"
+                fi
+              fi
+            done <<< "$RELEASE_BRANCHES"
+
+            if [[ -z "$RELEASE_BRANCH" ]]; then
+              echo "::error::No minor release branches with a stable vX.Y.0 tag found"
+              exit 1
+            fi
           fi
 
-          # Get the latest release branch (last in sorted list)
-          RELEASE_BRANCH=$(echo "$RELEASE_BRANCHES" | tail -n 1)
-
           echo "RELEASE_BRANCH=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
-          echo "::notice::Found latest minor release branch: ${RELEASE_BRANCH}"
+          echo "::notice::Using minor release branch: ${RELEASE_BRANCH}"
 
           # Checkout the release branch
           git checkout "$RELEASE_BRANCH"
