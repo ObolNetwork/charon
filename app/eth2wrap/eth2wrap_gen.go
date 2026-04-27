@@ -421,26 +421,7 @@ func (m multi) SyncCommitteeSelections(ctx context.Context, opts *api.SyncCommit
 	return res0, err
 }
 
-// Proposal fetches a proposal for signing.
-func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
-	const label = "proposal"
-	defer latency(ctx, label, true)()
-	defer incRequest(label)
-
-	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedProposal], error) {
-			return args.client.Proposal(ctx, opts)
-		},
-		nil, m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
+// Note: multi.Proposal is hand-written in multi.go (skipped by genwrap).
 
 // BeaconBlockRoot fetches a block's root given a set of options.
 // Note this endpoint is cached in go-eth2-client.
@@ -741,27 +722,7 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 	return res0, err
 }
 
-// SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators
-// shows up in the next epoch.
-func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
-	const label = "submit_proposal_preparations"
-	defer latency(ctx, label, true)()
-	defer incRequest(label)
-
-	err := submit(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) error {
-			return args.client.SubmitProposalPreparations(ctx, preparations)
-		},
-		m.selector,
-	)
-
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return err
-}
+// Note: multi.SubmitProposalPreparations is hand-written in multi.go (skipped by genwrap).
 
 // ProposerDuties obtains proposer duties for the given options.
 func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*apiv1.ProposerDuty], error) {
@@ -894,6 +855,8 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 
 	return res0, err
 }
+
+// Note: multi.Proxy is hand-written in multi.go (skipped by genwrap).
 
 // SlotDuration provides the duration of a slot of the chain.
 //

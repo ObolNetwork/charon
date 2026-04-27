@@ -4,7 +4,6 @@ package fetcher
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -345,7 +344,14 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			BuilderBoostFactor: &bbf,
 		}
 
-		eth2Resp, err := f.eth2Cl.Proposal(ctx, opts)
+		feeRecipient := f.feeRecipientFunc(pubkey)
+
+		// Tell eth2wrap.multi to discard local proposals whose fee recipient doesn't match
+		// the expected one — guards against a beacon node that silently dropped its
+		// SubmitProposalPreparations and would otherwise return a zero-recipient block. See #4477.
+		proposalCtx := eth2wrap.ContextWithExpectedFeeRecipient(ctx, feeRecipient)
+
+		eth2Resp, err := f.eth2Cl.Proposal(proposalCtx, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -355,7 +361,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		// Builders set fee recipient to themselves so it's always different from validator's.
 		if !proposal.Blinded {
 			// Ensure fee recipient is correctly populated in proposal.
-			verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
+			verifyFeeRecipient(ctx, proposal, feeRecipient)
 		}
 
 		coreProposal, err := core.NewVersionedProposal(proposal)
@@ -450,26 +456,15 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 }
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
+// Returns silently for forks earlier than bellatrix and for blinded proposals (where the recipient
+// is the builder, not the validator's configured address).
 func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal, feeRecipientAddress string) {
-	// Note that fee-recipient is not available in forks earlier than bellatrix.
-	var actualAddr string
-
-	switch proposal.Version {
-	case eth2spec.DataVersionBellatrix:
-		actualAddr = fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient)
-	case eth2spec.DataVersionCapella:
-		actualAddr = fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient)
-	case eth2spec.DataVersionDeneb:
-		actualAddr = fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
-	case eth2spec.DataVersionElectra:
-		actualAddr = fmt.Sprintf("%#x", proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient)
-	case eth2spec.DataVersionFulu:
-		actualAddr = fmt.Sprintf("%#x", proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient)
-	default:
+	actualAddr, ok := eth2wrap.ProposalFeeRecipient(proposal)
+	if !ok {
 		return
 	}
 
-	if actualAddr != "" && !strings.EqualFold(actualAddr, feeRecipientAddress) {
+	if !strings.EqualFold(actualAddr, feeRecipientAddress) {
 		log.Warn(ctx, "Proposal with unexpected fee recipient address", nil,
 			z.Str("expected", feeRecipientAddress), z.Str("actual", actualAddr))
 		proposalLocalMismatchFeeRecipientGauge.Set(2.0)

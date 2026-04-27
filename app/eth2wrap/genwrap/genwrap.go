@@ -65,7 +65,7 @@ type Client interface {
 }
 
 {{range .Methods}}
-	{{- if ne .Name "Proxy"}}
+	{{- if and (ne .Name "Proxy") (ne .Name "Proposal") (ne .Name "SubmitProposalPreparations")}}
 	{{.Doc}}
     {{- if not .Latency}}// Note this endpoint is cached in go-eth2-client.
     {{end -}}
@@ -88,6 +88,8 @@ type Client interface {
 
 		return {{.ResultNames}}
 	}
+	{{- else}}
+	// Note: multi.{{.Name}} is hand-written in multi.go (skipped by genwrap).
 	{{- end}}
 {{end}}
 

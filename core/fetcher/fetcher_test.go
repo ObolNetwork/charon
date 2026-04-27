@@ -11,13 +11,17 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
@@ -737,4 +741,66 @@ func TestFetchOnly(t *testing.T) {
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
 	})
+}
+
+// TestFetchProposer_AttachesExpectedFeeRecipientToContext verifies that fetchProposerData
+// attaches the expected fee recipient (from feeRecipientFunc) to the context passed into
+// eth2Cl.Proposal. This is the contract that lets eth2wrap.multi discard responses from
+// beacon nodes that silently dropped their SubmitProposalPreparations and would otherwise
+// return a zero-recipient block. Regression guard for the fetcher half of #4477.
+func TestFetchProposer_AttachesExpectedFeeRecipientToContext(t *testing.T) {
+	const (
+		slot                = 1
+		vIdx                = 2
+		expectedFeeRecipHex = "0xabcd000000000000000000000000000000000000"
+	)
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSet := core.DutyDefinitionSet{
+		pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{Slot: slot, ValidatorIndex: vIdx}),
+	}
+
+	expectedFeeRecip := bellatrix.ExecutionAddress{0xab, 0xcd}
+	proposalResp := &eth2api.Response[*eth2api.VersionedProposal]{
+		Data: &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2deneb.BlockContents{
+				Block: &deneb.BeaconBlock{
+					Body: &deneb.BeaconBlockBody{
+						ExecutionPayload: &deneb.ExecutionPayload{FeeRecipient: expectedFeeRecip},
+					},
+				},
+			},
+		},
+	}
+
+	ctxCh := make(chan context.Context, 1)
+
+	eth2Cl := mocks.NewClient(t)
+	eth2Cl.On("Proposal", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			ctxCh <- args.Get(0).(context.Context)
+		}).
+		Return(proposalResp, nil).
+		Once()
+
+	fetch, err := fetcher.New(eth2Cl, func(core.PubKey) string {
+		return expectedFeeRecipHex
+	}, true, &fetcher.GraffitiBuilder{}, 5, false)
+	require.NoError(t, err)
+
+	fetch.RegisterAggSigDB(func(_ context.Context, _ core.Duty, _ core.PubKey) (core.SignedData, error) {
+		return testutil.RandomCoreSignature(), nil
+	})
+
+	err = fetch.Fetch(t.Context(), core.NewProposerDuty(slot), defSet)
+	require.NoError(t, err)
+
+	select {
+	case capturedCtx := <-ctxCh:
+		require.Equal(t, expectedFeeRecipHex, eth2wrap.ExpectedFeeRecipient(capturedCtx),
+			"fetcher must attach the expected fee recipient via eth2wrap.ContextWithExpectedFeeRecipient")
+	default:
+		t.Fatal("Proposal must have been called")
+	}
 }
