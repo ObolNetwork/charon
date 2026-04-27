@@ -176,20 +176,14 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 				setCurrState()
 			}
 		case <-currTimer.Chan():
-			// Send deadlined duty to receiver.
-			select {
-			case <-ctx.Done():
-				return
-			case d.deadlineChan <- currDuty:
-			default:
-				log.Warn(ctx, "Deadliner output channel full", nil,
-					z.Str("label", d.label),
-					z.Any("duty", currDuty),
-				)
-			}
-
-			delete(duties, currDuty)
-			setCurrState()
+		    select {
+		    case <-ctx.Done():
+		        return
+		    case d.deadlineChan <- currDuty:
+		    }
+		
+		    delete(duties, currDuty)
+		    setCurrState()
 		}
 	}
 }
@@ -217,7 +211,7 @@ func (d *deadliner) C() <-chan Duty {
 	return d.deadlineChan
 }
 
-// getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the latest deadline.
+// getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the earliest deadline.
 func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Time) {
 	var currDuty Duty
 
