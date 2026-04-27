@@ -326,8 +326,10 @@ func ExpectedFeeRecipient(ctx context.Context) string {
 
 // ProposalFeeRecipient returns the fee recipient address of an unsigned proposal as a
 // hex string with 0x prefix. The second return value is false for forks earlier than
-// bellatrix (no execution payload) or for blinded proposals (recipient is the builder,
-// not the validator's configured address).
+// bellatrix (no execution payload), for blinded proposals (recipient is the builder,
+// not the validator's configured address), and for malformed responses missing any
+// nested struct in the chain to FeeRecipient — callers receive a BN response and
+// must not panic on partial/malformed input.
 func ProposalFeeRecipient(proposal *eth2api.VersionedProposal) (string, bool) {
 	if proposal == nil || proposal.Blinded {
 		return "", false
@@ -335,14 +337,34 @@ func ProposalFeeRecipient(proposal *eth2api.VersionedProposal) (string, bool) {
 
 	switch proposal.Version {
 	case eth2spec.DataVersionBellatrix:
+		if proposal.Bellatrix == nil || proposal.Bellatrix.Body == nil || proposal.Bellatrix.Body.ExecutionPayload == nil {
+			return "", false
+		}
+
 		return fmt.Sprintf("%#x", proposal.Bellatrix.Body.ExecutionPayload.FeeRecipient), true
 	case eth2spec.DataVersionCapella:
+		if proposal.Capella == nil || proposal.Capella.Body == nil || proposal.Capella.Body.ExecutionPayload == nil {
+			return "", false
+		}
+
 		return fmt.Sprintf("%#x", proposal.Capella.Body.ExecutionPayload.FeeRecipient), true
 	case eth2spec.DataVersionDeneb:
+		if proposal.Deneb == nil || proposal.Deneb.Block == nil || proposal.Deneb.Block.Body == nil || proposal.Deneb.Block.Body.ExecutionPayload == nil {
+			return "", false
+		}
+
 		return fmt.Sprintf("%#x", proposal.Deneb.Block.Body.ExecutionPayload.FeeRecipient), true
 	case eth2spec.DataVersionElectra:
+		if proposal.Electra == nil || proposal.Electra.Block == nil || proposal.Electra.Block.Body == nil || proposal.Electra.Block.Body.ExecutionPayload == nil {
+			return "", false
+		}
+
 		return fmt.Sprintf("%#x", proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient), true
 	case eth2spec.DataVersionFulu:
+		if proposal.Fulu == nil || proposal.Fulu.Block == nil || proposal.Fulu.Block.Body == nil || proposal.Fulu.Block.Body.ExecutionPayload == nil {
+			return "", false
+		}
+
 		return fmt.Sprintf("%#x", proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient), true
 	default:
 		return "", false
@@ -361,14 +383,29 @@ func (m multi) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2a
 	defer latency(ctx, label, true)()
 	defer incRequest(label)
 
-	clients := m.prep.preparedClients(m.clients)
+	// For Proposal, merge primaries and fallbacks into a single pool: fee recipient validation
+	// is a content check, but provide()'s built-in fallback retry only triggers on transport
+	// errors (timeout / syncing / bad-gateway). Without merging, primaries returning technically-
+	// successful-but-wrong-recipient blocks would fail the duty even when a fallback would have
+	// returned a correct proposal. See #4477.
+	primaries := m.prep.preparedClients(m.clients)
 	fallbacks := m.prep.preparedClients(m.fallbacks)
+
+	clients := make([]Client, 0, len(primaries)+len(fallbacks))
+	clients = append(clients, primaries...)
+	clients = append(clients, fallbacks...)
 
 	expected := ExpectedFeeRecipient(ctx)
 
 	var isSuccess func(*eth2api.Response[*eth2api.VersionedProposal]) bool
 	if expected != "" {
 		isSuccess = func(resp *eth2api.Response[*eth2api.VersionedProposal]) bool {
+			// A misbehaving client could return (nil, nil); treat as non-success so provide
+			// moves on rather than panicking on resp.Data.
+			if resp == nil {
+				return false
+			}
+
 			actual, ok := ProposalFeeRecipient(resp.Data)
 			if !ok {
 				return true
@@ -385,12 +422,19 @@ func (m multi) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2a
 		}
 	}
 
-	res0, err := provide(ctx, clients, fallbacks,
+	res0, err := provide(ctx, clients, nil,
 		func(ctx context.Context, args provideArgs) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 			return args.client.Proposal(ctx, opts)
 		},
 		isSuccess, m.selector,
 	)
+
+	// Defend against (nil, nil) from provide — the caller dereferences eth2Resp.Data and would
+	// panic. This can happen if every backend's Proposal returns (nil, nil), or via the
+	// nokResp path when expected is set and all responses failed isSuccess (all nil).
+	if err == nil && res0 == nil {
+		err = errors.New("all beacon node proposals returned nil response")
+	}
 
 	// provide returns the last non-success response with nil error when all responses fail
 	// the isSuccess check. Promote that to a real error so the caller doesn't sign a bad block.

@@ -470,3 +470,101 @@ func TestMulti_SubmitProposalPreparations_CtxCancelDoesNotPoisonState(t *testing
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 }
+
+// TestMulti_Proposal_FallbackRescuesFromBadPrimaries verifies that if every primary BN returns a
+// proposal with the wrong fee recipient, multi.Proposal still queries fallbacks and returns the
+// correct proposal from a fallback. provide()'s built-in fallback-on-error path only triggers
+// on transport errors, so multi.Proposal must merge primaries and fallbacks itself for content
+// failures to be recoverable. Regression test for #4477.
+func TestMulti_Proposal_FallbackRescuesFromBadPrimaries(t *testing.T) {
+	ctx := t.Context()
+
+	expected := bellatrix.ExecutionAddress{0xab, 0xcd}
+	expectedHex := testFeeRecipientHex
+	zero := bellatrix.ExecutionAddress{}
+
+	badPrimary := mocks.NewClient(t)
+	badPrimary.On("Address").Return("http://bad-primary:5051").Maybe()
+	badPrimary.On("Proposal", mock.Anything, mock.Anything).
+		Return(proposalWithFeeRecipient(zero), nil).Maybe()
+
+	goodFallback := mocks.NewClient(t)
+	goodFallback.On("Address").Return("http://good-fallback:5051").Maybe()
+	goodFallback.On("Proposal", mock.Anything, mock.Anything).
+		Return(proposalWithFeeRecipient(expected), nil).Maybe()
+
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{badPrimary}, []eth2wrap.Client{goodFallback})
+
+	proposalCtx := eth2wrap.ContextWithExpectedFeeRecipient(ctx, expectedHex)
+	resp, err := m.Proposal(proposalCtx, &eth2api.ProposalOpts{Slot: 1})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.Equal(t, expected, resp.Data.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
+}
+
+// TestMulti_Proposal_NilBackendResponseDoesNotPanic verifies that a misbehaving backend returning
+// (nil, nil) for Proposal cannot crash the process. With expected fee recipient attached the
+// isSuccess closure must treat nil resp as non-success; without it, multi.Proposal must convert
+// an all-nil result to an error so the caller doesn't dereference eth2Resp.Data on nil.
+func TestMulti_Proposal_NilBackendResponseDoesNotPanic(t *testing.T) {
+	t.Run("with expected fee recipient", func(t *testing.T) {
+		bn := mocks.NewClient(t)
+		bn.On("Address").Return("http://bn:5051").Maybe()
+		bn.On("Proposal", mock.Anything, mock.Anything).
+			Return((*eth2api.Response[*eth2api.VersionedProposal])(nil), nil).Maybe()
+
+		m := eth2wrap.NewMultiForT([]eth2wrap.Client{bn}, nil)
+
+		proposalCtx := eth2wrap.ContextWithExpectedFeeRecipient(t.Context(), testFeeRecipientHex)
+		_, err := m.Proposal(proposalCtx, &eth2api.ProposalOpts{Slot: 1})
+		require.Error(t, err)
+	})
+
+	t.Run("without expected fee recipient", func(t *testing.T) {
+		bn := mocks.NewClient(t)
+		bn.On("Address").Return("http://bn:5051").Maybe()
+		bn.On("Proposal", mock.Anything, mock.Anything).
+			Return((*eth2api.Response[*eth2api.VersionedProposal])(nil), nil).Maybe()
+
+		m := eth2wrap.NewMultiForT([]eth2wrap.Client{bn}, nil)
+
+		_, err := m.Proposal(t.Context(), &eth2api.ProposalOpts{Slot: 1})
+		require.Error(t, err)
+	})
+}
+
+// TestProposalFeeRecipient_HandlesMalformedResponses verifies that ProposalFeeRecipient does not
+// panic on responses with nil fork-specific fields — the function is called against untrusted BN
+// output inside multi.Proposal's isSuccess closure and must fail closed (return false) rather
+// than panic.
+func TestProposalFeeRecipient_HandlesMalformedResponses(t *testing.T) {
+	tests := []struct {
+		name     string
+		proposal *eth2api.VersionedProposal
+	}{
+		{"nil proposal", nil},
+		{"deneb version with nil Deneb", &eth2api.VersionedProposal{Version: eth2spec.DataVersionDeneb}},
+		{"deneb version with nil Block", &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   &eth2deneb.BlockContents{},
+		}},
+		{"deneb version with nil Body", &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   &eth2deneb.BlockContents{Block: &deneb.BeaconBlock{}},
+		}},
+		{"deneb version with nil ExecutionPayload", &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb:   &eth2deneb.BlockContents{Block: &deneb.BeaconBlock{Body: &deneb.BeaconBlockBody{}}},
+		}},
+		{"bellatrix version with nil Bellatrix", &eth2api.VersionedProposal{Version: eth2spec.DataVersionBellatrix}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Must not panic.
+			addr, ok := eth2wrap.ProposalFeeRecipient(test.proposal)
+			require.False(t, ok)
+			require.Empty(t, addr)
+		})
+	}
+}
