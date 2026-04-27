@@ -40,12 +40,9 @@ func newMulti(clients []Client, fallbacks []Client) Client {
 	}
 }
 
-// multi implements Client by wrapping multiple clients, calling them in parallel
-// and returning the first successful response.
-// It also adds prometheus metrics and error wrapping.
-// It also implements a "best client" selector.
-// When any of the Clients specified fails a request, it will re-try it on the specified
-// fallback endpoints, if any.
+// multi wraps multiple clients, calling them in parallel and returning the first successful
+// response. Adds prometheus metrics, error wrapping, a "best client" selector, and retries
+// failed requests against the configured fallback endpoints.
 type multi struct {
 	clients   []Client
 	fallbacks []Client
@@ -73,9 +70,8 @@ func (m multi) Address() string {
 }
 
 // ClientForAddress returns a scoped multi client that only queries the specified address.
-// Returns the original multi client if the address is not found or is empty, meaning requests
-// will be sent to all configured clients using the multi-client's normal selection strategy
-// rather than being scoped to a single node.
+// Returns the original multi client if addr is empty or not found, falling back to the
+// normal multi-client selection strategy.
 func (m multi) ClientForAddress(addr string) Client {
 	if addr == "" {
 		return m
@@ -324,12 +320,9 @@ func ExpectedFeeRecipient(ctx context.Context) string {
 	return v
 }
 
-// ProposalFeeRecipient returns the fee recipient address of an unsigned proposal as a
-// hex string with 0x prefix. The second return value is false for forks earlier than
-// bellatrix (no execution payload), for blinded proposals (recipient is the builder,
-// not the validator's configured address), and for malformed responses missing any
-// nested struct in the chain to FeeRecipient — callers receive a BN response and
-// must not panic on partial/malformed input.
+// ProposalFeeRecipient returns the fee recipient address as 0x-prefixed hex. The bool is false
+// for pre-bellatrix forks, blinded proposals (builder's recipient, not validator's), and
+// malformed responses with nil nested structs — BN input must not panic on partial data.
 func ProposalFeeRecipient(proposal *eth2api.VersionedProposal) (string, bool) {
 	if proposal == nil || proposal.Blinded {
 		return "", false
@@ -371,23 +364,72 @@ func ProposalFeeRecipient(proposal *eth2api.VersionedProposal) (string, bool) {
 	}
 }
 
-// Proposal fetches a proposal for signing.
-//
-// Hand-written (skipped by genwrap) for two reasons:
-//   - excludes BNs whose most recent SubmitProposalPreparations failed (Solution A for #4477)
-//   - rejects responses whose fee recipient doesn't match the value attached to ctx via
-//     ContextWithExpectedFeeRecipient, so a still-misconfigured BN can't poison the result
-//     (Solution B for #4477)
+// proposalDecision is the outcome of validating a Proposal response against an expected fee
+// recipient. Shared by isSuccess (inside provide) and the post-provide promotion check.
+type proposalDecision int
+
+const (
+	decisionAccept          proposalDecision = iota // OK to use (recipient matches OR no recipient applicable)
+	decisionRejectMismatch                          // unblinded bellatrix+ with the wrong recipient
+	decisionRejectMalformed                         // nil response, missing nested fields, or unknown fork
+)
+
+// proposalIsRecipientExempt reports whether a proposal can legitimately skip fee recipient
+// validation: blinded (builder's recipient) and known pre-bellatrix forks (no execution
+// payload). Unknown forks are NOT exempt — they get treated as malformed.
+func proposalIsRecipientExempt(p *eth2api.VersionedProposal) bool {
+	if p == nil {
+		return false
+	}
+
+	if p.Blinded {
+		return true
+	}
+
+	switch p.Version {
+	case eth2spec.DataVersionPhase0, eth2spec.DataVersionAltair:
+		return true
+	default:
+		return false
+	}
+}
+
+// classifyProposal decides whether a proposal response is acceptable. Returns the actual fee
+// recipient hex when it could be extracted (useful for logging on mismatch).
+func classifyProposal(p *eth2api.VersionedProposal, expected string) (proposalDecision, string) {
+	if p == nil {
+		return decisionRejectMalformed, ""
+	}
+
+	actual, ok := ProposalFeeRecipient(p)
+	if ok {
+		if strings.EqualFold(actual, expected) {
+			return decisionAccept, actual
+		}
+
+		return decisionRejectMismatch, actual
+	}
+
+	// ProposalFeeRecipient returned ok=false. Accept only if validation is legitimately
+	// inapplicable; otherwise (malformed payload or unknown fork) reject.
+	if proposalIsRecipientExempt(p) {
+		return decisionAccept, ""
+	}
+
+	return decisionRejectMalformed, ""
+}
+
+// Proposal fetches a proposal for signing. Hand-written (skipped by genwrap) to exclude BNs
+// whose most recent prep failed (Solution A) and reject responses whose fee recipient doesn't
+// match ctx's ContextWithExpectedFeeRecipient — also rejects malformed responses. See #4477.
 func (m multi) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 	const label = "proposal"
 	defer latency(ctx, label, true)()
 	defer incRequest(label)
 
-	// For Proposal, merge primaries and fallbacks into a single pool: fee recipient validation
-	// is a content check, but provide()'s built-in fallback retry only triggers on transport
-	// errors (timeout / syncing / bad-gateway). Without merging, primaries returning technically-
-	// successful-but-wrong-recipient blocks would fail the duty even when a fallback would have
-	// returned a correct proposal. See #4477.
+	// Merge primaries and fallbacks into a single pool: provide()'s built-in fallback retry
+	// only fires on transport errors, not content checks like a wrong fee recipient. Without
+	// merging, a fallback can't rescue the duty when primaries return wrong-recipient blocks.
 	primaries := m.prep.preparedClients(m.clients)
 	fallbacks := m.prep.preparedClients(m.fallbacks)
 
@@ -406,19 +448,22 @@ func (m multi) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2a
 				return false
 			}
 
-			actual, ok := ProposalFeeRecipient(resp.Data)
-			if !ok {
+			decision, actual := classifyProposal(resp.Data, expected)
+			switch decision {
+			case decisionAccept:
 				return true
+			case decisionRejectMismatch:
+				log.Warn(ctx, "Discarded beacon node proposal with unexpected fee recipient", nil,
+					z.Str("expected", expected), z.Str("actual", actual))
+
+				return false
+			case decisionRejectMalformed:
+				log.Warn(ctx, "Discarded malformed beacon node proposal", nil)
+
+				return false
+			default:
+				return false
 			}
-
-			if strings.EqualFold(actual, expected) {
-				return true
-			}
-
-			log.Warn(ctx, "Discarded beacon node proposal with unexpected fee recipient", nil,
-				z.Str("expected", expected), z.Str("actual", actual))
-
-			return false
 		}
 	}
 
@@ -429,19 +474,24 @@ func (m multi) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2a
 		isSuccess, m.selector,
 	)
 
-	// Defend against (nil, nil) from provide — the caller dereferences eth2Resp.Data and would
-	// panic. This can happen if every backend's Proposal returns (nil, nil), or via the
-	// nokResp path when expected is set and all responses failed isSuccess (all nil).
+	// Defend against (nil, nil) from provide — caller dereferences eth2Resp.Data. Happens when
+	// every backend returns (nil, nil), or all responses failed isSuccess via the nokResp path.
 	if err == nil && res0 == nil {
 		err = errors.New("all beacon node proposals returned nil response")
 	}
 
 	// provide returns the last non-success response with nil error when all responses fail
-	// the isSuccess check. Promote that to a real error so the caller doesn't sign a bad block.
-	// Compare directly here (rather than reusing isSuccess) so the warn line isn't logged twice.
+	// isSuccess. Promote that to a real error so we don't sign a bad block downstream;
+	// classify directly rather than reusing isSuccess to avoid double-logging the warn line.
 	if err == nil && expected != "" && res0 != nil {
-		if actual, ok := ProposalFeeRecipient(res0.Data); ok && !strings.EqualFold(actual, expected) {
+		decision, _ := classifyProposal(res0.Data, expected)
+		switch decision {
+		case decisionRejectMismatch:
 			err = errors.New("all beacon node proposals had an unexpected fee recipient")
+		case decisionRejectMalformed:
+			err = errors.New("all beacon node proposals were malformed")
+		default:
+			// decisionAccept — provide selected an acceptable response.
 		}
 	}
 
@@ -453,14 +503,9 @@ func (m multi) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2a
 	return res0, err
 }
 
-// SubmitProposalPreparations provides the beacon node with information required if a proposal for
-// the given validators shows up in the next epoch.
-//
-// Hand-written (skipped by genwrap): fans out to every BN (primaries and fallbacks) and records
-// per-BN outcome in m.prep so failed BNs are excluded from subsequent Proposal calls (Solution A
-// for #4477). Returns success if at least one BN succeeded so the duty cycle continues; per-BN
-// failures are logged and counted in errors_total to give operators visibility into partial
-// degradation — the very signal whose absence allowed #4477 to go unnoticed.
+// SubmitProposalPreparations fans out to every BN (primaries+fallbacks) and records per-BN
+// outcome in m.prep so failed BNs are excluded from subsequent Proposal calls. Returns success
+// if any BN succeeded; per-BN failures are logged and counted for operator visibility. See #4477.
 func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
 	const label = "submit_proposal_preparations"
 	defer latency(ctx, label, true)()

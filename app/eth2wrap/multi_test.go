@@ -502,6 +502,60 @@ func TestMulti_Proposal_FallbackRescuesFromBadPrimaries(t *testing.T) {
 	require.Equal(t, expected, resp.Data.Deneb.Block.Body.ExecutionPayload.FeeRecipient)
 }
 
+// TestMulti_Proposal_RejectsMalformedResponse verifies that when expected fee recipient is set,
+// a malformed Bellatrix+ response (missing nested fields) is rejected rather than accepted as
+// success. Previously isSuccess returned true on any ProposalFeeRecipient(_)=ok=false, which
+// meant a backend could win selection with an unverifiable proposal.
+func TestMulti_Proposal_RejectsMalformedResponse(t *testing.T) {
+	ctx := t.Context()
+
+	// Deneb proposal with nil ExecutionPayload — ProposalFeeRecipient returns ok=false but
+	// the proposal is NOT legitimately recipient-less (Deneb unblinded should have one).
+	malformed := &eth2api.Response[*eth2api.VersionedProposal]{
+		Data: &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Deneb: &eth2deneb.BlockContents{
+				Block: &deneb.BeaconBlock{Body: &deneb.BeaconBlockBody{}},
+			},
+		},
+	}
+
+	bn := mocks.NewClient(t)
+	bn.On("Address").Return("http://bn:5051").Maybe()
+	bn.On("Proposal", mock.Anything, mock.Anything).Return(malformed, nil).Maybe()
+
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{bn}, nil)
+
+	proposalCtx := eth2wrap.ContextWithExpectedFeeRecipient(ctx, testFeeRecipientHex)
+	_, err := m.Proposal(proposalCtx, &eth2api.ProposalOpts{Slot: 1})
+	require.Error(t, err)
+}
+
+// TestMulti_Proposal_AcceptsBlindedWithoutRecipientCheck verifies that blinded proposals are
+// accepted even when expected recipient is set — the recipient on a blinded block is the
+// builder's, not the validator's, so the validator's expected address doesn't apply.
+func TestMulti_Proposal_AcceptsBlindedWithoutRecipientCheck(t *testing.T) {
+	ctx := t.Context()
+
+	blinded := &eth2api.Response[*eth2api.VersionedProposal]{
+		Data: &eth2api.VersionedProposal{
+			Version: eth2spec.DataVersionDeneb,
+			Blinded: true,
+		},
+	}
+
+	bn := mocks.NewClient(t)
+	bn.On("Address").Return("http://bn:5051").Maybe()
+	bn.On("Proposal", mock.Anything, mock.Anything).Return(blinded, nil).Once()
+
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{bn}, nil)
+
+	proposalCtx := eth2wrap.ContextWithExpectedFeeRecipient(ctx, testFeeRecipientHex)
+	resp, err := m.Proposal(proposalCtx, &eth2api.ProposalOpts{Slot: 1})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+}
+
 // TestMulti_Proposal_NilBackendResponseDoesNotPanic verifies that a misbehaving backend returning
 // (nil, nil) for Proposal cannot crash the process. With expected fee recipient attached the
 // isSuccess closure must treat nil resp as non-success; without it, multi.Proposal must convert

@@ -456,8 +456,8 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 }
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
-// Returns silently for forks earlier than bellatrix and for blinded proposals (where the recipient
-// is the builder, not the validator's configured address).
+// Returns silently when ProposalFeeRecipient cannot extract a recipient (pre-bellatrix, blinded,
+// or malformed bellatrix+); malformed responses are already rejected upstream in multi.Proposal.
 func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal, feeRecipientAddress string) {
 	actualAddr, ok := eth2wrap.ProposalFeeRecipient(proposal)
 	if !ok {

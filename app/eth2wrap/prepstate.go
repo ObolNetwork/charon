@@ -35,10 +35,9 @@ func (p *prepState) markFailure(addr string) {
 	p.seen = true
 }
 
-// preparedClients returns the subset of clients whose most recent prep succeeded.
-// Before the first prep has run, or if no client is currently prepared, returns clients unchanged
-// — failing closed here would cause missed proposals, which is worse than risking a mismatch
-// (fee recipient mismatches are still rejected during proposal validation in multi.Proposal).
+// preparedClients returns clients minus those whose most recent prep was explicitly recorded
+// as a failure. Missing entries count as "unknown — include" (the cancellation guard records
+// no outcome). Returns the full list rather than empty when every client would be excluded.
 func (p *prepState) preparedClients(clients []Client) []Client {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -49,7 +48,8 @@ func (p *prepState) preparedClients(clients []Client) []Client {
 
 	var prepared []Client
 	for _, c := range clients {
-		if p.prepared[c.Address()] {
+		recorded, present := p.prepared[c.Address()]
+		if !present || recorded {
 			prepared = append(prepared, c)
 		}
 	}
