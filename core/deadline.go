@@ -176,14 +176,14 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 				setCurrState()
 			}
 		case <-currTimer.Chan():
-		    select {
-		    case <-ctx.Done():
-		        return
-		    case d.deadlineChan <- currDuty:
-		    }
-		
-		    delete(duties, currDuty)
-		    setCurrState()
+			select {
+			case <-ctx.Done():
+				return
+			case d.deadlineChan <- currDuty:
+			}
+
+			delete(duties, currDuty)
+			setCurrState()
 		}
 	}
 }
