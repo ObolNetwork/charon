@@ -211,7 +211,7 @@ func (d *deadliner) C() <-chan Duty {
 	return d.deadlineChan
 }
 
-// getCurrDuty gets the duty to process next along-with the duty deadline. It selects duty with the earliest deadline.
+// getCurrDuty gets the duty to process next along with the duty deadline. It selects duty with the earliest deadline.
 func getCurrDuty(duties map[Duty]bool, deadlineFunc DeadlineFunc) (Duty, time.Time) {
 	var currDuty Duty
 
