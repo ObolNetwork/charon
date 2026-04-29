@@ -57,6 +57,7 @@ type Client interface {
 	eth2client.NodePeerCountProvider
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
+	eth2client.NodeVersionV2Provider
 	eth2client.ProposalPreparationsSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
@@ -741,6 +742,29 @@ func (m multi) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*api
 	return res0, err
 }
 
+// NodeVersionV2 returns structured version information for the beacon node and, when available,
+// its attached execution client.
+// Note this endpoint is cached in go-eth2-client.
+func (m multi) NodeVersionV2(ctx context.Context, opts *api.NodeVersionV2Opts) (*api.Response[*apiv1.NodeVersionV2], error) {
+	const label = "node_version_v2"
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*apiv1.NodeVersionV2], error) {
+			return args.client.NodeVersionV2(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators
 // shows up in the next epoch.
 func (m multi) SubmitProposalPreparations(ctx context.Context, preparations []*apiv1.ProposalPreparation) error {
@@ -1208,6 +1232,17 @@ func (l *lazy) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (res0
 	}
 
 	return cl.NodeVersion(ctx, opts)
+}
+
+// NodeVersionV2 returns structured version information for the beacon node and, when available,
+// its attached execution client.
+func (l *lazy) NodeVersionV2(ctx context.Context, opts *api.NodeVersionV2Opts) (res0 *api.Response[*apiv1.NodeVersionV2], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.NodeVersionV2(ctx, opts)
 }
 
 // SubmitProposalPreparations provides the beacon node with information required if a proposal for the given validators

@@ -763,6 +763,18 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		NodeVersionFunc: func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
 			return &eth2api.Response[string]{Data: "charon/static_beacon_mock"}, nil
 		},
+		NodeVersionV2Func: func(_ context.Context, _ *eth2api.NodeVersionV2Opts) (*eth2api.Response[*eth2v1.NodeVersionV2], error) {
+			return &eth2api.Response[*eth2v1.NodeVersionV2]{
+				Data: &eth2v1.NodeVersionV2{
+					BeaconNode: &eth2v1.ClientVersion{
+						Code:    "CH",
+						Name:    "charon",
+						Version: "static_beacon_mock",
+						Commit:  "0x00000000",
+					},
+				},
+			}, nil
+		},
 		ProxyFunc: func(_ context.Context, req *http.Request) (*http.Response, error) {
 			targetURL, err := url.Parse("http://" + httpServer.Addr)
 			if err != nil {
