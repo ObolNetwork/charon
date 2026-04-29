@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -258,24 +260,18 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner, clk clockwork.Clock) {
 	nodeVersionTicker := clk.NewTicker(10 * time.Minute)
 
-	setNodeVersionAndID := func() {
+	setNodesVersionAndID := func() {
 		beaconNodeVersionGauge.Reset()
 		executionEngineVersionGauge.Reset()
+
+		eeSetFromV2 := false
 
 		// Query each beacon node individually
 		for _, addr := range beaconNodeAddrs {
 			// Get a client scoped to this specific beacon node
 			scopedClient := eth2Cl.ClientForAddress(addr)
 
-			versionResp, err := scopedClient.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
-			if err != nil {
-				log.Warn(ctx, "Failed to fetch beacon node version", err,
-					z.Str("beacon_node_address", addr))
-
-				continue
-			}
-
-			response, err := scopedClient.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
+			identityResp, err := scopedClient.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
 			if err != nil {
 				log.Warn(ctx, "Failed to fetch beacon node identity", err,
 					z.Str("beacon_node_address", addr))
@@ -283,22 +279,37 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 				continue
 			}
 
-			version := versionResp.Data
-			beaconID := response.Data.PeerID
-			beaconNodeVersionGauge.WithLabelValues(version, beaconID).Set(1)
+			beaconID := identityResp.Data.PeerID
 
-			eth2wrap.CheckBeaconNodeVersion(ctx, version)
+			// Prefer the V2 endpoint, which exposes both BN and EE versions in one call.
+			// Fall back to V1 if V2 is unavailable — not all BN clients support it yet.
+			bnVersion, eeVersion, ok := fetchBeaconAndExecutionVersion(ctx, scopedClient, addr)
+			if !ok {
+				continue
+			}
+
+			beaconNodeVersionGauge.WithLabelValues(bnVersion, beaconID).Set(1)
+			eth2wrap.CheckBeaconNodeVersion(ctx, bnVersion)
+
+			if eeVersion != "" {
+				executionEngineVersionGauge.WithLabelValues(eeVersion).Set(1)
+				eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
+
+				eeSetFromV2 = true
+			}
 		}
 
-		// Query the execution engine version
-		elVersion, err := eth1Cl.ClientVersion(ctx)
-		if errors.Is(err, eth1wrap.ErrNoExecutionEngineAddr) { //nolint:revive
-			// No execution engine configured, skip.
-		} else if err != nil {
-			log.Warn(ctx, "Failed to fetch execution engine version", err)
-		} else {
-			executionEngineVersionGauge.WithLabelValues(elVersion).Set(1)
-			eth1wrap.CheckExecutionEngineVersion(ctx, elVersion)
+		// V2 didn't supply EE info from any beacon node — fall back to the eth1 client.
+		if !eeSetFromV2 {
+			eeVersion, err := eth1Cl.ClientVersion(ctx)
+			if errors.Is(err, eth1wrap.ErrNoExecutionEngineAddr) { //nolint:revive
+				// No execution engine configured, skip.
+			} else if err != nil {
+				log.Warn(ctx, "Failed to fetch execution engine version", err)
+			} else {
+				executionEngineVersionGauge.WithLabelValues(eeVersion).Set(1)
+				eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
+			}
 		}
 	}
 
@@ -309,14 +320,52 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 		for {
 			select {
 			case <-onStartup:
-				setNodeVersionAndID()
+				setNodesVersionAndID()
 			case <-nodeVersionTicker.Chan():
-				setNodeVersionAndID()
+				setNodesVersionAndID()
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
+}
+
+// fetchBeaconAndExecutionVersion returns the beacon node version and (when available) the
+// execution client version reported by the beacon node. It tries the V2 endpoint first and
+// falls back to V1 if the beacon node doesn't support V2 yet. The returned bool is false
+// when both endpoints fail.
+func fetchBeaconAndExecutionVersion(ctx context.Context, scopedClient eth2wrap.Client, addr string) (bnVersion string, eeVersion string, ok bool) {
+	v2Resp, err := scopedClient.NodeVersionV2(ctx, &eth2api.NodeVersionV2Opts{})
+	if err == nil && v2Resp != nil && v2Resp.Data != nil && v2Resp.Data.BeaconNode != nil {
+		bnVersion = formatClientVersion(v2Resp.Data.BeaconNode)
+		if v2Resp.Data.ExecutionClient != nil {
+			eeVersion = formatClientVersion(v2Resp.Data.ExecutionClient)
+		}
+
+		return bnVersion, eeVersion, true
+	}
+
+	if err != nil {
+		log.Debug(ctx, "Beacon node version V2 unavailable, falling back to V1",
+			z.Str("beacon_node_address", addr), z.Err(err))
+	}
+
+	versionResp, err := scopedClient.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
+	if err != nil {
+		log.Warn(ctx, "Failed to fetch beacon node version", err,
+			z.Str("beacon_node_address", addr))
+
+		return "", "", false
+	}
+
+	return versionResp.Data, "", true
+}
+
+// formatClientVersion converts a structured client version into a free-text string
+// matching the format used by the V1 NodeVersion endpoint, so existing version checks
+// (which parse "Name/vX.Y.Z/...") work unchanged.
+func formatClientVersion(c *eth2v1.ClientVersion) string {
+	return fmt.Sprintf("%s/%s/%s", c.Name, c.Version, c.Commit)
 }
 
 // quorumPeersConnected returns true if quorum peers are currently connected.
