@@ -20,11 +20,19 @@ func NewIO[T any]() *IO[T] {
 	return &IO[T]{
 		RecvBuffer:  make(chan T, RecvBufferSize),
 		HashCh:      make(chan [32]byte, 1),
-		ValueCh:     make(chan proto.Message, 1),
+		ValueCh:     make(chan ValueWithHash, 1),
 		VerifyCh:    make(chan proto.Message, 1),
 		ErrCh:       make(chan error, 1),
 		DecidedAtCh: make(chan time.Time, 1),
 	}
+}
+
+// ValueWithHash carries a proposed proto value together with its precomputed
+// hash to the consensus transport, avoiding a duplicate hash on the leader's
+// broadcast path.
+type ValueWithHash struct {
+	Hash  [32]byte
+	Value proto.Message
 }
 
 // IO defines the async input and output channels of a
@@ -35,7 +43,7 @@ type IO[T any] struct {
 	Running      atomic.Bool        // True when runInstance was already called.
 	RecvBuffer   chan T             // Outer receive buffers.
 	HashCh       chan [32]byte      // Async input hash channel.
-	ValueCh      chan proto.Message // Async input value channel.
+	ValueCh      chan ValueWithHash // Async input value channel carrying the value with its precomputed hash.
 	VerifyCh     chan proto.Message // Async input value channel used for comparing local value to leader value during consensus.
 	ErrCh        chan error         // Async output error channel.
 	DecidedAtCh  chan time.Time     // Async output decided timestamp channel.

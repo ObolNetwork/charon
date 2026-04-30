@@ -420,7 +420,7 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 
 	// Provide proposal inputs to the instance.
 	select {
-	case inst.ValueCh <- value:
+	case inst.ValueCh <- instance.ValueWithHash{Hash: hash, Value: value}:
 	default:
 		return errors.New("input channel full")
 	}
