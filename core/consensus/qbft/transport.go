@@ -13,6 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/core/consensus/instance"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/core/qbft"
 )
@@ -32,12 +33,12 @@ type transport struct {
 
 	// Mutable state
 	valueMu sync.Mutex
-	valueCh <-chan proto.Message    // Channel providing lazy proposed values.
-	values  map[[32]byte]*anypb.Any // maps any-wrapped proposed values to their hashes
+	valueCh <-chan instance.ValueWithHash // Channel providing the proposed value paired with its precomputed hash.
+	values  map[[32]byte]*anypb.Any       // maps any-wrapped proposed values to their hashes
 }
 
 // newTransport creates a new qbftTransport.
-func newTransport(broadcaster broadcaster, privkey *k1.PrivateKey, valueCh <-chan proto.Message,
+func newTransport(broadcaster broadcaster, privkey *k1.PrivateKey, valueCh <-chan instance.ValueWithHash,
 	recvBuffer chan qbft.Msg[core.Duty, [32]byte, proto.Message], sniffer *sniffer,
 ) *transport {
 	return &transport{
@@ -65,18 +66,13 @@ func (t *transport) getValue(hash [32]byte) (*anypb.Any, error) {
 
 	// First check if we have a new value.
 	select {
-	case value := <-t.valueCh:
-		valueHash, err := hashProto(value)
-		if err != nil {
-			return nil, err
-		}
-
-		anyValue, err := anypb.New(value)
+	case pair := <-t.valueCh:
+		anyValue, err := anypb.New(pair.Value)
 		if err != nil {
 			return nil, errors.Wrap(err, "wrap any value")
 		}
 
-		t.values[valueHash] = anyValue
+		t.values[pair.Hash] = anyValue
 	default:
 		// No new values
 	}
