@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -171,48 +173,147 @@ func TestStartChecker(t *testing.T) {
 }
 
 func TestConsensusAndExecutionVersionMetric(t *testing.T) {
+	v2WithEL := func() (*eth2api.Response[*eth2v1.NodeVersionV2], error) {
+		return &eth2api.Response[*eth2v1.NodeVersionV2]{
+			Data: &eth2v1.NodeVersionV2{
+				BeaconNode: &eth2v1.ClientVersion{
+					Code: "LH", Name: "Lighthouse", Version: "v5.3.0", Commit: "0xaa022f4",
+				},
+				ExecutionClient: &eth2v1.ClientVersion{
+					Code: "GE", Name: "Geth", Version: "v1.16.7", Commit: "0xdeadbeef",
+				},
+			},
+		}, nil
+	}
+	v2WithDifferentEL := func() (*eth2api.Response[*eth2v1.NodeVersionV2], error) {
+		return &eth2api.Response[*eth2v1.NodeVersionV2]{
+			Data: &eth2v1.NodeVersionV2{
+				BeaconNode: &eth2v1.ClientVersion{
+					Code: "TK", Name: "teku", Version: "v25.9.3", Commit: "0xfeedface",
+				},
+				ExecutionClient: &eth2v1.ClientVersion{
+					Code: "NM", Name: "Nethermind", Version: "v1.35.0", Commit: "0xcafebabe",
+				},
+			},
+		}, nil
+	}
+	v2BNOnly := func() (*eth2api.Response[*eth2v1.NodeVersionV2], error) { //nolint:unparam // shared signature with v2Err
+		return &eth2api.Response[*eth2v1.NodeVersionV2]{
+			Data: &eth2v1.NodeVersionV2{
+				BeaconNode: &eth2v1.ClientVersion{
+					Code: "LH", Name: "Lighthouse", Version: "v5.3.0", Commit: "0xaa022f4",
+				},
+			},
+		}, nil
+	}
+	v2Err := func() (*eth2api.Response[*eth2v1.NodeVersionV2], error) {
+		return nil, errors.New("v2 not supported")
+	}
+
 	tests := []struct {
-		name                 string
-		beaconAddrs          []string
-		nodeVersionErr       error
-		elVersion            string
-		elErr                error
-		wantNodeVersionCalls int
+		name        string
+		beaconAddrs []string
+		// V2 response per beacon node addr (in order). If absent, defaults to v2BNOnly.
+		v2Funcs        []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error)
+		nodeVersionErr error
+		elVersion      string
+		elErr          error
+		wantV2Calls    int
+		wantV1Calls    int
+		wantElCall     bool
+		// wantElGaugeLabels lists the EL version labels the gauge is expected to carry
+		// after the iteration (one per BN reporting an EL via V2, or one for the eth1Cl
+		// fallback). Empty means the gauge has no entries.
+		wantElGaugeLabels []string
 	}{
 		{
-			name:                 "success single beacon node with el",
-			beaconAddrs:          []string{"http://beacon1:5052"},
-			elVersion:            "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
-			wantNodeVersionCalls: 1,
+			name:              "v2 supplies BN and EL skips eth1 client",
+			beaconAddrs:       []string{"http://beacon1:5052"},
+			v2Funcs:           []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2WithEL},
+			wantV2Calls:       1,
+			wantElCall:        false,
+			wantElGaugeLabels: []string{"Geth/v1.16.7/0xdeadbeef"},
 		},
 		{
-			name:                 "success multiple beacon nodes with el",
-			beaconAddrs:          []string{"http://beacon1:5052", "http://beacon2:5052"},
-			elVersion:            "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
-			wantNodeVersionCalls: 2,
+			name:              "v2 supplies BN only falls back to eth1 client for EL",
+			beaconAddrs:       []string{"http://beacon1:5052"},
+			v2Funcs:           []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2BNOnly},
+			elVersion:         "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+			wantV2Calls:       1,
+			wantElCall:        true,
+			wantElGaugeLabels: []string{"Geth/v1.16.7-stable/linux-amd64/go1.22.0"},
 		},
 		{
-			name:                 "beacon node version error skips that node",
-			beaconAddrs:          []string{"http://beacon1:5052"},
-			nodeVersionErr:       errors.New("connection refused"),
-			wantNodeVersionCalls: 1,
+			name:              "v2 fails falls back to v1 and eth1 client",
+			beaconAddrs:       []string{"http://beacon1:5052"},
+			v2Funcs:           []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2Err},
+			elVersion:         "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+			wantV2Calls:       1,
+			wantV1Calls:       1,
+			wantElCall:        true,
+			wantElGaugeLabels: []string{"Geth/v1.16.7-stable/linux-amd64/go1.22.0"},
 		},
 		{
-			name:        "no beacon nodes still queries el",
-			beaconAddrs: []string{},
-			elVersion:   "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+			name:              "v2 and v1 both fail skip beacon node but still query EL",
+			beaconAddrs:       []string{"http://beacon1:5052"},
+			v2Funcs:           []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2Err},
+			nodeVersionErr:    errors.New("connection refused"),
+			elVersion:         "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+			wantV2Calls:       1,
+			wantV1Calls:       1,
+			wantElCall:        true,
+			wantElGaugeLabels: []string{"Geth/v1.16.7-stable/linux-amd64/go1.22.0"},
 		},
 		{
-			name:                 "el error no addr silently skipped",
-			beaconAddrs:          []string{"http://beacon1:5052"},
-			elErr:                eth1wrap.ErrNoExecutionEngineAddr,
-			wantNodeVersionCalls: 1,
+			name:              "multiple beacon nodes first v2 supplies EL second v2 does not",
+			beaconAddrs:       []string{"http://beacon1:5052", "http://beacon2:5052"},
+			v2Funcs:           []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2WithEL, v2BNOnly},
+			wantV2Calls:       2,
+			wantElCall:        false,
+			wantElGaugeLabels: []string{"Geth/v1.16.7/0xdeadbeef"},
 		},
 		{
-			name:                 "el generic error does not panic",
-			beaconAddrs:          []string{"http://beacon1:5052"},
-			elErr:                errors.New("rpc connection error"),
-			wantNodeVersionCalls: 1,
+			name:        "multiple beacon nodes each supply distinct ELs via v2",
+			beaconAddrs: []string{"http://beacon1:5052", "http://beacon2:5052"},
+			v2Funcs:     []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2WithEL, v2WithDifferentEL},
+			wantV2Calls: 2,
+			wantElCall:  false,
+			wantElGaugeLabels: []string{
+				"Geth/v1.16.7/0xdeadbeef",
+				"Nethermind/v1.35.0/0xcafebabe",
+			},
+		},
+		{
+			name:              "multiple beacon nodes mixed v2 v1 fallback",
+			beaconAddrs:       []string{"http://beacon1:5052", "http://beacon2:5052"},
+			v2Funcs:           []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2WithEL, v2Err},
+			wantV2Calls:       2,
+			wantV1Calls:       1,
+			wantElCall:        false,
+			wantElGaugeLabels: []string{"Geth/v1.16.7/0xdeadbeef"},
+		},
+		{
+			name:              "no beacon nodes still queries el",
+			beaconAddrs:       []string{},
+			elVersion:         "Geth/v1.16.7-stable/linux-amd64/go1.22.0",
+			wantElCall:        true,
+			wantElGaugeLabels: []string{"Geth/v1.16.7-stable/linux-amd64/go1.22.0"},
+		},
+		{
+			name:        "el ErrNoExecutionEngineAddr silently skipped",
+			beaconAddrs: []string{"http://beacon1:5052"},
+			v2Funcs:     []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2BNOnly},
+			elErr:       eth1wrap.ErrNoExecutionEngineAddr,
+			wantV2Calls: 1,
+			wantElCall:  true,
+		},
+		{
+			name:        "el generic error does not panic",
+			beaconAddrs: []string{"http://beacon1:5052"},
+			v2Funcs:     []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2BNOnly},
+			elErr:       errors.New("rpc connection error"),
+			wantV2Calls: 1,
+			wantElCall:  true,
 		},
 	}
 
@@ -221,17 +322,40 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
-			// done is closed by ClientVersion (always the last call in setNodeVersionAndID),
-			// providing a happens-before guarantee that nodeVersionCalls is safe to read after.
-			done := make(chan struct{})
+			var (
+				mu          sync.Mutex
+				v1Calls     int
+				v2Calls     int
+				elCalls     int
+				v2CallIndex int
+			)
 
-			var nodeVersionCalls int
+			wantElCalls := 0
+			if tt.wantElCall {
+				wantElCalls = 1
+			}
 
 			bmock, err := beaconmock.New(t.Context())
 			require.NoError(t, err)
 
+			bmock.NodeVersionV2Func = func(_ context.Context, _ *eth2api.NodeVersionV2Opts) (*eth2api.Response[*eth2v1.NodeVersionV2], error) {
+				mu.Lock()
+				idx := v2CallIndex
+				v2CallIndex++
+				v2Calls++
+				mu.Unlock()
+
+				if idx < len(tt.v2Funcs) {
+					return tt.v2Funcs[idx]()
+				}
+
+				return v2BNOnly()
+			}
+
 			bmock.NodeVersionFunc = func(_ context.Context, _ *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
-				nodeVersionCalls++
+				mu.Lock()
+				v1Calls++
+				mu.Unlock()
 
 				if tt.nodeVersionErr != nil {
 					return nil, tt.nodeVersionErr
@@ -240,22 +364,37 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 				return &eth2api.Response[string]{Data: "Lighthouse/v5.3.0-aa022f4/x86_64-linux"}, nil
 			}
 
+			// Always allow eth1Cl.ClientVersion (Maybe) so unexpected calls don't panic;
+			// the test asserts the exact call count via our own counter under mu.
 			eth1Cl := eth1wrapmocks.NewEthClientRunner(t)
 			eth1Cl.On("ClientVersion", mock.Anything).Run(func(_ mock.Arguments) {
-				close(done)
-			}).Return(tt.elVersion, tt.elErr).Once()
+				mu.Lock()
+				elCalls++
+				mu.Unlock()
+			}).Return(tt.elVersion, tt.elErr).Maybe()
 
 			clock := clockwork.NewFakeClock()
 
 			consensusAndExecutionVersionMetric(ctx, bmock, tt.beaconAddrs, eth1Cl, clock)
 
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-				t.Fatal("timed out waiting for ClientVersion call")
-			}
+			// Wait until all expected calls have happened. Each counter only ever grows,
+			// and the goroutine is sequential, so once all three match the expected counts
+			// the iteration has reached its end (any earlier intermediate state would have
+			// at least one counter still below target).
+			require.Eventually(t, func() bool {
+				mu.Lock()
+				defer mu.Unlock()
 
-			require.Equal(t, tt.wantNodeVersionCalls, nodeVersionCalls)
+				return v2Calls == tt.wantV2Calls && v1Calls == tt.wantV1Calls && elCalls == wantElCalls
+			}, time.Second, 5*time.Millisecond, "timed out waiting for expected call counts")
+
+			// Verify each expected EL version label has been recorded on the gauge. The
+			// iteration calls Reset() before populating, so no stale labels can interfere.
+			for _, label := range tt.wantElGaugeLabels {
+				require.InDelta(t, 1.0,
+					promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(label)),
+					0.0, "EL gauge missing label %q", label)
+			}
 		})
 	}
 }

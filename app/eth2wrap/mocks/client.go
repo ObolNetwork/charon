@@ -740,6 +740,36 @@ func (_m *Client) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (*
 	return r0, r1
 }
 
+// NodeVersionV2 provides a mock function with given fields: ctx, opts
+func (_m *Client) NodeVersionV2(ctx context.Context, opts *api.NodeVersionV2Opts) (*api.Response[*v1.NodeVersionV2], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for NodeVersionV2")
+	}
+
+	var r0 *api.Response[*v1.NodeVersionV2]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeVersionV2Opts) (*api.Response[*v1.NodeVersionV2], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.NodeVersionV2Opts) *api.Response[*v1.NodeVersionV2]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*v1.NodeVersionV2])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.NodeVersionV2Opts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Proposal provides a mock function with given fields: ctx, opts
 func (_m *Client) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Response[*api.VersionedProposal], error) {
 	ret := _m.Called(ctx, opts)

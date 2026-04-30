@@ -129,6 +129,7 @@ type Client interface {
 		"NodePeerCountProvider":                 {Latency: false, Log: false},
 		"NodeSyncingProvider":                   {Latency: true, Log: false},
 		"NodeVersionProvider":                   {Latency: false, Log: false},
+		"NodeVersionV2Provider":                 {Latency: false, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},
 		"ProposalPreparationsSubmitter":         {Latency: true, Log: true},
 		"SlotDurationProvider":                  {Latency: false, Log: false},
