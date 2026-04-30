@@ -33,6 +33,13 @@ var (
 		Help:      "Ping latencies in seconds per peer",
 	}, []string{"peer"})
 
+	sendDurations = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "p2p",
+		Name:      "send_duration_seconds",
+		Help:      "Wall-clock duration of synchronous libp2p Send (one-way) and SendReceive (round-trip) calls, by peer, protocol, and topic. Topic is a sub-protocol label (e.g. qbft_pre_prepare, parsigex_proposer); empty when not set by the caller.",
+		Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 16), // 0.1ms .. ~3.3s
+	}, []string{"peer", "protocol", "topic"})
+
 	pingErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "p2p",
 		Name:      "ping_error_total",

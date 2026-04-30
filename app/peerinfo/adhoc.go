@@ -27,7 +27,7 @@ func DoOnce(ctx context.Context, p2pNode host.Host, peerID peer.ID) (*pbv1.PeerI
 	resp := new(pbv1.PeerInfo)
 
 	err := p2p.SendReceive(ctx, p2pNode, peerID, req, resp, protocolID2,
-		p2p.WithSendReceiveRTT(rttCallback))
+		p2p.WithSendReceiveRTT(rttCallback), p2p.WithSendMetricTopic("peerinfo_adhoc"))
 	if err != nil {
 		return nil, 0, false, err
 	}
