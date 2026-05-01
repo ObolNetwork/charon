@@ -202,6 +202,7 @@ type sendRecvOpts struct {
 	rttCallback       func(time.Duration)
 	receiveTimeout    time.Duration
 	sendTimeout       time.Duration
+	metricTopic       string // Optional sub-protocol label for the send_duration metric.
 }
 
 // WithReceiveTimeout returns an option for SendReceive that sets a timeout for handling incoming messages.
@@ -215,6 +216,14 @@ func WithReceiveTimeout(timeout time.Duration) func(*sendRecvOpts) {
 func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		opts.sendTimeout = timeout
+	}
+}
+
+// WithSendMetricTopic returns an option that adds a topic label to the send_duration metric.
+// Use a small bounded set of values (e.g. a message-type name) to keep metric cardinality low.
+func WithSendMetricTopic(topic string) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.metricTopic = topic
 	}
 }
 
@@ -271,6 +280,8 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	req, resp proto.Message, pID protocol.ID, opts ...SendRecvOption,
 ) error {
+	tStart := time.Now()
+
 	if !isZeroProto(resp) {
 		return errors.New("bug: response proto must be zero value")
 	}
@@ -280,11 +291,18 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		opt(&o)
 	}
 
+	protoLabel := string(pID) // Updated to the negotiated protocol once NewStream succeeds.
+	defer func() {
+		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(tStart).Seconds())
+	}()
+
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
+
+	protoLabel = string(s.Protocol())
 
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
 		return errors.Wrap(err, "set deadline")
@@ -338,15 +356,27 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
 	opts ...SendRecvOption,
 ) error {
+	t0 := time.Now()
+
 	o := defaultSendRecvOpts(protoID)
 	for _, opt := range opts {
 		opt(&o)
 	}
+
+	protoLabel := string(protoID)
+	if len(o.protocols) > 0 {
+		protoLabel = string(o.protocols[0])
+	}
+	defer func() {
+		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(t0).Seconds())
+	}()
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "p2pNode stream")
 	}
+
+	protoLabel = string(s.Protocol())
 
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
 		return errors.Wrap(err, "set deadline")

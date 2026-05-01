@@ -341,7 +341,7 @@ func exchange(ctx context.Context, p2pNode host.Host, peers []peer.ID, msgValida
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
 
-			err := sendFunc(ctx, p2pNode, pID, own, response, protocolID2)
+			err := sendFunc(ctx, p2pNode, pID, own, response, protocolID2, p2p.WithSendMetricTopic("priority_consensus"))
 			if err != nil {
 				// No need to log, since transport will do it.
 				return

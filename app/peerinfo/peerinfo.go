@@ -197,7 +197,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			resp := new(pbv1.PeerInfo)
 
-			err := p.sendFunc(ctx, p.p2pNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback))
+			err := p.sendFunc(ctx, p.p2pNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback), p2p.WithSendMetricTopic("peerinfo"))
 			if err != nil {
 				return // Logging handled by send func.
 			} else if resp.GetSentAt() == nil || resp.GetStartedAt() == nil {

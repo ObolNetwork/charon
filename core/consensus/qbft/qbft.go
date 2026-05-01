@@ -487,13 +487,15 @@ func (c *Consensus) Participate(ctx context.Context, duty core.Duty) error {
 
 // Broadcast implements Broadcaster interface.
 func (c *Consensus) Broadcast(ctx context.Context, msg *pbv1.QBFTConsensusMsg) error {
+	topic := p2p.WithSendMetricTopic("qbft_" + qbft.MsgType(msg.GetMsg().GetType()).String())
+
 	for _, peer := range c.peers {
 		if peer.ID == c.p2pNode.ID() {
 			// Do not broadcast to self
 			continue
 		}
 
-		if err := c.sender.SendAsync(ctx, c.p2pNode, protocols.QBFTv2ProtocolID, peer.ID, msg); err != nil {
+		if err := c.sender.SendAsync(ctx, c.p2pNode, protocols.QBFTv2ProtocolID, peer.ID, msg, topic); err != nil {
 			return err
 		}
 	}

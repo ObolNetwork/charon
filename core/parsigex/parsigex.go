@@ -142,13 +142,15 @@ func (m *ParSigEx) Broadcast(ctx context.Context, duty core.Duty, set core.ParSi
 		DataSet: pb,
 	}
 
+	topic := p2p.WithSendMetricTopic("parsigex_" + duty.Type.String())
+
 	for i, p := range m.peers {
 		// Don't send to self
 		if i == m.peerIdx {
 			continue
 		}
 
-		if err := m.sendFunc(ctx, m.p2pNode, protocolID2, p, &msg); err != nil {
+		if err := m.sendFunc(ctx, m.p2pNode, protocolID2, p, &msg, topic); err != nil {
 			return err
 		}
 	}
