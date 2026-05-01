@@ -292,6 +292,7 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	}
 
 	protoLabel := string(pID) // Updated to the negotiated protocol once NewStream succeeds.
+
 	defer func() {
 		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(tStart).Seconds())
 	}()
@@ -367,6 +368,7 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	if len(o.protocols) > 0 {
 		protoLabel = string(o.protocols[0])
 	}
+
 	defer func() {
 		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(t0).Seconds())
 	}()

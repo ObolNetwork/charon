@@ -377,19 +377,28 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 
 			consensusAndExecutionVersionMetric(ctx, bmock, tt.beaconAddrs, eth1Cl, clock)
 
-			// Wait until all expected calls have happened. Each counter only ever grows,
-			// and the goroutine is sequential, so once all three match the expected counts
-			// the iteration has reached its end (any earlier intermediate state would have
-			// at least one counter still below target).
+			// Wait until the iteration has both made the expected mock calls AND populated
+			// the gauge. The mock counter is incremented inside the mock call, but the gauge
+			// Set happens later in the calling goroutine, so polling only the counters can
+			// race ahead of the gauge write.
 			require.Eventually(t, func() bool {
 				mu.Lock()
-				defer mu.Unlock()
+				countsMatch := v2Calls == tt.wantV2Calls && v1Calls == tt.wantV1Calls && elCalls == wantElCalls
+				mu.Unlock()
 
-				return v2Calls == tt.wantV2Calls && v1Calls == tt.wantV1Calls && elCalls == wantElCalls
-			}, time.Second, 5*time.Millisecond, "timed out waiting for expected call counts")
+				if !countsMatch {
+					return false
+				}
 
-			// Verify each expected EL version label has been recorded on the gauge. The
-			// iteration calls Reset() before populating, so no stale labels can interfere.
+				for _, label := range tt.wantElGaugeLabels {
+					if promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(label)) != 1.0 {
+						return false
+					}
+				}
+
+				return true
+			}, time.Second, 5*time.Millisecond, "timed out waiting for expected call counts and gauge labels")
+
 			for _, label := range tt.wantElGaugeLabels {
 				require.InDelta(t, 1.0,
 					promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(label)),
