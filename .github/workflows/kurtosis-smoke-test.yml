@@ -140,7 +140,8 @@ jobs:
           python scripts/debug/kurtosis_alerts.py \
             --from "$ALERT_FROM" --to "$ALERT_TO" \
             --lookback "$WARMUP_SECONDS" \
-            --expected-clusters "$EXPECTED_CLUSTERS" | tee report.txt
+            --expected-clusters "$EXPECTED_CLUSTERS" \
+            --failed-clusters-out failed_clusters.txt | tee report.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
 
@@ -155,13 +156,27 @@ jobs:
 
           echo "alerts_exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
 
+          {
+            echo "failed_clusters_block<<FAILED_CLUSTERS_EOF"
+            if [ -s failed_clusters.txt ]; then
+              echo "*Failed clusters:*"
+              echo '```'
+              echo "$(head -c 1500 failed_clusters.txt)"
+              echo '```'
+            fi
+            echo "FAILED_CLUSTERS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Upload report
         id: upload_report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: kurtosis-smoke-test-report
-          path: report.txt
+          path: |
+            report.txt
+            failed_clusters.txt
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Evaluate results
@@ -201,6 +216,7 @@ jobs:
             *Charon image:* `obolnetwork/charon:${{ inputs.charon_image_tag || 'next' }}`
             *Branch:* `${{ inputs.branch || 'main' }}`
             *Instance type:* `${{ inputs.instance_type || 'c6a.4xlarge' }}`
+            ${{ steps.alerts.outputs.failed_clusters_block }}
             *Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>
             *Report:* <${{ steps.upload_report.outputs.artifact-url }}|Download report>
           SLACK_USERNAME: GitHub Actions
