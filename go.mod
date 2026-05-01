@@ -12,7 +12,7 @@ require (
 	github.com/drand/kyber-bls12381 v0.3.4
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/ferranbt/fastssz v1.0.0
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.0
 	github.com/golang/snappy v1.0.0
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
