@@ -107,6 +107,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `p2p_reachability_status` | Gauge | Current libp2p reachability status of this node as detected by autonat: unknown(0), public(1) or private(2). |  |
 | `p2p_relay_connection_types` | Gauge | Current number of libp2p connections by relay, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections. | `peer, type, protocol` |
 | `p2p_relay_connections` | Gauge | Connected relays by name | `peer` |
+| `p2p_send_duration_seconds` | Histogram | Wall-clock duration of synchronous libp2p Send (one-way) and SendReceive (round-trip) calls, by peer, protocol, and topic. Topic is a sub-protocol label (e.g. qbft_pre_prepare, parsigex_proposer); empty when not set by the caller. | `peer, protocol, topic` |
 | `relay_p2p_active_connections` | Gauge | Current number of active connections by peer and cluster | `peer, peer_cluster` |
 | `relay_p2p_connection_total` | Counter | Total number of new connections by peer and cluster | `peer, peer_cluster` |
 | `relay_p2p_network_receive_bytes_total` | Counter | Total number of network bytes received from the peer and cluster | `peer, peer_cluster` |

@@ -291,8 +291,9 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		opt(&o)
 	}
 
+	protoLabel := string(pID) // Updated to the negotiated protocol once NewStream succeeds.
 	defer func() {
-		sendDurations.WithLabelValues(PeerName(peerID), string(pID), o.metricTopic).Observe(time.Since(tStart).Seconds())
+		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(tStart).Seconds())
 	}()
 
 	// Circuit relay connections are transient
@@ -300,6 +301,8 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	if err != nil {
 		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
 	}
+
+	protoLabel = string(s.Protocol())
 
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
 		return errors.Wrap(err, "set deadline")
@@ -360,14 +363,17 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 		opt(&o)
 	}
 
+	protoLabel := string(protoID) // Updated to the negotiated protocol once NewStream succeeds.
 	defer func() {
-		sendDurations.WithLabelValues(PeerName(peerID), string(protoID), o.metricTopic).Observe(time.Since(t0).Seconds())
+		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(t0).Seconds())
 	}()
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
 		return errors.Wrap(err, "p2pNode stream")
 	}
+
+	protoLabel = string(s.Protocol())
 
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
 		return errors.Wrap(err, "set deadline")
