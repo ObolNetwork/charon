@@ -224,6 +224,54 @@ def query_metrics_clusters(
     return sorted(clusters)
 
 
+def _failed_clusters_lines(
+    firing: list[dict],
+    metrics_clusters: list[tuple[str, str]] | None,
+    expected_clusters: int,
+) -> list[str]:
+    """Build a slack-friendly summary of clusters that caused the smoke test to fail."""
+    firing_clusters: set[tuple[str, str]] = set()
+    for e in firing:
+        name = e["labels"].get("cluster_name") or "(unknown)"
+        h = e["labels"].get("cluster_hash") or ""
+        firing_clusters.add((name, h))
+
+    lines: list[str] = []
+    if firing_clusters:
+        lines.append(f"Clusters with firing alerts ({len(firing_clusters)}):")
+        for name, h in sorted(firing_clusters):
+            short = h[:12] if h else "(unknown)"
+            lines.append(f"  - {name} ({short})")
+
+    if expected_clusters > 0:
+        if metrics_clusters is None:
+            if lines:
+                lines.append("")
+            lines.append("Metrics coverage: unknown (Prometheus query failed)")
+        elif len(metrics_clusters) < expected_clusters:
+            if lines:
+                lines.append("")
+            missing = expected_clusters - len(metrics_clusters)
+            lines.append(
+                f"Clusters not reporting metrics: {missing} of {expected_clusters} expected",
+            )
+
+    return lines
+
+
+def write_failed_clusters_file(
+    path: str,
+    firing: list[dict],
+    metrics_clusters: list[tuple[str, str]] | None,
+    expected_clusters: int,
+) -> None:
+    """Write a slack-friendly summary of failed clusters; empty file if none."""
+    lines = _failed_clusters_lines(firing, metrics_clusters, expected_clusters)
+    with open(path, "w") as f:
+        if lines:
+            f.write("\n".join(lines) + "\n")
+
+
 _FIRING_STATES = {"alerting", "firing"}
 _NORMAL_STATE_PREFIXES = ("normal", "ok", "inactive")
 
@@ -416,6 +464,10 @@ def main():
         "--expected-clusters", type=int, default=0,
         help="Expected number of clusters (0 to skip metrics check)",
     )
+    parser.add_argument(
+        "--failed-clusters-out", default="",
+        help="Write a slack-friendly summary of failed clusters to this file",
+    )
     args = parser.parse_args()
 
     from_ms = parse_timestamp(args.time_from)
@@ -483,6 +535,11 @@ def main():
         entries, from_ms, to_ms, rules, firing,
         metrics_clusters, args.expected_clusters,
     )
+
+    if args.failed_clusters_out:
+        write_failed_clusters_file(
+            args.failed_clusters_out, firing, metrics_clusters, args.expected_clusters,
+        )
 
     # Exit code based on firing alerts and metrics coverage
     metrics_incomplete = (
