@@ -81,6 +81,60 @@ func TestDebugRoundChange(t *testing.T) {
 	}
 }
 
+func TestIsInsufficientRoundChanges(t *testing.T) {
+	const n = 4
+
+	tests := []struct {
+		name     string
+		msgs     []qbft.Msg[core.Duty, [32]byte, proto.Message]
+		round    int64
+		quorum   int
+		expected bool
+	}{
+		{
+			name:     "round 1 always false",
+			round:    1,
+			quorum:   3,
+			expected: false,
+		},
+		{
+			name: "round 2 with quorum",
+			msgs: []qbft.Msg[core.Duty, [32]byte, proto.Message]{
+				m(0, qbft.MsgRoundChange),
+				m(1, qbft.MsgRoundChange),
+				m(2, qbft.MsgRoundChange),
+			},
+			round:    2,
+			quorum:   3,
+			expected: false,
+		},
+		{
+			name: "round 2 without quorum",
+			msgs: []qbft.Msg[core.Duty, [32]byte, proto.Message]{
+				m(0, qbft.MsgRoundChange),
+				m(1, qbft.MsgRoundChange),
+			},
+			round:    2,
+			quorum:   3,
+			expected: true,
+		},
+		{
+			name:     "round 2 with no messages",
+			round:    2,
+			quorum:   3,
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			steps := groupRoundMessages(test.msgs, n, test.round, 0)
+			result := isInsufficientRoundChanges(steps, test.round, test.quorum)
+			require.Equal(t, test.expected, result)
+		})
+	}
+}
+
 func m(source int64, typ qbft.MsgType) testMsg {
 	return testMsg{
 		source: source,

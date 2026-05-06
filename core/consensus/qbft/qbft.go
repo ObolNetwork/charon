@@ -595,6 +595,15 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 
 		span.AddEvent("Round Changed")
 		span.SetAttributes(attribute.Int64("new_round", newRound))
+
+		if uponRule == qbft.UponRoundTimeout {
+			quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
+
+			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
+			if isInsufficientRoundChanges(steps, round, quorum) {
+				c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()))
+			}
+		}
 	}
 
 	// Create a new transport that handles sending and receiving for this instance.
@@ -874,6 +883,20 @@ func timeoutReason(steps []roundStep, round int64, quorum int) string {
 	}
 
 	return "unknown reason"
+}
+
+func isInsufficientRoundChanges(steps []roundStep, round int64, quorum int) bool {
+	if round <= 1 {
+		return false
+	}
+
+	for _, step := range steps {
+		if step.Type == qbft.MsgRoundChange {
+			return len(step.Present) < quorum
+		}
+	}
+
+	return false
 }
 
 // fmtStepPeers returns a string representing the present and missing peers.

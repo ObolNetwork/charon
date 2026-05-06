@@ -69,6 +69,18 @@ func TestConsensusMetrics_IncConsensusError(t *testing.T) {
 	verifyLabel(t, m.GetMetric()[0].GetLabel(), "protocol", "test")
 }
 
+func TestConsensusMetrics_IncInsufficientRoundChanges(t *testing.T) {
+	cm := metrics.NewConsensusMetrics("test")
+
+	cm.IncInsufficientRoundChanges("duty", "timer")
+
+	m := gatherMetric(t, "core_consensus_insufficient_round_changes_total")
+	require.InEpsilon(t, 1, m.GetMetric()[0].GetCounter().GetValue(), 0.0001)
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "protocol", "test")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "duty", "duty")
+	verifyLabel(t, m.GetMetric()[0].GetLabel(), "timer", "timer")
+}
+
 func gatherMetric(t *testing.T, name string) *pb.MetricFamily {
 	t.Helper()
 
