@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -183,7 +183,7 @@ func TestInfraTest(t *testing.T) {
 			name: "write to file",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputJSON: "./write-to-file-test.json.tmp",
+					OutputJSON: filepath.Join(t.TempDir(), "write-to-file-test.json.tmp"),
 					Quiet:      false,
 					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency", "DiskWriteSpeed", "DiskWriteIOPS", "DiskReadSpeed", "DiskReadIOPS"},
 					Timeout:    time.Minute,
@@ -207,12 +207,6 @@ func TestInfraTest(t *testing.T) {
 				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
-			cleanup: func(t *testing.T, p string) {
-				t.Helper()
-
-				err := os.Remove(p)
-				require.NoError(t, err)
-			},
 		},
 	}
 	for _, test := range tests {
@@ -256,6 +250,7 @@ func TestInfraTestTimeoutAlwaysProducesResults(t *testing.T) {
 			testConfig: testConfig{
 				Timeout: time.Nanosecond,
 			},
+			DiskTestTool: DiskTestToolMock{},
 		})
 		require.NoError(t, err)
 

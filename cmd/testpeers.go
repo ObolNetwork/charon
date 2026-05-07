@@ -318,7 +318,7 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 	nameENR := fmt.Sprintf("peer %v %v", peerTarget.Name, formatENR)
 
 	if len(queuedTestCases) == 0 {
-		allTestResCh <- map[string][]testResult{nameENR: nil}
+		allTestResCh <- map[string][]testResult{nameENR: {}}
 		return nil
 	}
 
@@ -341,15 +341,18 @@ func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 	defer close(testResCh)
 
 	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &conf, p2pNode, target)
 		if ctx.Err() != nil {
-			for _, remaining := range queuedTestCases[i:] {
+			testResCh <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
 				testResCh <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
 			}
 
 			return
 		}
 
-		testResCh <- allTestCases[t](ctx, &conf, p2pNode, target)
+		testResCh <- result
 	}
 }
 
@@ -490,7 +493,7 @@ func peerDirectConnTest(ctx context.Context, conf *testPeersConfig, p2pNode host
 
 func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeerSelf, conf testPeersConfig, allTestResCh chan map[string][]testResult) error {
 	if len(queuedTestCases) == 0 {
-		allTestResCh <- map[string][]testResult{"self": nil}
+		allTestResCh <- map[string][]testResult{"self": {}}
 		return nil
 	}
 
@@ -513,15 +516,18 @@ func runSelfTest(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 	defer close(ch)
 
 	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &conf)
 		if ctx.Err() != nil {
-			for _, remaining := range queuedTestCases[i:] {
-				ch <- testResult{Name: remaining.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
+			ch <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
+				ch <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
 			}
 
 			return
 		}
 
-		ch <- allTestCases[t](ctx, &conf)
+		ch <- result
 	}
 }
 
@@ -584,7 +590,7 @@ func testAllRelays(ctx context.Context, queuedTestCases []testCaseName, allTestC
 func testSingleRelay(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseRelay, conf testPeersConfig, target string, allTestResCh chan map[string][]testResult) error {
 	relayName := fmt.Sprintf("relay %v", target)
 	if len(queuedTestCases) == 0 {
-		allTestResCh <- map[string][]testResult{relayName: nil}
+		allTestResCh <- map[string][]testResult{relayName: {}}
 		return nil
 	}
 
@@ -607,15 +613,18 @@ func runRelayTest(ctx context.Context, queuedTestCases []testCaseName, allTestCa
 	defer close(testResCh)
 
 	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &conf, target)
 		if ctx.Err() != nil {
-			for _, remaining := range queuedTestCases[i:] {
-				testResCh <- testResult{Name: remaining.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
+			testResCh <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
+				testResCh <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
 			}
 
 			return
 		}
 
-		testResCh <- allTestCases[t](ctx, &conf, target)
+		testResCh <- result
 	}
 }
 

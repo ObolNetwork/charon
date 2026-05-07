@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -153,7 +153,7 @@ func TestValidatorTest(t *testing.T) {
 			name: "write to file",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputJSON: "./write-to-file-test.json.tmp",
+					OutputJSON: filepath.Join(t.TempDir(), "write-to-file-test.json.tmp"),
 					Quiet:      false,
 					Timeout:    time.Minute,
 				},
@@ -171,12 +171,6 @@ func TestValidatorTest(t *testing.T) {
 				CategoryName: validatorTestCategory,
 			},
 			expectedErr: "",
-			cleanup: func(t *testing.T, p string) {
-				t.Helper()
-
-				err := os.Remove(p)
-				require.NoError(t, err)
-			},
 		},
 	}
 	for _, test := range tests {

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -233,7 +234,7 @@ func TestPeersTest(t *testing.T) {
 			name: "write to file",
 			config: testPeersConfig{
 				testConfig: testConfig{
-					OutputJSON: "./write-to-file-test.json.tmp",
+					OutputJSON: filepath.Join(t.TempDir(), "write-to-file-test.json.tmp"),
 					Quiet:      false,
 					Timeout:    3 * time.Second,
 				},
@@ -372,11 +373,6 @@ func TestPeersTest(t *testing.T) {
 
 			if test.config.OutputJSON != "" {
 				testWriteFile(t, test.expected, test.config.OutputJSON)
-			}
-
-			if conf.OutputJSON != "" {
-				err = os.Remove(conf.OutputJSON)
-				require.NoError(t, err)
 			}
 		})
 	}

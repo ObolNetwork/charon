@@ -230,15 +230,18 @@ func testInfra(ctx context.Context, queuedTests []testCaseName, allTests map[tes
 	defer close(ch)
 
 	for i, t := range queuedTests {
+		result := allTests[t](ctx, &cfg)
 		if ctx.Err() != nil {
-			for _, remaining := range queuedTests[i:] {
-				ch <- testResult{Name: remaining.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
+			ch <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTests[i+1:] {
+				ch <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
 			}
 
 			return
 		}
 
-		ch <- allTests[t](ctx, &cfg)
+		ch <- result
 	}
 }
 

@@ -235,15 +235,18 @@ func runMEVTest(ctx context.Context, queuedTestCases []testCaseName, allTestCase
 	defer close(ch)
 
 	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &cfg, target)
 		if ctx.Err() != nil {
-			for _, remaining := range queuedTestCases[i:] {
-				ch <- testResult{Name: remaining.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
+			ch <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
+				ch <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
 			}
 
 			return
 		}
 
-		ch <- allTestCases[t](ctx, &cfg, target)
+		ch <- result
 	}
 }
 
