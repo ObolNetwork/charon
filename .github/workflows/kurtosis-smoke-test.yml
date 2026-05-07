@@ -15,20 +15,10 @@ on:
         required: false
         default: "main"
         type: string
-      instance_type:
-        description: "AWS EC2 instance type"
-        required: false
-        default: "c6a.4xlarge"
-        type: choice
-        options:
-          - "c6a.2xlarge"
-          - "c6a.4xlarge"
-          - "c6a.8xlarge"
-          - "c6a.12xlarge"
       lifetime_minutes:
         description: "Cluster lifetime in minutes (60-300)"
         required: false
-        default: "60"
+        default: 60
         type: number
 
 concurrency:
@@ -92,7 +82,7 @@ jobs:
           CHARON_VERSION: "obolnetwork/charon:${{ inputs.charon_image_tag || 'next' }}"
           KURTOSIS_MONITORING_TOKEN: ${{ secrets.KURTOSIS_MONITORING_TOKEN }}
           KURTOSIS_BRANCH: ${{ inputs.branch || 'main' }}
-          KURTOSIS_INSTANCE_TYPE: ${{ inputs.instance_type || 'c6a.4xlarge' }}
+          KURTOSIS_INSTANCE_TYPE: c6a.4xlarge
           LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '60' }}
         run: |
           echo "deploy_start=$(date +%s)" >> "$GITHUB_OUTPUT"
@@ -127,7 +117,6 @@ jobs:
           LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '60' }}
           CHARON_IMAGE_TAG: ${{ inputs.charon_image_tag || 'next' }}
           KURTOSIS_BRANCH: ${{ inputs.branch || 'main' }}
-          KURTOSIS_INSTANCE_TYPE: ${{ inputs.instance_type || 'c6a.4xlarge' }}
           EXPECTED_CLUSTERS: ${{ steps.deploy.outputs.cluster_count }}
         run: |
           WARMUP_SECONDS=$((20 * 60))
@@ -149,7 +138,6 @@ jobs:
           echo "=== Workflow Metadata ===" >> report.txt
           echo "Charon image: obolnetwork/charon:${CHARON_IMAGE_TAG}" >> report.txt
           echo "kurtosis-charon branch: ${KURTOSIS_BRANCH}" >> report.txt
-          echo "Instance type: ${KURTOSIS_INSTANCE_TYPE}" >> report.txt
           echo "Deploy time: $(date -u -d @${DEPLOY_START} +%Y-%m-%dT%H:%M:%SZ)" >> report.txt
           echo "Alert window: $(date -u -d @${ALERT_FROM} +%Y-%m-%dT%H:%M:%SZ) to $(date -u -d @${ALERT_TO} +%Y-%m-%dT%H:%M:%SZ)" >> report.txt
           echo "Alerts exit code: ${EXIT_CODE}" >> report.txt
@@ -199,7 +187,6 @@ jobs:
           SLACK_MESSAGE: |
             *Charon image:* `obolnetwork/charon:${{ inputs.charon_image_tag || 'next' }}`
             *Branch:* `${{ inputs.branch || 'main' }}`
-            *Instance type:* `${{ inputs.instance_type || 'c6a.4xlarge' }}`
             *Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>
             *Report:* <${{ steps.upload_report.outputs.artifact-url }}|Download report>
           SLACK_USERNAME: GitHub Actions
@@ -215,7 +202,6 @@ jobs:
           SLACK_MESSAGE: |
             *Charon image:* `obolnetwork/charon:${{ inputs.charon_image_tag || 'next' }}`
             *Branch:* `${{ inputs.branch || 'main' }}`
-            *Instance type:* `${{ inputs.instance_type || 'c6a.4xlarge' }}`
             ${{ steps.alerts.outputs.failed_clusters_block }}
             *Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View workflow run>
             *Report:* <${{ steps.upload_report.outputs.artifact-url }}|Download report>
