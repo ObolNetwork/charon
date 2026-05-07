@@ -49,8 +49,8 @@ var (
 		Namespace: "core",
 		Subsystem: "consensus",
 		Name:      "insufficient_round_changes_total",
-		Help:      "Total count of round timeouts due to insufficient round change messages by protocol, duty, and timer",
-	}, []string{"protocol", "duty", "timer"})
+		Help:      "Total count of consensus instances with insufficient round change messages by protocol, duty, timer, and outcome (decided or timeout)",
+	}, []string{"protocol", "duty", "timer", "outcome"})
 )
 
 // ConsensusMetrics defines the interface for consensus metrics.
@@ -70,8 +70,9 @@ type ConsensusMetrics interface {
 	// IncConsensusError increments the consensus error counter.
 	IncConsensusError()
 
-	// IncInsufficientRoundChanges increments the counter for round timeouts caused by insufficient round change messages.
-	IncInsufficientRoundChanges(duty, timer string)
+	// IncInsufficientRoundChanges increments the counter for consensus instances with insufficient round change messages.
+	// Outcome is "decided" if the node recovered via MsgDecided, or "timeout" if consensus timed out entirely.
+	IncInsufficientRoundChanges(duty, timer, outcome string)
 }
 
 type consensusMetrics struct {
@@ -110,7 +111,7 @@ func (m *consensusMetrics) IncConsensusError() {
 	consensusError.WithLabelValues(m.protocolID).Inc()
 }
 
-// IncInsufficientRoundChanges increments the counter for round timeouts caused by insufficient round change messages.
-func (m *consensusMetrics) IncInsufficientRoundChanges(duty, timer string) {
-	consensusInsufficientRoundChanges.WithLabelValues(m.protocolID, duty, timer).Inc()
+// IncInsufficientRoundChanges increments the counter for consensus instances with insufficient round change messages.
+func (m *consensusMetrics) IncInsufficientRoundChanges(duty, timer, outcome string) {
+	consensusInsufficientRoundChanges.WithLabelValues(m.protocolID, duty, timer, outcome).Inc()
 }
