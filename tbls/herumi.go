@@ -227,6 +227,44 @@ func (Herumi) RecoverSecret(shares map[int]PrivateKey, _, _ uint) (PrivateKey, e
 	return *(*PrivateKey)(pk.Serialize()), nil
 }
 
+func (Herumi) RecoverPubkey(shares map[int]PublicKey) (PublicKey, error) {
+	var (
+		pk      bls.PublicKey
+		rawKeys []bls.PublicKey
+		rawIDs  []bls.ID
+	)
+
+	for idx, key := range shares {
+		var kpk bls.PublicKey
+		if err := kpk.Deserialize(key[:]); err != nil {
+			return PublicKey{}, errors.Wrap(
+				err,
+				"deserialize public key share",
+				z.Int("key_number", idx),
+			)
+		}
+
+		rawKeys = append(rawKeys, kpk)
+
+		var id bls.ID
+		if err := id.SetDecString(strconv.Itoa(idx)); err != nil {
+			return PublicKey{}, errors.Wrap(
+				err,
+				"set share id",
+				z.Int("key_number", idx),
+			)
+		}
+
+		rawIDs = append(rawIDs, id)
+	}
+
+	if err := pk.Recover(rawKeys, rawIDs); err != nil {
+		return PublicKey{}, errors.Wrap(err, "recover public key from shares")
+	}
+
+	return *(*PublicKey)(pk.Serialize()), nil
+}
+
 func (Herumi) Aggregate(signs []Signature) (Signature, error) {
 	var (
 		sig      bls.Sign

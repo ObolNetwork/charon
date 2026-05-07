@@ -5,10 +5,8 @@ package cluster
 import (
 	"bytes"
 	"encoding/json"
-	"strconv"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/herumi/bls-eth-go-binary/bls"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
@@ -170,14 +168,7 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		return err
 	}
 
-	uniqueDVKeys := make(map[string]struct{}, len(l.Validators))
-	for _, val := range l.Validators {
-		key := string(val.PubKey)
-		if _, exists := uniqueDVKeys[key]; exists {
-			return errors.New("duplicate distributed validator public key")
-		}
-		uniqueDVKeys[key] = struct{}{}
-	}
+	seenDVKeys := make(map[tbls.PublicKey]struct{}, len(l.Validators))
 
 	var pubkeys []tbls.PublicKey
 
@@ -185,48 +176,28 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		if len(val.PubShares) != len(l.Operators) {
 			return errors.New("invalid public share count")
 		}
-		uniqueShareCount := make(map[string]struct{}, len(val.PubShares))
-		for _, share := range val.PubShares {
-			shareKey := string(share)
-			if _, exists := uniqueShareCount[shareKey]; exists {
-				return errors.New("duplicate public share")
-			}
-			uniqueShareCount[shareKey] = struct{}{}
-		}
 
-		recoveredPubkey, err := recoverDistributedPubkeyFromShares(val.PubShares, l.Threshold)
+		dvKey, err := tblsconv.PubkeyFromBytes(val.PubKey)
 		if err != nil {
-			return errors.Wrap(err, "recover distributed public key from shares")
+			return err
 		}
 
-		if !bytes.Equal(recoveredPubkey, val.PubKey) {
-			return errors.New("public shares do not reconstruct distributed public key")
+		if _, exists := seenDVKeys[dvKey]; exists {
+			return errors.New("duplicate distributed validator public key")
 		}
 
-		for i := l.Threshold; i < len(val.PubShares); i++ {
-			extraShares := append(append([][]byte{}, val.PubShares[:l.Threshold-1]...), val.PubShares[i])
-			extraIDs := make([]int, l.Threshold)
-			for j := 0; j < l.Threshold-1; j++ {
-				extraIDs[j] = j + 1
-			}
-			extraIDs[l.Threshold-1] = i + 1
-			recoveredExtra, err := recoverDistributedPubkeyFromSharesWithIDs(extraShares, extraIDs)
-			if err != nil {
-				return errors.Wrap(err, "recover extra share", z.Int("share_index", i))
-			}
-			if !bytes.Equal(recoveredExtra, val.PubKey) {
-				return errors.New("extra share does not lie on distributed key polynomial", z.Int("share_index", i))
-			}
+		seenDVKeys[dvKey] = struct{}{}
+
+		shares, err := parsePubShares(val.PubShares)
+		if err != nil {
+			return err
 		}
 
-		for _, share := range val.PubShares {
-			pubkey, err := tblsconv.PubkeyFromBytes(share)
-			if err != nil {
-				return err
-			}
-
-			pubkeys = append(pubkeys, pubkey)
+		if err := verifySharesReconstruct(dvKey, shares, l.Threshold); err != nil {
+			return err
 		}
+
+		pubkeys = append(pubkeys, shares...)
 	}
 
 	hash, err := hashLock(l)
@@ -283,67 +254,61 @@ func (l Lock) verifyNodeSignatures() error {
 	return nil
 }
 
-func recoverDistributedPubkeyFromSharesWithIDs(pubShares [][]byte, ids []int) ([]byte, error) {
-	if len(pubShares) != len(ids) || len(pubShares) == 0 {
-		return nil, errors.New("share and id count mismatch")
-	}
+func parsePubShares(raw [][]byte) ([]tbls.PublicKey, error) {
+	seen := make(map[tbls.PublicKey]struct{}, len(raw))
+	parsed := make([]tbls.PublicKey, len(raw))
 
-	rawKeys := make([]bls.PublicKey, 0, len(pubShares))
-	rawIDs := make([]bls.ID, 0, len(pubShares))
-
-	for i, share := range pubShares {
-		var pubkey bls.PublicKey
-		if err := pubkey.Deserialize(share); err != nil {
-			return nil, errors.Wrap(err, "deserialize public share", z.Int("share_index", i))
+	for i, share := range raw {
+		pk, err := tblsconv.PubkeyFromBytes(share)
+		if err != nil {
+			return nil, err
 		}
-		rawKeys = append(rawKeys, pubkey)
 
-		var id bls.ID
-		if err := id.SetDecString(strconv.Itoa(ids[i])); err != nil {
-			return nil, errors.Wrap(err, "set share id", z.Int("share_index", i))
+		if _, exists := seen[pk]; exists {
+			return nil, errors.New("duplicate public share")
 		}
-		rawIDs = append(rawIDs, id)
+
+		seen[pk] = struct{}{}
+		parsed[i] = pk
 	}
 
-	var recovered bls.PublicKey
-	if err := recovered.Recover(rawKeys, rawIDs); err != nil {
-		return nil, errors.Wrap(err, "recover distributed public key")
-	}
-
-	return recovered.Serialize(), nil
+	return parsed, nil
 }
 
-func recoverDistributedPubkeyFromShares(pubShares [][]byte, threshold int) ([]byte, error) {
-	if threshold <= 0 {
-		return nil, errors.New("invalid threshold")
-	}
-	if len(pubShares) < threshold {
-		return nil, errors.New("insufficient public shares for threshold")
+func verifySharesReconstruct(dvKey tbls.PublicKey, shares []tbls.PublicKey, threshold int) error {
+	subset := make(map[int]tbls.PublicKey, threshold)
+	for i := range threshold {
+		subset[i+1] = shares[i]
 	}
 
-	rawKeys := make([]bls.PublicKey, 0, threshold)
-	rawIDs := make([]bls.ID, 0, threshold)
+	recovered, err := tbls.RecoverPubkey(subset)
+	if err != nil {
+		return errors.Wrap(err, "recover distributed public key from shares")
+	}
 
-	for i := 0; i < threshold; i++ {
-		var pubkey bls.PublicKey
-		if err := pubkey.Deserialize(pubShares[i]); err != nil {
-			return nil, errors.Wrap(err, "deserialize public share", z.Int("share_index", i))
+	if recovered != dvKey {
+		return errors.New("public shares do not reconstruct distributed public key")
+	}
+
+	for i := threshold; i < len(shares); i++ {
+		subset := make(map[int]tbls.PublicKey, threshold)
+		for j := range threshold - 1 {
+			subset[j+1] = shares[j]
 		}
-		rawKeys = append(rawKeys, pubkey)
 
-		var id bls.ID
-		if err := id.SetDecString(strconv.Itoa(i + 1)); err != nil {
-			return nil, errors.Wrap(err, "set share id", z.Int("share_index", i))
+		subset[i+1] = shares[i]
+
+		recovered, err := tbls.RecoverPubkey(subset)
+		if err != nil {
+			return errors.Wrap(err, "verify extra share", z.Int("share_index", i))
 		}
-		rawIDs = append(rawIDs, id)
+
+		if recovered != dvKey {
+			return errors.New("extra share does not lie on distributed key polynomial", z.Int("share_index", i))
+		}
 	}
 
-	var recovered bls.PublicKey
-	if err := recovered.Recover(rawKeys, rawIDs); err != nil {
-		return nil, errors.Wrap(err, "recover distributed public key")
-	}
-
-	return recovered.Serialize(), nil
+	return nil
 }
 
 // verifyBuilderRegistrations returns an error if the populated builder registrations are invalid.

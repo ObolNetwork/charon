@@ -69,6 +69,29 @@ func (ts *TestSuite) Test_RecoverSecret() {
 	ts.Require().ElementsMatch(secret, recovered)
 }
 
+func (ts *TestSuite) Test_RecoverPubkey() {
+	secret, err := tbls.GenerateSecretKey()
+	ts.Require().NoError(err)
+
+	expectedPub, err := tbls.SecretToPublicKey(secret)
+	ts.Require().NoError(err)
+
+	privShares, err := tbls.ThresholdSplit(secret, 5, 3)
+	ts.Require().NoError(err)
+
+	pubShares := make(map[int]tbls.PublicKey, len(privShares))
+	for idx, priv := range privShares {
+		pub, err := tbls.SecretToPublicKey(priv)
+		ts.Require().NoError(err)
+
+		pubShares[idx] = pub
+	}
+
+	recovered, err := tbls.RecoverPubkey(pubShares)
+	ts.Require().NoError(err)
+	ts.Require().Equal(expectedPub, recovered)
+}
+
 func (ts *TestSuite) Test_ThresholdAggregate() {
 	data := []byte("hello obol!")
 
@@ -201,6 +224,7 @@ func runBenchmark(b *testing.B, impl tbls.Implementation) {
 		s.Test_SecretToPublicKey()
 		s.Test_ThresholdSplit()
 		s.Test_RecoverSecret()
+		s.Test_RecoverPubkey()
 		s.Test_ThresholdAggregate()
 		s.Test_Verify()
 		s.Test_Sign()
@@ -298,6 +322,15 @@ func (r randomizedImpl) RecoverSecret(shares map[int]tbls.PrivateKey, total uint
 	}
 
 	return impl.RecoverSecret(shares, total, threshold)
+}
+
+func (r randomizedImpl) RecoverPubkey(shares map[int]tbls.PublicKey) (tbls.PublicKey, error) {
+	impl, err := r.selectImpl()
+	if err != nil {
+		return tbls.PublicKey{}, err
+	}
+
+	return impl.RecoverPubkey(shares)
 }
 
 func (r randomizedImpl) ThresholdAggregate(partialSignaturesByIndex map[int]tbls.Signature) (tbls.Signature, error) {
