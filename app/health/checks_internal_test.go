@@ -388,6 +388,52 @@ func TestHighPeerPingLatencyCheck(t *testing.T) {
 	})
 }
 
+func TestInsufficientRoundChangesCheck(t *testing.T) {
+	m := Metadata{}
+	checkName := "insufficient_round_changes"
+	metricName := "core_consensus_insufficient_round_changes_total"
+
+	decidedLabels := genLabels("protocol", "qbft", "duty", "attester", "timer", "eager_double_linear", "outcome", "decided")
+	timeoutLabels := genLabels("protocol", "qbft", "duty", "attester", "timer", "eager_double_linear", "outcome", "timeout")
+
+	t.Run("no data", func(t *testing.T) {
+		testCheck(t, m, checkName, false, nil)
+	})
+
+	t.Run("no increase", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName,
+				genCounter(decidedLabels, 1, 1, 1),
+			),
+		)
+	})
+
+	t.Run("decided outcome increasing", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genCounter(decidedLabels, 0, 1, 2),
+			),
+		)
+	})
+
+	t.Run("timeout outcome increasing", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genCounter(timeoutLabels, 0, 0, 1),
+			),
+		)
+	})
+
+	t.Run("both outcomes increasing", func(t *testing.T) {
+		testCheck(t, m, checkName, true,
+			genFam(metricName,
+				genCounter(decidedLabels, 0, 1, 2),
+				genCounter(timeoutLabels, 0, 0, 1),
+			),
+		)
+	})
+}
+
 func TestHighConsensusRoundsCheck(t *testing.T) {
 	m := Metadata{}
 	checkName := "high_consensus_rounds"

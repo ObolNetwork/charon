@@ -225,6 +225,24 @@ var checks = []check{
 		},
 	},
 	{
+		Name: "insufficient_round_changes",
+		Description: `Consensus round timed out due to insufficient round change messages.
+		This indicates the block payload was propagated timely to only a subset of peers, likely because the leader received it too late.
+		When outcome=decided, peers decided without this node but it recovered via a MsgDecided message.
+		When outcome=timeout, consensus timed out entirely, causing a missed duty.
+
+		Check peer latencies, BN calls latencies and MEV relays connectivity.`,
+		Severity: severityWarning,
+		Func: func(q query, _ Metadata) (bool, error) {
+			val, err := q("core_consensus_insufficient_round_changes_total", sumLabels(), increase)
+			if err != nil {
+				return false, err
+			}
+
+			return val > 0, nil
+		},
+	},
+	{
 		Name: "high_consensus_rounds",
 		Description: `Consensus required >=2 rounds for proposer or attester duty.
 		This usually indicates some other underlying issue like poor peer connectivity or slow connection to the beacon node.

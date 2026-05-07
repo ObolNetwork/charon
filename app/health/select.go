@@ -60,8 +60,8 @@ func countLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb
 	}
 }
 
-// sumLabels returns a selector that sums all metrics that match all of the label pairs.
-func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
+// sumLabels returns a selector that sums all metrics.
+func sumLabels() func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 	return func(metricsFam *pb.MetricFamily) (*pb.Metric, error) {
 		if metricsFam.GetType() != pb.MetricType_GAUGE && metricsFam.GetType() != pb.MetricType_COUNTER {
 			return nil, errors.New("bug: unsupported metric type")
@@ -74,11 +74,9 @@ func sumLabels(labels ...*pb.LabelPair) func(metricsFam *pb.MetricFamily) (*pb.M
 		}
 
 		for _, metric := range metricsFam.GetMetric() {
-			if labelsContain(metric.GetLabel(), labels) {
-				value := metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
-				summed := sum.GetGauge().GetValue() + value
-				sum.Gauge.Value = &summed
-			}
+			value := metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
+			summed := sum.GetGauge().GetValue() + value
+			sum.Gauge.Value = &summed
 		}
 
 		return sum, nil
