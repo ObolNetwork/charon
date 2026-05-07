@@ -183,8 +183,11 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 					}
 				}
 
-				if uponRule == qbft.UponJustifiedDecided && hadInsufficientRoundChanges {
-					emittedOutcomes = append(emittedOutcomes, metrics.OutcomeDecided)
+				if uponRule == qbft.UponJustifiedDecided {
+					steps := groupRoundMessages(msgs, nodes, round, int(leader(core.Duty{Slot: 1, Type: core.DutyAttester}, round, nodes)))
+					if hadInsufficientRoundChanges || isInsufficientRoundChanges(steps, round, quorum) {
+						emittedOutcomes = append(emittedOutcomes, metrics.OutcomeDecided)
+					}
 				}
 			}, func() {
 				if hadInsufficientRoundChanges {
@@ -198,15 +201,22 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 	t.Run("issue 4478: insufficient round changes then decided via MsgDecided", func(t *testing.T) {
 		// Scenario: 4 nodes, our node (peer 3) times out in round 1, moves to round 2.
 		// Only peer 3 sends a RoundChange (peers 0,1,2 decided in round 1).
-		// Then peers respond with MsgDecided, triggering UponJustifiedDecided.
+		// MsgDecided arrives before round 2 times out.
+		//
+		// In production, LogRoundChange receives round=oldRound, so the round 1
+		// timeout callback gets round=1. The UponJustifiedDecided callback gets
+		// round=2 (current round) with round 2's messages (containing only our
+		// own MsgRoundChange).
 		onRoundChange, _, outcomes := simulateInstance()
 
-		// Round 1 → round 2: timeout with only our own RoundChange (insufficient).
-		onRoundChange(qbft.UponRoundTimeout, 2, roundMsgs(3))
-		require.Empty(t, outcomes(), "no metric yet on timeout alone")
+		// Round 1 timeout: LogRoundChange(round=1, newRound=2, UponRoundTimeout).
+		// isInsufficientRoundChanges returns false for round 1 (no round changes expected).
+		onRoundChange(qbft.UponRoundTimeout, 1, nil)
+		require.Empty(t, outcomes(), "no metric for round 1 timeout")
 
-		// Decided peers respond with MsgDecided → UponJustifiedDecided.
-		onRoundChange(qbft.UponJustifiedDecided, 2, nil)
+		// MsgDecided arrives while in round 2: LogRoundChange(round=2, UponJustifiedDecided).
+		// Round 2 messages contain only our own MsgRoundChange — insufficient.
+		onRoundChange(qbft.UponJustifiedDecided, 2, roundMsgs(3))
 		require.Equal(t, []string{metrics.OutcomeDecided}, outcomes())
 	})
 
@@ -215,12 +225,12 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 		// Nobody decided — consensus times out entirely.
 		onRoundChange, onTimeout, outcomes := simulateInstance()
 
-		// Round 1 → round 2: timeout with only our own RoundChange.
-		onRoundChange(qbft.UponRoundTimeout, 2, roundMsgs(3))
+		// Round 1 timeout: LogRoundChange(round=1). No flag set (round 1).
+		onRoundChange(qbft.UponRoundTimeout, 1, nil)
 		require.Empty(t, outcomes())
 
-		// Round 2 → round 3: another timeout, still insufficient.
-		onRoundChange(qbft.UponRoundTimeout, 3, roundMsgs(3))
+		// Round 2 timeout: LogRoundChange(round=2). Only our RoundChange — insufficient.
+		onRoundChange(qbft.UponRoundTimeout, 2, roundMsgs(3))
 		require.Empty(t, outcomes())
 
 		// Consensus times out entirely — timeout outcome emitted.
@@ -233,12 +243,12 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 		// Even if we later get a MsgDecided, no metric should fire.
 		onRoundChange, _, outcomes := simulateInstance()
 
-		// Round 1 → round 2: timeout but with quorum round changes (3 out of 4).
+		// Round 2 timeout: LogRoundChange(round=2). Quorum round changes (3 out of 4).
 		onRoundChange(qbft.UponRoundTimeout, 2, roundMsgs(0, 1, 3))
 		require.Empty(t, outcomes())
 
-		// MsgDecided arrives.
-		onRoundChange(qbft.UponJustifiedDecided, 2, nil)
+		// MsgDecided arrives while in round 3. Round 3 messages also have sufficient round changes.
+		onRoundChange(qbft.UponJustifiedDecided, 3, roundMsgs(0, 1, 3))
 		require.Empty(t, outcomes(), "no metric when round changes were sufficient")
 	})
 
@@ -247,6 +257,7 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 		// (e.g., stuck at prepare/commit phase). No insufficient round changes metric.
 		onRoundChange, onTimeout, outcomes := simulateInstance()
 
+		// Round 2 timeout: LogRoundChange(round=2). Quorum round changes.
 		onRoundChange(qbft.UponRoundTimeout, 2, roundMsgs(0, 1, 3))
 		onTimeout()
 		require.Empty(t, outcomes(), "no metric when round changes were sufficient")
@@ -278,11 +289,13 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 		// before finally receiving MsgDecided. Decided outcome fires once.
 		onRoundChange, _, outcomes := simulateInstance()
 
+		// Round 2 and 3 timeout with insufficient round changes.
 		onRoundChange(qbft.UponRoundTimeout, 2, roundMsgs(3))
 		onRoundChange(qbft.UponRoundTimeout, 3, roundMsgs(3))
 		require.Empty(t, outcomes())
 
-		onRoundChange(qbft.UponJustifiedDecided, 3, nil)
+		// MsgDecided arrives while in round 4.
+		onRoundChange(qbft.UponJustifiedDecided, 4, roundMsgs(3))
 		require.Equal(t, []string{metrics.OutcomeDecided}, outcomes())
 	})
 

@@ -99,7 +99,7 @@ var checks = []check{
 		Description: "High rate of failed validator registrations. Please check the logs for more details.",
 		Severity:    severityWarning,
 		Func: func(q query, _ Metadata) (bool, error) {
-			increase, err := q("core_scheduler_submit_registration_errors_total", sumLabels(), increase)
+			increase, err := q("core_scheduler_submit_registration_errors_total", sumAll(), increase)
 			if err != nil {
 				return false, err
 			}
@@ -112,7 +112,7 @@ var checks = []check{
 		Description: "Metrics have reached the high cardinality threshold. Please check metrics reported by app_health_metrics_high_cardinality.",
 		Severity:    severityWarning,
 		Func: func(q query, _ Metadata) (bool, error) {
-			maxVal, err := q("app_health_metrics_high_cardinality", sumLabels(), gaugeMax)
+			maxVal, err := q("app_health_metrics_high_cardinality", sumAll(), gaugeMax)
 			if err != nil {
 				return false, err
 			}
@@ -216,7 +216,7 @@ var checks = []check{
 		Check the health of the main beacon node(s).`,
 		Severity: severityWarning,
 		Func: func(q query, _ Metadata) (bool, error) {
-			maxVal, err := q("app_eth2_using_fallback", sumLabels(), gaugeMax)
+			maxVal, err := q("app_eth2_using_fallback", sumAll(), gaugeMax)
 			if err != nil {
 				return false, err
 			}
@@ -234,7 +234,7 @@ var checks = []check{
 		Check peer latencies, BN calls latencies and MEV relays connectivity.`,
 		Severity: severityWarning,
 		Func: func(q query, _ Metadata) (bool, error) {
-			val, err := q("core_consensus_insufficient_round_changes_total", sumLabels(), increase)
+			val, err := q("core_consensus_insufficient_round_changes_total", sumAll(), increase)
 			if err != nil {
 				return false, err
 			}

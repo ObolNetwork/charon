@@ -608,8 +608,13 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 			}
 		}
 
-		if uponRule == qbft.UponJustifiedDecided && hadInsufficientRoundChanges {
-			c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), metrics.OutcomeDecided)
+		if uponRule == qbft.UponJustifiedDecided {
+			quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
+
+			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
+			if hadInsufficientRoundChanges || isInsufficientRoundChanges(steps, round, quorum) {
+				c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), metrics.OutcomeDecided)
+			}
 		}
 	}
 
