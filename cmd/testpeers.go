@@ -456,13 +456,18 @@ func peerDirectConnTest(ctx context.Context, conf *testPeersConfig, p2pNode host
 		z.Any("target", p2pPeer.Name))
 
 	var err error
+
 	for range int(conf.DirectConnectionTimeout.Seconds()) {
+		if ctx.Err() != nil {
+			return failedTestResult(testRes, errTimeoutInterrupted)
+		}
+
 		err = p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
 		if err == nil {
 			break
 		}
 
-		time.Sleep(time.Second)
+		sleepWithContext(ctx, time.Second)
 	}
 
 	if err != nil {

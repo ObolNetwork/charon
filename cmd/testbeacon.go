@@ -1529,7 +1529,7 @@ func attestationDuty(ctx context.Context, target string, simulationDuration time
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	time.Sleep(randomizeStart(tickTime))
+	sleepWithContext(ctx, randomizeStart(tickTime))
 
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
@@ -1578,7 +1578,7 @@ func aggregationDuty(ctx context.Context, target string, simulationDuration time
 		slot = 1
 	}
 
-	time.Sleep(randomizeStart(tickTime))
+	sleepWithContext(ctx, randomizeStart(tickTime))
 
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
@@ -1613,7 +1613,7 @@ func proposalDuty(ctx context.Context, target string, simulationDuration time.Du
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	time.Sleep(randomizeStart(tickTime))
+	sleepWithContext(ctx, randomizeStart(tickTime))
 
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
@@ -1661,7 +1661,7 @@ func syncCommitteeDuties(
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	time.Sleep(randomizeStart(tickTimeSubscribe))
+	sleepWithContext(ctx, randomizeStart(tickTimeSubscribe))
 
 	ticker := time.NewTicker(tickTimeSubscribe)
 	defer ticker.Stop()
@@ -1688,7 +1688,7 @@ func syncCommitteeContributionDuty(ctx context.Context, target string, simulatio
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	time.Sleep(randomizeStart(tickTime))
+	sleepWithContext(ctx, randomizeStart(tickTime))
 
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
@@ -1729,7 +1729,7 @@ func syncCommitteeMessageDuty(ctx context.Context, target string, simulationDura
 	pingCtx, cancel := context.WithTimeout(ctx, simulationDuration)
 	defer cancel()
 
-	time.Sleep(randomizeStart(tickTime))
+	sleepWithContext(ctx, randomizeStart(tickTime))
 
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
