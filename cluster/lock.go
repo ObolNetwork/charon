@@ -173,6 +173,18 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 	var pubkeys []tbls.PublicKey
 
 	for _, val := range l.Validators {
+		if len(val.PubShares) != len(l.Operators) {
+			return errors.New("invalid public share count")
+		}
+		uniqueShareCount := make(map[string]struct{}, len(val.PubShares))
+		for _, share := range val.PubShares {
+			shareKey := string(share)
+			if _, exists := uniqueShareCount[shareKey]; exists {
+				return errors.New("duplicate public share")
+			}
+			uniqueShareCount[shareKey] = struct{}{}
+		}
+
 		recoveredPubkey, err := recoverDistributedPubkeyFromShares(val.PubShares, l.Threshold)
 		if err != nil {
 			return errors.Wrap(err, "recover distributed public key from shares")
