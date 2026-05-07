@@ -588,6 +588,9 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback, c.compareAttestations)
 	origLogRoundChange := def.LogRoundChange
+
+	var hadInsufficientRoundChanges bool
+
 	def.LogRoundChange = func(ctx context.Context, instance core.Duty, process, round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 		if origLogRoundChange != nil {
 			origLogRoundChange(ctx, instance, process, round, newRound, uponRule, msgs)
@@ -601,8 +604,12 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 
 			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
 			if isInsufficientRoundChanges(steps, round, quorum) {
-				c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()))
+				hadInsufficientRoundChanges = true
 			}
+		}
+
+		if uponRule == qbft.UponJustifiedDecided && hadInsufficientRoundChanges {
+			c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()))
 		}
 	}
 
