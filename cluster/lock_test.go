@@ -18,3 +18,16 @@ func TestVerifyLock(t *testing.T) {
 	require.NoError(t, lock.Definition.VerifySignatures(nil))
 	require.NoError(t, lock.VerifySignatures(nil))
 }
+
+func TestVerifyLockRejectsMismatchedPublicShares(t *testing.T) {
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 3, 3, 4, seed, random)
+
+	// Tamper validator shares so they no longer reconstruct validator 0 group key.
+	lock.Validators[0].PubShares = append([][]byte(nil), lock.Validators[1].PubShares...)
+
+	err := lock.VerifySignatures(nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "public shares do not reconstruct distributed public key")
+}

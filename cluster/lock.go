@@ -5,8 +5,10 @@ package cluster
 import (
 	"bytes"
 	"encoding/json"
+	"strconv"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/herumi/bls-eth-go-binary/bls"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
@@ -171,6 +173,15 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 	var pubkeys []tbls.PublicKey
 
 	for _, val := range l.Validators {
+		recoveredPubkey, err := recoverDistributedPubkeyFromShares(val.PubShares, l.Threshold)
+		if err != nil {
+			return errors.Wrap(err, "recover distributed public key from shares")
+		}
+
+		if !bytes.Equal(recoveredPubkey, val.PubKey) {
+			return errors.New("public shares do not reconstruct distributed public key")
+		}
+
 		for _, share := range val.PubShares {
 			pubkey, err := tblsconv.PubkeyFromBytes(share)
 			if err != nil {
@@ -233,6 +244,39 @@ func (l Lock) verifyNodeSignatures() error {
 	}
 
 	return nil
+}
+
+func recoverDistributedPubkeyFromShares(pubShares [][]byte, threshold int) ([]byte, error) {
+	if threshold <= 0 {
+		return nil, errors.New("invalid threshold")
+	}
+	if len(pubShares) < threshold {
+		return nil, errors.New("insufficient public shares for threshold")
+	}
+
+	rawKeys := make([]bls.PublicKey, 0, threshold)
+	rawIDs := make([]bls.ID, 0, threshold)
+
+	for i := 0; i < threshold; i++ {
+		var pubkey bls.PublicKey
+		if err := pubkey.Deserialize(pubShares[i]); err != nil {
+			return nil, errors.Wrap(err, "deserialize public share", z.Int("share_index", i))
+		}
+		rawKeys = append(rawKeys, pubkey)
+
+		var id bls.ID
+		if err := id.SetDecString(strconv.Itoa(i + 1)); err != nil {
+			return nil, errors.Wrap(err, "set share id", z.Int("share_index", i))
+		}
+		rawIDs = append(rawIDs, id)
+	}
+
+	var recovered bls.PublicKey
+	if err := recovered.Recover(rawKeys, rawIDs); err != nil {
+		return nil, errors.Wrap(err, "recover distributed public key")
+	}
+
+	return recovered.Serialize(), nil
 }
 
 // verifyBuilderRegistrations returns an error if the populated builder registrations are invalid.
