@@ -172,9 +172,13 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 
 	var pubkeys []tbls.PublicKey
 
-	for _, val := range l.Validators {
+	for i, val := range l.Validators {
 		if len(val.PubShares) != len(l.Operators) {
-			return errors.New("invalid public share count")
+			return errors.New("invalid public share count",
+				z.Int("dv_index", i),
+				z.Int("expected", len(l.Operators)),
+				z.Int("got", len(val.PubShares)),
+			)
 		}
 
 		dvKey, err := tblsconv.PubkeyFromBytes(val.PubKey)
@@ -183,18 +187,20 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		}
 
 		if _, exists := seenDVKeys[dvKey]; exists {
-			return errors.New("duplicate distributed validator public key")
+			return errors.New("duplicate distributed validator public key",
+				z.Int("dv_index", i),
+			)
 		}
 
 		seenDVKeys[dvKey] = struct{}{}
 
 		shares, err := parsePubShares(val.PubShares)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "parse public shares", z.Int("dv_index", i))
 		}
 
 		if err := verifySharesReconstruct(dvKey, shares, l.Threshold); err != nil {
-			return err
+			return errors.Wrap(err, "verify share reconstruction", z.Int("dv_index", i))
 		}
 
 		pubkeys = append(pubkeys, shares...)
@@ -265,7 +271,7 @@ func parsePubShares(raw [][]byte) ([]tbls.PublicKey, error) {
 		}
 
 		if _, exists := seen[pk]; exists {
-			return nil, errors.New("duplicate public share")
+			return nil, errors.New("duplicate public share", z.Int("share_index", i))
 		}
 
 		seen[pk] = struct{}{}
@@ -276,6 +282,13 @@ func parsePubShares(raw [][]byte) ([]tbls.PublicKey, error) {
 }
 
 func verifySharesReconstruct(dvKey tbls.PublicKey, shares []tbls.PublicKey, threshold int) error {
+	if threshold < 1 || threshold > len(shares) {
+		return errors.New("invalid threshold",
+			z.Int("threshold", threshold),
+			z.Int("shares", len(shares)),
+		)
+	}
+
 	subset := make(map[int]tbls.PublicKey, threshold)
 	for i := range threshold {
 		subset[i+1] = shares[i]
