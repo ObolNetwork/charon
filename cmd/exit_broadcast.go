@@ -84,7 +84,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		exitDirPresent := cmd.Flags().Lookup(exitFromDir.String()).Changed
 
 		if !valPubkPresent && !config.All {
-			//nolint:revive,perfsprint // we use our own version of the errors package; keep consistency with other checks.
+			//nolint:perfsprint,revive // we use our own version of the errors package.
 			return errors.New(fmt.Sprintf("%s must be specified when exiting single validator.", validatorPubkey.String()))
 		}
 
