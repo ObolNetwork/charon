@@ -220,38 +220,26 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 
 	go runMEVTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
 
-	testCounter := 0
-
 	var allTestRes []testResult
-
-	for {
-		select {
-		case <-ctx.Done():
-			allTestRes = append(allTestRes, testResult{Name: queuedTestCases[testCounter].name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-
-			resCh <- map[string][]testResult{formatMEVRelayName(target): allTestRes}
-
-			return nil
-		case result, ok := <-singleTestResCh:
-			if !ok {
-				resCh <- map[string][]testResult{formatMEVRelayName(target): allTestRes}
-
-				return nil
-			}
-
-			testCounter++
-
-			allTestRes = append(allTestRes, result)
-		}
+	for result := range singleTestResCh {
+		allTestRes = append(allTestRes, result)
 	}
+
+	resCh <- map[string][]testResult{formatMEVRelayName(target): allTestRes}
+
+	return nil
 }
 
+// runMEVTest is the sole producer of results on ch; test case functions must respect ctx cancellation.
 func runMEVTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, cfg testMEVConfig, target string, ch chan testResult) {
 	defer close(ch)
 
-	for _, t := range queuedTestCases {
+	for i, t := range queuedTestCases {
 		if ctx.Err() != nil {
-			ch <- testResult{Name: t.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
+			for _, remaining := range queuedTestCases[i:] {
+				ch <- testResult{Name: remaining.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
+			}
+
 			return
 		}
 

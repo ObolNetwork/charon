@@ -319,33 +319,13 @@ func testAllBeacons(ctx context.Context, queuedTestCases []testCaseName, allTest
 }
 
 func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, cfg testBeaconConfig, target string, resCh chan map[string][]testResult) error {
-	singleTestResCh := make(chan testResult)
-	allTestRes := []testResult{}
+	singleTestResCh := make(chan testResult, len(queuedTestCases))
 
-	// run all beacon tests for a beacon node, pushing each completed test to the channel until all are complete or timeout occurs
 	go runBeaconTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
 
-	testCounter := 0
-
-	finished := false
-	for !finished {
-		var testName string
-
-		select {
-		case <-ctx.Done():
-			testName = queuedTestCases[testCounter].name
-			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-			finished = true
-		case result, ok := <-singleTestResCh:
-			if !ok {
-				finished = true
-				break
-			}
-
-			testCounter++
-
-			allTestRes = append(allTestRes, result)
-		}
+	var allTestRes []testResult
+	for result := range singleTestResCh {
+		allTestRes = append(allTestRes, result)
 	}
 
 	resCh <- map[string][]testResult{target: allTestRes}
@@ -353,16 +333,20 @@ func testSingleBeacon(ctx context.Context, queuedTestCases []testCaseName, allTe
 	return nil
 }
 
+// runBeaconTest is the sole producer of results on ch; test case functions must respect ctx cancellation.
 func runBeaconTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseBeacon, cfg testBeaconConfig, target string, ch chan testResult) {
 	defer close(ch)
 
-	for _, t := range queuedTestCases {
-		select {
-		case <-ctx.Done():
+	for i, t := range queuedTestCases {
+		if ctx.Err() != nil {
+			for _, remaining := range queuedTestCases[i:] {
+				ch <- testResult{Name: remaining.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
+			}
+
 			return
-		default:
-			ch <- allTestCases[t](ctx, &cfg, target)
 		}
+
+		ch <- allTestCases[t](ctx, &cfg, target)
 	}
 }
 

@@ -99,9 +99,31 @@ func TestBeaconTest(t *testing.T) {
 				Targets: map[string][]testResult{
 					endpoint1: {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Synced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PeerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate1", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate10", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate100", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate500", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate1000", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "SimulateCustom", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					endpoint2: {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Version", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Synced", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PeerCount", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate1", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate10", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate100", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate500", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "Simulate1000", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "SimulateCustom", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 			},
@@ -248,6 +270,31 @@ func defaultFailingBNTests(_ *testing.T, endpoint1 string, endpoint2 string, por
 			{Name: "Simulate1000", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 			{Name: "SimulateCustom", Verdict: testVerdictSkipped, Measurement: "", Suggestion: "", Error: testResultError{}},
 		},
+	}
+}
+
+func TestBeaconTestTimeoutAlwaysProducesResults(t *testing.T) {
+	var endpoints []string
+	for range 5 {
+		endpoints = append(endpoints, fmt.Sprintf("http://localhost:%v", testutil.GetFreePort(t)))
+	}
+
+	for range 100 {
+		var buf bytes.Buffer
+
+		res, err := runTestBeacon(context.Background(), &buf, testBeaconConfig{
+			testConfig: testConfig{
+				Timeout: time.Nanosecond,
+			},
+			Endpoints: endpoints,
+		})
+		require.NoError(t, err)
+
+		for _, endpoint := range endpoints {
+			results, ok := res.Targets[endpoint]
+			require.True(t, ok, "missing results for %s", endpoint)
+			require.NotEmpty(t, results, "empty results for %s", endpoint)
+		}
 	}
 }
 

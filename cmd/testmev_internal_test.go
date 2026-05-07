@@ -128,9 +128,13 @@ func TestMEVTest(t *testing.T) {
 				Targets: map[string][]testResult{
 					endpoint1: {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "CreateBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					endpoint2: {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "CreateBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 			},

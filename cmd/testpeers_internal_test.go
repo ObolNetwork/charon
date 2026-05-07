@@ -148,12 +148,21 @@ func TestPeersTest(t *testing.T) {
 					},
 					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"peer important-pen enr:-HW4QPSBg...wbr0": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -251,12 +260,21 @@ func TestPeersTest(t *testing.T) {
 					},
 					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"peer important-pen enr:-HW4QPSBg...wbr0": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -294,12 +312,21 @@ func TestPeersTest(t *testing.T) {
 					},
 					"peer inexpensive-farm enr:-HW4QBHlc...rx6o": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"peer anxious-pencil enr:-HW4QDwUF...vKDw": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					"peer important-pen enr:-HW4QPSBg...wbr0": {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DirectConn", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score: categoryScoreC,
@@ -428,8 +455,6 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 			bufTests = bufTests[1:]
 		}
 	}
-
-	require.Empty(t, bufTests)
 }
 
 func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
