@@ -44,6 +44,18 @@ var (
 		Name:      "error_total",
 		Help:      "Total count of consensus errors by protocol",
 	}, []string{"protocol"})
+
+	consensusInsufficientRoundChanges = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "consensus",
+		Name:      "insufficient_round_changes_total",
+		Help:      "Total count of consensus instances with insufficient round change messages by protocol, duty, timer, and outcome (decided or timeout)",
+	}, []string{"protocol", "duty", "timer", "outcome"})
+)
+
+const (
+	OutcomeDecided = "decided"
+	OutcomeTimeout = "timeout"
 )
 
 // ConsensusMetrics defines the interface for consensus metrics.
@@ -62,6 +74,10 @@ type ConsensusMetrics interface {
 
 	// IncConsensusError increments the consensus error counter.
 	IncConsensusError()
+
+	// IncInsufficientRoundChanges increments the counter for consensus instances with insufficient round change messages.
+	// Outcome is "decided" if the node recovered via MsgDecided, or "timeout" if consensus timed out entirely.
+	IncInsufficientRoundChanges(duty, timer, outcome string)
 }
 
 type consensusMetrics struct {
@@ -98,4 +114,9 @@ func (m *consensusMetrics) IncConsensusTimeout(duty, timer string) {
 // IncConsensusError increments the consensus error counter.
 func (m *consensusMetrics) IncConsensusError() {
 	consensusError.WithLabelValues(m.protocolID).Inc()
+}
+
+// IncInsufficientRoundChanges increments the counter for consensus instances with insufficient round change messages.
+func (m *consensusMetrics) IncInsufficientRoundChanges(duty, timer, outcome string) {
+	consensusInsufficientRoundChanges.WithLabelValues(m.protocolID, duty, timer, outcome).Inc()
 }

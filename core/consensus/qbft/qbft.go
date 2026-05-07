@@ -588,6 +588,9 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	// Create a new qbft definition for this instance.
 	def := newDefinition(len(c.peers), c.subscribers, roundTimer, decideCallback, c.compareAttestations)
 	origLogRoundChange := def.LogRoundChange
+
+	var hadInsufficientRoundChanges bool
+
 	def.LogRoundChange = func(ctx context.Context, instance core.Duty, process, round, newRound int64, uponRule qbft.UponRule, msgs []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 		if origLogRoundChange != nil {
 			origLogRoundChange(ctx, instance, process, round, newRound, uponRule, msgs)
@@ -595,6 +598,24 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 
 		span.AddEvent("Round Changed")
 		span.SetAttributes(attribute.Int64("new_round", newRound))
+
+		if uponRule == qbft.UponRoundTimeout {
+			quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
+
+			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
+			if isInsufficientRoundChanges(steps, round, quorum) {
+				hadInsufficientRoundChanges = true
+			}
+		}
+
+		if uponRule == qbft.UponJustifiedDecided {
+			quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
+
+			steps := groupRoundMessages(msgs, nodes, round, int(leader(duty, round, nodes)))
+			if hadInsufficientRoundChanges || isInsufficientRoundChanges(steps, round, quorum) {
+				c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), metrics.OutcomeDecided)
+			}
+		}
 	}
 
 	// Create a new transport that handles sending and receiving for this instance.
@@ -626,6 +647,10 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	if !decided {
 		span.AddEvent("qbft.Timeout")
 		c.metrics.IncConsensusTimeout(duty.Type.String(), string(roundTimer.Type()))
+
+		if hadInsufficientRoundChanges {
+			c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), metrics.OutcomeTimeout)
+		}
 
 		return errors.New("consensus timeout", z.Str("duty", duty.String()))
 	}
@@ -874,6 +899,20 @@ func timeoutReason(steps []roundStep, round int64, quorum int) string {
 	}
 
 	return "unknown reason"
+}
+
+func isInsufficientRoundChanges(steps []roundStep, round int64, quorum int) bool {
+	if round <= 1 {
+		return false
+	}
+
+	for _, step := range steps {
+		if step.Type == qbft.MsgRoundChange {
+			return len(step.Present) < quorum
+		}
+	}
+
+	return false
 }
 
 // fmtStepPeers returns a string representing the present and missing peers.
