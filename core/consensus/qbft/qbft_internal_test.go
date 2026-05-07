@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/instance"
+	"github.com/obolnetwork/charon/core/consensus/metrics"
 	"github.com/obolnetwork/charon/core/consensus/timer"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	coremocks "github.com/obolnetwork/charon/core/mocks"
@@ -183,11 +184,11 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 				}
 
 				if uponRule == qbft.UponJustifiedDecided && hadInsufficientRoundChanges {
-					emittedOutcomes = append(emittedOutcomes, "decided")
+					emittedOutcomes = append(emittedOutcomes, metrics.OutcomeDecided)
 				}
 			}, func() {
 				if hadInsufficientRoundChanges {
-					emittedOutcomes = append(emittedOutcomes, "timeout")
+					emittedOutcomes = append(emittedOutcomes, metrics.OutcomeTimeout)
 				}
 			}, func() []string {
 				return emittedOutcomes
@@ -206,7 +207,7 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 
 		// Decided peers respond with MsgDecided → UponJustifiedDecided.
 		onRoundChange(qbft.UponJustifiedDecided, 2, nil)
-		require.Equal(t, []string{"decided"}, outcomes())
+		require.Equal(t, []string{metrics.OutcomeDecided}, outcomes())
 	})
 
 	t.Run("bad network: insufficient round changes and full timeout", func(t *testing.T) {
@@ -224,7 +225,7 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 
 		// Consensus times out entirely — timeout outcome emitted.
 		onTimeout()
-		require.Equal(t, []string{"timeout"}, outcomes())
+		require.Equal(t, []string{metrics.OutcomeTimeout}, outcomes())
 	})
 
 	t.Run("normal round change: sufficient round changes then decided via MsgDecided", func(t *testing.T) {
@@ -282,7 +283,7 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 		require.Empty(t, outcomes())
 
 		onRoundChange(qbft.UponJustifiedDecided, 3, nil)
-		require.Equal(t, []string{"decided"}, outcomes())
+		require.Equal(t, []string{metrics.OutcomeDecided}, outcomes())
 	})
 
 	t.Run("multiple insufficient rounds then full timeout", func(t *testing.T) {
@@ -296,7 +297,7 @@ func TestInsufficientRoundChangesMetric(t *testing.T) {
 		require.Empty(t, outcomes())
 
 		onTimeout()
-		require.Equal(t, []string{"timeout"}, outcomes())
+		require.Equal(t, []string{metrics.OutcomeTimeout}, outcomes())
 	})
 }
 

@@ -72,18 +72,28 @@ func TestConsensusMetrics_IncConsensusError(t *testing.T) {
 func TestConsensusMetrics_IncInsufficientRoundChanges(t *testing.T) {
 	cm := metrics.NewConsensusMetrics("test")
 
-	cm.IncInsufficientRoundChanges("duty", "timer", "decided")
-	cm.IncInsufficientRoundChanges("duty", "timer", "timeout")
+	cm.IncInsufficientRoundChanges("duty", "timer", metrics.OutcomeDecided)
+	cm.IncInsufficientRoundChanges("duty", "timer", metrics.OutcomeTimeout)
 
 	m := gatherMetric(t, "core_consensus_insufficient_round_changes_total")
 	require.Len(t, m.GetMetric(), 2)
+
+	var outcomes []string
 
 	for _, metric := range m.GetMetric() {
 		require.InEpsilon(t, 1, metric.GetCounter().GetValue(), 0.0001)
 		verifyLabel(t, metric.GetLabel(), "protocol", "test")
 		verifyLabel(t, metric.GetLabel(), "duty", "duty")
 		verifyLabel(t, metric.GetLabel(), "timer", "timer")
+
+		for _, label := range metric.GetLabel() {
+			if label.GetName() == "outcome" {
+				outcomes = append(outcomes, label.GetValue())
+			}
+		}
 	}
+
+	require.ElementsMatch(t, []string{"decided", "timeout"}, outcomes)
 }
 
 func gatherMetric(t *testing.T, name string) *pb.MetricFamily {

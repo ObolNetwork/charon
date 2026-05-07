@@ -53,6 +53,11 @@ var (
 	}, []string{"protocol", "duty", "timer", "outcome"})
 )
 
+const (
+	OutcomeDecided = "decided"
+	OutcomeTimeout = "timeout"
+)
+
 // ConsensusMetrics defines the interface for consensus metrics.
 type ConsensusMetrics interface {
 	// SetDecidedRounds sets the number of decided rounds for a given duty and timer.

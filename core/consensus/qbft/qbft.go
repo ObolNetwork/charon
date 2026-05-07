@@ -609,7 +609,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		}
 
 		if uponRule == qbft.UponJustifiedDecided && hadInsufficientRoundChanges {
-			c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), "decided")
+			c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), metrics.OutcomeDecided)
 		}
 	}
 
@@ -644,7 +644,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		c.metrics.IncConsensusTimeout(duty.Type.String(), string(roundTimer.Type()))
 
 		if hadInsufficientRoundChanges {
-			c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), "timeout")
+			c.metrics.IncInsufficientRoundChanges(duty.Type.String(), string(roundTimer.Type()), metrics.OutcomeTimeout)
 		}
 
 		return errors.New("consensus timeout", z.Str("duty", duty.String()))
