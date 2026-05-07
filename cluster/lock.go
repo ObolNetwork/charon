@@ -211,6 +211,22 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return errors.New("public shares do not reconstruct distributed public key")
 		}
 
+		for i := l.Threshold; i < len(val.PubShares); i++ {
+			extraShares := append(append([][]byte{}, val.PubShares[:l.Threshold-1]...), val.PubShares[i])
+			extraIDs := make([]int, l.Threshold)
+			for j := 0; j < l.Threshold-1; j++ {
+				extraIDs[j] = j + 1
+			}
+			extraIDs[l.Threshold-1] = i + 1
+			recoveredExtra, err := recoverDistributedPubkeyFromSharesWithIDs(extraShares, extraIDs)
+			if err != nil {
+				return errors.Wrap(err, "recover extra share", z.Int("share_index", i))
+			}
+			if !bytes.Equal(recoveredExtra, val.PubKey) {
+				return errors.New("extra share does not lie on distributed key polynomial", z.Int("share_index", i))
+			}
+		}
+
 		for _, share := range val.PubShares {
 			pubkey, err := tblsconv.PubkeyFromBytes(share)
 			if err != nil {
@@ -273,6 +289,36 @@ func (l Lock) verifyNodeSignatures() error {
 	}
 
 	return nil
+}
+
+func recoverDistributedPubkeyFromSharesWithIDs(pubShares [][]byte, ids []int) ([]byte, error) {
+	if len(pubShares) != len(ids) || len(pubShares) == 0 {
+		return nil, errors.New("share and id count mismatch")
+	}
+
+	rawKeys := make([]bls.PublicKey, 0, len(pubShares))
+	rawIDs := make([]bls.ID, 0, len(pubShares))
+
+	for i, share := range pubShares {
+		var pubkey bls.PublicKey
+		if err := pubkey.Deserialize(share); err != nil {
+			return nil, errors.Wrap(err, "deserialize public share", z.Int("share_index", i))
+		}
+		rawKeys = append(rawKeys, pubkey)
+
+		var id bls.ID
+		if err := id.SetDecString(strconv.Itoa(ids[i])); err != nil {
+			return nil, errors.Wrap(err, "set share id", z.Int("share_index", i))
+		}
+		rawIDs = append(rawIDs, id)
+	}
+
+	var recovered bls.PublicKey
+	if err := recovered.Recover(rawKeys, rawIDs); err != nil {
+		return nil, errors.Wrap(err, "recover distributed public key")
+	}
+
+	return recovered.Serialize(), nil
 }
 
 func recoverDistributedPubkeyFromShares(pubShares [][]byte, threshold int) ([]byte, error) {
