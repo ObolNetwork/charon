@@ -283,6 +283,9 @@ func recoverDistributedPubkeyFromShares(pubShares [][]byte, threshold int) ([]by
 		if err := pubkey.Deserialize(pubShares[i]); err != nil {
 			return nil, errors.Wrap(err, "deserialize public share", z.Int("share_index", i))
 		}
+		if pubkey.IsZero() {
+			return nil, errors.New("identity point share", z.Int("share_index", i))
+		}
 		rawKeys = append(rawKeys, pubkey)
 
 		var id bls.ID
