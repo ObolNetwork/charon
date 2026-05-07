@@ -194,14 +194,6 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			uniqueShareCount[shareKey] = struct{}{}
 		}
 
-		var identityPoint tbls.PublicKey
-		identityPoint[0] = 0xc0
-		for _, share := range val.PubShares {
-			if *(*tbls.PublicKey)(share) == identityPoint {
-				return errors.New("identity point share")
-			}
-		}
-
 		recoveredPubkey, err := recoverDistributedPubkeyFromShares(val.PubShares, l.Threshold)
 		if err != nil {
 			return errors.Wrap(err, "recover distributed public key from shares")

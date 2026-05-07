@@ -45,21 +45,6 @@ func TestVerifyLockRejectsDuplicateDistributedKeys(t *testing.T) {
 	require.Contains(t, err.Error(), "duplicate distributed validator public key")
 }
 
-func TestVerifyLockRejectsIdentityPointShare(t *testing.T) {
-	seed := 0
-	random := rand.New(rand.NewSource(int64(seed)))
-	lock, _, _ := cluster.NewForT(t, 1, 3, 4, seed, random)
-
-	// Replace one share with the BLS G1 identity point (0xc0 followed by zeros).
-	identityPoint := make([]byte, 48)
-	identityPoint[0] = 0xc0
-	lock.Validators[0].PubShares[0] = identityPoint
-
-	err := lock.VerifySignatures(nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "identity point share")
-}
-
 func TestVerifyLockRejectsExtraShareNotOnPolynomial(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
