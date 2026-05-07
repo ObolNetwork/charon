@@ -269,6 +269,31 @@ func TestMEVTest(t *testing.T) {
 	}
 }
 
+func TestMEVTestTimeoutAlwaysProducesResults(t *testing.T) {
+	var endpoints []string
+	for range 5 {
+		endpoints = append(endpoints, fmt.Sprintf("http://localhost:%v", testutil.GetFreePort(t)))
+	}
+
+	for range 100 {
+		var buf bytes.Buffer
+
+		res, err := runTestMEV(context.Background(), &buf, testMEVConfig{
+			testConfig: testConfig{
+				Timeout: time.Nanosecond,
+			},
+			Endpoints: endpoints,
+		})
+		require.NoError(t, err)
+
+		for _, endpoint := range endpoints {
+			results, ok := res.Targets[endpoint]
+			require.True(t, ok, "missing results for %s", endpoint)
+			require.NotEmpty(t, results, "empty results for %s", endpoint)
+		}
+	}
+}
+
 func StartHealthyMockedMEVNode(t *testing.T) *httptest.Server {
 	t.Helper()
 

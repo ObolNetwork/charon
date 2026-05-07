@@ -216,27 +216,27 @@ func testAllMEVs(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 }
 
 func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, cfg testMEVConfig, target string, resCh chan map[string][]testResult) error {
-	singleTestResCh := make(chan testResult)
-	allTestRes := []testResult{}
+	singleTestResCh := make(chan testResult, len(queuedTestCases))
 
-	// run all mev tests for a mev node, pushing each completed test to the channel until all are complete or timeout occurs
 	go runMEVTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
 
 	testCounter := 0
 
-	finished := false
-	for !finished {
-		var testName string
+	var allTestRes []testResult
 
+	for {
 		select {
 		case <-ctx.Done():
-			testName = queuedTestCases[testCounter].name
-			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-			finished = true
+			allTestRes = append(allTestRes, testResult{Name: queuedTestCases[testCounter].name, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
+
+			resCh <- map[string][]testResult{formatMEVRelayName(target): allTestRes}
+
+			return nil
 		case result, ok := <-singleTestResCh:
 			if !ok {
-				finished = true
-				break
+				resCh <- map[string][]testResult{formatMEVRelayName(target): allTestRes}
+
+				return nil
 			}
 
 			testCounter++
@@ -244,23 +244,18 @@ func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestC
 			allTestRes = append(allTestRes, result)
 		}
 	}
-
-	relayName := formatMEVRelayName(target)
-	resCh <- map[string][]testResult{relayName: allTestRes}
-
-	return nil
 }
 
 func runMEVTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, cfg testMEVConfig, target string, ch chan testResult) {
 	defer close(ch)
 
 	for _, t := range queuedTestCases {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
+			ch <- testResult{Name: t.name, Verdict: testVerdictFail, Error: errTimeoutInterrupted}
 			return
-		default:
-			ch <- allTestCases[t](ctx, &cfg, target)
 		}
+
+		ch <- allTestCases[t](ctx, &cfg, target)
 	}
 }
 
