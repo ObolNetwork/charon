@@ -32,6 +32,19 @@ func TestVerifyLockRejectsMismatchedPublicShares(t *testing.T) {
 	require.Contains(t, err.Error(), "public shares do not reconstruct distributed public key")
 }
 
+func TestVerifyLockRejectsDuplicateDistributedKeys(t *testing.T) {
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 3, 3, 4, seed, random)
+
+	// Duplicate validator 0 so two entries share the same distributed public key.
+	lock.Validators = append(lock.Validators, lock.Validators[0])
+
+	err := lock.VerifySignatures(nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate distributed validator public key")
+}
+
 func TestVerifyLockRejectsDuplicatePublicShares(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))

@@ -170,6 +170,15 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		return err
 	}
 
+	uniqueDVKeys := make(map[string]struct{}, len(l.Validators))
+	for _, val := range l.Validators {
+		key := string(val.PubKey)
+		if _, exists := uniqueDVKeys[key]; exists {
+			return errors.New("duplicate distributed validator public key")
+		}
+		uniqueDVKeys[key] = struct{}{}
+	}
+
 	var pubkeys []tbls.PublicKey
 
 	for _, val := range l.Validators {
