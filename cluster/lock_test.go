@@ -60,6 +60,21 @@ func TestVerifyLockRejectsIdentityPointShare(t *testing.T) {
 	require.Contains(t, err.Error(), "identity point share")
 }
 
+func TestVerifyLockRejectsExtraShareNotOnPolynomial(t *testing.T) {
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 1, 3, 4, seed, random)
+
+	// Keep first threshold (3) shares intact so the main reconstruction passes;
+	// replace the extra share with the DV pubkey — a valid, unique, non-identity
+	// G1 point that does not lie on the share polynomial.
+	lock.Validators[0].PubShares[3] = append([]byte(nil), lock.Validators[0].PubKey...)
+
+	err := lock.VerifySignatures(nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "extra share does not lie on distributed key polynomial")
+}
+
 func TestVerifyLockRejectsDuplicatePublicShares(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))
