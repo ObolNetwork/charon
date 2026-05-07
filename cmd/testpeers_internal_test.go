@@ -455,6 +455,8 @@ func testWriteOut(t *testing.T, expectedRes testCategoryResult, buf bytes.Buffer
 			bufTests = bufTests[1:]
 		}
 	}
+
+	require.Empty(t, bufTests)
 }
 
 func testWriteFile(t *testing.T, expectedRes testCategoryResult, path string) {
