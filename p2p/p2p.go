@@ -259,7 +259,11 @@ func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) 
 // NewEventCollector returns a lifecycle hook that instruments libp2p events.
 func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
-		sub, err := p2pNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
+		sub, err := p2pNode.EventBus().Subscribe([]any{
+			new(event.EvtLocalReachabilityChanged),
+			new(event.EvtLocalAddressesUpdated),
+			new(event.EvtNATDeviceTypeChanged),
+		})
 		if err != nil {
 			log.Error(ctx, "Failed to subscribe to libp2p events", err)
 			return
@@ -278,6 +282,26 @@ func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 				case event.EvtLocalReachabilityChanged:
 					log.Info(ctx, "Libp2p reachability changed", z.Any("status", evt.Reachability))
 					reachableGauge.Set(float64(evt.Reachability))
+				case event.EvtLocalAddressesUpdated:
+					var addrs []string
+
+					for _, a := range evt.Current {
+						if a.Action == event.Added {
+							addrs = append(addrs, a.Address.String())
+						}
+					}
+
+					if len(addrs) > 0 {
+						log.Debug(ctx, "Libp2p addresses updated, new addresses added",
+							z.Any("added", addrs),
+							z.Any("all_host_addrs", p2pNode.Addrs()),
+						)
+					}
+				case event.EvtNATDeviceTypeChanged:
+					log.Debug(ctx, "NAT device type changed",
+						z.Any("transport", evt.TransportProtocol),
+						z.Any("nat_type", evt.NatDeviceType),
+					)
 				default:
 					log.Warn(ctx, "Unknown libp2p event", nil, z.Str("type", fmt.Sprintf("%T", e)))
 				}
@@ -678,6 +702,13 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 						z.Any("direction", e.Direction),
 						z.Str("type", typ),
 					)
+
+					if typ == addrTypeRelay && e.Direction == network.DirInbound {
+						log.Debug(ctx, "Inbound relay connection detected, DCUtR hole punch should initiate",
+							z.Str("peer", name),
+							z.Any("peer_address", addr),
+						)
+					}
 				} else if e.Disconnect {
 					log.Debug(ctx, "Libp2p disconnected",
 						z.Str("peer", name),
