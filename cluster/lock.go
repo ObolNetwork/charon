@@ -168,17 +168,42 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		return err
 	}
 
+	seenDVKeys := make(map[tbls.PublicKey]struct{}, len(l.Validators))
+
 	var pubkeys []tbls.PublicKey
 
-	for _, val := range l.Validators {
-		for _, share := range val.PubShares {
-			pubkey, err := tblsconv.PubkeyFromBytes(share)
-			if err != nil {
-				return err
-			}
-
-			pubkeys = append(pubkeys, pubkey)
+	for i, val := range l.Validators {
+		if len(val.PubShares) != len(l.Operators) {
+			return errors.New("invalid public share count",
+				z.Int("dv_index", i),
+				z.Int("expected", len(l.Operators)),
+				z.Int("got", len(val.PubShares)),
+			)
 		}
+
+		dvKey, err := tblsconv.PubkeyFromBytes(val.PubKey)
+		if err != nil {
+			return err
+		}
+
+		if _, exists := seenDVKeys[dvKey]; exists {
+			return errors.New("duplicate distributed validator public key",
+				z.Int("dv_index", i),
+			)
+		}
+
+		seenDVKeys[dvKey] = struct{}{}
+
+		shares, err := parsePubShares(val.PubShares)
+		if err != nil {
+			return errors.Wrap(err, "parse public shares", z.Int("dv_index", i))
+		}
+
+		if err := verifySharesReconstruct(dvKey, shares, l.Threshold); err != nil {
+			return errors.Wrap(err, "verify share reconstruction", z.Int("dv_index", i))
+		}
+
+		pubkeys = append(pubkeys, shares...)
 	}
 
 	hash, err := hashLock(l)
@@ -229,6 +254,70 @@ func (l Lock) verifyNodeSignatures() error {
 			return errors.New("invalid node signature",
 				z.Int("peer_index", idx),
 			)
+		}
+	}
+
+	return nil
+}
+
+func parsePubShares(raw [][]byte) ([]tbls.PublicKey, error) {
+	seen := make(map[tbls.PublicKey]struct{}, len(raw))
+	parsed := make([]tbls.PublicKey, len(raw))
+
+	for i, share := range raw {
+		pk, err := tblsconv.PubkeyFromBytes(share)
+		if err != nil {
+			return nil, err
+		}
+
+		if _, exists := seen[pk]; exists {
+			return nil, errors.New("duplicate public share", z.Int("share_index", i))
+		}
+
+		seen[pk] = struct{}{}
+		parsed[i] = pk
+	}
+
+	return parsed, nil
+}
+
+func verifySharesReconstruct(dvKey tbls.PublicKey, shares []tbls.PublicKey, threshold int) error {
+	if threshold < 1 || threshold > len(shares) {
+		return errors.New("invalid threshold",
+			z.Int("threshold", threshold),
+			z.Int("shares", len(shares)),
+		)
+	}
+
+	subset := make(map[int]tbls.PublicKey, threshold)
+	for i := range threshold {
+		subset[i+1] = shares[i]
+	}
+
+	recovered, err := tbls.RecoverPubkey(subset)
+	if err != nil {
+		return errors.Wrap(err, "recover distributed public key from shares")
+	}
+
+	if recovered != dvKey {
+		return errors.New("public shares do not reconstruct distributed public key")
+	}
+
+	for i := threshold; i < len(shares); i++ {
+		subset := make(map[int]tbls.PublicKey, threshold)
+		for j := range threshold - 1 {
+			subset[j+1] = shares[j]
+		}
+
+		subset[i+1] = shares[i]
+
+		recovered, err := tbls.RecoverPubkey(subset)
+		if err != nil {
+			return errors.Wrap(err, "verify extra share", z.Int("share_index", i))
+		}
+
+		if recovered != dvKey {
+			return errors.New("extra share does not lie on distributed key polynomial", z.Int("share_index", i))
 		}
 	}
 
