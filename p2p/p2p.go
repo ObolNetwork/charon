@@ -106,6 +106,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		libp2p.ConnectionGater(connGater),
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
+		libp2p.EnableHolePunching(),
 		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
 			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
@@ -292,49 +293,6 @@ func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo
 	return f(ctx, p)
 }
 
-// ForceDirectConnections attempts to establish a direct connection if there is an existing relay connection to the peer.
-// The idea is to enable switching to a direct connection as soon as the host has a connection to the peer.
-func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
-	forceDirectConn := func(ctx context.Context) {
-		for _, p := range peerIDs {
-			if p2pNode.ID() == p {
-				continue // Skip self
-			}
-
-			conns := p2pNode.Network().ConnsToPeer(p)
-			if len(conns) == 0 {
-				// Skip if there isn't any existing connection to peer. Note that we only force direct connection
-				// if there is already an existing relay connection between the host and peer.
-				continue
-			}
-
-			if isDirectConnAvailable(conns) {
-				continue
-			}
-
-			// All existing connections are through relays, so we can try force dialing a direct connection.
-			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
-			if err == nil {
-				log.Debug(ctx, "Forced direct connection to peer successful", z.Str("peer", PeerName(p)))
-			}
-		}
-	}
-
-	return func(ctx context.Context) {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				forceDirectConn(ctx)
-			}
-		}
-	}
-}
-
 // isQUICEnabled returns true if the host has an address or listening address on QUIC.
 func isQUICEnabled(h host.Host) bool {
 	if slices.ContainsFunc(h.Network().ListenAddresses(), isQUICAddr) {
@@ -345,19 +303,6 @@ func isQUICEnabled(h host.Host) bool {
 		if slices.ContainsFunc(addrs, isQUICAddr) {
 			return true
 		}
-	}
-
-	return false
-}
-
-// isDirectConnAvailable returns true if direct connection is available in the given set of connections.
-func isDirectConnAvailable(conns []network.Conn) bool {
-	for _, conn := range conns {
-		if IsRelayAddr(conn.RemoteMultiaddr()) {
-			continue
-		}
-
-		return true
 	}
 
 	return false
@@ -457,7 +402,7 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 
 			if !hasDirectTCPConn(conns) {
 				log.Debug(ctx, "No direct connection via TCP to peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
-				continue // no direct TPC connection to upgrade to QUIC, ForceDirectConnections shall upgrade to direct
+				continue // no direct TCP connection to upgrade to QUIC, hole punching shall upgrade to direct
 			}
 
 			// Get known QUIC addrs from peerstore

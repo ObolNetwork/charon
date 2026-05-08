@@ -20,26 +20,24 @@ func _() {
 	_ = x[StartValidatorAPI-7]
 	_ = x[StartP2PPing-8]
 	_ = x[StartP2PRouters-9]
-	_ = x[StartForceDirectConns-10]
-	_ = x[StartForceQUICConns-11]
-	_ = x[StartP2PConsensus-12]
-	_ = x[StartSimulator-13]
-	_ = x[StartScheduler-14]
-	_ = x[StartBuilderRegWatcher-15]
-	_ = x[StartP2PEventCollector-16]
-	_ = x[StartPeerInfo-17]
-	_ = x[StartParSigDB-18]
-	_ = x[StartStackSnipe-19]
+	_ = x[StartForceQUICConns-10]
+	_ = x[StartP2PConsensus-11]
+	_ = x[StartSimulator-12]
+	_ = x[StartScheduler-13]
+	_ = x[StartBuilderRegWatcher-14]
+	_ = x[StartP2PEventCollector-15]
+	_ = x[StartPeerInfo-16]
+	_ = x[StartParSigDB-17]
+	_ = x[StartStackSnipe-18]
 }
 
-const _OrderStart_name = "TrackerPrivkeyLockEth1ClientAggSigDBRelayMonitoringAPIDebugAPIValidatorAPIP2PPingP2PRoutersForceDirectConnsForceQUICConnsP2PConsensusSimulatorSchedulerBuilderRegWatcherP2PEventCollectorPeerInfoParSigDBStackSnipe"
+const _OrderStart_name = "TrackerPrivkeyLockEth1ClientAggSigDBRelayMonitoringAPIDebugAPIValidatorAPIP2PPingP2PRoutersForceQUICConnsP2PConsensusSimulatorSchedulerBuilderRegWatcherP2PEventCollectorPeerInfoParSigDBStackSnipe"
 
-var _OrderStart_index = [...]uint8{0, 7, 18, 28, 36, 41, 54, 62, 74, 81, 91, 107, 121, 133, 142, 151, 168, 185, 193, 201, 211}
+var _OrderStart_index = [...]uint8{0, 7, 18, 28, 36, 41, 54, 62, 74, 81, 91, 105, 117, 126, 135, 152, 169, 177, 185, 195}
 
 func (i OrderStart) String() string {
-	idx := int(i) - 0
-	if i < 0 || idx >= len(_OrderStart_index)-1 {
+	if i < 0 || i >= OrderStart(len(_OrderStart_index)-1) {
 		return "OrderStart(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _OrderStart_name[_OrderStart_index[idx]:_OrderStart_index[idx+1]]
+	return _OrderStart_name[_OrderStart_index[i]:_OrderStart_index[i+1]]
 }
