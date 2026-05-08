@@ -216,51 +216,37 @@ func testAllMEVs(ctx context.Context, queuedTestCases []testCaseName, allTestCas
 }
 
 func testSingleMEV(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, cfg testMEVConfig, target string, resCh chan map[string][]testResult) error {
-	singleTestResCh := make(chan testResult)
-	allTestRes := []testResult{}
+	singleTestResCh := make(chan testResult, len(queuedTestCases))
 
-	// run all mev tests for a mev node, pushing each completed test to the channel until all are complete or timeout occurs
 	go runMEVTest(ctx, queuedTestCases, allTestCases, cfg, target, singleTestResCh)
 
-	testCounter := 0
-
-	finished := false
-	for !finished {
-		var testName string
-
-		select {
-		case <-ctx.Done():
-			testName = queuedTestCases[testCounter].name
-			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-			finished = true
-		case result, ok := <-singleTestResCh:
-			if !ok {
-				finished = true
-				break
-			}
-
-			testCounter++
-
-			allTestRes = append(allTestRes, result)
-		}
+	var allTestRes []testResult
+	for result := range singleTestResCh {
+		allTestRes = append(allTestRes, result)
 	}
 
-	relayName := formatMEVRelayName(target)
-	resCh <- map[string][]testResult{relayName: allTestRes}
+	resCh <- map[string][]testResult{formatMEVRelayName(target): allTestRes}
 
 	return nil
 }
 
+// runMEVTest is the sole producer of results on ch; test case functions must respect ctx cancellation.
 func runMEVTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseMEV, cfg testMEVConfig, target string, ch chan testResult) {
 	defer close(ch)
 
-	for _, t := range queuedTestCases {
-		select {
-		case <-ctx.Done():
+	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &cfg, target)
+		if ctx.Err() != nil {
+			ch <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
+				ch <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
+			}
+
 			return
-		default:
-			ch <- allTestCases[t](ctx, &cfg, target)
 		}
+
+		ch <- result
 	}
 }
 

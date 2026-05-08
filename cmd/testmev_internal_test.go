@@ -9,7 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -128,9 +128,13 @@ func TestMEVTest(t *testing.T) {
 				Targets: map[string][]testResult{
 					endpoint1: {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "CreateBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 					endpoint2: {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "CreateBlock", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 			},
@@ -204,7 +208,7 @@ func TestMEVTest(t *testing.T) {
 			name: "write to file",
 			config: testMEVConfig{
 				testConfig: testConfig{
-					OutputJSON: "./write-to-file-test.json.tmp",
+					OutputJSON: filepath.Join(t.TempDir(), "write-to-file-test.json.tmp"),
 					Quiet:      false,
 					TestCases:  nil,
 					Timeout:    time.Minute,
@@ -228,12 +232,6 @@ func TestMEVTest(t *testing.T) {
 				CategoryName: mevTestCategory,
 			},
 			expectedErr: "",
-			cleanup: func(t *testing.T, p string) {
-				t.Helper()
-
-				err := os.Remove(p)
-				require.NoError(t, err)
-			},
 		},
 	}
 	for _, test := range tests {
@@ -266,6 +264,31 @@ func TestMEVTest(t *testing.T) {
 				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
+	}
+}
+
+func TestMEVTestTimeoutAlwaysProducesResults(t *testing.T) {
+	var endpoints []string
+	for range 5 {
+		endpoints = append(endpoints, fmt.Sprintf("http://localhost:%v", testutil.GetFreePort(t)))
+	}
+
+	for range 100 {
+		var buf bytes.Buffer
+
+		res, err := runTestMEV(context.Background(), &buf, testMEVConfig{
+			testConfig: testConfig{
+				Timeout: time.Nanosecond,
+			},
+			Endpoints: endpoints,
+		})
+		require.NoError(t, err)
+
+		for _, endpoint := range endpoints {
+			results, ok := res.Targets[endpoint]
+			require.True(t, ok, "missing results for %s", endpoint)
+			require.NotEmpty(t, results, "empty results for %s", endpoint)
+		}
 	}
 }
 

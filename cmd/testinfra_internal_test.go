@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -94,6 +94,14 @@ func TestInfraTest(t *testing.T) {
 				Targets: map[string][]testResult{
 					"local": {
 						{Name: "DiskWriteSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DiskWriteIOPS", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DiskReadSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "DiskReadIOPS", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "AvailableMemory", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "TotalMemory", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "InternetLatency", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "InternetDownloadSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "InternetUploadSpeed", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score:        categoryScoreC,
@@ -175,7 +183,7 @@ func TestInfraTest(t *testing.T) {
 			name: "write to file",
 			config: testInfraConfig{
 				testConfig: testConfig{
-					OutputJSON: "./write-to-file-test.json.tmp",
+					OutputJSON: filepath.Join(t.TempDir(), "write-to-file-test.json.tmp"),
 					Quiet:      false,
 					TestCases:  []string{"AvailableMemory", "TotalMemory", "InternetLatency", "DiskWriteSpeed", "DiskWriteIOPS", "DiskReadSpeed", "DiskReadIOPS"},
 					Timeout:    time.Minute,
@@ -199,12 +207,6 @@ func TestInfraTest(t *testing.T) {
 				CategoryName: infraTestCategory,
 			},
 			expectedErr: "",
-			cleanup: func(t *testing.T, p string) {
-				t.Helper()
-
-				err := os.Remove(p)
-				require.NoError(t, err)
-			},
 		},
 	}
 	for _, test := range tests {
@@ -237,6 +239,24 @@ func TestInfraTest(t *testing.T) {
 				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
+	}
+}
+
+func TestInfraTestTimeoutAlwaysProducesResults(t *testing.T) {
+	for range 100 {
+		var buf bytes.Buffer
+
+		res, err := runTestInfra(context.Background(), &buf, testInfraConfig{
+			testConfig: testConfig{
+				Timeout: time.Nanosecond,
+			},
+			DiskTestTool: DiskTestToolMock{},
+		})
+		require.NoError(t, err)
+
+		results, ok := res.Targets["local"]
+		require.True(t, ok, "missing results for local")
+		require.NotEmpty(t, results, "empty results for local")
 	}
 }
 

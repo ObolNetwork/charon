@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -78,6 +78,8 @@ func TestValidatorTest(t *testing.T) {
 				Targets: map[string][]testResult{
 					validatorAPIAddress: {
 						{Name: "Ping", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingMeasure", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
+						{Name: "PingLoad", Verdict: testVerdictFail, Measurement: "", Suggestion: "", Error: errTimeoutInterrupted},
 					},
 				},
 				Score:        categoryScoreC,
@@ -151,7 +153,7 @@ func TestValidatorTest(t *testing.T) {
 			name: "write to file",
 			config: testValidatorConfig{
 				testConfig: testConfig{
-					OutputJSON: "./write-to-file-test.json.tmp",
+					OutputJSON: filepath.Join(t.TempDir(), "write-to-file-test.json.tmp"),
 					Quiet:      false,
 					Timeout:    time.Minute,
 				},
@@ -169,12 +171,6 @@ func TestValidatorTest(t *testing.T) {
 				CategoryName: validatorTestCategory,
 			},
 			expectedErr: "",
-			cleanup: func(t *testing.T, p string) {
-				t.Helper()
-
-				err := os.Remove(p)
-				require.NoError(t, err)
-			},
 		},
 	}
 	for _, test := range tests {
@@ -207,6 +203,24 @@ func TestValidatorTest(t *testing.T) {
 				testWriteFile(t, test.expected, test.config.OutputJSON)
 			}
 		})
+	}
+}
+
+func TestValidatorTestTimeoutAlwaysProducesResults(t *testing.T) {
+	for range 100 {
+		var buf bytes.Buffer
+
+		res, err := runTestValidator(context.Background(), &buf, testValidatorConfig{
+			testConfig: testConfig{
+				Timeout: time.Nanosecond,
+			},
+			APIAddress: fmt.Sprintf("localhost:%v", testutil.GetFreePort(t)),
+		})
+		require.NoError(t, err)
+
+		for target, results := range res.Targets {
+			require.NotEmpty(t, results, "empty results for %s", target)
+		}
 	}
 }
 

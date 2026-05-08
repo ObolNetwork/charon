@@ -213,47 +213,35 @@ func runTestInfra(ctx context.Context, w io.Writer, cfg testInfraConfig) (res te
 func testSingleInfra(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]func(context.Context, *testInfraConfig) testResult, cfg testInfraConfig, resCh chan map[string][]testResult) {
 	defer close(resCh)
 
-	singleTestResCh := make(chan testResult)
-	allTestRes := []testResult{}
-	// run all infra tests for a client, pushing each completed test to the channel until all are complete or timeout occurs
+	singleTestResCh := make(chan testResult, len(queuedTestCases))
+
 	go testInfra(ctx, queuedTestCases, allTestCases, cfg, singleTestResCh)
 
-	testCounter := 0
-
-	finished := false
-	for !finished {
-		var testName string
-
-		select {
-		case <-ctx.Done():
-			testName = queuedTestCases[testCounter].name
-			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-			finished = true
-		case result, ok := <-singleTestResCh:
-			if !ok {
-				finished = true
-				break
-			}
-
-			testCounter++
-
-			allTestRes = append(allTestRes, result)
-		}
+	var allTestRes []testResult
+	for result := range singleTestResCh {
+		allTestRes = append(allTestRes, result)
 	}
 
 	resCh <- map[string][]testResult{"local": allTestRes}
 }
 
+// testInfra is the sole producer of results on ch; test case functions must respect ctx cancellation.
 func testInfra(ctx context.Context, queuedTests []testCaseName, allTests map[testCaseName]func(context.Context, *testInfraConfig) testResult, cfg testInfraConfig, ch chan testResult) {
 	defer close(ch)
 
-	for _, t := range queuedTests {
-		select {
-		case <-ctx.Done():
+	for i, t := range queuedTests {
+		result := allTests[t](ctx, &cfg)
+		if ctx.Err() != nil {
+			ch <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTests[i+1:] {
+				ch <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
+			}
+
 			return
-		default:
-			ch <- allTests[t](ctx, &cfg)
 		}
+
+		ch <- result
 	}
 }
 

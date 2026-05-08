@@ -304,9 +304,6 @@ func testAllPeers(ctx context.Context, queuedTestCases []testCaseName, allTestCa
 }
 
 func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, conf testPeersConfig, p2pNode host.Host, target string, allTestResCh chan map[string][]testResult) error {
-	singleTestResCh := make(chan testResult)
-	allTestRes := []testResult{}
-
 	enrTarget, err := enr.Parse(target)
 	if err != nil {
 		return err
@@ -321,37 +318,17 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 	nameENR := fmt.Sprintf("peer %v %v", peerTarget.Name, formatENR)
 
 	if len(queuedTestCases) == 0 {
-		allTestResCh <- map[string][]testResult{nameENR: allTestRes}
+		allTestResCh <- map[string][]testResult{nameENR: {}}
 		return nil
 	}
 
-	// run all peers tests for a peer, pushing each completed test to the channel until all are complete or timeout occurs
+	singleTestResCh := make(chan testResult, len(queuedTestCases))
+
 	go runPeerTest(ctx, queuedTestCases, allTestCases, conf, p2pNode, peerTarget, singleTestResCh)
 
-	testCounter := 0
-
-	finished := false
-	for !finished {
-		var testName string
-
-		select {
-		case <-ctx.Done():
-			if testCounter < len(queuedTestCases) {
-				testName = queuedTestCases[testCounter].name
-				allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-			}
-
-			finished = true
-		case result, ok := <-singleTestResCh:
-			if !ok {
-				finished = true
-				continue
-			}
-
-			testCounter++
-
-			allTestRes = append(allTestRes, result)
-		}
+	var allTestRes []testResult
+	for result := range singleTestResCh {
+		allTestRes = append(allTestRes, result)
 	}
 
 	allTestResCh <- map[string][]testResult{nameENR: allTestRes}
@@ -359,17 +336,23 @@ func testSinglePeer(ctx context.Context, queuedTestCases []testCaseName, allTest
 	return nil
 }
 
+// runPeerTest is the sole producer of results on testResCh; test case functions must respect ctx cancellation.
 func runPeerTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeer, conf testPeersConfig, p2pNode host.Host, target p2p.Peer, testResCh chan testResult) {
 	defer close(testResCh)
 
-	for _, t := range queuedTestCases {
-		select {
-		case <-ctx.Done():
+	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &conf, p2pNode, target)
+		if ctx.Err() != nil {
 			testResCh <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
+				testResCh <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
+			}
+
 			return
-		default:
-			testResCh <- allTestCases[t](ctx, &conf, p2pNode, target)
 		}
+
+		testResCh <- result
 	}
 }
 
@@ -476,13 +459,18 @@ func peerDirectConnTest(ctx context.Context, conf *testPeersConfig, p2pNode host
 		z.Any("target", p2pPeer.Name))
 
 	var err error
+
 	for range int(conf.DirectConnectionTimeout.Seconds()) {
+		if ctx.Err() != nil {
+			return failedTestResult(testRes, errTimeoutInterrupted)
+		}
+
 		err = p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p2pPeer.ID})
 		if err == nil {
 			break
 		}
 
-		time.Sleep(time.Second)
+		sleepWithContext(ctx, time.Second)
 	}
 
 	if err != nil {
@@ -504,38 +492,18 @@ func peerDirectConnTest(ctx context.Context, conf *testPeersConfig, p2pNode host
 // self tests
 
 func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeerSelf, conf testPeersConfig, allTestResCh chan map[string][]testResult) error {
-	singleTestResCh := make(chan testResult)
-
-	allTestRes := []testResult{}
 	if len(queuedTestCases) == 0 {
-		allTestResCh <- map[string][]testResult{"self": allTestRes}
+		allTestResCh <- map[string][]testResult{"self": {}}
 		return nil
 	}
 
+	singleTestResCh := make(chan testResult, len(queuedTestCases))
+
 	go runSelfTest(ctx, queuedTestCases, allTestCases, conf, singleTestResCh)
 
-	testCounter := 0
-
-	finished := false
-	for !finished {
-		var testName string
-
-		select {
-		case <-ctx.Done():
-			testName = queuedTestCases[testCounter].name
-			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-			finished = true
-		case result, ok := <-singleTestResCh:
-			if !ok {
-				finished = true
-				continue
-			}
-
-			testName = queuedTestCases[testCounter].name
-			testCounter++
-			result.Name = testName
-			allTestRes = append(allTestRes, result)
-		}
+	var allTestRes []testResult
+	for result := range singleTestResCh {
+		allTestRes = append(allTestRes, result)
 	}
 
 	allTestResCh <- map[string][]testResult{"self": allTestRes}
@@ -543,16 +511,23 @@ func testSelf(ctx context.Context, queuedTestCases []testCaseName, allTestCases 
 	return nil
 }
 
+// runSelfTest is the sole producer of results on ch; test case functions must respect ctx cancellation.
 func runSelfTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCasePeerSelf, conf testPeersConfig, ch chan testResult) {
 	defer close(ch)
 
-	for _, t := range queuedTestCases {
-		select {
-		case <-ctx.Done():
+	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &conf)
+		if ctx.Err() != nil {
+			ch <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
+				ch <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
+			}
+
 			return
-		default:
-			ch <- allTestCases[t](ctx, &conf)
 		}
+
+		ch <- result
 	}
 }
 
@@ -613,40 +588,19 @@ func testAllRelays(ctx context.Context, queuedTestCases []testCaseName, allTestC
 }
 
 func testSingleRelay(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseRelay, conf testPeersConfig, target string, allTestResCh chan map[string][]testResult) error {
-	singleTestResCh := make(chan testResult)
-	allTestRes := []testResult{}
-
 	relayName := fmt.Sprintf("relay %v", target)
 	if len(queuedTestCases) == 0 {
-		allTestResCh <- map[string][]testResult{relayName: allTestRes}
+		allTestResCh <- map[string][]testResult{relayName: {}}
 		return nil
 	}
 
-	// run all relay tests for a relay, pushing each completed test to the channel until all are complete or timeout occurs
+	singleTestResCh := make(chan testResult, len(queuedTestCases))
+
 	go runRelayTest(ctx, queuedTestCases, allTestCases, conf, target, singleTestResCh)
 
-	testCounter := 0
-
-	finished := false
-	for !finished {
-		var testName string
-
-		select {
-		case <-ctx.Done():
-			testName = queuedTestCases[testCounter].name
-			allTestRes = append(allTestRes, testResult{Name: testName, Verdict: testVerdictFail, Error: errTimeoutInterrupted})
-			finished = true
-		case result, ok := <-singleTestResCh:
-			if !ok {
-				finished = true
-				continue
-			}
-
-			testName = queuedTestCases[testCounter].name
-			testCounter++
-			result.Name = testName
-			allTestRes = append(allTestRes, result)
-		}
+	var allTestRes []testResult
+	for result := range singleTestResCh {
+		allTestRes = append(allTestRes, result)
 	}
 
 	allTestResCh <- map[string][]testResult{relayName: allTestRes}
@@ -654,16 +608,23 @@ func testSingleRelay(ctx context.Context, queuedTestCases []testCaseName, allTes
 	return nil
 }
 
+// runRelayTest is the sole producer of results on testResCh; test case functions must respect ctx cancellation.
 func runRelayTest(ctx context.Context, queuedTestCases []testCaseName, allTestCases map[testCaseName]testCaseRelay, conf testPeersConfig, target string, testResCh chan testResult) {
 	defer close(testResCh)
 
-	for _, t := range queuedTestCases {
-		select {
-		case <-ctx.Done():
+	for i, t := range queuedTestCases {
+		result := allTestCases[t](ctx, &conf, target)
+		if ctx.Err() != nil {
+			testResCh <- failedTestResult(testResult{Name: t.name}, errTimeoutInterrupted)
+
+			for _, remaining := range queuedTestCases[i+1:] {
+				testResCh <- failedTestResult(testResult{Name: remaining.name}, errTimeoutInterrupted)
+			}
+
 			return
-		default:
-			testResCh <- allTestCases[t](ctx, &conf, target)
 		}
+
+		testResCh <- result
 	}
 }
 
