@@ -184,20 +184,37 @@ def build_grafana_link(cluster_name: str, cluster_hash: str, from_ms: int, to_ms
     return f"{GRAFANA_BASE}{DASHBOARD_PATH}?{params}"
 
 
-def fetch_prometheus_datasource_id(headers: dict) -> int | None:
-    """Find the ID of a Prometheus datasource in Grafana."""
+def fetch_prometheus_datasource_uid(headers: dict) -> str | None:
+    """Find the UID of a Prometheus datasource in Grafana."""
     url = f"{GRAFANA_BASE}/api/datasources"
     datasources = fetch_json(url, headers)
+    if datasources is None:
+        print("  Failed to list Grafana datasources (HTTP error above)", file=sys.stderr)
+        return None
+    if not isinstance(datasources, list):
+        print(
+            f"  Unexpected datasources response: got {type(datasources).__name__}, expected list. "
+            f"Response: {datasources!r}. "
+            "Likely causes: invalid/expired API token, insufficient permissions "
+            "(token needs datasource:read), or Grafana API version mismatch.",
+            file=sys.stderr,
+        )
+        return None
     if not datasources:
+        print("  No datasources returned — check that the API token has datasource read permissions", file=sys.stderr)
         return None
     for ds in datasources:
         if ds.get("type") == "prometheus":
-            return ds.get("id")
+            return ds.get("uid")
+    types = sorted({ds["type"] for ds in datasources if ds.get("type")})
+    missing = sum(1 for ds in datasources if not ds.get("type"))
+    suffix = f", plus {missing} without a type field" if missing else ""
+    print(f"  No Prometheus datasource found among {len(datasources)} datasources (types: {types}{suffix})", file=sys.stderr)
     return None
 
 
 def query_metrics_clusters(
-    headers: dict, ds_id: int, from_s: int, to_s: int,
+    headers: dict, ds_uid: str, from_s: int, to_s: int,
 ) -> list[tuple[str, str]] | None:
     """Query Prometheus via Grafana for kurtosis clusters reporting metrics.
 
@@ -209,9 +226,12 @@ def query_metrics_clusters(
         "query": query,
         "time": str(to_s),
     })
-    url = f"{GRAFANA_BASE}/api/datasources/proxy/{ds_id}/api/v1/query?{params}"
-    result = fetch_json(url, headers, silent=True)
-    if not result or result.get("status") != "success":
+    url = f"{GRAFANA_BASE}/api/datasources/uid/{ds_uid}/resources/api/v1/query?{params}"
+    result = fetch_json(url, headers)
+    if not result:
+        return None
+    if result.get("status") != "success":
+        print(f"  Prometheus query returned non-success status: {result.get('status')}, error: {result.get('error', 'none')}", file=sys.stderr)
         return None
 
     clusters = []
@@ -415,6 +435,20 @@ def print_report(
         print("  No firing alerts detected.")
         return
 
+    # Warn if any alerts carry template-literal labels (Grafana rule misconfiguration).
+    template_alerts = [
+        e for e in firing
+        if e["labels"].get("cluster_name", "").startswith("{{")
+        or e["labels"].get("cluster_hash", "").startswith("{{")
+    ]
+    if template_alerts:
+        names = sorted({e["alert_name"] for e in template_alerts})
+        example = "{{.cluster_name}}"
+        print(f"  WARNING: {len(template_alerts)} alert(s) have unresolved Go template labels (e.g. '{example}').")
+        print(f"  Affected rules: {names}")
+        print("  Fix: update the Grafana alert rule labels to use '{{ $labels.cluster_name }}' syntax or remove static labels so metric labels are inherited.")
+        print()
+
     # Group by alert name
     by_alert: dict[str, list] = defaultdict(list)
     for e in firing:
@@ -524,10 +558,10 @@ def main():
     # Query Prometheus for metrics coverage if expected clusters specified
     metrics_clusters = None
     if args.expected_clusters > 0:
-        ds_id = fetch_prometheus_datasource_id(headers)
-        if ds_id is not None:
+        ds_uid = fetch_prometheus_datasource_uid(headers)
+        if ds_uid is not None:
             metrics_clusters = query_metrics_clusters(
-                headers, ds_id, from_ms // 1000, to_ms // 1000,
+                headers, ds_uid, from_ms // 1000, to_ms // 1000,
             )
 
     # Print report
