@@ -65,13 +65,11 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		valPubkPresent := cmd.Flags().Lookup(validatorPubkey.String()).Changed
 
 		if !valPubkPresent && !config.All {
-			//nolint:revive,perfsprint // we use our own version of the errors package; keep consistency with other checks.
-			return errors.New(fmt.Sprintf("%s must be specified when exiting single validator.", validatorPubkey.String()))
+			return errors.New(validatorPubkey.String() + " must be specified when exiting single validator.")
 		}
 
 		if config.All && valPubkPresent {
-			//nolint:revive // we use our own version of the errors package.
-			return errors.New(fmt.Sprintf("%s should not be specified when %s is, as it is obsolete and misleading.", validatorPubkey.String(), all.String()))
+			return errors.New(validatorPubkey.String() + " should not be specified when " + all.String() + " is, as it is obsolete and misleading.")
 		}
 
 		return nil
