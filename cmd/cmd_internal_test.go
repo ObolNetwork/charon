@@ -224,6 +224,27 @@ func TestFlagsToLogFields(t *testing.T) {
 	}
 }
 
+func TestFlagsToLogFieldsRedactsHeaders(t *testing.T) {
+	set := pflag.NewFlagSet("test", pflag.PanicOnError)
+
+	var headers []string
+	set.StringSliceVar(&headers, "beacon-node-headers", nil, "")
+
+	err := set.Parse([]string{
+		"--beacon-node-headers=Authorization=Basic b2JvbDpzZWNyZXQ=,X-Api-Key=supersecret",
+	})
+	require.NoError(t, err)
+
+	for _, field := range flagsToLogFields(set) {
+		field(func(f zap.Field) {
+			require.NotContains(t, f.String, "b2JvbDpzZWNyZXQ=")
+			require.NotContains(t, f.String, "supersecret")
+			require.Contains(t, f.String, "Authorization=xxxxx")
+			require.Contains(t, f.String, "X-Api-Key=xxxxx")
+		})
+	}
+}
+
 func TestRedact(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -242,6 +263,24 @@ func TestRedact(t *testing.T) {
 			flag:     "api-address",
 			value:    "https://user:password@example.com/foo/bar",
 			expected: "https://user:xxxxx@example.com/foo/bar",
+		},
+		{
+			name:     "redact beacon node header values",
+			flag:     "beacon-node-headers",
+			value:    "Authorization=Basic b2JvbDpzZWNyZXQ=",
+			expected: "Authorization=xxxxx",
+		},
+		{
+			name:     "redact otlp header values",
+			flag:     "otlp-headers",
+			value:    "X-Api-Key=supersecret123",
+			expected: "X-Api-Key=xxxxx",
+		},
+		{
+			name:     "redact header without value keeps original",
+			flag:     "beacon-node-headers",
+			value:    "X-No-Value",
+			expected: "X-No-Value",
 		},
 		{
 			name:     "no redact",
