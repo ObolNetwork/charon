@@ -224,6 +224,25 @@ func TestFlagsToLogFields(t *testing.T) {
 	}
 }
 
+func TestFlagsToLogFieldsRedactsHeaders(t *testing.T) {
+	set := pflag.NewFlagSet("test", pflag.PanicOnError)
+	set.StringSlice("beacon-node-headers", nil, "")
+	err := set.Parse([]string{
+		"--beacon-node-headers=Authorization=Basic b2JvbDpzZWNyZXQ=",
+	})
+	require.NoError(t, err)
+
+	for _, field := range flagsToLogFields(set) {
+		field(func(f zap.Field) {
+			if f.Key != "beacon-node-headers" {
+				return
+			}
+			require.NotContains(t, f.String, "b2JvbDpzZWNyZXQ=")
+			require.Contains(t, f.String, "Authorization=xxxxx")
+		})
+	}
+}
+
 func TestRedact(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -248,6 +267,24 @@ func TestRedact(t *testing.T) {
 			flag:     "definition-file",
 			value:    "https://obol.obol.tech/dv/0x0f481bbd06a596cb3ba569b9de0cbfcf822b209c2d6877c98173df986dd3c0ec",
 			expected: "https://obol.obol.tech/dv/0x0f481bbd06a596cb3ba569b9de0cbfcf822b209c2d6877c98173df986dd3c0ec",
+		},
+		{
+			name:     "redact beacon-node-headers value",
+			flag:     "beacon-node-headers",
+			value:    "Authorization=Basic b2JvbDpzZWNyZXQ=",
+			expected: "Authorization=xxxxx",
+		},
+		{
+			name:     "redact otlp-headers value",
+			flag:     "otlp-headers",
+			value:    "X-Api-Key=secret-api-key-12345",
+			expected: "X-Api-Key=xxxxx",
+		},
+		{
+			name:     "header without value passes through",
+			flag:     "beacon-node-headers",
+			value:    "X-No-Value",
+			expected: "X-No-Value",
 		},
 	}
 
