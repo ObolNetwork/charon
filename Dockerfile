@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.26.2-trixie AS builder
+FROM golang:1.26.3-trixie AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git
 
