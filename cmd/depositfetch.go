@@ -81,6 +81,10 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 			}
 		}
 
+		if len(pubShares) == 0 {
+			return errors.New("validator public key not found in cluster lock", z.Str("validator_pubkey", pubkey))
+		}
+
 		dd, err := oAPI.GetFullDeposit(ctx, pubkey, cl.LockHash, cl.Threshold, pubShares)
 		if err != nil {
 			return errors.Wrap(err, "fetch full deposit data from Obol API")

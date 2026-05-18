@@ -156,9 +156,12 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 			shareIdx := sigIdx + 1
 
 			if pk := strings.TrimPrefix(strings.ToLower(sigStr.PartialPublicKey), "0x"); pk != "" {
-				if idx, ok := partialPubKeyToIdx[pk]; ok {
-					shareIdx = idx
+				idx, ok := partialPubKeyToIdx[pk]
+				if !ok {
+					return []eth2p0.DepositData{}, errors.New("partial public key not found in validator public shares", z.Str("partial_public_key", sigStr.PartialPublicKey))
 				}
+
+				shareIdx = idx
 			}
 
 			rawSignatures[shareIdx] = sig
