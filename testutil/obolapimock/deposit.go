@@ -23,11 +23,9 @@ const (
 	fetchFullDepositTmpl     = "/deposit_data/" + lockHashPath + "/" + valPubkeyPath
 )
 
-// depositBlob represents an Obol API DepositBlob with its share index.
+// depositBlob represents an Obol API DepositBlob.
 type depositBlob struct {
 	obolapi.FullDepositResponse
-
-	shareIdx uint64
 }
 
 func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, request *http.Request) {
@@ -112,9 +110,14 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 			return
 		}
 
+		newPartial := obolapi.Partial{
+			PartialPublicKey:        hex.EncodeToString(publicKeyShare[:]),
+			PartialDepositSignature: depositData.Signature.String(),
+		}
+
 		existingDeposit, ok := ts.partialDeposits[depositData.PublicKey.String()]
 
-		amounts := []obolapi.Amount{}
+		var amounts []obolapi.Amount
 		if ok {
 			amounts = existingDeposit.Amounts
 		}
@@ -123,36 +126,25 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 
 		for idx, amt := range amounts {
 			if amt.Amount == strconv.FormatUint(uint64(depositData.Amount), 10) {
-				amt.Partials = append(amt.Partials, obolapi.Partial{
-					PartialDepositSignature: depositData.Signature.String(),
-					PartialPublicKey:        "",
-				})
+				amt.Partials = append(amt.Partials, newPartial)
 				amounts[idx] = amt
 				amtFound = true
 			}
 		}
 
-		existingDeposit.Amounts = amounts
-
 		if !amtFound {
 			amounts = append(amounts, obolapi.Amount{
-				Amount: strconv.FormatUint(uint64(depositData.Amount), 10),
-				Partials: []obolapi.Partial{
-					{
-						PartialDepositSignature: depositData.Signature.String(),
-						PartialPublicKey:        "",
-					},
-				},
+				Amount:   strconv.FormatUint(uint64(depositData.Amount), 10),
+				Partials: []obolapi.Partial{newPartial},
 			})
+		}
 
-			ts.partialDeposits[depositData.PublicKey.String()] = depositBlob{
-				FullDepositResponse: obolapi.FullDepositResponse{
-					PublicKey:             depositData.PublicKey.String(),
-					WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
-					Amounts:               amounts,
-				},
-				shareIdx: shareIndex,
-			}
+		ts.partialDeposits[depositData.PublicKey.String()] = depositBlob{
+			FullDepositResponse: obolapi.FullDepositResponse{
+				PublicKey:             depositData.PublicKey.String(),
+				WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
+				Amounts:               amounts,
+			},
 		}
 	}
 

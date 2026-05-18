@@ -72,7 +72,16 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 	for _, pubkey := range config.ValidatorPublicKeys {
 		log.Info(ctx, "Fetching full deposit message", z.Str("validator_pubkey", pubkey))
 
-		dd, err := oAPI.GetFullDeposit(ctx, pubkey, cl.LockHash, cl.Threshold)
+		var pubShares [][]byte
+
+		for _, v := range cl.Validators {
+			if v.PublicKeyHex() == pubkey {
+				pubShares = v.PubShares
+				break
+			}
+		}
+
+		dd, err := oAPI.GetFullDeposit(ctx, pubkey, cl.LockHash, cl.Threshold, pubShares)
 		if err != nil {
 			return errors.Wrap(err, "fetch full deposit data from Obol API")
 		}
