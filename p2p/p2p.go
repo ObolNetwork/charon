@@ -21,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
+	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
@@ -106,7 +107,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		libp2p.ConnectionGater(connGater),
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
-		libp2p.EnableHolePunching(),
+		libp2p.EnableHolePunching(holepunch.WithTracer(newHolePunchTracer(ctx))),
 		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
 			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
@@ -263,6 +264,8 @@ func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 			new(event.EvtLocalReachabilityChanged),
 			new(event.EvtLocalAddressesUpdated),
 			new(event.EvtNATDeviceTypeChanged),
+			new(event.EvtPeerIdentificationCompleted),
+			new(event.EvtPeerIdentificationFailed),
 		})
 		if err != nil {
 			log.Error(ctx, "Failed to subscribe to libp2p events", err)
@@ -302,9 +305,141 @@ func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 						z.Any("transport", evt.TransportProtocol),
 						z.Any("nat_type", evt.NatDeviceType),
 					)
+				case event.EvtPeerIdentificationCompleted:
+					isPublic := evt.ObservedAddr != nil && manet.IsPublicAddr(evt.ObservedAddr)
+					supportsDCUtR := slices.Contains(evt.Protocols, holepunch.Protocol)
+					log.Debug(ctx, "Peer identification completed",
+						z.Str("peer", PeerName(evt.Peer)),
+						z.Any("observed_addr", evt.ObservedAddr),
+						z.Any("conn_local", evt.Conn.LocalMultiaddr()),
+						z.Any("conn_remote", evt.Conn.RemoteMultiaddr()),
+						z.Bool("observed_is_public", isPublic),
+						z.Bool("peer_supports_dcutr", supportsDCUtR),
+					)
+				case event.EvtPeerIdentificationFailed:
+					log.Warn(ctx, "Peer identification failed", evt.Reason,
+						z.Str("peer", PeerName(evt.Peer)),
+					)
 				default:
 					log.Warn(ctx, "Unknown libp2p event", nil, z.Str("type", fmt.Sprintf("%T", e)))
 				}
+			}
+		}
+	}
+}
+
+// holePunchTracer implements holepunch.EventTracer to log all DCUtR lifecycle events.
+type holePunchTracer struct {
+	ctx context.Context
+}
+
+func newHolePunchTracer(ctx context.Context) *holePunchTracer {
+	return &holePunchTracer{ctx: log.WithTopic(ctx, "p2p")}
+}
+
+func (t *holePunchTracer) Trace(evt *holepunch.Event) {
+	name := PeerName(evt.Remote)
+	switch e := evt.Evt.(type) {
+	case *holepunch.StartHolePunchEvt:
+		log.Debug(t.ctx, "Hole punch started",
+			z.Str("peer", name),
+			z.Any("remote_addrs", e.RemoteAddrs),
+			z.Any("rtt", e.RTT),
+		)
+	case *holepunch.EndHolePunchEvt:
+		if e.Success {
+			log.Debug(t.ctx, "Hole punch succeeded",
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+			)
+		} else {
+			log.Warn(t.ctx, "Hole punch failed", errors.New(e.Error),
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+			)
+		}
+	case *holepunch.HolePunchAttemptEvt:
+		log.Debug(t.ctx, "Hole punch attempt",
+			z.Str("peer", name),
+			z.Int("attempt", e.Attempt),
+		)
+	case *holepunch.DirectDialEvt:
+		if e.Success {
+			log.Debug(t.ctx, "Direct dial succeeded during hole punch",
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+			)
+		} else {
+			log.Debug(t.ctx, "Direct dial failed during hole punch",
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+				z.Str("error", e.Error),
+			)
+		}
+	case *holepunch.ProtocolErrorEvt:
+		log.Warn(t.ctx, "Hole punch protocol error", errors.New(e.Error),
+			z.Str("peer", name),
+		)
+	default:
+		log.Warn(t.ctx, "Unknown hole punch event", nil, z.Str("type", fmt.Sprintf("%T", evt.Evt)))
+	}
+}
+
+// NewPeerStateDiagnostic returns a lifecycle hook that periodically logs the connection
+// and peerstore address state for each cluster peer to help diagnose hole punching issues.
+func NewPeerStateDiagnostic(p2pNode host.Host, peers []peer.ID) lifecycle.HookFuncCtx {
+	return func(ctx context.Context) {
+		ctx = log.WithTopic(ctx, "p2p")
+
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			selfID := p2pNode.ID()
+			for _, pID := range peers {
+				if pID == selfID {
+					continue
+				}
+
+				name := PeerName(pID)
+
+				var relayConns, directConns int
+
+				for _, conn := range p2pNode.Network().ConnsToPeer(pID) {
+					if isRelayAddr(conn.RemoteMultiaddr()) {
+						relayConns++
+					} else {
+						directConns++
+					}
+				}
+
+				var publicAddrs, privateAddrs, relayAddrs int
+
+				for _, addr := range p2pNode.Peerstore().Addrs(pID) {
+					switch {
+					case isRelayAddr(addr):
+						relayAddrs++
+					case manet.IsPublicAddr(addr):
+						publicAddrs++
+					default:
+						privateAddrs++
+					}
+				}
+
+				log.Debug(ctx, "Peer connection state",
+					z.Str("peer", name),
+					z.Int("relay_conns", relayConns),
+					z.Int("direct_conns", directConns),
+					z.Int("peerstore_public_addrs", publicAddrs),
+					z.Int("peerstore_private_addrs", privateAddrs),
+					z.Int("peerstore_relay_addrs", relayAddrs),
+				)
 			}
 		}
 	}
