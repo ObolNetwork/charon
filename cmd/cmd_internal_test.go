@@ -237,6 +237,7 @@ func TestFlagsToLogFieldsRedactsHeaders(t *testing.T) {
 			if f.Key != "beacon-node-headers" {
 				return
 			}
+
 			require.NotContains(t, f.String, "b2JvbDpzZWNyZXQ=")
 			require.Contains(t, f.String, "Authorization=xxxxx")
 		})
