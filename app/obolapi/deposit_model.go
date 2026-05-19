@@ -12,9 +12,8 @@ type PartialDepositRequest struct {
 
 // FullDepositResponse contains all partial signatures, public key, amounts and withdrawal credentials to construct
 // a full deposit message for a validator.
-// Signatures are ordered by share index.
 type FullDepositResponse struct {
-	PublicKey             string   `json:"public_key"`
+	PublicKey             string   `json:"pubkey"`
 	WithdrawalCredentials string   `json:"withdrawal_credentials"`
 	Amounts               []Amount `json:"amounts"`
 }

@@ -116,7 +116,14 @@ func MarshalDepositData(depositDatas []eth2p0.DepositData, network string) ([]by
 
 		err = tbls.Verify(blsPubkey, sigData[:], blsSig)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid deposit data signature")
+			return nil, errors.Wrap(err, "invalid deposit data signature",
+				z.Str("pubkey", hex.EncodeToString(depositData.PublicKey[:])),
+				z.Str("signature", hex.EncodeToString(depositData.Signature[:])),
+				z.Str("msg.pubkey", hex.EncodeToString(msg.PublicKey[:])),
+				z.Str("msg.withdrawal_credentials", hex.EncodeToString(msg.WithdrawalCredentials)),
+				z.U64("msg.amount", uint64(msg.Amount)),
+				z.Str("network", network),
+			)
 		}
 
 		dataRoot, err := depositData.HashTreeRoot()
