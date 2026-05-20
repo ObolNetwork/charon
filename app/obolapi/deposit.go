@@ -77,7 +77,7 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 
 // GetFullDeposit gets the full deposit message for a given validator public key, lock hash and share index.
 // It respects the timeout specified in the Client instance.
-func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte, threshold int) ([]eth2p0.DepositData, error) {
+func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte, threshold int, partialPubKeys [][]byte) ([]eth2p0.DepositData, error) {
 	valPubkeyBytes, err := from0x(valPubkey, len(eth2p0.BLSPubKey{}))
 	if err != nil {
 		return []eth2p0.DepositData{}, errors.Wrap(err, "validator pubkey to bytes")
@@ -110,6 +110,12 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 	withdrawalCredentialsBytes, err := hex.DecodeString(strings.TrimPrefix(dr.WithdrawalCredentials, "0x"))
 	if err != nil {
 		return []eth2p0.DepositData{}, errors.Wrap(err, "withdrawal credentials to bytes")
+	}
+
+	// Build a hex-encoded public-share -> 1-based share-index lookup so we can resolve the correct index.
+	partialPubKeyToIdx := make(map[string]int, len(partialPubKeys))
+	for i, parPubKey := range partialPubKeys {
+		partialPubKeyToIdx[hex.EncodeToString(parPubKey)] = i + 1
 	}
 
 	// do aggregation
@@ -147,7 +153,18 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 				return []eth2p0.DepositData{}, errors.Wrap(err, "invalid partial signature")
 			}
 
-			rawSignatures[sigIdx+1] = sig
+			shareIdx := sigIdx + 1
+
+			if pk := strings.TrimPrefix(strings.ToLower(sigStr.PartialPublicKey), "0x"); pk != "" {
+				idx, ok := partialPubKeyToIdx[pk]
+				if !ok {
+					return []eth2p0.DepositData{}, errors.New("partial public key not found in validator public shares", z.Str("partial_public_key", sigStr.PartialPublicKey))
+				}
+
+				shareIdx = idx
+			}
+
+			rawSignatures[shareIdx] = sig
 		}
 
 		fullSig, err := tbls.ThresholdAggregate(rawSignatures)
