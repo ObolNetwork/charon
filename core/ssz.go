@@ -734,7 +734,7 @@ func unmarshalSSZVersionedBlinded(buf []byte, valFunc func(eth2util.DataVersion,
 
 	// Offset (2) 'Value'
 	o1 := ssz.ReadOffset(buf[9:13])
-	if versionedBlindedOffset > o1 {
+	if versionedBlindedOffset > o1 || o1 > uint64(len(buf)) {
 		return "", false, errors.Wrap(ssz.ErrOffset, "sszValFromVersion offset", z.Any("version", version), z.Bool("blinded", blinded))
 	}
 
@@ -801,7 +801,7 @@ func unmarshalSSZVersioned(buf []byte, valFunc func(eth2util.DataVersion) (sszTy
 
 	// Offset (1) 'Value'
 	o1 := ssz.ReadOffset(buf[8:12])
-	if versionedOffset > o1 {
+	if versionedOffset > o1 || o1 > uint64(len(buf)) {
 		return "", errors.Wrap(ssz.ErrOffset, "sszValFromVersion offset", z.Any("version", version))
 	}
 

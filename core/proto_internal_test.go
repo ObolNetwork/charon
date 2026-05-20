@@ -5,11 +5,17 @@ package core
 import (
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
 	"testing"
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/errors"
+	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 // TestMarshal tests the marshal() internal function.
@@ -89,6 +95,111 @@ func TestMarshal(t *testing.T) {
 				require.Equal(t, tt.expected, hex.EncodeToString(b))
 			} else {
 				require.Equal(t, tt.expected, string(b))
+			}
+		})
+	}
+}
+
+// TestUnsignedDataSetFromProtoMalformedSSZOffset verifies that malformed SSZ bytes with an
+// out-of-bounds offset field return an error instead of panicking.
+func TestUnsignedDataSetFromProtoMalformedSSZOffset(t *testing.T) {
+	// versionedBlindedOffset = 13: 8 (version uint64) + 1 (blinded uint8) + 4 (offset uint32).
+	// A 13-byte buffer with the offset field encoding 14 caused slice bounds [14:13] before the fix.
+	proposerBuf := []byte{
+		0, 0, 0, 0, 0, 0, 0, 0, // version = Phase0 (0)
+		0,           // blinded = false
+		14, 0, 0, 0, // offset = 14, but len(buf) = 13
+	}
+
+	// versionedOffset = 12: 8 (version uint64) + 4 (offset uint32).
+	// A 12-byte buffer with the offset field encoding 13 caused slice bounds [13:12] before the fix.
+	aggregatorBuf := []byte{
+		0, 0, 0, 0, 0, 0, 0, 0, // version = Phase0 (0)
+		13, 0, 0, 0, // offset = 13, but len(buf) = 12
+	}
+
+	t.Run("versioned_blinded_helper_returns_offset_error", func(t *testing.T) {
+		_, _, err := unmarshalSSZVersionedBlinded(proposerBuf, func(eth2util.DataVersion, bool) (sszType, error) {
+			t.Fatal("valFunc must not be called for an out-of-bounds offset")
+
+			return nil, stderrors.New("unexpected valFunc call")
+		})
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ssz.ErrOffset), "error must wrap ssz.ErrOffset: %v", err)
+		require.NotContains(t, err.Error(), "panic recovered")
+	})
+
+	t.Run("versioned_helper_returns_offset_error", func(t *testing.T) {
+		_, err := unmarshalSSZVersioned(aggregatorBuf, func(eth2util.DataVersion) (sszType, error) {
+			t.Fatal("valFunc must not be called for an out-of-bounds offset")
+
+			return nil, stderrors.New("unexpected valFunc call")
+		})
+		require.Error(t, err)
+		require.True(t, errors.Is(err, ssz.ErrOffset), "error must wrap ssz.ErrOffset: %v", err)
+		require.NotContains(t, err.Error(), "panic recovered")
+	})
+
+	tests := []struct {
+		name string
+		duty DutyType
+		buf  []byte
+	}{
+		{
+			name: "proposer/versioned_blinded_offset_oob",
+			duty: DutyProposer,
+			buf:  proposerBuf,
+		},
+		{
+			name: "aggregator/versioned_offset_oob",
+			duty: DutyAggregator,
+			buf:  aggregatorBuf,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			set := &pbv1.UnsignedDataSet{
+				Set: map[string][]byte{"pk": tt.buf},
+			}
+
+			_, err := UnsignedDataSetFromProto(tt.duty, set)
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), "panic recovered")
+		})
+	}
+}
+
+func TestRecoverPanicErr(t *testing.T) {
+	sentinel := stderrors.New("sentinel")
+
+	tests := []struct {
+		name      string
+		recovered any
+		is        error
+		contains  string
+	}{
+		{
+			name:      "error",
+			recovered: sentinel,
+			is:        sentinel,
+			contains:  "sentinel",
+		},
+		{
+			name:      "string",
+			recovered: "plain panic",
+			contains:  "plain panic",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := recoverPanicErr(tt.recovered)
+			require.ErrorContains(t, err, "panic recovered")
+			require.ErrorContains(t, err, tt.contains)
+
+			if tt.is != nil {
+				require.ErrorIs(t, err, tt.is)
 			}
 		})
 	}
