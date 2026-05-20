@@ -52,8 +52,7 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		// This is to respect the technical possibility of unmarshalling to panic.
 		// However, our protobuf generated types do not have custom marshallers that may panic.
 		if r := recover(); r != nil {
-			rowStr := fmt.Sprintf("%v", r)
-			oerr = errors.Wrap(errors.New(rowStr), "panic recovered")
+			oerr = recoverPanicErr(r)
 		}
 	}()
 
@@ -242,7 +241,13 @@ func UnsignedDataSetToProto(set UnsignedDataSet) (*pbv1.UnsignedDataSet, error) 
 }
 
 // UnsignedDataSetFromProto returns the set from a protobuf.
-func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (UnsignedDataSet, error) {
+func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (_ UnsignedDataSet, oerr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			oerr = recoverPanicErr(r)
+		}
+	}()
+
 	if set == nil || len(set.GetSet()) == 0 {
 		return nil, errors.New("invalid unsigned data set fields", z.Any("set", set))
 	}
@@ -259,6 +264,17 @@ func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (Unsigned
 	}
 
 	return resp, nil
+}
+
+func recoverPanicErr(r any) error {
+	var err error
+	if recoveredErr, ok := r.(error); ok {
+		err = recoveredErr
+	} else {
+		err = errors.New(fmt.Sprint(r))
+	}
+
+	return errors.Wrap(err, "panic recovered")
 }
 
 // marshal marshals the given value into bytes, either as SSZ if supported by the type (and if enabled) or as json.
