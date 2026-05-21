@@ -11,6 +11,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -382,7 +383,14 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 	pt := newPubkeysTracker("sync committee contribution")
 	defer pt.log(ctx)
 
+	type contributionKey struct {
+		slot       uint64
+		subcommIdx uint64
+		blockRoot  eth2p0.Root
+	}
+
 	resp := make(core.UnsignedDataSet)
+	contributions := make(map[contributionKey]*altair.SyncCommitteeContribution)
 
 	for pubkey := range defSet {
 		// Query AggSigDB for DutyPrepareSyncContribution to get sync committee selection.
@@ -420,23 +428,34 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 
 		blockRoot := msg.BeaconBlockRoot
 
-		// Query BN for sync committee contribution.
-		opts := &eth2api.SyncCommitteeContributionOpts{
-			Slot:              eth2p0.Slot(slot),
-			SubcommitteeIndex: subcommIdx,
-			BeaconBlockRoot:   blockRoot,
+		key := contributionKey{
+			slot:       slot,
+			subcommIdx: subcommIdx,
+			blockRoot:  blockRoot,
 		}
 
-		eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
-		if err != nil {
-			return core.UnsignedDataSet{}, err
-		}
+		contribution, ok := contributions[key]
+		if !ok {
+			// Query BN for sync committee contribution.
+			opts := &eth2api.SyncCommitteeContributionOpts{
+				Slot:              eth2p0.Slot(slot),
+				SubcommitteeIndex: subcommIdx,
+				BeaconBlockRoot:   blockRoot,
+			}
 
-		contribution := eth2Resp.Data
-		if contribution == nil {
-			// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
-			// This could happen if the beacon node didn't subscribe to the correct subnet.
-			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
+			eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
+			if err != nil {
+				return core.UnsignedDataSet{}, err
+			}
+
+			contribution = eth2Resp.Data
+			if contribution == nil {
+				// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
+				// This could happen if the beacon node didn't subscribe to the correct subnet.
+				return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
+			}
+
+			contributions[key] = contribution
 		}
 
 		pt.addResolved(pubkey.String())

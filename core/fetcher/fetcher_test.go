@@ -356,6 +356,7 @@ func TestFetchSyncContribution(t *testing.T) {
 		slot        = 1
 		vIdxA       = 2
 		vIdxB       = 3
+		vIdxC       = 4
 		subCommIdxA = 4
 		subCommIdxB = 5
 	)
@@ -369,12 +370,14 @@ func TestFetchSyncContribution(t *testing.T) {
 	pubkeysByIdx := map[eth2p0.ValidatorIndex]core.PubKey{
 		vIdxA: testutil.RandomCorePubKey(t),
 		vIdxB: testutil.RandomCorePubKey(t),
+		vIdxC: testutil.RandomCorePubKey(t),
 	}
 
 	// Construct duty definition set.
 	defSet := map[core.PubKey]core.DutyDefinition{
 		pubkeysByIdx[vIdxA]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
 		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
+		pubkeysByIdx[vIdxC]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
 	}
 
 	var (
@@ -396,9 +399,16 @@ func TestFetchSyncContribution(t *testing.T) {
 		SubcommitteeIndex: subCommIdxB,
 		SelectionProof:    blsSigFromHex(t, sigB),
 	}
+	selectionC := &eth2v1.SyncCommitteeSelection{
+		ValidatorIndex:    vIdxC,
+		Slot:              slot,
+		SubcommitteeIndex: subCommIdxA,
+		SelectionProof:    blsSigFromHex(t, sigA),
+	}
 	commSelectionsByPubkey := map[core.PubKey]core.SignedData{
 		pubkeysByIdx[vIdxA]: core.NewSyncCommitteeSelection(selectionA),
 		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeSelection(selectionB),
+		pubkeysByIdx[vIdxC]: core.NewSyncCommitteeSelection(selectionC),
 	}
 
 	// Construct sync committee messages.
@@ -409,14 +419,18 @@ func TestFetchSyncContribution(t *testing.T) {
 	syncMsgsByPubkey := map[core.PubKey]core.SignedData{
 		pubkeysByIdx[vIdxA]: core.NewSignedSyncMessage(msgA),
 		pubkeysByIdx[vIdxB]: core.NewSignedSyncMessage(msgB),
+		pubkeysByIdx[vIdxC]: core.NewSignedSyncMessage(msgA),
 	}
 
 	t.Run("contribution aggregator", func(t *testing.T) {
 		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
+		contributionRequests := make(map[string]int)
 		bmock.SyncCommitteeContributionFunc = func(ctx context.Context, resSlot eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
 			require.Equal(t, eth2p0.Slot(slot), resSlot)
+
+			contributionRequests[fmt.Sprintf("%d/%#x", subcommitteeIndex, beaconBlockRoot)]++
 
 			var (
 				signedMsg       core.SignedSyncMessage
@@ -471,7 +485,7 @@ func TestFetchSyncContribution(t *testing.T) {
 
 		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 			require.Equal(t, duty, resDuty)
-			require.Len(t, resDataSet, 2)
+			require.Len(t, resDataSet, 3)
 
 			for pubkey, data := range resDataSet {
 				contribution, ok := data.(core.SyncContribution)
@@ -494,6 +508,8 @@ func TestFetchSyncContribution(t *testing.T) {
 					require.Equal(t, uint64(subCommIdxA), selection.SubcommitteeIndex)
 				} else if selection.ValidatorIndex == eth2p0.ValidatorIndex(vIdxB) {
 					require.Equal(t, uint64(subCommIdxB), selection.SubcommitteeIndex)
+				} else if selection.ValidatorIndex == eth2p0.ValidatorIndex(vIdxC) {
+					require.Equal(t, uint64(subCommIdxA), selection.SubcommitteeIndex)
 				}
 
 				message, ok := syncMsgsByPubkey[pubkey].(core.SignedSyncMessage)
@@ -506,6 +522,9 @@ func TestFetchSyncContribution(t *testing.T) {
 
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
+		require.Len(t, contributionRequests, 2)
+		require.Equal(t, 1, contributionRequests[fmt.Sprintf("%d/%#x", subCommIdxA, beaconBlockRootA)])
+		require.Equal(t, 1, contributionRequests[fmt.Sprintf("%d/%#x", subCommIdxB, beaconBlockRootB)])
 	})
 
 	t.Run("not contribution aggregator", func(t *testing.T) {
