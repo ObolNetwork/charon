@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -37,6 +38,9 @@ import (
 
 const (
 	defaultGasLimit = 30000000
+
+	syncContributionCacheTTL     = 30 * time.Second
+	syncContributionAwaitTimeout = 2 * defaultRequestTimeout
 )
 
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
@@ -80,6 +84,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 		shareIdx:       shareIdx,
 		builderEnabled: false,
 		insecureTest:   true,
+		syncContrib:    newSyncContributionState(),
 	}, nil
 }
 
@@ -165,6 +170,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		builderEnabled:     builderEnabled,
 		targetGasLimit:     targetGasLimit,
 		swallowRegFilter:   log.Filter(),
+		syncContrib:        newSyncContributionState(),
 	}, nil
 }
 
@@ -196,6 +202,38 @@ type Component struct {
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
+
+	syncContrib *syncContributionState
+}
+
+type syncContributionState struct {
+	mu       sync.Mutex
+	inflight map[syncContributionKey]*syncContributionCall
+	cache    map[syncContributionKey]syncContributionCacheEntry
+}
+
+func newSyncContributionState() *syncContributionState {
+	return &syncContributionState{
+		inflight: make(map[syncContributionKey]*syncContributionCall),
+		cache:    make(map[syncContributionKey]syncContributionCacheEntry),
+	}
+}
+
+type syncContributionKey struct {
+	slot       uint64
+	subcommIdx uint64
+	root       eth2p0.Root
+}
+
+type syncContributionCall struct {
+	done    chan struct{}
+	contrib *altair.SyncCommitteeContribution
+	err     error
+}
+
+type syncContributionCacheEntry struct {
+	contrib *altair.SyncCommitteeContribution
+	expires time.Time
 }
 
 // RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
@@ -905,13 +943,92 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2ap
 }
 
 // SyncCommitteeContribution returns sync committee contribution data for the given subcommittee and beacon block root.
-func (c Component) SyncCommitteeContribution(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error) {
-	contrib, err := c.awaitSyncContributionFunc(ctx, uint64(opts.Slot), opts.SubcommitteeIndex, opts.BeaconBlockRoot)
-	if err != nil {
-		return nil, err
+func (c *Component) SyncCommitteeContribution(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error) {
+	key := syncContributionKey{
+		slot:       uint64(opts.Slot),
+		subcommIdx: opts.SubcommitteeIndex,
+		root:       opts.BeaconBlockRoot,
 	}
 
-	return wrapResponse(contrib), nil
+	call := c.getOrStartSyncContributionCall(ctx, key)
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-call.done:
+		if call.err != nil {
+			return nil, call.err
+		}
+
+		return wrapResponse(call.contrib), nil
+	}
+}
+
+func (c *Component) getOrStartSyncContributionCall(ctx context.Context, key syncContributionKey) *syncContributionCall {
+	state := c.syncContrib
+	state.mu.Lock()
+
+	now := time.Now()
+	for k, entry := range state.cache {
+		if !now.Before(entry.expires) {
+			delete(state.cache, k)
+		}
+	}
+
+	if entry, ok := state.cache[key]; ok {
+		state.mu.Unlock()
+
+		return &syncContributionCall{
+			done:    closedSyncContribChan,
+			contrib: entry.contrib,
+		}
+	}
+
+	if call, ok := state.inflight[key]; ok {
+		state.mu.Unlock()
+		return call
+	}
+
+	call := &syncContributionCall{
+		done: make(chan struct{}),
+	}
+	state.inflight[key] = call
+	state.mu.Unlock()
+
+	go c.awaitSyncContribution(context.WithoutCancel(ctx), call, key)
+
+	return call
+}
+
+var closedSyncContribChan = func() chan struct{} {
+	done := make(chan struct{})
+	close(done)
+
+	return done
+}()
+
+func (c *Component) awaitSyncContribution(parent context.Context, call *syncContributionCall, key syncContributionKey) {
+	ctx, cancel := context.WithTimeout(parent, syncContributionAwaitTimeout)
+	defer cancel()
+
+	contrib, err := c.awaitSyncContributionFunc(ctx, key.slot, key.subcommIdx, key.root)
+
+	state := c.syncContrib
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	call.contrib = contrib
+
+	call.err = err
+	if err == nil {
+		state.cache[key] = syncContributionCacheEntry{
+			contrib: contrib,
+			expires: time.Now().Add(syncContributionCacheTTL),
+		}
+	}
+
+	delete(state.inflight, key)
+	close(call.done)
 }
 
 // SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.

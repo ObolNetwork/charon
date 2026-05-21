@@ -2068,6 +2068,179 @@ func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 	require.Equal(t, count, 1)
 }
 
+func TestComponent_SyncCommitteeContributionSingleflightAndCache(t *testing.T) {
+	ctx := context.Background()
+
+	vapi, err := validatorapi.NewComponentInsecure(t, nil, 0)
+	require.NoError(t, err)
+
+	contrib := testutil.RandomSyncCommitteeContribution()
+	opts := &eth2api.SyncCommitteeContributionOpts{
+		Slot:              contrib.Slot,
+		SubcommitteeIndex: contrib.SubcommitteeIndex,
+		BeaconBlockRoot:   contrib.BeaconBlockRoot,
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	var (
+		mu         sync.Mutex
+		awaitCalls int
+	)
+
+	vapi.RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+		mu.Lock()
+
+		awaitCalls++
+		if awaitCalls == 1 {
+			close(started)
+		}
+		mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-release:
+			return contrib, nil
+		}
+	})
+
+	const requests = 16
+
+	results := make(chan *eth2api.Response[*altair.SyncCommitteeContribution], requests)
+
+	errs := make(chan error, requests)
+	for range requests {
+		go func() {
+			resp, err := vapi.SyncCommitteeContribution(ctx, opts)
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			results <- resp
+		}()
+	}
+
+	<-started
+	close(release)
+
+	for range requests {
+		select {
+		case err := <-errs:
+			require.NoError(t, err)
+		case resp := <-results:
+			require.Equal(t, contrib, resp.Data)
+		case <-time.After(time.Second):
+			require.Fail(t, "timeout waiting for sync contribution response")
+		}
+	}
+
+	mu.Lock()
+	require.Equal(t, 1, awaitCalls)
+	mu.Unlock()
+
+	resp, err := vapi.SyncCommitteeContribution(ctx, opts)
+	require.NoError(t, err)
+	require.Equal(t, contrib, resp.Data)
+
+	mu.Lock()
+	require.Equal(t, 1, awaitCalls, "cached result should avoid a second await")
+	mu.Unlock()
+}
+
+func TestComponent_SyncCommitteeContributionClientCancelDoesNotCancelInflightAwait(t *testing.T) {
+	ctx := context.Background()
+
+	vapi, err := validatorapi.NewComponentInsecure(t, nil, 0)
+	require.NoError(t, err)
+
+	contrib := testutil.RandomSyncCommitteeContribution()
+	opts := &eth2api.SyncCommitteeContributionOpts{
+		Slot:              contrib.Slot,
+		SubcommitteeIndex: contrib.SubcommitteeIndex,
+		BeaconBlockRoot:   contrib.BeaconBlockRoot,
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	errs := make(chan error, 1)
+
+	var (
+		mu         sync.Mutex
+		awaitCalls int
+	)
+
+	vapi.RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+		mu.Lock()
+
+		awaitCalls++
+		if awaitCalls == 1 {
+			close(started)
+		}
+		mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+			select {
+			case errs <- ctx.Err():
+			default:
+			}
+
+			return nil, ctx.Err()
+		case <-release:
+			return contrib, nil
+		}
+	})
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	firstDone := make(chan error, 1)
+
+	go func() {
+		_, err := vapi.SyncCommitteeContribution(cancelCtx, opts)
+		firstDone <- err
+	}()
+
+	<-started
+	cancel()
+	require.ErrorIs(t, <-firstDone, context.Canceled)
+
+	select {
+	case err := <-errs:
+		require.NoError(t, err, "underlying await should not inherit the client cancellation")
+	default:
+	}
+
+	secondDone := make(chan *eth2api.Response[*altair.SyncCommitteeContribution], 1)
+	secondErr := make(chan error, 1)
+
+	go func() {
+		resp, err := vapi.SyncCommitteeContribution(ctx, opts)
+		if err != nil {
+			secondErr <- err
+			return
+		}
+
+		secondDone <- resp
+	}()
+
+	close(release)
+
+	select {
+	case err := <-secondErr:
+		require.NoError(t, err)
+	case resp := <-secondDone:
+		require.Equal(t, contrib, resp.Data)
+	case <-time.After(time.Second):
+		require.Fail(t, "timeout waiting for second sync contribution response")
+	}
+
+	mu.Lock()
+	require.Equal(t, 1, awaitCalls)
+	mu.Unlock()
+}
+
 func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
 	const shareIdx = 1
 
