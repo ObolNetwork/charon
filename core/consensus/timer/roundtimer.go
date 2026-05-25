@@ -298,7 +298,7 @@ func (t *linearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 		timeout = time.Second
 	} else {
 		// Subsequent rounds have linearly more time starting at 400 milliseconds
-		timeout = time.Duration(200*(round-1) + 200)
+		timeout = time.Duration(200*(round-1)+200) * time.Millisecond
 	}
 
 	timer := t.clock.NewTimer(timeout)

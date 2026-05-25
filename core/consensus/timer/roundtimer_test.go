@@ -147,10 +147,18 @@ func TestLinearRoundTimer(t *testing.T) {
 			// Start the timerType
 			timerC, stop := timer.Timer(tt.round)
 
-			// Advance the fake clock
-			fakeClock.Advance(tt.want)
+			// Advance to just before the expected timeout; timer must not fire yet.
+			fakeClock.Advance(tt.want - time.Millisecond)
 
-			// Check if the timerType fires
+			select {
+			case <-timerC:
+				require.Fail(t, "Fail", "Timer(round %d) fired too early, want %v", tt.round, tt.want)
+			default:
+			}
+
+			// Advance the remaining time; timer must now fire.
+			fakeClock.Advance(time.Millisecond)
+
 			select {
 			case <-timerC:
 			default:
