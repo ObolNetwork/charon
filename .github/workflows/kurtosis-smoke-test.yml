@@ -16,9 +16,9 @@ on:
         default: "main"
         type: string
       lifetime_minutes:
-        description: "Cluster lifetime in minutes (90-300)"
+        description: "Cluster lifetime in minutes (60-300)"
         required: false
-        default: 90
+        default: 60
         type: number
 
 concurrency:
@@ -83,7 +83,7 @@ jobs:
           KURTOSIS_MONITORING_TOKEN: ${{ secrets.KURTOSIS_MONITORING_TOKEN }}
           KURTOSIS_BRANCH: ${{ inputs.branch || 'main' }}
           KURTOSIS_INSTANCE_TYPE: c6a.4xlarge
-          LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '90' }}
+          LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '60' }}
         run: |
           echo "deploy_start=$(date +%s)" >> "$GITHUB_OUTPUT"
           cd /tmp/kurtosis-charon/kurtosis-aws-runner
@@ -103,7 +103,7 @@ jobs:
 
       - name: Wait for clusters to finish
         env:
-          LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '90' }}
+          LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '60' }}
         run: |
           WAIT_SECONDS=$(( (LIFETIME_MINUTES + 5) * 60 ))
           echo "Waiting $((WAIT_SECONDS / 60)) minutes (${LIFETIME_MINUTES}m lifetime + 5m buffer)..."
@@ -114,15 +114,14 @@ jobs:
         env:
           OBOL_GRAFANA_API_TOKEN: ${{ secrets.OBOL_GRAFANA_API_TOKEN }}
           DEPLOY_START: ${{ steps.deploy.outputs.deploy_start }}
-          LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '90' }}
+          LIFETIME_MINUTES: ${{ inputs.lifetime_minutes || '60' }}
           CHARON_IMAGE_TAG: ${{ inputs.charon_image_tag || 'next' }}
           KURTOSIS_BRANCH: ${{ inputs.branch || 'main' }}
           EXPECTED_CLUSTERS: ${{ steps.deploy.outputs.cluster_count }}
         run: |
-          WARMUP_SECONDS=$((30 * 60))
-          COOLDOWN_SECONDS=$((10 * 60))
+          WARMUP_SECONDS=$((20 * 60))
           ALERT_FROM=$((DEPLOY_START + WARMUP_SECONDS))
-          ALERT_TO=$((DEPLOY_START + LIFETIME_MINUTES * 60 - COOLDOWN_SECONDS))
+          ALERT_TO=$((DEPLOY_START + (LIFETIME_MINUTES - 5) * 60))
 
           echo "Alert window: $(date -u -d @${ALERT_FROM} +%Y-%m-%dT%H:%M:%SZ) to $(date -u -d @${ALERT_TO} +%Y-%m-%dT%H:%M:%SZ)"
 
