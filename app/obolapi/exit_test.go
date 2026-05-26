@@ -103,7 +103,7 @@ func TestAPIExit(t *testing.T) {
 
 		for idx := range exits {
 			// get full exit
-			fullExit, err := cl.GetFullExit(ctx, lock.Validators[0].PublicKeyHex(), lock.LockHash, uint64(idx+1), identityKeys[idx])
+			fullExit, err := cl.GetFullExit(ctx, lock.Validators[0].PublicKeyHex(), lock.LockHash, uint64(idx+1), identityKeys[idx], lock.Validators[0].PubShares, mockEth2Cl)
 			require.NoError(t, err, "share index: %d", idx+1)
 
 			valPubk, err := lock.Validators[0].PublicKey()
@@ -195,7 +195,7 @@ func TestAPIExitMissingSig(t *testing.T) {
 
 		for idx := range exits {
 			// get full exit
-			fullExit, err := cl.GetFullExit(ctx, lock.Validators[0].PublicKeyHex(), lock.LockHash, uint64(idx+1), identityKeys[idx])
+			fullExit, err := cl.GetFullExit(ctx, lock.Validators[0].PublicKeyHex(), lock.LockHash, uint64(idx+1), identityKeys[idx], lock.Validators[0].PubShares, mockEth2Cl)
 			require.NoError(t, err, "share index: %d", idx+1)
 
 			valPubk, err := lock.Validators[0].PublicKey()
@@ -208,6 +208,97 @@ func TestAPIExitMissingSig(t *testing.T) {
 			require.NoError(t, tbls.Verify(valPubk, sigData[:], sig), "share index: %d", idx+1)
 		}
 	}
+}
+
+// TestAPIExitNonContiguousShares test Lagrange interpolation of non-contiguous shares.
+func TestAPIExitNonContiguousShares(t *testing.T) {
+	kn := 4
+	threshold := 3
+
+	beaconMock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, beaconMock.Close())
+	}()
+
+	mockEth2Cl := eth2Client(t, context.Background(), beaconMock.Address())
+
+	handler, addLockFiles := obolapimock.MockServer(false, mockEth2Cl)
+	srv := httptest.NewServer(handler)
+
+	defer srv.Close()
+
+	random := rand.New(rand.NewSource(int64(0)))
+
+	lock, identityKeys, shares := cluster.NewForT(
+		t,
+		1,
+		threshold,
+		kn,
+		0,
+		random,
+	)
+
+	addLockFiles(lock)
+
+	exitMsg := eth2p0.SignedVoluntaryExit{
+		Message: &eth2p0.VoluntaryExit{
+			Epoch:          42,
+			ValidatorIndex: 42,
+		},
+		Signature: eth2p0.BLSSignature{},
+	}
+
+	sigRoot, err := exitMsg.Message.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(context.Background(), mockEth2Cl, signing.DomainExit, exitEpoch)
+	require.NoError(t, err)
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	// Build partial exits per operator (shares[0] is the only validator's shares).
+	var exits []obolapi.ExitBlob
+
+	for _, shareSet := range shares[0] {
+		signature, err := tbls.Sign(shareSet, sigData[:])
+		require.NoError(t, err)
+
+		em := exitMsg
+		em.Signature = eth2p0.BLSSignature(signature)
+
+		exits = append(exits, obolapi.ExitBlob{
+			PublicKey:         lock.Validators[0].PublicKeyHex(),
+			SignedExitMessage: em,
+		})
+	}
+
+	cl, err := obolapi.New(srv.URL)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	// Only submit partials from share indices 2, 3, 4 — skip share index 1.
+	// The threshold (3) is still met, so the API will return a full exit.
+	for idx := 1; idx < kn; idx++ {
+		shareIdx := uint64(idx + 1)
+		require.NoError(t, cl.PostPartialExits(ctx, lock.LockHash, shareIdx, identityKeys[idx], exits[idx]),
+			"share index: %d", shareIdx)
+	}
+
+	fullExit, err := cl.GetFullExit(ctx, lock.Validators[0].PublicKeyHex(), lock.LockHash, 2, identityKeys[1], lock.Validators[0].PubShares, mockEth2Cl)
+	require.NoError(t, err)
+
+	valPubk, err := lock.Validators[0].PublicKey()
+	require.NoError(t, err)
+
+	sig, err := tblsconv.SignatureFromBytes(fullExit.SignedExitMessage.Signature[:])
+	require.NoError(t, err)
+
+	require.NoError(t, tbls.Verify(valPubk, sigData[:], sig),
+		"aggregated signature must verify against the validator's group public key")
 }
 
 func eth2Client(t *testing.T, ctx context.Context, bnURL string) eth2wrap.Client {
