@@ -67,6 +67,11 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 		return errors.Wrap(err, "create Obol API client", z.Str("publish_address", config.PublishAddress))
 	}
 
+	network, err := eth2util.ForkVersionToNetwork(cl.ForkVersion)
+	if err != nil {
+		return err
+	}
+
 	depositDatas := map[eth2p0.Gwei][]eth2p0.DepositData{}
 
 	for _, pubkey := range config.ValidatorPublicKeys {
@@ -75,7 +80,7 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 		var pubShares [][]byte
 
 		for _, v := range cl.Validators {
-			if v.PublicKeyHex() == pubkey {
+			if strings.EqualFold(v.PublicKeyHex(), pubkey) {
 				pubShares = v.PubShares
 				break
 			}
@@ -85,7 +90,7 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 			return errors.New("validator public key not found in cluster lock", z.Str("validator_pubkey", pubkey))
 		}
 
-		dd, err := oAPI.GetFullDeposit(ctx, pubkey, cl.LockHash, cl.Threshold, pubShares)
+		dd, err := oAPI.GetFullDeposit(ctx, pubkey, cl.LockHash, cl.Threshold, pubShares, network)
 		if err != nil {
 			return errors.Wrap(err, "fetch full deposit data from Obol API")
 		}
@@ -106,11 +111,6 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 	err = os.MkdirAll(path, 0o755)
 	if err != nil && !os.IsExist(err) {
 		return errors.Wrap(err, "create deposit data dir")
-	}
-
-	network, err := eth2util.ForkVersionToNetwork(cl.ForkVersion)
-	if err != nil {
-		return err
 	}
 
 	for _, depositDatas := range depositDatas {
