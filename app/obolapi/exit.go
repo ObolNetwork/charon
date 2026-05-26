@@ -262,6 +262,15 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 		return ExitBlob{}, errors.Wrap(err, "threshold aggregate partial signatures")
 	}
 
+	valPubKey, err := tblsconv.PubkeyFromBytes(valPubkeyBytes)
+	if err != nil {
+		return ExitBlob{}, errors.Wrap(err, "invalid validator public key")
+	}
+
+	if err := tbls.Verify(valPubKey, sigData[:], fullSig); err != nil {
+		return ExitBlob{}, errors.Wrap(err, "aggregated exit signature failed BLS verification", z.Str("validator_pubkey", valPubkey))
+	}
+
 	return ExitBlob{
 		PublicKey: valPubkey,
 		SignedExitMessage: eth2p0.SignedVoluntaryExit{
