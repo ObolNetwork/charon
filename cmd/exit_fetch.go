@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
@@ -52,6 +53,10 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		{all, false},
 		{fetchedExitPath, false},
 		{publishTimeout, false},
+		{beaconNodeEndpoints, true},
+		{beaconNodeTimeout, false},
+		{beaconNodeHeaders, false},
+		{fallbackBeaconNodeAddrs, false},
 		{testnetName, false},
 		{testnetForkVersion, false},
 		{testnetChainID, false},
@@ -118,6 +123,18 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "determine operator index from cluster lock for supplied identity key")
 	}
 
+	beaconNodeHeaders, err := eth2util.ParseHTTPHeaders(config.BeaconNodeHeaders)
+	if err != nil {
+		return err
+	}
+
+	// eth2Cl is needed by GetFullExit to compute the exit signing domain so partial
+	// signatures can be matched back to their share index via BLS verification.
+	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.ForkVersion))
+	if err != nil {
+		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
+	}
+
 	if config.All {
 		for _, validator := range cl.Validators {
 			validatorPubKeyHex := validator.PublicKeyHex()
@@ -126,7 +143,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 			log.Info(valCtx, "Retrieving full exit message")
 
-			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.LockHash, shareIdx, identityKey)
+			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.LockHash, shareIdx, identityKey, validator.PubShares, eth2Cl)
 			if err != nil {
 				if errors.Is(err, obolapi.ErrNoValue) {
 					log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
@@ -151,7 +168,20 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 
 		log.Info(ctx, "Retrieving full exit message")
 
-		fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.LockHash, shareIdx, identityKey)
+		var pubShares [][]byte
+
+		for _, v := range cl.Validators {
+			if strings.EqualFold(v.PublicKeyHex(), config.ValidatorPubkey) {
+				pubShares = v.PubShares
+				break
+			}
+		}
+
+		if len(pubShares) == 0 {
+			return errors.New("validator public key not found in cluster lock", z.Str("validator_public_key", config.ValidatorPubkey))
+		}
+
+		fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.LockHash, shareIdx, identityKey, pubShares, eth2Cl)
 		if err != nil {
 			return errors.Wrap(err, "load full exit data from Obol API", z.Str("validator_public_key", config.ValidatorPubkey))
 		}
