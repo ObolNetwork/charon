@@ -210,13 +210,7 @@ func TestAPIExitMissingSig(t *testing.T) {
 	}
 }
 
-// TestAPIExitNonContiguousShares demonstrates a vulnerability where GetFullExit
-// remaps partial-signature shares by slice position instead of by their true
-// share index. When the submitting subset is non-contiguous and excludes share
-// index 1 (e.g. shares 2, 3, 4 in a 3-of-4 cluster), the compact list returned
-// by the API gets reassigned to indices 1, 2, 3 inside ThresholdAggregate, so
-// Lagrange interpolation uses wrong x-coordinates and the aggregated signature
-// fails BLS verification.
+// TestAPIExitNonContiguousShares test Lagrange interpolation of non-contiguous shares.
 func TestAPIExitNonContiguousShares(t *testing.T) {
 	kn := 4
 	threshold := 3
@@ -303,8 +297,6 @@ func TestAPIExitNonContiguousShares(t *testing.T) {
 	sig, err := tblsconv.SignatureFromBytes(fullExit.SignedExitMessage.Signature[:])
 	require.NoError(t, err)
 
-	// Bug: the aggregated signature fails BLS verification because GetFullExit
-	// remapped shares {2,3,4} to indices {1,2,3} during ThresholdAggregate.
 	require.NoError(t, tbls.Verify(valPubk, sigData[:], sig),
 		"aggregated signature must verify against the validator's group public key")
 }
