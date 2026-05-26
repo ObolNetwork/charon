@@ -16,8 +16,10 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -133,8 +135,12 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 }
 
 // GetFullExit gets the full exit message for a given validator public key, lock hash and share index.
+// partialPubKeys is the validator's ordered list of public-key shares (lock.Validators[i].PubShares).
+// eth2Cl is used to compute the voluntary-exit domain so each returned partial signature can be
+// BLS-verified against its pub share to recover the true share index — guarding against positional
+// ambiguity in the API response.
 // It respects the timeout specified in the Client instance.
-func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey) (ExitBlob, error) {
+func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []byte, shareIndex uint64, identityKey *k1.PrivateKey, partialPubKeys [][]byte, eth2Cl eth2wrap.Client) (ExitBlob, error) {
 	valPubkeyBytes, err := from0x(valPubkey, 48) // public key is 48 bytes long
 	if err != nil {
 		return ExitBlob{}, errors.Wrap(err, "validator pubkey to bytes")
@@ -181,17 +187,39 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 		return ExitBlob{}, errors.Wrap(err, "unmarshal FullExitResponse from JSON")
 	}
 
-	// do aggregation
+	epochUint64, err := strconv.ParseUint(er.Epoch, 10, 64)
+	if err != nil {
+		return ExitBlob{}, errors.Wrap(err, "parse epoch")
+	}
+
+	exitEpoch := eth2p0.Epoch(epochUint64)
+
+	exitMsg := eth2p0.VoluntaryExit{Epoch: exitEpoch, ValidatorIndex: er.ValidatorIndex}
+
+	msgRoot, err := exitMsg.HashTreeRoot()
+	if err != nil {
+		return ExitBlob{}, errors.Wrap(err, "voluntary exit hash tree root")
+	}
+
+	domain, err := signing.GetDomain(ctx, eth2Cl, signing.DomainExit, exitEpoch)
+	if err != nil {
+		return ExitBlob{}, errors.Wrap(err, "get voluntary exit domain")
+	}
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: msgRoot, Domain: domain}).HashTreeRoot()
+	if err != nil {
+		return ExitBlob{}, errors.Wrap(err, "signing data hash tree root")
+	}
+
+	// Resolve each partial signature's true share index by BLS-verifying against each pub share.
+	// The API's positional ordering is not trusted: if some shares are missing the response may be
+	// compact, and naively using slice position would assign wrong x-coordinates to ThresholdAggregate.
 	rawSignatures := make(map[int]tbls.Signature)
 
-	for sigIdx, sigStr := range er.Signatures {
-		if len(sigStr) == 0 {
+	for _, sigStr := range er.Signatures {
+		if sigStr == "" {
 			// ignore, the associated share index didn't push a partial signature yet
 			continue
-		}
-
-		if len(sigStr) < 2 {
-			return ExitBlob{}, errors.New("signature string has invalid size", z.Int("size", len(sigStr)))
 		}
 
 		sigBytes, err := from0x(sigStr, 96) // a signature is 96 bytes long
@@ -204,7 +232,29 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 			return ExitBlob{}, errors.Wrap(err, "invalid partial signature")
 		}
 
-		rawSignatures[sigIdx+1] = sig
+		shareIdx := 0
+
+		for i, pubShare := range partialPubKeys {
+			pk, err := tblsconv.PubkeyFromBytes(pubShare)
+			if err != nil {
+				return ExitBlob{}, errors.Wrap(err, "invalid public key share", z.Int("share_index", i+1))
+			}
+
+			if err := tbls.Verify(pk, sigData[:], sig); err == nil {
+				shareIdx = i + 1
+				break
+			}
+		}
+
+		if shareIdx == 0 {
+			return ExitBlob{}, errors.New("partial signature did not verify against any validator public share")
+		}
+
+		if _, dup := rawSignatures[shareIdx]; dup {
+			return ExitBlob{}, errors.New("duplicate partial signature for share index", z.Int("share_index", shareIdx))
+		}
+
+		rawSignatures[shareIdx] = sig
 	}
 
 	fullSig, err := tbls.ThresholdAggregate(rawSignatures)
@@ -212,16 +262,11 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 		return ExitBlob{}, errors.Wrap(err, "threshold aggregate partial signatures")
 	}
 
-	epochUint64, err := strconv.ParseUint(er.Epoch, 10, 64)
-	if err != nil {
-		return ExitBlob{}, errors.Wrap(err, "parse epoch")
-	}
-
 	return ExitBlob{
 		PublicKey: valPubkey,
 		SignedExitMessage: eth2p0.SignedVoluntaryExit{
 			Message: &eth2p0.VoluntaryExit{
-				Epoch:          eth2p0.Epoch(epochUint64),
+				Epoch:          exitEpoch,
 				ValidatorIndex: er.ValidatorIndex,
 			},
 			Signature: eth2p0.BLSSignature(fullSig),

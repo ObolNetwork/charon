@@ -124,13 +124,15 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 	config := exitConfig{
-		ValidatorPubkey: lock.Validators[0].PublicKeyHex(),
-		PrivateKeyPath:  filepath.Join(baseDir, "charon-enr-private-key"),
-		LockFilePath:    filepath.Join(baseDir, "cluster-lock.json"),
-		PublishAddress:  srv.URL,
-		FetchedExitPath: root,
-		PublishTimeout:  10 * time.Second,
-		All:             all,
+		ValidatorPubkey:     lock.Validators[0].PublicKeyHex(),
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		FetchedExitPath:     root,
+		PublishTimeout:      10 * time.Second,
+		BeaconNodeEndpoints: []string{beaconMock.Address()},
+		BeaconNodeTimeout:   30 * time.Second,
+		All:                 all,
 	}
 
 	require.NoError(t, runFetchExit(ctx, config))
@@ -187,6 +189,7 @@ func TestExitFetchCLI(t *testing.T) {
 				"--validator-public-key=test",
 				"--fetched-exit-path=1",
 				"--publish-timeout=1ms",
+				"--beacon-node-endpoints=test",
 				"--all=false",
 				"--testnet-name=test",
 				"--testnet-fork-version=test",
@@ -339,13 +342,15 @@ func TestFetchExitFullFlowNotActivated(t *testing.T) {
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
 	config := exitConfig{
-		ValidatorPubkey: lock.Validators[0].PublicKeyHex(),
-		PrivateKeyPath:  filepath.Join(baseDir, "charon-enr-private-key"),
-		LockFilePath:    filepath.Join(baseDir, "cluster-lock.json"),
-		PublishAddress:  srv.URL,
-		FetchedExitPath: root,
-		PublishTimeout:  10 * time.Second,
-		All:             true,
+		ValidatorPubkey:     lock.Validators[0].PublicKeyHex(),
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		FetchedExitPath:     root,
+		PublishTimeout:      10 * time.Second,
+		BeaconNodeEndpoints: []string{beaconMock.Address()},
+		BeaconNodeTimeout:   30 * time.Second,
+		All:                 true,
 	}
 
 	require.NoError(t, runFetchExit(ctx, config))
