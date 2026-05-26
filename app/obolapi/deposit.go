@@ -76,10 +76,14 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 	return nil
 }
 
-// GetFullDeposit gets the full deposit message for a given validator public key, lock hash and share index.
-// network is the eth2 network name used to derive the deposit signing domain; it is used to BLS-verify
-// each partial signature against its claimed share so a misreported PartialPublicKey or share index
-// cannot poison the aggregated signature.
+// GetFullDeposit gets the full deposit messages for a given validator public key and lock hash.
+// threshold is the minimum number of valid partial signatures required per amount group to aggregate.
+// partialPubKeys is the validator's ordered list of public-key shares from the cluster lock; it
+// resolves each partial signature's true share index via its PartialPublicKey.
+// network is the eth2 network name used to derive the deposit signing domain; it BLS-verifies each
+// partial signature against its claimed share and the final aggregated signature against the
+// validator's group public key, so a misreported PartialPublicKey or share index cannot poison the
+// aggregated signature.
 // It respects the timeout specified in the Client instance.
 func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte, threshold int, partialPubKeys [][]byte, network string) ([]eth2p0.DepositData, error) {
 	valPubkeyBytes, err := from0x(valPubkey, len(eth2p0.BLSPubKey{}))
@@ -127,15 +131,6 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 
 	for _, am := range dr.Amounts {
 		rawSignatures := make(map[int]tbls.Signature)
-
-		if len(am.Partials) < threshold {
-			submittedPubKeys := []string{}
-			for _, sigStr := range am.Partials {
-				submittedPubKeys = append(submittedPubKeys, sigStr.PartialPublicKey)
-			}
-
-			return []eth2p0.DepositData{}, errors.New("not enough partial signatures to meet threshold", z.Any("submitted_public_keys", submittedPubKeys), z.Int("submitted_public_keys_length", len(submittedPubKeys)), z.Int("required_threshold", threshold))
-		}
 
 		amountUint, err := strconv.ParseUint(am.Amount, 10, 64)
 		if err != nil {
@@ -193,6 +188,17 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 			}
 
 			rawSignatures[shareIdx] = sig
+		}
+
+		// Threshold check happens after the loop because entries with empty PartialDepositSignature
+		// are skipped; the count of *usable* sigs is what matters, not the size of am.Partials.
+		if len(rawSignatures) < threshold {
+			submittedPubKeys := make([]string, 0, len(am.Partials))
+			for _, sigStr := range am.Partials {
+				submittedPubKeys = append(submittedPubKeys, sigStr.PartialPublicKey)
+			}
+
+			return []eth2p0.DepositData{}, errors.New("not enough partial signatures to meet threshold", z.Any("submitted_public_keys", submittedPubKeys), z.Int("valid_signatures", len(rawSignatures)), z.Int("required_threshold", threshold))
 		}
 
 		fullSig, err := tbls.ThresholdAggregate(rawSignatures)
