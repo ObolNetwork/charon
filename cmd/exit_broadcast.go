@@ -354,7 +354,7 @@ func exitFromObolAPI(ctx context.Context, validatorPubkey, publishAddr string, p
 	var pubShares [][]byte
 
 	for _, v := range cl.Validators {
-		if v.PublicKeyHex() == validatorPubkey {
+		if strings.EqualFold(v.PublicKeyHex(), validatorPubkey) {
 			pubShares = v.PubShares
 			break
 		}

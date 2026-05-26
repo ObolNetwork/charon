@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
@@ -170,7 +171,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		var pubShares [][]byte
 
 		for _, v := range cl.Validators {
-			if v.PublicKeyHex() == config.ValidatorPubkey {
+			if strings.EqualFold(v.PublicKeyHex(), config.ValidatorPubkey) {
 				pubShares = v.PubShares
 				break
 			}
