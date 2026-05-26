@@ -80,7 +80,7 @@ func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
 		var pubShares [][]byte
 
 		for _, v := range cl.Validators {
-			if v.PublicKeyHex() == pubkey {
+			if strings.EqualFold(v.PublicKeyHex(), pubkey) {
 				pubShares = v.PubShares
 				break
 			}
