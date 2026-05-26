@@ -14,6 +14,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
@@ -76,8 +77,11 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 }
 
 // GetFullDeposit gets the full deposit message for a given validator public key, lock hash and share index.
+// network is the eth2 network name used to derive the deposit signing domain; it is used to BLS-verify
+// each partial signature against its claimed share so a misreported PartialPublicKey or share index
+// cannot poison the aggregated signature.
 // It respects the timeout specified in the Client instance.
-func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte, threshold int, partialPubKeys [][]byte) ([]eth2p0.DepositData, error) {
+func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash []byte, threshold int, partialPubKeys [][]byte, network string) ([]eth2p0.DepositData, error) {
 	valPubkeyBytes, err := from0x(valPubkey, len(eth2p0.BLSPubKey{}))
 	if err != nil {
 		return []eth2p0.DepositData{}, errors.Wrap(err, "validator pubkey to bytes")
@@ -133,14 +137,26 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 			return []eth2p0.DepositData{}, errors.New("not enough partial signatures to meet threshold", z.Any("submitted_public_keys", submittedPubKeys), z.Int("submitted_public_keys_length", len(submittedPubKeys)), z.Int("required_threshold", threshold))
 		}
 
-		for sigIdx, sigStr := range am.Partials {
+		amountUint, err := strconv.ParseUint(am.Amount, 10, 64)
+		if err != nil {
+			return []eth2p0.DepositData{}, errors.Wrap(err, "parse amount to uint")
+		}
+
+		depositMsg := eth2p0.DepositMessage{
+			PublicKey:             eth2p0.BLSPubKey(valPubkeyBytes),
+			WithdrawalCredentials: withdrawalCredentialsBytes,
+			Amount:                eth2p0.Gwei(amountUint),
+		}
+
+		sigRoot, err := deposit.GetMessageSigningRoot(depositMsg, network)
+		if err != nil {
+			return []eth2p0.DepositData{}, errors.Wrap(err, "compute deposit message signing root")
+		}
+
+		for _, sigStr := range am.Partials {
 			if len(sigStr.PartialDepositSignature) == 0 {
 				// ignore, the associated share index didn't push a partial signature yet
 				continue
-			}
-
-			if len(sigStr.PartialDepositSignature) < 2 {
-				return []eth2p0.DepositData{}, errors.New("signature string has invalid size", z.Int("size", len(sigStr.PartialDepositSignature)))
 			}
 
 			sigBytes, err := from0x(sigStr.PartialDepositSignature, 96) // a signature is 96 bytes long
@@ -153,15 +169,27 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 				return []eth2p0.DepositData{}, errors.Wrap(err, "invalid partial signature")
 			}
 
-			shareIdx := sigIdx + 1
+			pk := strings.TrimPrefix(strings.ToLower(sigStr.PartialPublicKey), "0x")
+			if pk == "" {
+				return []eth2p0.DepositData{}, errors.New("partial public key missing from Obol API response")
+			}
 
-			if pk := strings.TrimPrefix(strings.ToLower(sigStr.PartialPublicKey), "0x"); pk != "" {
-				idx, ok := partialPubKeyToIdx[pk]
-				if !ok {
-					return []eth2p0.DepositData{}, errors.New("partial public key not found in validator public shares", z.Str("partial_public_key", sigStr.PartialPublicKey))
-				}
+			shareIdx, ok := partialPubKeyToIdx[pk]
+			if !ok {
+				return []eth2p0.DepositData{}, errors.New("partial public key not found in validator public shares", z.Str("partial_public_key", sigStr.PartialPublicKey))
+			}
 
-				shareIdx = idx
+			pubShare, err := tblsconv.PubkeyFromBytes(partialPubKeys[shareIdx-1])
+			if err != nil {
+				return []eth2p0.DepositData{}, errors.Wrap(err, "invalid validator public share", z.Int("share_index", shareIdx))
+			}
+
+			if err := tbls.Verify(pubShare, sigRoot[:], sig); err != nil {
+				return []eth2p0.DepositData{}, errors.Wrap(err, "partial deposit signature failed BLS verification", z.Int("share_index", shareIdx), z.Str("partial_public_key", sigStr.PartialPublicKey))
+			}
+
+			if _, dup := rawSignatures[shareIdx]; dup {
+				return []eth2p0.DepositData{}, errors.New("duplicate partial signature for share index", z.Int("share_index", shareIdx))
 			}
 
 			rawSignatures[shareIdx] = sig
@@ -172,15 +200,19 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 			return []eth2p0.DepositData{}, errors.Wrap(err, "partial signatures threshold aggregate")
 		}
 
-		amountUint, err := strconv.ParseUint(am.Amount, 10, 64)
+		valPubKey, err := tblsconv.PubkeyFromBytes(valPubkeyBytes)
 		if err != nil {
-			return []eth2p0.DepositData{}, errors.Wrap(err, "parse amount to uint")
+			return []eth2p0.DepositData{}, errors.Wrap(err, "invalid validator public key")
+		}
+
+		if err := tbls.Verify(valPubKey, sigRoot[:], fullSig); err != nil {
+			return []eth2p0.DepositData{}, errors.Wrap(err, "aggregated deposit signature failed BLS verification", z.Str("validator_pubkey", valPubkey), z.U64("amount", uint64(depositMsg.Amount)))
 		}
 
 		fullDeposits = append(fullDeposits, eth2p0.DepositData{
-			PublicKey:             eth2p0.BLSPubKey(valPubkeyBytes),
-			WithdrawalCredentials: withdrawalCredentialsBytes,
-			Amount:                eth2p0.Gwei(amountUint),
+			PublicKey:             depositMsg.PublicKey,
+			WithdrawalCredentials: depositMsg.WithdrawalCredentials,
+			Amount:                depositMsg.Amount,
 			Signature:             eth2p0.BLSSignature(fullSig),
 		})
 	}

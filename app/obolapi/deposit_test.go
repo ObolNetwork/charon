@@ -91,6 +91,6 @@ func TestAPIDeposit(t *testing.T) {
 		require.NoError(t, cl.PostPartialDeposits(t.Context(), lock.LockHash, shareIndex, []eth2p0.DepositData{depositData}), "share index: %d", shareIndex)
 	}
 
-	_, err = cl.GetFullDeposit(t.Context(), lock.Validators[0].PublicKeyHex(), lock.LockHash, lock.Threshold, lock.Validators[0].PubShares)
+	_, err = cl.GetFullDeposit(t.Context(), lock.Validators[0].PublicKeyHex(), lock.LockHash, lock.Threshold, lock.Validators[0].PubShares, network)
 	require.NoError(t, err, "full deposit")
 }
