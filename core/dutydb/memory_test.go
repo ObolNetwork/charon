@@ -248,7 +248,7 @@ func TestMemDBAggregator(t *testing.T) {
 		require.NoError(t, err)
 		err = <-errCh
 		require.NoError(t, err)
-		resp, err := db.AwaitAggAttestation(ctx, slot, root)
+		resp, err := db.AwaitAggAttestation(ctx, slot, root, agg.Deneb.Data.Index)
 		require.NoError(t, err)
 		require.Equal(t, agg.Deneb, resp.Deneb)
 	}

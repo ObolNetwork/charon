@@ -207,7 +207,7 @@ func (db *MemDB) AwaitAttestation(ctx context.Context, slot uint64, commIdx uint
 
 // AwaitAggAttestation blocks and returns the aggregated attestation for the slot
 // and attestation when available.
-func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root,
+func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex,
 ) (*eth2spec.VersionedAttestation, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
@@ -217,8 +217,9 @@ func (db *MemDB) AwaitAggAttestation(ctx context.Context, slot uint64, attestati
 	db.mu.Lock()
 	db.aggQueries = append(db.aggQueries, aggQuery{
 		Key: aggKey{
-			Slot: slot,
-			Root: attestationRoot,
+			Slot:           slot,
+			Root:           attestationRoot,
+			CommitteeIndex: committeeIndex,
 		},
 		Response: response,
 		Cancel:   cancel,
@@ -428,10 +429,18 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 
 	slot := uint64(aggAttData.Slot)
 
+	// In Electra+, AttestationData.Index is always 0 so all committees share the same root.
+	// Use CommitteeIndex() which reads CommitteeBits for Electra/Fulu to distinguish them.
+	commIdx, err := aggAtt.CommitteeIndex()
+	if err != nil {
+		return errors.Wrap(err, "get aggregate attestation committee index")
+	}
+
 	// Store key and value for PubKeyByAttestation
 	key := aggKey{
-		Slot: slot,
-		Root: aggRoot,
+		Slot:           slot,
+		Root:           aggRoot,
+		CommitteeIndex: commIdx,
 	}
 	if existing, ok := db.aggDuties[key]; ok {
 		existingData, err := existing.Data()
@@ -683,8 +692,9 @@ type pkKey struct {
 
 // aggKey is the key to lookup an aggregated attestation by root in the DB.
 type aggKey struct {
-	Slot uint64
-	Root eth2p0.Root
+	Slot           uint64
+	Root           eth2p0.Root
+	CommitteeIndex eth2p0.CommitteeIndex
 }
 
 // contribKey is the key to look up sync contribution by root and subcommittee index in the DB.
