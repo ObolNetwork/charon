@@ -880,40 +880,49 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 
 	inconsistentCounter.WithLabelValues(duty.Type.String()).Inc()
 
-	for pubkey, parsigsByMsg := range parsigMsgs {
-		if len(parsigMsgs) <= 1 {
+	for pubkey, parsigsByRoot := range parsigMsgs {
+		if len(parsigsByRoot) <= 1 {
 			continue // Nothing to report for this pubkey.
 		}
 
-		// Group indexes by json for logging.
-		indexesByJSON := make(map[string][]int)
+		// Build a list of {share_indexes, sample_data} per distinct root for logging.
+		type rootEntry struct {
+			ShareIdxs  []int
+			SampleData json.RawMessage
+		}
 
-		for _, parsigs := range parsigsByMsg {
-			var key string
+		entries := make([]rootEntry, 0, len(parsigsByRoot))
+		for _, parsigs := range parsigsByRoot {
+			var idxs []int
 			for _, parsig := range parsigs {
-				if key == "" {
-					bytes, err := json.Marshal(parsig)
-					if err != nil {
-						continue // Ignore error, just skip it.
-					}
-
-					key = string(bytes)
-				}
-
-				indexesByJSON[key] = append(indexesByJSON[key], parsig.ShareIdx)
+				idxs = append(idxs, parsig.ShareIdx)
 			}
+
+			// Marshal one sample so the log shows what's actually different
+			// (e.g. a differing SelectionProof or AggregationBits).
+			sample, err := json.Marshal(parsigs[0].SignedData)
+			if err != nil {
+				sample = json.RawMessage(fmt.Sprintf("%q", err.Error()))
+			}
+
+			entries = append(entries, rootEntry{
+				ShareIdxs:  idxs,
+				SampleData: sample,
+			})
 		}
 
 		if expectInconsistentParSigs(duty.Type) {
 			log.Debug(ctx, "Inconsistent sync committee partial signed data",
 				z.Any("pubkey", pubkey),
 				z.Any("duty", duty),
-				z.Any("data", indexesByJSON))
+				z.Int("distinct_roots", len(parsigsByRoot)),
+				z.Any("data_by_root", entries))
 		} else {
 			log.Warn(ctx, "Inconsistent partial signed data", nil,
 				z.Any("pubkey", pubkey),
 				z.Any("duty", duty),
-				z.Any("data", indexesByJSON))
+				z.Int("distinct_roots", len(parsigsByRoot)),
+				z.Any("data_by_root", entries))
 		}
 	}
 }
