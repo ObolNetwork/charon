@@ -885,42 +885,43 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 			continue // Nothing to report for this pubkey.
 		}
 
-		// Build a list of {share_indexes, sample_data} per distinct root for logging.
+		// Build one entry per distinct root showing which shares submitted it and a sample parsig.
 		type rootEntry struct {
-			ShareIdxs  []int
-			SampleData json.RawMessage
+			MsgRoot    string          `json:"msg_root"`
+			ShareIdxs  []int           `json:"share_idxs"`
+			SignedData json.RawMessage `json:"signed_data"`
 		}
 
 		entries := make([]rootEntry, 0, len(parsigsByRoot))
-		for _, parsigs := range parsigsByRoot {
+		for root, parsigs := range parsigsByRoot {
 			var idxs []int
 			for _, parsig := range parsigs {
 				idxs = append(idxs, parsig.ShareIdx)
 			}
 
-			sample, err := json.Marshal(parsigs[0].SignedData)
-			if err != nil {
-				sample = json.RawMessage(fmt.Sprintf("%q", err.Error()))
-			}
+			sample, _ := json.Marshal(parsigs[0].SignedData)
 
 			entries = append(entries, rootEntry{
+				MsgRoot:    fmt.Sprintf("%x", root[:]),
 				ShareIdxs:  idxs,
-				SampleData: sample,
+				SignedData: sample,
 			})
 		}
+
+		entriesJSON, _ := json.Marshal(entries)
 
 		if expectInconsistentParSigs(duty.Type) {
 			log.Debug(ctx, "Inconsistent sync committee partial signed data",
 				z.Any("pubkey", pubkey),
 				z.Any("duty", duty),
 				z.Int("distinct_roots", len(parsigsByRoot)),
-				z.Any("data_by_root", entries))
+				z.Str("data_by_root", string(entriesJSON)))
 		} else {
 			log.Warn(ctx, "Inconsistent partial signed data", nil,
 				z.Any("pubkey", pubkey),
 				z.Any("duty", duty),
 				z.Int("distinct_roots", len(parsigsByRoot)),
-				z.Any("data_by_root", entries))
+				z.Str("data_by_root", string(entriesJSON)))
 		}
 	}
 }
