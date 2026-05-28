@@ -4,6 +4,7 @@ package tracker
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -899,16 +900,22 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 				idxs = append(idxs, parsig.ShareIdx)
 			}
 
-			sample, _ := json.Marshal(parsigs[0].SignedData)
+			sample, err := json.Marshal(parsigs[0].SignedData)
+			if err != nil {
+				sample = json.RawMessage(fmt.Sprintf("%q", err.Error()))
+			}
 
 			entries = append(entries, rootEntry{
-				MsgRoot:    fmt.Sprintf("%x", root[:]),
+				MsgRoot:    hex.EncodeToString(root[:]),
 				ShareIdxs:  idxs,
 				SignedData: sample,
 			})
 		}
 
-		entriesJSON, _ := json.Marshal(entries)
+		entriesJSON, err := json.Marshal(entries)
+		if err != nil {
+			entriesJSON = json.RawMessage(fmt.Sprintf("%q", err.Error()))
+		}
 
 		if expectInconsistentParSigs(duty.Type) {
 			log.Debug(ctx, "Inconsistent sync committee partial signed data",
