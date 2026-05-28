@@ -883,23 +883,6 @@ func (c Component) SubmitAggregateAttestations(ctx context.Context, opts *eth2ap
 			return err
 		}
 
-		if selProof, err := agg.SelectionProof(); err == nil && agg.Fulu != nil {
-			msgRoot, _ := parSigData.MessageRoot()
-			log.Debug(ctx, "Aggregate and proof submitted by VC",
-				z.Int("share_idx", c.shareIdx),
-				z.U64("slot", uint64(slot)),
-				z.U64("validator_index", uint64(aggregatorIndex)),
-				z.Str("selection_proof_prefix", fmt.Sprintf("%#x", selProof)),
-				z.Any("msg_root", msgRoot),
-				z.U64("aggregator_index", uint64(agg.Fulu.Message.AggregatorIndex)),
-				z.Str("aggregate_aggregation_bits", fmt.Sprintf("%#x", agg.Fulu.Message.Aggregate.AggregationBits)),
-				z.Any("aggregate_data", agg.Fulu.Message.Aggregate.Data),
-				z.Any("aggregate_committee_bits", agg.Fulu.Message.Aggregate.CommitteeBits),
-				z.Str("aggregate_signature", fmt.Sprintf("%#x", agg.Fulu.Message.Aggregate.Signature)),
-				z.Str("selection_proof_prefix", fmt.Sprintf("%#x", selProof)),
-			)
-		}
-
 		_, ok = psigsBySlot[slot]
 		if !ok {
 			psigsBySlot[slot] = make(core.ParSignedDataSet)

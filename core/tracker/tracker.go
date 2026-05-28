@@ -898,8 +898,6 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 				idxs = append(idxs, parsig.ShareIdx)
 			}
 
-			// Marshal one sample so the log shows what's actually different
-			// (e.g. a differing SelectionProof or AggregationBits).
 			sample, err := json.Marshal(parsigs[0].SignedData)
 			if err != nil {
 				sample = json.RawMessage(fmt.Sprintf("%q", err.Error()))

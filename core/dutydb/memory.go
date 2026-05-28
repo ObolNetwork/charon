@@ -429,8 +429,8 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 
 	slot := uint64(aggAttData.Slot)
 
-	// In Electra+, AttestationData.Index is always 0 so all committees share the same root.
-	// Use CommitteeIndex() which reads CommitteeBits for Electra/Fulu to distinguish them.
+	// In post-Electra, AttestationData.Index is always 0, so committees in the same slot share the
+	// same AttestationDataRoot. CommitteeIndex() reads CommitteeBits to distinguish them.
 	commIdx, err := aggAtt.CommitteeIndex()
 	if err != nil {
 		return errors.Wrap(err, "get aggregate attestation committee index")
