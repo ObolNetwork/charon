@@ -408,31 +408,13 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 				mu.Unlock()
 			}).Return(tt.elVersion, tt.elErr).Maybe()
 
-			clock := clockwork.NewFakeClock()
+			updateConsensusAndExecutionVersionMetricsOnce(ctx, bmock, tt.beaconAddrs, eth1Cl)
 
-			consensusAndExecutionVersionMetric(ctx, bmock, tt.beaconAddrs, eth1Cl, clock)
-
-			// Wait until the iteration has both made the expected mock calls AND populated
-			// the gauge. The mock counter is incremented inside the mock call, but the gauge
-			// Set happens later in the calling goroutine, so polling only the counters can
-			// race ahead of the gauge write.
-			require.Eventually(t, func() bool {
-				mu.Lock()
-				countsMatch := v2Calls == tt.wantV2Calls && v1Calls == tt.wantV1Calls && elCalls == wantElCalls
-				mu.Unlock()
-
-				if !countsMatch {
-					return false
-				}
-
-				for _, label := range tt.wantElGaugeLabels {
-					if promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(label)) != 1.0 {
-						return false
-					}
-				}
-
-				return true
-			}, time.Second, 5*time.Millisecond, "timed out waiting for expected call counts and gauge labels")
+			mu.Lock()
+			require.Equal(t, tt.wantV2Calls, v2Calls)
+			require.Equal(t, tt.wantV1Calls, v1Calls)
+			require.Equal(t, wantElCalls, elCalls)
+			mu.Unlock()
 
 			for _, label := range tt.wantElGaugeLabels {
 				require.InDelta(t, 1.0,
@@ -451,10 +433,10 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 			}
 
 			if tt.wantWarn {
-				require.Eventually(t, hasWarn, time.Second, 5*time.Millisecond,
+				require.True(t, hasWarn(),
 					"expected EL version warning at WARN level, got logs: %v", obsLogs.All())
 			} else {
-				require.Never(t, hasWarn, 100*time.Millisecond, 10*time.Millisecond,
+				require.False(t, hasWarn(),
 					"expected no EL version warning, got logs: %v", obsLogs.All())
 			}
 		})

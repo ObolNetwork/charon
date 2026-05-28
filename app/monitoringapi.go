@@ -260,60 +260,6 @@ func beaconNodeSyncing(ctx context.Context, eth2Cl eth2client.NodeSyncingProvide
 func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner, clk clockwork.Clock) {
 	nodeVersionTicker := clk.NewTicker(10 * time.Minute)
 
-	setNodesVersionAndID := func() {
-		beaconNodeVersionGauge.Reset()
-		executionEngineVersionGauge.Reset()
-
-		eeSetFromV2 := false
-
-		// Query each beacon node individually
-		for _, addr := range beaconNodeAddrs {
-			// Get a client scoped to this specific beacon node
-			scopedClient := eth2Cl.ClientForAddress(addr)
-
-			identityResp, err := scopedClient.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
-			if err != nil {
-				log.Warn(ctx, "Failed to fetch beacon node identity", err,
-					z.Str("beacon_node_address", addr))
-
-				continue
-			}
-
-			beaconID := identityResp.Data.PeerID
-
-			// Prefer the V2 endpoint, which exposes both BN and EE versions in one call.
-			// Fall back to V1 if V2 is unavailable — not all BN clients support it yet.
-			bnVersion, eeVersion, ok := fetchBeaconAndExecutionVersion(ctx, scopedClient, addr)
-			if !ok {
-				continue
-			}
-
-			beaconNodeVersionGauge.WithLabelValues(bnVersion, beaconID).Set(1)
-			eth2wrap.CheckBeaconNodeVersion(ctx, bnVersion)
-
-			if eeVersion != "" {
-				executionEngineVersionGauge.WithLabelValues(eeVersion).Set(1)
-				eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
-
-				eeSetFromV2 = true
-			}
-		}
-
-		// V2 didn't supply EE info from any beacon node — fall back to the eth1 client.
-		if !eeSetFromV2 {
-			eeVersion, err := eth1Cl.ClientVersion(ctx)
-			switch {
-			case shouldSkipEEVersionErr(err):
-				// EE not configured, not yet connected, or transient ctx error; skip.
-			case err != nil:
-				log.Warn(ctx, "Failed to fetch execution engine version", err)
-			default:
-				executionEngineVersionGauge.WithLabelValues(eeVersion).Set(1)
-				eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
-			}
-		}
-	}
-
 	go func() {
 		onStartup := make(chan struct{}, 1)
 		onStartup <- struct{}{}
@@ -321,14 +267,68 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 		for {
 			select {
 			case <-onStartup:
-				setNodesVersionAndID()
+				updateConsensusAndExecutionVersionMetricsOnce(ctx, eth2Cl, beaconNodeAddrs, eth1Cl)
 			case <-nodeVersionTicker.Chan():
-				setNodesVersionAndID()
+				updateConsensusAndExecutionVersionMetricsOnce(ctx, eth2Cl, beaconNodeAddrs, eth1Cl)
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
+}
+
+func updateConsensusAndExecutionVersionMetricsOnce(ctx context.Context, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner) {
+	beaconNodeVersionGauge.Reset()
+	executionEngineVersionGauge.Reset()
+
+	eeSetFromV2 := false
+
+	// Query each beacon node individually
+	for _, addr := range beaconNodeAddrs {
+		// Get a client scoped to this specific beacon node
+		scopedClient := eth2Cl.ClientForAddress(addr)
+
+		identityResp, err := scopedClient.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
+		if err != nil {
+			log.Warn(ctx, "Failed to fetch beacon node identity", err,
+				z.Str("beacon_node_address", addr))
+
+			continue
+		}
+
+		beaconID := identityResp.Data.PeerID
+
+		// Prefer the V2 endpoint, which exposes both BN and EE versions in one call.
+		// Fall back to V1 if V2 is unavailable — not all BN clients support it yet.
+		bnVersion, eeVersion, ok := fetchBeaconAndExecutionVersion(ctx, scopedClient, addr)
+		if !ok {
+			continue
+		}
+
+		beaconNodeVersionGauge.WithLabelValues(bnVersion, beaconID).Set(1)
+		eth2wrap.CheckBeaconNodeVersion(ctx, bnVersion)
+
+		if eeVersion != "" {
+			executionEngineVersionGauge.WithLabelValues(eeVersion).Set(1)
+			eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
+
+			eeSetFromV2 = true
+		}
+	}
+
+	// V2 didn't supply EE info from any beacon node — fall back to the eth1 client.
+	if !eeSetFromV2 {
+		eeVersion, err := eth1Cl.ClientVersion(ctx)
+		switch {
+		case shouldSkipEEVersionErr(err):
+			// EE not configured, not yet connected, or transient ctx error; skip.
+		case err != nil:
+			log.Warn(ctx, "Failed to fetch execution engine version", err)
+		default:
+			executionEngineVersionGauge.WithLabelValues(eeVersion).Set(1)
+			eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
+		}
+	}
 }
 
 // shouldSkipEEVersionErr returns true if the eth1 client error should be silently
