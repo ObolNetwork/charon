@@ -302,11 +302,12 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 		// V2 didn't supply EE info from any beacon node — fall back to the eth1 client.
 		if !eeSetFromV2 {
 			eeVersion, err := eth1Cl.ClientVersion(ctx)
-			if errors.Is(err, eth1wrap.ErrNoExecutionEngineAddr) { //nolint:revive
-				// No execution engine configured, skip.
-			} else if err != nil {
+			switch {
+			case shouldSkipEEVersionErr(err):
+				// EE not configured, not yet connected, or transient ctx error; skip.
+			case err != nil:
 				log.Warn(ctx, "Failed to fetch execution engine version", err)
-			} else {
+			default:
 				executionEngineVersionGauge.WithLabelValues(eeVersion).Set(1)
 				eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
 			}
@@ -328,6 +329,16 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 			}
 		}
 	}()
+}
+
+// shouldSkipEEVersionErr returns true if the eth1 client error should be silently
+// skipped by the version-metric fallback path: unconfigured endpoint, not-yet-connected
+// client, or transient context errors during shutdown/timeout.
+func shouldSkipEEVersionErr(err error) bool {
+	return errors.Is(err, eth1wrap.ErrNoExecutionEngineAddr) ||
+		errors.Is(err, eth1wrap.ErrEthClientNotConnected) ||
+		errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded)
 }
 
 // fetchBeaconAndExecutionVersion returns the beacon node version and (when available) the

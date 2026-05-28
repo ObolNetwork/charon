@@ -16,10 +16,14 @@ import (
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	eth1wrapmocks "github.com/obolnetwork/charon/app/eth1wrap/mocks"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -225,6 +229,9 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 		// after the iteration (one per BN reporting an EL via V2, or one for the eth1Cl
 		// fallback). Empty means the gauge has no entries.
 		wantElGaugeLabels []string
+		// wantWarn asserts whether the "Failed to fetch execution engine version" warning
+		// is logged during the iteration. When false, absence is asserted; when true, presence is.
+		wantWarn bool
 	}{
 		{
 			name:              "v2 supplies BN and EL skips eth1 client",
@@ -308,12 +315,37 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 			wantElCall:  true,
 		},
 		{
-			name:        "el generic error does not panic",
+			name:        "el ErrEthClientNotConnected silently skipped",
+			beaconAddrs: []string{"http://beacon1:5052"},
+			v2Funcs:     []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2BNOnly},
+			elErr:       eth1wrap.ErrEthClientNotConnected,
+			wantV2Calls: 1,
+			wantElCall:  true,
+		},
+		{
+			name:        "el context.Canceled silently skipped",
+			beaconAddrs: []string{"http://beacon1:5052"},
+			v2Funcs:     []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2BNOnly},
+			elErr:       context.Canceled,
+			wantV2Calls: 1,
+			wantElCall:  true,
+		},
+		{
+			name:        "el context.DeadlineExceeded silently skipped",
+			beaconAddrs: []string{"http://beacon1:5052"},
+			v2Funcs:     []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2BNOnly},
+			elErr:       context.DeadlineExceeded,
+			wantV2Calls: 1,
+			wantElCall:  true,
+		},
+		{
+			name:        "el generic error warns and does not panic",
 			beaconAddrs: []string{"http://beacon1:5052"},
 			v2Funcs:     []func() (*eth2api.Response[*eth2v1.NodeVersionV2], error){v2BNOnly},
 			elErr:       errors.New("rpc connection error"),
 			wantV2Calls: 1,
 			wantElCall:  true,
+			wantWarn:    true,
 		},
 	}
 
@@ -321,6 +353,9 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
+
+			obsCore, obsLogs := observer.New(zapcore.DebugLevel)
+			ctx = log.WithLogger(ctx, zap.New(obsCore))
 
 			var (
 				mu          sync.Mutex
@@ -403,6 +438,24 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 				require.InDelta(t, 1.0,
 					promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(label)),
 					0.0, "EL gauge missing label %q", label)
+			}
+
+			hasWarn := func() bool {
+				for _, e := range obsLogs.FilterMessageSnippet("Failed to fetch execution engine version").All() {
+					if e.Level == zapcore.WarnLevel {
+						return true
+					}
+				}
+
+				return false
+			}
+
+			if tt.wantWarn {
+				require.Eventually(t, hasWarn, time.Second, 5*time.Millisecond,
+					"expected EL version warning at WARN level, got logs: %v", obsLogs.All())
+			} else {
+				require.Never(t, hasWarn, 100*time.Millisecond, 10*time.Millisecond,
+					"expected no EL version warning, got logs: %v", obsLogs.All())
 			}
 		})
 	}
