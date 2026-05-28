@@ -84,7 +84,9 @@ func TestRunAddValidators(t *testing.T) {
 
 	relayAddr := relay.StartRelay(ctx, t)
 
-	runAddCommand := func(dstDir string, unverified bool) {
+	runAddCommand := func(t *testing.T, dstDir string, unverified bool) {
+		t.Helper()
+
 		var eg errgroup.Group
 
 		for i := 0; i < conf.NumNodes; i++ {
@@ -138,7 +140,9 @@ func TestRunAddValidators(t *testing.T) {
 		testutil.RequireNoError(t, err)
 	}
 
-	verifyAddCommandResults := func(dstDir string, unverified bool) {
+	verifyAddCommandResults := func(t *testing.T, dstDir string, unverified bool) {
+		t.Helper()
+
 		for n := 0; n < conf.NumNodes; n++ {
 			nd := nodeDir(dstDir, n)
 			require.True(t, app.FileExists(nd))
@@ -184,14 +188,14 @@ func TestRunAddValidators(t *testing.T) {
 
 	t.Run("add validators without unverified flag", func(t *testing.T) {
 		dir := t.TempDir()
-		runAddCommand(dir, false)
-		verifyAddCommandResults(dir, false)
+		runAddCommand(t, dir, false)
+		verifyAddCommandResults(t, dir, false)
 	})
 
 	t.Run("add validators with unverified flag", func(t *testing.T) {
 		dir := t.TempDir()
-		runAddCommand(dir, true)
-		verifyAddCommandResults(dir, true)
+		runAddCommand(t, dir, true)
+		verifyAddCommandResults(t, dir, true)
 	})
 }
 
