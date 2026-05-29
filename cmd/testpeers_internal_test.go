@@ -576,6 +576,21 @@ func startPeer(t *testing.T, ctx context.Context, conf testPeersConfig, peerPriv
 
 	go p2p.NewRelayRouter(peerTCPNode, []peer.ID{hostAsPeer.ID}, relays)(ctx)
 
+	// Proactively connect to the host, simulating what happens when all peers run
+	// testpeers simultaneously: each peer dials the others it is responsible for.
+	// NewRelayRouter only adds peerstore addresses; something must trigger the dial.
+	go func() {
+		for ctx.Err() == nil {
+			if len(peerTCPNode.Network().ConnsToPeer(hostAsPeer.ID)) > 0 {
+				return
+			}
+
+			_ = peerTCPNode.Connect(ctx, peer.AddrInfo{ID: hostAsPeer.ID})
+
+			time.Sleep(time.Second)
+		}
+	}()
+
 	peerENR, err := enr.New(peerPrivKey)
 	require.NoError(t, err)
 
