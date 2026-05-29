@@ -68,7 +68,7 @@ type DutyDB interface {
 
 	// AwaitAggAttestation blocks and returns the aggregated attestation for the slot
 	// and attestation when available.
-	AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
+	AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
 
 	// AwaitSyncContribution blocks and returns the sync committee contribution data for the slot and
 	// the subcommittee and the beacon block root when available.
@@ -139,7 +139,7 @@ type ValidatorAPI interface {
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
 	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
-	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error))
+	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
 
 	// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
 	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
@@ -261,14 +261,14 @@ type wireFuncs struct {
 	DutyDBAwaitProposal               func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	DutyDBAwaitAttestation            func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation         func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
-	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
+	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
 	DutyDBAwaitSyncContribution       func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
 	VAPIRegisterGetDutyDefinition     func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
-	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error))
+	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
 	VAPIRegisterAwaitAggSigDB         func(func(context.Context, Duty, PubKey) (SignedData, error))
 	VAPISubscribe                     func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal             func(context.Context, Duty, ParSignedDataSet) error
