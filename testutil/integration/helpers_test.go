@@ -55,6 +55,17 @@ func (a *asserter) await(ctx context.Context, t *testing.T, expect int) error {
 		return len(actual) >= expect
 	}, a.Timeout, time.Millisecond*10)
 
+	// Re-count after assert.Eventually returns to handle the race where context
+	// was cancelled in the window between assert.Eventually returning true
+	// (callbacks satisfied) and the ctx.Err() check below.
+	count := 0
+
+	a.callbacks.Range(func(any, any) bool { count++; return true })
+
+	if count >= expect {
+		return nil
+	}
+
 	if ctx.Err() != nil {
 		return context.Canceled
 	}
