@@ -23,7 +23,6 @@ const (
 	StartValidatorAPI
 	StartP2PPing
 	StartP2PRouters
-	StartForceDirectConns
 	StartForceQUICConns
 	StartP2PConsensus
 	StartSimulator

@@ -59,7 +59,7 @@ func TestPingCluster(t *testing.T) {
 	t.Run("relay_incorrect_externalhost", func(t *testing.T) {
 		pingCluster(t, pingTest{
 			BindLocalhost: true,
-			ExternalIP:    "222.222.222.22",
+			ExternalIP:    "192.0.2.1",
 		})
 	})
 }

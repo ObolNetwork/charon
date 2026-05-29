@@ -105,6 +105,15 @@ func NewRelayReserver(p2pNode host.Host, relay *MutablePeer) lifecycle.HookFuncC
 
 // NewRelayRouter returns a life cycle hook that routes peers via relays in libp2p by
 // continuously adding peer relay addresses to libp2p peer store.
+//
+// Only relay routes for peers that THIS node should dial are added. For each
+// peer pair, the node with the smaller peer ID dials and the node with the
+// larger peer ID waits. This asymmetry is required for DCUtR (hole punching)
+// to work: libp2p's holepunch service only initiates the DCUtR protocol on
+// INBOUND relay connections. If both sides add relay routes and dial
+// simultaneously, both see outbound connections and neither side triggers
+// DCUtR. By having one side wait, it sees the other's dial as an inbound
+// relay connection, which activates DCUtR and enables NAT traversal.
 func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
 		if len(relays) == 0 {
@@ -113,13 +122,18 @@ func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 
 		ctx = log.WithTopic(ctx, "p2p")
 
+		selfID := p2pNode.ID()
+
 		ticker := time.NewTicker(routedAddrTTL * 9 / 10)
 		defer ticker.Stop()
 
 		for {
 			for _, pID := range peers {
-				if pID == p2pNode.ID() {
-					// Skip self
+				if pID == selfID {
+					continue
+				}
+
+				if !shouldDialPeer(selfID, pID) {
 					continue
 				}
 
@@ -146,4 +160,11 @@ func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 			}
 		}
 	}
+}
+
+// shouldDialPeer returns true if this node should proactively dial the given
+// peer via relay. The peer with the smaller ID dials; the peer with the larger
+// ID waits for the inbound connection (which triggers DCUtR hole punching).
+func shouldDialPeer(self, remote peer.ID) bool {
+	return self < remote
 }

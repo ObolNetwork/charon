@@ -21,6 +21,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
+	"github.com/libp2p/go-libp2p/p2p/protocol/holepunch"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
@@ -106,6 +107,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		libp2p.ConnectionGater(connGater),
 		// Enable Autonat (required for hole punching)
 		libp2p.EnableNATService(),
+		libp2p.EnableHolePunching(holepunch.WithTracer(newHolePunchTracer(ctx))),
 		libp2p.AddrsFactory(func(internalAddrs []ma.Multiaddr) []ma.Multiaddr {
 			return filterAdvertisedAddrs(externalAddrs, internalAddrs, filterPrivateAddrs)
 		}),
@@ -258,7 +260,13 @@ func multiAddrsViaRelay(relayPeer Peer, peerID peer.ID) ([]ma.Multiaddr, error) 
 // NewEventCollector returns a lifecycle hook that instruments libp2p events.
 func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 	return func(ctx context.Context) {
-		sub, err := p2pNode.EventBus().Subscribe(new(event.EvtLocalReachabilityChanged))
+		sub, err := p2pNode.EventBus().Subscribe([]any{
+			new(event.EvtLocalReachabilityChanged),
+			new(event.EvtLocalAddressesUpdated),
+			new(event.EvtNATDeviceTypeChanged),
+			new(event.EvtPeerIdentificationCompleted),
+			new(event.EvtPeerIdentificationFailed),
+		})
 		if err != nil {
 			log.Error(ctx, "Failed to subscribe to libp2p events", err)
 			return
@@ -277,6 +285,41 @@ func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 				case event.EvtLocalReachabilityChanged:
 					log.Info(ctx, "Libp2p reachability changed", z.Any("status", evt.Reachability))
 					reachableGauge.Set(float64(evt.Reachability))
+				case event.EvtLocalAddressesUpdated:
+					var addrs []string
+
+					for _, a := range evt.Current {
+						if a.Action == event.Added {
+							addrs = append(addrs, a.Address.String())
+						}
+					}
+
+					if len(addrs) > 0 {
+						log.Debug(ctx, "Libp2p addresses updated, new addresses added",
+							z.Any("added", addrs),
+							z.Any("all_host_addrs", p2pNode.Addrs()),
+						)
+					}
+				case event.EvtNATDeviceTypeChanged:
+					log.Debug(ctx, "NAT device type changed",
+						z.Any("transport", evt.TransportProtocol),
+						z.Any("nat_type", evt.NatDeviceType),
+					)
+				case event.EvtPeerIdentificationCompleted:
+					isPublic := evt.ObservedAddr != nil && manet.IsPublicAddr(evt.ObservedAddr)
+					supportsDCUtR := slices.Contains(evt.Protocols, holepunch.Protocol)
+					log.Debug(ctx, "Peer identification completed",
+						z.Str("peer", PeerName(evt.Peer)),
+						z.Any("observed_addr", evt.ObservedAddr),
+						z.Any("conn_local", evt.Conn.LocalMultiaddr()),
+						z.Any("conn_remote", evt.Conn.RemoteMultiaddr()),
+						z.Bool("observed_is_public", isPublic),
+						z.Bool("peer_supports_dcutr", supportsDCUtR),
+					)
+				case event.EvtPeerIdentificationFailed:
+					log.Warn(ctx, "Peer identification failed", evt.Reason,
+						z.Str("peer", PeerName(evt.Peer)),
+					)
 				default:
 					log.Warn(ctx, "Unknown libp2p event", nil, z.Str("type", fmt.Sprintf("%T", e)))
 				}
@@ -285,54 +328,68 @@ func NewEventCollector(p2pNode host.Host) lifecycle.HookFuncCtx {
 	}
 }
 
+// holePunchTracer implements holepunch.EventTracer to log all DCUtR lifecycle events.
+type holePunchTracer struct {
+	ctx context.Context
+}
+
+func newHolePunchTracer(ctx context.Context) *holePunchTracer {
+	return &holePunchTracer{ctx: log.WithTopic(ctx, "p2p")}
+}
+
+func (t *holePunchTracer) Trace(evt *holepunch.Event) {
+	name := PeerName(evt.Remote)
+	switch e := evt.Evt.(type) {
+	case *holepunch.StartHolePunchEvt:
+		log.Debug(t.ctx, "Hole punch started",
+			z.Str("peer", name),
+			z.Any("remote_addrs", e.RemoteAddrs),
+			z.Any("rtt", e.RTT),
+		)
+	case *holepunch.EndHolePunchEvt:
+		if e.Success {
+			log.Debug(t.ctx, "Hole punch succeeded",
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+			)
+		} else {
+			log.Warn(t.ctx, "Hole punch failed", errors.New(e.Error),
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+			)
+		}
+	case *holepunch.HolePunchAttemptEvt:
+		log.Debug(t.ctx, "Hole punch attempt",
+			z.Str("peer", name),
+			z.Int("attempt", e.Attempt),
+		)
+	case *holepunch.DirectDialEvt:
+		if e.Success {
+			log.Debug(t.ctx, "Direct dial succeeded during hole punch",
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+			)
+		} else {
+			log.Debug(t.ctx, "Direct dial failed during hole punch",
+				z.Str("peer", name),
+				z.Any("elapsed", e.EllapsedTime),
+				z.Str("error", e.Error),
+			)
+		}
+	case *holepunch.ProtocolErrorEvt:
+		log.Warn(t.ctx, "Hole punch protocol error", errors.New(e.Error),
+			z.Str("peer", name),
+		)
+	default:
+		log.Warn(t.ctx, "Unknown hole punch event", nil, z.Str("type", fmt.Sprintf("%T", evt.Evt)))
+	}
+}
+
 // peerRoutingFunc wraps a function to implement routing.PeerRouting.
 type peerRoutingFunc func(context.Context, peer.ID) (peer.AddrInfo, error)
 
 func (f peerRoutingFunc) FindPeer(ctx context.Context, p peer.ID) (peer.AddrInfo, error) {
 	return f(ctx, p)
-}
-
-// ForceDirectConnections attempts to establish a direct connection if there is an existing relay connection to the peer.
-// The idea is to enable switching to a direct connection as soon as the host has a connection to the peer.
-func ForceDirectConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.HookFuncCtx {
-	forceDirectConn := func(ctx context.Context) {
-		for _, p := range peerIDs {
-			if p2pNode.ID() == p {
-				continue // Skip self
-			}
-
-			conns := p2pNode.Network().ConnsToPeer(p)
-			if len(conns) == 0 {
-				// Skip if there isn't any existing connection to peer. Note that we only force direct connection
-				// if there is already an existing relay connection between the host and peer.
-				continue
-			}
-
-			if isDirectConnAvailable(conns) {
-				continue
-			}
-
-			// All existing connections are through relays, so we can try force dialing a direct connection.
-			err := p2pNode.Connect(network.WithForceDirectDial(ctx, "relay_to_direct"), peer.AddrInfo{ID: p})
-			if err == nil {
-				log.Debug(ctx, "Forced direct connection to peer successful", z.Str("peer", PeerName(p)))
-			}
-		}
-	}
-
-	return func(ctx context.Context) {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				forceDirectConn(ctx)
-			}
-		}
-	}
 }
 
 // isQUICEnabled returns true if the host has an address or listening address on QUIC.
@@ -345,19 +402,6 @@ func isQUICEnabled(h host.Host) bool {
 		if slices.ContainsFunc(addrs, isQUICAddr) {
 			return true
 		}
-	}
-
-	return false
-}
-
-// isDirectConnAvailable returns true if direct connection is available in the given set of connections.
-func isDirectConnAvailable(conns []network.Conn) bool {
-	for _, conn := range conns {
-		if IsRelayAddr(conn.RemoteMultiaddr()) {
-			continue
-		}
-
-		return true
 	}
 
 	return false
@@ -457,7 +501,7 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 
 			if !hasDirectTCPConn(conns) {
 				log.Debug(ctx, "No direct connection via TCP to peer", z.Str("peer", PeerName(p)), z.Any("conns", conns))
-				continue // no direct TPC connection to upgrade to QUIC, ForceDirectConnections shall upgrade to direct
+				continue // no direct TCP connection to upgrade to QUIC, hole punching shall upgrade to direct
 			}
 
 			// Get known QUIC addrs from peerstore
@@ -733,6 +777,13 @@ func RegisterConnectionLogger(ctx context.Context, p2pNode host.Host, peerIDs []
 						z.Any("direction", e.Direction),
 						z.Str("type", typ),
 					)
+
+					if typ == addrTypeRelay && e.Direction == network.DirInbound {
+						log.Debug(ctx, "Inbound relay connection detected, DCUtR hole punch should initiate",
+							z.Str("peer", name),
+							z.Any("peer_address", addr),
+						)
+					}
 				} else if e.Disconnect {
 					log.Debug(ctx, "Libp2p disconnected",
 						z.Str("peer", name),
