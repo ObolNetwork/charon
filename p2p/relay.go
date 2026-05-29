@@ -124,26 +124,6 @@ func NewRelayRouter(p2pNode host.Host, peers []peer.ID, relays []*MutablePeer) l
 
 		selfID := p2pNode.ID()
 
-		for _, pID := range peers {
-			if pID == selfID {
-				continue
-			}
-
-			if shouldDialPeer(selfID, pID) {
-				log.Debug(ctx, "Will dial peer via relay (our ID < peer ID)",
-					z.Str("peer", PeerName(pID)),
-					z.Str("self_id", selfID.String()),
-					z.Str("peer_id", pID.String()),
-				)
-			} else {
-				log.Debug(ctx, "Will wait for inbound relay connection from peer (our ID > peer ID), expecting DCUtR hole punch",
-					z.Str("peer", PeerName(pID)),
-					z.Str("self_id", selfID.String()),
-					z.Str("peer_id", pID.String()),
-				)
-			}
-		}
-
 		ticker := time.NewTicker(routedAddrTTL * 9 / 10)
 		defer ticker.Stop()
 

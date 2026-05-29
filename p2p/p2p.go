@@ -385,66 +385,6 @@ func (t *holePunchTracer) Trace(evt *holepunch.Event) {
 	}
 }
 
-// NewPeerStateDiagnostic returns a lifecycle hook that periodically logs the connection
-// and peerstore address state for each cluster peer to help diagnose hole punching issues.
-func NewPeerStateDiagnostic(p2pNode host.Host, peers []peer.ID) lifecycle.HookFuncCtx {
-	return func(ctx context.Context) {
-		ctx = log.WithTopic(ctx, "p2p")
-
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-			}
-
-			selfID := p2pNode.ID()
-			for _, pID := range peers {
-				if pID == selfID {
-					continue
-				}
-
-				name := PeerName(pID)
-
-				var relayConns, directConns int
-
-				for _, conn := range p2pNode.Network().ConnsToPeer(pID) {
-					if isRelayAddr(conn.RemoteMultiaddr()) {
-						relayConns++
-					} else {
-						directConns++
-					}
-				}
-
-				var publicAddrs, privateAddrs, relayAddrs int
-
-				for _, addr := range p2pNode.Peerstore().Addrs(pID) {
-					switch {
-					case isRelayAddr(addr):
-						relayAddrs++
-					case manet.IsPublicAddr(addr):
-						publicAddrs++
-					default:
-						privateAddrs++
-					}
-				}
-
-				log.Debug(ctx, "Peer connection state",
-					z.Str("peer", name),
-					z.Int("relay_conns", relayConns),
-					z.Int("direct_conns", directConns),
-					z.Int("peerstore_public_addrs", publicAddrs),
-					z.Int("peerstore_private_addrs", privateAddrs),
-					z.Int("peerstore_relay_addrs", relayAddrs),
-				)
-			}
-		}
-	}
-}
-
 // peerRoutingFunc wraps a function to implement routing.PeerRouting.
 type peerRoutingFunc func(context.Context, peer.ID) (peer.AddrInfo, error)
 

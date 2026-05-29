@@ -24,7 +24,6 @@ const (
 	StartP2PPing
 	StartP2PRouters
 	StartForceQUICConns
-	StartP2PDiagnostic
 	StartP2PConsensus
 	StartSimulator
 	StartScheduler
