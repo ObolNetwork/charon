@@ -35,7 +35,7 @@ func StartRelay(parentCtx context.Context, t *testing.T) string {
 			},
 			LogConfig:     log.DefaultConfig(),
 			AutoP2PKey:    true,
-			MaxResPerPeer: 8,
+			MaxResPerPeer: 16,
 			MaxConns:      1024,
 		})
 		if err != nil {
