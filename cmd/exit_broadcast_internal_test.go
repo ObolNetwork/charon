@@ -165,7 +165,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 		if all {
 			for _, validator := range lock.Validators {
 				validatorPublicKey := validator.PublicKeyHex()
-				exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, &lock, enrs[0])
+				exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, &lock, enrs[0], eth2Cl)
 				require.NoError(t, err)
 
 				exitBytes, err := json.Marshal(exit)
@@ -178,7 +178,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 			config.ExitFromFileDir = baseDir
 		} else {
 			validatorPublicKey := lock.Validators[0].PublicKeyHex()
-			exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, &lock, enrs[0])
+			exit, err := exitFromObolAPI(ctx, validatorPublicKey, srv.URL, 10*time.Second, &lock, enrs[0], eth2Cl)
 			require.NoError(t, err)
 
 			exitBytes, err := json.Marshal(exit)

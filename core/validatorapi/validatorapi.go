@@ -192,7 +192,7 @@ type Component struct {
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
-	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
+	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
 	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
@@ -230,7 +230,7 @@ func (c *Component) RegisterGetDutyDefinition(fn func(ctx context.Context, duty 
 
 // RegisterAwaitAggAttestation registers a function to query an aggregated attestation.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)) {
+func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)) {
 	c.awaitAggAttFunc = fn
 }
 
@@ -818,7 +818,7 @@ func (c Component) AggregateAttestation(ctx context.Context, opts *eth2api.Aggre
 	span.SetAttributes(attribute.Int64("committee_index", int64(opts.CommitteeIndex)))
 	defer span.End()
 
-	aggAtt, err := c.awaitAggAttFunc(ctx, uint64(opts.Slot), opts.AttestationDataRoot)
+	aggAtt, err := c.awaitAggAttFunc(ctx, uint64(opts.Slot), opts.AttestationDataRoot, opts.CommitteeIndex)
 	if err != nil {
 		return nil, err
 	}

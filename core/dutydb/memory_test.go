@@ -8,9 +8,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -248,10 +250,64 @@ func TestMemDBAggregator(t *testing.T) {
 		require.NoError(t, err)
 		err = <-errCh
 		require.NoError(t, err)
-		resp, err := db.AwaitAggAttestation(ctx, slot, root)
+		resp, err := db.AwaitAggAttestation(ctx, slot, root, agg.Deneb.Data.Index)
 		require.NoError(t, err)
 		require.Equal(t, agg.Deneb, resp.Deneb)
 	}
+}
+
+func TestMemDBAggregatorElectraMultiCommittee(t *testing.T) {
+	// In post-Electra, AttestationData.Index is always 0, so aggregates for different committees
+	// in the same slot share the same AttestationDataRoot. Verify each is stored and retrieved
+	// independently using CommitteeIndex as part of the key.
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	attData := testutil.RandomAttestationDataElectra()
+
+	makeAgg := func(commIdx int) core.VersionedAggregatedAttestation {
+		bits := bitfield.NewBitvector64()
+		bits.SetBitAt(uint64(commIdx), true)
+
+		return core.VersionedAggregatedAttestation{
+			VersionedAttestation: eth2spec.VersionedAttestation{
+				Version: eth2spec.DataVersionElectra,
+				Electra: &electra.Attestation{
+					AggregationBits: testutil.RandomBitList(64),
+					Data:            attData,
+					Signature:       testutil.RandomEth2Signature(),
+					CommitteeBits:   bits,
+				},
+			},
+		}
+	}
+
+	const (
+		commIdx1 = 5
+		commIdx2 = 17
+	)
+
+	agg1 := makeAgg(commIdx1)
+	agg2 := makeAgg(commIdx2)
+
+	slot := uint64(attData.Slot)
+	set := core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): agg1,
+		testutil.RandomCorePubKey(t): agg2,
+	}
+
+	require.NoError(t, db.Store(ctx, core.NewAggregatorDuty(slot), set))
+
+	root, err := attData.HashTreeRoot()
+	require.NoError(t, err)
+
+	resp1, err := db.AwaitAggAttestation(ctx, slot, root, eth2p0.CommitteeIndex(commIdx1))
+	require.NoError(t, err)
+	require.Equal(t, agg1.Electra, resp1.Electra)
+
+	resp2, err := db.AwaitAggAttestation(ctx, slot, root, eth2p0.CommitteeIndex(commIdx2))
+	require.NoError(t, err)
+	require.Equal(t, agg2.Electra, resp2.Electra)
 }
 
 func TestMemDBSyncContribution(t *testing.T) {
