@@ -68,7 +68,7 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return err
 	}

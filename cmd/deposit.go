@@ -17,6 +17,7 @@ type depositConfig struct {
 	ValidatorKeysDir    string
 	PublishAddress      string
 	PublishTimeout      time.Duration
+	ExecutionEngineAddr string
 	Log                 log.Config
 }
 
@@ -39,4 +40,5 @@ func bindDepositFlags(cmd *cobra.Command, config *depositConfig) {
 	cmd.Flags().StringVar(&config.LockFilePath, lockFilePath.String(), ".charon/cluster-lock.json", "Path to the cluster lock file defining the distributed validator cluster.")
 	cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", "The URL of the remote API.")
 	cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 5*time.Minute, "Timeout for publishing a signed deposit to the publish-address API.")
+	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API, used to verify ERC-1271 (e.g. Safe multisig) cluster signatures.")
 }

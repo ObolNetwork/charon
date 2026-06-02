@@ -14,8 +14,10 @@ import (
 )
 
 // LoadClusterLockAndVerify loads and verifies the cluster lock. Suitable for cmd tools.
-func LoadClusterLockAndVerify(ctx context.Context, lockFilePath string) (*Lock, error) {
-	eth1Cl := eth1wrap.NewDefaultEthClientRunner("")
+// execEngineAddr is the execution client RPC endpoint used to verify ERC-1271 (e.g. Safe multisig)
+// cluster signatures; pass "" when none is configured (EOA-only clusters do not require it).
+func LoadClusterLockAndVerify(ctx context.Context, lockFilePath, execEngineAddr string) (*Lock, error) {
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(execEngineAddr)
 	go eth1Cl.Run(ctx)
 
 	return LoadClusterLock(ctx, lockFilePath, false, eth1Cl)

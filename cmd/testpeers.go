@@ -678,7 +678,7 @@ func relayPingMeasureTest(ctx context.Context, _ *testPeersConfig, target string
 // helper functions
 
 func fetchPeersFromDefinition(ctx context.Context, path string) ([]string, error) {
-	def, err := loadDefinition(ctx, path)
+	def, err := loadDefinition(ctx, path, "")
 	if err != nil {
 		return nil, errors.Wrap(err, "read definition file", z.Str("path", path))
 	}

@@ -17,6 +17,7 @@ type feerecipientConfig struct {
 	OverridesFilePath   string
 	PublishAddress      string
 	PublishTimeout      time.Duration
+	ExecutionEngineAddr string
 	Log                 log.Config
 }
 
@@ -35,4 +36,5 @@ func newFeeRecipientCmd(cmds ...*cobra.Command) *cobra.Command {
 func bindFeeRecipientRemoteAPIFlags(cmd *cobra.Command, config *feerecipientConfig) {
 	cmd.Flags().StringVar(&config.PublishAddress, publishAddress.String(), "https://api.obol.tech/v1", "The URL of the remote API.")
 	cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 5*time.Minute, "Timeout for accessing the remote API.")
+	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API, used to verify ERC-1271 (e.g. Safe multisig) cluster signatures.")
 }
