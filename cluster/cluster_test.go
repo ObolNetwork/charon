@@ -383,14 +383,15 @@ func TestV1x11SafeSignatures(t *testing.T) {
 	require.NoError(t, err, "JSON marshal should succeed")
 
 	var unmarshaled cluster.Definition
+
 	err = json.Unmarshal(jsonBytes, &unmarshaled)
 	require.NoError(t, err, "JSON unmarshal should succeed")
 
 	// Verify signatures are preserved
-	require.Equal(t, 130, len(unmarshaled.Creator.ConfigSignature), "Creator Safe signature length")
-	require.Equal(t, 195, len(unmarshaled.Operators[0].ConfigSignature), "Operator 0 config Safe signature length")
-	require.Equal(t, 130, len(unmarshaled.Operators[0].ENRSignature), "Operator 0 ENR Safe signature length")
-	require.Equal(t, 65, len(unmarshaled.Operators[1].ConfigSignature), "Operator 1 EOA signature length")
+	require.Len(t, unmarshaled.Creator.ConfigSignature, 130, "Creator Safe signature length")
+	require.Len(t, unmarshaled.Operators[0].ConfigSignature, 195, "Operator 0 config Safe signature length")
+	require.Len(t, unmarshaled.Operators[0].ENRSignature, 130, "Operator 0 ENR Safe signature length")
+	require.Len(t, unmarshaled.Operators[1].ConfigSignature, 65, "Operator 1 EOA signature length")
 
 	// Test VerifyHashes
 	require.NoError(t, defWithHashes.VerifyHashes(), "VerifyHashes should succeed")

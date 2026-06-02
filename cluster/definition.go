@@ -263,16 +263,11 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return err
 		}
 
-		// Check that we have a valid config signature for each operator.
-		if ok, err := verifySig(o.Address, operatorConfigHashDigest, o.ConfigSignature); err != nil {
+		// Check that we have a valid config signature for each operator (EOA or ERC-1271).
+		if ok, err := verifySigOrERC1271(eth1, o.Address, operatorConfigHashDigest, o.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
-			// Check ERC-1271 signature
-			if ok, err = eth1.VerifySmartContractBasedSignature(o.Address, [32]byte(operatorConfigHashDigest), o.ConfigSignature); err != nil {
-				return err
-			} else if !ok {
-				return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
-			}
+			return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
 		}
 
 		// Check that we have a valid enr signature for each operator.
@@ -281,15 +276,10 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return err
 		}
 
-		if ok, err := verifySig(o.Address, enrDigest, o.ENRSignature); err != nil {
+		if ok, err := verifySigOrERC1271(eth1, o.Address, enrDigest, o.ENRSignature); err != nil {
 			return err
 		} else if !ok {
-			// Check ERC-1271 signature
-			if ok, err = eth1.VerifySmartContractBasedSignature(o.Address, [32]byte(enrDigest), o.ENRSignature); err != nil {
-				return err
-			} else if !ok {
-				return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
-			}
+			return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
 		}
 	}
 
@@ -318,7 +308,7 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return err
 		}
 
-		if ok, err := verifySig(d.Creator.Address, creatorConfigHashDigest, d.Creator.ConfigSignature); err != nil {
+		if ok, err := verifySigOrERC1271(eth1, d.Creator.Address, creatorConfigHashDigest, d.Creator.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid creator config signature")
@@ -350,6 +340,7 @@ func (d Definition) validateOperatorSignatureLengths(op Operator) error {
 	if err := validateSignatureLength(op.ConfigSignature, "operator config signature"); err != nil {
 		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
 	}
+
 	if err := validateSignatureLength(op.ENRSignature, "operator enr signature"); err != nil {
 		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
 	}
@@ -372,12 +363,12 @@ func validateSignatureLength(sig []byte, fieldName string) error {
 		)
 	}
 
-	if len(sig) > sszMaxSignature {
+	if len(sig) > sszMaxK1Sigs*sszLenK1Sig {
 		return errors.New("signature exceeds maximum length",
 			z.Str("field", fieldName),
 			z.Int("length", len(sig)),
-			z.Int("max", sszMaxSignature),
-			z.Int("max_threshold", sszMaxSignature/65),
+			z.Int("max_len", sszMaxK1Sigs*sszLenK1Sig),
+			z.Int("max_threshold", sszMaxK1Sigs),
 		)
 	}
 

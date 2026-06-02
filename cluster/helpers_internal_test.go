@@ -3,6 +3,7 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
 	crand "crypto/rand"
 	"encoding/hex"
@@ -18,8 +19,12 @@ import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	ssz "github.com/ferranbt/fastssz"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
+	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
@@ -300,6 +305,137 @@ func TestVerifySig(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
+}
+
+func TestVerifySigOrERC1271(t *testing.T) {
+	secret, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	addr := eth2util.PublicKeyToAddress(secret.PubKey())
+	digest := testutil.RandomRoot()
+
+	eoaSig, err := k1util.Sign(secret, digest[:])
+	require.NoError(t, err)
+
+	// A Safe multisig signature is concatenated 65-byte signatures (threshold=2 here), opaque to the mock.
+	multisig := bytes.Repeat([]byte{0x42}, 2*sszLenK1Sig)
+
+	t.Run("valid EOA does not consult ERC-1271", func(t *testing.T) {
+		eth1 := mocks.NewEthClientRunner(t) // No expectations: panics if VerifySmartContractBasedSignature is called.
+
+		ok, err := verifySigOrERC1271(eth1, addr, digest[:], eoaSig)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("multisig routes to ERC-1271 valid", func(t *testing.T) {
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", addr, [32]byte(digest), multisig).Return(true, nil).Once()
+
+		ok, err := verifySigOrERC1271(eth1, addr, digest[:], multisig)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("multisig ERC-1271 invalid", func(t *testing.T) {
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).Once()
+
+		ok, err := verifySigOrERC1271(eth1, addr, digest[:], multisig)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("multisig ERC-1271 error propagates", func(t *testing.T) {
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).
+			Return(false, errors.New("rpc down")).Once()
+
+		_, err := verifySigOrERC1271(eth1, addr, digest[:], multisig)
+		require.ErrorContains(t, err, "rpc down")
+	})
+
+	t.Run("65-byte non-matching EOA falls through to ERC-1271", func(t *testing.T) {
+		other, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		wrongSig, err := k1util.Sign(other, digest[:]) // Valid 65-byte sig, but recovers to a different address.
+		require.NoError(t, err)
+
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", addr, [32]byte(digest), wrongSig).Return(true, nil).Once()
+
+		ok, err := verifySigOrERC1271(eth1, addr, digest[:], wrongSig)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("65-byte unrecoverable EOA falls through to ERC-1271", func(t *testing.T) {
+		// A single 65-byte Safe signature whose v-byte is not a valid EOA recovery id: verifySig
+		// errors, but it must still be offered to the ERC-1271 contract rather than rejected outright.
+		bad := make([]byte, sszLenK1Sig)
+		bad[64] = 200 // Invalid EOA recovery id.
+
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", addr, [32]byte(digest), bad).Return(true, nil).Once()
+
+		ok, err := verifySigOrERC1271(eth1, addr, digest[:], bad)
+		require.NoError(t, err)
+		require.True(t, ok)
+	})
+
+	t.Run("nil eth1 client does not panic", func(t *testing.T) {
+		// A failing EOA signature with no eth1 client cannot be checked via ERC-1271; it must
+		// report not-verified rather than panic.
+		ok, err := verifySigOrERC1271(nil, addr, digest[:], make([]byte, 2*sszLenK1Sig))
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("no eth1 endpoint reports EOA result not client error", func(t *testing.T) {
+		// A regular signer never configures an execution client. A failing EOA signature must report
+		// the plain verification result, not the (irrelevant) "endpoint not set" client error.
+		other, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		wrongSig, err := k1util.Sign(other, digest[:]) // Valid 65-byte sig recovering to a different address.
+		require.NoError(t, err)
+
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).
+			Return(false, eth1wrap.ErrNoExecutionEngineAddr).Once()
+
+		ok, err := verifySigOrERC1271(eth1, addr, digest[:], wrongSig)
+		require.NoError(t, err) // EOA mismatch (no error), not the client error.
+		require.False(t, ok)
+	})
+}
+
+func TestValidateSignatureLength(t *testing.T) {
+	tests := []struct {
+		name    string
+		length  int
+		wantErr string
+	}{
+		{name: "empty", length: 0},
+		{name: "single eoa", length: sszLenK1Sig},
+		{name: "safe threshold 2", length: 2 * sszLenK1Sig},
+		{name: "safe threshold 3", length: 3 * sszLenK1Sig},
+		{name: "max", length: sszMaxK1Sigs * sszLenK1Sig},
+		{name: "not multiple of 65", length: 100, wantErr: "multiple of 65 bytes"},
+		{name: "exceeds maximum", length: (sszMaxK1Sigs + 1) * sszLenK1Sig, wantErr: "exceeds maximum length"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSignatureLength(make([]byte, tt.length), "test signature")
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
 }
 
 func TestFetchDefinition(t *testing.T) {

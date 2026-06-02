@@ -19,7 +19,7 @@ const (
 	sszMaxOperators      = 256
 	sszMaxValidators     = 65536
 	sszMaxDepositAmounts = 256
-	sszMaxSignature      = 384
+	sszMaxK1Sigs         = 32
 	sszLenForkVersion    = 4
 	sszLenK1Sig          = 65
 	sszLenBLSSig         = 96
@@ -553,13 +553,13 @@ func hashDefinitionV1x11(d Definition, hh ssz.HashWalker, configOnly bool) error
 					return err
 				}
 
-				// Field (2) 'ConfigSignature' ByteList[384]
-				if err := putByteList(hh, o.ConfigSignature, sszMaxSignature, "config_signature"); err != nil {
+				// Field (2) 'ConfigSignature' List[Bytes65, 32]
+				if err := putK1SigList(hh, o.ConfigSignature, sszMaxK1Sigs, "config_signature"); err != nil {
 					return err
 				}
 
-				// Field (3) 'ENRSignature' ByteList[384]
-				if err := putByteList(hh, o.ENRSignature, sszMaxSignature, "enr_signature"); err != nil {
+				// Field (3) 'ENRSignature' List[Bytes65, 32]
+				if err := putK1SigList(hh, o.ENRSignature, sszMaxK1Sigs, "enr_signature"); err != nil {
 					return err
 				}
 			}
@@ -580,8 +580,8 @@ func hashDefinitionV1x11(d Definition, hh ssz.HashWalker, configOnly bool) error
 		}
 
 		if !configOnly {
-			// Field (1) 'ConfigSignature' ByteList[384]
-			if err := putByteList(hh, d.Creator.ConfigSignature, sszMaxSignature, "creator_config_signature"); err != nil {
+			// Field (1) 'ConfigSignature' List[Bytes65, 32]
+			if err := putK1SigList(hh, d.Creator.ConfigSignature, sszMaxK1Sigs, "creator_config_signature"); err != nil {
 				return err
 			}
 		}
@@ -639,7 +639,7 @@ func hashDefinitionV1x11(d Definition, hh ssz.HashWalker, configOnly bool) error
 
 	// Field (15) 'ConfigHash' Bytes32 (only for full definition hash)
 	if !configOnly {
-		hh.PutBytes(d.ConfigHash[:])
+		hh.PutBytes(d.ConfigHash)
 	}
 
 	hh.Merkleize(indx)
