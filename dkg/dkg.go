@@ -162,7 +162,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// This DKG only supports a few specific config versions.
-	if def.Version != "v1.6.0" && def.Version != "v1.7.0" && def.Version != "v1.8.0" && def.Version != "v1.9.0" && def.Version != "v1.10.0" {
+	if def.Version != "v1.6.0" && def.Version != "v1.7.0" && def.Version != "v1.8.0" && def.Version != "v1.9.0" && def.Version != "v1.10.0" && def.Version != "v1.11.0" {
 		return errors.New("only v1.6.0 and newer cluster definition versions supported")
 	}
 
