@@ -1187,7 +1187,8 @@ type definitionJSONv1x10to11 struct {
 // Note the following struct tag meanings:
 //   - json: json field name.
 //   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
-//     for variable length strings, or CompositeList[MaxN] for nested object arrays.
+//     for variable length strings, List[BytesN,MaxItems] for lists of fixed length byte arrays,
+//     or CompositeList[MaxN] for nested object arrays.
 //   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Creator struct {
@@ -1195,7 +1196,8 @@ type Creator struct {
 	Address string `config_hash:"0" definition_hash:"0" json:"address" ssz:"Bytes20"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to creator Ethereum Address.
-	ConfigSignature []byte `config_hash:"-" definition_hash:"1" json:"config_signature" ssz:"Bytes65"`
+	// It is a single 65-byte secp256k1 signature, or concatenated 65-byte signatures for Safe smart-contract multisigs.
+	ConfigSignature []byte `config_hash:"-" definition_hash:"1" json:"config_signature" ssz:"List[Bytes65,32]"`
 }
 
 // creatorJSON is the json formatter of Creator.
