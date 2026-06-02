@@ -318,41 +318,48 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 	return nil
 }
 
-// validateCreatorSignatureLength validates creator signature length for v1.11.0+.
+// validateCreatorSignatureLength validates the creator config signature length.
 func (d Definition) validateCreatorSignatureLength() error {
-	if !isAnyVersion(d.Version, v1_11) {
-		return nil // Skip validation for older versions
-	}
-
-	if err := validateSignatureLength(d.Creator.ConfigSignature, "creator config signature"); err != nil {
+	if err := validateSignatureLength(d.Version, d.Creator.ConfigSignature, "creator config signature"); err != nil {
 		return errors.Wrap(err, "invalid signature length", z.Str("address", d.Creator.Address))
 	}
 
 	return nil
 }
 
-// validateOperatorSignatureLengths validates a single operator's signature lengths for v1.11.0+.
+// validateOperatorSignatureLengths validates a single operator's signature lengths.
 func (d Definition) validateOperatorSignatureLengths(op Operator) error {
-	if !isAnyVersion(d.Version, v1_11) {
-		return nil // Skip validation for older versions
-	}
-
-	if err := validateSignatureLength(op.ConfigSignature, "operator config signature"); err != nil {
+	if err := validateSignatureLength(d.Version, op.ConfigSignature, "operator config signature"); err != nil {
 		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
 	}
 
-	if err := validateSignatureLength(op.ENRSignature, "operator enr signature"); err != nil {
+	if err := validateSignatureLength(d.Version, op.ENRSignature, "operator enr signature"); err != nil {
 		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
 	}
 
 	return nil
 }
 
-// validateSignatureLength validates that a signature is either empty or a multiple of 65 bytes.
-// Safe/Gnosis Safe multisig signatures are concatenated ECDSA signatures: threshold × 65 bytes.
-func validateSignatureLength(sig []byte, fieldName string) error {
+// validateSignatureLength validates a signature length for the given definition version.
+// An empty signature is always valid (unsigned operator/creator). Pre-v1.11 supports only a single
+// fixed 65-byte secp256k1 signature; v1.11+ also supports concatenated Safe multisig signatures,
+// which are a multiple of 65 bytes up to sszMaxK1Sigs signatures.
+func validateSignatureLength(version string, sig []byte, fieldName string) error {
 	if len(sig) == 0 {
-		return nil // Empty signatures are valid
+		return nil // Empty signatures are valid.
+	}
+
+	// Variable-length (Safe multisig) signatures are only represented by the v1.11 schema; earlier
+	// versions hash via fixed Bytes65 and must therefore be exactly one 65-byte signature.
+	if !isAnyVersion(version, v1_11) {
+		if len(sig) != sszLenK1Sig {
+			return errors.New("signature must be 65 bytes",
+				z.Str("field", fieldName),
+				z.Int("length", len(sig)),
+			)
+		}
+
+		return nil
 	}
 
 	if len(sig)%sszLenK1Sig != 0 {

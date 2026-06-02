@@ -414,21 +414,28 @@ func TestVerifySigOrERC1271(t *testing.T) {
 func TestValidateSignatureLength(t *testing.T) {
 	tests := []struct {
 		name    string
+		version string
 		length  int
 		wantErr string
 	}{
-		{name: "empty", length: 0},
-		{name: "single eoa", length: sszLenK1Sig},
-		{name: "safe threshold 2", length: 2 * sszLenK1Sig},
-		{name: "safe threshold 3", length: 3 * sszLenK1Sig},
-		{name: "max", length: sszMaxK1Sigs * sszLenK1Sig},
-		{name: "not multiple of 65", length: 100, wantErr: "multiple of 65 bytes"},
-		{name: "exceeds maximum", length: (sszMaxK1Sigs + 1) * sszLenK1Sig, wantErr: "exceeds maximum length"},
+		// v1.11+ allows a single signature or concatenated Safe multisig signatures (multiple of 65).
+		{name: "v1.11 empty", version: v1_11, length: 0},
+		{name: "v1.11 single eoa", version: v1_11, length: sszLenK1Sig},
+		{name: "v1.11 safe threshold 2", version: v1_11, length: 2 * sszLenK1Sig},
+		{name: "v1.11 safe threshold 3", version: v1_11, length: 3 * sszLenK1Sig},
+		{name: "v1.11 max", version: v1_11, length: sszMaxK1Sigs * sszLenK1Sig},
+		{name: "v1.11 not multiple of 65", version: v1_11, length: 100, wantErr: "multiple of 65 bytes"},
+		{name: "v1.11 exceeds maximum", version: v1_11, length: (sszMaxK1Sigs + 1) * sszLenK1Sig, wantErr: "exceeds maximum length"},
+		// Pre-v1.11 only allows a single fixed 65-byte signature (or empty); multisig is rejected.
+		{name: "v1.10 empty", version: v1_10, length: 0},
+		{name: "v1.10 single eoa", version: v1_10, length: sszLenK1Sig},
+		{name: "v1.10 multisig rejected", version: v1_10, length: 2 * sszLenK1Sig, wantErr: "signature must be 65 bytes"},
+		{name: "v1.10 not 65 rejected", version: v1_10, length: 100, wantErr: "signature must be 65 bytes"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateSignatureLength(make([]byte, tt.length), "test signature")
+			err := validateSignatureLength(tt.version, make([]byte, tt.length), "test signature")
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 			} else {
