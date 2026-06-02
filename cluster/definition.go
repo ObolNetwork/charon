@@ -355,11 +355,11 @@ func validateSignatureLength(sig []byte, fieldName string) error {
 		return nil // Empty signatures are valid
 	}
 
-	if len(sig)%65 != 0 {
+	if len(sig)%sszLenK1Sig != 0 {
 		return errors.New("signature must be multiple of 65 bytes",
 			z.Str("field", fieldName),
 			z.Int("length", len(sig)),
-			z.Int("remainder", len(sig)%65),
+			z.Int("remainder", len(sig)%sszLenK1Sig),
 		)
 	}
 
