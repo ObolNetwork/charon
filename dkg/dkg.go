@@ -131,7 +131,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 	version.LogInfo(ctx, "Charon DKG starting")
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-	go eth1Cl.Run(ctx)
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return err
+	}
 
 	var (
 		def                  cluster.Definition

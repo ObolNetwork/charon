@@ -5,6 +5,7 @@ package eth1wrap
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -12,7 +13,46 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	erc1271 "github.com/obolnetwork/charon/app/eth1wrap/generated"
 	"github.com/obolnetwork/charon/app/expbackoff"
+	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 )
+
+const defaultConnectTimeout = 10 * time.Second
+
+func RunAndWait(ctx context.Context, cl EthClientRunner) error {
+	go cl.Run(ctx)
+
+	return WaitConnected(ctx, cl)
+}
+
+func WaitConnected(ctx context.Context, cl EthClientRunner) error {
+	ctx, cancel := context.WithTimeout(ctx, defaultConnectTimeout)
+	defer cancel()
+
+	// Fast path: already connected, or a noop client with no endpoint and nothing to wait for.
+	if _, err := cl.ClientVersion(ctx); err == nil || errors.Is(err, ErrNoExecutionEngineAddr) {
+		return nil
+	}
+
+	log.Debug(ctx, "Waiting for execution client to connect")
+
+	start := time.Now()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ErrEthClientNotConnected, "wait for execution client to connect")
+		case <-ticker.C:
+			if _, err := cl.ClientVersion(ctx); err == nil || errors.Is(err, ErrNoExecutionEngineAddr) {
+				log.Debug(ctx, "Execution client connected", z.Str("waited", time.Since(start).String()))
+				return nil
+			}
+		}
+	}
+}
 
 //go:generate abigen --abi=build/IERC1271.abi --pkg=erc1271 --out=generated/erc1271.go
 

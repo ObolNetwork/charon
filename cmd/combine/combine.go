@@ -65,7 +65,9 @@ func Combine(ctx context.Context, inputDir, outputDir string, force, noverify bo
 	)
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
-	go eth1Cl.Run(ctx)
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return errors.Wrap(err, "eth1 client")
+	}
 
 	lock, possibleKeyPaths, err := loadManifest(ctx, inputDir, noverify, eth1Cl)
 	if err != nil {

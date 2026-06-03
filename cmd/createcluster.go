@@ -216,7 +216,9 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// Get a cluster definition, either from a definition file or from the config.
 	if conf.DefFile != "" {
 		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-		go eth1Cl.Run(ctx)
+		if err = eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+			return err
+		}
 
 		// Validate the provided definition.
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, eth1Cl)
@@ -1099,7 +1101,9 @@ func loadDefinition(ctx context.Context, defFile, execEngineAddr string) (cluste
 	}
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(execEngineAddr)
-	go eth1Cl.Run(ctx)
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return cluster.Definition{}, err
+	}
 
 	if err := def.VerifySignatures(eth1Cl); err != nil {
 		return cluster.Definition{}, err
