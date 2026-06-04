@@ -97,7 +97,21 @@ func (db *MemDB) StoreInternal(ctx context.Context, duty core.Duty, signedSet co
 
 // StoreExternal stores an externally received partially signed duty data set.
 func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet core.ParSignedDataSet) error {
-	_ = db.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
+	// The deadliner drives all trimming: entries are only ever deleted when their duty is emitted on deadliner.C().
+	// A duty whose deadline has already passed is never scheduled, so storing it would leak forever.
+	// Duties that never expire must still be stored.
+	if db.deadliner.Add(duty) == core.DeadlineExpired {
+		var shareIdx int
+		for _, sig := range signedSet {
+			shareIdx = sig.ShareIdx
+			break
+		}
+
+		log.Warn(ctx, "Dropping partial signatures received for expired duty", nil,
+			z.Any("duty", duty), z.Int("share_idx", shareIdx))
+
+		return nil
+	}
 
 	output := make(map[core.PubKey][]core.ParSignedData)
 

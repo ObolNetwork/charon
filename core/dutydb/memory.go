@@ -74,8 +74,8 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	if !db.deadliner.Add(duty) {
-		return errors.New("not storing unsigned data for expired duty", z.Any("duty", duty))
+	if status := db.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+		return errors.New("not storing unsigned data for expired or exempt duty", z.Any("duty", duty))
 	}
 
 	switch duty.Type {

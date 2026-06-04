@@ -25,14 +25,31 @@ const (
 // DeadlineFunc is a function that returns the deadline for a duty.
 type DeadlineFunc func(Duty) (time.Time, bool)
 
+// DeadlineStatus is the result of adding a duty to a Deadliner.
+type DeadlineStatus int
+
+const (
+	// DeadlineExpired indicates the duty's deadline has already passed,
+	// so it was not scheduled and will never be emitted on C().
+	DeadlineExpired DeadlineStatus = iota
+	// DeadlineScheduled indicates the duty was scheduled for future deadline expiry
+	// and will eventually be emitted on C().
+	DeadlineScheduled
+	// DeadlineExempt indicates the duty type never expires (e.g. exits),
+	// so it was not scheduled and will never be emitted on C().
+	DeadlineExempt
+)
+
 // Deadliner provides duty Deadline functionality. The C method isn’t thread safe and
 // may only be used by a single goroutine. So, multiple instances are required
 // for different components and use cases.
 type Deadliner interface {
-	// Add returns true if the duty was added for future deadline scheduling. It is idempotent
-	// and returns true if the duty was previously added and still awaits deadline scheduling. It
-	// returns false if the duty has already expired and cannot therefore be added for scheduling.
-	Add(duty Duty) bool
+	// Add schedules the duty for future deadline expiry and returns DeadlineScheduled.
+	// It is idempotent and returns DeadlineScheduled if the duty was previously added and still awaits expiry.
+	// It returns DeadlineExpired if the duty's deadline has already passed.
+	// It returns DeadlineExempt if the duty type never expires.
+	// In the latter two cases the duty is not scheduled and will never be emitted on C().
+	Add(duty Duty) DeadlineStatus
 
 	// C returns the same read channel every time and contains deadlined duties.
 	// It should only be called by a single goroutine.
@@ -42,7 +59,7 @@ type Deadliner interface {
 // deadlineInput represents the input to inputChan.
 type deadlineInput struct {
 	duty    Duty
-	success chan<- bool
+	success chan<- DeadlineStatus
 }
 
 // deadliner implements the Deadliner interface.
@@ -157,18 +174,17 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 			deadline, canExpire := deadlineFunc(input.duty)
 			if !canExpire {
 				// Drop duties that never expire
-				input.success <- false
+				input.success <- DeadlineExempt
 				continue
 			}
 
-			expired := deadline.Before(d.clock.Now())
-
-			input.success <- !expired
-
-			// Ignore expired duties
-			if expired {
+			// Ignore (and signal) duties that have already expired.
+			if deadline.Before(d.clock.Now()) {
+				input.success <- DeadlineExpired
 				continue
 			}
+
+			input.success <- DeadlineScheduled
 
 			duties[input.duty] = true
 
@@ -194,21 +210,22 @@ func (d *deadliner) run(ctx context.Context, deadlineFunc DeadlineFunc) {
 	}
 }
 
-// Add adds a duty to be notified of the deadline. It returns true if the duty was added successfully.
-func (d *deadliner) Add(duty Duty) bool {
-	success := make(chan bool)
+// Add adds a duty to be notified of the deadline.
+// See the Deadliner interface for the meaning of the returned DeadlineStatus.
+func (d *deadliner) Add(duty Duty) DeadlineStatus {
+	success := make(chan DeadlineStatus)
 
 	select {
 	case <-d.quit:
-		return false
+		return DeadlineExpired
 	case d.inputChan <- deadlineInput{duty: duty, success: success}:
 	}
 
 	select {
 	case <-d.quit:
-		return false
-	case ok := <-success:
-		return ok
+		return DeadlineExpired
+	case status := <-success:
+		return status
 	}
 }
 

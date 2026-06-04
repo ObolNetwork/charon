@@ -675,8 +675,8 @@ type testDeadliner struct {
 	deadlineChan chan core.Duty
 }
 
-func (testDeadliner) Add(core.Duty) bool {
-	return true
+func (testDeadliner) Add(core.Duty) core.DeadlineStatus {
+	return core.DeadlineScheduled
 }
 
 func (t testDeadliner) C() <-chan core.Duty {

@@ -154,6 +154,55 @@ func TestMemDBThreshold(t *testing.T) {
 	require.Equal(t, 2, timesCalled)
 }
 
+// TestMemDBStoreExternalExpired verifies that StoreExternal drops partial signatures for duties the
+// deadliner reports as already expired (which can never be trimmed and would otherwise leak), while
+// still storing scheduled and never-expiring duties.
+func TestMemDBStoreExternalExpired(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     core.DeadlineStatus
+		wantStored bool
+	}{
+		{name: "expired_dropped", status: core.DeadlineExpired, wantStored: false},
+		{name: "scheduled_stored", status: core.DeadlineScheduled, wantStored: true},
+		{name: "never_expires_stored", status: core.DeadlineExempt, wantStored: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := NewMemDB(7, fixedDeadliner{status: tt.status}, NewMemDBMetadata(eth2util.Mainnet.SlotDuration, time.Unix(eth2util.Mainnet.GenesisTimestamp, 0)))
+
+			pubkey := testutil.RandomCorePubKey(t)
+			parAtt, err := core.NewPartialVersionedAttestation(testutil.RandomDenebVersionedAttestation(), 1)
+			require.NoError(t, err)
+
+			err = db.StoreExternal(context.Background(), core.NewAttesterDuty(123), core.ParSignedDataSet{pubkey: parAtt})
+			require.NoError(t, err)
+
+			db.mu.Lock()
+			gotEntries, gotKeys := len(db.entries), len(db.keysByDuty)
+			db.mu.Unlock()
+
+			if tt.wantStored {
+				require.Equal(t, 1, gotEntries)
+				require.Equal(t, 1, gotKeys)
+			} else {
+				require.Zero(t, gotEntries)
+				require.Zero(t, gotKeys)
+			}
+		})
+	}
+}
+
+// fixedDeadliner is a Deadliner that returns a fixed DeadlineStatus and never deadlines anything.
+type fixedDeadliner struct {
+	status core.DeadlineStatus
+}
+
+func (d fixedDeadliner) Add(core.Duty) core.DeadlineStatus { return d.status }
+
+func (fixedDeadliner) C() <-chan core.Duty { return nil }
+
 func newTestDeadliner() *testDeadliner {
 	return &testDeadliner{
 		ch: make(chan core.Duty),
@@ -177,9 +226,9 @@ func (t *testDeadliner) Expire() bool {
 	return true
 }
 
-func (t *testDeadliner) Add(duty core.Duty) bool {
+func (t *testDeadliner) Add(duty core.Duty) core.DeadlineStatus {
 	t.added = append(t.added, duty)
-	return true
+	return core.DeadlineScheduled
 }
 
 func (t *testDeadliner) C() <-chan core.Duty {
