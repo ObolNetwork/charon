@@ -95,10 +95,12 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(t.Context(), bmock)
 	require.NoError(t, err)
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
 	require.NoError(t, err)
 
 	margin := slotDuration / 12
+	oneEpoch := time.Duration(slotsPerEpoch) * slotDuration
+	twoEpochs := 2 * oneEpoch
 	currentSlot := uint64(time.Since(genesisTime) / slotDuration)
 	now := genesisTime.Add(time.Duration(currentSlot) * slotDuration)
 
@@ -129,15 +131,15 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 		},
 		{
 			duty:             core.NewAttesterDuty(currentSlot),
-			expectedDuration: 2*slotDuration + margin,
+			expectedDuration: oneEpoch + margin,
 		},
 		{
 			duty:             core.NewAggregatorDuty(currentSlot),
-			expectedDuration: 2*slotDuration + margin,
+			expectedDuration: oneEpoch + margin,
 		},
 		{
 			duty:             core.NewPrepareAggregatorDuty(currentSlot),
-			expectedDuration: 2*slotDuration + margin,
+			expectedDuration: twoEpochs + margin,
 		},
 		{
 			duty:             core.NewSyncMessageDuty(currentSlot),
@@ -157,7 +159,7 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 		},
 		{
 			duty:             core.NewPrepareSyncContributionDuty(currentSlot),
-			expectedDuration: slotDuration + margin,
+			expectedDuration: twoEpochs + margin,
 		},
 	}
 

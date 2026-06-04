@@ -93,7 +93,7 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 		return nil, err
 	}
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -117,9 +117,12 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			duration = slotDuration / 3
 		case DutySyncMessage:
 			duration = 2 * slotDuration / 3
-		case DutyAttester, DutyAggregator, DutyPrepareAggregator:
-			// Even though attestations and aggregations are acceptable even after 2 slots, the rewards are heavily diminished.
-			duration = 2 * slotDuration
+		case DutyAttester, DutyAggregator:
+			// Attestations and aggregations are kept for a full epoch so late partial signatures are not dropped.
+			duration = time.Duration(slotsPerEpoch) * slotDuration
+		case DutyPrepareAggregator, DutyPrepareSyncContribution:
+			// Prepare duties are epoch-scoped
+			duration = 2 * time.Duration(slotsPerEpoch) * slotDuration
 		default:
 			duration = slotDuration
 		}
