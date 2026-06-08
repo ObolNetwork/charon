@@ -88,6 +88,31 @@ func TestDeadliner(t *testing.T) {
 	require.Equal(t, nonExpiredDuties, actualDuties)
 }
 
+// TestDeadlinerExempt verifies that a duty whose deadline func reports it as never-expiring
+// returns DeadlineExempt from Add and is never emitted on C().
+func TestDeadlinerExempt(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+	neverExpires := func(core.Duty) (time.Time, bool) {
+		return time.Time{}, false
+	}
+
+	deadliner := core.NewDeadlinerForT(ctx, t, neverExpires, clock)
+
+	require.Equal(t, core.DeadlineExempt, deadliner.Add(core.NewVoluntaryExit(123)))
+
+	// Advance the clock well beyond any deadline; exempt duties must never be emitted on C().
+	clock.Advance(time.Hour)
+
+	select {
+	case got := <-deadliner.C():
+		require.Failf(t, "exempt duty must not be emitted on C()", "got duty %v", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 func TestNewDutyDeadlineFunc(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)

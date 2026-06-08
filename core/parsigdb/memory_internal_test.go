@@ -159,13 +159,15 @@ func TestMemDBThreshold(t *testing.T) {
 // still storing scheduled and never-expiring duties.
 func TestMemDBStoreExternalExpired(t *testing.T) {
 	tests := []struct {
-		name       string
-		status     core.DeadlineStatus
-		wantStored bool
+		name             string
+		status           core.DeadlineStatus
+		wantStored       bool // stored in entries
+		wantInKeysByDuty bool // also tracked for deadliner trimming (non-exempt only)
 	}{
-		{name: "expired_dropped", status: core.DeadlineExpired, wantStored: false},
-		{name: "scheduled_stored", status: core.DeadlineScheduled, wantStored: true},
-		{name: "never_expires_stored", status: core.DeadlineExempt, wantStored: true},
+		{name: "expired_dropped", status: core.DeadlineExpired, wantStored: false, wantInKeysByDuty: false},
+		{name: "scheduled_stored", status: core.DeadlineScheduled, wantStored: true, wantInKeysByDuty: true},
+		// Exempt duties are stored but tracked via exemptEntries (capped), not keysByDuty.
+		{name: "exempt_stored", status: core.DeadlineExempt, wantStored: true, wantInKeysByDuty: false},
 	}
 
 	for _, tt := range tests {
@@ -185,13 +187,46 @@ func TestMemDBStoreExternalExpired(t *testing.T) {
 
 			if tt.wantStored {
 				require.Equal(t, 1, gotEntries)
-				require.Equal(t, 1, gotKeys)
 			} else {
 				require.Zero(t, gotEntries)
+			}
+
+			if tt.wantInKeysByDuty {
+				require.Equal(t, 1, gotKeys)
+			} else {
 				require.Zero(t, gotKeys)
 			}
 		})
 	}
+}
+
+// TestMemDBExemptCap verifies that exempt-duty entries are capped per share index per validator
+// (evicting oldest), bounding memory against a peer that replays many distinct epochs/slots.
+func TestMemDBExemptCap(t *testing.T) {
+	const shareIdx = 1
+
+	// fixedDeadliner returns DeadlineExempt for every duty, so all stored entries are treated as
+	// exempt regardless of type, exercising the per-share cap.
+	db := NewMemDB(7, fixedDeadliner{status: core.DeadlineExempt}, NewMemDBMetadata(eth2util.Mainnet.SlotDuration, time.Unix(eth2util.Mainnet.GenesisTimestamp, 0)))
+
+	pubkey := testutil.RandomCorePubKey(t)
+	att := testutil.RandomDenebVersionedAttestation()
+
+	// Store more distinct slots than the cap, all for the same validator and share index.
+	const stored = maxExemptEntriesPerShare + 5
+	for slot := range uint64(stored) {
+		parAtt, err := core.NewPartialVersionedAttestation(att, shareIdx)
+		require.NoError(t, err)
+
+		err = db.StoreExternal(context.Background(), core.NewAttesterDuty(slot), core.ParSignedDataSet{pubkey: parAtt})
+		require.NoError(t, err)
+	}
+
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	require.Len(t, db.entries, maxExemptEntriesPerShare, "entries must be capped at maxExemptEntriesPerShare")
+	require.Len(t, db.exemptEntries[exemptEntryKey{ShareIdx: shareIdx, PubKey: pubkey, DutyType: core.DutyAttester}], maxExemptEntriesPerShare)
 }
 
 // fixedDeadliner is a Deadliner that returns a fixed DeadlineStatus and never deadlines anything.
