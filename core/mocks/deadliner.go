@@ -15,18 +15,18 @@ type Deadliner struct {
 }
 
 // Add provides a mock function with given fields: duty
-func (_m *Deadliner) Add(duty core.Duty) bool {
+func (_m *Deadliner) Add(duty core.Duty) core.DeadlineStatus {
 	ret := _m.Called(duty)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Add")
 	}
 
-	var r0 bool
-	if rf, ok := ret.Get(0).(func(core.Duty) bool); ok {
+	var r0 core.DeadlineStatus
+	if rf, ok := ret.Get(0).(func(core.Duty) core.DeadlineStatus); ok {
 		r0 = rf(duty)
 	} else {
-		r0 = ret.Get(0).(bool)
+		r0 = ret.Get(0).(core.DeadlineStatus)
 	}
 
 	return r0

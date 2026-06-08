@@ -54,8 +54,8 @@ func TestCancelledQueries(t *testing.T) {
 
 type noopDeadliner struct{}
 
-func (t noopDeadliner) Add(duty core.Duty) bool {
-	return true
+func (t noopDeadliner) Add(duty core.Duty) core.DeadlineStatus {
+	return core.DeadlineScheduled
 }
 
 func (t noopDeadliner) C() <-chan core.Duty {

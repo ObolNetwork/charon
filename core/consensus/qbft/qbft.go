@@ -530,9 +530,9 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/qbft.runInstance")
 
-	if !c.deadliner.Add(duty) {
-		span.AddEvent("Expired Duty Skipped")
-		log.Warn(ctx, "Skipping consensus for expired duty", nil)
+	if status := c.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+		span.AddEvent("Expired/exempt duty skipped")
+		log.Warn(ctx, "Skipping consensus for expired/exempt duty", nil, z.Any("duty", duty))
 
 		return nil
 	}
@@ -710,8 +710,8 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		)
 	}
 
-	if !c.deadliner.Add(duty) {
-		return nil, false, errors.New("duty expired", z.Any("duty", duty), c.dropFilter)
+	if status := c.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+		return nil, false, errors.New("duty expired or exempt", z.Any("duty", duty), c.dropFilter)
 	}
 
 	select {

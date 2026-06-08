@@ -186,8 +186,8 @@ func (p *Prioritiser) Prioritise(ctx context.Context, msg *pbv1.PriorityMsg) err
 	duty := core.DutyFromProto(msg.GetDuty())
 	ctx = log.WithCtx(ctx, z.Any("duty", duty))
 
-	if !p.deadliner.Add(duty) {
-		log.Warn(ctx, "Dropping priority protocol instance for expired duty", nil)
+	if status := p.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+		log.Warn(ctx, "Dropping priority protocol instance for expired/exempt duty", nil, z.Any("duty", duty))
 		return nil
 	}
 
@@ -215,8 +215,8 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 
 	duty := core.DutyFromProto(msg.GetDuty())
 
-	if !p.deadliner.Add(duty) {
-		return nil, errors.New("duty expired")
+	if status := p.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+		return nil, errors.New("duty expired or exempt", z.Any("duty", duty))
 	}
 
 	reqBuffer := p.getReqBuffer(duty)
