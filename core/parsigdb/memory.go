@@ -232,13 +232,17 @@ func (db *MemDB) store(ctx context.Context, k key, value core.ParSignedData, exe
 		return nil, false, err
 	}
 
+	isNewKey := len(db.entries[k]) == 0
+
 	db.entries[k] = append(db.entries[k], clone)
 
 	if exempt {
 		// Exempt duties are never emitted on deadliner.C(), so they are tracked and capped
 		// here (under the same lock) instead of being trimmed via keysByDuty.
 		db.trackExemptUnsafe(ctx, k, value.ShareIdx)
-	} else {
+	} else if isNewKey {
+		// Index each key once; Trim deletes by key, so appending per share signature would
+		// only add redundant duplicates (O(validators*shares) instead of O(validators)).
 		db.keysByDuty[k.Duty] = append(db.keysByDuty[k.Duty], k)
 	}
 

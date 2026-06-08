@@ -121,7 +121,6 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			// Attestations and aggregations are kept for a full epoch so late partial signatures are not dropped.
 			duration = time.Duration(slotsPerEpoch) * slotDuration
 		case DutyPrepareAggregator, DutyPrepareSyncContribution:
-			// Prepare duties are epoch-scoped
 			duration = 2 * time.Duration(slotsPerEpoch) * slotDuration
 		default:
 			duration = slotDuration
