@@ -121,13 +121,13 @@ type testDeadliner struct {
 	ch    chan core.Duty
 }
 
-func (d *testDeadliner) Add(duty core.Duty) bool {
+func (d *testDeadliner) Add(duty core.Duty) core.DeadlineStatus {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	d.added = append(d.added, duty)
 
-	return true
+	return core.DeadlineScheduled
 }
 
 func (d *testDeadliner) C() <-chan core.Duty {

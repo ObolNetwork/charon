@@ -173,8 +173,8 @@ func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.
 // noopDeadliner is a deadliner that does nothing.
 type noopDeadliner struct{}
 
-func (noopDeadliner) Add(core.Duty) bool {
-	return true
+func (noopDeadliner) Add(core.Duty) core.DeadlineStatus {
+	return core.DeadlineScheduled
 }
 
 func (noopDeadliner) C() <-chan core.Duty {
