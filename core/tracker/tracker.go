@@ -142,8 +142,13 @@ func (t *Tracker) Run(ctx context.Context) error {
 				continue // Ignore events before from slot.
 			}
 
-			if !t.deleter.Add(e.duty) || !t.analyser.Add(e.duty) {
-				continue // Ignore expired or never expiring duties
+			// Ignore expired or exempt duties.
+			if status := t.deleter.Add(e.duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+				continue
+			}
+
+			if status := t.analyser.Add(e.duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+				continue
 			}
 
 			t.events[e.duty] = append(t.events[e.duty], e)

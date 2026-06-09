@@ -134,7 +134,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		gaterFunc := func(core.Duty) bool { return true }
 
 		deadliner := coremocks.NewDeadliner(t)
-		deadliner.On("Add", mock.Anything).Return(true)
+		deadliner.On("Add", mock.Anything).Return(core.DeadlineScheduled)
 		deadliner.On("C").Return((<-chan core.Duty)(deadlineChan))
 
 		// Create a mock beacon client for test

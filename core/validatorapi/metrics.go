@@ -64,9 +64,41 @@ func observeAPILatency(endpoint string) func() {
 func observeProxyAPILatency(path string) func() {
 	t0 := time.Now()
 
-	path = strings.Trim(strings.ReplaceAll(path, "/", "_"), "_")
+	label := proxyPathLabel(path)
 
 	return func() {
-		proxyAPILatency.WithLabelValues(path).Observe(time.Since(t0).Seconds())
+		proxyAPILatency.WithLabelValues(label).Observe(time.Since(t0).Seconds())
 	}
+}
+
+// proxyPathLabel converts a request path into a bounded metric label by replacing dynamic
+// path segments with placeholders. Without this, paths like /eth/v2/beacon/blocks/0x<root>
+// produce a unique label value per block root, which grows metric cardinality (and memory)
+// without bound.
+func proxyPathLabel(path string) string {
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	for i, segment := range segments {
+		switch {
+		case strings.HasPrefix(segment, "0x"):
+			segments[i] = "{hex}" // Block/state roots, validator pubkeys.
+		case isNumeric(segment):
+			segments[i] = "{n}" // Slots, epochs, validator indices.
+		case i > 0 && segments[i-1] == "peers":
+			segments[i] = "{peer_id}" // libp2p peer IDs are base58/base32, not hex or numeric.
+		default:
+		}
+	}
+
+	return strings.Join(segments, "_")
+}
+
+// isNumeric returns true if s is non-empty and contains only ASCII digits.
+func isNumeric(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	return !strings.ContainsFunc(s, func(r rune) bool {
+		return r < '0' || r > '9'
+	})
 }

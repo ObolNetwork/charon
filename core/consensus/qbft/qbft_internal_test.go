@@ -383,7 +383,7 @@ func TestQBFTConsensus_handle(t *testing.T) {
 			var tc Consensus
 
 			deadliner := coremocks.NewDeadliner(t)
-			deadliner.On("Add", mock.Anything).Maybe().Return(true)
+			deadliner.On("Add", mock.Anything).Maybe().Return(core.DeadlineScheduled)
 			tc.deadliner = deadliner
 			tc.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 			tc.gaterFunc = func(core.Duty) bool { return true }
@@ -484,7 +484,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		var c Consensus
 
 		deadliner := coremocks.NewDeadliner(t)
-		deadliner.On("Add", mock.Anything).Return(true)
+		deadliner.On("Add", mock.Anything).Return(core.DeadlineScheduled)
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
@@ -516,7 +516,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		var c Consensus
 
 		deadliner := coremocks.NewDeadliner(t)
-		deadliner.On("Add", mock.Anything).Return(true)
+		deadliner.On("Add", mock.Anything).Return(core.DeadlineScheduled)
 		c.deadliner = deadliner
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])

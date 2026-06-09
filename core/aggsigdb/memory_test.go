@@ -235,8 +235,8 @@ func newNoopDeadliner() core.Deadliner {
 
 type noopDeadliner struct{}
 
-func (noopDeadliner) Add(core.Duty) bool {
-	return true
+func (noopDeadliner) Add(core.Duty) core.DeadlineStatus {
+	return core.DeadlineScheduled
 }
 
 func (noopDeadliner) C() <-chan core.Duty {

@@ -48,22 +48,22 @@ func TestDeadliner(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
 	// Add our duties to the deadliner.
-	expectedFalseCh := make(chan bool, len(expiredDuties))
-	expectedTrueCh := make(chan bool, len(nonExpiredDuties)+len(voluntaryExits))
+	expectedExpiredCh := make(chan core.DeadlineStatus, len(expiredDuties))
+	expectedScheduledCh := make(chan core.DeadlineStatus, len(nonExpiredDuties)+len(voluntaryExits))
 
-	addDuties(t, wg, expiredDuties, expectedFalseCh, deadliner)
-	addDuties(t, wg, nonExpiredDuties, expectedTrueCh, deadliner)
-	addDuties(t, wg, voluntaryExits, expectedTrueCh, deadliner)
+	addDuties(t, wg, expiredDuties, expectedExpiredCh, deadliner)
+	addDuties(t, wg, nonExpiredDuties, expectedScheduledCh, deadliner)
+	addDuties(t, wg, voluntaryExits, expectedScheduledCh, deadliner)
 
 	// Wait till all the duties are added to the deadliner.
 	wg.Wait()
 
 	for range len(expiredDuties) {
-		require.False(t, <-expectedFalseCh)
+		require.Equal(t, core.DeadlineExpired, <-expectedExpiredCh)
 	}
 
 	for range len(nonExpiredDuties) + len(voluntaryExits) {
-		require.True(t, <-expectedTrueCh)
+		require.Equal(t, core.DeadlineScheduled, <-expectedScheduledCh)
 	}
 
 	var maxSlot uint64
@@ -88,6 +88,31 @@ func TestDeadliner(t *testing.T) {
 	require.Equal(t, nonExpiredDuties, actualDuties)
 }
 
+// TestDeadlinerExempt verifies that a duty whose deadline func reports it as never-expiring
+// returns DeadlineExempt from Add and is never emitted on C().
+func TestDeadlinerExempt(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+	neverExpires := func(core.Duty) (time.Time, bool) {
+		return time.Time{}, false
+	}
+
+	deadliner := core.NewDeadlinerForT(ctx, t, neverExpires, clock)
+
+	require.Equal(t, core.DeadlineExempt, deadliner.Add(core.NewVoluntaryExit(123)))
+
+	// Advance the clock well beyond any deadline; exempt duties must never be emitted on C().
+	clock.Advance(time.Hour)
+
+	select {
+	case got := <-deadliner.C():
+		require.Failf(t, "exempt duty must not be emitted on C()", "got duty %v", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 func TestNewDutyDeadlineFunc(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
@@ -95,10 +120,12 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(t.Context(), bmock)
 	require.NoError(t, err)
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
 	require.NoError(t, err)
 
 	margin := slotDuration / 12
+	oneEpoch := time.Duration(slotsPerEpoch) * slotDuration
+	twoEpochs := 2 * oneEpoch
 	currentSlot := uint64(time.Since(genesisTime) / slotDuration)
 	now := genesisTime.Add(time.Duration(currentSlot) * slotDuration)
 
@@ -129,15 +156,15 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 		},
 		{
 			duty:             core.NewAttesterDuty(currentSlot),
-			expectedDuration: 2*slotDuration + margin,
+			expectedDuration: oneEpoch + margin,
 		},
 		{
 			duty:             core.NewAggregatorDuty(currentSlot),
-			expectedDuration: 2*slotDuration + margin,
+			expectedDuration: oneEpoch + margin,
 		},
 		{
 			duty:             core.NewPrepareAggregatorDuty(currentSlot),
-			expectedDuration: 2*slotDuration + margin,
+			expectedDuration: twoEpochs + margin,
 		},
 		{
 			duty:             core.NewSyncMessageDuty(currentSlot),
@@ -157,7 +184,7 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 		},
 		{
 			duty:             core.NewPrepareSyncContributionDuty(currentSlot),
-			expectedDuration: slotDuration + margin,
+			expectedDuration: twoEpochs + margin,
 		},
 	}
 
@@ -173,12 +200,12 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 }
 
 // addDuties runs a goroutine which adds the duties to the deadliner channel.
-func addDuties(t *testing.T, wg *sync.WaitGroup, duties []core.Duty, expCh chan bool, deadliner core.Deadliner) {
+func addDuties(t *testing.T, wg *sync.WaitGroup, duties []core.Duty, expCh chan core.DeadlineStatus, deadliner core.Deadliner) {
 	t.Helper()
 
 	wg.Add(1)
 
-	go func(duties []core.Duty, expCh chan bool) {
+	go func(duties []core.Duty, expCh chan core.DeadlineStatus) {
 		defer wg.Done()
 
 		for _, duty := range duties {
