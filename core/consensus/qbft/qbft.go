@@ -678,6 +678,26 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("invalid duty", z.Any("duty", duty))
 	}
 
+	// Bound justification and value counts before doing any expensive per-element
+	// work: each justification requires an ECDSA signature recovery and each value
+	// a proto unmarshal + hash. Without this, a single authenticated peer could send
+	// a large message (up to the 128MB p2p frame) packed with hundreds of thousands
+	// of sub-messages to exhaust CPU/memory on every peer (amplification DoS).
+	//
+	// A legitimate justification set contains at most a quorum of ROUND-CHANGE
+	// messages plus a quorum of PREPARE messages (see qbft.getJustifiedQrc), bounded
+	// above by 2*nodes. Each message (the main message plus each justification)
+	// references at most two values (value and prepared value), so the values map is
+	// bounded by 2*(justifications+1).
+	nodes := len(c.pubkeys)
+	if n := len(pbMsg.GetJustification()); n > 2*nodes {
+		return nil, false, errors.New("too many justifications", z.Int("count", n), z.Int("max", 2*nodes))
+	}
+
+	if n, maxValues := len(pbMsg.GetValues()), 2*(len(pbMsg.GetJustification())+1); n > maxValues {
+		return nil, false, errors.New("too many values", z.Int("count", n), z.Int("max", maxValues))
+	}
+
 	for _, justification := range pbMsg.GetJustification() {
 		if err := verifyMsg(justification, c.pubkeys); err != nil {
 			return nil, false, errors.Wrap(err, "invalid justification")

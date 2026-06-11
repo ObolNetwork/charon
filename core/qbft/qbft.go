@@ -158,6 +158,21 @@ type dedupKey struct {
 	Round    int64
 }
 
+// maxDecidedResends bounds the number of MsgDecided rebroadcasts that
+// post-decision ROUND-CHANGE messages from a single peer can trigger.
+// A lagging peer re-sends ROUND-CHANGE with an increasing round on each
+// timeout until it learns the decided value, so a handful of resends is
+// ample for liveness, while the cap stops a malicious peer minting
+// ever-higher rounds from extracting unlimited large rebroadcasts.
+const maxDecidedResends = 16
+
+// decidedResend tracks the MsgDecided rebroadcasts triggered by a peer's
+// post-decision ROUND-CHANGE messages.
+type decidedResend struct {
+	Round int64 // Highest round a rebroadcast was triggered for.
+	Count int   // Total rebroadcasts triggered by the peer.
+}
+
 // errors
 var (
 	errCompare = errors.New("compare leader value with local value failed")
@@ -211,6 +226,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		qCommit               []Msg[I, V, C]
 		buffer                = make(map[int64][]Msg[I, V, C])
 		dedupRules            = make(map[dedupKey]bool)
+		decidedResends        = make(map[int64]decidedResend) // Bounds MsgDecided rebroadcasts by peer source.
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -319,7 +335,27 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 			// Just send Qcommit if consensus already decided
 			if len(qCommit) > 0 {
 				if msg.Source() != process && msg.Type() == MsgRoundChange { // Algorithm 3:17
-					err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
+					// Rebroadcast at most once per source per (strictly increasing)
+					// round, capped at maxDecidedResends per source: duplicate,
+					// replayed or maliciously round-incremented ROUND-CHANGE messages
+					// can't repeatedly trigger a large MsgDecided rebroadcast
+					// (amplification DoS). Note this path runs before the isJustified
+					// check, so the ROUND-CHANGE need not even be justified. A peer
+					// advancing to a genuinely new round still gets a fresh resend
+					// (up to the cap).
+					//
+					// The transport is expected to authenticate sources, but cap the
+					// tracked sources at d.Nodes as defense in depth so forged source
+					// IDs can't grow this state (and the total resends) without bound.
+					resend, ok := decidedResends[msg.Source()]
+					if !ok && len(decidedResends) >= d.Nodes {
+						break
+					}
+
+					if msg.Round() > resend.Round && resend.Count < maxDecidedResends {
+						decidedResends[msg.Source()] = decidedResend{Round: msg.Round(), Count: resend.Count + 1}
+						err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
+					}
 				}
 
 				break
