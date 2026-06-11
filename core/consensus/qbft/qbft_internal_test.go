@@ -756,6 +756,7 @@ func TestQBFTConsensusHandleAmplificationLimits(t *testing.T) {
 
 		j := newRandomQBFTMsg(t)
 		j.PeerIdx = 0
+		j.Round = 1 // verifyMsg requires round > 0, don't rely on the random value.
 		j.Duty = &pbv1.Duty{Slot: 42, Type: 1}
 
 		jHash, err := hashProto(j)
