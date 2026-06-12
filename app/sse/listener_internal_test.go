@@ -169,13 +169,14 @@ func TestSubscribeNotifyHeadEvent(t *testing.T) {
 
 	reportedSlots := make([]eth2p0.Slot, 0)
 
-	l.SubscribeHeadEvent(func(_ context.Context, slot eth2p0.Slot, bnAddr string) {
+	l.SubscribeHeadEvent(func(_ context.Context, slot eth2p0.Slot, _ eth2p0.Root, bnAddr string) {
 		reportedSlots = append(reportedSlots, slot)
 	})
 
-	l.notifyHeadEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052")
-	l.notifyHeadEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052") // Duplicate should be reported (no dedup for head events)
-	l.notifyHeadEvent(ctx, eth2p0.Slot(101), "http://test-bn:5052")
+	root := eth2p0.Root{0x01}
+	l.notifyHeadEvent(ctx, eth2p0.Slot(100), root, "http://test-bn:5052")
+	l.notifyHeadEvent(ctx, eth2p0.Slot(100), root, "http://test-bn:5052") // Duplicate should be reported (no dedup for head events)
+	l.notifyHeadEvent(ctx, eth2p0.Slot(101), root, "http://test-bn:5052")
 
 	require.Len(t, reportedSlots, 3)
 	require.Equal(t, eth2p0.Slot(100), reportedSlots[0])

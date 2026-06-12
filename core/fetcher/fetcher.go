@@ -56,7 +56,9 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 
 // FetchOnly fetches attestation data and caches it without triggering subscribers.
 // This allows early fetching on head events while deferring consensus to the scheduled time.
-func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet, bnAddr string) error {
+// The data is only cached if it votes for headBlockRoot (the head from the SSE head event);
+// otherwise it is dropped so consensus re-fetches fresh data at the scheduled deadline.
+func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet, bnAddr string, headBlockRoot eth2p0.Root) error {
 	if duty.Type != core.DutyAttester {
 		return errors.New("unsupported duty", z.Str("type", duty.Type.String()))
 	}
@@ -64,6 +66,25 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 	unsignedSet, err := f.fetchAttesterDataFrom(ctx, duty.Slot, defSet, bnAddr)
 	if err != nil {
 		return errors.Wrap(err, "fetch attester data for early cache")
+	}
+
+	// Verify the fetched attestation data votes for the head block reported by the SSE head event.
+	// If the beacon node served data for a different head (e.g. the head moved on between the event
+	// and the request), skip caching so consensus re-fetches fresh data at the scheduled deadline.
+	for _, data := range unsignedSet {
+		attData, ok := data.(core.AttestationData)
+		if !ok {
+			return errors.New("invalid attestation data type")
+		}
+
+		if attData.Data.BeaconBlockRoot != headBlockRoot {
+			log.Debug(ctx, "Skipping early attestation cache: fetched head differs from head event",
+				z.U64("slot", duty.Slot), z.Str("bn_addr", bnAddr),
+				z.Str("head_event_root", headBlockRoot.String()),
+				z.Str("fetched_root", attData.Data.BeaconBlockRoot.String()))
+
+			return nil
+		}
 	}
 
 	f.attDataCache.Store(duty.Slot, unsignedSet)

@@ -95,7 +95,7 @@ type Scheduler struct {
 	dutiesMutex                sync.RWMutex
 	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs                   []func(context.Context, core.Slot) error
-	fetcherFetchOnly           func(context.Context, core.Duty, core.DutyDefinitionSet, string) error
+	fetcherFetchOnly           func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
@@ -110,7 +110,7 @@ func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.Dut
 
 // RegisterFetcherFetchOnly registers the fetcher's FetchOnly method for early attestation fetching.
 // Note this should be called *before* Start.
-func (s *Scheduler) RegisterFetcherFetchOnly(fn func(context.Context, core.Duty, core.DutyDefinitionSet, string) error) {
+func (s *Scheduler) RegisterFetcherFetchOnly(fn func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error) {
 	s.fetcherFetchOnly = fn
 }
 
@@ -200,7 +200,7 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 // HandleHeadEvent handles SSE "head" events (fork-choice head updated) and triggers early attestation data fetching.
 // Triggering on the head event (rather than the block event) ensures the beacon node's head has settled onto the
 // new block before we fetch, avoiding stale attestation data at epoch boundaries.
-func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
+func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string) {
 	if s.fetcherFetchOnly == nil {
 		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 		return
@@ -241,7 +241,7 @@ func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, bnAdd
 	//nolint:gosec // The use of background context is intentional.
 	go func() {
 		fetchCtx := log.CopyFields(context.Background(), ctx)
-		if err := s.fetcherFetchOnly(fetchCtx, duty, clonedDefSet, bnAddr); err != nil {
+		if err := s.fetcherFetchOnly(fetchCtx, duty, clonedDefSet, bnAddr, blockRoot); err != nil {
 			log.Warn(fetchCtx, "Early attestation data fetch failed", err, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 		}
 	}()

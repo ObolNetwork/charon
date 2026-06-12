@@ -678,7 +678,7 @@ func TestFetchOnly(t *testing.T) {
 		})
 
 		// FetchOnly should cache the attestation data without triggering subscribers
-		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address())
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot))
 		require.NoError(t, err)
 		require.False(t, subscriberCalled, "FetchOnly should not trigger subscribers")
 
@@ -711,7 +711,7 @@ func TestFetchOnly(t *testing.T) {
 		fetch := mustCreateFetcher(t, bmock)
 
 		proposerDuty := core.NewProposerDuty(slot)
-		err = fetch.FetchOnly(ctx, proposerDuty, defSet, bmock.Address())
+		err = fetch.FetchOnly(ctx, proposerDuty, defSet, bmock.Address(), eth2p0.Root{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unsupported duty")
 	})
@@ -723,7 +723,7 @@ func TestFetchOnly(t *testing.T) {
 		fetch := mustCreateFetcher(t, bmock)
 
 		// FetchOnly should cache the data
-		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address())
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot))
 		require.NoError(t, err)
 
 		// Now call Fetch with the cached data - should work fine
@@ -737,4 +737,41 @@ func TestFetchOnly(t *testing.T) {
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
 	})
+
+	t.Run("head mismatch skips cache", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch := mustCreateFetcher(t, bmock)
+
+		// FetchOnly with a head root that doesn't match the fetched data must not cache it.
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), eth2p0.Root{0xde, 0xad})
+		require.NoError(t, err)
+
+		// Fetch falls back to re-fetching fresh data (cache was not populated).
+		called := false
+
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			called = true
+
+			require.Len(t, resDataSet, 2)
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
+		require.True(t, called)
+	})
+}
+
+// earlyHeadRoot returns the beacon block root the beacon mock votes for at the given slot,
+// used as the expected head root for FetchOnly's verification.
+func earlyHeadRoot(ctx context.Context, t *testing.T, bmock beaconmock.Mock, slot uint64) eth2p0.Root {
+	t.Helper()
+
+	resp, err := bmock.AttestationData(ctx, &eth2api.AttestationDataOpts{Slot: eth2p0.Slot(slot), CommitteeIndex: 0})
+	require.NoError(t, err)
+
+	return resp.Data.BeaconBlockRoot
 }

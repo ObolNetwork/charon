@@ -4,10 +4,12 @@ package sse
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +24,7 @@ import (
 
 type (
 	ChainReorgEventHandlerFunc func(ctx context.Context, epoch eth2p0.Epoch)
-	HeadEventHandlerFunc       func(ctx context.Context, slot eth2p0.Slot, bnAddr string)
+	HeadEventHandlerFunc       func(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string)
 )
 
 type Listener interface {
@@ -167,7 +169,12 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 		z.Str("prev_ddr", head.PreviousDutyDependentRoot),
 		z.Str("curr_ddr", head.CurrentDutyDependentRoot))
 
-	p.notifyHeadEvent(ctx, eth2p0.Slot(slot), addr)
+	blockRoot, err := parseRoot(head.Block)
+	if err != nil {
+		return errors.Wrap(err, "parse head block root", z.Str("addr", addr))
+	}
+
+	p.notifyHeadEvent(ctx, eth2p0.Slot(slot), blockRoot, addr)
 
 	return nil
 }
@@ -289,13 +296,30 @@ func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 	}
 }
 
-func (p *listener) notifyHeadEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
+func (p *listener) notifyHeadEvent(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string) {
 	p.Lock()
 	defer p.Unlock()
 
 	for _, sub := range p.headSubs {
-		sub(ctx, slot, bnAddr)
+		sub(ctx, slot, blockRoot, bnAddr)
 	}
+}
+
+// parseRoot parses a 0x-prefixed hex string into an eth2p0.Root.
+func parseRoot(hexRoot string) (eth2p0.Root, error) {
+	b, err := hex.DecodeString(strings.TrimPrefix(hexRoot, "0x"))
+	if err != nil {
+		return eth2p0.Root{}, errors.Wrap(err, "decode hex root")
+	}
+
+	var root eth2p0.Root
+	if len(b) != len(root) {
+		return eth2p0.Root{}, errors.New("invalid root length", z.Int("length", len(b)))
+	}
+
+	copy(root[:], b)
+
+	return root, nil
 }
 
 // computeDelay computes the delay between start of the slot and receiving the event.
