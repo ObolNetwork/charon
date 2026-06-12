@@ -289,6 +289,30 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		return true
 	}
 
+	// allowDecidedResend reports whether a post-decision ROUND-CHANGE from source at
+	// round may trigger a MsgDecided rebroadcast, recording it when it does. It permits
+	// at most one rebroadcast per source per strictly-increasing round, capped at
+	// maxDecidedResends per source, so duplicate, replayed or maliciously
+	// round-incremented messages can't repeatedly trigger a large rebroadcast
+	// (amplification DoS), while a peer advancing to a genuinely new round still gets
+	// served. The transport is expected to authenticate sources, but tracked sources
+	// are capped at d.Nodes as defense in depth so forged source IDs can't grow this
+	// state (and the total resends) without bound.
+	allowDecidedResend := func(source, round int64) bool {
+		resend, ok := decidedResends[source]
+		if !ok && len(decidedResends) >= d.Nodes {
+			return false
+		}
+
+		if round <= resend.Round || resend.Count >= maxDecidedResends {
+			return false
+		}
+
+		decidedResends[source] = decidedResend{Round: round, Count: resend.Count + 1}
+
+		return true
+	}
+
 	// changeRound updates round and clears the rule dedup state.
 	changeRound := func(newRound int64, rule UponRule) {
 		if round == newRound {
@@ -332,30 +356,13 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 			inputValueCh = nil // Don't read from this channel again.
 
 		case msg := <-t.Receive:
-			// Just send Qcommit if consensus already decided
+			// Just send Qcommit if consensus already decided. The resend is rate-limited
+			// (see allowDecidedResend) to bound amplification; note this runs before the
+			// isJustified check, so the ROUND-CHANGE need not even be justified.
 			if len(qCommit) > 0 {
-				if msg.Source() != process && msg.Type() == MsgRoundChange { // Algorithm 3:17
-					// Rebroadcast at most once per source per (strictly increasing)
-					// round, capped at maxDecidedResends per source: duplicate,
-					// replayed or maliciously round-incremented ROUND-CHANGE messages
-					// can't repeatedly trigger a large MsgDecided rebroadcast
-					// (amplification DoS). Note this path runs before the isJustified
-					// check, so the ROUND-CHANGE need not even be justified. A peer
-					// advancing to a genuinely new round still gets a fresh resend
-					// (up to the cap).
-					//
-					// The transport is expected to authenticate sources, but cap the
-					// tracked sources at d.Nodes as defense in depth so forged source
-					// IDs can't grow this state (and the total resends) without bound.
-					resend, ok := decidedResends[msg.Source()]
-					if !ok && len(decidedResends) >= d.Nodes {
-						break
-					}
-
-					if msg.Round() > resend.Round && resend.Count < maxDecidedResends {
-						decidedResends[msg.Source()] = decidedResend{Round: msg.Round(), Count: resend.Count + 1}
-						err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
-					}
+				if msg.Source() != process && msg.Type() == MsgRoundChange && // Algorithm 3:17
+					allowDecidedResend(msg.Source(), msg.Round()) {
+					err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
 				}
 
 				break
