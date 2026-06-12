@@ -63,6 +63,18 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 		return errors.New("unsupported duty", z.Str("type", duty.Type.String()))
 	}
 
+	// Evict stale cache entries: head events arrive in increasing slot order, so any cached slot
+	// below the current one is past its consensus deadline and was either already consumed by Fetch
+	// or permanently orphaned (e.g. a late head event arriving after consensus already ran). This
+	// bounds the cache without relying on reorg events.
+	f.attDataCache.Range(func(key, _ any) bool {
+		if s, ok := key.(uint64); ok && s < duty.Slot {
+			f.attDataCache.Delete(s)
+		}
+
+		return true
+	})
+
 	unsignedSet, err := f.fetchAttesterDataFrom(ctx, duty.Slot, defSet, bnAddr)
 	if err != nil {
 		return errors.Wrap(err, "fetch attester data for early cache")

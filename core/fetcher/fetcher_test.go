@@ -846,3 +846,75 @@ func TestFetchOnlyReorgInvalidatesCache(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, called)
 }
+
+func TestFetchOnlyEvictsStaleSlots(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot1   = 1
+		slot2   = 2
+		vIdx    = 2
+		notZero = 99
+	)
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSetForSlot := func(slot uint64) core.DutyDefinitionSet {
+		return core.DutyDefinitionSet{pubkey: core.NewAttesterDefinition(&eth2v1.AttesterDuty{
+			Slot:             eth2p0.Slot(slot),
+			ValidatorIndex:   vIdx,
+			CommitteeIndex:   vIdx,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+		})}
+	}
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	// The beacon node returns originalRoot as head until toggled, then sentinel.
+	var returnSentinel bool
+
+	originalRoot := eth2p0.Root{0x11}
+	sentinel := eth2p0.Root{0xaa}
+	bmock.AttestationDataFunc = func(_ context.Context, s eth2p0.Slot, idx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+		root := originalRoot
+		if returnSentinel {
+			root = sentinel
+		}
+
+		return &eth2p0.AttestationData{
+			Slot:            s,
+			Index:           idx,
+			BeaconBlockRoot: root,
+			Source:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x01}},
+			Target:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x02}},
+		}, nil
+	}
+
+	fetch := mustCreateFetcher(t, bmock)
+
+	// Early-fetch and cache slot1.
+	err = fetch.FetchOnly(ctx, core.NewAttesterDuty(slot1), defSetForSlot(slot1), bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot1))
+	require.NoError(t, err)
+
+	// A later head event (slot2) must evict the stale slot1 entry.
+	returnSentinel = true
+	err = fetch.FetchOnly(ctx, core.NewAttesterDuty(slot2), defSetForSlot(slot2), bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot2))
+	require.NoError(t, err)
+
+	// Fetching slot1 must re-fetch fresh (its cache was evicted), returning the new head, not the stale one.
+	called := false
+
+	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+		called = true
+		attData, ok := resDataSet[pubkey].(core.AttestationData)
+		require.True(t, ok)
+		require.Equal(t, sentinel, attData.Data.BeaconBlockRoot)
+
+		return nil
+	})
+
+	err = fetch.Fetch(ctx, core.NewAttesterDuty(slot1), defSetForSlot(slot1))
+	require.NoError(t, err)
+	require.True(t, called)
+}
