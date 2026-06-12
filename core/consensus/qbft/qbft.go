@@ -37,6 +37,13 @@ import (
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
+// maxConsensusMsgSize caps the wire size of an incoming QBFTConsensusMsg, well below
+// the 128MB default p2p frame limit. A legitimate message carries at most a handful of
+// small justification sub-messages (bounded in handle) plus its values, the largest of
+// which is a single block proposal (a few MB on mainnet); 32MB leaves ample margin while
+// bounding the receive/decode/allocation cost a malicious peer can inflict per message.
+const maxConsensusMsgSize = 32 * 1024 * 1024 // 32 MB.
+
 var supportedCompareDuties = []core.DutyType{core.DutyAttester}
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
@@ -365,7 +372,7 @@ func (c *Consensus) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 func (c *Consensus) Start(ctx context.Context) {
 	p2p.RegisterHandler("qbft", c.p2pNode, protocols.QBFTv2ProtocolID,
 		func() proto.Message { return new(pbv1.QBFTConsensusMsg) },
-		c.handle)
+		c.handle, p2p.WithReadLimit(maxConsensusMsgSize))
 
 	go func() {
 		for {
