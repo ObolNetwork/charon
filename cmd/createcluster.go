@@ -230,6 +230,8 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 
 		conf.Network = network
+		conf.TargetGasLimit = def.TargetGasLimit
+		conf.Compounding = def.Compounding
 		depositAmounts = def.DepositAmounts
 	} else { // Create new definition from cluster config
 		def, err = newDefFromConfig(ctx, conf)
