@@ -690,6 +690,13 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 	}
 
 	for _, justification := range pbMsg.GetJustification() {
+		// Bail out as soon as the receive deadline fires rather than burning the full
+		// CPU budget on signature recovery for every justification in a large message.
+		if ctx.Err() != nil {
+			return nil, false, errors.Wrap(ctx.Err(), "receive cancelled during justification verification",
+				z.Any("duty", duty), z.Any("after", time.Since(t0)))
+		}
+
 		if err := verifyMsg(justification, c.pubkeys); err != nil {
 			return nil, false, errors.Wrap(err, "invalid justification")
 		}
