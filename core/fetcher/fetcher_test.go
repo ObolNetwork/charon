@@ -775,3 +775,74 @@ func earlyHeadRoot(ctx context.Context, t *testing.T, bmock beaconmock.Mock, slo
 
 	return resp.Data.BeaconBlockRoot
 }
+
+func TestFetchOnlyReorgInvalidatesCache(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot    = 1
+		vIdx    = 2
+		notZero = 99
+	)
+
+	pubkey := testutil.RandomCorePubKey(t)
+	attDuty := eth2v1.AttesterDuty{
+		Slot:             slot,
+		ValidatorIndex:   vIdx,
+		CommitteeIndex:   vIdx,
+		CommitteeLength:  notZero,
+		CommitteesAtSlot: notZero,
+	}
+	defSet := core.DutyDefinitionSet{pubkey: core.NewAttesterDefinition(&attDuty)}
+	duty := core.NewAttesterDuty(slot)
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	// The beacon node returns originalRoot as head until a reorg, then sentinel (the new canonical head).
+	var returnSentinel bool
+
+	originalRoot := eth2p0.Root{0x11}
+	sentinel := eth2p0.Root{0xaa}
+	bmock.AttestationDataFunc = func(_ context.Context, s eth2p0.Slot, idx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+		root := originalRoot
+		if returnSentinel {
+			root = sentinel
+		}
+
+		return &eth2p0.AttestationData{
+			Slot:            s,
+			Index:           idx,
+			BeaconBlockRoot: root,
+			Source:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x01}},
+			Target:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x02}},
+		}, nil
+	}
+
+	fetch := mustCreateFetcher(t, bmock)
+
+	// Early-fetch and cache the attestation data for the slot.
+	err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot))
+	require.NoError(t, err)
+
+	// A reorg invalidates the cache, and the beacon node now serves a different (post-reorg) head.
+	fetch.HandleChainReorg(ctx, 0)
+
+	returnSentinel = true
+
+	// Fetch must re-fetch fresh data (cache was cleared), returning the new head rather than the stale cached one.
+	called := false
+
+	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+		called = true
+		attData, ok := resDataSet[pubkey].(core.AttestationData)
+		require.True(t, ok)
+		require.Equal(t, sentinel, attData.Data.BeaconBlockRoot)
+
+		return nil
+	})
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.NoError(t, err)
+	require.True(t, called)
+}

@@ -93,6 +93,14 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 	return nil
 }
 
+// HandleChainReorg invalidates the early-fetch cache upon a chain reorg, since cached
+// attestation data was verified against a head that may no longer be canonical.
+// Consensus then re-fetches fresh data at the scheduled deadline.
+func (f *Fetcher) HandleChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
+	f.attDataCache.Clear()
+	log.Debug(ctx, "Early attestation data cache invalidated due to chain reorg", z.U64("epoch", uint64(epoch)))
+}
+
 // Fetch triggers fetching of a proposed duty data set.
 func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet) error {
 	var (

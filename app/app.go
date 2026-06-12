@@ -614,6 +614,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
+	// Invalidate early-fetched (head-event-triggered) attestation data on reorgs, since the cached
+	// data was verified against a head that may no longer be canonical.
+	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+		sseListener.SubscribeChainReorgEvent(fetch.HandleChainReorg)
+	}
+
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
 
 	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit)
