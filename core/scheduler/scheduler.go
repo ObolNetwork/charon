@@ -99,7 +99,7 @@ type Scheduler struct {
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
-	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse block event (map[uint64]bool)
+	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse head event (map[uint64]bool)
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -197,8 +197,10 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 	}
 }
 
-// HandleBlockEvent handles SSE "block" events (block imported to fork choice) and triggers early attestation data fetching.
-func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
+// HandleHeadEvent handles SSE "head" events (fork-choice head updated) and triggers early attestation data fetching.
+// Triggering on the head event (rather than the block event) ensures the beacon node's head has settled onto the
+// new block before we fetch, avoiding stale attestation data at epoch boundaries.
+func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, bnAddr string) {
 	if s.fetcherFetchOnly == nil {
 		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 		return
@@ -232,7 +234,7 @@ func (s *Scheduler) HandleBlockEvent(ctx context.Context, slot eth2p0.Slot, bnAd
 		return
 	}
 
-	log.Debug(ctx, "Early attestation data fetch triggered by SSE block event", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+	log.Debug(ctx, "Early attestation data fetch triggered by SSE head event", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
 
 	// Fetch attestation data early without triggering consensus
 	// Use background context to prevent cancellation if SSE connection drops
@@ -349,7 +351,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 
 			// Special handling for attester duties when FetchAttOnBlock features are enabled
 			if duty.Type == core.DutyAttester && (featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) {
-				if !s.waitForBlockEventOrTimeout(dutyCtx, slot) {
+				if !s.waitForEarlyFetchOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
 
@@ -402,10 +404,12 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	}
 }
 
-// waitForBlockEventOrTimeout waits until the fallback timeout is reached.
+// waitForEarlyFetchOrTimeout waits until the fallback timeout is reached.
+// The head-event-triggered early fetch (HandleHeadEvent) runs concurrently and populates the
+// attestation data cache before this deadline in the happy path.
 // If FetchAttOnBlockWithDelay is enabled, timeout is T=1/3+300ms, otherwise T=1/3.
 // Returns false if the context is cancelled, true otherwise.
-func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Slot) bool {
+func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout
 	fn, ok := slotOffsets[core.DutyAttester]
 	if !ok {
@@ -428,10 +432,10 @@ func (s *Scheduler) waitForBlockEventOrTimeout(ctx context.Context, slot core.Sl
 		// Check if block event triggered early fetch
 		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
 			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-				log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early block event)",
+				log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early head event)",
 					z.U64("slot", slot.Slot))
 			} else {
-				log.Debug(ctx, "Proceeding with attestation at T=1/3 (no early block event)",
+				log.Debug(ctx, "Proceeding with attestation at T=1/3 (no early head event)",
 					z.U64("slot", slot.Slot))
 			}
 		}

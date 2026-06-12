@@ -513,7 +513,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	sseListener.SubscribeChainReorgEvent(sched.HandleChainReorgEvent)
-	sseListener.SubscribeBlockEvent(sched.HandleBlockEvent)
+	sseListener.SubscribeHeadEvent(sched.HandleHeadEvent)
 
 	sched.SubscribeSlots(setFeeRecipient(eth2Cl, builderRegSvc.FeeRecipient))
 

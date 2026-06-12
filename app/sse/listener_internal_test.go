@@ -116,7 +116,7 @@ func TestHandleEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			l := &listener{
 				chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
-				blockSubs:      make([]BlockEventHandlerFunc, 0),
+				headSubs:       make([]HeadEventHandlerFunc, 0),
 				slotDuration:   12 * time.Second,
 				slotsPerEpoch:  32,
 				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
@@ -161,21 +161,21 @@ func TestSubscribeNotifyChainReorg(t *testing.T) {
 	require.Equal(t, eth2p0.Epoch(10), reportedEpochs[1])
 }
 
-func TestSubscribeNotifyBlockEvent(t *testing.T) {
+func TestSubscribeNotifyHeadEvent(t *testing.T) {
 	ctx := t.Context()
 	l := &listener{
-		blockSubs: make([]BlockEventHandlerFunc, 0),
+		headSubs: make([]HeadEventHandlerFunc, 0),
 	}
 
 	reportedSlots := make([]eth2p0.Slot, 0)
 
-	l.SubscribeBlockEvent(func(_ context.Context, slot eth2p0.Slot, bnAddr string) {
+	l.SubscribeHeadEvent(func(_ context.Context, slot eth2p0.Slot, bnAddr string) {
 		reportedSlots = append(reportedSlots, slot)
 	})
 
-	l.notifyBlockEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052")
-	l.notifyBlockEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052") // Duplicate should be reported (no dedup for block events)
-	l.notifyBlockEvent(ctx, eth2p0.Slot(101), "http://test-bn:5052")
+	l.notifyHeadEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052")
+	l.notifyHeadEvent(ctx, eth2p0.Slot(100), "http://test-bn:5052") // Duplicate should be reported (no dedup for head events)
+	l.notifyHeadEvent(ctx, eth2p0.Slot(101), "http://test-bn:5052")
 
 	require.Len(t, reportedSlots, 3)
 	require.Equal(t, eth2p0.Slot(100), reportedSlots[0])

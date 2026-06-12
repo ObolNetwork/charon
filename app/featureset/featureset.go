@@ -71,8 +71,10 @@ const (
 	// In case they differ, Charon does not sign the attestation.
 	ChainSplitHalt = "chain_split_halt"
 
-	// FetchAttOnBlock enables fetching attestation data upon block processing event from beacon node via SSE.
-	// Fallback to T=1/3 if block event is not received in time.
+	// FetchAttOnBlock enables fetching attestation data early upon the SSE "head" event from the beacon node
+	// (fork-choice head updated), rather than waiting for the scheduled deadline. Triggering on the head event
+	// (instead of the "block" event) ensures the beacon node's head has settled onto the new block before
+	// fetching, avoiding stale attestation data at epoch boundaries. Falls back to T=1/3 if no head event is received in time.
 	FetchAttOnBlock = "fetch_att_on_block"
 
 	// FetchAttOnBlockWithDelay enables fetching attestation data with 300ms delay.

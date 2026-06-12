@@ -55,7 +55,7 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 }
 
 // FetchOnly fetches attestation data and caches it without triggering subscribers.
-// This allows early fetching on block events while deferring consensus to the scheduled time.
+// This allows early fetching on head events while deferring consensus to the scheduled time.
 func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet, bnAddr string) error {
 	if duty.Type != core.DutyAttester {
 		return errors.New("unsupported duty", z.Str("type", duty.Type.String()))
