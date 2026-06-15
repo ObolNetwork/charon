@@ -295,20 +295,15 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 	// maxDecidedResends per source, so duplicate, replayed or maliciously
 	// round-incremented messages can't repeatedly trigger a large rebroadcast
 	// (amplification DoS), while a peer advancing to a genuinely new round still gets
-	// served. The transport is expected to authenticate sources, but tracked sources
-	// are capped at d.Nodes as defense in depth so forged source IDs can't grow this
-	// state (and the total resends) without bound.
-	allowDecidedResend := func(source, round int64) bool {
-		resend, ok := decidedResends[source]
-		if !ok && len(decidedResends) >= d.Nodes {
+	// served. Sources are authenticated by the transport, so the tracked set stays
+	// naturally bounded by the cluster size.
+	allowDecidedResend := func(incomingSource, incomingRound int64) bool {
+		resend := decidedResends[incomingSource]
+		if incomingRound <= resend.Round || resend.Count >= maxDecidedResends {
 			return false
 		}
 
-		if round <= resend.Round || resend.Count >= maxDecidedResends {
-			return false
-		}
-
-		decidedResends[source] = decidedResend{Round: round, Count: resend.Count + 1}
+		decidedResends[incomingSource] = decidedResend{Round: incomingRound, Count: resend.Count + 1}
 
 		return true
 	}

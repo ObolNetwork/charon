@@ -56,6 +56,7 @@ func TestWithReadLimit(t *testing.T) {
 		protocolID := protocol.ID("testprotocol")
 
 		var handled atomic.Bool
+
 		p2p.RegisterHandler("test", server, protocolID, func() proto.Message { return new(pbv1.Duty) },
 			func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 				handled.Store(true) // Must never run: the message exceeds the read limit.
