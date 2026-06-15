@@ -759,6 +759,88 @@ func TestTargetGasLimit(t *testing.T) {
 	}
 }
 
+func TestDefinitionFileIsAuthoritative(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		numNodes  = 4
+		numDVs    = 2
+		threshold = 3
+	)
+
+	network := eth2util.Hoodi.Name
+
+	defConf := clusterConfig{
+		Name:           "authoritative-test",
+		NumNodes:       numNodes,
+		NumDVs:         numDVs,
+		Threshold:      threshold,
+		Network:        network,
+		TargetGasLimit: 30000000,
+		Compounding:    true,
+	}
+	for range numDVs {
+		defConf.FeeRecipientAddrs = append(defConf.FeeRecipientAddrs, testutil.RandomETHAddress())
+		defConf.WithdrawalAddrs = append(defConf.WithdrawalAddrs, zeroAddress)
+	}
+
+	def, err := newDefFromConfig(ctx, defConf)
+	require.NoError(t, err)
+
+	defBytes, err := json.MarshalIndent(def, "", " ")
+	require.NoError(t, err)
+
+	defPath := filepath.Join(t.TempDir(), "cluster-definition.json")
+	require.NoError(t, os.WriteFile(defPath, defBytes, 0o600))
+
+	clusterDir := t.TempDir()
+	runConf := clusterConfig{
+		DefFile:        defPath,
+		ClusterDir:     clusterDir,
+		InsecureKeys:   true,
+		Network:        network,
+		TargetGasLimit: 60000000,
+		Compounding:    false,
+	}
+	require.NoError(t, runCreateCluster(ctx, io.Discard, runConf))
+
+	b, err := os.ReadFile(path.Join(nodeDir(clusterDir, 0), "cluster-lock.json"))
+	require.NoError(t, err)
+
+	var lock cluster.Lock
+	require.NoError(t, json.Unmarshal(b, &lock))
+	require.NoError(t, lock.VerifyHashes())
+	require.NoError(t, lock.VerifySignatures(nil))
+
+	require.Equal(t, def.TargetGasLimit, lock.TargetGasLimit)
+	require.Equal(t, def.Compounding, lock.Compounding)
+	require.Equal(t, def.DepositAmounts, lock.DepositAmounts)
+	require.Equal(t, def.FeeRecipientAddresses(), lock.FeeRecipientAddresses())
+
+	expectedAmounts := lock.DepositAmounts
+	if len(expectedAmounts) == 0 {
+		expectedAmounts = deposit.DefaultDepositAmounts(lock.Compounding)
+	}
+
+	wantCredPrefix := byte(0x01)
+	if lock.Compounding {
+		wantCredPrefix = 0x02
+	}
+
+	require.NotEmpty(t, lock.Validators)
+
+	for _, val := range lock.Validators {
+		require.Equal(t, int(lock.TargetGasLimit), val.BuilderRegistration.Message.GasLimit)
+		require.Len(t, val.PartialDepositData, len(expectedAmounts))
+
+		for i, pdd := range val.PartialDepositData {
+			require.EqualValues(t, expectedAmounts[i], pdd.Amount)
+			require.NotEmpty(t, pdd.WithdrawalCredentials)
+			require.Equal(t, wantCredPrefix, pdd.WithdrawalCredentials[0])
+		}
+	}
+}
+
 // TestKeymanager tests keymanager support by letting create cluster command split a single secret and then receiving those keyshares using test
 // keymanager servers. These shares are then combined to create the combined share which is then compared to the original secret that was split.
 func TestKeymanager(t *testing.T) {
