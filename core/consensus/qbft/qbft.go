@@ -37,6 +37,13 @@ import (
 
 type subscriber func(ctx context.Context, duty core.Duty, value proto.Message) error
 
+// maxConsensusMsgSize caps the wire size of an incoming QBFTConsensusMsg, well below
+// the 128MB default p2p frame limit. A legitimate message carries at most a handful of
+// small justification sub-messages (bounded in handle) plus its values, the largest of
+// which is a single block proposal (a few MB on mainnet); 32MB leaves ample margin while
+// bounding the receive/decode/allocation cost a malicious peer can inflict per message.
+const maxConsensusMsgSize = 32 * 1024 * 1024 // 32 MB.
+
 var supportedCompareDuties = []core.DutyType{core.DutyAttester}
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
@@ -365,7 +372,7 @@ func (c *Consensus) SubscribePriority(fn func(ctx context.Context, duty core.Dut
 func (c *Consensus) Start(ctx context.Context) {
 	p2p.RegisterHandler("qbft", c.p2pNode, protocols.QBFTv2ProtocolID,
 		func() proto.Message { return new(pbv1.QBFTConsensusMsg) },
-		c.handle)
+		c.handle, p2p.WithReadLimit(maxConsensusMsgSize))
 
 	go func() {
 		for {
@@ -678,27 +685,18 @@ func (c *Consensus) handle(ctx context.Context, _ peer.ID, req proto.Message) (p
 		return nil, false, errors.New("invalid duty", z.Any("duty", duty))
 	}
 
-	// Bound justification and value counts before doing any expensive per-element
-	// work: each justification requires an ECDSA signature recovery and each value
-	// a proto unmarshal + hash. Without this, a single authenticated peer could send
-	// a large message (up to the 128MB p2p frame) packed with hundreds of thousands
-	// of sub-messages to exhaust CPU/memory on every peer (amplification DoS).
-	//
-	// A legitimate justification set contains at most a quorum of ROUND-CHANGE
-	// messages plus a quorum of PREPARE messages (see qbft.getJustifiedQrc), bounded
-	// above by 2*nodes. Each message (the main message plus each justification)
-	// references at most two values (value and prepared value), so the values map is
-	// bounded by 2*(justifications+1).
-	nodes := len(c.pubkeys)
-	if n := len(pbMsg.GetJustification()); n > 2*nodes {
-		return nil, false, errors.New("too many justifications", z.Int("count", n), z.Int("max", 2*nodes))
-	}
-
-	if n, maxValues := len(pbMsg.GetValues()), 2*(len(pbMsg.GetJustification())+1); n > maxValues {
-		return nil, false, errors.New("too many values", z.Int("count", n), z.Int("max", maxValues))
+	if err := verifyMsgLimits(pbMsg, len(c.pubkeys)); err != nil {
+		return nil, false, err
 	}
 
 	for _, justification := range pbMsg.GetJustification() {
+		// Bail out as soon as the receive deadline fires rather than burning the full
+		// CPU budget on signature recovery for every justification in a large message.
+		if ctx.Err() != nil {
+			return nil, false, errors.Wrap(ctx.Err(), "receive cancelled during justification verification",
+				z.Any("duty", duty), z.Any("after", time.Since(t0)))
+		}
+
 		if err := verifyMsg(justification, c.pubkeys); err != nil {
 			return nil, false, errors.Wrap(err, "invalid justification")
 		}
@@ -794,6 +792,29 @@ func (c *Consensus) getPeerIdx() (int64, error) {
 	}
 
 	return peerIdx, nil
+}
+
+// verifyMsgLimits bounds the justification and value counts of a consensus message
+// before any expensive per-element work (each justification requires an ECDSA
+// signature recovery, each value a proto unmarshal + hash). Without it a single
+// authenticated peer could pack one large message with many sub-messages to exhaust
+// CPU/memory on every peer (amplification DoS).
+func verifyMsgLimits(pbMsg *pbv1.QBFTConsensusMsg, nodes int) error {
+	// A legitimate justification set contains at most a quorum of ROUND-CHANGE plus a
+	// quorum of PREPARE messages (see qbft.getJustifiedQrc), bounded above by 2*nodes.
+	maxJust := 2 * nodes
+	if n := len(pbMsg.GetJustification()); n > maxJust {
+		return errors.New("too many justifications", z.Int("count", n), z.Int("max", maxJust))
+	}
+
+	// Each message (the main message plus each justification) references at most two
+	// values (value and prepared value), so the values are bounded by 2*(justifications+1).
+	maxValues := 2 * (len(pbMsg.GetJustification()) + 1)
+	if n := len(pbMsg.GetValues()); n > maxValues {
+		return errors.New("too many values", z.Int("count", n), z.Int("max", maxValues))
+	}
+
+	return nil
 }
 
 func verifyMsg(msg *pbv1.QBFTMsg, pubkeys map[int64]*k1.PublicKey) error {

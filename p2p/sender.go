@@ -243,6 +243,21 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 	}
 }
 
+// WithReadLimit returns an option that caps the maximum size in bytes of a single
+// message read for the registered protocol(s), overriding the default maxMsgSize (128MB).
+// Use a tighter limit for protocols whose legitimate messages are known to be much
+// smaller, to bound the receive/decode/allocation cost of oversized (potentially
+// malicious) messages before they ever reach the handler.
+func WithReadLimit(limit int) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		for _, pID := range opts.protocols {
+			opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader {
+				return pbio.NewDelimitedReader(s, limit)
+			}
+		}
+	}
+}
+
 // SetFuzzerDefaultsUnsafe sets default reader and writer functions to fuzzed versions of the same if p2p fuzz is enabled.
 //
 // The fuzzReaderWriter is responsible for creating a customized reader and writer for each network stream

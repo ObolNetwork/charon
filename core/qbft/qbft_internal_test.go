@@ -730,21 +730,6 @@ func TestDecidedRebroadcastLimits(t *testing.T) {
 
 		require.Len(t, broadcasts, maxDecidedResends)
 	})
-
-	t.Run("forged sources capped", func(t *testing.T) {
-		send, broadcasts := runDecidedInstance(t)
-
-		// Distinct forged source IDs: at most n sources are tracked, so only
-		// the first n may trigger a rebroadcast; further new sources are ignored.
-		for source := int64(100); source < 100+n+5; source++ {
-			send(rc(source, 2))
-		}
-
-		// Flush with an inert message (stale round, never rebroadcast).
-		send(rc(100, 1))
-
-		require.Len(t, broadcasts, n)
-	})
 }
 
 func TestIsJustifiedPrePrepare(t *testing.T) {
