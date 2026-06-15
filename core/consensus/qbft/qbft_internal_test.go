@@ -706,6 +706,129 @@ func TestQBFTConsensusHandle(t *testing.T) {
 	}
 }
 
+// TestQBFTConsensusHandleAmplificationLimits verifies that handle rejects messages
+// carrying more justifications or values than a legitimate consensus message ever
+// needs, before doing the expensive per-element signature recovery / unmarshalling.
+// This caps the CPU/memory amplification a single authenticated peer can inflict.
+func TestQBFTConsensusHandleAmplificationLimits(t *testing.T) {
+	// newConsensus returns a single-node consensus, so max justifications = 2*nodes = 2.
+	newConsensus := func(t *testing.T) (*Consensus, *k1.PrivateKey) {
+		t.Helper()
+
+		var c Consensus
+
+		deadliner := coremocks.NewDeadliner(t)
+		deadliner.On("Add", mock.Anything).Maybe().Return(core.DeadlineScheduled)
+		c.deadliner = deadliner
+		c.gaterFunc = func(core.Duty) bool { return true }
+		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
+
+		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
+		c.pubkeys = make(map[int64]*k1.PublicKey)
+		c.pubkeys[0] = p2pKey.PubKey()
+
+		return &c, p2pKey
+	}
+
+	// signedBase returns a validly-signed main message so verification reaches the limit checks.
+	signedBase := func(t *testing.T, p2pKey *k1.PrivateKey) *pbv1.QBFTConsensusMsg {
+		t.Helper()
+
+		base := &pbv1.QBFTConsensusMsg{Msg: newRandomQBFTMsg(t)}
+		base.Msg.PeerIdx = 0
+		base.Msg.Round = 1
+		base.Msg.Duty = &pbv1.Duty{Slot: 42, Type: 1}
+
+		msgHash, err := hashProto(base.GetMsg())
+		require.NoError(t, err)
+
+		sign, err := k1util.Sign(p2pKey, msgHash[:])
+		require.NoError(t, err)
+
+		base.Msg.Signature = sign
+
+		return base
+	}
+
+	// signedJustification returns a validly-signed justification matching the base message's duty.
+	signedJustification := func(t *testing.T, p2pKey *k1.PrivateKey) *pbv1.QBFTMsg {
+		t.Helper()
+
+		j := newRandomQBFTMsg(t)
+		j.PeerIdx = 0
+		j.Round = 1 // verifyMsg requires round > 0, don't rely on the random value.
+		j.Duty = &pbv1.Duty{Slot: 42, Type: 1}
+
+		jHash, err := hashProto(j)
+		require.NoError(t, err)
+
+		j.Signature, err = k1util.Sign(p2pKey, jHash[:])
+		require.NoError(t, err)
+
+		return j
+	}
+
+	t.Run("too many justifications rejected", func(t *testing.T) {
+		c, p2pKey := newConsensus(t)
+		base := signedBase(t, p2pKey)
+
+		// 3 justifications > 2*nodes (2). Content is irrelevant since the count
+		// check runs before any per-justification verification.
+		for range 3 {
+			base.Justification = append(base.Justification, &pbv1.QBFTMsg{})
+		}
+
+		_, _, err := c.handle(context.Background(), "peerID", base)
+		require.ErrorContains(t, err, "too many justifications")
+	})
+
+	t.Run("max justifications accepted", func(t *testing.T) {
+		c, p2pKey := newConsensus(t)
+		base := signedBase(t, p2pKey)
+
+		// Exactly 2*nodes (2) justifications must not be rejected by the count check.
+		for range 2 {
+			base.Justification = append(base.Justification, signedJustification(t, p2pKey))
+		}
+
+		_, _, err := c.handle(context.Background(), "peerID", base)
+		require.NoError(t, err)
+	})
+
+	t.Run("too many values rejected", func(t *testing.T) {
+		c, p2pKey := newConsensus(t)
+		base := signedBase(t, p2pKey)
+
+		// 0 justifications => max values = 2*(0+1) = 2. Provide 3.
+		base.Values = []*anypb.Any{{}, {}, {}}
+
+		_, _, err := c.handle(context.Background(), "peerID", base)
+		require.ErrorContains(t, err, "too many values")
+	})
+
+	t.Run("max values accepted", func(t *testing.T) {
+		c, p2pKey := newConsensus(t)
+		base := signedBase(t, p2pKey)
+
+		// 2 justifications => max values = 2*(2+1) = 6. A message carrying exactly
+		// the maximum must pass the count check and the rest of handle, guarding
+		// against the bound being tightened below the legitimate maximum.
+		for range 2 {
+			base.Justification = append(base.Justification, signedJustification(t, p2pKey))
+		}
+
+		for i := range 6 {
+			value, err := anypb.New(&pbv1.Duty{Slot: uint64(i + 1)})
+			require.NoError(t, err)
+
+			base.Values = append(base.Values, value)
+		}
+
+		_, _, err := c.handle(context.Background(), "peerID", base)
+		require.NoError(t, err)
+	})
+}
+
 func TestInstanceIO_MaybeStart(t *testing.T) {
 	t.Run("MaybeStart for new instance", func(t *testing.T) {
 		inst1 := instance.NewIO[Msg]()

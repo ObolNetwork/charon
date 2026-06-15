@@ -4,6 +4,8 @@ package p2p_test
 
 import (
 	"context"
+	"math"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,6 +41,33 @@ func TestWithReceiveTimeout(t *testing.T) {
 		err := p2p.SendReceive(context.Background(), client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), protocolID)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "read response: EOF")
+	}
+}
+
+func TestWithReadLimit(t *testing.T) {
+	servers := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
+	clients := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
+
+	for i := range len(servers) {
+		client, server := clients[i], servers[i]
+
+		client.Peerstore().AddAddrs(server.ID(), server.Addrs(), time.Hour)
+
+		protocolID := protocol.ID("testprotocol")
+
+		var handled atomic.Bool
+
+		p2p.RegisterHandler("test", server, protocolID, func() proto.Message { return new(pbv1.Duty) },
+			func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+				handled.Store(true) // Must never run: the message exceeds the read limit.
+				return nil, false, nil
+			}, p2p.WithReadLimit(4)) // Tiny limit so any real message trips it.
+
+		// Slot serializes to an 11 byte varint, well over the 4 byte read limit.
+		err := p2p.SendReceive(context.Background(), client, server.ID(),
+			&pbv1.Duty{Slot: math.MaxUint64}, new(pbv1.Duty), protocolID)
+		require.Error(t, err)
+		require.False(t, handled.Load(), "handler must not run when message exceeds read limit")
 	}
 }
 

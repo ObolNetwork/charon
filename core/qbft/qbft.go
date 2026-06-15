@@ -158,6 +158,21 @@ type dedupKey struct {
 	Round    int64
 }
 
+// maxDecidedResends bounds the number of MsgDecided rebroadcasts that
+// post-decision ROUND-CHANGE messages from a single peer can trigger.
+// A lagging peer re-sends ROUND-CHANGE with an increasing round on each
+// timeout until it learns the decided value, so a handful of resends is
+// ample for liveness, while the cap stops a malicious peer minting
+// ever-higher rounds from extracting unlimited large rebroadcasts.
+const maxDecidedResends = 16
+
+// decidedResend tracks the MsgDecided rebroadcasts triggered by a peer's
+// post-decision ROUND-CHANGE messages.
+type decidedResend struct {
+	Round int64 // Highest round a rebroadcast was triggered for.
+	Count int   // Total rebroadcasts triggered by the peer.
+}
+
 // errors
 var (
 	errCompare = errors.New("compare leader value with local value failed")
@@ -211,6 +226,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		qCommit               []Msg[I, V, C]
 		buffer                = make(map[int64][]Msg[I, V, C])
 		dedupRules            = make(map[dedupKey]bool)
+		decidedResends        = make(map[int64]decidedResend) // Bounds MsgDecided rebroadcasts by peer source.
 		timerChan             <-chan time.Time
 		stopTimer             func()
 	)
@@ -273,6 +289,25 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		return true
 	}
 
+	// allowDecidedResend reports whether a post-decision ROUND-CHANGE from source at
+	// round may trigger a MsgDecided rebroadcast, recording it when it does. It permits
+	// at most one rebroadcast per source per strictly-increasing round, capped at
+	// maxDecidedResends per source, so duplicate, replayed or maliciously
+	// round-incremented messages can't repeatedly trigger a large rebroadcast
+	// (amplification DoS), while a peer advancing to a genuinely new round still gets
+	// served. Sources are authenticated by the transport, so the tracked set stays
+	// naturally bounded by the cluster size.
+	allowDecidedResend := func(incomingSource, incomingRound int64) bool {
+		resend := decidedResends[incomingSource]
+		if incomingRound <= resend.Round || resend.Count >= maxDecidedResends {
+			return false
+		}
+
+		decidedResends[incomingSource] = decidedResend{Round: incomingRound, Count: resend.Count + 1}
+
+		return true
+	}
+
 	// changeRound updates round and clears the rule dedup state.
 	changeRound := func(newRound int64, rule UponRule) {
 		if round == newRound {
@@ -316,9 +351,12 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 			inputValueCh = nil // Don't read from this channel again.
 
 		case msg := <-t.Receive:
-			// Just send Qcommit if consensus already decided
+			// Just send Qcommit if consensus already decided. The resend is rate-limited
+			// (see allowDecidedResend) to bound amplification; note this runs before the
+			// isJustified check, so the ROUND-CHANGE need not even be justified.
 			if len(qCommit) > 0 {
-				if msg.Source() != process && msg.Type() == MsgRoundChange { // Algorithm 3:17
+				if msg.Source() != process && msg.Type() == MsgRoundChange && // Algorithm 3:17
+					allowDecidedResend(msg.Source(), msg.Round()) {
 					err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
 				}
 

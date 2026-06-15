@@ -620,6 +620,118 @@ func (m msg) Justification() []Msg[int64, int64, int64] {
 	return resp
 }
 
+// TestDecidedRebroadcastLimits verifies that once consensus has decided, post-decision
+// ROUND-CHANGE messages trigger at most one MsgDecided rebroadcast per source per
+// (strictly increasing) round, capped at maxDecidedResends per source. This bounds
+// amplification while still serving lagging peers that advance to new rounds.
+func TestDecidedRebroadcastLimits(t *testing.T) {
+	const (
+		n       = 4
+		process = 0
+		value   = 42
+	)
+
+	// Build a justified MsgDecided: quorum (3) commits for round 1, value 42.
+	commits := []msg{
+		{msgType: MsgCommit, peerIdx: 1, round: 1, value: value},
+		{msgType: MsgCommit, peerIdx: 2, round: 1, value: value},
+		{msgType: MsgCommit, peerIdx: 3, round: 1, value: value},
+	}
+	decided := msg{msgType: MsgDecided, peerIdx: 1, round: 1, value: value, justify: commits}
+
+	rc := func(source, round int64) msg {
+		return msg{msgType: MsgRoundChange, peerIdx: source, round: round}
+	}
+
+	// runDecidedInstance starts a qbft instance, sends it the decided message and
+	// returns a synchronous send function plus the channel collecting MsgDecided
+	// broadcasts. The receive channel is unbuffered, so the instance only accepts
+	// a send once it has fully processed all earlier messages (the just-sent
+	// message may still be in flight, hence tests end with an inert flush send).
+	// This makes broadcast-count assertions deterministic.
+	runDecidedInstance := func(t *testing.T) (func(msg), chan MsgType) {
+		t.Helper()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		recv := make(chan Msg[int64, int64, int64])
+		decidedBroadcasts := make(chan MsgType, 100)
+
+		def := noopDef
+		def.Nodes = n
+		def.FIFOLimit = 100
+		def.Decide = func(context.Context, int64, int64, []Msg[int64, int64, int64]) {}
+
+		trans := Transport[int64, int64, int64]{
+			Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, _ int64,
+				_ int64, _ int64, _ []Msg[int64, int64, int64],
+			) error {
+				if typ == MsgDecided {
+					decidedBroadcasts <- typ
+				}
+
+				return nil
+			},
+			Receive: recv,
+		}
+
+		// Never-delivering input channels (this process is not a leader and proposes nothing).
+		go func() {
+			_ = Run(ctx, def, trans, 0, process, make(chan int64), make(chan int64))
+		}()
+
+		send := func(m msg) {
+			select {
+			case recv <- m:
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "timeout sending message to qbft instance")
+			}
+		}
+
+		send(decided)
+
+		return send, decidedBroadcasts
+	}
+
+	t.Run("dedup duplicates and stale rounds", func(t *testing.T) {
+		send, broadcasts := runDecidedInstance(t)
+
+		for _, m := range []msg{
+			rc(2, 2), // Rebroadcast #1.
+			rc(2, 2), // Duplicate, no rebroadcast.
+			rc(2, 2), // Duplicate, no rebroadcast.
+			rc(3, 2), // Rebroadcast #2 (other source).
+			rc(3, 2), // Duplicate, no rebroadcast.
+			rc(2, 1), // Stale round (already rebroadcast for round 2), no rebroadcast.
+			rc(2, 3), // Rebroadcast #3 (source advanced to a new round).
+		} {
+			send(m)
+		}
+
+		// Flush with an inert message: once this send returns, all messages above
+		// have been fully processed, so the broadcast count is final.
+		send(rc(2, 1))
+
+		require.Len(t, broadcasts, 3)
+	})
+
+	t.Run("resend cap per source", func(t *testing.T) {
+		send, broadcasts := runDecidedInstance(t)
+
+		// One peer keeps advancing rounds: only the first maxDecidedResends
+		// ROUND-CHANGE messages may trigger a rebroadcast.
+		for round := int64(2); round < 2+maxDecidedResends+5; round++ {
+			send(rc(2, round))
+		}
+
+		// Flush with an inert message (stale round, never rebroadcast).
+		send(rc(2, 1))
+
+		require.Len(t, broadcasts, maxDecidedResends)
+	})
+}
+
 func TestIsJustifiedPrePrepare(t *testing.T) {
 	const (
 		n        = 4
