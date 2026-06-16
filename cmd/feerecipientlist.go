@@ -154,7 +154,7 @@ func entriesEquivalent(a, b registrationEntry) bool {
 }
 
 func runFeeRecipientList(ctx context.Context, config feerecipientListConfig) error {
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return err
 	}

@@ -232,6 +232,10 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		return errors.New("older version signatures not supported")
 	}
 
+	if err := d.validateCreatorSignatureLength(); err != nil {
+		return err
+	}
+
 	// Check valid operator config signature for each operator.
 	operatorConfigHashDigest, err := digestEIP712(getOperatorEIP712Type(d.Version), d, Operator{})
 	if err != nil {
@@ -255,16 +259,15 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return errors.New("empty operator config signature", z.Any("operator_address", o.Address))
 		}
 
-		// Check that we have a valid config signature for each operator.
-		if ok, err := verifySig(o.Address, operatorConfigHashDigest, o.ConfigSignature); err != nil {
+		if err := d.validateOperatorSignatureLengths(o); err != nil {
+			return err
+		}
+
+		// Check that we have a valid config signature for each operator (EOA or ERC-1271).
+		if ok, err := verifySigOrERC1271(eth1, o.Address, operatorConfigHashDigest, o.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
-			// Check ERC-1271 signature
-			if ok, err = eth1.VerifySmartContractBasedSignature(o.Address, [32]byte(operatorConfigHashDigest), o.ConfigSignature); err != nil {
-				return err
-			} else if !ok {
-				return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
-			}
+			return errors.New("invalid operator config signature", z.Any("operator_address", o.Address))
 		}
 
 		// Check that we have a valid enr signature for each operator.
@@ -273,15 +276,10 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return err
 		}
 
-		if ok, err := verifySig(o.Address, enrDigest, o.ENRSignature); err != nil {
+		if ok, err := verifySigOrERC1271(eth1, o.Address, enrDigest, o.ENRSignature); err != nil {
 			return err
 		} else if !ok {
-			// Check ERC-1271 signature
-			if ok, err = eth1.VerifySmartContractBasedSignature(o.Address, [32]byte(enrDigest), o.ENRSignature); err != nil {
-				return err
-			} else if !ok {
-				return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
-			}
+			return errors.New("invalid operator enr signature", z.Any("operator_address", o.Address))
 		}
 	}
 
@@ -310,11 +308,75 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return err
 		}
 
-		if ok, err := verifySig(d.Creator.Address, creatorConfigHashDigest, d.Creator.ConfigSignature); err != nil {
+		if ok, err := verifySigOrERC1271(eth1, d.Creator.Address, creatorConfigHashDigest, d.Creator.ConfigSignature); err != nil {
 			return err
 		} else if !ok {
 			return errors.New("invalid creator config signature")
 		}
+	}
+
+	return nil
+}
+
+// validateCreatorSignatureLength validates the creator config signature length.
+func (d Definition) validateCreatorSignatureLength() error {
+	if err := validateSignatureLength(d.Version, d.Creator.ConfigSignature, "creator config signature"); err != nil {
+		return errors.Wrap(err, "invalid signature length", z.Str("address", d.Creator.Address))
+	}
+
+	return nil
+}
+
+// validateOperatorSignatureLengths validates a single operator's signature lengths.
+func (d Definition) validateOperatorSignatureLengths(op Operator) error {
+	if err := validateSignatureLength(d.Version, op.ConfigSignature, "operator config signature"); err != nil {
+		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
+	}
+
+	if err := validateSignatureLength(d.Version, op.ENRSignature, "operator enr signature"); err != nil {
+		return errors.Wrap(err, "invalid signature length", z.Str("address", op.Address))
+	}
+
+	return nil
+}
+
+// validateSignatureLength validates a signature length for the given definition version.
+// An empty signature is always valid (unsigned operator/creator). Pre-v1.11 supports only a single
+// fixed 65-byte secp256k1 signature; v1.11+ also supports concatenated Safe multisig signatures,
+// which are a multiple of 65 bytes up to sszMaxK1Sigs signatures.
+func validateSignatureLength(version string, sig []byte, fieldName string) error {
+	if len(sig) == 0 {
+		return nil // Empty signatures are valid.
+	}
+
+	// Variable-length (Safe multisig) signatures are only represented by the v1.11 schema; earlier
+	// versions hash via fixed Bytes65 and must therefore be exactly one 65-byte signature.
+	if !isAnyVersion(version, v1_11) {
+		if len(sig) != sszLenK1Sig {
+			return errors.New("signature must be 65 bytes",
+				z.Str("field", fieldName),
+				z.Int("length", len(sig)),
+			)
+		}
+
+		return nil
+	}
+
+	if len(sig)%sszLenK1Sig != 0 {
+		return errors.New("signature must be multiple of 65 bytes",
+			z.Str("field", fieldName),
+			z.Int("length", len(sig)),
+			z.Int("remainder", len(sig)%sszLenK1Sig),
+		)
+	}
+
+	if len(sig) > sszMaxK1Sigs*sszLenK1Sig {
+		return errors.New("signature exceeds maximum length",
+			z.Str("field", fieldName),
+			z.Int("length", len(sig)),
+			z.Int("max_len", sszMaxK1Sigs*sszLenK1Sig),
+			z.Int("max_threshold", sszMaxK1Sigs),
+		)
 	}
 
 	return nil
@@ -439,8 +501,8 @@ func (d Definition) MarshalJSON() ([]byte, error) {
 		return marshalDefinitionV1x8(d2)
 	case isAnyVersion(d2.Version, v1_9):
 		return marshalDefinitionV1x9(d2)
-	case isAnyVersion(d2.Version, v1_10):
-		return marshalDefinitionV1x10(d2)
+	case isAnyVersion(d2.Version, v1_10, v1_11):
+		return marshalDefinitionV1x10to11(d2)
 	default:
 		return nil, errors.New("unsupported version")
 	}
@@ -496,8 +558,8 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return err
 		}
-	case isAnyVersion(version.Version, v1_10):
-		def, err = unmarshalDefinitionV1x10(data)
+	case isAnyVersion(version.Version, v1_10, v1_11):
+		def, err = unmarshalDefinitionV1x10to11(data)
 		if err != nil {
 			return err
 		}
@@ -623,7 +685,7 @@ func marshalDefinitionV1x4(def Definition) ([]byte, error) {
 }
 
 func marshalDefinitionV1x5to7(def Definition) ([]byte, error) {
-	resp, err := json.Marshal(definitionJSONv1x5{
+	resp, err := json.Marshal(definitionJSONv1x5to7{
 		Name:               def.Name,
 		UUID:               def.UUID,
 		Version:            def.Version,
@@ -703,8 +765,8 @@ func marshalDefinitionV1x9(def Definition) ([]byte, error) {
 	return resp, nil
 }
 
-func marshalDefinitionV1x10(def Definition) ([]byte, error) {
-	resp, err := json.Marshal(definitionJSONv1x10{
+func marshalDefinitionV1x10to11(def Definition) ([]byte, error) {
+	resp, err := json.Marshal(definitionJSONv1x10to11{
 		Name:               def.Name,
 		UUID:               def.UUID,
 		Version:            def.Version,
@@ -832,7 +894,7 @@ func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 }
 
 func unmarshalDefinitionV1x5to7(data []byte) (def Definition, err error) {
-	var defJSON definitionJSONv1x5
+	var defJSON definitionJSONv1x5to7
 	if err := json.Unmarshal(data, &defJSON); err != nil {
 		return Definition{}, errors.Wrap(err, "unmarshal definition v1_5")
 	}
@@ -932,10 +994,10 @@ func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 	}, nil
 }
 
-func unmarshalDefinitionV1x10(data []byte) (def Definition, err error) {
-	var defJSON definitionJSONv1x10
+func unmarshalDefinitionV1x10to11(data []byte) (def Definition, err error) {
+	var defJSON definitionJSONv1x10to11
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1_10")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1_10 to v1_11")
 	}
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
@@ -1053,8 +1115,8 @@ type definitionJSONv1x4 struct {
 	DefinitionHash      ethHex                    `json:"definition_hash"`
 }
 
-// definitionJSONv1x5 is the json formatter of Definition for versions v1.5 to v1.7.
-type definitionJSONv1x5 struct {
+// definitionJSONv1x5to7 is the json formatter of Definition for versions v1.5 to v1.7.
+type definitionJSONv1x5to7 struct {
 	Name               string                    `json:"name,omitempty"`
 	Creator            creatorJSON               `json:"creator"`
 	Operators          []operatorJSONv1x2orLater `json:"operators"`
@@ -1107,8 +1169,8 @@ type definitionJSONv1x9 struct {
 	DefinitionHash     ethHex                    `json:"definition_hash"`
 }
 
-// definitionJSONv1x10 is the json formatter of Definition for versions v1.10 or later.
-type definitionJSONv1x10 struct {
+// definitionJSONv1x10to11 is the json formatter of Definition for versions v1.10 and v1.11.
+type definitionJSONv1x10to11 struct {
 	Name               string                    `json:"name,omitempty"`
 	Creator            creatorJSON               `json:"creator"`
 	Operators          []operatorJSONv1x2orLater `json:"operators"`
@@ -1132,7 +1194,8 @@ type definitionJSONv1x10 struct {
 // Note the following struct tag meanings:
 //   - json: json field name.
 //   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
-//     for variable length strings, or CompositeList[MaxN] for nested object arrays.
+//     for variable length strings, List[BytesN,MaxItems] for lists of fixed length byte arrays,
+//     or CompositeList[MaxN] for nested object arrays.
 //   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Creator struct {
@@ -1140,7 +1203,8 @@ type Creator struct {
 	Address string `config_hash:"0" definition_hash:"0" json:"address" ssz:"Bytes20"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to creator Ethereum Address.
-	ConfigSignature []byte `config_hash:"-" definition_hash:"1" json:"config_signature" ssz:"Bytes65"`
+	// It is a single 65-byte secp256k1 signature, or concatenated 65-byte signatures for Safe smart-contract multisigs.
+	ConfigSignature []byte `config_hash:"-" definition_hash:"1" json:"config_signature" ssz:"List[Bytes65,32]"`
 }
 
 // creatorJSON is the json formatter of Creator.

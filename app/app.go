@@ -178,8 +178,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		eth2util.AddTestNetwork(conf.TestnetConfig)
 	}
 
+	// Start the eth1 client and wait for it to connect before loading the cluster lock, since lock
+	// signature verification may make ERC-1271 (e.g. Safe multisig) contract calls.
+	// Returns noop client when no endpoint is configured.
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartEth1Client, lifecycle.HookFuncCtx(eth1Cl.Run))
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return err
+	}
 
 	lock, err := loadClusterLock(ctx, conf, eth1Cl)
 	if err != nil {

@@ -343,3 +343,29 @@ func TestNoopClient(t *testing.T) {
 		require.ErrorIs(t, err, eth1wrap.ErrNoExecutionEngineAddr)
 	})
 }
+
+func TestWaitConnected(t *testing.T) {
+	t.Run("noop client returns immediately", func(t *testing.T) {
+		// No endpoint configured: nothing to wait for.
+		require.NoError(t, eth1wrap.WaitConnected(t.Context(), eth1wrap.NewDefaultEthClientRunner("")))
+	})
+
+	t.Run("unconnected client times out", func(t *testing.T) {
+		client := eth1wrap.NewEthClientRunner(
+			"http://localhost:0",
+			func(context.Context, string) (eth1wrap.EthClient, error) {
+				return mocks.NewEthClient(t), nil
+			},
+			func(string, eth1wrap.EthClient) (eth1wrap.Erc1271, error) {
+				return mocks.NewErc1271(t), nil
+			},
+		)
+
+		// Run is never started, so the client never connects. A short parent context bounds the wait.
+		ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+		defer cancel()
+
+		err := eth1wrap.WaitConnected(ctx, client)
+		require.ErrorIs(t, err, eth1wrap.ErrEthClientNotConnected)
+	})
+}

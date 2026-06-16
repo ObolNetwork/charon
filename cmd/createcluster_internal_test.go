@@ -41,11 +41,11 @@ const (
 
 func TestCreateCluster(t *testing.T) {
 	defPath := "../cluster/examples/cluster-definition-006.json"
-	def, err := loadDefinition(context.Background(), defPath)
+	def, err := loadDefinition(context.Background(), defPath, "")
 	require.NoError(t, err)
 
 	defPathTwoNodes := "../cluster/examples/cluster-definition-001.json"
-	defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes)
+	defTwoNodes, err := loadDefinition(context.Background(), defPathTwoNodes, "")
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -462,7 +462,7 @@ func TestValidateDef(t *testing.T) {
 	require.NoError(t, err)
 
 	defPath := "../cluster/examples/cluster-definition-002.json"
-	remoteDef, err := loadDefinition(context.Background(), defPath)
+	remoteDef, err := loadDefinition(context.Background(), defPath, "")
 	require.NoError(t, err)
 
 	t.Run("zero address", func(t *testing.T) {

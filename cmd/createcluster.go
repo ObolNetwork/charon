@@ -178,7 +178,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 
 	var def cluster.Definition
 	if conf.DefFile != "" { // Load definition from DefFile
-		def, err = loadDefinition(ctx, conf.DefFile)
+		def, err = loadDefinition(ctx, conf.DefFile, conf.ExecutionEngineAddr)
 		if err != nil {
 			return err
 		}
@@ -216,7 +216,9 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// Get a cluster definition, either from a definition file or from the config.
 	if conf.DefFile != "" {
 		eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-		go eth1Cl.Run(ctx)
+		if err = eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+			return err
+		}
 
 		// Validate the provided definition.
 		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, eth1Cl)
@@ -1072,7 +1074,7 @@ func aggSign(secrets [][]tbls.PrivateKey, message []byte) ([]byte, error) {
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It also verifies signatures
 // and hashes before returning the definition.
-func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, error) {
+func loadDefinition(ctx context.Context, defFile, execEngineAddr string) (cluster.Definition, error) {
 	var def cluster.Definition
 
 	// Fetch definition from network if URI is provided
@@ -1100,7 +1102,12 @@ func loadDefinition(ctx context.Context, defFile string) (cluster.Definition, er
 			z.Str("definition_hash", fmt.Sprintf("%#x", def.DefinitionHash)))
 	}
 
-	if err := def.VerifySignatures(nil); err != nil {
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(execEngineAddr)
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return cluster.Definition{}, err
+	}
+
+	if err := def.VerifySignatures(eth1Cl); err != nil {
 		return cluster.Definition{}, err
 	}
 

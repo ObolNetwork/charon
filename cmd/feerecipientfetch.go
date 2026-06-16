@@ -99,7 +99,7 @@ func logValidatorStatus(ctx context.Context, pv app.ProcessedValidators) {
 }
 
 func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) error {
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return err
 	}

@@ -13,10 +13,15 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// LoadClusterLockAndVerify loads and verifies the cluster lock. Suitable for cmd tools.
-func LoadClusterLockAndVerify(ctx context.Context, lockFilePath string) (*Lock, error) {
-	eth1Cl := eth1wrap.NewDefaultEthClientRunner("")
-	go eth1Cl.Run(ctx)
+// LoadClusterLockAndVerify loads and verifies the cluster lock.
+// execEngineAddr is the execution client RPC endpoint used to verify ERC-1271 (e.g. Safe multisig) cluster signatures;
+// pass "" when none is configured (EOA-only clusters do not require it).
+func LoadClusterLockAndVerify(ctx context.Context, lockFilePath, execEngineAddr string) (*Lock, error) {
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(execEngineAddr)
+
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return nil, err
+	}
 
 	return LoadClusterLock(ctx, lockFilePath, false, eth1Cl)
 }

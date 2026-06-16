@@ -246,7 +246,9 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(conf.ExecutionEngineAddr)
-	go eth1Cl.Run(ctx)
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return err
+	}
 
 	if !conf.Publish {
 		if err := def.VerifySignatures(eth1Cl); err != nil {

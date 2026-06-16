@@ -57,7 +57,7 @@ func bindDepositFetchFlags(cmd *cobra.Command, config *depositFetchConfig) {
 }
 
 func runDepositFetch(ctx context.Context, config depositFetchConfig) error {
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return err
 	}

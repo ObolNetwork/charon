@@ -49,6 +49,7 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		{publishAddress, false},
 		{privateKeyPath, false},
 		{lockFilePath, false},
+		{executionClientRPCEndpoint, false},
 		{validatorPubkey, false},
 		{all, false},
 		{fetchedExitPath, false},
@@ -108,7 +109,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return err
 	}

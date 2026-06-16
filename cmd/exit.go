@@ -27,6 +27,7 @@ type exitConfig struct {
 	PrivateKeyPath          string
 	ValidatorKeysDir        string
 	LockFilePath            string
+	ExecutionEngineAddr     string
 	PublishAddress          string
 	PublishTimeout          time.Duration
 	ExitEpoch               uint64
@@ -78,6 +79,7 @@ const (
 	testnetCapellaHardFork
 	beaconNodeHeaders
 	fallbackBeaconNodeAddrs
+	executionClientRPCEndpoint
 )
 
 func (ef exitFlag) String() string {
@@ -124,6 +126,8 @@ func (ef exitFlag) String() string {
 		return "beacon-node-headers"
 	case fallbackBeaconNodeAddrs:
 		return "fallback-beacon-node-endpoints"
+	case executionClientRPCEndpoint:
+		return "execution-client-rpc-endpoint"
 	default:
 		return "unknown"
 	}
@@ -190,6 +194,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().StringSliceVar(&config.BeaconNodeHeaders, "beacon-node-headers", nil, "Comma separated list of headers formatted as header=value")
 		case fallbackBeaconNodeAddrs:
 			cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
+		case executionClientRPCEndpoint:
+			cmd.Flags().StringVar(&config.ExecutionEngineAddr, executionClientRPCEndpoint.String(), "", maybeRequired("The address of the execution engine JSON-RPC API, used to verify ERC-1271 (e.g. Safe multisig) cluster signatures."))
 		}
 
 		if f.required {

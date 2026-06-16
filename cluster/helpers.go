@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
@@ -127,6 +128,33 @@ func verifySig(expectedAddr string, digest []byte, sig []byte) (bool, error) {
 	return expectedAddr == actualAddr, nil
 }
 
+// verifySigOrERC1271 verifies an EIP712 signature against addr, either as a standard 65-byte
+// EOA secp256k1 signature or, failing that, as an ERC-1271 smart-contract signature via the eth1 client.
+func verifySigOrERC1271(eth1 eth1wrap.EthClientRunner, addr string, digest, sig []byte) (bool, error) {
+	var (
+		eoaOK  bool
+		eoaErr error
+	)
+
+	if len(sig) == sszLenK1Sig {
+		eoaOK, eoaErr = verifySig(addr, digest, sig)
+		if eoaErr == nil && eoaOK {
+			return true, nil
+		}
+	}
+
+	if eth1 == nil {
+		return false, eoaErr
+	}
+
+	ok, err := eth1.VerifySmartContractBasedSignature(addr, [32]byte(digest), sig)
+	if errors.Is(err, eth1wrap.ErrNoExecutionEngineAddr) {
+		return false, eoaErr
+	}
+
+	return ok, err
+}
+
 // signCreator returns the definition with signed creator config hash.
 func signCreator(secret *k1.PrivateKey, def Definition) (Definition, error) {
 	var err error
@@ -225,6 +253,26 @@ func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 
 	h.AppendBytes32(b)
 	h.MerkleizeWithMixin(elemIndx, uint64(byteLen), uint64(limit+31)/32)
+
+	return nil
+}
+
+func putK1SigList(h ssz.HashWalker, sig []byte, maxAmountSigs int, field string) error {
+	if len(sig)%sszLenK1Sig != 0 {
+		return errors.New("signature not a multiple of 65 bytes", z.Str("field", field), z.Int("length", len(sig)))
+	}
+
+	num := uint64(len(sig) / sszLenK1Sig)
+	if num > uint64(maxAmountSigs) {
+		return errors.Wrap(ssz.ErrIncorrectListSize, "put k1 sig list", z.Str("field", field))
+	}
+
+	elemIndx := h.Index()
+	for i := 0; i < len(sig); i += sszLenK1Sig {
+		h.PutBytes(sig[i : i+sszLenK1Sig])
+	}
+
+	h.MerkleizeWithMixin(elemIndx, num, uint64(maxAmountSigs))
 
 	return nil
 }

@@ -10,7 +10,8 @@ import (
 // Note the following struct tag meanings:
 //   - json: json field name.
 //   - ssz: ssz equivalent. Either uint64 for numbers, BytesN for fixed length bytes, ByteList[MaxN]
-//     for variable length strings, or CompositeList[MaxN] for nested object arrays.
+//     for variable length strings, List[BytesN,MaxItems] for lists of fixed length byte arrays,
+//     or CompositeList[MaxN] for nested object arrays.
 //   - config_hash: field ordering when calculating config hash. Some fields are excluded indicated by `-`.
 //   - definition_hash: field ordering when calculating definition hash. Some fields are excluded indicated by `-`.
 type Operator struct {
@@ -21,10 +22,12 @@ type Operator struct {
 	ENR string `config_hash:"-" definition_hash:"1" json:"enr" ssz:"ByteList[1024]"`
 
 	// ConfigSignature is an EIP712 signature of the config_hash using privkey corresponding to operator Ethereum Address.
-	ConfigSignature []byte `config_hash:"-" definition_hash:"2" json:"config_signature" ssz:"Bytes65"`
+	// It is a single 65-byte secp256k1 signature, or concatenated 65-byte signatures for Safe smart-contract multisigs.
+	ConfigSignature []byte `config_hash:"-" definition_hash:"2" json:"config_signature" ssz:"List[Bytes65,32]"`
 
 	// ENRSignature is a EIP712 signature of the ENR by the Address, authorising the charon node to act on behalf of the operator in the cluster.
-	ENRSignature []byte `config_hash:"-" definition_hash:"3" json:"enr_signature" ssz:"Bytes65"`
+	// It is a single 65-byte secp256k1 signature, or concatenated 65-byte signatures for Safe smart-contract multisigs.
+	ENRSignature []byte `config_hash:"-" definition_hash:"3" json:"enr_signature" ssz:"List[Bytes65,32]"`
 }
 
 // operatorJSONv1x1 is the json formatter of Operator for versions v1.0.0 and v1.1.0.

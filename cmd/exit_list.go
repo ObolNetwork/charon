@@ -44,6 +44,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 
 	bindExitFlags(cmd, &config, []exitCLIFlag{
 		{lockFilePath, false},
+		{executionClientRPCEndpoint, false},
 		{beaconNodeEndpoints, true},
 		{beaconNodeTimeout, false},
 		{testnetName, false},
@@ -90,7 +91,7 @@ func runListActiveValidatorsCmd(ctx context.Context, config exitConfig) error {
 }
 
 func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return nil, err
 	}

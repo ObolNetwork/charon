@@ -49,6 +49,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 		{publishAddress, false},
 		{privateKeyPath, false},
 		{lockFilePath, false},
+		{executionClientRPCEndpoint, false},
 		{validatorKeysDir, false},
 		{exitEpoch, false},
 		{validatorPubkey, false},
@@ -108,7 +109,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath)
+	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return err
 	}

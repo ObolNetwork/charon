@@ -3,13 +3,16 @@
 package cluster
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -208,6 +211,36 @@ func TestDefinitionVerify(t *testing.T) {
 
 		err = definition.VerifySignatures(nil)
 		require.NoError(t, err)
+	})
+}
+
+// TestVerifySignaturesSafeMultisig verifies that v1.11 routes concatenated Safe multisig
+// signatures (operators and creator) through the ERC-1271 smart-contract verification path.
+func TestVerifySignaturesSafeMultisig(t *testing.T) {
+	_, op0 := randomOperator(t)
+	_, op1 := randomOperator(t)
+	_, creator := randomCreator(t)
+
+	// Safe multisig signatures: concatenated 65-byte signatures (threshold=2).
+	multisig := bytes.Repeat([]byte{0x07}, 2*sszLenK1Sig)
+	op0.ConfigSignature, op0.ENRSignature = multisig, multisig
+	op1.ConfigSignature, op1.ENRSignature = multisig, multisig
+	creator.ConfigSignature = multisig
+
+	def := randomDefinition(t, creator, op0, op1, 30000000, WithVersion(v1_11))
+
+	t.Run("valid via ERC-1271", func(t *testing.T) {
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(true, nil)
+
+		require.NoError(t, def.VerifySignatures(eth1))
+	})
+
+	t.Run("invalid via ERC-1271", func(t *testing.T) {
+		eth1 := mocks.NewEthClientRunner(t)
+		eth1.On("VerifySmartContractBasedSignature", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+
+		require.ErrorContains(t, def.VerifySignatures(eth1), "invalid operator config signature")
 	})
 }
 

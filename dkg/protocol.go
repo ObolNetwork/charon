@@ -117,7 +117,9 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 	}
 
 	protocolCtx.ETH1Client = eth1wrap.NewDefaultEthClientRunner(config.ExecutionEngineAddr)
-	go protocolCtx.ETH1Client.Run(ctx)
+	if err := eth1wrap.RunAndWait(ctx, protocolCtx.ETH1Client); err != nil {
+		return err
+	}
 
 	enrPrivateKey, err := LoadPrivKey(privateKeyPath)
 	if err != nil {
@@ -191,7 +193,9 @@ func LoadAndVerifyClusterLock(ctx context.Context, lockFilePath, executionEngine
 	defer cancel()
 
 	eth1Cl := eth1wrap.NewDefaultEthClientRunner(executionEngineAddr)
-	go eth1Cl.Run(ctx)
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return nil, err
+	}
 
 	return cluster.LoadClusterLock(ctx, lockFilePath, noVerify, eth1Cl)
 }
