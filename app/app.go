@@ -514,7 +514,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	sseListener.SubscribeChainReorgEvent(sched.HandleChainReorgEvent)
-	sseListener.SubscribeBlockEvent(sched.HandleBlockEvent)
+	sseListener.SubscribeHeadEvent(sched.HandleHeadEvent)
 
 	sched.SubscribeSlots(setFeeRecipient(eth2Cl, builderRegSvc.FeeRecipient))
 
@@ -613,6 +613,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	fetch, err := fetcher.New(eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder, electraSlot, featureset.Enabled(featureset.FetchOnlyCommIdx0))
 	if err != nil {
 		return err
+	}
+
+	// Invalidate early-fetched (head-event-triggered) attestation data on reorgs, since the cached
+	// data was verified against a head that may no longer be canonical.
+	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+		sseListener.SubscribeChainReorgEvent(fetch.HandleChainReorg)
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
