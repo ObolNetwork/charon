@@ -678,7 +678,7 @@ func TestFetchOnly(t *testing.T) {
 		})
 
 		// FetchOnly should cache the attestation data without triggering subscribers
-		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address())
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot))
 		require.NoError(t, err)
 		require.False(t, subscriberCalled, "FetchOnly should not trigger subscribers")
 
@@ -711,7 +711,7 @@ func TestFetchOnly(t *testing.T) {
 		fetch := mustCreateFetcher(t, bmock)
 
 		proposerDuty := core.NewProposerDuty(slot)
-		err = fetch.FetchOnly(ctx, proposerDuty, defSet, bmock.Address())
+		err = fetch.FetchOnly(ctx, proposerDuty, defSet, bmock.Address(), eth2p0.Root{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unsupported duty")
 	})
@@ -723,7 +723,7 @@ func TestFetchOnly(t *testing.T) {
 		fetch := mustCreateFetcher(t, bmock)
 
 		// FetchOnly should cache the data
-		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address())
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot))
 		require.NoError(t, err)
 
 		// Now call Fetch with the cached data - should work fine
@@ -737,4 +737,184 @@ func TestFetchOnly(t *testing.T) {
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
 	})
+
+	t.Run("head mismatch skips cache", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch := mustCreateFetcher(t, bmock)
+
+		// FetchOnly with a head root that doesn't match the fetched data must not cache it.
+		err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), eth2p0.Root{0xde, 0xad})
+		require.NoError(t, err)
+
+		// Fetch falls back to re-fetching fresh data (cache was not populated).
+		called := false
+
+		fetch.Subscribe(func(ctx context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			called = true
+
+			require.Len(t, resDataSet, 2)
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
+		require.True(t, called)
+	})
+}
+
+// earlyHeadRoot returns the beacon block root the beacon mock votes for at the given slot,
+// used as the expected head root for FetchOnly's verification.
+func earlyHeadRoot(ctx context.Context, t *testing.T, bmock beaconmock.Mock, slot uint64) eth2p0.Root {
+	t.Helper()
+
+	resp, err := bmock.AttestationData(ctx, &eth2api.AttestationDataOpts{Slot: eth2p0.Slot(slot), CommitteeIndex: 0})
+	require.NoError(t, err)
+
+	return resp.Data.BeaconBlockRoot
+}
+
+func TestFetchOnlyReorgInvalidatesCache(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot    = 1
+		vIdx    = 2
+		notZero = 99
+	)
+
+	pubkey := testutil.RandomCorePubKey(t)
+	attDuty := eth2v1.AttesterDuty{
+		Slot:             slot,
+		ValidatorIndex:   vIdx,
+		CommitteeIndex:   vIdx,
+		CommitteeLength:  notZero,
+		CommitteesAtSlot: notZero,
+	}
+	defSet := core.DutyDefinitionSet{pubkey: core.NewAttesterDefinition(&attDuty)}
+	duty := core.NewAttesterDuty(slot)
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	// The beacon node returns originalRoot as head until a reorg, then sentinel (the new canonical head).
+	var returnSentinel bool
+
+	originalRoot := eth2p0.Root{0x11}
+	sentinel := eth2p0.Root{0xaa}
+	bmock.AttestationDataFunc = func(_ context.Context, s eth2p0.Slot, idx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+		root := originalRoot
+		if returnSentinel {
+			root = sentinel
+		}
+
+		return &eth2p0.AttestationData{
+			Slot:            s,
+			Index:           idx,
+			BeaconBlockRoot: root,
+			Source:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x01}},
+			Target:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x02}},
+		}, nil
+	}
+
+	fetch := mustCreateFetcher(t, bmock)
+
+	// Early-fetch and cache the attestation data for the slot.
+	err = fetch.FetchOnly(ctx, duty, defSet, bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot))
+	require.NoError(t, err)
+
+	// A reorg invalidates the cache, and the beacon node now serves a different (post-reorg) head.
+	fetch.HandleChainReorg(ctx, 0)
+
+	returnSentinel = true
+
+	// Fetch must re-fetch fresh data (cache was cleared), returning the new head rather than the stale cached one.
+	called := false
+
+	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+		called = true
+		attData, ok := resDataSet[pubkey].(core.AttestationData)
+		require.True(t, ok)
+		require.Equal(t, sentinel, attData.Data.BeaconBlockRoot)
+
+		return nil
+	})
+
+	err = fetch.Fetch(ctx, duty, defSet)
+	require.NoError(t, err)
+	require.True(t, called)
+}
+
+func TestFetchOnlyEvictsStaleSlots(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot1   = 1
+		slot2   = 2
+		vIdx    = 2
+		notZero = 99
+	)
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSetForSlot := func(slot uint64) core.DutyDefinitionSet {
+		return core.DutyDefinitionSet{pubkey: core.NewAttesterDefinition(&eth2v1.AttesterDuty{
+			Slot:             eth2p0.Slot(slot),
+			ValidatorIndex:   vIdx,
+			CommitteeIndex:   vIdx,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+		})}
+	}
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	// The beacon node returns originalRoot as head until toggled, then sentinel.
+	var returnSentinel bool
+
+	originalRoot := eth2p0.Root{0x11}
+	sentinel := eth2p0.Root{0xaa}
+	bmock.AttestationDataFunc = func(_ context.Context, s eth2p0.Slot, idx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+		root := originalRoot
+		if returnSentinel {
+			root = sentinel
+		}
+
+		return &eth2p0.AttestationData{
+			Slot:            s,
+			Index:           idx,
+			BeaconBlockRoot: root,
+			Source:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x01}},
+			Target:          &eth2p0.Checkpoint{Root: eth2p0.Root{0x02}},
+		}, nil
+	}
+
+	fetch := mustCreateFetcher(t, bmock)
+
+	// Early-fetch and cache slot1.
+	err = fetch.FetchOnly(ctx, core.NewAttesterDuty(slot1), defSetForSlot(slot1), bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot1))
+	require.NoError(t, err)
+
+	// A later head event (slot2) must evict the stale slot1 entry.
+	returnSentinel = true
+	err = fetch.FetchOnly(ctx, core.NewAttesterDuty(slot2), defSetForSlot(slot2), bmock.Address(), earlyHeadRoot(ctx, t, bmock, slot2))
+	require.NoError(t, err)
+
+	// Fetching slot1 must re-fetch fresh (its cache was evicted), returning the new head, not the stale one.
+	called := false
+
+	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+		called = true
+		attData, ok := resDataSet[pubkey].(core.AttestationData)
+		require.True(t, ok)
+		require.Equal(t, sentinel, attData.Data.BeaconBlockRoot)
+
+		return nil
+	})
+
+	err = fetch.Fetch(ctx, core.NewAttesterDuty(slot1), defSetForSlot(slot1))
+	require.NoError(t, err)
+	require.True(t, called)
 }
