@@ -119,6 +119,13 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
+			Name:      "proposer_duties_v2",
+			Path:      "/eth/v2/validator/duties/proposer/{epoch}",
+			Handler:   proposerDuties(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
+		},
+		{
 			Name:      "sync_committee_duties",
 			Path:      "/eth/v1/validator/duties/sync/{epoch}",
 			Handler:   syncCommitteeDuties(h),
