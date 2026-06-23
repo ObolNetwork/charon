@@ -26,7 +26,7 @@ type Scheduler interface {
 	GetDutyDefinition(context.Context, Duty) (DutyDefinitionSet, error)
 
 	// RegisterFetcherFetchOnly registers the fetcher's FetchOnly method.
-	RegisterFetcherFetchOnly(func(context.Context, Duty, DutyDefinitionSet, string) error)
+	RegisterFetcherFetchOnly(func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error)
 }
 
 // Fetcher fetches proposed unsigned duty data.
@@ -35,7 +35,7 @@ type Fetcher interface {
 	Fetch(context.Context, Duty, DutyDefinitionSet) error
 
 	// FetchOnly fetches attestation data and caches it without triggering subscribers.
-	FetchOnly(context.Context, Duty, DutyDefinitionSet, string) error
+	FetchOnly(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error
 
 	// Subscribe registers a callback for proposed unsigned duty data sets.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
@@ -248,9 +248,9 @@ type wireFuncs struct {
 	SchedulerSubscribeDuties          func(func(context.Context, Duty, DutyDefinitionSet) error)
 	SchedulerSubscribeSlots           func(func(context.Context, Slot) error)
 	SchedulerGetDutyDefinition        func(context.Context, Duty) (DutyDefinitionSet, error)
-	SchedulerRegisterFetcherFetchOnly func(func(context.Context, Duty, DutyDefinitionSet, string) error)
+	SchedulerRegisterFetcherFetchOnly func(func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error)
 	FetcherFetch                      func(context.Context, Duty, DutyDefinitionSet) error
-	FetcherFetchOnly                  func(context.Context, Duty, DutyDefinitionSet, string) error
+	FetcherFetchOnly                  func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error
 	FetcherSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
 	FetcherRegisterAggSigDB           func(func(context.Context, Duty, PubKey) (SignedData, error))
 	FetcherRegisterAwaitAttData       func(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error))

@@ -349,6 +349,61 @@ func TestRawRouter(t *testing.T) {
 		testRawRouter(t, handler, callback)
 	})
 
+	t.Run("proposer duties v2", func(t *testing.T) {
+		const (
+			epoch = 4
+			total = 2
+		)
+
+		var dependentRoot eth2p0.Root
+
+		_, _ = rand.Read(dependentRoot[:])
+
+		metadata := map[string]any{
+			"execution_optimistic": true,
+			"dependent_root":       dependentRoot,
+		}
+
+		handler := testHandler{
+			ProposerDutiesFunc: func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+				var res []*eth2v1.ProposerDuty
+				for i := range total {
+					res = append(res, &eth2v1.ProposerDuty{
+						ValidatorIndex: eth2p0.ValidatorIndex(i),
+						Slot:           eth2p0.Slot(int(opts.Epoch)*slotsPerEpoch + i),
+					})
+				}
+
+				return wrapResponseWithMetadata(res, metadata), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			res, err := http.Get(fmt.Sprintf("%s/eth/v2/validator/duties/proposer/%d", baseURL, epoch))
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, "application/json", res.Header.Get("Content-Type"))
+
+			var resp struct {
+				DependentRoot       string                 `json:"dependent_root"`
+				Data                []*eth2v1.ProposerDuty `json:"data"`
+				ExecutionOptimistic bool                   `json:"execution_optimistic"`
+			}
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+
+			require.True(t, resp.ExecutionOptimistic)
+			require.Equal(t, fmt.Sprintf("%#x", dependentRoot), resp.DependentRoot)
+			require.Len(t, resp.Data, total)
+
+			for i, duty := range resp.Data {
+				require.EqualValues(t, i, duty.ValidatorIndex)
+				require.EqualValues(t, epoch*slotsPerEpoch+i, duty.Slot)
+			}
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
 	t.Run("valid content type in non-2xx response", func(t *testing.T) {
 		handler := testHandler{}
 
