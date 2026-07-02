@@ -349,7 +349,7 @@ func (s *builderRegistrationService) fetchFromAPI(ctx context.Context) (bool, er
 			var verified []*eth2api.VersionedSignedValidatorRegistration
 
 			for _, reg := range pv.AggregatedRegs {
-				if err := verifyRegistrationSignature(reg, s.forkVersion); err != nil {
+				if err := VerifyBuilderRegistrationSignature(reg, s.forkVersion); err != nil {
 					log.Warn(ctx, "Skipping fetched builder registration with invalid signature", err)
 					continue
 				}
@@ -454,7 +454,7 @@ func LoadBuilderRegistrationOverrides(path string, forkVersion eth2p0.Version) (
 
 	if forkVersion != (eth2p0.Version{}) {
 		for _, reg := range regs {
-			if err := verifyRegistrationSignature(reg, forkVersion); err != nil {
+			if err := VerifyBuilderRegistrationSignature(reg, forkVersion); err != nil {
 				return nil, err
 			}
 		}
@@ -463,8 +463,8 @@ func LoadBuilderRegistrationOverrides(path string, forkVersion eth2p0.Version) (
 	return regs, nil
 }
 
-// verifyRegistrationSignature verifies the BLS signature of a single builder registration.
-func verifyRegistrationSignature(reg *eth2api.VersionedSignedValidatorRegistration, forkVersion eth2p0.Version) error {
+// VerifyBuilderRegistrationSignature verifies the BLS signature of a single builder registration.
+func VerifyBuilderRegistrationSignature(reg *eth2api.VersionedSignedValidatorRegistration, forkVersion eth2p0.Version) error {
 	if reg == nil || reg.V1 == nil || reg.V1.Message == nil {
 		return errors.New("invalid builder registration override: nil message")
 	}
