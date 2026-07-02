@@ -687,7 +687,7 @@ func TestHighBeaconNodeSSEHeadDelayCheck(t *testing.T) {
 				Name: &name,
 				Type: &typ,
 				Metric: []*pb.Metric{{
-					Label: []*pb.LabelPair{{Name: func() *string { s := "addr"; return &s }(), Value: &addrVal}}, //nolint:goconst
+					Label: []*pb.LabelPair{{Name: func() *string { s := "addr"; return &s }(), Value: &addrVal}},
 					Histogram: &pb.Histogram{
 						SampleCount: &count,
 						SampleSum:   &sum,
