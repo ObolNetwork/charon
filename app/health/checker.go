@@ -236,6 +236,7 @@ func (c *Checker) sampleMemory() {
 func sseHeadDelayCheck(scrapes [][]*pb.MetricFamily, _ Metadata) (bool, error) {
 	const (
 		metricName = "app_beacon_node_sse_head_delay"
+		addrLabel  = "addr"
 		threshold  = 0.04
 	)
 
@@ -260,7 +261,7 @@ func sseHeadDelayCheck(scrapes [][]*pb.MetricFamily, _ Metadata) (bool, error) {
 				var addr string
 
 				for _, lbl := range metric.GetLabel() {
-					if lbl.GetName() == "addr" {
+					if lbl.GetName() == addrLabel {
 						addr = lbl.GetValue()
 						break
 					}

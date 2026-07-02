@@ -48,6 +48,10 @@ repos:
         language: script
         entry: .pre-commit/run_linter.sh
         types: [file, go]
+        # The script lints the whole repo, so run it once: parallel invocations
+        # with fix enabled write to the same files concurrently and corrupt them.
+        pass_filenames: false
+        require_serial: true
       - id: run-go-tests
         name: run-go-tests
         language: script
