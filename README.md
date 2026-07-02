@@ -3,7 +3,7 @@
 
 <p align="center"><a href="https://github.com/obolnetwork/charon/releases/"><img src="https://img.shields.io/github/tag/obolnetwork/charon.svg"></a>
 <a href="https://github.com/ObolNetwork/charon/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-Business%20Source%201.1-green.svg"></a>
-<a href="https://godoc.org/github.com/obolnetwork/charon"><img src="https://godoc.org/github.com/obolnetwork/charon?status.svg"></a>
+<a href="https://pkg.go.dev/github.com/obolnetwork/charon"><img src="https://pkg.go.dev/badge/github.com/obolnetwork/charon"></a>
 <a href="https://goreportcard.com/report/github.com/obolnetwork/charon"><img src="https://goreportcard.com/badge/github.com/obolnetwork/charon"></a>
 <a href="https://github.com/ObolNetwork/charon/actions/workflows/golangci-lint.yml"><img src="https://github.com/obolnetwork/charon/workflows/golangci-lint/badge.svg"></a></p>
 
@@ -24,9 +24,9 @@ which contains a docker compose setup for running a full charon cluster on your 
 
 ## Documentation
 
-The [Obol Docs](https://docs.obol.tech/) website is the best place to get started.
+The [Obol Docs](https://docs.obol.org/) website is the best place to get started.
 The important sections are [intro](https://docs.obol.org/learn/charon),
-[key concepts](https://docs.obol.tech/docs/int/key-concepts) and [charon](https://docs.obol.tech/docs/charon/intro).
+[key concepts](https://docs.obol.org/learn/readme/key-concepts) and [charon](https://docs.obol.org/learn/charon/intro).
 
 For detailed documentation on this repo, see the [docs](docs) folder:
 
@@ -34,7 +34,7 @@ For detailed documentation on this repo, see the [docs](docs) folder:
 - [Architecture](docs/architecture.md): Overview of charon cluster and node architecture
 - [Project Structure](docs/structure.md): Project folder structure
 - [Branching and Release Model](docs/branching.md): Git branching and release model
-- [Go Guidelines](docs/goguidelines.md): Guidelines and principals relating to go development
+- [Go Guidelines](docs/goguidelines.md): Guidelines and principles relating to go development
 - [Contributing](docs/contributing.md): How to contribute to charon; githooks, PR templates, etc.
 
 There is always the [charon godocs](https://pkg.go.dev/github.com/obolnetwork/charon) for the source code documentation.
@@ -54,4 +54,4 @@ There are several reasons to justify a new `MAJOR` release, for example:
  - an old Ethereum hardfork is removed due to network inactivity
  - modifications to the internal P2P network or consensus mechanism requiring deep changes to the codebase
 
-The `charon dkg` subcommand **is more restrictive** than this general compatibility promise; all peers should use matching`MAJOR` and`MINOR` versions of Charon for the DKG process, patch versions may differ though it is recommended to use the latest patch of any version.
+The `charon dkg` subcommand **is more restrictive** than this general compatibility promise; all peers should use matching `MAJOR` and `MINOR` versions of Charon for the DKG process, patch versions may differ though it is recommended to use the latest patch of any version.
