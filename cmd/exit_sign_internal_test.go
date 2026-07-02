@@ -28,18 +28,16 @@ import (
 	"github.com/obolnetwork/charon/testutil/obolapimock"
 )
 
-//nolint:unparam // we mostly pass "4" for operatorAmt but we might change it later.
 func writeAllLockData(
 	t *testing.T,
 	root string,
-	operatorAmt int,
 	enrs []*k1.PrivateKey,
 	operatorShares [][]tbls.PrivateKey,
 	manifestBytes []byte,
 ) {
 	t.Helper()
 
-	for opIdx := range operatorAmt {
+	for opIdx := range enrs {
 		opID := fmt.Sprintf("op%d", opIdx)
 		oDir := filepath.Join(root, opID)
 		keysDir := filepath.Join(oDir, "validator_keys")
@@ -196,7 +194,7 @@ func runSubmitPartialExitFlowTest(t *testing.T, useValIdx bool, skipBeaconNodeCh
 
 	defer srv.Close()
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", 0))
 
@@ -337,7 +335,7 @@ func Test_runSubmitPartialExit_Config(t *testing.T) {
 			mBytes, err := json.Marshal(lock)
 			require.NoError(t, err)
 
-			writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+			writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 			for opIdx := range operatorAmt {
 				del(t, test, root, opIdx)

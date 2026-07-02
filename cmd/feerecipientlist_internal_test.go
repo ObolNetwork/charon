@@ -446,7 +446,7 @@ func TestFeeRecipientListFetchesRemote(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	handler, addLockFiles := obolapimock.MockServer(false, nil)
 
@@ -517,7 +517,7 @@ func TestFeeRecipientListRemoteOnlyTriggersSuggestion(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	handler, addLockFiles := obolapimock.MockServer(false, nil)
 
@@ -587,7 +587,7 @@ func TestFeeRecipientListOverridesMatchRemote(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	handler, addLockFiles := obolapimock.MockServer(false, nil)
 
@@ -708,7 +708,7 @@ func TestFeeRecipientListIncompleteNoQuorum(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	// dropOnePsig=true prevents quorum from being reached.
 	handler, addLockFiles := obolapimock.MockServer(true, nil)

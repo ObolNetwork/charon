@@ -3,6 +3,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"maps"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -42,16 +42,16 @@ func TestLoadBuilderRegistrationOverrides(t *testing.T) {
 		require.ErrorContains(t, err, "unmarshal builder registration overrides file")
 	})
 
-	t.Run("valid without verification", func(t *testing.T) {
+	t.Run("unsigned override fails verification", func(t *testing.T) {
 		regs := []*eth2api.VersionedSignedValidatorRegistration{
 			makeUnsignedOverride(t),
 		}
 
 		path := writeOverridesFile(t, regs)
 
-		loaded, err := LoadBuilderRegistrationOverrides(path, eth2p0.Version{})
-		require.NoError(t, err)
-		require.Len(t, loaded, 1)
+		// A zero fork version is mainnet's genesis fork version and must not disable verification.
+		_, err := LoadBuilderRegistrationOverrides(path, eth2p0.Version{})
+		require.Error(t, err)
 	})
 
 	t.Run("valid with signature verification", func(t *testing.T) {
@@ -74,6 +74,100 @@ func TestLoadBuilderRegistrationOverrides(t *testing.T) {
 
 		_, err := LoadBuilderRegistrationOverrides(path, eth2p0.Version(lock.ForkVersion))
 		require.ErrorContains(t, err, "verify builder registration override signature")
+	})
+}
+
+func TestMergeBuilderRegistrationOverrides(t *testing.T) {
+	ctx := t.Context()
+
+	lock, sign := makeRegistrationSigner(t)
+	forkVersion := eth2p0.Version(lock.ForkVersion)
+
+	feeA := bellatrix.ExecutionAddress{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xaa}
+	feeB := bellatrix.ExecutionAddress{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xbb}
+
+	// Truncate to seconds so timestamps survive the JSON round trip unchanged.
+	baseTime := time.Now().Truncate(time.Second)
+
+	reg0 := sign(0, feeA, baseTime)
+	reg1 := sign(1, feeA, baseTime)
+
+	regsOf := func(regs ...*eth2api.VersionedSignedValidatorRegistration) []*eth2api.VersionedSignedValidatorRegistration {
+		return regs
+	}
+
+	t.Run("no existing file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "missing.json")
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, regsOf(reg0))
+		require.Len(t, merged, 1)
+		require.Equal(t, reg0, merged[0])
+	})
+
+	t.Run("disjoint pubkeys merged and sorted", func(t *testing.T) {
+		path := writeOverridesFile(t, regsOf(reg1))
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, regsOf(reg0))
+		require.Len(t, merged, 2)
+		require.Negative(t, bytes.Compare(merged[0].V1.Message.Pubkey[:], merged[1].V1.Message.Pubkey[:]))
+	})
+
+	t.Run("newer fetched wins", func(t *testing.T) {
+		path := writeOverridesFile(t, regsOf(reg0))
+		newer := sign(0, feeB, baseTime.Add(time.Hour))
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, regsOf(newer))
+		require.Len(t, merged, 1)
+		require.Equal(t, feeB, merged[0].V1.Message.FeeRecipient)
+	})
+
+	t.Run("older fetched keeps existing", func(t *testing.T) {
+		path := writeOverridesFile(t, regsOf(reg0))
+		older := sign(0, feeB, baseTime.Add(-time.Hour))
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, regsOf(older))
+		require.Len(t, merged, 1)
+		require.Equal(t, feeA, merged[0].V1.Message.FeeRecipient)
+	})
+
+	t.Run("equal timestamp keeps existing", func(t *testing.T) {
+		path := writeOverridesFile(t, regsOf(reg0))
+		equal := sign(0, feeB, baseTime)
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, regsOf(equal))
+		require.Len(t, merged, 1)
+		require.Equal(t, feeA, merged[0].V1.Message.FeeRecipient)
+	})
+
+	t.Run("invalid fetched skipped", func(t *testing.T) {
+		path := writeOverridesFile(t, regsOf(reg0))
+
+		bad := sign(1, feeB, baseTime)
+		bad.V1.Signature[0] ^= 0xff
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, regsOf(bad))
+		require.Len(t, merged, 1)
+		require.Equal(t, reg0.V1.Message.Pubkey, merged[0].V1.Message.Pubkey)
+	})
+
+	t.Run("corrupt existing file rebuilt", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "overrides.json")
+		require.NoError(t, os.WriteFile(path, []byte("{corrupt"), 0o644))
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, regsOf(reg0))
+		require.Len(t, merged, 1)
+		require.Equal(t, reg0.V1.Message.Pubkey, merged[0].V1.Message.Pubkey)
+	})
+
+	t.Run("invalid existing entry dropped", func(t *testing.T) {
+		badExisting := sign(1, feeA, baseTime)
+		badExisting.V1.Signature[0] ^= 0xff
+
+		path := writeOverridesFile(t, regsOf(reg0, badExisting))
+
+		merged := MergeBuilderRegistrationOverrides(ctx, path, forkVersion, nil)
+		require.Len(t, merged, 1)
+		require.Equal(t, reg0.V1.Message.Pubkey, merged[0].V1.Message.Pubkey)
 	})
 }
 
@@ -280,19 +374,15 @@ func TestBuilderRegistrationService(t *testing.T) {
 	})
 }
 
-// makeSignedOverrides creates a test cluster lock and properly signed builder registration overrides.
-func makeSignedOverrides(t *testing.T) (cluster.Lock, []*eth2api.VersionedSignedValidatorRegistration) {
+// makeRegistrationSigner creates a test cluster lock and a signer producing properly signed
+// builder registrations for its validators.
+func makeRegistrationSigner(t *testing.T) (cluster.Lock, func(valIdx int, feeRecipient bellatrix.ExecutionAddress, timestamp time.Time) *eth2api.VersionedSignedValidatorRegistration) {
 	t.Helper()
 
 	random := rand.New(rand.NewSource(0))
 	lock, _, keyShares := cluster.NewForT(t, 2, 4, 4, 0, random)
 
-	forkVersion, err := eth2util.NetworkToForkVersionBytes(eth2util.Goerli.Name)
-	require.NoError(t, err)
-
-	var overrides []*eth2api.VersionedSignedValidatorRegistration
-
-	for valIdx, val := range lock.Validators {
+	sign := func(valIdx int, feeRecipient bellatrix.ExecutionAddress, timestamp time.Time) *eth2api.VersionedSignedValidatorRegistration {
 		// Reconstruct root secret from shares.
 		sharesMap := make(map[int]tbls.PrivateKey)
 		for i, share := range keyShares[valIdx] {
@@ -302,31 +392,45 @@ func makeSignedOverrides(t *testing.T) (cluster.Lock, []*eth2api.VersionedSigned
 		rootSecret, err := tbls.RecoverSecret(sharesMap, uint(len(keyShares[valIdx])), uint(lock.Threshold))
 		require.NoError(t, err)
 
-		pubkey, err := tblsconv.PubkeyToETH2(tbls.PublicKey(val.PubKey))
+		pubkey, err := tblsconv.PubkeyToETH2(tbls.PublicKey(lock.Validators[valIdx].PubKey))
 		require.NoError(t, err)
-
-		feeRecipient := bellatrix.ExecutionAddress{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x99, byte(valIdx)}
 
 		msg := &eth2v1.ValidatorRegistration{
 			FeeRecipient: feeRecipient,
 			GasLimit:     registration.DefaultGasLimit,
-			Timestamp:    time.Now().Add(time.Hour),
+			Timestamp:    timestamp,
 			Pubkey:       pubkey,
 		}
 
-		sigRoot, err := registration.GetMessageSigningRoot(msg, eth2p0.Version(forkVersion))
+		sigRoot, err := registration.GetMessageSigningRoot(msg, eth2p0.Version(lock.ForkVersion))
 		require.NoError(t, err)
 
 		sig, err := tbls.Sign(rootSecret, sigRoot[:])
 		require.NoError(t, err)
 
-		overrides = append(overrides, &eth2api.VersionedSignedValidatorRegistration{
+		return &eth2api.VersionedSignedValidatorRegistration{
 			Version: eth2spec.BuilderVersionV1,
 			V1: &eth2v1.SignedValidatorRegistration{
 				Message:   msg,
 				Signature: eth2p0.BLSSignature(sig),
 			},
-		})
+		}
+	}
+
+	return lock, sign
+}
+
+// makeSignedOverrides creates a test cluster lock and properly signed builder registration overrides.
+func makeSignedOverrides(t *testing.T) (cluster.Lock, []*eth2api.VersionedSignedValidatorRegistration) {
+	t.Helper()
+
+	lock, sign := makeRegistrationSigner(t)
+
+	var overrides []*eth2api.VersionedSignedValidatorRegistration
+
+	for valIdx := range lock.Validators {
+		feeRecipient := bellatrix.ExecutionAddress{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x99, byte(valIdx)}
+		overrides = append(overrides, sign(valIdx, feeRecipient, time.Now().Add(time.Hour)))
 	}
 
 	return lock, overrides
