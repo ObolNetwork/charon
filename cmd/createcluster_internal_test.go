@@ -195,17 +195,6 @@ func TestCreateCluster(t *testing.T) {
 			expectedErr: "--num-validators not supported with --split-existing-keys, fix configuration flags",
 		},
 		{
-			Name: "splitkeys with deposit amounts set",
-			Config: clusterConfig{
-				NumNodes:       4,
-				Threshold:      3,
-				SplitKeys:      true,
-				DepositAmounts: []int{16, 16},
-				Network:        defaultNetwork,
-			},
-			expectedErr: "--deposit-amounts not supported with --split-existing-keys as deposit data is not re-created, fix configuration flags",
-		},
-		{
 			Name: "goerli",
 			Config: clusterConfig{
 				NumNodes:  minNodes,
@@ -399,13 +388,6 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 		for _, val := range lock.Validators {
 			vals[val.PublicKeyHex()] = struct{}{}
-
-			if conf.SplitKeys {
-				// Deposit data is not re-created when splitting existing keys.
-				require.Empty(t, val.PartialDepositData)
-				continue
-			}
-
 			require.Len(t, val.PartialDepositData, len(amounts))
 
 			for i, pdd := range val.PartialDepositData {
@@ -652,16 +634,6 @@ func TestSplitKeys(t *testing.T) {
 				require.NoError(t, lock.VerifySignatures(nil))
 
 				require.Equal(t, test.numSplitKeys, lock.NumValidators)
-
-				for _, val := range lock.Validators {
-					// Deposit data is not re-created when splitting existing keys.
-					// Lock versions v1.7 and earlier serialize the absent deposit data as a single zero value.
-					for _, pdd := range val.PartialDepositData {
-						require.Empty(t, pdd.PubKey)
-						require.Empty(t, pdd.Signature)
-						require.Zero(t, pdd.Amount)
-					}
-				}
 
 				if test.expectKeyOrder {
 					// With per-validator addresses, keystore-N.json must map to the Nth validator

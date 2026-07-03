@@ -144,7 +144,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
-	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
+	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Deposit data files are re-created using the provided withdrawal addresses; do not submit deposits for validators that are already active.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
@@ -304,18 +304,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	// Deposit data is not re-created when splitting existing keys, as the validators are already deposited.
-	var depositDatas [][]eth2p0.DepositData
-	if !conf.SplitKeys {
-		depositDatas, err = createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts, def.Compounding)
-		if err != nil {
-			return err
-		}
+	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts, def.Compounding)
+	if err != nil {
+		return err
+	}
 
-		// Write deposit-data files
-		if err = deposit.WriteClusterDepositDataFiles(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
-			return err
-		}
+	// Write deposit-data files
+	if err = deposit.WriteClusterDepositDataFiles(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
+		return err
 	}
 
 	valRegs, err := createValidatorRegistrations(ctx, def.FeeRecipientAddresses(), secrets, def.ForkVersion, conf.SplitKeys, conf.TargetGasLimit)
@@ -431,10 +427,6 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 	if conf.SplitKeys {
 		if conf.NumDVs != 0 {
 			return errors.New("--num-validators not supported with --split-existing-keys, fix configuration flags")
-		}
-
-		if len(conf.DepositAmounts) > 0 {
-			return errors.New("--deposit-amounts not supported with --split-existing-keys as deposit data is not re-created, fix configuration flags")
 		}
 	} else if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
 		return errors.New("missing --num-validators flag")
@@ -757,24 +749,6 @@ func getValidators(
 			pubshares = append(pubshares, pubk[:])
 		}
 
-		var partialDepositData []cluster.DepositData
-
-		if len(depositDatasMap) > 0 {
-			depositDatasList, ok := depositDatasMap[dv]
-			if !ok {
-				return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
-			}
-
-			for _, dd := range depositDatasList {
-				partialDepositData = append(partialDepositData, cluster.DepositData{
-					PubKey:                dd.PublicKey[:],
-					WithdrawalCredentials: dd.WithdrawalCredentials,
-					Amount:                int(dd.Amount),
-					Signature:             dd.Signature[:],
-				})
-			}
-		}
-
 		regIdx := -1
 
 		for i, reg := range valRegs {
@@ -799,6 +773,22 @@ func getValidators(
 		clusterReg, err := builderRegistrationFromETH2(valRegs[regIdx])
 		if err != nil {
 			return nil, errors.Wrap(err, "builder registration to cluster object")
+		}
+
+		var partialDepositData []cluster.DepositData
+
+		depositDatasList, ok := depositDatasMap[dv]
+		if !ok {
+			return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
+		}
+
+		for _, dd := range depositDatasList {
+			partialDepositData = append(partialDepositData, cluster.DepositData{
+				PubKey:                dd.PublicKey[:],
+				WithdrawalCredentials: dd.WithdrawalCredentials,
+				Amount:                int(dd.Amount),
+				Signature:             dd.Signature[:],
+			})
 		}
 
 		vals = append(vals, cluster.DistValidator{
@@ -989,10 +979,7 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 
-	if !splitKeys {
-		_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on the DV Launchpad\n")
-	}
-
+	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on the DV Launchpad\n")
 	if keysToDisk {
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
