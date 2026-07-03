@@ -195,6 +195,17 @@ func TestCreateCluster(t *testing.T) {
 			expectedErr: "--num-validators not supported with --split-existing-keys, fix configuration flags",
 		},
 		{
+			Name: "splitkeys with deposit amounts set",
+			Config: clusterConfig{
+				NumNodes:       4,
+				Threshold:      3,
+				SplitKeys:      true,
+				DepositAmounts: []int{16, 16},
+				Network:        defaultNetwork,
+			},
+			expectedErr: "--deposit-amounts not supported with --split-existing-keys as deposit data is not re-created, fix configuration flags",
+		},
+		{
 			Name: "goerli",
 			Config: clusterConfig{
 				NumNodes:  minNodes,
@@ -388,6 +399,13 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 		for _, val := range lock.Validators {
 			vals[val.PublicKeyHex()] = struct{}{}
+
+			if conf.SplitKeys {
+				// Deposit data is not re-created when splitting existing keys.
+				require.Empty(t, val.PartialDepositData)
+				continue
+			}
+
 			require.Len(t, val.PartialDepositData, len(amounts))
 
 			for i, pdd := range val.PartialDepositData {
@@ -554,6 +572,7 @@ func TestSplitKeys(t *testing.T) {
 		name           string
 		numSplitKeys   int
 		conf           clusterConfig
+		expectKeyOrder bool
 		expectedErrMsg string
 	}{
 		{
@@ -577,6 +596,19 @@ func TestSplitKeys(t *testing.T) {
 				WithdrawalAddrs:   []string{zeroAddress},
 				ClusterDir:        t.TempDir(),
 			},
+		},
+		{
+			name:         "split keys with distinct fee recipient addresses",
+			numSplitKeys: 3,
+			conf: clusterConfig{
+				Name:              "test split keys",
+				NumNodes:          minNodes,
+				Threshold:         3,
+				FeeRecipientAddrs: []string{testutil.RandomETHAddress(), testutil.RandomETHAddress(), testutil.RandomETHAddress()},
+				WithdrawalAddrs:   []string{zeroAddress},
+				ClusterDir:        t.TempDir(),
+			},
+			expectKeyOrder: true,
 		},
 	}
 
@@ -620,6 +652,26 @@ func TestSplitKeys(t *testing.T) {
 				require.NoError(t, lock.VerifySignatures(nil))
 
 				require.Equal(t, test.numSplitKeys, lock.NumValidators)
+
+				for _, val := range lock.Validators {
+					// Deposit data is not re-created when splitting existing keys.
+					// Lock versions v1.7 and earlier serialize the absent deposit data as a single zero value.
+					for _, pdd := range val.PartialDepositData {
+						require.Empty(t, pdd.PubKey)
+						require.Empty(t, pdd.Signature)
+						require.Zero(t, pdd.Amount)
+					}
+				}
+
+				if test.expectKeyOrder {
+					// With per-validator addresses, keystore-N.json must map to the Nth validator
+					// so that fee recipient and withdrawal addresses are paired correctly.
+					for i, key := range keys {
+						pubkey, err := tbls.SecretToPublicKey(key)
+						require.NoError(t, err)
+						require.Equal(t, "0x"+hex.EncodeToString(pubkey[:]), lock.Validators[i].PublicKeyHex())
+					}
+				}
 			}
 		})
 	}

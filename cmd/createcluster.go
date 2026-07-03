@@ -198,7 +198,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// If SplitKeys wasn't set, we wouldn't have reached this part of code because validateCreateConfig()
 	// would've already errored.
 	if conf.SplitKeys {
-		useSequencedKeys := len(conf.WithdrawalAddrs) > 1
+		// Load keys in strict file index order when per-validator addresses may differ,
+		// so that keystore-N.json is paired with the Nth withdrawal and fee recipient address.
+		useSequencedKeys := len(conf.WithdrawalAddrs) > 1 || len(conf.FeeRecipientAddrs) > 1
+		if conf.DefFile != "" {
+			// A definition file replicates a single provided address for each validator,
+			// so only distinct addresses require strict key file ordering.
+			useSequencedKeys = hasDistinctAddrs(def.WithdrawalAddresses()) || hasDistinctAddrs(def.FeeRecipientAddresses())
+		}
 
 		secrets, err = getKeys(conf.SplitKeysDir, useSequencedKeys)
 		if err != nil {
@@ -297,14 +304,18 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
-	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts, def.Compounding)
-	if err != nil {
-		return err
-	}
+	// Deposit data is not re-created when splitting existing keys, as the validators are already deposited.
+	var depositDatas [][]eth2p0.DepositData
+	if !conf.SplitKeys {
+		depositDatas, err = createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts, def.Compounding)
+		if err != nil {
+			return err
+		}
 
-	// Write deposit-data files
-	if err = deposit.WriteClusterDepositDataFiles(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
-		return err
+		// Write deposit-data files
+		if err = deposit.WriteClusterDepositDataFiles(depositDatas, network, conf.ClusterDir, numNodes); err != nil {
+			return err
+		}
 	}
 
 	valRegs, err := createValidatorRegistrations(ctx, def.FeeRecipientAddresses(), secrets, def.ForkVersion, conf.SplitKeys, conf.TargetGasLimit)
@@ -421,10 +432,12 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		if conf.NumDVs != 0 {
 			return errors.New("--num-validators not supported with --split-existing-keys, fix configuration flags")
 		}
-	} else {
-		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
-			return errors.New("missing --num-validators flag")
+
+		if len(conf.DepositAmounts) > 0 {
+			return errors.New("--deposit-amounts not supported with --split-existing-keys as deposit data is not re-created, fix configuration flags")
 		}
+	} else if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
+		return errors.New("missing --num-validators flag")
 	}
 
 	// Don't allow cluster size to be less than 3.
@@ -615,7 +628,7 @@ func writeWarning(w io.Writer) {
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** WARNING: Splitting keys **********************\n")
 	_, _ = sb.WriteString(" Please make sure any existing validator has been shut down for\n")
-	_, _ = sb.WriteString(" at least 2 finalised epochs before starting the charon cluster,\n")
+	_, _ = sb.WriteString(" at least 2 finalized epochs before starting the charon cluster,\n")
 	_, _ = sb.WriteString(" otherwise slashing could occur.                               \n")
 	_, _ = sb.WriteString("****************************************************************\n")
 	_, _ = sb.WriteString("\n")
@@ -744,6 +757,24 @@ func getValidators(
 			pubshares = append(pubshares, pubk[:])
 		}
 
+		var partialDepositData []cluster.DepositData
+
+		if len(depositDatasMap) > 0 {
+			depositDatasList, ok := depositDatasMap[dv]
+			if !ok {
+				return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
+			}
+
+			for _, dd := range depositDatasList {
+				partialDepositData = append(partialDepositData, cluster.DepositData{
+					PubKey:                dd.PublicKey[:],
+					WithdrawalCredentials: dd.WithdrawalCredentials,
+					Amount:                int(dd.Amount),
+					Signature:             dd.Signature[:],
+				})
+			}
+		}
+
 		regIdx := -1
 
 		for i, reg := range valRegs {
@@ -768,22 +799,6 @@ func getValidators(
 		clusterReg, err := builderRegistrationFromETH2(valRegs[regIdx])
 		if err != nil {
 			return nil, errors.Wrap(err, "builder registration to cluster object")
-		}
-
-		var partialDepositData []cluster.DepositData
-
-		depositDatasList, ok := depositDatasMap[dv]
-		if !ok {
-			return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
-		}
-
-		for _, dd := range depositDatasList {
-			partialDepositData = append(partialDepositData, cluster.DepositData{
-				PubKey:                dd.PublicKey[:],
-				WithdrawalCredentials: dd.WithdrawalCredentials,
-				Amount:                int(dd.Amount),
-				Signature:             dd.Signature[:],
-			})
 		}
 
 		vals = append(vals, cluster.DistValidator{
@@ -974,7 +989,10 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
 
-	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on the DV Launchpad\n")
+	if !splitKeys {
+		_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on the DV Launchpad\n")
+	}
+
 	if keysToDisk {
 		_, _ = sb.WriteString("│  ├─ validator_keys\t\tValidator keystores and password\n")
 		_, _ = sb.WriteString("│  │  ├─ keystore-*.json\tValidator private share key for duty signing\n")
@@ -1170,6 +1188,17 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
 
 	return cl.LaunchpadURLForLock(lock), nil
+}
+
+// hasDistinctAddrs returns true if addrs contains more than one distinct address (ignoring case).
+func hasDistinctAddrs(addrs []string) bool {
+	for _, addr := range addrs {
+		if !strings.EqualFold(addr, addrs[0]) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
