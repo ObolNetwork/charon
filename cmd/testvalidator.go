@@ -64,9 +64,9 @@ func bindTestValidatorFlags(cmd *cobra.Command, config *testValidatorConfig, fla
 
 func supportedValidatorTestCases() map[testCaseName]func(context.Context, *testValidatorConfig) testResult {
 	return map[testCaseName]func(context.Context, *testValidatorConfig) testResult{
-		{name: "Ping", order: 1}:        validatorPingTest,
-		{name: "PingMeasure", order: 2}: validatorPingMeasureTest,
-		{name: "PingLoad", order: 3}:    validatorPingLoadTest,
+		{name: "Ping", order: 1}:        validatorPingTest,        //nolint:goconst // test-case name
+		{name: "PingMeasure", order: 2}: validatorPingMeasureTest, //nolint:goconst // test-case name
+		{name: "PingLoad", order: 3}:    validatorPingLoadTest,    //nolint:goconst // test-case name
 	}
 }
 

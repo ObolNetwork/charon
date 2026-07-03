@@ -56,6 +56,10 @@ linters:
       forbid:
         - pattern: fmt\.Print.*(# Avoid debug logging)?
         - pattern: fmt\.Errorf.*(# Prefer app/errors.Wrap)?
+    goconst:
+      ignore-tests: true
+      min-occurrences: 5
+      ignore-string-values: '^\s+$' # Ignore whitespace-only strings (e.g. ASCII-art padding).
     gocritic:
       disabled-checks:
         - ifElseChain
@@ -170,6 +174,9 @@ linters:
           - noctx
           - revive
         path: (.+)_test\.go
+      - linters:
+          - goconst
+        path: metrics\.go$
       - linters:
           - importas
         path: eth2wrap

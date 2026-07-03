@@ -36,12 +36,12 @@ const (
 
 var (
 	latencyHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "app",
+		Namespace: "app", //nolint:goconst // metric namespace
 		Subsystem: "eth2",
 		Name:      "latency_seconds",
 		Help:      "Latency in seconds for eth2 beacon node requests",
 		Buckets:   []float64{.01, .025, .05, .1, .25, .5, .75, 1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3, 5},
-	}, []string{"endpoint"})
+	}, []string{"endpoint"}) //nolint:goconst // metric label
 
 	errorCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "app",

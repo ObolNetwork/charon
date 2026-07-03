@@ -197,12 +197,12 @@ func bindTestBeaconFlags(cmd *cobra.Command, config *testBeaconConfig, flagsPref
 
 func supportedBeaconTestCases() map[testCaseName]testCaseBeacon {
 	return map[testCaseName]testCaseBeacon{
-		{name: "Ping", order: 1}:        beaconPingTest,
-		{name: "PingMeasure", order: 2}: beaconPingMeasureTest,
+		{name: "Ping", order: 1}:        beaconPingTest,        //nolint:goconst // test-case name
+		{name: "PingMeasure", order: 2}: beaconPingMeasureTest, //nolint:goconst // test-case name
 		{name: "Version", order: 3}:     beaconVersionTest,
 		{name: "Synced", order: 4}:      beaconIsSyncedTest,
 		{name: "PeerCount", order: 5}:   beaconPeerCountTest,
-		{name: "PingLoad", order: 6}:    beaconPingLoadTest,
+		{name: "PingLoad", order: 6}:    beaconPingLoadTest, //nolint:goconst // test-case name
 
 		{name: "Simulate1", order: 7}:       beaconSimulation1Test,
 		{name: "Simulate10", order: 8}:      beaconSimulation10Test,
