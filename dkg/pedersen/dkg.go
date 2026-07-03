@@ -63,16 +63,6 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 		return nil, err
 	}
 
-	dkgConfig := &kdkg.Config{
-		Longterm:  nodePrivateKey,
-		Suite:     config.Suite,
-		NewNodes:  nodes,
-		Threshold: threshold,
-		FastSync:  true,
-		Auth:      drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
-		Log:       newLogger(log.WithTopic(ctx, "pedersen")),
-	}
-
 	log.Info(ctx, "Starting pedersen DKG...")
 
 	shares := make([]share.Share, 0, numVals)
@@ -83,7 +73,18 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 			return nil, err
 		}
 
-		dkgConfig.Nonce = nonce
+		// Construct a fresh config per protocol run: kyber's NewDistKeyHandler
+		// mutates the config it is given, so sharing one across runs is unsafe.
+		dkgConfig := &kdkg.Config{
+			Longterm:  nodePrivateKey,
+			Suite:     config.Suite,
+			NewNodes:  nodes,
+			Threshold: threshold,
+			FastSync:  true,
+			Auth:      drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
+			Log:       newLogger(log.WithTopic(ctx, "pedersen")),
+			Nonce:     nonce,
+		}
 
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 

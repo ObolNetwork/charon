@@ -106,7 +106,7 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 	_, peerMap := buildPeerMap(allPeers)
 
 	newN := len(allPeers) - len(p.oldENRs)
-	newT := newN - (newN-1)/3
+	newT := cluster.Threshold(newN)
 
 	if p.newThreshold != 0 {
 		if p.newThreshold >= newN || p.newThreshold < newT {

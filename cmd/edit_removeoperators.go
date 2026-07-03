@@ -138,7 +138,7 @@ func validateRemoveOperatorsConfig(ctx context.Context, config *dkg.RemoveOperat
 	}
 
 	newN := len(lock.Operators) - len(config.RemovingENRs)
-	newT := newN - (newN-1)/3
+	newT := cluster.Threshold(newN)
 
 	if config.NewThreshold != 0 {
 		if config.NewThreshold >= newN || config.NewThreshold < newT {
