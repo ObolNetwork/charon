@@ -2,6 +2,15 @@
 
 This document describes the Charon middleware architecture both from cluster level and a node level.
 
+> ℹ️ The Go interface snippets in this document are illustrative copies.
+> The source of truth for all core workflow interfaces is [core/interfaces.go](../core/interfaces.go).
+
+Related documents:
+- [Consensus](consensus.md): Consensus protocols, cluster-wide protocol negotiation and observability
+- [Duty Failure Reasons](reasons.md): Failure reasons recorded by the tracker
+- [Project Structure](structure.md): Package structure of the repo
+- [Metrics](metrics.md): Prometheus metrics exposed by a charon node
+
 ## Cluster Architecture
 
 ```
@@ -43,8 +52,8 @@ This document describes the Charon middleware architecture both from cluster lev
 - **VC**: `n` physical validator clients (`1` per CN)
 - **PS**: `nxm` physical private shares (`m` per VC, `n` per DV)
 - Not shown:
-  - `t` threshold signatures required (per DV)
-  - `ceil(n/3)-1` charon nodes available and honest (when using BFT consensus)
+  - `t = ceil(2n/3)` threshold signatures required per DV, so `t` charon nodes must be available and honest,
+    tolerating `f = floor((n-1)/3)` byzantine/faulty nodes (BFT consensus quorum).
 
 ## Charon Node Core Workflow
 
@@ -66,15 +75,15 @@ Core Workflow
         what │  |       |     ┌──▼──────┐
         data │  |       |     │Consensus│
           to │  |       |     └─*┌──────┘
-        sign │  |       |        ├────────────┐
-             │  |       |     ┌──▼───┐     ┌──▼───┐    │
-             │  |       |     │DutyDB│     │Signer├────│─► RS
-             │  |       |     └──◆───┘     └──┬───┘    │ Remote signer
-                |       |        │            │        │
-      *Sign* │  |       |     ┌──┴─┐          │        │
+        sign │  |       |        │
+             │  |       |     ┌──▼───┐                 │
+             │  |       |     │DutyDB│                 │
+             │  |       |     └──◆───┘                 │
+                |       |        │                     │
+      *Sign* │  |       |     ┌──┴─┐                   │
         duty │  |       └----─┤VAPI◄───────────────────│── VC
-        data │  |             └──┬─┘          │        │ Query, sign, submit
-                |                ├────────────┘        │
+        data │  |             └──┬─┘                   │ Query, sign, submit
+                |                │                     │
      *Share* │  | ┌────────┐  ┌──▼─────┐
      partial │  | │ParSigEx◄──►ParSigDB│
         sigs │  | └─────*──┘  └──┬─────┘
@@ -92,6 +101,12 @@ Core Workflow
        ▼: Pushed data (in direction of the arrow)
        ◆: Pulled data (returned from the diamond)
 ```
+Not shown in the diagram:
+- The **Tracker** and **InclusionChecker** observe the outputs of all components to analyse duty failures
+  and verify on-chain inclusion (see [Supporting components](#supporting-components)).
+- The **Priority** protocol negotiates cluster wide preferences (e.g. the consensus protocol to use).
+- The Fetcher also pulls cached attestation data from the DutyDB (for aggregator duties).
+
 ### Duty
 As per the Ethereum consensus [spec](https://github.com/ethereum/consensus-specs/blob/v1.1.0-alpha.2/specs/phase0/validator.md#beacon-chain-responsibilities):
 
@@ -132,6 +147,24 @@ type Duty struct {
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
 > Which is critical for clusters with a large number of DVs.
 
+Not all duties flow through all workflow components. The table below summarises how each duty type is handled:
+
+| Duty type                     | Initiated by                                       | Consensus | Broadcast to BN                          |
+|-------------------------------|----------------------------------------------------|-----------|------------------------------------------|
+| `DutyProposer`                | Scheduler                                          | Yes       | Yes (full or blinded proposal)           |
+| `DutyAttester`                | Scheduler                                          | Yes       | Yes                                      |
+| `DutySignature`               | DKG only (signature exchange), not used at runtime | No        | No                                       |
+| `DutyExit`                    | VC (voluntary exit submission)                     | No        | Yes                                      |
+| `DutyBuilderProposer`         | Deprecated                                         | -         | -                                        |
+| `DutyBuilderRegistration`     | Scheduler (pre-signed registrations)               | No        | No (submitted directly by the scheduler) |
+| `DutyRandao`                  | VC (during block production)                       | No        | No (internal input to `DutyProposer`)    |
+| `DutyPrepareAggregator`       | VC (beacon committee selections)                   | No        | No (internal input to `DutyAggregator`)  |
+| `DutyAggregator`              | Scheduler                                          | Yes       | Yes (aggregate and proofs)               |
+| `DutySyncMessage`             | VC (sync committee messages)                       | No        | Yes                                      |
+| `DutyPrepareSyncContribution` | VC (sync committee selections)                     | No        | No (input to `DutySyncContribution`)     |
+| `DutySyncContribution`        | Scheduler                                          | Yes       | Yes (signed contribution and proof)      |
+| `DutyInfoSync`                | Priority protocol (peer version exchange)          | No        | No                                       |
+
 ### DutyBuilderProposer deprecation
 The new version of Beacon API spec introduced [produceBlockV3](https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3) endpoint,
 which is now fully supported by Charon (since v1).
@@ -156,7 +189,7 @@ This endpoint now always returns HTTP 200 OK without any processing.
 Now, Charon's Scheduler component is responsible for submitting builder registrations at the right times:
 
 - At startup, it submits registrations for all DVs in the cluster (found in cluster-lock.json).
-- Thereafter, it submits registrations in the first slot of every epoch.
+- Thereafter, it submits registrations in the first slot of every epoch (delayed to ~75% into the slot to reduce beacon node load).
 
 During the transition period, a cluster running a mix of new and old Charon versions may experience "consensus timeout" errors,
 because the new version will not participate in consensus for the `DutyBuilderRegistration` duty.
@@ -174,16 +207,36 @@ DVs are identified by their root public key `PubKey`.
 // It is a hex formatted string, e.g. "0xb82bc6...."
 type PubKey string
 ```
-It has access to validators in cluster-lock, so it first resolves validator status for each
-DV by calling [Get validator from state by id](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getStateValidator)
-using `HEAD` state and the DV root public key.
+It resolves the status of all DVs in the cluster lock with a single bulk
+[Get validators from state](https://ethereum.github.io/beacon-APIs/#/Beacon/postStateValidators) query,
+served from a validator cache that is refreshed every epoch. Validators that are not found or not active
+(and not activating in the current epoch) are skipped.
 
-If the validator is not found or is not active, it is skipped.
+In the last slot of each epoch it resolves the duties for the next epoch by calling
+[Get attester duties](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties),
+[Get block proposer duties](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getProposerDuties)
+and [Get sync committee duties](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getSyncCommitteeDuties)
+on the beacon API (served from a duties cache by default). It caches the results and triggers each duty
+when the associated slot starts. Two further duty types are derived from these definitions:
+- A `DutyAggregator` is scheduled for every slot with an attester duty (attestation aggregation is only
+  performed if a DV is actually selected as an aggregator, see `DutyPrepareAggregator`).
+- A `DutySyncContribution` is scheduled for every slot of an epoch in which a DV is part of the sync committee.
 
-It then calls [Get attester duties](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getAttesterDuties)
-and [Get block proposer](https://ethereum.github.io/beacon-APIs/#/ValidatorRequiredApi/getProposerDuties) duties on the beacon API
-at the end of each epoch for the next epoch. It then caches the results returned and triggers the duty
-when the associated slot starts.
+Duties are not all triggered at the start of the slot. Per the spec, duty types have different
+target offsets into the slot (see [core/scheduler/offset.go](../core/scheduler/offset.go)):
+- `DutyAttester`: 1/3 into the slot
+- `DutyAggregator`: 2/3 into the slot
+- `DutySyncContribution`: 2/3 into the slot
+- Other duties (e.g. `DutyProposer`): at the start of the slot
+
+The scheduler also subscribes to beacon node server-sent events (SSE):
+- *Head events* can trigger early fetching of attestation data as soon as the head block for the slot is known,
+  instead of waiting for the 1/3 slot offset (gated by the `fetch_att_on_block` feature flags). The early-fetched
+  data is cached by the fetcher via its `FetchOnly` method without triggering the rest of the workflow.
+- *Chain reorg events* invalidate resolved duties (and the fetcher's early-fetched attestation data) since they
+  were resolved against a head that may no longer be canonical.
+
+Resolved duties are trimmed after 3 epochs.
 
 An abstract `DutyDefinition` type is defined that represents the json formatted responses returned by the beacon node above.
 Note the ETH2 spec refers to these as "duties", but we use a slightly different term to avoid overloading
@@ -201,34 +254,42 @@ type DutyDefinition interface {
 ```
 
 The following `DutyDefinition` implementations are provided:
- - `AttesterDefinition` which wraps "Get attester duties" response above.
- - `ProposerDefinition` which wraps "Get block proposer" response above.
+ - `AttesterDefinition` which wraps the "Get attester duties" response above.
+ - `ProposerDefinition` which wraps the "Get block proposer duties" response above.
+ - `SyncCommitteeDefinition` which wraps the "Get sync committee duties" response above.
 
 Since a cluster can contain multiple DVs, it may have to perform multiple similar duties for the same slot, e.g. `DutyAttester`.
 Multiple `DutyDefinition`s are combined into a single `DutyDefinitionSet` that is defined as:
 ```go
-// DutyDefinitionSet is a set of fetch args, one per validator.
+// DutyDefinitionSet is a set of duty definitions, one per validator.
 type DutyDefinitionSet map[PubKey]DutyDefinition
 ```
 
-Note the `DutyRandao`, `DutyExit` & `DutyBuilderRegistration` aren’t scheduled by the scheduler, since they are initiated directly by VC.
+Note that `DutyRandao` and `DutyExit` aren’t scheduled by the scheduler, since they are initiated directly by the VC.
+`DutyBuilderRegistration` isn’t scheduled as a workflow duty either; the scheduler submits pre-signed builder
+registrations directly to the beacon node (see *DutyBuilderRegistration redesign* above).
 
 > ℹ️ The core workflow follows the immutable architecture approach, with immutable self-contained values flowing between components.
 > Values can be thought of as events or messages and components can be thought of as actors consuming and generating events.
 > This however requires that values are immutable. All abstract value types therefore define a `Clone` method
 > that must be called before a value leaves its scope (shared, cached, returned etc.).
 
-> 🏗️ TODO: Define the exact timing requirements for different duties.
-
 The scheduler interface is defined as:
 ```go
 // Scheduler triggers the start of a duty workflow.
 type Scheduler interface {
-  // Subscribe registers a callback for triggering a duty.
-  Subscribe(func(context.Context, Duty, DutyDefinitionSet) error)
+  // SubscribeDuties subscribes a callback function for triggered duties.
+  SubscribeDuties(func(context.Context, Duty, DutyDefinitionSet) error)
 
-  // GetDutyDefinition returns the definition for a duty if already resolved.
+  // SubscribeSlots subscribes a callback function for triggered slots.
+  SubscribeSlots(func(context.Context, Slot) error)
+
+  // GetDutyDefinition returns the definition set for a duty if already resolved.
   GetDutyDefinition(context.Context, Duty) (DutyDefinitionSet, error)
+
+  // RegisterFetcherFetchOnly registers the fetcher's FetchOnly method
+  // used for early attestation data fetching on SSE head events.
+  RegisterFetcherFetchOnly(func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error)
 }
 ```
 > ℹ️ Components of the workflow are decoupled from each other. They are stitched together by callback subscriptions.
@@ -236,14 +297,23 @@ type Scheduler interface {
 > It also allows for cyclic dependencies between components.
 
 ### Fetcher
-The fetcher is responsible for fetching input data required to perform the duty. It is a stateless pure function.
+The fetcher is responsible for fetching input data required to perform the duty.
 
-For `DutyAttester` it [fetches AttestationData](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/ValidatorRequiredApi/produceAttestationData) from the beacon node.
+For `DutyAttester` it [fetches AttestationData](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/ValidatorRequiredApi/produceAttestationData) from the beacon node
+(unless already early-fetched via `FetchOnly`, see the scheduler's SSE head event handling above).
 
-For `DutyProposer` it fetches a previously aggregated randao_reveal from the `AggSigDB` and then [fetches a BeaconBlock object](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/Validator/produceBlock)
-from the beacon node.
+For `DutyProposer` it fetches a previously aggregated randao reveal signature from the `AggSigDB` and then
+[fetches a block proposal](https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3)
+from the beacon node (setting `builder_boost_factor` according to the Builder API flag and applying the configured graffiti).
 
-An abstract `UnsignedData` type is defined to represent either `AttestationData` or `BeaconBlock` depending on the `DutyType`.
+For `DutyAggregator` it fetches the previously aggregated beacon committee selections from the `AggSigDB`,
+determines which DVs were actually selected as aggregators, and fetches the aggregate attestation from the
+beacon node using the attestation data root cached in the `DutyDB`.
+
+For `DutySyncContribution` it fetches the previously aggregated sync committee selections from the `AggSigDB`
+and fetches the sync committee contribution from the beacon node.
+
+An abstract `UnsignedData` type is defined to represent the fetched data depending on the `DutyType`.
 
 ```go
 // UnsignedData represents an unsigned duty data object.
@@ -271,17 +341,23 @@ The fetcher therefore passes the `UnsignedDataSet` as a proposal to the `Consens
 
 The fetcher interface is defined as:
 ```go
-// Fetcher fetches proposed duty data.
+// Fetcher fetches proposed unsigned duty data.
 type Fetcher interface {
   // Fetch triggers fetching of a proposed duty data set.
   Fetch(context.Context, Duty, DutyDefinitionSet) error
 
-  // Subscribe registers a callback for proposed duty data sets.
+  // FetchOnly fetches attestation data and caches it without triggering subscribers.
+  FetchOnly(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error
+
+  // Subscribe registers a callback for proposed unsigned duty data sets.
   Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 
-  // RegisterAggSigDB registers a function to resolved aggregated
+  // RegisterAggSigDB registers a function to get resolved aggregated
   // signed data from the AggSigDB (e.g., randao reveals).
   RegisterAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
+
+  // RegisterAwaitAttData registers a function to get attestation data from DutyDB.
+  RegisterAwaitAttData(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error))
 }
 ```
 ### Consensus
@@ -291,7 +367,7 @@ This is achieved by playing a consensus game between all nodes in the cluster. T
 - BLS threshold signature aggregation only works if the message that was signed is identical. So all nodes need to provide the exact same duty data to their VC for signing.
 - Broadcasting different signed attestations/blocks to the beacon node is a slashable offence. Note that consensus isn’t sufficient to protect against this, a slashing DB is also required.
 
-Consensus is similar to how some blockchains decide on what blocks define the chain. Popular protocols for consensus are raft, qbft, tendermint. Charon uses qbft for consensus.
+Consensus is similar to how some blockchains decide on what blocks define the chain. Popular protocols for consensus are raft, qbft, tendermint.
 
 The consensus requirements in DVT differ from blockchains in a few key aspects:
 - Blockchains play consecutive consensus games that depend-on and follow-on the previous consensus game. Thereby creating a block “chain”.
@@ -299,77 +375,104 @@ The consensus requirements in DVT differ from blockchains in a few key aspects:
 - Blockchains play consensus games on blocks containing transactions.
 - DVT plays consensus on arbitrary data, `UnsignedDataSet`
 
-The consensus component participates qbft consensus games with other consensus components in the cluster leveraging libp2p for network
-communication. A consensus game is either initiated by a duty data proposal received from the local node’s fetcher or from another
-node's consensus component. When a consensus game completes, the resulting `UnsignedDataSet` is stored in the DutyDB.
+Charon's consensus is pluggable and is managed by a `ConsensusController`:
+- **QBFT v2.0** (an implementation of Istanbul BFT, see [core/qbft/README.md](../core/qbft/README.md)) is the default
+  protocol supported by all charon versions. It is the mandatory fallback and can never be deprecated.
+- The **Priority** protocol (see [Supporting components](#supporting-components)) negotiates the cluster wide
+  preferred consensus protocol once per epoch, taking into account the `consensus_protocol` cluster
+  definition field and the `--consensus-protocol` CLI flag. Its outcome can switch the "current" consensus
+  instance at runtime via `SetCurrentConsensusForProtocol`.
 
-The consensus component verifies that the `UnsignedDataSet` is valid during the consensus game.
+See [docs/consensus.md](consensus.md) for protocol details, round timers, observability and debugging.
 
-The consensus interface is defined as:
+A consensus game per duty is either started by `Participate` (called when the scheduler triggers the duty, allowing the
+node to join the game before its own data is fetched) or by `Propose` (called with the duty data proposal from the
+local node’s fetcher). Proposals contain the full `UnsignedDataSet` of the duty. A deterministic leader is elected per
+round. Received consensus messages are checked by the duty gater (rejecting invalid or expired duties) and, for
+attestations, the leader's proposed data can additionally be compared against the locally fetched data.
+When a consensus game completes, the resulting `UnsignedDataSet` is stored in the DutyDB.
+
+The consensus interfaces are defined as:
 ```go
 // Consensus comes to consensus on proposed duty data.
 type Consensus interface {
-	// Propose triggers consensus game of the proposed duty unsigned data set.
+	P2PProtocol
+
+	// Participate run the duty's consensus instance without a proposed value (if Propose not called yet).
+	Participate(context.Context, Duty) error
+
+	// Propose provides the consensus instance proposed value (and run it if Participate not called yet).
 	Propose(context.Context, Duty, UnsignedDataSet) error
 
 	// Subscribe registers a callback for resolved (reached consensus) duty unsigned data set.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 }
+
+// ConsensusController manages consensus instances.
+type ConsensusController interface {
+	// Start starts the consensus controller lifecycle.
+	Start(context.Context)
+
+	// DefaultConsensus returns the default consensus instance (always QBFT v2.0).
+	DefaultConsensus() Consensus
+
+	// CurrentConsensus returns the currently selected consensus instance.
+	CurrentConsensus() Consensus
+
+	// SetCurrentConsensusForProtocol handles the Priority protocol outcome
+	// and changes CurrentConsensus() accordingly.
+	SetCurrentConsensusForProtocol(context.Context, protocol.ID) error
+}
 ```
 
 ### DutyDB
 The duty database persists agreed upon unsigned data sets and makes them available for querying.
-It also acts as slashing database to aid in [avoiding slashing](https://github.com/ethereum/consensus-specs/blob/02b32100ed26c3c7a4a44f41b932437859487fd2/specs/phase0/validator.md#how-to-avoid-slashing) by applying unique indexes on the slot, duty type and DV.
-ensuring a single unique `UnsignedData` per `Duty,PubKey`.
+It also acts as slashing database to aid in [avoiding slashing](https://github.com/ethereum/consensus-specs/blob/02b32100ed26c3c7a4a44f41b932437859487fd2/specs/phase0/validator.md#how-to-avoid-slashing)
+by ensuring a single unique `UnsignedData` per `Duty,PubKey`.
 
-When receiving a `UnsignedDataSet` to store, it is split by `PubKey` and stored as separate entries in the database.
-This ensures that a unique index can be applied on `Duty,PubKey`.
+The implementation is an in-memory database (`MemDB`) holding per-duty-type maps:
+- Attestation data keyed by `slot,commIdx`, with a separate `slot,commIdx,valIdx` index to look up the DV public key by attestation.
+- Block proposals keyed by `slot` (proposals are unique per slot).
+- Aggregated attestations keyed by `slot,dataRoot,commIdx`.
+- Sync committee contributions keyed by `slot,subcommIdx,blockRoot`.
 
-The data model for entries in this DB is defined as:
-- *Key*: `ID int64` auto-incrementing primary-key.
-- *Value*:
-```go
-type Entry struct {
-  ID           int64
-  Slot         int64
-  DutyType     byte
-  PubKey       string
-  Data         []byte  // unsigned data object
-  CommIdx      int64   // committee index (0 for DutyProposer)
-  ValCommIdx   int64   // validator committee index (0 for DutyProposer)
-}
-```
-> ℹ️ Database entry fields are persistence-friendly types and are not exported or used outside this component
-
-The database has the following indexes:
-- `Slot,DutyType,PubKey`: unique index for deduplication and idempotent inserts
-- `Slot,DutyType,CommIdx,ValCommIdx`: Queried by `AwaitAttester` and `PubKeyByAttestation`
+Inserts are idempotent, but storing *different* data under an existing key is rejected with a "clashing" error.
+This uniqueness guarantee per `Duty,PubKey` is what makes the DutyDB the slashing database of the workflow.
 
 The `UnsignedData` might however not be available yet at the time the VC queries the `ValidatorAPI`.
-The `DutyDB` therefore provides a blocking query API. This query blocks until any requested data is available or until VC decides to timeout.
+The `DutyDB` therefore provides a blocking query API. Queries block until the requested data is available or until the VC decides to timeout.
 
-> 🏗️ TODO: Identify if it is safe to delete old entries.
+Old entries are trimmed when their duty deadline expires (see `Deadliner` under [Supporting components](#supporting-components)).
 
 The duty database interface is defined as:
 ```go
 // DutyDB persists unsigned duty data sets and makes it available for querying. It also acts
 // as slashing database.
 type DutyDB interface {
-        // Store stores the unsigned duty data set.
-        Store(context.Context, Duty, UnsignedDataSet) error
+	// Store stores the unsigned duty data set.
+	Store(context.Context, Duty, UnsignedDataSet) error
 
-        // AwaitBeaconBlock blocks and returns the proposed beacon block
-        // for the slot when available. It also returns the DV public key.
-        AwaitBeaconBlock(context.Context, slot int) (PubKey, beaconapi.BeaconBlock, error)
+	// AwaitProposal blocks and returns the proposed beacon block
+	// for the slot when available.
+	AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 
-        // AwaitAttestation blocks and returns the attestation data
-        // for the slot and committee index when available.
-        AwaitAttestation(context.Context, slot int, commIdx int) (*beaconapi.AttestationData, error)
+	// AwaitAttestation blocks and returns the attestation data
+	// for the slot and committee index when available.
+	AwaitAttestation(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 
-        // PubKeyByAttestation returns the validator PubKey for the provided attestation data
-        // slot, committee index and validator committee index. This allows mapping of attestation
-        // data response to validator.
-        PubKeyByAttestation(context.Context, slot int, commIdx int, valCommIdx int) (PubKey, error)
+	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
+	// slot, committee index and validator index. This allows mapping of attestation
+	// data response to validator.
+	PubKeyByAttestation(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
+
+	// AwaitAggAttestation blocks and returns the aggregated attestation for the slot
+	// and attestation when available.
+	AwaitAggAttestation(ctx context.Context, slot uint64, attestationRoot eth2p0.Root,
+		committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
+
+	// AwaitSyncContribution blocks and returns the sync committee contribution data for the slot and
+	// the subcommittee and the beacon block root when available.
+	AwaitSyncContribution(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 }
 ```
 ### Validator API
@@ -385,6 +488,8 @@ type SignedData interface {
   Signature() Signature
   // SetSignature returns a copy of signed duty data with the signature replaced.
   SetSignature(Signature) (SignedData, error)
+  // MessageRoot returns the message root for the unsigned data.
+  MessageRoot() ([32]byte, error)
   // Clone returns a cloned copy of the SignedData.
   Clone() (SignedData, error)
   // Marshaler returns the json serialised signed duty data (including the signature).
@@ -398,10 +503,13 @@ type ParSignedData struct {
   // ShareIdx returns the threshold BLS share index.
   ShareIdx int
 }
-
 ```
 
-The following `SignedData` implementations are provided: `Attestation`, `VersionedSignedBeaconBlock`, `VersionedSignedBlindedBeaconBlock`, `SignedVoluntaryExit`, `VersionedSignedValidatorRegistration` and `SignedRandao` which is used for `DutyRandao`.
+`SignedData` implementations are provided for all signed duty objects (see [core/signeddata.go](../core/signeddata.go)):
+`Attestation` and `VersionedAttestation`, `VersionedSignedProposal` (both full and blinded blocks, distinguished by its
+`Blinded` flag), `SignedVoluntaryExit`, `VersionedSignedValidatorRegistration`, `SignedRandao`, `BeaconCommitteeSelection`,
+`SyncCommitteeSelection`, `SignedAggregateAndProof` and `VersionedSignedAggregateAndProof`, `SignedSyncMessage`,
+`SyncContributionAndProof` and `SignedSyncContributionAndProof`.
 
 Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines as follows:
 ```go
@@ -409,44 +517,37 @@ Multiple `ParSignedData` are combined into a single `ParSignedDataSet` defines a
 type ParSignedDataSet map[PubKey]ParSignedData
 ```
 
-The validator API provides the following beacon-node endpoints relating to duties:
+The validator API intercepts the following endpoints (all other calls are transparently proxied to the upstream beacon node):
 
-- `GET /eth/v1/validator/attestation_data` Produce an attestation data
-  - The request arguments are: `slot` and `committee_index`
-  - Query the `DutyDB` `AwaitAttester` with `slot` and `committee_index`
-  - Serve response
-- `GET /eth/v3/validator/blocks/{slot}` Produce a new (full or blinded) block, without signature.
-  - The request arguments are: `slot`, `randao_reveal` and `builder_boost_factor`
-  - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
-  - Verify `randao_reveal` signature.
-  - Construct a `DutyRandao` `ParSignedData` and submit it to `ParSigDB` for async aggregation and inclusion in block consensus.
-  - Query the `DutyDB` `AwaitBeaconBlock` with the `slot`
-  - Serve response
-- `POST /eth/v1/beacon/pool/attestations` Submit Attestation objects to node
-  - Construct a `ParSignedData` for each attestation object in request body.
-  - Infer `PubKey` of the request by querying the `DutyDB` `PubKeyByAttestation` with the `slot`, `committee index` and `aggregation bits` provided in the request body.
-  - Set the BLS private share `index` to charon node index.
-  - Combine `ParSignedData`s into a `SignedDutyDataSet`.
-  - Store `SignedDutyDataSet` in the `SigDB`
-- `POST /eth/v1/beacon/blocks` Publish a signed block
-  - The request body contains `SignedBeaconBlock` object composed of `BeaconBlock` object (produced by beacon node) and validator signature.
-  - Lookup `PubKey` by querying the `Scheduler` `AwaitProposer` with the slot in the request body.
-  - Construct a `DutyProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
-- `POST /eth/v1/beacon/blinded_blocks` Publish a signed blinded block
-  - The request body contains `SignedBlindedBeaconBlock` object composed of `BlindedBeaconBlock` object (produced by beacon node) and validator signature.
-  - Lookup `PubKey` by querying the `Scheduler` `AwaitBuilderProposer` with the slot in the request body.
-  - Construct a `DutyBuilderProposer` `ParSignedData` and submit it to `ParSigDB` for async aggregation and broadcast to beacon node.
-
-`AwaitBeaconBlock` returns an agreed-upon (consensus) unsigned beacon block, which in turn requires
-an aggregated randao reveal signature. Partial randao reveal signatures are submitted at the same time as
-unsigned beacon block is requested. `getDutyFunc` returns the duty data corresponding to the duty provided and can be obtained directly from the `Scheduler`.
+| Endpoint                                                       | Handling                                                                                                                                                       |
+|----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `POST /eth/v1/validator/duties/attester/{epoch}`               | Intercepted to map DV pubkeys to public shares in the response.                                                                                                  |
+| `GET /eth/v1,v2/validator/duties/proposer/{epoch}`             | Intercepted to map DV pubkeys to public shares in the response.                                                                                                  |
+| `POST /eth/v1/validator/duties/sync/{epoch}`                   | Intercepted to map DV pubkeys to public shares in the response.                                                                                                  |
+| `GET \| POST /eth/v1/beacon/states/{state_id}/validators`      | Intercepted to map public shares to DV pubkeys (and back in the response).                                                                                       |
+| `GET /eth/v1/validator/attestation_data`                       | Served from `DutyDB.AwaitAttestation` by `slot,committee_index`.                                                                                                 |
+| `POST /eth/v2/beacon/pool/attestations`                        | `DutyAttester`: DV pubkey inferred via `DutyDB.PubKeyByAttestation`; partial signatures stored in `ParSigDB` (v1 returns 404).                                   |
+| `GET /eth/v3/validator/blocks/{slot}`                          | `DutyProposer`/`DutyRandao`: verifies the partial randao reveal, submits it to `ParSigDB` for async aggregation, then blocks on `DutyDB.AwaitProposal` (v2 404). |
+| `POST /eth/v1,v2/beacon/blocks`                                | `DutyProposer`: DV pubkey looked up via the scheduler's `GetDutyDefinition`; partial signature stored in `ParSigDB`.                                             |
+| `POST /eth/v1,v2/beacon/blinded_blocks`                        | Same as above; blinded proposals are also `DutyProposer` (`Blinded` flag set on `VersionedSignedProposal`).                                                      |
+| `POST /eth/v1/beacon/pool/voluntary_exits`                     | `DutyExit`: partial signature stored in `ParSigDB`.                                                                                                              |
+| `POST /eth/v1/validator/register_validator`                    | No-op, returns 200 OK (see *DutyBuilderRegistration redesign*).                                                                                                  |
+| `POST /eth/v1/validator/beacon_committee_selections`           | `DutyPrepareAggregator`: partial selections stored in `ParSigDB`; blocks and returns the aggregated selections from `AggSigDB`.                                  |
+| `GET /eth/v2/validator/aggregate_attestation`                  | Served from `DutyDB.AwaitAggAttestation` (v1 returns 404).                                                                                                       |
+| `POST /eth/v2/validator/aggregate_and_proofs`                  | `DutyAggregator`: partial signatures stored in `ParSigDB` (v1 returns 404).                                                                                      |
+| `POST /eth/v1/beacon/pool/sync_committees`                     | `DutySyncMessage`: partial signatures stored in `ParSigDB`.                                                                                                      |
+| `POST /eth/v1/validator/sync_committee_selections`             | `DutyPrepareSyncContribution`: partial selections stored in `ParSigDB`; returns the aggregated selections.                                                      |
+| `GET /eth/v1/validator/sync_committee_contribution`            | Served from `DutyDB.AwaitSyncContribution`.                                                                                                                      |
+| `POST /eth/v1/validator/contribution_and_proofs`               | `DutySyncContribution`: partial signatures stored in `ParSigDB`.                                                                                                 |
+| `POST /eth/v1/validator/prepare_beacon_proposer`               | No-op, returns 200 OK (fee recipients are configured by charon from cluster-lock.json).                                                                          |
+| `GET /eth/v1/node/version`                                     | Returns charon version info.                                                                                                                                     |
+| `GET /eth/v1/events`                                           | Server-sent events stream.                                                                                                                                       |
 
 Note that the VC is configured with one or more private key shares (output of the DKG).
 The VC infers its public keys from those private shares, but those public keys do not exist on the beacon chain.
 The validatorapi therefore needs to intercept and map all endpoints containing the validator public key and map
 the public share (what the VC thinks as its public key) to and from the DV root public key.
-
-> 🏗️ TODO: Figure out other endpoints required.
+Partial signatures received from the VC are verified against the corresponding public share before being stored.
 
 The validator api interface is defined as:
 ```go
@@ -463,13 +564,14 @@ type ValidatorAPI interface {
 	RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 
 	// RegisterPubKeyByAttestation registers a function to query validator by attestation.
-	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valCommIdx uint64) (PubKey, error))
+	RegisterPubKeyByAttestation(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
 
 	// RegisterGetDutyDefinition registers a function to query duty definitions.
 	RegisterGetDutyDefinition(func(context.Context, Duty) (DutyDefinitionSet, error))
 
 	// RegisterAwaitAggAttestation registers a function to query aggregated attestation.
-	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root) (*eth2p0.Attestation, error))
+	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root,
+		committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
 
 	// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
 	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
@@ -485,43 +587,18 @@ as well as externally (from other nodes in cluster).
 It calls the `ParSigEx` component with signatures received internally to share them with all peers in the cluster.
 When sufficient partial signatures have been received for a duty, it calls the `SigAgg` component.
 
-Partial signatures in the database have one of the following states:
+The implementation is an in-memory database storing lists of `ParSignedData` keyed by `Duty,PubKey`:
+- `StoreInternal` stores partial signatures received from the local VC and synchronously calls the internal
+  subscribers (`ParSigEx`) to broadcast them to all peers.
+- `StoreExternal` stores partial signatures received from peers. On every insert it checks whether a threshold
+  of partial signatures *signing identical data* (grouped by message root) has been reached for a DV; if so, it
+  calls the threshold subscribers (`SigAgg`) with the complete set.
+- Inserts are idempotent; duplicate signatures from the same share index are deduplicated
+  (conflicting data from the same share index is an error).
 
- - `Internal`: Received from local VC, not broadcasted yet.
- - `Broadcasted`: Received from peer, or broadcasted to peers.
- - `Aggregated`: Sent to `SigAgg` service.
- - `Expired`: Not eligible for aggregation anymore (too old).
-
-The data model for entries in this DB is defined as:
- - *Key*: `ID int64` auto-incrementing primary-key.
- - *Value*:
-```go
-type Entry struct {
-  CreatedAt int64 // Unix nano timestamp
-  UpdatedAt int64 // Unix nano timestamp
-  Slot      int64
-  DutyType  byte
-  PubKey    string
-  Data      []byte // Partially signed data object
-  Signature []byte
-  Index     int32
-  Status    byte
-}
-```
-It has the following indexes:
- - `Slot,DutyType,PubKey,Index` a unique index on for idempotent inserts.
- - `Status,Slot,DutyType` for querying by state.
-
-Entries inserted by `StoreInternal` have `Status=Internal`, while entries inserted by `StoreExternal` have `Status=Broadcasted`.
-
-A `broadcaster` worker goroutine, triggered periodically and by `StoreInternal` queries all `Status=Internal` entries,
-sends them to `ParSigEX` as a batch, then updates them to `Status=Broadcasted` in a transaction.
-
-An `aggregator` worker goroutine, triggered periodically and by `StoreExternal` and by `broadcaster`
-queries all `Status=Broadcasted` entries, and if sufficient entries exist for a duty, sends them to the `SigAgg` component
-and update them to `Status=Aggregated`. Entries older than `X?` epochs are set to `Status=Expired`.
-
-> ⁉️ What about the race condition where some partial signatures are received AFTER others of the same duty reached threshold and was aggregated? Currently, they will Expire.
+Entries are trimmed by a `Trim` goroutine when their duty deadline expires; partial signatures arriving for an
+already-expired duty are dropped at store time. Duties that never expire (`DutyExit`, `DutyBuilderRegistration`)
+are exempt from trimming, with a bounded number of exempt entries retained per share, validator and duty type.
 
 The partial signature database interface is defined as:
 ```go
@@ -539,8 +616,8 @@ type ParSigDB interface {
   SubscribeInternal(func(context.Context, Duty, ParSignedDataSet) error)
 
   // SubscribeThreshold registers a callback when *threshold*
-  // partially signed duty is reached for a DV.
-  SubscribeThreshold(func(context.Context, Duty, PubKey, []ParSignedData) error)
+  // partially signed duty is reached for the set of DVs.
+  SubscribeThreshold(func(context.Context, Duty, map[PubKey][]ParSignedData) error)
 }
 ```
 
@@ -548,8 +625,12 @@ type ParSigDB interface {
 The partial signature exchange component ensures that all partial signatures are persisted by all peers.
 It registers with the `ParSigDB` for internally received partial signatures and broadcasts them in batches to all other peers.
 It listens and receives batches of partial signatures from other peers and stores them back to the `ParSigDB`.
-It implements a simple libp2p protocol leveraging direct p2p connections to all nodes (instead of gossip-style pubsub).
+It implements a simple libp2p protocol (`/charon/parsigex/2.0.0`) leveraging direct p2p connections to all nodes (instead of gossip-style pubsub).
 This incurs higher network overhead (n^2), but improves latency.
+
+Messages received from peers are validated before being stored: the duty is checked by the duty gater
+(rejecting invalid or expired duties) and every partial signature is BLS-verified against the sending
+peer's public share.
 
 The partial signature exchange interface is defined as:
 ```go
@@ -565,82 +646,96 @@ type ParSigEx interface {
 ```
 
 ### SigAgg
-The signature aggregation service aggregates partial BLS signatures and sends them to the `bcast` component and persists them to the `AggSigDB`.
-It is a stateless pure function.
+The signature aggregation service aggregates partial BLS signatures and sends them to the `Broadcaster` component and persists them to the `AggSigDB`.
+It performs the BLS threshold aggregation and then verifies the resulting aggregate signature against the DV root public key,
+failing the duty if the aggregate is invalid. It is otherwise stateless.
 
-Aggregated signed duty data objects are defined as `SignedData` defined above.
+Aggregated signed duty data objects are defined as `SignedData` defined above, combined per duty into a `SignedDataSet`:
+```go
+// SignedDataSet is a set of signed duty data objects, one per validator.
+type SignedDataSet map[PubKey]SignedData
+```
 
 The signature aggregation interface is defined as:
 ```go
-
 // SigAgg aggregates threshold partial signatures.
 type SigAgg interface {
-  // Aggregate aggregates the partially signed duty data for the DV.
-  Aggregate(context.Context, Duty, PubKey, []ParSignedData) error
+  // Aggregate aggregates the partially signed duty datas for the set of DVs.
+  Aggregate(context.Context, Duty, map[PubKey][]ParSignedData) error
 
-  // Subscribe registers a callback for aggregated signed duty data.
-  Subscribe(func(context.Context, Duty, PubKey, SignedData) error)
+  // Subscribe registers a callback for aggregated signed duty data set.
+  Subscribe(func(context.Context, Duty, SignedDataSet) error)
 }
 ```
 
 ### AggSigDB
 The aggregated signature database persists aggregated signed duty data and makes it available for querying.
 This database persists the final results of the core workflow; aggregate signatures.
-At this point, only `DutyRandao` is queried, but other use cases may yet present themselves.
+It is queried by the fetcher for data required as input to subsequent duties: randao reveals (`DutyProposer`),
+beacon committee selections (`DutyAggregator`) and sync committee selections (`DutySyncContribution`),
+and by the validator API to serve aggregated committee selections back to the VC.
 
 The data model of the database is:
-- Key: `Slot,DutyType,PubKey`
+- Key: `Duty,PubKey` (i.e. slot, duty type and DV public key)
 - Value: `SignedData`
 
-> ⁉️ When can old data be trimmed/deleted?
+The implementation is an in-memory actor-style database: a `Run` goroutine processes store commands and
+(blocking) queries over channels. Entries are deleted when their duty deadline expires.
 
 The aggregated signature database interface is defined as:
 ```go
 // AggSigDB persists aggregated signed duty data.
 type AggSigDB interface {
-  // Store stores aggregated signed duty data.
-  Store(context.Context, Duty, PubKey, SignedData) error
+  // Store stores aggregated signed duty data set.
+  Store(context.Context, Duty, SignedDataSet) error
 
   // Await blocks and returns the aggregated signed duty data when available.
   Await(context.Context, Duty, PubKey) (SignedData, error)
+
+  // Run runs the database lifecycle until the context is cancelled.
+  Run(context.Context)
 }
 ```
-### Bcast
-The broadcast component broadcasts aggregated signed duty data to the beacon node. It is a stateless pure function.
+### Broadcaster
+The broadcast component broadcasts aggregated signed duty data to the beacon node:
+attestations, block proposals (full or blinded), voluntary exits, aggregate attestations,
+sync committee messages and sync committee contributions. Internal duty types
+(`DutyRandao`, `DutyPrepareAggregator`, `DutyPrepareSyncContribution`) are not broadcast,
+and `DutyBuilderRegistration` is a no-op since registrations are submitted by the scheduler.
 
-The broadcast interface is defined as:
+Successful broadcasts are instrumented with a broadcast delay metric measuring the time since the
+duty's expected submission offset into the slot.
+
+The broadcaster interface is defined as:
 ```go
-// Bcast broadcasts aggregated signed duty data to the beacon node.
-type Bcast interface {
-  Broadcast(context.Context, Duty, PubKey, SignedData) error
+// Broadcaster broadcasts aggregated signed duty data set to the beacon node.
+type Broadcaster interface {
+  Broadcast(context.Context, Duty, SignedDataSet) error
 }
 ```
 ### Stitching the core workflow
-The core workflow components are stitched together as follows:
+The core workflow components are stitched together by `core.Wire` (see [core/interfaces.go](../core/interfaces.go)):
 
 ```go
-// StitchFlow stitches the workflow steps together.
-func StitchFlow(
-  sched    Scheduler,
-  fetch    Fetcher,
-  cons     Consensus,
-  dutyDB   DutyDB,
-  vapi     ValidatorAPI,
-  signer   Signer,
-  parSigDB ParSigDB,
-  parSigEx ParSigEx,
-  sigAgg   SigAgg,
-  aggSigDB AggSigDB,
-  bcast    Broadcaster,
-) {
-  sched.Subscribe(fetch.Fetch)
+// Wire wires the workflow components together.
+func Wire(...) {
+  sched.SubscribeDuties(fetch.Fetch)
+  sched.SubscribeDuties(func(ctx context.Context, duty Duty, _ DutyDefinitionSet) error {
+    return cons.Participate(ctx, duty)
+  })
+  sched.RegisterFetcherFetchOnly(fetch.FetchOnly)
   fetch.Subscribe(cons.Propose)
-  fetch.RegisterAgg(aggSigDB.Get)
+  fetch.RegisterAggSigDB(aggSigDB.Await)
+  fetch.RegisterAwaitAttData(dutyDB.AwaitAttestation)
   cons.Subscribe(dutyDB.Store)
-  vapi.RegisterSource(dutyDB.Await)
+  vapi.RegisterAwaitProposal(dutyDB.AwaitProposal)
+  vapi.RegisterAwaitAttestation(dutyDB.AwaitAttestation)
+  vapi.RegisterAwaitSyncContribution(dutyDB.AwaitSyncContribution)
+  vapi.RegisterGetDutyDefinition(sched.GetDutyDefinition)
+  vapi.RegisterPubKeyByAttestation(dutyDB.PubKeyByAttestation)
+  vapi.RegisterAwaitAggAttestation(dutyDB.AwaitAggAttestation)
+  vapi.RegisterAwaitAggSigDB(aggSigDB.Await)
   vapi.Subscribe(parSigDB.StoreInternal)
-  cons.Subscribe(signer.Sign)
-  signer.Subscribe(parSigDB.StoreInternal)
   parSigDB.SubscribeInternal(parSigEx.Broadcast)
   parSigEx.Subscribe(parSigDB.StoreExternal)
   parSigDB.SubscribeThreshold(sigAgg.Aggregate)
@@ -648,3 +743,31 @@ func StitchFlow(
   sigAgg.Subscribe(bcast.Broadcast)
 }
 ```
+
+`Wire` accepts functional `WireOption`s that decorate the component functions:
+- `WithTracing` wraps all component calls in tracing spans.
+- `WithTracking` reports all component events to the `Tracker` and submitted duties to the `InclusionChecker`.
+- `WithAsyncRetry` wraps component calls in asynchronous retries with duty deadline awareness.
+
+## Supporting components
+
+The following components support the core workflow but are not part of the duty data flow:
+
+- **Tracker** ([core/tracker](../core/tracker)): observes the events of all core workflow components for each duty
+  and determines whether (and at which component) a duty failed, recording failure reasons
+  (see [reasons.md](reasons.md)) and per-peer participation metrics.
+- **InclusionChecker** ([core/tracker](../core/tracker)): checks that submitted attestations and blocks were
+  actually included on-chain and reports the outcome to the tracker.
+- **Priority protocol** ([core/priority](../core/priority)): establishes cluster wide priorities
+  (e.g. the preferred consensus protocol) by playing a QBFT consensus game over each peer's ordered preferences.
+  The **InfoSync** component ([core/infosync](../core/infosync)) uses it to exchange peer versions and supported
+  protocols in the cluster (`DutyInfoSync`).
+- **Deadliner** ([core/deadline.go](../core/deadline.go)): provides uniform duty expiry across components.
+  Each stateful component (DutyDB, ParSigDB, AggSigDB) uses its own deadliner instance to trim state for
+  expired duties. `DutyExit` and `DutyBuilderRegistration` never expire.
+- **Duty gater** ([core/gater.go](../core/gater.go)): rejects invalid or expired duties received from peers
+  (used by consensus and ParSigEx).
+- **Validator and duties caches** ([app/eth2wrap](../app/eth2wrap)): cache active validators and resolved
+  beacon-node duties, refreshed every epoch and invalidated on chain reorgs.
+- **Builder registration service** ([app/builder_registration.go](../app/builder_registration.go)): provides the
+  pre-signed builder registrations (from cluster-lock.json, with optional overrides) that the scheduler submits.
