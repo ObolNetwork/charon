@@ -56,7 +56,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 	}
 
 	if len(addrs) == 0 {
-		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-addresses is empty")
+		log.Info(ctx, "LibP2P not accepting incoming connections since --p2p-tcp-address is empty")
 	}
 
 	externalAddrs, err := externalTCPMultiAddrs(cfg)
@@ -79,7 +79,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 
 		addrs = append(addrs, udpAddrs...)
 		if len(addrs) == 0 {
-			log.Warn(ctx, "LibP2P not accepting incoming connections since --p2p-udp-addresses and --p2p-tcp-addresses are empty", nil)
+			log.Warn(ctx, "LibP2P not accepting incoming connections since --p2p-udp-address and --p2p-tcp-address are empty", nil)
 		}
 
 		externalUDPAddrs, err := externalUDPMultiAddrs(cfg)
