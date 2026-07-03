@@ -216,9 +216,9 @@ func validateConfig(ctx context.Context, config *addValidatorsConfig) (err error
 	}
 
 	if !validatorKeysDirPresent && len(config.DKG.KeymanagerAddr) == 0 {
-		log.Error(ctx, "The --keymanager flag is required when the validator_keys directory is empty.", nil)
+		log.Error(ctx, "The --keymanager-address flag is required when the validator_keys directory is empty.", nil)
 
-		return errors.New("the --keymanager flag is required when the validator_keys directory is empty")
+		return errors.New("the --keymanager-address flag is required when the validator_keys directory is empty")
 	}
 
 	config.FeeRecipientAddrs, config.WithdrawalAddrs, err = validateAddresses(config.NumValidators, config.FeeRecipientAddrs, config.WithdrawalAddrs)

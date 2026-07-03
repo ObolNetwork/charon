@@ -416,7 +416,7 @@ func TestValidateConfigAddValidators(t *testing.T) {
 
 		cfg.Unverified = true
 		err = validateConfig(t.Context(), &cfg)
-		require.Equal(t, "the --keymanager flag is required when the validator_keys directory is empty", err.Error())
+		require.Equal(t, "the --keymanager-address flag is required when the validator_keys directory is empty", err.Error())
 
 		cfg.DKG.KeymanagerAddr = "http://localhost:1234"
 		err = validateConfig(t.Context(), &cfg)
