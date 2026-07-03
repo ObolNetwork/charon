@@ -23,7 +23,7 @@ go build -trimpath -ldflags="-buildid= -s -w -X github.com/obolnetwork/charon/ap
 go test ./...
 
 # Run tests with race detection (used in pre-commit hooks)
-go test -failfast -race -timeout=2m ./...
+go test -failfast -race -timeout=10m ./...
 
 # Run tests for specific package
 go test ./core/scheduler
@@ -54,7 +54,7 @@ pre-commit run --all-files
 ### Development Tools
 Development tools are defined in go.mod and can be installed via:
 ```bash
-go install tool  # e.g., go install github.com/bufbuild/buf/cmd/buf
+go install tool  # installs all tools; or one: go install tool github.com/bufbuild/buf/cmd/buf
 ```
 
 ## Architecture
@@ -150,7 +150,7 @@ Requires Go 1.26 (enforced by pre-commit hooks)
 ### Testing
 - Test files use `_test.go` suffix
 - Internal tests use `_internal_test.go` (package name with `_test` suffix not used)
-- Pre-commit hook runs: `go test -failfast -race -timeout=2m` on touched packages
+- Pre-commit hook runs: `go test -failfast -race -timeout=10m` on touched packages
 - Use `testutil/` packages for mocks, golden files, etc.
 
 ### Naming Conventions
@@ -189,7 +189,7 @@ Follow Go team's format: `package[/path]: concise overview of change`
 ```
 Description of the change in present tense.
 
-category: <refactor|bug|feature|docs|release|tidy|fixbuild>
+category: <feature|bug|refactor|docs|test|fixbuild|misc>
 ticket: <#123 or none>
 feature_flag: <optional, from app/featureset>
 ```
