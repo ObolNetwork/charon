@@ -50,6 +50,19 @@ var (
 	}, []string{"peer", "peer_cluster"})
 )
 
+// deletePeerMetrics deletes all metric series of the given peer. The relay accepts
+// connections from arbitrary peers and clusters, so series must be deleted on disconnect
+// to prevent unbounded growth.
+func deletePeerMetrics(peerName string) {
+	match := prometheus.Labels{"peer": peerName}
+
+	newConnsCounter.DeletePartialMatch(match)
+	activeConnsCounter.DeletePartialMatch(match)
+	networkTXCounter.DeletePartialMatch(match)
+	networkRXCounter.DeletePartialMatch(match)
+	peerPingLatency.DeletePartialMatch(match)
+}
+
 // newBandwidthCounter returns a new bandwidth counter that stops counting when the context is cancelled.
 func newBandwidthCounter(ctx context.Context, ch chan<- bwTuple) metrics.Reporter {
 	return bwCounter{
