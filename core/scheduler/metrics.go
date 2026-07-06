@@ -3,8 +3,6 @@
 package scheduler
 
 import (
-	"sync"
-
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -91,43 +89,12 @@ func instrumentDuty(duty core.Duty, defSet core.DutyDefinitionSet) {
 	dutyCounter.WithLabelValues(duty.Type.String()).Add(float64(len(defSet)))
 }
 
-// newMetricSubmitter returns a function that sets validator balance and status metrics
-// and a sweep function that deletes the metrics of validators not submitted since the
-// previous sweep, preventing stale series accumulating when validators are removed.
-func newMetricSubmitter() (metricSubmitter, func()) {
-	var (
-		mu      sync.Mutex
-		active  = make(map[core.PubKey]bool)
-		current = make(map[core.PubKey]bool)
-	)
-
-	submit := func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+// newMetricSubmitter returns a function that sets validator balance and status metric.
+func newMetricSubmitter() func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
+	return func(pubkey core.PubKey, totalBal eth2p0.Gwei, status string) {
 		balanceGauge.WithLabelValues(string(pubkey), pubkey.String()).Set(float64(totalBal))
 
 		statusGauge.Reset(string(pubkey), pubkey.String())
 		statusGauge.WithLabelValues(string(pubkey), pubkey.String(), status).Set(1)
-
-		mu.Lock()
-		current[pubkey] = true
-		mu.Unlock()
 	}
-
-	sweep := func() {
-		mu.Lock()
-		defer mu.Unlock()
-
-		for pubkey := range active {
-			if current[pubkey] {
-				continue
-			}
-
-			balanceGauge.DeleteLabelValues(string(pubkey), pubkey.String())
-			statusGauge.Reset(string(pubkey), pubkey.String())
-		}
-
-		active = current
-		current = make(map[core.PubKey]bool)
-	}
-
-	return submit, sweep
 }

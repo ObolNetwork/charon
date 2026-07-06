@@ -60,8 +60,6 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 
 // New returns a new scheduler.
 func New(builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
-	metricSubmitter, metricSweeper := newMetricSubmitter()
-
 	return &Scheduler{
 		eth2Cl:                     eth2Cl,
 		builderRegProvider:         builderRegProvider,
@@ -74,8 +72,7 @@ func New(builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client,
 		delayFunc: func(_ core.Duty, deadline time.Time) <-chan time.Time {
 			return time.After(time.Until(deadline))
 		},
-		metricSubmitter: metricSubmitter,
-		metricSweeper:   metricSweeper,
+		metricSubmitter: newMetricSubmitter(),
 		resolvedEpoch:   math.MaxInt64,
 		resolvingEpoch:  math.MaxInt64,
 		builderEnabled:  builderEnabled,
@@ -91,7 +88,6 @@ type Scheduler struct {
 	clock                      clockwork.Clock
 	delayFunc                  delayFunc
 	metricSubmitter            metricSubmitter
-	metricSweeper              func()
 	resolvedEpoch              uint64
 	resolvingEpoch             uint64
 	duties                     map[core.Duty]core.DutyDefinitionSet
@@ -457,9 +453,6 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 	if err != nil {
 		return err
 	}
-
-	// Delete metrics of validators no longer reported by the beacon node.
-	s.metricSweeper()
 
 	activeValsGauge.Set(float64(len(vals)))
 
