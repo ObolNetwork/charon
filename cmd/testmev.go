@@ -104,8 +104,8 @@ func bindTestMEVFlags(cmd *cobra.Command, config *testMEVConfig, flagsPrefix str
 
 func supportedMEVTestCases() map[testCaseName]testCaseMEV {
 	return map[testCaseName]testCaseMEV{
-		{name: "Ping", order: 1}:        mevPingTest,
-		{name: "PingMeasure", order: 2}: mevPingMeasureTest,
+		{name: "Ping", order: 1}:        mevPingTest,        //nolint:goconst // test-case name
+		{name: "PingMeasure", order: 2}: mevPingMeasureTest, //nolint:goconst // test-case name
 		{name: "CreateBlock", order: 3}: mevCreateBlockTest,
 	}
 }

@@ -130,9 +130,9 @@ func bindTestPeersFlags(cmd *cobra.Command, config *testPeersConfig, flagsPrefix
 
 func supportedPeerTestCases() map[testCaseName]testCasePeer {
 	return map[testCaseName]testCasePeer{
-		{name: "Ping", order: 1}:        peerPingTest,
-		{name: "PingMeasure", order: 2}: peerPingMeasureTest,
-		{name: "PingLoad", order: 3}:    peerPingLoadTest,
+		{name: "Ping", order: 1}:        peerPingTest,        //nolint:goconst // test-case name
+		{name: "PingMeasure", order: 2}: peerPingMeasureTest, //nolint:goconst // test-case name
+		{name: "PingLoad", order: 3}:    peerPingLoadTest,    //nolint:goconst // test-case name
 		{name: "DirectConn", order: 4}:  peerDirectConnTest,
 	}
 }

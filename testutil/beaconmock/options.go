@@ -295,7 +295,7 @@ func WithGenesisTime(t0 time.Time) Option {
 				Value:    value,
 			},
 			staticOverride{
-				Endpoint: "/eth/v1/config/spec",
+				Endpoint: specEndpoint,
 				Key:      "MIN_GENESIS_TIME",
 				Value:    value,
 			})
@@ -317,7 +317,7 @@ func WithGenesisValidatorsRoot(root [32]byte) Option {
 func WithSlotDuration(duration time.Duration) Option {
 	return func(mock *Mock) {
 		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
+			Endpoint: specEndpoint,
 			Key:      "SECONDS_PER_SLOT",
 			Value:    strconv.Itoa(int(duration.Seconds())),
 		})
@@ -328,7 +328,7 @@ func WithSlotDuration(duration time.Duration) Option {
 func WithSlotsPerEpoch(slotsPerEpoch int) Option {
 	return func(mock *Mock) {
 		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
+			Endpoint: specEndpoint,
 			Key:      "SLOTS_PER_EPOCH",
 			Value:    strconv.Itoa(slotsPerEpoch),
 		})
@@ -541,7 +541,7 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 		}
 
 		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
+			Endpoint: specEndpoint,
 			Key:      "EPOCHS_PER_SYNC_COMMITTEE_PERIOD",
 			Value:    strconv.Itoa(n),
 		})
@@ -552,7 +552,7 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 func WithSyncCommitteeSize(size int) Option {
 	return func(mock *Mock) {
 		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
+			Endpoint: specEndpoint,
 			Key:      "SYNC_COMMITTEE_SIZE",
 			Value:    strconv.Itoa(size),
 		})
@@ -563,7 +563,7 @@ func WithSyncCommitteeSize(size int) Option {
 func WithSyncCommitteeSubnetCount(count int) Option {
 	return func(mock *Mock) {
 		mock.overrides = append(mock.overrides, staticOverride{
-			Endpoint: "/eth/v1/config/spec",
+			Endpoint: specEndpoint,
 			Key:      "SYNC_COMMITTEE_SUBNET_COUNT",
 			Value:    strconv.Itoa(count),
 		})
