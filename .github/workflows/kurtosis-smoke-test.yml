@@ -1,8 +1,6 @@
 name: Kurtosis Smoke Test
 
 on:
-  schedule:
-    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       charon_image_tag:
