@@ -242,13 +242,13 @@ func checkDir(dir string) error {
 	return nil
 }
 
-// KeysharesToValidatorPubkey maps each share in cl to the associated validator private key.
-// It returns an error if a keyshare does not appear in cl, or if there's a validator public key associated to no
-// keyshare.
+// KeysharesToValidatorPubkey maps each provided private key share to the associated validator
+// public key in the cluster lock. It returns an error if a provided private key share does not belong to any validator
+// in the lock.
 func KeysharesToValidatorPubkey(lock cluster.Lock, shares []tbls.PrivateKey) (ValidatorShares, error) {
 	ret := make(map[core.PubKey]IndexedKeyShare)
 
-	var pubShares []tbls.PublicKey
+	pubShares := make([]tbls.PublicKey, 0, len(shares))
 
 	for _, share := range shares {
 		ps, err := tbls.SecretToPublicKey(share)
@@ -259,6 +259,9 @@ func KeysharesToValidatorPubkey(lock cluster.Lock, shares []tbls.PrivateKey) (Va
 		pubShares = append(pubShares, ps)
 	}
 
+	// matched tracks which provided private key shares were found in the cluster lock.
+	matched := make([]bool, len(pubShares))
+
 	// this is sadly a O(n^2) search
 	for _, validator := range lock.Validators {
 		valHex := validator.PublicKeyHex()
@@ -267,8 +270,6 @@ func KeysharesToValidatorPubkey(lock cluster.Lock, shares []tbls.PrivateKey) (Va
 		for _, valShare := range validator.PubShares {
 			valPubShares[tbls.PublicKey(valShare)] = struct{}{}
 		}
-
-		found := false
 
 		for shareIdx, share := range pubShares {
 			if _, ok := valPubShares[share]; !ok {
@@ -279,18 +280,17 @@ func KeysharesToValidatorPubkey(lock cluster.Lock, shares []tbls.PrivateKey) (Va
 				Share: shares[shareIdx],
 				Index: shareIdx + 1,
 			}
-			found = true
+			matched[shareIdx] = true
 
 			break
 		}
-
-		if !found {
-			return nil, errors.New("public key share from provided private key share not found in provided lock")
-		}
 	}
 
-	if len(ret) != len(lock.Validators) {
-		return nil, errors.New("key shares and validator public keys count mismatch")
+	// Every provided private key share must belong to a validator in the cluster lock.
+	for shareIdx, ok := range matched {
+		if !ok {
+			return nil, errors.New("public key share from provided private key share not found in provided lock", z.Int("share_index", shareIdx))
+		}
 	}
 
 	return ret, nil

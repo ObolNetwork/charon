@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
@@ -435,6 +436,80 @@ func TestKeyshareToValidatorPubkey(t *testing.T) {
 		require.True(t, valFound, "validator pubkey not found")
 		require.True(t, sharePrivKeyFound, "share priv key not found")
 	}
+}
+
+// mkValidatorWithLocalShare appends a validator with 10 public shares to lock, selecting one of
+// its private shares as the operator's local share. It returns that local private share.
+func mkValidatorWithLocalShare(t *testing.T, lock *cluster.Lock) tbls.PrivateKey {
+	t.Helper()
+
+	const sharesAmt = 10
+
+	valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
+	require.NoError(t, err)
+
+	validator := cluster.DistValidator{PubKey: valPubk[:]}
+
+	var localShare tbls.PrivateKey
+
+	for i := range sharesAmt {
+		sharePriv, err := tbls.GenerateSecretKey()
+		require.NoError(t, err)
+
+		sharePub, err := tbls.SecretToPublicKey(sharePriv)
+		require.NoError(t, err)
+
+		if i == 0 {
+			localShare = sharePriv
+		}
+
+		validator.PubShares = append(validator.PubShares, sharePub[:])
+	}
+
+	rand.Shuffle(len(validator.PubShares), func(i, j int) {
+		validator.PubShares[i], validator.PubShares[j] = validator.PubShares[j], validator.PubShares[i]
+	})
+
+	lock.Validators = append(lock.Validators, validator)
+
+	return localShare
+}
+
+// TestKeysharesToValidatorPubkeySubset ensures that providing local key shares for only a
+// subset of the cluster's validators succeeds and returns just that subset. This mirrors the
+// `charon exit sign --validator-public-key` flow where an operator holds keystores for fewer
+// validators than exist in the cluster lock.
+func TestKeysharesToValidatorPubkeySubset(t *testing.T) {
+	lock := cluster.Lock{}
+
+	// Validator we hold a local share for.
+	localShare := mkValidatorWithLocalShare(t, &lock)
+
+	// Additional validators we do NOT hold local shares for.
+	mkValidatorWithLocalShare(t, &lock)
+	mkValidatorWithLocalShare(t, &lock)
+
+	ret, err := keystore.KeysharesToValidatorPubkey(lock, []tbls.PrivateKey{localShare})
+	require.NoError(t, err)
+	require.Len(t, ret, 1)
+
+	wantPubk := lock.Validators[0].PublicKeyHex()
+	got, ok := ret[core.PubKey(wantPubk)]
+	require.True(t, ok, "expected local validator present in result")
+	require.Equal(t, localShare, got.Share)
+}
+
+// TestKeysharesToValidatorPubkeyForeignShare ensures a provided private key share that belongs
+// to no validator in the cluster lock is reported as an error.
+func TestKeysharesToValidatorPubkeyForeignShare(t *testing.T) {
+	lock := cluster.Lock{}
+	mkValidatorWithLocalShare(t, &lock)
+
+	foreign, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	_, err = keystore.KeysharesToValidatorPubkey(lock, []tbls.PrivateKey{foreign})
+	require.ErrorContains(t, err, "not found in provided lock")
 }
 
 func TestShareIdxForCluster(t *testing.T) {
