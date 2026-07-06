@@ -402,7 +402,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 
 	// Ensure sufficient auth tokens are provided for the keymanager addresses
 	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
-		return errors.New("number of --keymanager-addresses does not match number of --keymanager-auth-tokens")
+		return errors.New("number of --keymanager-addresses does not match number of --keymanager-auth-tokens, please fix configuration flags")
 	}
 
 	if len(conf.DepositAmounts) > 0 {
@@ -453,7 +453,7 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 		}
 
 		if _, err := os.Stat(filepath.Join(absPath, clusterLockFile)); err == nil {
-			return errors.New("existing node directory found", z.Str("node_path", absPath))
+			return errors.New("existing node directory found, please delete it before running this command", z.Str("node_path", absPath))
 		}
 	}
 
