@@ -157,7 +157,7 @@ func TestCreateCluster(t *testing.T) {
 
 				return config
 			},
-			expectedErr: "amount of keys read from disk differs from cluster definition",
+			expectedErr: "number of keys read from disk differs from cluster definition",
 		},
 		{
 			Name: "missing nodes amount flag",
@@ -694,7 +694,7 @@ func TestMultipleAddresses(t *testing.T) {
 		defer srv.Close()
 
 		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{DefFile: srv.URL, NumNodes: minNodes, NumDVs: 2, Network: defaultNetwork})
-		require.ErrorContains(t, err, "num_validators not matching validators length")
+		require.ErrorContains(t, err, "num_validators does not match validators length")
 	})
 }
 
@@ -973,7 +973,7 @@ func TestKeymanager(t *testing.T) {
 		incorrectConf.KeymanagerAuthTokens = incorrectConf.KeymanagerAuthTokens[1:]
 
 		err = runCreateCluster(context.Background(), nil, incorrectConf)
-		require.ErrorContains(t, err, "number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
+		require.ErrorContains(t, err, "number of --keymanager-addresses does not match number of --keymanager-auth-tokens")
 	})
 }
 

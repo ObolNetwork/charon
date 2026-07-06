@@ -154,7 +154,7 @@ func TestDefinitionVerify(t *testing.T) {
 
 		err = definition.VerifySignatures(nil)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "some operators signed while others didn't")
+		require.ErrorContains(t, err, "some operators signed while others did not")
 	})
 
 	t.Run("no operators no creator", func(t *testing.T) {

@@ -147,7 +147,7 @@ func ExtractArchive(archivePath, targetDir string) error {
 		cleanName := filepath.Clean(header.Name)
 		// Disallow absolute paths and paths with ".." as first element
 		if strings.HasPrefix(cleanName, "..") || filepath.IsAbs(cleanName) || strings.Contains(cleanName, ".."+string(os.PathSeparator)) {
-			return errors.New("invalid archive entry path: " + header.Name)
+			return errors.New("invalid archive entry path", z.Str("path", header.Name))
 		}
 
 		target := filepath.Join(targetDir, cleanName)
@@ -163,7 +163,7 @@ func ExtractArchive(archivePath, targetDir string) error {
 		}
 
 		if !strings.HasPrefix(absTarget, absTargetDir+string(os.PathSeparator)) && absTarget != absTargetDir {
-			return errors.New("archive entry path escapes target directory: " + header.Name)
+			return errors.New("archive entry path escapes target directory", z.Str("path", header.Name))
 		}
 
 		switch header.Typeflag {
