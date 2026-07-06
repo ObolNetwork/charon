@@ -554,6 +554,7 @@ func TestSplitKeys(t *testing.T) {
 		name           string
 		numSplitKeys   int
 		conf           clusterConfig
+		expectKeyOrder bool
 		expectedErrMsg string
 	}{
 		{
@@ -577,6 +578,19 @@ func TestSplitKeys(t *testing.T) {
 				WithdrawalAddrs:   []string{zeroAddress},
 				ClusterDir:        t.TempDir(),
 			},
+		},
+		{
+			name:         "split keys with distinct fee recipient addresses",
+			numSplitKeys: 3,
+			conf: clusterConfig{
+				Name:              "test split keys",
+				NumNodes:          minNodes,
+				Threshold:         3,
+				FeeRecipientAddrs: []string{testutil.RandomETHAddress(), testutil.RandomETHAddress(), testutil.RandomETHAddress()},
+				WithdrawalAddrs:   []string{zeroAddress},
+				ClusterDir:        t.TempDir(),
+			},
+			expectKeyOrder: true,
 		},
 	}
 
@@ -620,6 +634,16 @@ func TestSplitKeys(t *testing.T) {
 				require.NoError(t, lock.VerifySignatures(nil))
 
 				require.Equal(t, test.numSplitKeys, lock.NumValidators)
+
+				if test.expectKeyOrder {
+					// With per-validator addresses, keystore-N.json must map to the Nth validator
+					// so that fee recipient and withdrawal addresses are paired correctly.
+					for i, key := range keys {
+						pubkey, err := tbls.SecretToPublicKey(key)
+						require.NoError(t, err)
+						require.Equal(t, "0x"+hex.EncodeToString(pubkey[:]), lock.Validators[i].PublicKeyHex())
+					}
+				}
 			}
 		})
 	}

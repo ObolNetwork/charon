@@ -144,7 +144,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
-	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Does not re-create deposit data for this key.")
+	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Deposit data files are re-created using the provided withdrawal addresses; do not submit deposits for validators that are already active.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the lock file to.")
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
@@ -198,7 +198,14 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	// If SplitKeys wasn't set, we wouldn't have reached this part of code because validateCreateConfig()
 	// would've already errored.
 	if conf.SplitKeys {
-		useSequencedKeys := len(conf.WithdrawalAddrs) > 1
+		// Load keys in strict file index order when per-validator addresses may differ,
+		// so that keystore-N.json is paired with the Nth withdrawal and fee recipient address.
+		useSequencedKeys := len(conf.WithdrawalAddrs) > 1 || len(conf.FeeRecipientAddrs) > 1
+		if conf.DefFile != "" {
+			// A definition file replicates a single provided address for each validator,
+			// so only distinct addresses require strict key file ordering.
+			useSequencedKeys = hasDistinctAddrs(def.WithdrawalAddresses()) || hasDistinctAddrs(def.FeeRecipientAddresses())
+		}
 
 		secrets, err = getKeys(conf.SplitKeysDir, useSequencedKeys)
 		if err != nil {
@@ -421,10 +428,8 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 		if conf.NumDVs != 0 {
 			return errors.New("--num-validators not supported with --split-existing-keys, fix configuration flags")
 		}
-	} else {
-		if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
-			return errors.New("missing --num-validators flag")
-		}
+	} else if conf.NumDVs == 0 && conf.DefFile == "" { // if there's a definition file, infer this value from it later
+		return errors.New("missing --num-validators flag")
 	}
 
 	// Don't allow cluster size to be less than 3.
@@ -615,7 +620,7 @@ func writeWarning(w io.Writer) {
 	_, _ = sb.WriteString("\n")
 	_, _ = sb.WriteString("***************** WARNING: Splitting keys **********************\n")
 	_, _ = sb.WriteString(" Please make sure any existing validator has been shut down for\n")
-	_, _ = sb.WriteString(" at least 2 finalised epochs before starting the charon cluster,\n")
+	_, _ = sb.WriteString(" at least 2 finalized epochs before starting the charon cluster,\n")
 	_, _ = sb.WriteString(" otherwise slashing could occur.                               \n")
 	_, _ = sb.WriteString("****************************************************************\n")
 	_, _ = sb.WriteString("\n")
@@ -1170,6 +1175,17 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
 
 	return cl.LaunchpadURLForLock(lock), nil
+}
+
+// hasDistinctAddrs returns true if addrs contains more than one distinct address (ignoring case).
+func hasDistinctAddrs(addrs []string) bool {
+	for _, addr := range addrs {
+		if !strings.EqualFold(addr, addrs[0]) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
