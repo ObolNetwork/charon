@@ -4,6 +4,17 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
+  allow:
+  # Keep updating all direct dependencies (default behaviour, which specifying
+  # `allow` would otherwise disable).
+  - dependency-type: "direct"
+  # buf and mockery are tool-only modules (go.mod `tool` directive) and thus
+  # marked `// indirect`, so the direct-only default skips them. Allow them
+  # explicitly as indirect deps.
+  - dependency-name: "github.com/bufbuild/buf"
+    dependency-type: "indirect"
+  - dependency-name: "github.com/vektra/mockery/v2"
+    dependency-type: "indirect"
   ignore:
   - dependency-name: "github.com/herumi/bls-eth-go-binary"
     update-types: ["version-update:semver-major","version-update:semver-minor"]
