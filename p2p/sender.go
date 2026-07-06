@@ -348,6 +348,8 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		// delivered above, and the peer resetting our send-direction (STOP_SENDING) does
 		// not affect the receive-direction, so the response is still readable below.
 		// This happens much more frequently when QUIC is enabled.
+		//
+		//nolint:revive // Prioritise readability.
 		if isCanceledStreamErr(err) {
 			log.Debug(ctx, "Closing write of canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
 		} else {
