@@ -344,7 +344,15 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	}
 
 	if err := s.CloseWrite(); err != nil {
-		return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
+		// A canceled-stream error here is benign: the request was already written and
+		// delivered above, and the peer resetting our send-direction (STOP_SENDING) does
+		// not affect the receive-direction, so the response is still readable below.
+		// This happens much more frequently when QUIC is enabled.
+		if isCanceledStreamErr(err) {
+			log.Debug(ctx, "Closing write of canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
+		} else {
+			return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
+		}
 	}
 
 	if err = reader.ReadMsg(resp); err != nil {
@@ -355,7 +363,7 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		// This close error doesn't require a retry or warning mechanism since the message was
 		// correctly sent to the destination. However, it is still unknown what/who is causing the
 		// stream to be canceled. This error appears much more frequently when QUIC is enabled.
-		if strings.Contains(err.Error(), "close called for canceled stream") {
+		if isCanceledStreamErr(err) {
 			log.Debug(ctx, "Closing canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
 			return nil
 		}
@@ -412,7 +420,7 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 		// This close error doesn't require a retry or warning mechanism since the message was
 		// correctly sent to the destination. However, it is still unknown what/who is causing the
 		// stream to be canceled. This error appears much more frequently when QUIC is enabled.
-		if strings.Contains(err.Error(), "close called for canceled stream") {
+		if isCanceledStreamErr(err) {
 			log.Debug(ctx, "Closing canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
 			return nil
 		}
@@ -421,6 +429,13 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	}
 
 	return nil
+}
+
+// isCanceledStreamErr returns true if the error is the benign QUIC stream error
+// returned when closing a stream whose send-direction the peer has already reset
+// (via STOP_SENDING). It occurs much more frequently when QUIC is enabled.
+func isCanceledStreamErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "close called for canceled stream")
 }
 
 // protocolPrefix returns the common prefix of the provided protocol IDs.
