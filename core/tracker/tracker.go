@@ -3,10 +3,13 @@
 package tracker
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
+	"strconv"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 
@@ -290,7 +293,8 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 			reason = reasonInsufficientPeerSignatures
 		} else {
 			reason = reasonBugParSigDBInconsistent
-			if expectInconsistentParSigs(duty.Type) {
+			// Sync committee duties skip consensus, so inconsistent partial signatures are expected, not a bug.
+			if duty.Type == core.DutySyncMessage || duty.Type == core.DutySyncContribution {
 				reason = reasonParSigDBInconsistentSync
 			}
 		}
@@ -880,6 +884,14 @@ func (t *Tracker) InclusionChecked(duty core.Duty, key core.PubKey, _ core.Signe
 }
 
 func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {
+	// Sync committee messages don't go through consensus: each node signs its own beacon
+	// node's head block root, so peers legitimately split into cohorts by head. Report these
+	// per-slot (all validators share the head root) via a dedicated per-peer metric and log.
+	if duty.Type == core.DutySyncMessage {
+		reportSyncMessageCohorts(ctx, duty, parsigMsgs)
+		return
+	}
+
 	if parsigMsgs.MsgRootsConsistent() {
 		return // Nothing to report.
 	}
@@ -922,7 +934,9 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 			entriesJSON = json.RawMessage(fmt.Sprintf("%q", err.Error()))
 		}
 
-		if expectInconsistentParSigs(duty.Type) {
+		// DutySyncMessage is handled earlier via reportSyncMessageCohorts. Sync contribution
+		// inconsistency is expected (per-validator, per-subcommittee) so log at debug.
+		if duty.Type == core.DutySyncContribution {
 			log.Debug(ctx, "Inconsistent sync committee partial signed data",
 				z.Any("pubkey", pubkey),
 				z.Any("duty", duty),
@@ -938,8 +952,106 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 	}
 }
 
-// expectInconsistentParSigs returns true if the duty type is expected to sometimes
-// produce inconsistent partial signed data.
-func expectInconsistentParSigs(duty core.DutyType) bool {
-	return duty == core.DutySyncMessage || duty == core.DutySyncContribution
+// cohort is a group of share indices that signed the same message root for a slot.
+type cohort struct {
+	root      [32]byte
+	shareIdxs []int // sorted ascending
+}
+
+// computeSyncCohorts groups the share indices that signed each head block root for a sync
+// message duty into cohorts, collapsed across all validators (which share the head root).
+// Cohorts are sorted by size descending, then root ascending, so their slice index is a
+// deterministic rank (0 = largest cohort).
+func computeSyncCohorts(parsigMsgs parsigsByMsg) []cohort {
+	// Sync messages share one head root, so a share index appears once per validator per
+	// root; collect the distinct set of share indices per root.
+	idxsByRoot := make(map[[32]byte]map[int]bool)
+
+	for _, byRoot := range parsigMsgs {
+		for root, parsigs := range byRoot {
+			set, ok := idxsByRoot[root]
+			if !ok {
+				set = make(map[int]bool)
+				idxsByRoot[root] = set
+			}
+
+			for _, parsig := range parsigs {
+				set[parsig.ShareIdx] = true
+			}
+		}
+	}
+
+	cohorts := make([]cohort, 0, len(idxsByRoot))
+
+	for root, set := range idxsByRoot {
+		idxs := make([]int, 0, len(set))
+		for idx := range set {
+			idxs = append(idxs, idx)
+		}
+
+		slices.Sort(idxs)
+		cohorts = append(cohorts, cohort{root: root, shareIdxs: idxs})
+	}
+
+	slices.SortFunc(cohorts, func(a, b cohort) int {
+		if n := len(b.shareIdxs) - len(a.shareIdxs); n != 0 {
+			return n // Larger cohort first (rank ascending by size descending).
+		}
+
+		return bytes.Compare(a.root[:], b.root[:]) // Deterministic tie-break.
+	})
+
+	return cohorts
+}
+
+// reportSyncMessageCohorts instruments per-peer head disagreement for a sync message duty.
+// It emits the cohort rank metric for every peer that signed (on agreement all peers are
+// rank 0) and warns once per slot when peers signed more than one head block root.
+func reportSyncMessageCohorts(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg) {
+	cohorts := computeSyncCohorts(parsigMsgs)
+	if len(cohorts) == 0 {
+		return
+	}
+
+	dutyLabel := duty.Type.String()
+
+	for rank, c := range cohorts {
+		rankLabel := strconv.Itoa(rank)
+		for _, shareIdx := range c.shareIdxs {
+			// peer_idx is 0-based (shareIdx-1) to match the core_parsigdb_store convention.
+			cohortRank.WithLabelValues(dutyLabel, strconv.Itoa(shareIdx-1), rankLabel).Inc()
+		}
+	}
+
+	if len(cohorts) <= 1 {
+		return // Consistent: metric emitted, no disagreement to warn about.
+	}
+
+	inconsistentCounter.WithLabelValues(dutyLabel).Inc()
+
+	// Build one entry per distinct head root showing which shares signed it. The signed data
+	// sample is omitted: the root and share indices are the per-slot cohort table.
+	type rootEntry struct {
+		MsgRoot   string `json:"msg_root"`
+		ShareIdxs []int  `json:"share_idxs"`
+	}
+
+	entries := make([]rootEntry, 0, len(cohorts))
+	for _, c := range cohorts {
+		entries = append(entries, rootEntry{
+			MsgRoot:   hex.EncodeToString(c.root[:]),
+			ShareIdxs: c.shareIdxs,
+		})
+	}
+
+	entriesJSON, err := json.Marshal(entries)
+	if err != nil {
+		entriesJSON = json.RawMessage(fmt.Sprintf("%q", err.Error()))
+	}
+
+	log.Warn(ctx, "Sync committee head disagreement", nil,
+		z.Any("duty", duty),
+		z.U64("slot", duty.Slot),
+		z.Int("distinct_roots", len(cohorts)),
+		z.Str("data_by_root", string(entriesJSON)))
 }

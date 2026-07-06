@@ -89,6 +89,13 @@ var (
 		Help:      "Total number of duties that contained inconsistent partial signed data by duty type",
 	}, []string{"duty"})
 
+	cohortRank = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "parsig_cohort_rank_total",
+		Help:      "Total sync committee partial signatures per peer per cohort rank (0=largest cohort), for detecting head disagreement",
+	}, []string{"duty", "peer_idx", "rank"})
+
 	inclusionDelay = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "core",
 		Subsystem: "tracker",
