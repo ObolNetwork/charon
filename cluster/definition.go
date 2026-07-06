@@ -284,7 +284,7 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 	}
 
 	if noOpSigs > 0 && noOpSigs != len(d.Operators) {
-		return errors.New("some operators signed while others didn't")
+		return errors.New("some operators signed while others did not")
 	}
 
 	// Verify creator signature
@@ -293,9 +293,9 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 			return errors.New("unexpected creator config signature in old version")
 		}
 	} else if d.Creator.Address == "" && len(d.Creator.ConfigSignature) == 0 {
-		// Empty creator is fine if also not operator signatures either.
+		// An empty creator is fine if there are no operator signatures either.
 		if noOpSigs == 0 {
-			return errors.New("operators signed while creator didn't")
+			return errors.New("operators signed while creator did not")
 		}
 	} else {
 		if len(d.Creator.ConfigSignature) == 0 {
@@ -798,7 +798,7 @@ func marshalDefinitionV1x10to11(def Definition) ([]byte, error) {
 func unmarshalDefinitionV1x0or1(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x0or1
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1_1")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1.0 or v1.1")
 	}
 
 	operators, err := operatorsFromV1x1(defJSON.Operators)
@@ -836,7 +836,7 @@ func unmarshalDefinitionV1x0or1(data []byte) (def Definition, err error) {
 func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x2or3
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1.2 or v1.3")
 	}
 
 	vaddrs := ValidatorAddresses{
@@ -865,7 +865,7 @@ func unmarshalDefinitionV1x2or3(data []byte) (def Definition, err error) {
 func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x4
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1v2")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1.4")
 	}
 
 	vaddrs := ValidatorAddresses{
@@ -896,11 +896,11 @@ func unmarshalDefinitionV1x4(data []byte) (def Definition, err error) {
 func unmarshalDefinitionV1x5to7(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x5to7
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1_5")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1.5 to v1.7")
 	}
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
-		return Definition{}, errors.New("num_validators not matching validators length")
+		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
 	return Definition{
@@ -926,11 +926,11 @@ func unmarshalDefinitionV1x5to7(data []byte) (def Definition, err error) {
 func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x8
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1_8")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1.8")
 	}
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
-		return Definition{}, errors.New("num_validators not matching validators length")
+		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
 	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
@@ -961,11 +961,11 @@ func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x9
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1_9")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1.9")
 	}
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
-		return Definition{}, errors.New("num_validators not matching validators length")
+		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
 	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
@@ -997,11 +997,11 @@ func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 func unmarshalDefinitionV1x10to11(data []byte) (def Definition, err error) {
 	var defJSON definitionJSONv1x10to11
 	if err := json.Unmarshal(data, &defJSON); err != nil {
-		return Definition{}, errors.Wrap(err, "unmarshal definition v1_10 to v1_11")
+		return Definition{}, errors.Wrap(err, "unmarshal definition v1.10 to v1.11")
 	}
 
 	if len(defJSON.ValidatorAddresses) != defJSON.NumValidators {
-		return Definition{}, errors.New("num_validators not matching validators length")
+		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
 	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {

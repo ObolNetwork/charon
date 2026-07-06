@@ -264,7 +264,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if len(secrets) != def.NumValidators {
-		return errors.New("amount of keys read from disk differs from cluster definition", z.Int("disk", len(secrets)), z.Int("definition", def.NumValidators))
+		return errors.New("number of keys read from disk differs from cluster definition", z.Int("disk", len(secrets)), z.Int("definition", def.NumValidators))
 	}
 
 	numNodes := len(def.Operators)
@@ -402,7 +402,7 @@ func validateCreateConfig(ctx context.Context, conf clusterConfig) error {
 
 	// Ensure sufficient auth tokens are provided for the keymanager addresses
 	if len(conf.KeymanagerAddrs) != len(conf.KeymanagerAuthTokens) {
-		return errors.New("number of --keymanager-addresses do not match --keymanager-auth-tokens. Please fix configuration flags")
+		return errors.New("number of --keymanager-addresses does not match number of --keymanager-auth-tokens")
 	}
 
 	if len(conf.DepositAmounts) > 0 {
@@ -453,7 +453,7 @@ func detectNodeDirs(clusterDir string, nodeAmount int) error {
 		}
 
 		if _, err := os.Stat(filepath.Join(absPath, clusterLockFile)); err == nil {
-			return errors.New("existing node directory found, please delete it before running this command", z.Str("node_path", absPath))
+			return errors.New("existing node directory found", z.Str("node_path", absPath))
 		}
 	}
 
@@ -779,7 +779,7 @@ func getValidators(
 
 		depositDatasList, ok := depositDatasMap[dv]
 		if !ok {
-			return nil, errors.New("deposit data not found for dv", z.Str("dv", hex.EncodeToString(dv[:])))
+			return nil, errors.New("deposit data not found for distributed validator", z.Str("dv", hex.EncodeToString(dv[:])))
 		}
 
 		for _, dd := range depositDatasList {
@@ -1011,7 +1011,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 	}
 
 	if len(keymanagerAddrs) > 0 && (len(keymanagerAddrs) != len(def.Operators)) {
-		return errors.New("insufficient no of keymanager addresses", z.Int("expected", len(def.Operators)), z.Int("got", len(keymanagerAddrs)))
+		return errors.New("number of keymanager addresses does not match number of operators", z.Int("expected", len(def.Operators)), z.Int("got", len(keymanagerAddrs)))
 	}
 
 	if len(def.DepositAmounts) > 0 {
