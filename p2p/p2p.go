@@ -74,7 +74,7 @@ func NewNode(ctx context.Context, cfg Config, key *k1.PrivateKey, connGater Conn
 		}
 
 		if len(udpAddrs) == 0 {
-			log.Warn(ctx, "LibP2P QUIC enabled but --p2p-udp-addresses is empty", nil)
+			log.Warn(ctx, "LibP2P QUIC enabled but --p2p-udp-address is empty", nil)
 		}
 
 		addrs = append(addrs, udpAddrs...)
