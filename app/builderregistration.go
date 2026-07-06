@@ -3,12 +3,14 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -344,21 +346,7 @@ func (s *builderRegistrationService) fetchFromAPI(ctx context.Context) (bool, er
 	}
 
 	if len(pv.AggregatedRegs) > 0 {
-		// Verify signatures on aggregated registrations.
-		if s.forkVersion != (eth2p0.Version{}) {
-			var verified []*eth2api.VersionedSignedValidatorRegistration
-
-			for _, reg := range pv.AggregatedRegs {
-				if err := verifyRegistrationSignature(reg, s.forkVersion); err != nil {
-					log.Warn(ctx, "Skipping fetched builder registration with invalid signature", err)
-					continue
-				}
-
-				verified = append(verified, reg)
-			}
-
-			pv.AggregatedRegs = verified
-		}
+		pv.AggregatedRegs = filterVerifiedRegistrations(ctx, pv.AggregatedRegs, s.forkVersion)
 
 		log.Info(ctx, "Fetched builder registrations from Obol API",
 			z.Int("fully_signed", len(pv.AggregatedRegs)),
@@ -394,7 +382,7 @@ func (s *builderRegistrationService) recompute(ctx context.Context) {
 }
 
 // mergeOverrides combines two override slices, keeping the entry with the highest
-// timestamp per pubkey.
+// timestamp per pubkey. Entries in a win ties.
 func mergeOverrides(a, b []*eth2api.VersionedSignedValidatorRegistration) []*eth2api.VersionedSignedValidatorRegistration {
 	if len(a) == 0 {
 		return b
@@ -404,41 +392,124 @@ func mergeOverrides(a, b []*eth2api.VersionedSignedValidatorRegistration) []*eth
 		return a
 	}
 
-	byPubkey := make(map[string]*eth2api.VersionedSignedValidatorRegistration)
+	return mergeRegistrations(a, b, nil)
+}
 
-	for _, reg := range a {
+// mergeRegistrations merges incoming registrations into base, keeping the entry with the
+// newest timestamp per validator pubkey. Base entries win ties. Nil or incomplete entries
+// are dropped. The result is sorted by pubkey for deterministic output. When an incoming
+// entry loses to a base entry, onStale (if not nil) is called with both.
+func mergeRegistrations(
+	base, incoming []*eth2api.VersionedSignedValidatorRegistration,
+	onStale func(kept, dropped *eth2api.VersionedSignedValidatorRegistration),
+) []*eth2api.VersionedSignedValidatorRegistration {
+	byPubkey := make(map[string]*eth2api.VersionedSignedValidatorRegistration, len(base)+len(incoming))
+
+	for _, reg := range base {
 		if reg == nil || reg.V1 == nil || reg.V1.Message == nil {
 			continue
 		}
 
-		key := strings.ToLower(hex.EncodeToString(reg.V1.Message.Pubkey[:]))
+		byPubkey[string(reg.V1.Message.Pubkey[:])] = reg
+	}
+
+	for _, reg := range incoming {
+		if reg == nil || reg.V1 == nil || reg.V1.Message == nil {
+			continue
+		}
+
+		key := string(reg.V1.Message.Pubkey[:])
+
+		prev, ok := byPubkey[key]
+		if ok && !reg.V1.Message.Timestamp.After(prev.V1.Message.Timestamp) {
+			if onStale != nil {
+				onStale(prev, reg)
+			}
+
+			continue
+		}
+
 		byPubkey[key] = reg
 	}
 
-	for _, reg := range b {
-		if reg == nil || reg.V1 == nil || reg.V1.Message == nil {
+	merged := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(byPubkey))
+	for _, reg := range byPubkey {
+		merged = append(merged, reg)
+	}
+
+	slices.SortFunc(merged, func(a, b *eth2api.VersionedSignedValidatorRegistration) int {
+		return bytes.Compare(a.V1.Message.Pubkey[:], b.V1.Message.Pubkey[:])
+	})
+
+	return merged
+}
+
+// filterVerifiedRegistrations returns the registrations whose BLS signature verifies,
+// logging and skipping the ones that fail.
+func filterVerifiedRegistrations(
+	ctx context.Context,
+	regs []*eth2api.VersionedSignedValidatorRegistration,
+	forkVersion eth2p0.Version,
+) []*eth2api.VersionedSignedValidatorRegistration {
+	verified := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(regs))
+
+	for _, reg := range regs {
+		if err := verifyRegistrationSignature(reg, forkVersion); err != nil {
+			log.Warn(ctx, "Skipping builder registration with invalid signature", err)
 			continue
 		}
 
-		key := strings.ToLower(hex.EncodeToString(reg.V1.Message.Pubkey[:]))
+		verified = append(verified, reg)
+	}
 
-		existing, ok := byPubkey[key]
-		if !ok || existing.V1 == nil || existing.V1.Message == nil || reg.V1.Message.Timestamp.After(existing.V1.Message.Timestamp) {
-			byPubkey[key] = reg
+	return verified
+}
+
+// MergeBuilderRegistrationOverrides merges fetched builder registrations into the existing
+// overrides at path and returns the merged set, sorted by validator pubkey. The existing file
+// is loaded leniently: an unreadable or invalid file is logged and treated as empty, and
+// entries failing signature verification are logged and dropped, so a broken file is rebuilt
+// rather than blocking updates. Fetched registrations failing verification are likewise
+// logged and skipped. When both sources contain an entry for the same validator, the newest
+// timestamp wins; existing entries win ties.
+func MergeBuilderRegistrationOverrides(
+	ctx context.Context,
+	path string,
+	forkVersion eth2p0.Version,
+	fetched []*eth2api.VersionedSignedValidatorRegistration,
+) []*eth2api.VersionedSignedValidatorRegistration {
+	var existing []*eth2api.VersionedSignedValidatorRegistration
+
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		log.Warn(ctx, "Failed to read existing builder registration overrides file; rebuilding it", err, z.Str("path", path))
+	} else if err == nil {
+		if err := json.Unmarshal(data, &existing); err != nil {
+			log.Warn(ctx, "Existing builder registration overrides file is invalid; rebuilding it", err, z.Str("path", path))
+
+			existing = nil
 		}
 	}
 
-	result := make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(byPubkey))
-	for _, reg := range byPubkey {
-		result = append(result, reg)
-	}
+	existing = filterVerifiedRegistrations(ctx, existing, forkVersion)
+	verified := filterVerifiedRegistrations(ctx, fetched, forkVersion)
 
-	return result
+	return mergeRegistrations(existing, verified, func(kept, dropped *eth2api.VersionedSignedValidatorRegistration) {
+		if kept.V1.Message.FeeRecipient == dropped.V1.Message.FeeRecipient && kept.V1.Message.GasLimit == dropped.V1.Message.GasLimit {
+			return // Re-fetch of an already applied registration, nothing to report.
+		}
+
+		log.Warn(ctx, "Fetched builder registration is not newer than existing override, keeping existing", nil,
+			z.Str("pubkey", hex.EncodeToString(kept.V1.Message.Pubkey[:])),
+			z.I64("fetched_timestamp", dropped.V1.Message.Timestamp.Unix()),
+			z.I64("existing_timestamp", kept.V1.Message.Timestamp.Unix()),
+		)
+	})
 }
 
 // LoadBuilderRegistrationOverrides reads builder registration overrides from the given JSON file.
-// It returns nil if the file does not exist. When forkVersion is non-zero, each registration's
-// BLS signature is verified against the validator pubkey embedded in the message.
+// It returns nil if the file does not exist. Each registration's BLS signature is verified
+// against the validator pubkey embedded in the message.
 func LoadBuilderRegistrationOverrides(path string, forkVersion eth2p0.Version) ([]*eth2api.VersionedSignedValidatorRegistration, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -452,11 +523,9 @@ func LoadBuilderRegistrationOverrides(path string, forkVersion eth2p0.Version) (
 		return nil, errors.Wrap(err, "unmarshal builder registration overrides file", z.Str("path", path))
 	}
 
-	if forkVersion != (eth2p0.Version{}) {
-		for _, reg := range regs {
-			if err := verifyRegistrationSignature(reg, forkVersion); err != nil {
-				return nil, err
-			}
+	for _, reg := range regs {
+		if err := verifyRegistrationSignature(reg, forkVersion); err != nil {
+			return nil, err
 		}
 	}
 

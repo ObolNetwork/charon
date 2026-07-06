@@ -117,7 +117,7 @@ func testRunBcastFullExitCmdFlow(t *testing.T, fromFile bool, all bool) {
 
 	defer srv.Close()
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	for idx := range operatorAmt {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
@@ -285,7 +285,7 @@ func Test_runBcastFullExitCmd_Config(t *testing.T) {
 			mBytes, err := json.Marshal(lock)
 			require.NoError(t, err)
 
-			writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+			writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 			for opIdx := range operatorAmt {
 				del(t, test, root, opIdx)
@@ -494,7 +494,7 @@ func TestExitBcastFullExitNotActivated(t *testing.T) {
 
 	defer srv.Close()
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	for idxOp := range operatorAmt {
 		// submit partial exits only for a subset

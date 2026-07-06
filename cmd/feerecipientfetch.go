@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app"
@@ -127,32 +128,57 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 		return nil
 	}
 
-	err = writeSignedValidatorRegistrations(config.OverridesFilePath, pv.AggregatedRegs)
+	mergedRegs := app.MergeBuilderRegistrationOverrides(ctx, config.OverridesFilePath, eth2p0.Version(cl.ForkVersion), pv.AggregatedRegs)
+
+	err = writeSignedValidatorRegistrations(config.OverridesFilePath, mergedRegs)
 	if err != nil {
 		return errors.Wrap(err, "write builder registrations overrides", z.Str("path", config.OverridesFilePath))
 	}
 
 	log.Info(ctx, "Successfully wrote builder registrations overrides",
-		z.Int("total", len(pv.AggregatedRegs)),
+		z.Int("total", len(mergedRegs)),
+		z.Int("fetched", len(pv.AggregatedRegs)),
 		z.Str("path", config.OverridesFilePath),
 	)
 
 	return nil
 }
 
+// writeSignedValidatorRegistrations writes the registrations to filename atomically
+// (temp file + rename), so a crash mid-write cannot leave a truncated file behind.
 func writeSignedValidatorRegistrations(filename string, regs []*eth2api.VersionedSignedValidatorRegistration) error {
 	data, err := json.MarshalIndent(regs, "", "  ")
 	if err != nil {
 		return errors.Wrap(err, "marshal registrations to JSON")
 	}
 
-	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return errors.Wrap(err, "create output directory")
 	}
 
-	err = os.WriteFile(filename, data, 0o644) //nolint:gosec // G306: world-readable output file is intentional
+	tmp, err := os.CreateTemp(dir, filepath.Base(filename)+".tmp")
 	if err != nil {
-		return errors.Wrap(err, "write registrations overrides file")
+		return errors.Wrap(err, "create temporary registrations overrides file")
+	}
+	defer os.Remove(tmp.Name()) // No-op after successful rename.
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return errors.Wrap(err, "write temporary registrations overrides file")
+	}
+
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return errors.Wrap(err, "chmod temporary registrations overrides file")
+	}
+
+	if err := tmp.Close(); err != nil {
+		return errors.Wrap(err, "close temporary registrations overrides file")
+	}
+
+	if err := os.Rename(tmp.Name(), filename); err != nil {
+		return errors.Wrap(err, "rename temporary registrations overrides file")
 	}
 
 	return nil

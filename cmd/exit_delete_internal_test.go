@@ -98,7 +98,7 @@ func testRunDeleteExitFullFlow(t *testing.T, all bool) {
 
 	defer srv.Close()
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	idx := 1
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))

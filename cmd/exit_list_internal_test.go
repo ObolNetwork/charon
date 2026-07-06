@@ -51,7 +51,7 @@ func Test_runListActiveVals(t *testing.T) {
 	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	validatorSet := beaconmock.ValidatorSet{}
 
@@ -118,7 +118,7 @@ func Test_listActiveVals(t *testing.T) {
 	mBytes, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	t.Run("all validators in the cluster are active", func(t *testing.T) {
 		validatorSet := beaconmock.ValidatorSet{}

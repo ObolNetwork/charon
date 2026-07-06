@@ -53,7 +53,7 @@ func TestFeeRecipientSignValid(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	handler, addLockFiles := obolapimock.MockServer(false, nil)
 
@@ -104,7 +104,7 @@ func TestFeeRecipientSignWithTimestamp(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	handler, addLockFiles := obolapimock.MockServer(false, nil)
 
@@ -153,6 +153,106 @@ func TestFeeRecipientSignInvalidFeeRecipient(t *testing.T) {
 	require.ErrorContains(t, err, "invalid fee recipient address")
 }
 
+func TestValidateFeeRecipient(t *testing.T) {
+	// EIP-55 test vector address.
+	const checksummed = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+
+	tests := []struct {
+		name        string
+		address     string
+		expectedErr string
+	}{
+		{
+			name:    "valid lowercase",
+			address: strings.ToLower(checksummed),
+		},
+		{
+			name:    "valid checksummed",
+			address: checksummed,
+		},
+		{
+			name:        "invalid checksum",
+			address:     "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+			expectedErr: "does not match its EIP-55 checksum",
+		},
+		{
+			name:        "zero address",
+			address:     "0x0000000000000000000000000000000000000000",
+			expectedErr: "must not be the zero address",
+		},
+		{
+			name:        "not an address",
+			address:     "not-an-address",
+			expectedErr: "invalid fee recipient address",
+		},
+		{
+			name:        "too short",
+			address:     "0x1234",
+			expectedErr: "invalid fee recipient address",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateFeeRecipient(test.address)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestFeeRecipientSignStaleTimestampRejected verifies that signing a new fee recipient with a
+// timestamp that is not later than the current quorum registration is rejected, since the
+// resulting registration would never be applied.
+func TestFeeRecipientSignStaleTimestampRejected(t *testing.T) {
+	ctx := log.WithCtx(t.Context(), z.Str("test_case", t.Name()))
+
+	c := setupFeeRecipientTestCluster(t, 1)
+	validatorPubkey := c.lock.Validators[0].PublicKeyHex()
+
+	ts1 := time.Now().Add(time.Hour).Unix()
+
+	signFeeRecipientThreshold(ctx, t, c, validatorPubkey, "0x0000000000000000000000000000000000001234", ts1)
+
+	signConfig := signConfigForOperator(c, 0, validatorPubkey, "0x0000000000000000000000000000000000005678", ts1)
+	err := runFeeRecipientSign(ctx, signConfig)
+	require.ErrorContains(t, err, "timestamp must be later than the current registration with quorum")
+}
+
+// TestFeeRecipientSignAdoptsInProgressTimestamp verifies that operators joining an in-progress
+// registration adopt its timestamp even when they pass a conflicting --timestamp, so partial
+// signatures aggregate to quorum.
+func TestFeeRecipientSignAdoptsInProgressTimestamp(t *testing.T) {
+	ctx := log.WithCtx(t.Context(), z.Str("test_case", t.Name()))
+
+	c := setupFeeRecipientTestCluster(t, 1)
+	validatorPubkey := c.lock.Validators[0].PublicKeyHex()
+	newFeeRecipient := "0x0000000000000000000000000000000000001234"
+
+	ts1 := time.Now().Add(time.Hour).Unix()
+	ts2 := time.Now().Add(2 * time.Hour).Unix()
+
+	// The first operator anchors the in-progress registration at ts1.
+	require.NoError(t, runFeeRecipientSign(ctx, signConfigForOperator(c, 0, validatorPubkey, newFeeRecipient, ts1)))
+
+	// The remaining operators pass a different explicit timestamp, which is ignored in
+	// favor of the in-progress registration's timestamp.
+	for opIdx := 1; opIdx < c.lock.Threshold; opIdx++ {
+		require.NoError(t, runFeeRecipientSign(ctx, signConfigForOperator(c, opIdx, validatorPubkey, newFeeRecipient, ts2)))
+	}
+
+	overridesFile := filepath.Join(c.root, "output", "builder_registrations_overrides.json")
+	fetchFeeRecipient(ctx, t, c, nil, overridesFile)
+
+	regs, byPubkey := readOverridesFile(t, overridesFile)
+	require.Len(t, regs, 1, "partial signatures must aggregate to quorum despite conflicting --timestamp flags")
+	require.Equal(t, newFeeRecipient, byPubkey[strings.ToLower(validatorPubkey)])
+	require.Equal(t, ts1, regs[0].V1.Message.Timestamp.Unix())
+}
+
 func TestFeeRecipientSignInvalidLockFile(t *testing.T) {
 	config := feerecipientSignConfig{
 		feerecipientConfig: feerecipientConfig{
@@ -190,7 +290,7 @@ func TestFeeRecipientSignAPIUnreachable(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	// Start and immediately close the server so the URL is unreachable.
 	srv := httptest.NewServer(http.NotFoundHandler())
@@ -236,7 +336,7 @@ func TestFeeRecipientSignPubkeyNotInCluster(t *testing.T) {
 	lockJSON, err := json.Marshal(lock)
 	require.NoError(t, err)
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, lockJSON)
+	writeAllLockData(t, root, enrs, operatorShares, lockJSON)
 
 	handler, addLockFiles := obolapimock.MockServer(false, nil)
 

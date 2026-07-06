@@ -100,7 +100,7 @@ func testRunFetchExitFullFlow(t *testing.T, all bool) {
 
 	defer srv.Close()
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	for idx := range operatorAmt {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
@@ -315,7 +315,7 @@ func TestFetchExitFullFlowNotActivated(t *testing.T) {
 
 	defer srv.Close()
 
-	writeAllLockData(t, root, operatorAmt, enrs, operatorShares, mBytes)
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
 
 	for idxOp := range operatorAmt {
 		// submit partial exits only for a subset

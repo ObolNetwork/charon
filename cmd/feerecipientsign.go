@@ -66,7 +66,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringSliceVar(&config.ValidatorPublicKeys, "validator-public-keys", nil, "[REQUIRED] Comma-separated list of validator public keys to sign builder registrations for.")
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
-	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the existing gas limit from the cluster lock or overrides file is used.")
+	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the most recent gas limit from the cluster lock, overrides file or remote API is used.")
 	cmd.Flags().Int64Var(&config.Timestamp, "timestamp", 0, "Optional Unix timestamp for the builder registration message. When set, all operators can sign independently with the same timestamp. If not set, either the current time is used for new registrations or if another peer already submitted partial signature to the API, its timestamp is used.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
@@ -147,8 +147,8 @@ func findRegistrationGroups(v *obolapi.FeeRecipientValidator, feeRecipient strin
 }
 
 func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) error {
-	if _, err := eth2util.ChecksumAddress(config.FeeRecipient); err != nil {
-		return errors.Wrap(err, "invalid fee recipient address", z.Str("fee_recipient", config.FeeRecipient))
+	if err := validateFeeRecipient(config.FeeRecipient); err != nil {
+		return err
 	}
 
 	identityKey, err := k1util.Load(config.PrivateKeyPath)
@@ -205,7 +205,7 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		nowFunc = func() time.Time { return time.Unix(config.Timestamp, 0) }
 	}
 
-	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, config.GasLimit, *cl, overrides, nowFunc)
+	pubkeysToSign, err := filterPubkeysByStatus(ctx, oAPI, cl.LockHash, config.ValidatorPublicKeys, config.FeeRecipient, config.GasLimit, config.Timestamp, *cl, overrides, nowFunc)
 	if err != nil {
 		return err
 	}
@@ -246,8 +246,9 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 // use for signing. Validators with a quorum-complete registration for the requested fee recipient
 // are skipped. In-progress (non-quorum) registrations with a mismatched fee recipient cause an error.
 // For validators with a matching in-progress registration, the existing timestamp and gas limit are
-// adopted so all operators sign the identical message. For unknown validators, now() and the
-// gas limit from the config override or cluster lock are used.
+// adopted so all operators sign the identical message, warning when that discards an explicit
+// --timestamp or --gas-limit. For new registrations, the timestamp must be strictly later than the
+// current quorum registration's, otherwise the result would never be applied.
 func filterPubkeysByStatus(
 	ctx context.Context,
 	oAPI obolapi.Client,
@@ -255,6 +256,7 @@ func filterPubkeysByStatus(
 	requestedPubkeys []string,
 	feeRecipient string,
 	gasLimitOverride uint64,
+	explicitTimestamp int64,
 	cl cluster.Lock,
 	overrides map[string]eth2v1.ValidatorRegistration,
 	now func() time.Time,
@@ -273,36 +275,65 @@ func filterPubkeysByStatus(
 
 		v, ok := validatorByPubkey[normalizedKey]
 
+		// Find the first incomplete group whose fee recipient matches the requested one.
+		// Stale incompletes (different fee recipient) are ignored — they may linger on the
+		// API after quorum was reached for a previous fee recipient and must not block new
+		// fee recipient changes.
+		var quorumGroup, matchingIncomplete *obolapi.FeeRecipientBuilderRegistration
+		if ok {
+			quorumGroup, matchingIncomplete = findRegistrationGroups(&v, feeRecipient)
+		}
+
+		var quorumMsg *eth2v1.ValidatorRegistration
+		if quorumGroup != nil {
+			quorumMsg = quorumGroup.Message
+		}
+
 		// Default: anchor new timestamp and resolve gas limit.
 		// These will be overridden if there's a matching incomplete registration.
 		timestamp := now()
-		gasLimit := resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey)
+		gasLimit := resolveGasLimit(gasLimitOverride, cl, overrides, normalizedKey, quorumMsg)
 
-		if ok {
-			// Find the first incomplete group whose fee recipient matches the requested one.
-			// Stale incompletes (different fee recipient) are ignored — they may linger on the
-			// API after quorum was reached for a previous fee recipient and must not block new
-			// fee recipient changes.
-			quorumGroup, matchingIncomplete := findRegistrationGroups(&v, feeRecipient)
+		if quorumGroup != nil && strings.EqualFold(quorumGroup.Message.FeeRecipient.String(), feeRecipient) {
+			log.Info(ctx, "Validator already has a complete builder registration, skipping",
+				z.Str("pubkey", valPubKey),
+				z.Str("fee_recipient", quorumGroup.Message.FeeRecipient.String()))
 
-			if quorumGroup != nil && strings.EqualFold(quorumGroup.Message.FeeRecipient.String(), feeRecipient) {
-				log.Info(ctx, "Validator already has a complete builder registration, skipping",
+			continue
+		}
+
+		if matchingIncomplete != nil {
+			// Adopt the timestamp and gas limit from the in-progress group so all operators sign the same message.
+			if explicitTimestamp != 0 && !matchingIncomplete.Message.Timestamp.Equal(time.Unix(explicitTimestamp, 0)) {
+				log.Warn(ctx, "Ignoring --timestamp flag, adopting the in-progress registration timestamp so partial signatures aggregate", nil,
 					z.Str("pubkey", valPubKey),
-					z.Str("fee_recipient", quorumGroup.Message.FeeRecipient.String()))
-
-				continue
+					z.I64("provided_timestamp", explicitTimestamp),
+					z.I64("adopted_timestamp", matchingIncomplete.Message.Timestamp.Unix()))
 			}
 
-			if matchingIncomplete != nil {
-				// Adopt the timestamp and gas limit from the in-progress group so all operators sign the same message.
-				timestamp = matchingIncomplete.Message.Timestamp
-				gasLimit = matchingIncomplete.Message.GasLimit
-
-				log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
+			if gasLimitOverride != 0 && matchingIncomplete.Message.GasLimit != gasLimitOverride {
+				log.Warn(ctx, "Ignoring --gas-limit flag, adopting the in-progress registration gas limit so partial signatures aggregate", nil,
 					z.Str("pubkey", valPubKey),
-					z.Str("fee_recipient", matchingIncomplete.Message.FeeRecipient.String()),
-					z.Int("partial_count", len(matchingIncomplete.PartialSignatures)))
-			} else if quorumGroup == nil {
+					z.U64("provided_gas_limit", gasLimitOverride),
+					z.U64("adopted_gas_limit", matchingIncomplete.Message.GasLimit))
+			}
+
+			timestamp = matchingIncomplete.Message.Timestamp
+			gasLimit = matchingIncomplete.Message.GasLimit
+
+			log.Info(ctx, "Validator has partial builder registration with matching fee recipient, proceeding",
+				z.Str("pubkey", valPubKey),
+				z.Str("fee_recipient", matchingIncomplete.Message.FeeRecipient.String()),
+				z.Int("partial_count", len(matchingIncomplete.PartialSignatures)))
+
+			if quorumGroup != nil && !timestamp.After(quorumGroup.Message.Timestamp) {
+				log.Warn(ctx, "In-progress registration timestamp is not newer than the current quorum registration, it will never be applied", nil,
+					z.Str("pubkey", valPubKey),
+					z.I64("in_progress_timestamp", timestamp.Unix()),
+					z.I64("quorum_timestamp", quorumGroup.Message.Timestamp.Unix()))
+			}
+		} else {
+			if quorumGroup == nil && ok {
 				// Check if there's any incomplete group (with a different fee recipient) and no quorum yet.
 				// This means another operator started a fee change that hasn't completed — block.
 				for _, reg := range v.BuilderRegistrations {
@@ -316,9 +347,17 @@ func filterPubkeysByStatus(
 				}
 				// No in-progress group and no quorum: use defaults set above.
 			}
-			// else: Quorum exists with different fee, no matching incomplete: use defaults set above.
+
+			// Registrations are applied by timestamp, so a new registration that is not strictly
+			// newer than the current quorum registration would be signed but never take effect.
+			if quorumGroup != nil && !timestamp.After(quorumGroup.Message.Timestamp) {
+				return nil, errors.New("timestamp must be later than the current registration with quorum; pass --timestamp with a later value",
+					z.Str("pubkey", valPubKey),
+					z.I64("provided_timestamp", timestamp.Unix()),
+					z.I64("quorum_timestamp", quorumGroup.Message.Timestamp.Unix()),
+				)
+			}
 		}
-		// else: Unknown validator: use defaults set above.
 
 		pubkey, err := parsePubkey(valPubKey)
 		if err != nil {
@@ -333,6 +372,29 @@ func filterPubkeysByStatus(
 	}
 
 	return pubkeysToSign, nil
+}
+
+// validateFeeRecipient checks that the fee recipient address is well-formed, is not the zero
+// (burn) address, and, when supplied in mixed case, matches its EIP-55 checksum.
+func validateFeeRecipient(address string) error {
+	checksummed, err := eth2util.ChecksumAddress(address)
+	if err != nil {
+		return errors.Wrap(err, "invalid fee recipient address", z.Str("fee_recipient", address))
+	}
+
+	if checksummed == "0x0000000000000000000000000000000000000000" {
+		return errors.New("fee recipient address must not be the zero address", z.Str("fee_recipient", address))
+	}
+
+	hexPart := strings.TrimPrefix(address, "0x")
+	if hexPart != strings.ToLower(hexPart) && address != checksummed {
+		return errors.New("fee recipient address does not match its EIP-55 checksum; use all-lowercase or the checksummed form",
+			z.Str("fee_recipient", address),
+			z.Str("checksummed", checksummed),
+		)
+	}
+
+	return nil
 }
 
 // validateTimestamp checks that the provided timestamp is strictly greater than any existing
@@ -372,9 +434,10 @@ func validateTimestamp(timestamp int64, pubkeys []string, cl cluster.Lock, overr
 }
 
 // resolveGasLimit returns gasLimitOverride if non-zero. Otherwise it picks the gas limit from
-// whichever source (cluster lock or overrides file) has the higher timestamp for the given
-// validator pubkey. This ensures the most recent registration's gas limit is used.
-func resolveGasLimit(gasLimitOverride uint64, cl cluster.Lock, overrides map[string]eth2v1.ValidatorRegistration, normalizedPubkeyHex string) uint64 {
+// whichever source (cluster lock, overrides file, or the current quorum registration on the
+// remote API) has the highest timestamp for the given validator pubkey. Consulting the remote
+// quorum registration keeps operators with divergent local files signing the same gas limit.
+func resolveGasLimit(gasLimitOverride uint64, cl cluster.Lock, overrides map[string]eth2v1.ValidatorRegistration, normalizedPubkeyHex string, quorumMsg *eth2v1.ValidatorRegistration) uint64 {
 	if gasLimitOverride != 0 {
 		return gasLimitOverride
 	}
@@ -396,7 +459,12 @@ func resolveGasLimit(gasLimitOverride uint64, cl cluster.Lock, overrides map[str
 	if override, ok := overrides[normalizedPubkeyHex]; ok {
 		if override.Timestamp.After(bestTimestamp) {
 			bestGasLimit = override.GasLimit
+			bestTimestamp = override.Timestamp
 		}
+	}
+
+	if quorumMsg != nil && quorumMsg.Timestamp.After(bestTimestamp) {
+		bestGasLimit = quorumMsg.GasLimit
 	}
 
 	return bestGasLimit
