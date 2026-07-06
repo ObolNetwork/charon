@@ -59,7 +59,8 @@ linters:
     goconst:
       ignore-tests: true
       min-occurrences: 5
-      ignore-string-values: '^\s+$' # Ignore whitespace-only strings (e.g. ASCII-art padding).
+      ignore-string-values: # Ignore whitespace-only strings (e.g. ASCII-art padding).
+        - '^\s+$'
     gocritic:
       disabled-checks:
         - ifElseChain
