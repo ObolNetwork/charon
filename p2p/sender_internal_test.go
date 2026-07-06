@@ -160,3 +160,10 @@ func TestNonZeroResponse(t *testing.T) {
 	err := SendReceive(ctx, nil, "", nil, &pbv1.Duty{Slot: 1}, "")
 	require.ErrorContains(t, err, "bug: response proto must be zero value")
 }
+
+func TestIsCanceledStreamErr(t *testing.T) {
+	require.False(t, isCanceledStreamErr(nil))
+	require.False(t, isCanceledStreamErr(errors.New("some other error")))
+	require.True(t, isCanceledStreamErr(errors.New("close called for canceled stream 4")))
+	require.True(t, isCanceledStreamErr(errors.Wrap(errors.New("close called for canceled stream 4"), "close write")))
+}
