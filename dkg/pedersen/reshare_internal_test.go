@@ -210,6 +210,67 @@ func TestRestoreCommitsOutOfBounds(t *testing.T) {
 	}
 }
 
+func TestValidatePubKeyShares(t *testing.T) {
+	validShare := make([]byte, len(tbls.PublicKey{}))
+
+	tests := []struct {
+		name         string
+		pubKeyShares map[int][][]byte
+		totalShares  int
+		errContains  string
+	}{
+		{
+			name:         "empty map is valid",
+			pubKeyShares: map[int][][]byte{},
+			totalShares:  2,
+		},
+		{
+			name: "correct count and length",
+			pubKeyShares: map[int][][]byte{
+				0: {validShare, validShare},
+				2: {validShare, validShare},
+			},
+			totalShares: 2,
+		},
+		{
+			name: "too few shares from one node",
+			pubKeyShares: map[int][][]byte{
+				0: {validShare, validShare},
+				1: {validShare},
+			},
+			totalShares: 2,
+			errContains: "unexpected number of public key shares",
+		},
+		{
+			name: "too many shares from one node",
+			pubKeyShares: map[int][][]byte{
+				0: {validShare, validShare, validShare},
+			},
+			totalShares: 2,
+			errContains: "unexpected number of public key shares",
+		},
+		{
+			name: "share with invalid length",
+			pubKeyShares: map[int][][]byte{
+				0: {validShare, []byte("short")},
+			},
+			totalShares: 2,
+			errContains: "invalid public key share length",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePubKeyShares(tc.pubKeyShares, tc.totalShares)
+			if tc.errContains != "" {
+				require.ErrorContains(t, err, tc.errContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGenerateNonce(t *testing.T) {
 	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
 	_, pub1 := randomKeyPair(suite)

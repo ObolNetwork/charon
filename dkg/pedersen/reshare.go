@@ -73,6 +73,10 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return int(a.Index) - int(b.Index)
 	})
 
+	if err := validatePubKeyShares(pubKeyShares, config.Reshare.TotalShares); err != nil {
+		return nil, err
+	}
+
 	// Restore pubkey shares from the exchange
 	for i := range len(shares) {
 		shares[i].PublicShares = make(map[int]tbls.PublicKey)
@@ -214,18 +218,6 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 		return nil, errors.Wrap(err, "invalid new threshold")
 	}
 
-	reshareConfig := &kdkg.Config{
-		Longterm:     nodePrivateKey,
-		Suite:        config.Suite,
-		NewNodes:     newNodes,
-		OldNodes:     oldNodes,
-		Threshold:    newThreshold,
-		OldThreshold: config.Threshold,
-		FastSync:     true,
-		Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
-		Log:          newLogger(log.WithTopic(ctx, "pedersen")),
-	}
-
 	log.Info(ctx, "Starting pedersen reshare...",
 		z.Int("oldNodes", len(oldNodes)), z.Int("newNodes", len(newNodes)),
 		z.Int("oldThreshold", config.Threshold), z.Int("newThreshold", newThreshold),
@@ -239,18 +231,18 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 			return nil, err
 		}
 
-		reshareConfig.Nonce = nonce
-
 		phaser := kdkg.NewTimePhaser(config.PhaseDuration)
 
 		// Nodes with existing shares provide their share to the reshare protocol.
 		// New nodes without shares provide public coefficients instead.
-		isNodeWithExistingShares := len(distKeyShares) > 0
+		var (
+			distKeyShare *kdkg.DistKeyShare
+			publicCoeffs []kyber.Point
+		)
 
-		if isNodeWithExistingShares {
+		if len(distKeyShares) > 0 {
 			// This node has existing shares to contribute to the reshare
-			reshareConfig.Share = distKeyShares[shareNum]
-			reshareConfig.PublicCoeffs = nil
+			distKeyShare = distKeyShares[shareNum]
 		} else {
 			// This is a new node - restore public coefficients from exchanged public key shares
 			// Validate that the recovered group public key matches the expected validator public key
@@ -259,13 +251,27 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 				expectedPubKey = &expectedValidatorPubKeys[shareNum]
 			}
 
-			commits, err := restoreCommits(pubKeyShares, shareNum, config.Threshold, expectedPubKey)
+			publicCoeffs, err = restoreCommits(pubKeyShares, shareNum, config.Threshold, expectedPubKey)
 			if err != nil {
 				return nil, errors.Wrap(err, "restore commits")
 			}
+		}
 
-			reshareConfig.Share = nil
-			reshareConfig.PublicCoeffs = commits
+		// Construct a fresh config per protocol run: kyber's NewDistKeyHandler
+		// mutates the config it is given, so sharing one across runs is unsafe.
+		reshareConfig := &kdkg.Config{
+			Longterm:     nodePrivateKey,
+			Suite:        config.Suite,
+			NewNodes:     newNodes,
+			OldNodes:     oldNodes,
+			Threshold:    newThreshold,
+			OldThreshold: config.Threshold,
+			FastSync:     true,
+			Auth:         drandbls.NewSchemeOnG2(kbls.NewBLS12381Suite()),
+			Log:          newLogger(log.WithTopic(ctx, "pedersen")),
+			Nonce:        nonce,
+			Share:        distKeyShare,
+			PublicCoeffs: publicCoeffs,
 		}
 
 		protocol, err := kdkg.NewProtocol(
@@ -469,6 +475,30 @@ func generateNonce(nodes []kdkg.Node, iteration int) ([]byte, error) {
 	}
 
 	return hash[:], nil
+}
+
+// validatePubKeyShares verifies that every node that sent public key shares sent exactly
+// one valid-length share per validator. Nodes without existing shares (e.g. newly added)
+// are not present in the map and are not validated here.
+func validatePubKeyShares(pubKeyShares map[int][][]byte, totalShares int) error {
+	for nodeIdx, pks := range pubKeyShares {
+		if len(pks) != totalShares {
+			return errors.New("unexpected number of public key shares from node",
+				z.Int("node_index", nodeIdx),
+				z.Int("expected", totalShares),
+				z.Int("actual", len(pks)))
+		}
+
+		for _, pk := range pks {
+			if len(pk) != len(tbls.PublicKey{}) {
+				return errors.New("invalid public key share length from node",
+					z.Int("node_index", nodeIdx),
+					z.Int("length", len(pk)))
+			}
+		}
+	}
+
+	return nil
 }
 
 // validateReshareNodeCounts validates that there are enough nodes to complete the reshare.

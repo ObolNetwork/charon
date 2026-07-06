@@ -18,7 +18,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cmd"
 	"github.com/obolnetwork/charon/dkg"
@@ -77,11 +79,10 @@ func TestRemoveOperatorsProtocol_BelowF(t *testing.T) {
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
 		if err != nil {
-			cancel()
-			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
+			return failNode(t, cancel, n, err)
 		}
 
-		return err
+		return nil
 	})
 
 	verifyClusterValidators(t, numValidators, outputNodeDirs)
@@ -138,11 +139,10 @@ func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
 		if err != nil {
-			cancel()
-			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
+			return failNode(t, cancel, n, err)
 		}
 
-		return err
+		return nil
 	})
 
 	verifyClusterValidators(t, numValidators, outputNodeDirs)
@@ -207,6 +207,62 @@ func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
 	require.True(t, errorReported.Load(), "Expected error when attempting to remove all nodes from original cluster")
 }
 
+func TestRemoveOperatorsProtocol_DefaultThreshold(t *testing.T) {
+	const (
+		numValidators = 2
+		numNodes      = 4
+		threshold     = 3
+	)
+
+	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
+	dstClusterDir := t.TempDir()
+
+	lockFilePath := path.Join(nodeDir(srcClusterDir, 0), clusterLockFile)
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
+	require.NoError(t, err)
+
+	// Removing a middle operator so the resulting cluster size (3) exercises
+	// both the ceil(2n/3) threshold default and share index compaction.
+	oldENRs := []string{lock.Operators[1].ENR}
+	outputNodeDirs := getNodeDirs(dstClusterDir, numNodes, 1)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	runProtocol(t, numNodes, func(relayAddr string, n int) error {
+		if n == 1 {
+			// Removed node does not run the protocol.
+			return nil
+		}
+
+		dkgConfig := createDKGConfig(t, relayAddr)
+		ndir := nodeDir(srcClusterDir, n)
+		removeConfig := dkg.RemoveOperatorsConfig{
+			LockFilePath:     path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:   p2p.KeyPath(ndir),
+			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
+			OutputDir:        nodeDir(dstClusterDir, n),
+			RemovingENRs:     oldENRs,
+		}
+
+		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
+		if err != nil {
+			return failNode(t, cancel, n, err)
+		}
+
+		return nil
+	})
+
+	for _, ndir := range outputNodeDirs {
+		newLock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(ndir, clusterLockFile), "", false)
+		require.NoError(t, err)
+		require.Equal(t, cluster.Threshold(numNodes-1), newLock.Threshold)
+		require.Equal(t, 2, newLock.Threshold)
+	}
+
+	verifyClusterValidators(t, numValidators, outputNodeDirs)
+}
+
 func TestRunAddOperatorsProtocol(t *testing.T) {
 	const (
 		numValidators = 3
@@ -246,11 +302,10 @@ func TestRunAddOperatorsProtocol(t *testing.T) {
 
 		err := dkg.RunAddOperatorsProtocol(ctx, addConfig, dkgConfig)
 		if err != nil {
-			cancel()
-			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
+			return failNode(t, cancel, n, err)
 		}
 
-		return err
+		return nil
 	})
 
 	verifyClusterValidators(t, numValidators, getNodeDirs(dstClusterDir, totalNodes))
@@ -308,8 +363,7 @@ func TestRunReplaceOperatorProtocol(t *testing.T) {
 
 		err := dkg.RunReplaceOperatorProtocol(ctx, replaceConfig, dkgConfig)
 		if err != nil {
-			cancel()
-			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
+			return failNode(t, cancel, n, err)
 		}
 
 		return nil
@@ -346,11 +400,10 @@ func TestRunReshareProtocol(t *testing.T) {
 
 		err := dkg.RunReshareProtocol(ctx, reshareConfig)
 		if err != nil {
-			cancel()
-			require.FailNowf(t, "Protocol failed", "Node %d failed: %v", n, err)
+			return failNode(t, cancel, n, err)
 		}
 
-		return err
+		return nil
 	})
 
 	verifyClusterValidators(t, numValidators, getNodeDirs(dstClusterDir, numNodes))
@@ -562,6 +615,17 @@ func runProtocol(t *testing.T, numNodes int, nodeFunc func(string, int) error) {
 	require.NoError(t, eg.Wait())
 }
 
+// failNode cancels the other nodes and returns the node's failure as a wrapped error.
+// It also logs the failure, since the errgroup surfaces only the first returned error.
+// Note that require.FailNow (runtime.Goexit) must not be called from runProtocol goroutines.
+func failNode(t *testing.T, cancel context.CancelFunc, n int, err error) error {
+	t.Helper()
+	t.Logf("Node %d failed: %v", n, err)
+	cancel()
+
+	return errors.Wrap(err, "run node protocol", z.Int("node", n))
+}
+
 func createDKGConfig(t *testing.T, relayAddr string) dkg.Config {
 	t.Helper()
 
@@ -593,7 +657,7 @@ func getNodeDirs(clusterDir string, numNodes int, skip ...int) []string {
 	return dirs
 }
 
-func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) { //nolint:unparam
+func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) {
 	t.Helper()
 
 	numNodes := len(nodeDirs)
