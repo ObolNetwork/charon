@@ -23,17 +23,6 @@ Related documents:
        │Cluster┌──┴───┐  ┌──┴───┐ ┌──┴───┐  │
        │       │ CN#1 │  │ CN#2 │ │ CN#n │  │
        │       │    ◄─┼──┼─►  ◄─┼─┼─►    │  │
-       │  ┌────┼──────┼──┼──────┼─┼──────┼┐ │
-       │  │DV#1│CV#1/1│  │CV#2/1│ │CV#n/1││ │
-       │  └────┼──────┼──┼──────┼─┼──────┼┘ │
-       │       │      │  │      │ │      │  │
-       │  ┌────┼──────┼──┼──────┼─┼──────┼┐ │
-       │  │DV#2│CV#1/2│  │CV#2/2│ │CV#n/2││ │
-       │  └────┼──────┼──┼──────┼─┼──────┼┘ │
-       │       │      │  │      │ │      │  │
-       │  ┌────┼──────┼──┼──────┼─┼──────┼┐ │
-       │  │DV#m│CV#1/m│  │CV#2/m│ │CV#n/m││ │
-       │  └────┼──────┼──┼──────┼─┼──────┼┘ │
        │       └──▲───┘  └──▲───┘ └──▲───┘  │
        │          │         │        │      │
        └──────────┼─────────┼────────┼──────┘
@@ -41,16 +30,15 @@ Related documents:
                 ┌─┴──┐    ┌─┴──┐   ┌─┴──┐
                 │VC#1│    │VC#2│   │VC#n│
                 └────┘    └────┘   └────┘
-                PS#1/1    PS#2/1   PS#n/1
-                PS#1/2    PS#2/2   PS#n/2
-                PS#1/m    PS#2/m   PS#n/m
+               PPS#1/1   PPS#2/1   PPS#n/1
+               PPS#1/2   PPS#2/2   PPS#n/2
+               PPS#1/m   PPS#2/m   PPS#n/m
 ```
+
 - **CN**: `n` physical charon nodes (peers)
-- **BN**: `+-n` physical beacon nodes (can be more/less)
-- **DV**: `m` logical distributed validators (`m x 32` ETH staked)
-- **CV**: `nxm` logical co-validators (`n` per DV, `m` per CN)
+- **BN**: `+-n` physical beacon nodes (can be more/less, at least 1 per Charon node, can be shared, but it is discouraged)
 - **VC**: `n` physical validator clients (`1` per CN)
-- **PS**: `nxm` physical private shares (`m` per VC, `n` per DV)
+- **PPS**: `nXm` physical private partial shares (`m` per VC, `n` per DV)
 - Not shown:
   - `t = ceil(2n/3)` threshold signatures required per DV, so `t` charon nodes must be available and honest,
     tolerating `f = floor((n-1)/3)` byzantine/faulty nodes (BFT consensus quorum).
@@ -58,49 +46,55 @@ Related documents:
 ## Charon Node Core Workflow
 
 Charon core business logic is modeled as a workflow, with a duty being performed in a slot as the “unit of work”.
+
+```mermaid
+flowchart TB
+    subgraph p1["Schedule duty"]
+        Scheduler
+    end
+    subgraph p2["Decide what data to sign"]
+        Fetcher
+        Consensus
+        DutyDB
+    end
+    subgraph p3["Sign duty data"]
+        VAPI
+    end
+    subgraph p4["Share partial signatures"]
+        ParSigDB
+        ParSigEx
+    end
+    subgraph p5["Aggregate partial signatures"]
+        SigAgg
+        AggSigDB
+    end
+    subgraph p6["Broadcast aggregated signature"]
+        Broadcast
+    end
+
+    Scheduler --> Fetcher --> Consensus
+    Consensus ==>|store on agreement| DutyDB
+    DutyDB --> VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigDB ==>|wait for threshold| SigAgg
+    SigAgg --> AggSigDB --> Broadcast
+    AggSigDB -->|aggregated randao / selections| Fetcher
+
+    VC[[VC]] <-->|query / sign / submit| VAPI
+    Fetcher -->|fetch unsigned data| BN[[BN]]
+    Broadcast -->|broadcast| BN
+    Consensus <-->|consensus| Peers[[Peers]]
+    ParSigEx <-->|exchange| Peers
+
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
 ```
-Core Workflow
 
-      Phases │ Components                              │ External
-─────────────┴─────────────────────────────────────────┴──────────────────────
+Internal Charon components are plain boxes; external systems (`VC`, `BN`, `Peers`) use dashed, double-edged
+boxes. **Thick arrows** mark a step that blocks while waiting on an externality — consensus agreeing with peers,
+or a threshold of partial signatures. The same conventions are used in the [per-duty workflows](#per-duty-workflows)
+below.
 
-             │                ┌─────────┐
-  *Schedule* │          ┌─────◆Scheduler│
-        duty │          |     └─&┌──────┘
-                        |        │
-             │          |     ┌──▼────┐
-             │  ┌──----------─┤Fetcher│
-             │  │       |     └─&┌────┘
-    *Decide* │  |       |        │
-        what │  |       |     ┌──▼──────┐
-        data │  |       |     │Consensus│
-          to │  |       |     └─*┌──────┘
-        sign │  |       |        │
-             │  |       |     ┌──▼───┐                 │
-             │  |       |     │DutyDB│                 │
-             │  |       |     └──◆───┘                 │
-                |       |        │                     │
-      *Sign* │  |       |     ┌──┴─┐                   │
-        duty │  |       └----─┤VAPI◄───────────────────│── VC
-        data │  |             └&─┬─┘                   │ Query, sign, submit
-                |                │                     │
-     *Share* │  | ┌────────┐  ┌──▼─────┐
-     partial │  | │ParSigEx◄──►ParSigDB│
-        sigs │  | └─────*──┘  └──┬─────┘
-                |                │
- *Aggregate* │  │ ┌────────┐  ┌──▼───┐
-     partial │  └─◆AggSigDB◄──┤SigAgg│
-        sigs │    └────────┘  └──┬───┘
-                                 │
- *Broadcast* │                ┌──▼──────┐
-  aggregated │                │Broadcast│
-         sig │                └─&───────┘
-
-       &: Beacon-node client calls
-       *: P2P protocol
-       ▼: Pushed data (in direction of the arrow)
-       ◆: Pulled data (returned from the diamond)
-```
 Not shown in the diagram:
 - The **Tracker** and **InclusionChecker** observe the outputs of all components to analyse duty failures
   and verify on-chain inclusion (see [Supporting components](#supporting-components)).
