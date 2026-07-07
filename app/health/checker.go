@@ -22,9 +22,9 @@ const (
 	maxScrapes = 10
 	// maxSSEScrapes is the number of scrapes kept for the SSE head delay check (1 hour at 30s intervals).
 	maxSSEScrapes = 120
-	// labelsCardinalityThreshold is the threshold for single validator;
-	// for N validators, the threshold is N * labelsCardinalityThreshold.
-	labelsCardinalityThreshold = 100
+	// seriesCardinalityThreshold is the maximum number of time series per metric family
+	// for a single validator; for N validators, the threshold is N * seriesCardinalityThreshold.
+	seriesCardinalityThreshold = 100
 
 	// memorySamplePeriod is the period between memory snapshots.
 	memorySamplePeriod = 30 * time.Minute
@@ -156,17 +156,9 @@ func (c *Checker) scrape() error {
 			continue
 		}
 
-		var maxLabelsCount int
-
-		for _, fam := range fams.GetMetric() {
-			labelsCount := len(fam.GetLabel())
-			if labelsCount > maxLabelsCount {
-				maxLabelsCount = labelsCount
-			}
-		}
-
-		if maxLabelsCount > labelsCardinalityThreshold*c.numValidators {
-			highCardinalityGauge.WithLabelValues(fams.GetName()).Set(float64(maxLabelsCount))
+		seriesCount := len(fams.GetMetric())
+		if seriesCount > seriesCardinalityThreshold*max(c.numValidators, 1) {
+			highCardinalityGauge.WithLabelValues(fams.GetName()).Set(float64(seriesCount))
 
 			gatherAgain = true
 		}

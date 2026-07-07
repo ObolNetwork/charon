@@ -3,19 +3,19 @@
 package promauto
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const separator = "|"
-
 // NewResetGaugeVec creates a new ResetGaugeVec.
 func NewResetGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *ResetGaugeVec {
 	return &ResetGaugeVec{
 		inner:  NewGaugeVec(opts, labelNames),
-		labels: make(map[string]bool),
+		labels: make(map[string][]string),
 	}
 }
 
@@ -25,45 +25,41 @@ type ResetGaugeVec struct {
 	inner *prometheus.GaugeVec
 
 	mu     sync.Mutex
-	labels map[string]bool
+	labels map[string][]string
 }
 
 func (g *ResetGaugeVec) WithLabelValues(lvs ...string) prometheus.Gauge {
-	for _, lv := range lvs {
-		if strings.Contains(lv, separator) {
-			panic("label value cannot contain separator")
-		}
-	}
-
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	g.labels[strings.Join(lvs, separator)] = true
+	g.labels[labelsKey(lvs)] = lvs
 
 	return g.inner.WithLabelValues(lvs...)
 }
 
-// Reset deletes all previously set labels that match all the given label values.
-// An empty slice will delete all previously set labels.
+// Reset deletes all previously set label combinations whose leading label values equal lvs.
+// An empty lvs deletes all previously set label combinations.
 func (g *ResetGaugeVec) Reset(lvs ...string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	for label := range g.labels {
-		match := true
-
-		for _, check := range lvs {
-			if !strings.Contains(label, check) {
-				match = false
-				break
-			}
-		}
-
-		if !match {
+	for key, labels := range g.labels {
+		if len(lvs) > len(labels) || !slices.Equal(labels[:len(lvs)], lvs) {
 			continue
 		}
 
-		g.inner.DeleteLabelValues(strings.Split(label, separator)...)
-		delete(g.labels, label)
+		g.inner.DeleteLabelValues(labels...)
+		delete(g.labels, key)
 	}
+}
+
+// labelsKey returns an unambiguous map key for the label values,
+// using length prefixes so values may contain any characters.
+func labelsKey(lvs []string) string {
+	var sb strings.Builder
+	for _, lv := range lvs {
+		_, _ = fmt.Fprintf(&sb, "%d:%s", len(lv), lv)
+	}
+
+	return sb.String()
 }

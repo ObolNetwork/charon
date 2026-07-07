@@ -163,12 +163,9 @@ func monitorConnections(ctx context.Context, p2pNode host.Host, bwTuples <-chan 
 			// Periodically request peerinfo for all peers we have active connections to.
 			for p, state := range peers {
 				if state.Active == 0 {
-					// No active connections, remove peer from state.
+					// No active connections, remove peer from state and delete its metric series.
 					delete(peers, p)
-
-					if state.ClusterHash != "" {
-						activeConnsCounter.WithLabelValues(state.Name, state.ClusterHash).Set(0)
-					}
+					deletePeerMetrics(state.Name)
 
 					continue
 				}

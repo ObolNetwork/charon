@@ -11,12 +11,22 @@ import (
 	"github.com/obolnetwork/charon/app/promauto"
 )
 
-const resetTest = "reset_test"
+const (
+	resetTest      = "reset_test"
+	resetTestExact = "reset_test_exact"
+)
 
-var testResetGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
-	Name: resetTest,
-	Help: "",
-}, []string{"label0", "label1"})
+var (
+	testResetGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Name: resetTest,
+		Help: "",
+	}, []string{"label0", "label1"})
+
+	testResetGaugeExact = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Name: resetTestExact,
+		Help: "",
+	}, []string{"label0", "label1"})
+)
 
 func TestResetGaugeVec(t *testing.T) {
 	registry, err := promauto.NewRegistry(nil)
@@ -54,7 +64,33 @@ func TestResetGaugeVec(t *testing.T) {
 	assertVecLen(t, registry, resetTest, 1)
 }
 
-func assertVecLen(t *testing.T, registry *prometheus.Registry, name string, l int) { //nolint:unparam // abstracting name is fine even though it is always currently constant
+func TestResetGaugeVecExactPrefix(t *testing.T) {
+	registry, err := promauto.NewRegistry(nil)
+	require.NoError(t, err)
+
+	// Label values may contain any characters, including "|".
+	testResetGaugeExact.WithLabelValues("with|pipe", "a").Set(1)
+	assertVecLen(t, registry, resetTestExact, 1)
+
+	testResetGaugeExact.WithLabelValues("foobar", "b").Set(1)
+	assertVecLen(t, registry, resetTestExact, 2)
+
+	// Substring of a label value must not match.
+	testResetGaugeExact.Reset("foo")
+	assertVecLen(t, registry, resetTestExact, 2)
+
+	// Non-leading label values must not match.
+	testResetGaugeExact.Reset("a")
+	assertVecLen(t, registry, resetTestExact, 2)
+
+	testResetGaugeExact.Reset("foobar")
+	assertVecLen(t, registry, resetTestExact, 1)
+
+	testResetGaugeExact.Reset("with|pipe", "a")
+	assertVecLen(t, registry, resetTestExact, 0)
+}
+
+func assertVecLen(t *testing.T, registry *prometheus.Registry, name string, l int) {
 	t.Helper()
 
 	metrics, err := registry.Gather()

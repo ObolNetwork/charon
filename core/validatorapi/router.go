@@ -59,6 +59,8 @@ const (
 	executionPayloadValueHeader               = "Eth-Execution-Payload-Value"
 	consensusBlockValueHeader                 = "Eth-Consensus-Block-Value"
 	defaultRequestTimeout                     = 10 * time.Second
+	// maxUserAgentLen bounds the untrusted User-Agent header used as a metric label value.
+	maxUserAgentLen = 128
 )
 
 // Handler defines the request handler providing the business logic
@@ -405,6 +407,12 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 
 		userAgent := r.Header.Get("User-Agent")
 		if userAgent != "" {
+			if len(userAgent) > maxUserAgentLen {
+				userAgent = userAgent[:maxUserAgentLen]
+			}
+
+			userAgent = strings.ToValidUTF8(userAgent, "")
+
 			vcUserAgentGauge.Reset()
 			vcUserAgentGauge.WithLabelValues(userAgent).Set(1)
 		}
