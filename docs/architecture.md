@@ -82,7 +82,7 @@ Core Workflow
                 |       |        │                     │
       *Sign* │  |       |     ┌──┴─┐                   │
         duty │  |       └----─┤VAPI◄───────────────────│── VC
-        data │  |             └──┬─┘                   │ Query, sign, submit
+        data │  |             └&─┬─┘                   │ Query, sign, submit
                 |                │                     │
      *Share* │  | ┌────────┐  ┌──▼─────┐
      partial │  | │ParSigEx◄──►ParSigDB│
@@ -189,7 +189,7 @@ This endpoint now always returns HTTP 200 OK without any processing.
 Now, Charon's Scheduler component is responsible for submitting builder registrations at the right times:
 
 - At startup, it submits registrations for all DVs in the cluster (found in cluster-lock.json).
-- Thereafter, it submits registrations in the first slot of every epoch (delayed to ~75% into the slot to reduce beacon node load).
+- Thereafter, it submits registrations in the first slot of every epoch (delayed to ~75% into the slot to capture timeframe with less load on the beacon node).
 
 During the transition period, a cluster running a mix of new and old Charon versions may experience "consensus timeout" errors,
 because the new version will not participate in consensus for the `DutyBuilderRegistration` duty.
@@ -221,20 +221,6 @@ when the associated slot starts. Two further duty types are derived from these d
 - A `DutyAggregator` is scheduled for every slot with an attester duty (attestation aggregation is only
   performed if a DV is actually selected as an aggregator, see `DutyPrepareAggregator`).
 - A `DutySyncContribution` is scheduled for every slot of an epoch in which a DV is part of the sync committee.
-
-Duties are not all triggered at the start of the slot. Per the spec, duty types have different
-target offsets into the slot (see [core/scheduler/offset.go](../core/scheduler/offset.go)):
-- `DutyAttester`: 1/3 into the slot
-- `DutyAggregator`: 2/3 into the slot
-- `DutySyncContribution`: 2/3 into the slot
-- Other duties (e.g. `DutyProposer`): at the start of the slot
-
-The scheduler also subscribes to beacon node server-sent events (SSE):
-- *Head events* can trigger early fetching of attestation data as soon as the head block for the slot is known,
-  instead of waiting for the 1/3 slot offset (gated by the `fetch_att_on_block` feature flags). The early-fetched
-  data is cached by the fetcher via its `FetchOnly` method without triggering the rest of the workflow.
-- *Chain reorg events* invalidate resolved duties (and the fetcher's early-fetched attestation data) since they
-  were resolved against a head that may no longer be canonical.
 
 Resolved duties are trimmed after 3 epochs.
 
@@ -299,8 +285,7 @@ type Scheduler interface {
 ### Fetcher
 The fetcher is responsible for fetching input data required to perform the duty.
 
-For `DutyAttester` it [fetches AttestationData](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/ValidatorRequiredApi/produceAttestationData) from the beacon node
-(unless already early-fetched via `FetchOnly`, see the scheduler's SSE head event handling above).
+For `DutyAttester` it [fetches AttestationData](https://github.com/ethereum/beacon-APIs/blob/master/validator-flow.md#/ValidatorRequiredApi/produceAttestationData) from the beacon node.
 
 For `DutyProposer` it fetches a previously aggregated randao reveal signature from the `AggSigDB` and then
 [fetches a block proposal](https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3)
@@ -541,7 +526,7 @@ The validator API intercepts the following endpoints (all other calls are transp
 | `POST /eth/v1/validator/contribution_and_proofs`               | `DutySyncContribution`: partial signatures stored in `ParSigDB`.                                                                                                 |
 | `POST /eth/v1/validator/prepare_beacon_proposer`               | No-op, returns 200 OK (fee recipients are configured by charon from cluster-lock.json).                                                                          |
 | `GET /eth/v1/node/version`                                     | Returns charon version info.                                                                                                                                     |
-| `GET /eth/v1/events`                                           | Server-sent events stream.                                                                                                                                       |
+| `GET /eth/v1/events`                                           | Wire events to the first beacon node configured in Charon.                                                                                                       |
 
 Note that the VC is configured with one or more private key shares (output of the DKG).
 The VC infers its public keys from those private shares, but those public keys do not exist on the beacon chain.
