@@ -77,7 +77,7 @@ The heart of Charon is the **core workflow**, which processes validator duties t
 
 1. **Scheduler** → Triggers duties at optimal times based on beacon chain state
 2. **Fetcher** → Fetches unsigned duty data from beacon node
-3. **Consensus** → Uses QBFT (Istanbul BFT) to agree on duty data across all nodes
+3. **Consensus** → Agrees on duty data across all nodes (pluggable protocol managed by a ConsensusController, QBFT v2.0 by default)
 4. **DutyDB** → Persists agreed-upon unsigned data and acts as slashing protection
 5. **ValidatorAPI** → Serves data to validator clients and receives partial signatures
 6. **ParSigDB** → Stores partial threshold BLS signatures from local and remote VCs
@@ -88,7 +88,8 @@ The heart of Charon is the **core workflow**, which processes validator duties t
 
 Additional supporting components:
 - **Tracker** → Tracks duty lifecycle events and records failure reasons
-- **Priority** → Implements peer-aware priority ordering for consensus proposals
+- **InclusionChecker** → Verifies submitted duties were included on-chain
+- **Priority** → Negotiates cluster-wide preferences (e.g. which consensus protocol to use)
 
 ### Key Abstractions
 - **Duty**: Unit of work (slot + duty type). Cluster-level, not per-validator.
@@ -103,7 +104,7 @@ Additional supporting components:
 - **Type-safe encoding**: Abstract types are encoded/decoded via dedicated files: [core/unsigneddata.go](core/unsigneddata.go), [core/signeddata.go](core/signeddata.go), [core/eth2signeddata.go](core/eth2signeddata.go), [core/ssz.go](core/ssz.go), [core/proto.go](core/proto.go)
 
 ### Consensus
-Charon uses **QBFT** (implementation of Istanbul BFT) for consensus. See [core/qbft/README.md](core/qbft/README.md). Each duty requires consensus to ensure all nodes sign identical data (required for BLS threshold signatures and slashing protection).
+Consensus is pluggable, managed by a **ConsensusController** with **QBFT v2.0** (implementation of Istanbul BFT) as the default protocol; the Priority protocol negotiates the cluster-wide protocol selection. See [docs/consensus.md](docs/consensus.md) and [core/qbft/README.md](core/qbft/README.md). Scheduler-triggered duties require consensus to ensure all nodes sign identical data (required for BLS threshold signatures and slashing protection).
 
 ### Package Structure
 ```
@@ -113,7 +114,7 @@ cmd/          # CLI commands (run, dkg, create, test, etc.)
 core/         # Core workflow business logic and component implementations
 dkg/          # Distributed Key Generation logic
 eth2util/     # ETH2 utilities (signing, deposits, keystores)
-p2p/          # libp2p networking and discv5 peer discovery
+p2p/          # libp2p networking and relay-based peer discovery
 scripts/      # Build and development scripts
 tbls/         # Threshold BLS signature scheme
 testutil/     # Test utilities, mocks, golden files
