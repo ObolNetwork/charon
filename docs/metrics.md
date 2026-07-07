@@ -85,6 +85,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_inclusion_delay` | Gauge | Cluster`s average attestation inclusion delay in slots. Available only when attestation_inclusion feature flag is enabled. |  |
 | `core_tracker_inclusion_missed_total` | Counter | Total number of broadcast duties never included in any block by type | `duty` |
 | `core_tracker_inconsistent_parsigs_total` | Counter | Total number of duties that contained inconsistent partial signed data by duty type | `duty` |
+| `core_tracker_parsig_cohort_rank_total` | Counter | Total sync committee partial signatures per peer per cohort rank (0=largest cohort), for detecting head disagreement | `duty, peer_idx, rank` |
 | `core_tracker_participation` | Gauge | Set to 1 if peer participated successfully for the given duty or else 0 | `duty, peer` |
 | `core_tracker_participation_expected_total` | Counter | Total number of expected participations (fail + success) by peer and duty type | `duty, peer` |
 | `core_tracker_participation_missed_total` | Counter | Total number of missed participations by peer and duty type | `duty, peer` |

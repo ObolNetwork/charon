@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"reflect"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -1457,5 +1459,162 @@ func TestCountAttestations(t *testing.T) {
 
 		count := countAttestations(duty, events)
 		require.Equal(t, 0, count)
+	})
+}
+
+func rootFrom(b byte) [32]byte {
+	var r [32]byte
+
+	r[0] = b
+
+	return r
+}
+
+func syncSigs(idxs ...int) []core.ParSignedData {
+	out := make([]core.ParSignedData, 0, len(idxs))
+	for _, i := range idxs {
+		out = append(out, core.ParSignedData{ShareIdx: i})
+	}
+
+	return out
+}
+
+func TestComputeSyncCohorts(t *testing.T) {
+	rootA := rootFrom(0x0a)
+	rootB := rootFrom(0x0b)
+	rootC := rootFrom(0x0c)
+
+	tests := []struct {
+		name string
+		in   parsigsByMsg
+		want [][]int // want[rank] = sorted share indices of the cohort at that rank
+	}{
+		{
+			name: "single cohort",
+			in:   parsigsByMsg{"pk": {rootA: syncSigs(1, 2, 3, 4, 5, 6, 7)}},
+			want: [][]int{{1, 2, 3, 4, 5, 6, 7}},
+		},
+		{
+			name: "five two split",
+			in:   parsigsByMsg{"pk": {rootA: syncSigs(1, 2, 3, 4, 5), rootB: syncSigs(6, 7)}},
+			want: [][]int{{1, 2, 3, 4, 5}, {6, 7}},
+		},
+		{
+			name: "three way split",
+			in:   parsigsByMsg{"pk": {rootA: syncSigs(1, 2, 3, 4), rootB: syncSigs(5, 6), rootC: syncSigs(7)}},
+			want: [][]int{{1, 2, 3, 4}, {5, 6}, {7}},
+		},
+		{
+			name: "equal size tie broken by root ascending",
+			in:   parsigsByMsg{"pk": {rootB: syncSigs(3, 4), rootA: syncSigs(1, 2)}},
+			want: [][]int{{1, 2}, {3, 4}}, // rootA (0x0a) ranks before rootB (0x0b)
+		},
+		{
+			name: "collapsed across validators",
+			in: parsigsByMsg{
+				"pk1": {rootA: syncSigs(1, 2, 3, 4, 5), rootB: syncSigs(6, 7)},
+				"pk2": {rootA: syncSigs(1, 2, 3, 4, 5), rootB: syncSigs(6, 7)},
+			},
+			want: [][]int{{1, 2, 3, 4, 5}, {6, 7}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cohorts := computeSyncCohorts(tt.in)
+			require.Len(t, cohorts, len(tt.want))
+
+			for rank, wantIdxs := range tt.want {
+				require.Equal(t, wantIdxs, cohorts[rank].shareIdxs, "rank %d", rank)
+			}
+		})
+	}
+}
+
+func BenchmarkComputeSyncCohorts(b *testing.B) {
+	const (
+		validators = 500
+		shares     = 7
+	)
+
+	rootA := rootFrom(0x0a)
+	rootB := rootFrom(0x0b)
+
+	build := func(split bool) parsigsByMsg {
+		out := make(parsigsByMsg, validators)
+		for v := range validators {
+			byRoot := make(map[[32]byte][]core.ParSignedData)
+			if split {
+				// 5/2 head disagreement: exercises the multi-cohort sort and bytes.Compare tie-break.
+				byRoot[rootA] = syncSigs(1, 2, 3, 4, 5)
+				byRoot[rootB] = syncSigs(6, 7)
+			} else {
+				byRoot[rootA] = syncSigs(1, 2, 3, 4, 5, 6, 7)
+			}
+
+			out[core.PubKey(strconv.Itoa(v))] = byRoot
+		}
+
+		return out
+	}
+
+	for name, in := range map[string]parsigsByMsg{
+		"agreement": build(false),
+		"split_5_2": build(true),
+	} {
+		b.Run(name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for range b.N {
+				_ = computeSyncCohorts(in)
+			}
+		})
+	}
+}
+
+func TestReportSyncMessageCohorts(t *testing.T) {
+	ctx := context.Background()
+	rootA := rootFrom(0x1a)
+	rootB := rootFrom(0x1b)
+
+	duty := core.NewSyncMessageDuty(123)
+	dutyLabel := duty.Type.String()
+
+	cohortVal := func(peerIdx, rank int) float64 {
+		return promtestutil.ToFloat64(cohortRank.WithLabelValues(dutyLabel, strconv.Itoa(peerIdx), strconv.Itoa(rank)))
+	}
+	inconsistentVal := func() float64 {
+		return promtestutil.ToFloat64(inconsistentCounter.WithLabelValues(dutyLabel))
+	}
+
+	t.Run("agreement emits rank 0 only", func(t *testing.T) {
+		peer0, peer4, before := cohortVal(0, 0), cohortVal(4, 0), inconsistentVal()
+
+		reportSyncMessageCohorts(ctx, duty, parsigsByMsg{"pk": {rootA: syncSigs(1, 2, 3, 4, 5)}})
+
+		require.InDelta(t, peer0+1, cohortVal(0, 0), 0)
+		require.InDelta(t, peer4+1, cohortVal(4, 0), 0)
+		require.InDelta(t, before, inconsistentVal(), 0) // No disagreement flagged.
+	})
+
+	t.Run("split ranks peers and flags disagreement", func(t *testing.T) {
+		majority, minority, before := cohortVal(0, 0), cohortVal(5, 1), inconsistentVal()
+
+		// share idx 1-5 (peer_idx 0-4) sign rootA (rank 0), share idx 6-7 (peer_idx 5-6) sign rootB (rank 1).
+		reportSyncMessageCohorts(ctx, duty, parsigsByMsg{"pk": {rootA: syncSigs(1, 2, 3, 4, 5), rootB: syncSigs(6, 7)}})
+
+		require.InDelta(t, majority+1, cohortVal(0, 0), 0)
+		require.InDelta(t, minority+1, cohortVal(5, 1), 0)
+		require.InDelta(t, before+1, inconsistentVal(), 0)
+	})
+
+	t.Run("non-sync duty does not emit cohort rank", func(t *testing.T) {
+		attDuty := core.NewAttesterDuty(123)
+		attLabel := attDuty.Type.String()
+		before := promtestutil.ToFloat64(cohortRank.WithLabelValues(attLabel, "0", "0"))
+
+		reportParSigs(ctx, attDuty, parsigsByMsg{"pk": {rootA: syncSigs(1, 2, 3), rootB: syncSigs(4, 5)}})
+
+		require.InDelta(t, before, promtestutil.ToFloat64(cohortRank.WithLabelValues(attLabel, "0", "0")), 0)
 	})
 }

@@ -20,8 +20,10 @@ const (
 	scrapePeriod = 30 * time.Second
 	// maxScrapes is the maximum number of scrapes to keep (5 minutes at 30s intervals).
 	maxScrapes = 10
-	// maxSSEScrapes is the number of scrapes kept for the SSE head delay check (1 hour at 30s intervals).
-	maxSSEScrapes = 120
+	// maxLongScrapes is the number of scrapes kept in the long-window buffer used by MetricsFunc
+	// checks that compute rates over a longer history, e.g. SSE head delay and sync message
+	// disagreement (1 hour at 30s intervals).
+	maxLongScrapes = 120
 	// seriesCardinalityThreshold is the maximum number of time series per metric family
 	// for a single validator; for N validators, the threshold is N * seriesCardinalityThreshold.
 	seriesCardinalityThreshold = 100
@@ -56,7 +58,7 @@ func NewChecker(metadata Metadata, gatherer prometheus.Gatherer, numValidators i
 		gatherer:           gatherer,
 		scrapePeriod:       scrapePeriod,
 		maxScrapes:         maxScrapes,
-		maxSSEScrapes:      maxSSEScrapes,
+		maxLongScrapes:     maxLongScrapes,
 		logFilter:          log.Filter(),
 		numValidators:      numValidators,
 		memorySamplePeriod: memorySamplePeriod,
@@ -66,14 +68,16 @@ func NewChecker(metadata Metadata, gatherer prometheus.Gatherer, numValidators i
 
 // Checker is a health checker.
 type Checker struct {
-	metadata           Metadata
-	checks             []check
-	metrics            [][]*pb.MetricFamily
-	sseMetrics         [][]*pb.MetricFamily
+	metadata Metadata
+	checks   []check
+	// metrics is the short-window scrape buffer (maxScrapes) used by query-based Func checks.
+	metrics [][]*pb.MetricFamily
+	// longMetrics is the long-window scrape buffer (maxLongScrapes) passed to all MetricsFunc checks.
+	longMetrics        [][]*pb.MetricFamily
 	gatherer           prometheus.Gatherer
 	scrapePeriod       time.Duration
 	maxScrapes         int
-	maxSSEScrapes      int
+	maxLongScrapes     int
 	logFilter          z.Field
 	numValidators      int
 	memorySnapshots    []memorySnapshot
@@ -120,7 +124,7 @@ func (c *Checker) instrument(ctx context.Context) {
 		case check.MemFunc != nil:
 			failing, err = check.MemFunc(c.memorySnapshots, c.metadata)
 		case check.MetricsFunc != nil:
-			failing, err = check.MetricsFunc(c.sseMetrics, c.metadata)
+			failing, err = check.MetricsFunc(c.longMetrics, c.metadata)
 		default:
 			failing, err = check.Func(newQueryFunc(c.metrics), c.metadata)
 		}
@@ -176,9 +180,9 @@ func (c *Checker) scrape() error {
 		c.metrics = c.metrics[1:]
 	}
 
-	c.sseMetrics = append(c.sseMetrics, metrics)
-	if len(c.sseMetrics) > c.maxSSEScrapes {
-		c.sseMetrics = c.sseMetrics[1:]
+	c.longMetrics = append(c.longMetrics, metrics)
+	if len(c.longMetrics) > c.maxLongScrapes {
+		c.longMetrics = c.longMetrics[1:]
 	}
 
 	return nil
@@ -295,6 +299,81 @@ func sseHeadDelayCheck(scrapes [][]*pb.MetricFamily, _ Metadata) (bool, error) {
 		fraction := 1.0 - deltaLe4/deltaInf
 
 		if fraction > threshold {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// syncMsgDisagreementCheck returns true if any peer signed a different sync committee head block
+// root than the largest cohort for more than syncMsgDisagreementThreshold of the sync messages it
+// submitted during the scrape window. It computes the per-peer increase of the cohort rank counter
+// (rank!="0" = disagreed, all ranks = total) across the window, mirroring the Grafana panel.
+func syncMsgDisagreementCheck(scrapes [][]*pb.MetricFamily, _ Metadata) (bool, error) {
+	const (
+		metricName = "core_tracker_parsig_cohort_rank_total"
+		peerLabel  = "peer_idx"
+		rankLabel  = "rank"
+		threshold  = 0.05
+		// minSamples guards against noisy ratios for peers that barely participated in the window.
+		// MetricsFunc checks run over the ~1-hour SSE scrape buffer (~300 sync slots), so 20 is a
+		// low participation floor that mainly rejects startup and mostly-offline peers.
+		minSamples = 20
+	)
+
+	if len(scrapes) < 2 {
+		return false, nil
+	}
+
+	type counts struct{ total, disagreed float64 }
+
+	collect := func(fams []*pb.MetricFamily) map[string]counts {
+		result := make(map[string]counts)
+
+		for _, fam := range fams {
+			if fam.GetName() != metricName {
+				continue
+			}
+
+			for _, metric := range fam.GetMetric() {
+				var peerIdx, rank string
+
+				for _, lbl := range metric.GetLabel() {
+					switch lbl.GetName() {
+					case peerLabel:
+						peerIdx = lbl.GetValue()
+					case rankLabel:
+						rank = lbl.GetValue()
+					default:
+					}
+				}
+
+				c := result[peerIdx]
+
+				c.total += metric.GetCounter().GetValue()
+				if rank != "0" {
+					c.disagreed += metric.GetCounter().GetValue()
+				}
+
+				result[peerIdx] = c
+			}
+		}
+
+		return result
+	}
+
+	first := collect(scrapes[0])
+	last := collect(scrapes[len(scrapes)-1])
+
+	for peerIdx, lastCounts := range last {
+		deltaTotal := lastCounts.total - first[peerIdx].total
+		if deltaTotal < minSamples {
+			continue
+		}
+
+		deltaDisagreed := lastCounts.disagreed - first[peerIdx].disagreed
+		if deltaDisagreed/deltaTotal > threshold {
 			return true, nil
 		}
 	}
