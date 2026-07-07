@@ -147,23 +147,284 @@ type Duty struct {
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
 > Which is critical for clusters with a large number of DVs.
 
-Not all duties flow through all workflow components. The table below summarises how each duty type is handled:
+Not all duties flow through all workflow components.
 
-| Duty type                     | Initiated by                                       | Consensus | Broadcast to BN                          |
-|-------------------------------|----------------------------------------------------|-----------|------------------------------------------|
-| `DutyProposer`                | Scheduler                                          | Yes       | Yes (full or blinded proposal)           |
-| `DutyAttester`                | Scheduler                                          | Yes       | Yes                                      |
-| `DutySignature`               | DKG only (signature exchange), not used at runtime | No        | No                                       |
-| `DutyExit`                    | VC (voluntary exit submission)                     | No        | Yes                                      |
-| `DutyBuilderProposer`         | Deprecated                                         | -         | -                                        |
-| `DutyBuilderRegistration`     | Scheduler (pre-signed registrations)               | No        | No (submitted directly by the scheduler) |
-| `DutyRandao`                  | VC (during block production)                       | No        | No (internal input to `DutyProposer`)    |
-| `DutyPrepareAggregator`       | VC (beacon committee selections)                   | No        | No (internal input to `DutyAggregator`)  |
-| `DutyAggregator`              | Scheduler                                          | Yes       | Yes (aggregate and proofs)               |
-| `DutySyncMessage`             | VC (sync committee messages)                       | No        | Yes                                      |
-| `DutyPrepareSyncContribution` | VC (sync committee selections)                     | No        | No (input to `DutySyncContribution`)     |
-| `DutySyncContribution`        | Scheduler                                          | Yes       | Yes (signed contribution and proof)      |
-| `DutyInfoSync`                | Priority protocol (peer version exchange)          | No        | No                                       |
+
+### Per-duty workflows
+
+Although all duties share the same component set, they do not all flow through every component.
+Most duties decompose into two reusable sub-flows:
+
+- **Serving data** — Charon fetches the unsigned duty data, reaches consensus on it, and serves it to the
+  requesting VC. The scheduler-driven fetch/consensus path and the VC's data request run *concurrently* and
+  convene at the `DutyDB`.
+- **Submitting data** — the VC submits its partially signed data; Charon shares the partial signatures with its
+  peers, aggregates them once the threshold is met, and broadcasts the fully signed result to the beacon node.
+
+**Reading the graphs.** Internal Charon components are plain boxes; external systems — the validator client
+(`VC`), the beacon node (`BN`) and the Charon peers (`Peers`) — are drawn with a dashed, double-edged box.
+**Thick arrows** (`══▶`) mark a step where Charon *blocks while waiting on an externality*: consensus agreeing
+with its peers, a threshold of partial signatures arriving from peers, or a blocking read of already-agreed
+data; thin arrows are non-blocking.
+
+---
+
+#### `DutyProposer`
+
+**Serving data** — the scheduler triggers the fetch+consensus path while the VC independently requests the same
+data; the write to `DutyDB` blocks on consensus, and the VAPI blocks on `DutyDB` until the agreed data is stored,
+then serves it. Additionally, the `Fetcher` first blocks on the VC's aggregated randao reveal (`DutyRandao`) —
+submitted with the block request and aggregated internally via a submitting-style flow — reading it from
+`AggSigDB` before fetching the proposal.
+
+```mermaid
+flowchart LR
+    Scheduler --> Fetcher
+    Scheduler ~~~ VC
+    Fetcher -->|2. then fetch unsigned block| BN[[BN]]
+    Fetcher -.-> Consensus
+    Consensus <-->|agree| PeersConsensus[[Peers]]
+    Consensus ==>|store on agreement| DutyDB
+    VC[[VC]] <-->|request / serve| VAPI
+    VAPI ==>|read agreed unsigned block| DutyDB
+    VAPI -->|store randao partial signature| ParSigDB
+    ParSigDB <-->|exchange randao partials| ParSigEx
+    ParSigEx <--> PeersRandao[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    Fetcher ==>|1. pull aggregated randao| AggSigDB
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,PeersRandao,PeersConsensus ext
+```
+
+**Submitting data** — the VC signs and submits its partial; Charon collects partials from peers, blocks for the
+threshold, aggregates, and broadcasts the result. The proposal is broadcast full or blinded, per the Builder API
+flag.
+
+```mermaid
+flowchart LR
+    VC[[VC]] -->|submit signed data| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    AggSigDB --> Broadcast
+    Broadcast --> BN[[BN]]
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+#### `DutyAttester`
+
+**Serving data** — the scheduler triggers the fetch+consensus path while the VC independently requests the same
+data; the write to `DutyDB` blocks on consensus, and the VAPI blocks on `DutyDB` until the agreed data is stored,
+then serves it.
+
+```mermaid
+flowchart LR
+    Scheduler --> Fetcher
+    Fetcher -->|fetch unsigned data| BN[[BN]]
+    Fetcher --> Consensus
+    Consensus <-->|agree| Peers[[Peers]]
+    Consensus ==>|store on agreement| DutyDB
+    VC[[VC]] <-->|request / serve| VAPI
+    VAPI ==>|read agreed data| DutyDB
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+**Submitting data** — the VC signs and submits its partial; Charon collects partials from peers, blocks for the
+threshold, aggregates, and broadcasts the result.
+
+```mermaid
+flowchart LR
+    VC[[VC]] -->|submit signed data| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    AggSigDB --> Broadcast
+    Broadcast --> BN[[BN]]
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+#### `DutyAggregator`
+
+**Pre-requisite** — the beacon-committee selections are produced by `DutyPrepareAggregator`, run **once per
+epoch**. It only serves data (no consensus, no broadcast): the VC submits its partial selections, Charon
+aggregates them across peers, and serves the aggregated selections back to the VC — leaving them in `AggSigDB`
+for the Serving flow below to read.
+
+```mermaid
+flowchart LR
+    VC[[VC]] <-->|request / serve| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    VAPI ==>|read aggregated selections| AggSigDB
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,Peers ext
+```
+
+**Serving data** — the scheduler triggers the fetch+consensus path while the VC independently requests the same
+data; the write to `DutyDB` blocks on consensus, and the VAPI blocks on `DutyDB` until the agreed data is stored,
+then serves it. Additionally, the `Fetcher` first reads the aggregated selections from `AggSigDB` (the
+Pre-requisite above) and the attestation root from `DutyDB`, and only fetches for the DVs selected as aggregators.
+
+```mermaid
+flowchart LR
+    Scheduler --> Fetcher
+    Fetcher -->|1. read aggregated selections| AggSigDB
+    Fetcher -->|2. read attestation root| DutyDBAtt[DutyDB]
+    Fetcher -->|3. then fetch unsigned aggregate| BN[[BN]]
+    Fetcher --> Consensus
+    Consensus <-->|agree| Peers[[Peers]]
+    Consensus ==>|store on agreement| DutyDB
+    VC[[VC]] <-->|request / serve| VAPI
+    VAPI ==>|read agreed aggregate| DutyDB
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+**Submitting data** — the VC signs and submits its partial; Charon collects partials from peers, blocks for the
+threshold, aggregates, and broadcasts the result.
+
+```mermaid
+flowchart LR
+    VC[[VC]] -->|submit signed data| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    AggSigDB --> Broadcast
+    Broadcast --> BN[[BN]]
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+#### `DutySyncMessage`
+
+**Serving data** — none. The data a sync message signs (the head block root) is obtained by the VC itself, through general-purpose beacon endpoints (e.g. `GET /eth/v1/beacon/blocks/head/root`) that different clients query via different requests and events, at different points in the slot. Intercepting these to reach consensus would harm rather than help cluster consistency, so Charon does not serve this data; it instead relies on a threshold of nodes independently converging on the same head root, and the duty fails if that threshold is not met.
+
+In practice this often outperforms forcing agreement on a single (possibly stale) leader's head: for example, in a 5/7 cluster where one node consistently sees a stale head while the other six see the latest, the six always meet threshold and the cluster submits correct sync messages — whereas leader-based agreement would select the stale head roughly 1 in 7 times and submit an incorrect one.
+
+**Submitting data** — the VC signs and submits its partial; Charon collects partials from peers, blocks for the
+threshold, aggregates, and broadcasts the result.
+
+```mermaid
+flowchart LR
+    VC[[VC]] -->|submit signed data| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    AggSigDB --> Broadcast
+    Broadcast --> BN[[BN]]
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+#### `DutySyncContribution`
+
+**Pre-requisite** — the sync-committee selections are produced by `DutyPrepareSyncContribution`, run **once per
+epoch**. It only serves data (no consensus, no broadcast): the VC submits its partial selections, Charon
+aggregates them across peers, and serves the aggregated selections back to the VC — leaving them in `AggSigDB`
+for the Serving flow below to read.
+
+```mermaid
+flowchart LR
+    VC[[VC]] <-->|request / serve| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    VAPI ==>|read aggregated selections| AggSigDB
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,Peers ext
+```
+
+**Serving data** — the scheduler triggers the fetch+consensus path while the VC independently requests the same
+data; the write to `DutyDB` blocks on consensus, and the VAPI blocks on `DutyDB` until the agreed data is stored,
+then serves it. Additionally, the `Fetcher` first reads the aggregated selections from `AggSigDB` (the
+Pre-requisite above) and the sync message root from `DutyDB`.
+
+```mermaid
+flowchart LR
+    Scheduler --> Fetcher
+    Fetcher -->|1. read aggregated selections| AggSigDB
+    Fetcher -->|2. read sync message root| DutyDBSync[DutyDB]
+    Fetcher -->|3. then fetch unsigned contribution| BN[[BN]]
+    Fetcher --> Consensus
+    Consensus <-->|agree| Peers[[Peers]]
+    Consensus ==>|store on agreement| DutyDB
+    VC[[VC]] <-->|request / serve| VAPI
+    VAPI ==>|read agreed contribution| DutyDB
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+**Submitting data** — the VC signs and submits its partial; Charon collects partials from peers, blocks for the
+threshold, aggregates, and broadcasts the result.
+
+```mermaid
+flowchart LR
+    VC[[VC]] -->|submit signed data| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    AggSigDB --> Broadcast
+    Broadcast --> BN[[BN]]
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+#### `DutyExit`
+
+**Serving data** — none: the VC produces the voluntary exit itself, so there is nothing to fetch or agree.
+
+**Submitting data** — the VC signs and submits its partial; Charon collects partials from peers, blocks for the
+threshold, aggregates, and broadcasts the result.
+
+```mermaid
+flowchart LR
+    VC[[VC]] -->|submit signed data| VAPI
+    VAPI --> ParSigDB
+    ParSigDB <-->|exchange partials| ParSigEx
+    ParSigEx <--> Peers[[Peers]]
+    ParSigDB ==>|wait for threshold partials| SigAgg
+    SigAgg --> AggSigDB
+    AggSigDB --> Broadcast
+    Broadcast --> BN[[BN]]
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN,Peers ext
+```
+
+#### `DutyBuilderRegistration`
+
+**Serving data** — none: there is nothing to fetch or agree.
+
+**Submitting data** — not the standard flow: the VAPI register endpoint is a no-op, and the Scheduler submits the
+pre-signed registrations directly to the beacon node in the first slot of each epoch (see
+[DutyBuilderRegistration redesign](#dutybuilderregistration-redesign)).
+
+```mermaid
+flowchart LR
+    BuilderReg["Builder registration svc<br/>(pre-signed, cluster-lock)"] --> Scheduler
+    Scheduler -->|submit registrations| BN[[BN]]
+    VC[[VC]] -->|register, no-op 200 OK| VAPI
+    classDef ext stroke-dasharray:5 4,stroke-width:2px
+    class VC,BN ext
+```
 
 ### DutyBuilderProposer deprecation
 The new version of Beacon API spec introduced [produceBlockV3](https://ethereum.github.io/beacon-APIs/#/Validator/produceBlockV3) endpoint,
