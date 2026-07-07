@@ -348,6 +348,16 @@ var checks = []check{
 		},
 	},
 	{
+		Name: "sync_message_head_disagreement",
+		Description: `A peer signed a different sync committee head block root than the rest of the cluster for >5% of sync messages in the past hour.
+		Sync messages don't go through consensus: each node signs the head its own beacon node reports, so a peer that consistently disagrees is likely running a beacon node that is lagging, on a minority fork, or otherwise out of sync.
+		This is not slashable and only costs sync committee rewards for the affected slots, but persistent disagreement points at an unhealthy beacon node.
+
+		Identify the drifting peer via core_tracker_parsig_cohort_rank_total (by peer_idx) and the "Sync committee head disagreement" logs, then coordinate with that operator to check their beacon node's sync status and peer count. If it is the local node, check this node's beacon node.`,
+		Severity:    severityWarning,
+		MetricsFunc: syncMsgDisagreementCheck,
+	},
+	{
 		Name:        "high_goroutine_count",
 		Description: `Goroutine count exceeds 1000. Possible leak. Report to Obol technical team.`,
 		Severity:    severityWarning,

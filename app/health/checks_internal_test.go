@@ -1091,3 +1091,77 @@ func genGauge(labels []*pb.LabelPair, values ...int) []*pb.Metric {
 
 	return resp
 }
+
+func TestSyncMessageHeadDisagreementCheck(t *testing.T) {
+	// makeScrapes builds a two-scrape counter history for one peer's sync cohort ranks.
+	// total/disagreed are cumulative counts in scrape[0]; delta values are added in scrape[1].
+	// Disagreements are modelled as a rank="1" series, agreements as rank="0".
+	makeScrapes := func(peerIdx string, firstTotal, firstDisagreed, deltaTotal, deltaDisagreed float64) [][]*pb.MetricFamily {
+		mkFam := func(total, disagreed float64) []*pb.MetricFamily {
+			name := "core_tracker_parsig_cohort_rank_total"
+			typ := pb.MetricType_COUNTER
+			rank0 := total - disagreed
+
+			return []*pb.MetricFamily{{
+				Name: &name,
+				Type: &typ,
+				Metric: []*pb.Metric{
+					{Label: []*pb.LabelPair{l("peer_idx", peerIdx), l("rank", "0")}, Counter: &pb.Counter{Value: &rank0}},
+					{Label: []*pb.LabelPair{l("peer_idx", peerIdx), l("rank", "1")}, Counter: &pb.Counter{Value: &disagreed}},
+				},
+			}}
+		}
+
+		return [][]*pb.MetricFamily{
+			mkFam(firstTotal, firstDisagreed),
+			mkFam(firstTotal+deltaTotal, firstDisagreed+deltaDisagreed),
+		}
+	}
+
+	t.Run("no data", func(t *testing.T) {
+		failing, err := syncMsgDisagreementCheck(nil, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("single scrape only", func(t *testing.T) {
+		failing, err := syncMsgDisagreementCheck([][]*pb.MetricFamily{{}}, Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("full agreement", func(t *testing.T) {
+		// 25 sync messages, none disagreed.
+		failing, err := syncMsgDisagreementCheck(makeScrapes("6", 0, 0, 25, 0), Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("below threshold", func(t *testing.T) {
+		// 100 messages, 3 disagreed -> 3%.
+		failing, err := syncMsgDisagreementCheck(makeScrapes("6", 0, 0, 100, 3), Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("above threshold triggers warning", func(t *testing.T) {
+		// 100 messages, 8 disagreed -> 8%.
+		failing, err := syncMsgDisagreementCheck(makeScrapes("6", 0, 0, 100, 8), Metadata{})
+		require.NoError(t, err)
+		require.True(t, failing)
+	})
+
+	t.Run("insufficient samples does not trigger", func(t *testing.T) {
+		// 10 messages, 5 disagreed -> 50% but below minSamples.
+		failing, err := syncMsgDisagreementCheck(makeScrapes("6", 0, 0, 10, 5), Metadata{})
+		require.NoError(t, err)
+		require.False(t, failing)
+	})
+
+	t.Run("historical dilution does not mask recent spike", func(t *testing.T) {
+		// Large clean history, then 100 recent messages with 8 disagreed -> still 8% in window.
+		failing, err := syncMsgDisagreementCheck(makeScrapes("6", 10000, 0, 100, 8), Metadata{})
+		require.NoError(t, err)
+		require.True(t, failing)
+	})
+}
