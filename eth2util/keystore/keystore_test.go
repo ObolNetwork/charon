@@ -512,9 +512,10 @@ func TestKeysharesToValidatorPubkeyForeignShare(t *testing.T) {
 	require.ErrorContains(t, err, "not found in provided lock")
 }
 
-// TestKeysharesToValidatorPubkeyDuplicateShares ensures that providing two private key shares
-// belonging to the same validator resolves without error. Previously the matcher broke after the
-// first match per validator, leaving the second share reported as "not found in provided lock".
+// TestKeysharesToValidatorPubkeyDuplicateShares ensures that providing two distinct private key
+// shares belonging to the same validator is rejected. Silently collapsing them (last-write-wins)
+// could sign with the wrong operator's share, producing a partial signature that fails to
+// aggregate, so the whole call must fail with a clear error.
 func TestKeysharesToValidatorPubkeyDuplicateShares(t *testing.T) {
 	valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
 	require.NoError(t, err)
@@ -536,12 +537,8 @@ func TestKeysharesToValidatorPubkeyDuplicateShares(t *testing.T) {
 
 	lock := cluster.Lock{Validators: []cluster.DistValidator{validator}}
 
-	ret, err := keystore.KeysharesToValidatorPubkey(lock, shares)
-	require.NoError(t, err)
-	require.Len(t, ret, 1)
-
-	_, ok := ret[core.PubKey(validator.PublicKeyHex())]
-	require.True(t, ok, "expected validator present in result")
+	_, err = keystore.KeysharesToValidatorPubkey(lock, shares)
+	require.ErrorContains(t, err, "multiple provided private key shares resolve to the same validator")
 }
 
 func TestShareIdxForCluster(t *testing.T) {

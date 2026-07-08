@@ -244,7 +244,8 @@ func checkDir(dir string) error {
 
 // KeysharesToValidatorPubkey maps each provided private key share to the associated validator
 // public key in the cluster lock. It returns an error if a provided private key share does not
-// belong to any validator in the lock.
+// belong to any validator in the lock, or if more than one provided share resolves to the same
+// validator (an ambiguous, misconfigured key set).
 //
 // It accepts shares for any subset of the cluster's validators; callers that require shares for
 // every validator must enforce that themselves (see cmd.loadValidatorShares).
@@ -270,6 +271,10 @@ func KeysharesToValidatorPubkey(lock cluster.Lock, shares []tbls.PrivateKey) (Va
 		valHex, ok := shareToValidator[pubShare]
 		if !ok {
 			return nil, errors.New("public key share from provided private key share not found in provided lock", z.Int("share_index", shareIdx))
+		}
+
+		if _, ok := ret[valHex]; ok {
+			return nil, errors.New("multiple provided private key shares resolve to the same validator", z.Str("validator", string(valHex)), z.Int("share_index", shareIdx))
 		}
 
 		ret[valHex] = IndexedKeyShare{
