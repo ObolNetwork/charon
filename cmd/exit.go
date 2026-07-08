@@ -19,28 +19,29 @@ import (
 )
 
 type exitConfig struct {
-	BeaconNodeEndpoints     []string
-	ValidatorPubkey         string
-	ValidatorIndex          uint64
-	ValidatorIndexPresent   bool
-	SkipBeaconNodeCheck     bool
-	PrivateKeyPath          string
-	ValidatorKeysDir        string
-	LockFilePath            string
-	ExecutionEngineAddr     string
-	PublishAddress          string
-	PublishTimeout          time.Duration
-	ExitEpoch               uint64
-	FetchedExitPath         string
-	PlaintextOutput         bool
-	BeaconNodeTimeout       time.Duration
-	ExitFromFilePath        string
-	ExitFromFileDir         string
-	Log                     log.Config
-	All                     bool
-	testnetConfig           eth2util.Network
-	BeaconNodeHeaders       []string
-	FallbackBeaconNodeAddrs []string
+	BeaconNodeEndpoints      []string
+	ValidatorPubkey          string
+	ValidatorIndex           uint64
+	ValidatorIndexPresent    bool
+	SkipBeaconNodeCheck      bool
+	PrivateKeyPath           string
+	ValidatorKeysDir         string
+	LockFilePath             string
+	ExecutionEngineAddr      string
+	PublishAddress           string
+	PublishTimeout           time.Duration
+	ExitEpoch                uint64
+	FetchedExitPath          string
+	PlaintextOutput          bool
+	BeaconNodeTimeout        time.Duration
+	ExitFromFilePath         string
+	ExitFromFileDir          string
+	Log                      log.Config
+	All                      bool
+	AllowIncompleteKeystores bool
+	testnetConfig            eth2util.Network
+	BeaconNodeHeaders        []string
+	FallbackBeaconNodeAddrs  []string
 }
 
 func newExitCmd(cmds ...*cobra.Command) *cobra.Command {
@@ -80,6 +81,7 @@ const (
 	beaconNodeHeaders
 	fallbackBeaconNodeAddrs
 	executionClientRPCEndpoint
+	allowIncompleteKeystores
 )
 
 func (ef exitFlag) String() string {
@@ -128,6 +130,8 @@ func (ef exitFlag) String() string {
 		return "fallback-beacon-node-endpoints"
 	case executionClientRPCEndpoint:
 		return "execution-client-rpc-endpoint"
+	case allowIncompleteKeystores:
+		return "allow-incomplete-keystores"
 	default:
 		return "unknown"
 	}
@@ -196,6 +200,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().StringSliceVar(&config.FallbackBeaconNodeAddrs, "fallback-beacon-node-endpoints", nil, "A list of beacon nodes to use if the primary list are offline or unhealthy.")
 		case executionClientRPCEndpoint:
 			cmd.Flags().StringVar(&config.ExecutionEngineAddr, executionClientRPCEndpoint.String(), "", maybeRequired("The address of the execution engine JSON-RPC API, used to verify ERC-1271 (e.g. Safe multisig) cluster signatures."))
+		case allowIncompleteKeystores:
+			cmd.Flags().BoolVar(&config.AllowIncompleteKeystores, allowIncompleteKeystores.String(), false, "Allow the validator keys directory to contain key shares for only a subset of the cluster's validators. The command operates on the validators whose key shares are present.")
 		}
 
 		if f.required {

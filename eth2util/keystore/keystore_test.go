@@ -512,6 +512,38 @@ func TestKeysharesToValidatorPubkeyForeignShare(t *testing.T) {
 	require.ErrorContains(t, err, "not found in provided lock")
 }
 
+// TestKeysharesToValidatorPubkeyDuplicateShares ensures that providing two private key shares
+// belonging to the same validator resolves without error. Previously the matcher broke after the
+// first match per validator, leaving the second share reported as "not found in provided lock".
+func TestKeysharesToValidatorPubkeyDuplicateShares(t *testing.T) {
+	valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
+	require.NoError(t, err)
+
+	validator := cluster.DistValidator{PubKey: valPubk[:]}
+
+	var shares []tbls.PrivateKey
+
+	for range 2 {
+		sharePriv, err := tbls.GenerateSecretKey()
+		require.NoError(t, err)
+
+		sharePub, err := tbls.SecretToPublicKey(sharePriv)
+		require.NoError(t, err)
+
+		validator.PubShares = append(validator.PubShares, sharePub[:])
+		shares = append(shares, sharePriv)
+	}
+
+	lock := cluster.Lock{Validators: []cluster.DistValidator{validator}}
+
+	ret, err := keystore.KeysharesToValidatorPubkey(lock, shares)
+	require.NoError(t, err)
+	require.Len(t, ret, 1)
+
+	_, ok := ret[core.PubKey(validator.PublicKeyHex())]
+	require.True(t, ok, "expected validator present in result")
+}
+
 func TestShareIdxForCluster(t *testing.T) {
 	valAmt := 100
 	operatorAmt := 4

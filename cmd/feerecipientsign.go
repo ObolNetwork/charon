@@ -39,10 +39,11 @@ type pubkeyToSign struct {
 type feerecipientSignConfig struct {
 	feerecipientConfig
 
-	ValidatorKeysDir string
-	FeeRecipient     string
-	GasLimit         uint64
-	Timestamp        int64
+	ValidatorKeysDir         string
+	FeeRecipient             string
+	GasLimit                 uint64
+	Timestamp                int64
+	AllowIncompleteKeystores bool
 }
 
 func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig) error) *cobra.Command {
@@ -68,6 +69,7 @@ func newFeeRecipientSignCmd(runFunc func(context.Context, feerecipientSignConfig
 	cmd.Flags().StringVar(&config.FeeRecipient, "fee-recipient", "", "[REQUIRED] New fee recipient address to be applied to all specified validators.")
 	cmd.Flags().Uint64Var(&config.GasLimit, "gas-limit", 0, "Optional gas limit override for builder registrations. If not set, the most recent gas limit from the cluster lock, overrides file or remote API is used.")
 	cmd.Flags().Int64Var(&config.Timestamp, "timestamp", 0, "Optional Unix timestamp for the builder registration message. When set, all operators can sign independently with the same timestamp. If not set, either the current time is used for new registrations or if another peer already submitted partial signature to the API, its timestamp is used.")
+	cmd.Flags().BoolVar(&config.AllowIncompleteKeystores, "allow-incomplete-keystores", false, "Allow the validator keys directory to contain key shares for only a subset of the cluster's validators. The command operates on the validators whose key shares are present.")
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		mustMarkFlagRequired(cmd, "validator-public-keys")
@@ -175,19 +177,9 @@ func runFeeRecipientSign(ctx context.Context, config feerecipientSignConfig) err
 		return err
 	}
 
-	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
+	shares, err := loadValidatorShares(ctx, *cl, config.ValidatorKeysDir, config.AllowIncompleteKeystores)
 	if err != nil {
-		return errors.Wrap(err, "load keystore, check if path exists", z.Str("validator_keys_dir", config.ValidatorKeysDir))
-	}
-
-	valKeys, err := rawValKeys.SequencedKeys()
-	if err != nil {
-		return errors.Wrap(err, "load keystore")
-	}
-
-	shares, err := keystore.KeysharesToValidatorPubkey(*cl, valKeys)
-	if err != nil {
-		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
+		return err
 	}
 
 	overrides, err := loadOverridesRegistrations(config.OverridesFilePath, cl.ForkVersion)
