@@ -44,12 +44,12 @@ func loadValidatorShares(ctx context.Context, cl cluster.Lock, dir string, allow
 
 	if !allowIncomplete && len(shares) != len(cl.Validators) {
 		return nil, errors.New("validator_keys directory does not contain key shares for all cluster validators; use --allow-incomplete-keystores to operate on the available subset",
-			z.Int("found", len(shares)), z.Int("cluster_validators", len(cl.Validators)))
+			z.Int("found", len(shares)), z.Int("cluster_validators", len(cl.Validators)), z.Str("validator_keys_dir", dir))
 	}
 
 	if allowIncomplete && len(shares) < len(cl.Validators) {
 		log.Warn(ctx, "Operating on a subset of the cluster's validators", nil,
-			z.Int("found", len(shares)), z.Int("cluster_validators", len(cl.Validators)))
+			z.Int("found", len(shares)), z.Int("cluster_validators", len(cl.Validators)), z.Str("validator_keys_dir", dir))
 	}
 
 	return shares, nil

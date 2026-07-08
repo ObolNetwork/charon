@@ -541,6 +541,31 @@ func TestKeysharesToValidatorPubkeyDuplicateShares(t *testing.T) {
 	require.ErrorContains(t, err, "multiple provided private key shares resolve to the same validator")
 }
 
+// TestKeysharesToValidatorPubkeyDuplicateLockShare ensures the matcher errors when the cluster
+// lock contains the same public key share under more than one validator, which would otherwise
+// mis-map a provided private share to the wrong validator.
+func TestKeysharesToValidatorPubkeyDuplicateLockShare(t *testing.T) {
+	sharePriv, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	sharePub, err := tbls.SecretToPublicKey(sharePriv)
+	require.NoError(t, err)
+
+	newValidator := func(t *testing.T) cluster.DistValidator {
+		t.Helper()
+
+		valPubk, err := tblsconv.PubkeyFromCore(testutil.RandomCorePubKey(t))
+		require.NoError(t, err)
+
+		return cluster.DistValidator{PubKey: valPubk[:], PubShares: [][]byte{sharePub[:]}}
+	}
+
+	lock := cluster.Lock{Validators: []cluster.DistValidator{newValidator(t), newValidator(t)}}
+
+	_, err = keystore.KeysharesToValidatorPubkey(lock, []tbls.PrivateKey{sharePriv})
+	require.ErrorContains(t, err, "public key share appears in more than one validator")
+}
+
 func TestShareIdxForCluster(t *testing.T) {
 	valAmt := 100
 	operatorAmt := 4

@@ -256,7 +256,12 @@ func KeysharesToValidatorPubkey(lock cluster.Lock, shares []tbls.PrivateKey) (Va
 	for _, validator := range lock.Validators {
 		valHex := core.PubKey(validator.PublicKeyHex())
 		for _, valShare := range validator.PubShares {
-			shareToValidator[tbls.PublicKey(valShare)] = valHex
+			pubShare := tbls.PublicKey(valShare)
+			if existing, ok := shareToValidator[pubShare]; ok && existing != valHex {
+				return nil, errors.New("public key share appears in more than one validator in the cluster lock", z.Str("validator", string(valHex)), z.Str("other_validator", string(existing)))
+			}
+
+			shareToValidator[pubShare] = valHex
 		}
 	}
 
