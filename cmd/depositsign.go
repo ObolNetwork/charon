@@ -27,8 +27,9 @@ import (
 type depositSignConfig struct {
 	depositConfig
 
-	WithdrawalAddresses []string
-	DepositAmounts      []uint
+	WithdrawalAddresses      []string
+	DepositAmounts           []uint
+	AllowIncompleteKeystores bool
 }
 
 func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *cobra.Command {
@@ -60,6 +61,7 @@ func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *
 func bindDepositSignFlags(cmd *cobra.Command, config *depositSignConfig) {
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddresses, "withdrawal-addresses", []string{}, "[REQUIRED] Withdrawal addresses for which the new deposits will be signed. Either a single address for all specified validator-public-keys or one address per key should be specified.")
 	cmd.Flags().UintSliceVar(&config.DepositAmounts, "deposit-amounts", []uint{32}, "Comma separated list of partial deposit amounts (integers) in ETH.")
+	cmd.Flags().BoolVar(&config.AllowIncompleteKeystores, "allow-incomplete-keystores", false, "Allow the validator keys directory to contain key shares for only a subset of the cluster's validators. The command operates on the validators whose key shares are present.")
 }
 
 func runDepositSign(ctx context.Context, config depositSignConfig) error {
@@ -91,19 +93,9 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 			z.Int("validator_public_keys", len(config.ValidatorPublicKeys)))
 	}
 
-	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
+	shares, err := loadValidatorShares(ctx, *cl, config.ValidatorKeysDir, config.AllowIncompleteKeystores)
 	if err != nil {
-		return errors.Wrap(err, "load keystore, check if path exists", z.Str("validator_keys_dir", config.ValidatorKeysDir))
-	}
-
-	valKeys, err := rawValKeys.SequencedKeys()
-	if err != nil {
-		return errors.Wrap(err, "load keystore")
-	}
-
-	shares, err := keystore.KeysharesToValidatorPubkey(*cl, valKeys)
-	if err != nil {
-		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
+		return err
 	}
 
 	pubkeys := []eth2p0.BLSPubKey{}

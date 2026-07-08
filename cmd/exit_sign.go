@@ -65,6 +65,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 		{testnetCapellaHardFork, false},
 		{beaconNodeHeaders, false},
 		{fallbackBeaconNodeAddrs, false},
+		{allowIncompleteKeystores, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -114,19 +115,9 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return err
 	}
 
-	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
+	shares, err := loadValidatorShares(ctx, *cl, config.ValidatorKeysDir, config.AllowIncompleteKeystores)
 	if err != nil {
-		return errors.Wrap(err, "load keystore, check if path exists", z.Str("validator_keys_dir", config.ValidatorKeysDir))
-	}
-
-	valKeys, err := rawValKeys.SequencedKeys()
-	if err != nil {
-		return errors.Wrap(err, "load keystore")
-	}
-
-	shares, err := keystore.KeysharesToValidatorPubkey(*cl, valKeys)
-	if err != nil {
-		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
+		return err
 	}
 
 	shareIdx, err := keystore.ShareIdxForCluster(*cl, *identityKey.PubKey())
