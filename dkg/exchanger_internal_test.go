@@ -179,3 +179,48 @@ func TestExchanger(t *testing.T) {
 	// require that we encountered all the sigTypes expected
 	require.Len(t, actual, len(expectedSigTypes))
 }
+
+// TestExchangerPushPsigsNeverBlocks fires pushPsigs repeatedly with no exchange call draining
+// results, which must not block. A previous implementation used a shared size-1 channel that
+// deadlocked once full, especially when pushPsigs ran synchronously on the exchange goroutine.
+func TestExchangerPushPsigsNeverBlocks(t *testing.T) {
+	ctx := context.Background()
+
+	h := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	peers := []peer.ID{h.ID()}
+
+	ex := newExchanger(h, 0, peers, []sigType{sigLock}, time.Second)
+
+	duty := core.NewSignatureDuty(uint64(sigLock))
+
+	newSet := func() map[core.PubKey][]core.ParSignedData {
+		return map[core.PubKey][]core.ParSignedData{
+			testutil.RandomCorePubKey(t): {core.NewPartialSignature(testutil.RandomCoreSignature(), 1)},
+		}
+	}
+
+	// Fire the threshold subscriber several times without any exchange call consuming results.
+	const iterations = 5
+
+	errs := make(chan error, 1)
+	done := make(chan struct{})
+
+	go func() {
+		for range iterations {
+			if err := ex.pushPsigs(ctx, duty, newSet()); err != nil {
+				errs <- err
+				return
+			}
+		}
+
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case err := <-errs:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("pushPsigs deadlocked")
+	}
+}

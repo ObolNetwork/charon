@@ -40,10 +40,22 @@ const (
 // sigTypeStore is a shorthand for a map of sigType to map of core.PubKey to slice of core.ParSignedData.
 type sigTypeStore map[sigType]map[core.PubKey][]core.ParSignedData
 
-// dataByPubkey maps a sigType to its map of public key to slice of core.ParSignedData..
+// dataByPubkey holds the partial signatures collected per sigType and the pending exchange queries
+// awaiting them. Both are guarded by lock.
 type dataByPubkey struct {
-	store sigTypeStore
-	lock  sync.Mutex
+	store   sigTypeStore
+	queries []exchangeQuery
+	lock    sync.Mutex
+}
+
+// exchangeQuery is a pending exchange call awaiting all its expected partial signatures for a sigType.
+type exchangeQuery struct {
+	sigType  sigType
+	expected int
+	// response is buffered (size 1) so resolveQueriesUnsafe never blocks, even when it runs on the
+	// exchange goroutine itself (pushPsigs may resolve queries synchronously via StoreInternal).
+	response chan<- map[core.PubKey][]core.ParSignedData
+	cancel   <-chan struct{}
 }
 
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
@@ -53,7 +65,6 @@ type exchanger struct {
 	sigTypes      map[sigType]bool
 	sigData       dataByPubkey
 	dutyGaterFunc func(duty core.Duty) bool
-	sigDatasChan  chan map[core.PubKey][]core.ParSignedData
 }
 
 func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []sigType, timeout time.Duration) *exchanger {
@@ -90,7 +101,6 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []si
 			lock:  sync.Mutex{},
 		},
 		dutyGaterFunc: dutyGaterFunc,
-		sigDatasChan:  make(chan map[core.PubKey][]core.ParSignedData, 1),
 	}
 
 	// Wiring core workflow components
@@ -112,27 +122,70 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 		return nil, err
 	}
 
-	expectedSigs := len(set)
+	cancel := make(chan struct{})
+	defer close(cancel)
 
-	for {
-		select {
-		case sigDatas, ok := <-e.sigDatasChan:
-			if !ok {
-				return nil, errors.New("sigdata channel has been closed")
-			}
+	response := make(chan map[core.PubKey][]core.ParSignedData, 1)
 
-			if len(sigDatas) == expectedSigs {
-				// We are done when we have ParSignedData of all the DVs from all each peer
-				return sigDatas, nil
-			}
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+	// Register the query, then resolve immediately in case all expected signatures are already
+	// collected (e.g. peers delivered theirs before the StoreInternal above completed the threshold).
+	e.sigData.lock.Lock()
+	e.sigData.queries = append(e.sigData.queries, exchangeQuery{
+		sigType:  sigType,
+		expected: len(set),
+		response: response,
+		cancel:   cancel,
+	})
+	e.resolveQueriesUnsafe()
+	e.sigData.lock.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case data := <-response:
+		return data, nil
 	}
 }
 
-// pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
-func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
+// resolveQueriesUnsafe delivers the collected signatures to every pending query whose sigType has
+// reached its expected count, dropping cancelled queries. It must be called with sigData.lock held.
+func (e *exchanger) resolveQueriesUnsafe() {
+	var remaining []exchangeQuery
+
+	for _, q := range e.sigData.queries {
+		if cancelled(q.cancel) {
+			continue
+		}
+
+		data := e.sigData.store[q.sigType]
+		if len(data) != q.expected {
+			remaining = append(remaining, q)
+			continue
+		}
+
+		// We are done when we have ParSignedData of all the DVs from each peer.
+		ret := make(map[core.PubKey][]core.ParSignedData, len(data))
+		maps.Copy(ret, data)
+
+		q.response <- ret // Never blocks: response is buffered and each query is resolved at most once.
+	}
+
+	e.sigData.queries = remaining
+}
+
+// cancelled returns true if the channel is closed.
+func cancelled(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
+// pushPsigs stores partial signature data obtained from peers and resolves any pending query in
+// exchange whose expected signatures are now all collected.
+func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
 	sigType := sigType(duty.Slot)
 
 	if !e.dutyGaterFunc(duty) {
@@ -140,32 +193,16 @@ func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.
 	}
 
 	e.sigData.lock.Lock()
+	defer e.sigData.lock.Unlock()
 
-	for pk, psigs := range set {
-		_, ok := e.sigData.store[sigType]
-		if !ok {
-			e.sigData.store[sigType] = map[core.PubKey][]core.ParSignedData{}
-		}
-
-		e.sigData.store[sigType][pk] = psigs
-	}
-
-	data, ok := e.sigData.store[sigType]
+	_, ok := e.sigData.store[sigType]
 	if !ok {
-		e.sigData.lock.Unlock()
-		return nil
+		e.sigData.store[sigType] = map[core.PubKey][]core.ParSignedData{}
 	}
 
-	ret := make(map[core.PubKey][]core.ParSignedData)
-	maps.Copy(ret, data)
+	maps.Copy(e.sigData.store[sigType], set)
 
-	e.sigData.lock.Unlock()
-
-	select {
-	case e.sigDatasChan <- ret:
-	case <-ctx.Done():
-		return errors.Wrap(ctx.Err(), "feed collected sig data")
-	}
+	e.resolveQueriesUnsafe()
 
 	return nil
 }
