@@ -208,7 +208,7 @@ func makeIssueFunc(token string) func(int) (issue string, status string, err err
 		}
 
 		if token != "" {
-			req.SetBasicAuth(token, "x-oauth-basic")
+			req.Header.Set("Authorization", "Bearer "+token)
 		}
 
 		resp, err := new(http.Client).Do(req)
@@ -353,7 +353,7 @@ func githubGetJSON(url string, token string, v any) error {
 	}
 
 	if token != "" {
-		req.SetBasicAuth(token, "x-oauth-basic")
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
 	resp, err := new(http.Client).Do(req)
