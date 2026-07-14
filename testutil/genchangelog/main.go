@@ -65,7 +65,7 @@ var (
 	// tagVersionRegex parses major.minor.patch from a release tag, e.g. "v1.10.3" or "v1.10.0-rc1".
 	tagVersionRegex = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)`)
 
-	// clientRepos maps each compatibility-matrix client to its GitHub repo, in matrix column order.
+	// clientRepos maps each compatibility-matrix client to its GitHub repo.
 	clientRepos = []struct {
 		Name string
 		Repo string
@@ -395,9 +395,20 @@ func parseTagVersion(tag string) (major, minor, patch int, err error) {
 		return 0, 0, 0, errors.New("invalid release tag", z.Str("tag", tag))
 	}
 
-	major, _ = strconv.Atoi(m[1])
-	minor, _ = strconv.Atoi(m[2])
-	patch, _ = strconv.Atoi(m[3])
+	major, err = strconv.Atoi(m[1])
+	if err != nil {
+		return 0, 0, 0, errors.Wrap(err, "parse major", z.Str("tag", tag))
+	}
+
+	minor, err = strconv.Atoi(m[2])
+	if err != nil {
+		return 0, 0, 0, errors.Wrap(err, "parse minor", z.Str("tag", tag))
+	}
+
+	patch, err = strconv.Atoi(m[3])
+	if err != nil {
+		return 0, 0, 0, errors.Wrap(err, "parse patch", z.Str("tag", tag))
+	}
 
 	return major, minor, patch, nil
 }
