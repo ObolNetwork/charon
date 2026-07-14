@@ -61,6 +61,23 @@ var (
 	numberRegex   = regexp.MustCompile(`[#/](\d{2,})`)
 	categoryRegex = regexp.MustCompile(`category:\s?(\w+)`)
 	ticketRegex   = regexp.MustCompile(`ticket:(.*)`)
+
+	// tagVersionRegex parses major.minor.patch from a release tag, e.g. "v1.10.3" or "v1.10.0-rc1".
+	tagVersionRegex = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)`)
+
+	// clientRepos maps each compatibility-matrix client to its GitHub repo, in matrix column order.
+	clientRepos = []struct {
+		Name string
+		Repo string
+	}{
+		{"Teku", "Consensys/teku"},
+		{"Lighthouse", "sigp/lighthouse"},
+		{"Lodestar", "ChainSafe/lodestar"},
+		{"Nimbus", "status-im/nimbus-eth2"},
+		{"Prysm", "OffchainLabs/prysm"},
+		{"Grandine", "grandinetech/grandine"},
+		{"Vouch", "attestantio/vouch"},
+	}
 )
 
 // pullRequest is parsed from log.
@@ -87,6 +104,18 @@ type tplData struct {
 	RangeLink  string
 	Categories []tplCategory
 	ExtraPRs   []pullRequest
+	Clients    clientVersions
+}
+
+// clientVersions holds the client versions rendered in the compatibility matrix.
+type clientVersions struct {
+	Teku       string
+	Lighthouse string
+	Lodestar   string
+	Nimbus     string
+	Prysm      string
+	Grandine   string
+	Vouch      string
 }
 
 // tplCategory is a category section in the changelog.
@@ -147,6 +176,11 @@ func run(ctx context.Context, gitRange string, output string, token string) erro
 	}
 
 	data, err := tplDataFromPRs(prs, gitRange, makeIssueFunc(token))
+	if err != nil {
+		return err
+	}
+
+	data.Clients, err = clientVersionsForTag(data.Tag, token)
 	if err != nil {
 		return err
 	}
@@ -221,6 +255,161 @@ func makeIssueFunc(token string) func(int) (issue string, status string, err err
 
 		return issueResp.Title, issueResp.State, nil
 	}
+}
+
+// clientVersionsForTag returns the compatibility-matrix client versions for the release tag.
+// Minor releases (patch == 0) use the latest upstream client versions, while patch releases
+// reuse the versions tested in their minor release, so a patch line stays consistent.
+func clientVersionsForTag(tag string, token string) (clientVersions, error) {
+	_, _, patch, err := parseTagVersion(tag)
+	if err != nil {
+		return clientVersions{}, err
+	}
+
+	if patch == 0 {
+		fmt.Printf("Minor release %s: fetching latest client versions\n", tag)
+		return latestClientVersions(token)
+	}
+
+	minorTag, err := minorTagOf(tag)
+	if err != nil {
+		return clientVersions{}, err
+	}
+
+	fmt.Printf("Patch release %s: reusing client versions from minor release %s\n", tag, minorTag)
+
+	return minorClientVersions(minorTag, token)
+}
+
+// latestClientVersions fetches the latest release version of each matrix client from GitHub.
+func latestClientVersions(token string) (clientVersions, error) {
+	versions := make(map[string]string)
+
+	for _, c := range clientRepos {
+		var resp struct {
+			TagName string `json:"tag_name"`
+		}
+
+		u := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", c.Repo)
+		if err := githubGetJSON(u, token, &resp); err != nil {
+			return clientVersions{}, errors.Wrap(err, "fetch latest client release", z.Str("client", c.Name), z.Str("repo", c.Repo))
+		}
+
+		if resp.TagName == "" {
+			return clientVersions{}, errors.New("empty client release tag", z.Str("client", c.Name), z.Str("repo", c.Repo))
+		}
+
+		versions[c.Name] = normalizeVersion(resp.TagName)
+	}
+
+	return clientVersionsFromMap(versions), nil
+}
+
+// minorClientVersions parses the client versions from the compatibility matrix of a previous minor release.
+func minorClientVersions(minorTag string, token string) (clientVersions, error) {
+	var resp struct {
+		Body string `json:"body"`
+	}
+
+	u := "https://api.github.com/repos/obolnetwork/charon/releases/tags/" + minorTag
+	if err := githubGetJSON(u, token, &resp); err != nil {
+		return clientVersions{}, errors.Wrap(err, "fetch minor release", z.Str("minor", minorTag))
+	}
+
+	versions := make(map[string]string)
+
+	for _, c := range clientRepos {
+		re := regexp.MustCompile(regexp.QuoteMeta(c.Name) + `\s+(v[\d][\w.\-]*)`)
+
+		m := re.FindStringSubmatch(resp.Body)
+		if len(m) < 2 {
+			return clientVersions{}, errors.New("client version not found in minor release", z.Str("client", c.Name), z.Str("minor", minorTag))
+		}
+
+		versions[c.Name] = m[1]
+	}
+
+	return clientVersionsFromMap(versions), nil
+}
+
+// clientVersionsFromMap builds a clientVersions from a client-name-keyed map.
+func clientVersionsFromMap(m map[string]string) clientVersions {
+	return clientVersions{
+		Teku:       m["Teku"],
+		Lighthouse: m["Lighthouse"],
+		Lodestar:   m["Lodestar"],
+		Nimbus:     m["Nimbus"],
+		Prysm:      m["Prysm"],
+		Grandine:   m["Grandine"],
+		Vouch:      m["Vouch"],
+	}
+}
+
+// githubGetJSON performs an authenticated GET request and unmarshals the JSON response into v.
+func githubGetJSON(url string, token string, v any) error {
+	req, err := http.NewRequest(http.MethodGet, url, nil) //nolint:noctx // Non-critical tooling code.
+	if err != nil {
+		return errors.Wrap(err, "new request")
+	}
+
+	if token != "" {
+		req.SetBasicAuth(token, "x-oauth-basic")
+	}
+
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return errors.Wrap(err, "do request")
+	}
+	defer resp.Body.Close()
+
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "read body")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("unexpected status code", z.Int("status", resp.StatusCode), z.Str("url", url), z.Str("body", string(b)))
+	}
+
+	if err := json.Unmarshal(b, v); err != nil {
+		return errors.Wrap(err, "unmarshal response", z.Str("url", url), z.Str("body", string(b)))
+	}
+
+	return nil
+}
+
+// normalizeVersion ensures the version tag has a leading "v" to match the matrix convention.
+func normalizeVersion(tag string) string {
+	tag = strings.TrimSpace(tag)
+	if tag != "" && !strings.HasPrefix(tag, "v") {
+		tag = "v" + tag
+	}
+
+	return tag
+}
+
+// parseTagVersion parses the major, minor and patch numbers from a release tag.
+func parseTagVersion(tag string) (major, minor, patch int, err error) {
+	m := tagVersionRegex.FindStringSubmatch(tag)
+	if len(m) < 4 {
+		return 0, 0, 0, errors.New("invalid release tag", z.Str("tag", tag))
+	}
+
+	major, _ = strconv.Atoi(m[1])
+	minor, _ = strconv.Atoi(m[2])
+	patch, _ = strconv.Atoi(m[3])
+
+	return major, minor, patch, nil
+}
+
+// minorTagOf returns the minor release tag (patch 0) that the given tag belongs to.
+func minorTagOf(tag string) (string, error) {
+	major, minor, _, err := parseTagVersion(tag)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("v%d.%d.0", major, minor), nil
 }
 
 // execTemplate returns the executed changelog template.
