@@ -44,12 +44,14 @@ jobs:
 
       - name: 3. Find Latest Release Branch
         id: find_branch
+        env:
+          TARGET_MINOR_INPUT: ${{ inputs.target_minor }}
         run: |
           # Fetch all remote branches and tags
           git fetch --all
           git fetch --tags
 
-          TARGET_MINOR="${{ inputs.target_minor }}"
+          TARGET_MINOR="$TARGET_MINOR_INPUT"
 
           if [[ -n "$TARGET_MINOR" ]]; then
             # Opt-in: patch a specific (non-latest) minor.
