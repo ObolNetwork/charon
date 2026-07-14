@@ -15,7 +15,7 @@ Read the rest of the release notes for more:
 {{end}}
 ## Compatibility Matrix
 
-This release of Charon is backwards compatible with Charon >= v1.0., though *only v1.7.* and newer are Fulu-ready.
+This release of Charon is backwards compatible with Charon >= v1.0, though only v1.7 and newer are Fulu-ready.
 
 The below matrix details a combination of beacon node (consensus layer) + validator clients and their corresponding versions the DV Labs team have tested with this Charon release. More validator and consensus clients will be added to this list as they are supported in our automated testing framework.
 
