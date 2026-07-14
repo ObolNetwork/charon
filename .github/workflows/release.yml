@@ -30,7 +30,7 @@ jobs:
           draft: true
           files: cli-reference.txt
           body_path: changelog.md
-          token: ${{ secrets.RELEASE_SECRET }}
+          token: ${{ secrets.CHARON_RW_PAT }}
 
   trigger-dispatch:
     needs: release
