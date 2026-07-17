@@ -73,7 +73,7 @@ func TestParSigEx(t *testing.T) {
 		}
 	}
 
-	verifyFunc := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
+	verifyFunc := func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error {
 		return nil
 	}
 
@@ -171,7 +171,7 @@ func TestParSigExVerifier(t *testing.T) {
 		att.Deneb.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedAttestation(att, shareIdx)
 		require.NoError(t, err)
-		require.NoError(t, verifyFunc(ctx, core.NewAttesterDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewAttesterDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify proposal", func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedProposal(proposal, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, core.NewProposerDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewProposerDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify blinded proposal", func(t *testing.T) {
@@ -204,7 +204,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedBlindedProposal(&eth2apiBlinded, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, core.NewProposerDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewProposerDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify Randao", func(t *testing.T) {
@@ -216,7 +216,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		randao := core.NewPartialSignedRandao(epoch, sign(sigData[:]), shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, core.NewRandaoDuty(slot), pubkey, randao))
+		require.NoError(t, verifyFunc(ctx, "", core.NewRandaoDuty(slot), pubkey, randao))
 	})
 
 	t.Run("Verify Voluntary Exit", func(t *testing.T) {
@@ -232,7 +232,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, core.NewVoluntaryExit(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewVoluntaryExit(slot), pubkey, data))
 	})
 
 	t.Run("Verify validator registration", func(t *testing.T) {
@@ -249,7 +249,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedValidatorRegistration(&reg.VersionedSignedValidatorRegistration, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, core.NewBuilderRegistrationDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewBuilderRegistrationDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify beacon committee selection", func(t *testing.T) {
@@ -263,7 +263,7 @@ func TestParSigExVerifier(t *testing.T) {
 		selection.SelectionProof = sign(sigData[:])
 		data := core.NewPartialSignedBeaconCommitteeSelection(selection, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewPrepareAggregatorDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify aggregate and proof", func(t *testing.T) {
@@ -286,7 +286,7 @@ func TestParSigExVerifier(t *testing.T) {
 		agg.Deneb.Signature = sign(sigData[:])
 		data := core.NewPartialVersionedSignedAggregateAndProof(agg, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, core.NewAggregatorDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewAggregatorDuty(slot), pubkey, data))
 	})
 
 	t.Run("verify sync committee message", func(t *testing.T) {
@@ -299,11 +299,11 @@ func TestParSigExVerifier(t *testing.T) {
 		msg.Signature = sign(sigData[:])
 
 		data := core.NewPartialSignedSyncMessage(msg, shareIdx)
-		require.NoError(t, verifyFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, "", core.NewSyncMessageDuty(slot), pubkey, data))
 
 		// Invalid sync committee message.
 		data = core.NewPartialSignedRandao(epoch, testutil.RandomEth2Signature(), shareIdx)
-		err = verifyFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, data)
+		err = verifyFunc(ctx, "", core.NewSyncMessageDuty(slot), pubkey, data)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid signature")
 	})
@@ -326,7 +326,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		parSigData := core.NewPartialSignedSyncCommitteeSelection(selection, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
+		require.NoError(t, verifyFunc(ctx, "", core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
 	})
 
 	t.Run("verify sync committee contribution and proof", func(t *testing.T) {
@@ -343,7 +343,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		parSigData := core.NewPartialSignedSyncContributionAndProof(proof, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
+		require.NoError(t, verifyFunc(ctx, "", core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
 	})
 }
 
