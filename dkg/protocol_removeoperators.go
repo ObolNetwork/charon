@@ -119,6 +119,12 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 	oldPeerIDs := make([]peer.ID, 0)
 	newPeerIDs := make([]peer.ID, 0)
 
+	// exchangerPeerMap binds each remaining node to its original share index for the lock-hash
+	// exchange. Removed operators are excluded even when they still participate in the reshare, since
+	// they do not contribute lock-hash signatures; keeping them out prevents their authenticated peer
+	// ID from being used to submit one.
+	exchangerPeerMap := make(map[peer.ID]cluster.NodeIdx)
+
 	for i, op := range pctx.Lock.Operators {
 		isOld := slices.Contains(p.oldENRs, op.ENR)
 		if isOld {
@@ -126,6 +132,9 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 		} else {
 			newPeerIDs = append(newPeerIDs, allPeers[i].ID)
 			p.operators = append(p.operators, op.ENR)
+			// ShareIdx is the 1-indexed original operator position, matching buildPeerMap and the
+			// index each remaining node signs with.
+			exchangerPeerMap[allPeers[i].ID] = cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1}
 		}
 
 		if pctx.ThisPeerID == allPeers[i].ID && isOld {
@@ -146,12 +155,21 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 
 	if !p.oldNode {
 		// SigExchanger is only created for nodes remaining in the cluster, because old nodes do not participate in signing.
+		// Remaining nodes keep their original share indices, so exchangerPeerMap (keyed by peer ID,
+		// with each node's original share index in the value) binds each partial signature to its
+		// sender's assigned share index.
 		nodeIdx := slices.Index(newPeerIDs, pctx.ThisPeerID)
 		pctx.ThisNodeIdx = cluster.NodeIdx{
 			PeerIdx:  nodeIdx,
 			ShareIdx: peerMap[pctx.ThisPeerID].ShareIdx,
 		}
-		pctx.SigExchanger = newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, []sigType{sigLock}, pctx.Config.Timeout)
+
+		sigEx, err := newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, exchangerPeerMap, []sigType{sigLock}, pctx.Config.Timeout)
+		if err != nil {
+			return err
+		}
+
+		pctx.SigExchanger = sigEx
 	}
 
 	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), p.newThreshold, nil, oldPeerIDs)

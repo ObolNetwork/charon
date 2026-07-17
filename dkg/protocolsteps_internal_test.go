@@ -142,7 +142,8 @@ func TestUpdateLockProtocolStep(t *testing.T) {
 	shares := valKeysToSharesNode0(t, valKeys, lock.Validators)
 
 	host := testutil.CreateHost(t, testutil.AvailableAddr(t))
-	sigex := newExchanger(host, 0, []peer.ID{host.ID()}, []sigType{sigLock}, 10*time.Second)
+	sigex, err := newExchanger(host, 0, []peer.ID{host.ID()}, positionalPeerMap([]peer.ID{host.ID()}), []sigType{sigLock}, 10*time.Second)
+	require.NoError(t, err)
 
 	pctx := &ProtocolContext{
 		Lock:          &lock,
@@ -151,7 +152,7 @@ func TestUpdateLockProtocolStep(t *testing.T) {
 		SigExchanger:  sigex,
 		ThisNodeIdx:   cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1},
 	}
-	err := step.Run(t.Context(), pctx)
+	err = step.Run(t.Context(), pctx)
 
 	require.NoError(t, err)
 	require.Equal(t, 4, pctx.Lock.Threshold)

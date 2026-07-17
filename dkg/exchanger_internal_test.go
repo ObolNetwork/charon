@@ -14,9 +14,21 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+// positionalPeerMap builds a peer-to-node-index map where each peer's share index is its position
+// plus one, matching the default cluster layout.
+func positionalPeerMap(peers []peer.ID) map[peer.ID]cluster.NodeIdx {
+	peerMap := make(map[peer.ID]cluster.NodeIdx, len(peers))
+	for i, p := range peers {
+		peerMap[p] = cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1}
+	}
+
+	return peerMap
+}
 
 // TODO(dhruv): add tests for negative scenarios (take inspiration from core/qbft/qbft_internal_test).
 func TestExchanger(t *testing.T) {
@@ -94,7 +106,9 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := range nodes {
-		ex := newExchanger(hosts[i], i, peers, expectedSigTypes, 8*time.Second)
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), expectedSigTypes, 8*time.Second)
+		require.NoError(t, err)
+
 		exchangers = append(exchangers, ex)
 	}
 
@@ -189,7 +203,8 @@ func TestExchangerPushPsigsNeverBlocks(t *testing.T) {
 	h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 	peers := []peer.ID{h.ID()}
 
-	ex := newExchanger(h, 0, peers, []sigType{sigLock}, time.Second)
+	ex, err := newExchanger(h, 0, peers, positionalPeerMap(peers), []sigType{sigLock}, time.Second)
+	require.NoError(t, err)
 
 	duty := core.NewSignatureDuty(uint64(sigLock))
 
@@ -223,4 +238,165 @@ func TestExchangerPushPsigsNeverBlocks(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("pushPsigs deadlocked")
 	}
+}
+
+// TestExchangerRejectsMismatchedShareIndex verifies the sender->shareIdx binding in the lock-hash
+// exchange: a peer may only contribute partial signatures under its own share index.
+//
+// The exchange defers cryptographic verification until aggregation, so partial signatures are
+// accepted at receive time without checking their signature. newExchanger therefore binds each
+// received partial signature to its authenticated sender (shareIdx == peerIdx+1), consistent with
+// the sender check in nodesigs.go.
+//
+// This drives the real /charon/parsigex/2.0.0 receive path: one node broadcasts partial signatures
+// for a pubkey outside the cluster under every share index. Every share index other than that
+// node's own is rejected, so the outside pubkey never reaches the threshold, while the honest
+// exchange for the real validator completes with a full set of shares.
+func TestExchangerRejectsMismatchedShareIndex(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// threshold = len(peers), so reaching it for a single pubkey needs this many distinct share
+	// indices, which one sender can no longer supply on its own.
+	const nodes = 4
+
+	var (
+		peers     []peer.ID
+		hosts     []host.Host
+		hostsInfo []peer.AddrInfo
+	)
+
+	for range nodes {
+		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
+		hostsInfo = append(hostsInfo, peer.AddrInfo{ID: h.ID(), Addrs: h.Addrs()})
+		peers = append(peers, h.ID())
+		hosts = append(hosts, h)
+	}
+
+	// Connect every host to its peers so exchange broadcasts reach live handlers.
+	for i := range nodes {
+		for j := range nodes {
+			if i == j {
+				continue
+			}
+
+			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
+		}
+	}
+
+	exchangers := make([]*exchanger, nodes)
+	for i := range nodes {
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 8*time.Second)
+		require.NoError(t, err)
+
+		exchangers[i] = ex
+	}
+
+	realPk := testutil.RandomCorePubKey(t)    // The cluster's genuine distributed validator.
+	outsidePk := testutil.RandomCorePubKey(t) // A pubkey that is not part of the cluster.
+
+	// otherNode (peer index 1) has share index 2 as its own. It broadcasts partial signatures for
+	// outsidePk under every share index over the authenticated parsigex protocol. Every peer's
+	// sender->shareIdx binding must reject every share index other than otherNode's own, so outsidePk
+	// can never reach the threshold anywhere.
+	const otherNode = 1
+
+	sigLockDuty := core.NewSignatureDuty(uint64(sigLock))
+
+	for shareIdx := 1; shareIdx <= nodes; shareIdx++ {
+		set := core.ParSignedDataSet{
+			outsidePk: core.NewPartialSignature(testutil.RandomCoreSignature(), shareIdx),
+		}
+		require.NoError(t, exchangers[otherNode].sigex.Broadcast(ctx, sigLockDuty, set))
+	}
+
+	// Every node runs the honest lock-hash exchange for the single real validator, each contributing
+	// only its own share. The real validator reaches the threshold legitimately and the exchange
+	// resolves with real data.
+	var wg sync.WaitGroup
+
+	results := make([]map[core.PubKey][]core.ParSignedData, nodes)
+	errs := make([]error, nodes)
+
+	for i := range nodes {
+		wg.Add(1)
+
+		go func(node int) {
+			defer wg.Done()
+
+			set := core.ParSignedDataSet{
+				realPk: core.NewPartialSignature(testutil.RandomCoreSignature(), node+1),
+			}
+			results[node], errs[node] = exchangers[node].exchange(ctx, sigLock, set)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// The outside pubkey never reached the threshold, so no exchange result contains it; the real
+	// validator is present with a full set of shares.
+	for i := range nodes {
+		require.NoErrorf(t, errs[i], "node %d exchange failed", i)
+		require.Containsf(t, results[i], realPk, "node %d missing the real validator", i)
+		require.Lenf(t, results[i][realPk], nodes, "node %d has an unexpected number of shares", i)
+		require.NotContainsf(t, results[i], outsidePk, "node %d accepted the outside pubkey", i)
+	}
+}
+
+// TestVerifyPeerShareIdx covers the sender->shareIdx binding, including a non-contiguous layout where
+// a peer's assigned share index does not equal its position (as when earlier operators are removed).
+func TestVerifyPeerShareIdx(t *testing.T) {
+	const (
+		self    = peer.ID("self")
+		other   = peer.ID("other")
+		unknown = peer.ID("unknown")
+	)
+
+	// "other" is the second peer but keeps share index 4, e.g. after operators with lower indices
+	// have been removed.
+	peerMap := map[peer.ID]cluster.NodeIdx{
+		self:  {PeerIdx: 0, ShareIdx: 1},
+		other: {PeerIdx: 1, ShareIdx: 4},
+	}
+
+	tests := []struct {
+		name     string
+		sender   peer.ID
+		shareIdx int
+		wantErr  string
+	}{
+		{name: "own share index accepted", sender: self, shareIdx: 1},
+		{name: "assigned non-contiguous share index accepted", sender: other, shareIdx: 4},
+		{name: "mismatched share index rejected", sender: other, shareIdx: 2, wantErr: "share index does not match"},
+		{name: "another peer's share index rejected", sender: self, shareIdx: 4, wantErr: "share index does not match"},
+		{name: "non-positive share index rejected", sender: self, shareIdx: 0, wantErr: "share index does not match"},
+		{name: "unknown sender rejected", sender: unknown, shareIdx: 1, wantErr: "unknown peer"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := core.NewPartialSignature(testutil.RandomCoreSignature(), tt.shareIdx)
+
+			err := verifyPeerShareIdx(peerMap, tt.sender, data)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestNewExchangerRejectsIncompletePeerMap ensures construction fails fast when a peer has no valid
+// share index, rather than silently rejecting its partial signatures and timing out.
+func TestNewExchangerRejectsIncompletePeerMap(t *testing.T) {
+	h := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	peers := []peer.ID{h.ID(), peer.ID("missing")}
+
+	peerMap := map[peer.ID]cluster.NodeIdx{
+		h.ID(): {PeerIdx: 0, ShareIdx: 1},
+	}
+
+	_, err := newExchanger(h, 0, peers, peerMap, []sigType{sigLock}, time.Second)
+	require.ErrorContains(t, err, "missing valid share index")
 }
