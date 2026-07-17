@@ -33,7 +33,7 @@ func TestDutyExpiration(t *testing.T) {
 	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
 	require.NoError(t, err)
 
-	resp, err := db.Await(ctx, duty, pubkey)
+	resp, err := db.Await(ctx, duty, pubkey, 0)
 	require.NoError(t, err)
 	require.Equal(t, sig, resp)
 
@@ -78,7 +78,7 @@ func TestCancelledQuery(t *testing.T) {
 	errCh := make(chan error, 2)
 
 	go func() {
-		_, err := db.Await(qctx, duty, pubkey)
+		_, err := db.Await(qctx, duty, pubkey, 0)
 		errCh <- err
 
 		wg.Done()
@@ -87,7 +87,7 @@ func TestCancelledQuery(t *testing.T) {
 	require.Equal(t, 1, <-queryCount)
 
 	wg.Go(func() {
-		_, err := db.Await(qctx, duty, pubkey)
+		_, err := db.Await(qctx, duty, pubkey, 0)
 		errCh <- err
 	})
 

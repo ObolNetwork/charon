@@ -148,7 +148,7 @@ func TestUnsignedDataToProto(t *testing.T) {
 		},
 		{
 			Type: core.DutySyncContribution,
-			Data: core.NewSyncContribution(testutil.RandomSyncCommitteeContribution()),
+			Data: core.SyncContributions{core.NewSyncContribution(testutil.RandomSyncCommitteeContribution())},
 		},
 	}
 

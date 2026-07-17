@@ -320,7 +320,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 		for range queries {
 			contrib := testutil.RandomSyncCommitteeContribution()
 			set := core.UnsignedDataSet{
-				testutil.RandomCorePubKey(t): core.NewSyncContribution(contrib),
+				testutil.RandomCorePubKey(t): core.SyncContributions{core.NewSyncContribution(contrib)},
 			}
 
 			var (
@@ -373,13 +373,13 @@ func TestMemDBSyncContribution(t *testing.T) {
 		contrib1.Slot = slot
 		contrib1.SubcommitteeIndex = subcommIdx
 		contrib1.BeaconBlockRoot = beaconBlockRoot
-		unsigned1 := core.NewSyncContribution(contrib1)
+		unsigned1 := core.SyncContributions{core.NewSyncContribution(contrib1)}
 
 		contrib2 := testutil.RandomSyncCommitteeContribution()
 		contrib2.Slot = slot
 		contrib2.SubcommitteeIndex = subcommIdx
 		contrib2.BeaconBlockRoot = beaconBlockRoot
-		unsigned2 := core.NewSyncContribution(contrib2)
+		unsigned2 := core.SyncContributions{core.NewSyncContribution(contrib2)}
 
 		// Store them.
 		err := db.Store(ctx, duty, core.UnsignedDataSet{
@@ -405,7 +405,7 @@ func TestMemDBSyncContribution(t *testing.T) {
 			testutil.RandomCorePubKey(t): testutil.RandomDenebCoreVersionedAggregateAttestation(),
 		})
 		require.Error(t, err)
-		require.ErrorContains(t, err, "invalid unsigned sync committee contribution")
+		require.ErrorContains(t, err, "invalid unsigned sync committee contributions")
 	})
 }
 

@@ -134,11 +134,11 @@ func WithTracing() WireOption {
 
 			return withSpanStatus(span, clone.AggSigDBStore(ctx, duty, set))
 		}
-		w.AggSigDBAwait = func(parent context.Context, duty Duty, key PubKey) (SignedData, error) {
+		w.AggSigDBAwait = func(parent context.Context, duty Duty, key PubKey, subcommIdx SubcommitteeIndex) (SignedData, error) {
 			ctx, span := tracer.Start(parent, "core/aggsigdb.Await")
 			defer span.End()
 
-			sd, err := clone.AggSigDBAwait(ctx, duty, key)
+			sd, err := clone.AggSigDBAwait(ctx, duty, key, subcommIdx)
 
 			return sd, withSpanStatus(span, err)
 		}
