@@ -2441,6 +2441,95 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	require.Equal(t, selections, got)
 }
 
+// TestComponent_SyncCommitteeSelectionsMultiSubcommittee exercises the bug scenario:
+// a single validator submitting selections for two different sync subcommittees in
+// the same slot. Both must survive rather than colliding on (slot, pubkey).
+func TestComponent_SyncCommitteeSelectionsMultiSubcommittee(t *testing.T) {
+	const (
+		slot     = 0
+		shareIdx = 1
+		vIdx     = 1
+		subcommA = 0
+		subcommB = 1
+	)
+
+	ctx := context.Background()
+	valSet := beaconmock.ValidatorSetA
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	pk, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+
+	valSet[vIdx].Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet))
+	require.NoError(t, err)
+
+	// Two selections for the SAME validator in two different subcommittees.
+	newSelection := func(subcommIdx uint64) *eth2v1.SyncCommitteeSelection {
+		sel := testutil.RandomSyncCommitteeSelection()
+		sel.ValidatorIndex = valSet[vIdx].Index
+		sel.Slot = slot
+		sel.SubcommitteeIndex = subcommIdx
+		sel.SelectionProof = syncCommSelectionProof(t, bmock, secret, slot, subcommIdx)
+
+		return sel
+	}
+	selections := []*eth2v1.SyncCommitteeSelection{newSelection(subcommA), newSelection(subcommB)}
+
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{pk: {shareIdx: pubkey}}
+
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
+		require.Equal(t, pk, gotPk)
+
+		for _, sel := range selections {
+			if sel.SubcommitteeIndex == uint64(subcommIdx) {
+				return core.NewSyncCommitteeSelection(sel), nil
+			}
+		}
+
+		return nil, errors.New("selection not found")
+	})
+
+	// Selections are grouped by subcommittee, so subscribers are called once per
+	// subcommittee. Collect all stored entries and assert both survived.
+	stored := make(map[uint64]core.ParSignedData)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
+		require.Len(t, set, 1) // A single validator, keyed by plain pubkey per subcommittee group.
+
+		data, ok := set[pk]
+		require.True(t, ok)
+
+		sel, ok := data.SignedData.(core.SyncCommitteeSelection)
+		require.True(t, ok)
+
+		stored[sel.SubcommitteeIndex] = data
+
+		return nil
+	})
+
+	eth2Resp, err := vapi.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: selections})
+	require.NoError(t, err)
+
+	// Pre-fix these collided into a single entry; both must now be present.
+	require.Len(t, stored, 2)
+	require.Contains(t, stored, uint64(subcommA))
+	require.Contains(t, stored, uint64(subcommB))
+
+	require.ElementsMatch(t, selections, eth2Resp.Data)
+}
+
 // syncCommSelectionProof returns the selection_proof corresponding to the provided altair.ContributionAndProof.
 // Refer get_sync_committee_selection_proof from https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#aggregation-selection.
 func syncCommSelectionProof(t *testing.T, eth2Cl eth2wrap.Client, secret tbls.PrivateKey, slot eth2p0.Slot, subcommIdx uint64) eth2p0.BLSSignature {

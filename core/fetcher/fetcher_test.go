@@ -569,6 +569,74 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("aggregator in multiple subcommittees", func(t *testing.T) {
+		// The bug scenario: a single validator occupies two sync subcommittees in
+		// the same slot and must produce a distinct contribution for each.
+		pubkey := pubkeysByIdx[vIdxA]
+
+		multiDuty := testutil.RandomSyncCommitteeDuty(t)
+		multiDuty.ValidatorIndex = vIdxA
+		multiDuty.ValidatorSyncCommitteeIndices = []eth2p0.CommitteeIndex{
+			eth2p0.CommitteeIndex(subCommIdxA * subcommitteeSize), // subcommittee 0
+			eth2p0.CommitteeIndex(subCommIdxB * subcommitteeSize), // subcommittee 1
+		}
+		multiDefSet := map[core.PubKey]core.DutyDefinition{
+			pubkey: core.NewSyncCommitteeDefinition(multiDuty),
+		}
+
+		// An aggregator selection proof per subcommittee (both sigA and sigB are aggregators).
+		selectionsBySubcomm := map[core.SubcommitteeIndex]core.SignedData{
+			subCommIdxA: core.NewSyncCommitteeSelection(&eth2v1.SyncCommitteeSelection{
+				ValidatorIndex: vIdxA, Slot: slot, SubcommitteeIndex: subCommIdxA, SelectionProof: blsSigFromHex(t, sigA),
+			}),
+			subCommIdxB: core.NewSyncCommitteeSelection(&eth2v1.SyncCommitteeSelection{
+				ValidatorIndex: vIdxA, Slot: slot, SubcommitteeIndex: subCommIdxB, SelectionProof: blsSigFromHex(t, sigB),
+			}),
+		}
+
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		bmock.SyncCommitteeContributionFunc = func(_ context.Context, _ eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+			return &altair.SyncCommitteeContribution{
+				Slot:              slot,
+				BeaconBlockRoot:   beaconBlockRoot,
+				SubcommitteeIndex: subcommitteeIndex,
+				AggregationBits:   testutil.RandomBitVec128(),
+				Signature:         testutil.RandomEth2Signature(),
+			}, nil
+		}
+
+		fetch := mustCreateFetcher(t, bmock)
+		fetch.RegisterSyncContributionV2(func(uint64) bool { return true }) // Plural encoding.
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+			switch duty.Type {
+			case core.DutyPrepareSyncContribution:
+				return selectionsBySubcomm[subcommIdx], nil
+			case core.DutySyncMessage:
+				return syncMsgsByPubkey[pubkey], nil
+			default:
+				return nil, errors.New("unsupported duty")
+			}
+		})
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Len(t, resDataSet, 1)
+
+			contribs, ok := resDataSet[pubkey].(core.SyncContributions)
+			require.True(t, ok)
+			require.Len(t, contribs, 2) // One contribution per subcommittee - the fix.
+
+			require.ElementsMatch(t, []uint64{subCommIdxA, subCommIdxB},
+				[]uint64{contribs[0].SubcommitteeIndex, contribs[1].SubcommitteeIndex})
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, multiDefSet)
+		require.NoError(t, err)
+	})
+
 	t.Run("not contribution aggregator", func(t *testing.T) {
 		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
