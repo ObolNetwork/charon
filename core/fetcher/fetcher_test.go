@@ -467,6 +467,8 @@ func TestFetchSyncContribution(t *testing.T) {
 		}
 
 		fetch := mustCreateFetcher(t, bmock)
+		// All peers on v1.11+ -> plural SyncContributions encoding.
+		fetch.RegisterSyncContributionV2(func(uint64) bool { return true })
 		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
@@ -514,6 +516,50 @@ func TestFetchSyncContribution(t *testing.T) {
 				message, ok := syncMsgsByPubkey[pubkey].(core.SignedSyncMessage)
 				require.True(t, ok)
 				require.Equal(t, message.BeaconBlockRoot, contribution.BeaconBlockRoot)
+			}
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
+	})
+
+	t.Run("backwards compatible single contribution", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		bmock.SyncCommitteeContributionFunc = func(_ context.Context, _ eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+			return &altair.SyncCommitteeContribution{
+				Slot:              slot,
+				BeaconBlockRoot:   beaconBlockRoot,
+				SubcommitteeIndex: subcommitteeIndex,
+				AggregationBits:   testutil.RandomBitVec128(),
+				Signature:         testutil.RandomEth2Signature(),
+			}, nil
+		}
+
+		fetch := mustCreateFetcher(t, bmock)
+		// No RegisterSyncContribV2 → gate off → single (pre-v1.11) encoding.
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+			if duty.Type == core.DutyPrepareSyncContribution {
+				return commSelectionsByPubkey[key], nil
+			}
+
+			if duty.Type == core.DutySyncMessage {
+				return syncMsgsByPubkey[key], nil
+			}
+
+			return nil, errors.New("unsupported duty")
+		})
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Len(t, resDataSet, 2)
+
+			for _, data := range resDataSet {
+				// Single SyncContribution, not the plural SyncContributions.
+				_, ok := data.(core.SyncContribution)
+				require.True(t, ok)
 			}
 
 			return nil

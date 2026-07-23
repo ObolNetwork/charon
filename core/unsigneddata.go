@@ -738,12 +738,24 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 
 		return respVersioned, nil
 	case DutySyncContribution:
-		var resp SyncContributions
-		if err := unmarshal(data, &resp); err != nil {
-			return nil, errors.Wrap(err, "unmarshal sync contributions")
+		// A validator can aggregate for multiple sync subcommittees in a slot.
+		// v1.11+ nodes encode the set as plural SyncContributions (a JSON array);
+		// for backwards compatibility with older nodes (and while the cluster is
+		// mixed-version) the single-subcommittee case stays a single SyncContribution
+		// in the original wire format. Decode either: try the plural JSON array
+		// first (SyncContributions is JSON-only, so it fails cleanly on single
+		// SSZ/JSON bytes) and fall back to the single form.
+		var plural SyncContributions
+		if err := unmarshal(data, &plural); err == nil {
+			return plural, nil
 		}
 
-		return resp, nil
+		var single SyncContribution
+		if err := unmarshal(data, &single); err != nil {
+			return nil, errors.Wrap(err, "unmarshal sync contribution")
+		}
+
+		return single, nil
 	default:
 		return nil, errors.New("unsupported unsigned data duty type")
 	}

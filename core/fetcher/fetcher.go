@@ -37,16 +37,17 @@ func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, buil
 
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
-	eth2Cl            eth2wrap.Client
-	feeRecipientFunc  func(core.PubKey) string
-	subs              []func(context.Context, core.Duty, core.UnsignedDataSet) error
-	aggSigDBFunc      func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
-	awaitAttDataFunc  func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	builderEnabled    bool
-	graffitiBuilder   *GraffitiBuilder
-	electraSlot       eth2p0.Slot
-	fetchOnlyCommIdx0 bool
-	attDataCache      sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
+	eth2Cl                 eth2wrap.Client
+	feeRecipientFunc       func(core.PubKey) string
+	subs                   []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	aggSigDBFunc           func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	awaitAttDataFunc       func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	syncContributionV2Func func(slot uint64) bool
+	builderEnabled         bool
+	graffitiBuilder        *GraffitiBuilder
+	electraSlot            eth2p0.Slot
+	fetchOnlyCommIdx0      bool
+	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -192,6 +193,15 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 // Note: This is not thread safe and should only be called *before* Fetch.
 func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)) {
 	f.aggSigDBFunc = fn
+}
+
+// RegisterSyncContributionV2 registers a function reporting whether, for a given slot, the
+// cluster supports the plural SyncContributions encoding, i.e. at least a threshold of peers
+// advertised charon >= v1.11. When it returns false, or is unregistered, the fetcher falls
+// back to a single SyncContribution per validator for backwards compatibility.
+// Note: This is not thread safe and should only be called *before* Fetch.
+func (f *Fetcher) RegisterSyncContributionV2(fn func(slot uint64) bool) {
+	f.syncContributionV2Func = fn
 }
 
 // RegisterAwaitAttData registers a function to get attestation data from DutyDB.
@@ -431,6 +441,13 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 		return core.UnsignedDataSet{}, err
 	}
 
+	// The plural SyncContributions encoding (one entry per subcommittee) is only
+	// used once a threshold of peers are on a version that understands it
+	// (charon >= v1.11). Until then fall back to a single SyncContribution per
+	// validator, matching the pre-v1.11 wire format. Peers behind that threshold
+	// won't decode the plural form and simply skip contributing.
+	syncContribV2 := f.syncContributionV2Func != nil && f.syncContributionV2Func(slot)
+
 	for pubkey, def := range defSet {
 		// A validator can occupy multiple sync subcommittees in the same slot,
 		// producing a distinct contribution for each it aggregates.
@@ -450,6 +467,12 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 			}
 
 			contribs = append(contribs, contrib)
+
+			if !syncContribV2 {
+				// Backwards-compatible mode: a single contribution per validator
+				// (the lowest aggregated subcommittee, subcommIdxs is sorted).
+				break
+			}
 		}
 
 		if len(contribs) == 0 {
@@ -459,7 +482,11 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 
 		pt.addResolved(pubkey.String())
 
-		resp[pubkey] = contribs
+		if syncContribV2 {
+			resp[pubkey] = contribs
+		} else {
+			resp[pubkey] = contribs[0] // Single SyncContribution (old wire format).
+		}
 	}
 
 	return resp, nil

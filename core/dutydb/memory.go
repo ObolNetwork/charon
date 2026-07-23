@@ -489,18 +489,22 @@ func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) err
 		return err
 	}
 
-	contribs, ok := cloned.(core.SyncContributions)
-	if !ok {
+	// The unsigned data is either a plural SyncContributions (v1.11+, one per
+	// subcommittee) or, for backwards compatibility, a single SyncContribution.
+	switch contrib := cloned.(type) {
+	case core.SyncContributions:
+		for _, entry := range contrib {
+			if err := db.storeSyncContributionEntryUnsafe(entry); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	case core.SyncContribution:
+		return db.storeSyncContributionEntryUnsafe(contrib)
+	default:
 		return errors.New("invalid unsigned sync committee contributions")
 	}
-
-	for _, contrib := range contribs {
-		if err := db.storeSyncContributionEntryUnsafe(contrib); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // storeSyncContributionEntryUnsafe stores a single sync committee contribution.
