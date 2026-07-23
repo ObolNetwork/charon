@@ -569,7 +569,14 @@ func (f *Fetcher) syncSubcommitteeSize(ctx context.Context) (uint64, error) {
 		return 0, errors.New("invalid SYNC_COMMITTEE_SUBNET_COUNT")
 	}
 
-	return commSize / subnetCount, nil
+	subcommSize := commSize / subnetCount
+	if subcommSize == 0 {
+		// Guard against a division by zero in syncSubcommittees; a valid spec has
+		// SYNC_COMMITTEE_SIZE (512) well above SYNC_COMMITTEE_SUBNET_COUNT (4).
+		return 0, errors.New("invalid sync subcommittee size", z.U64("comm_size", commSize), z.U64("subnet_count", subnetCount))
+	}
+
+	return subcommSize, nil
 }
 
 // syncSubcommittees returns the sorted, unique sync subcommittee indices that the
