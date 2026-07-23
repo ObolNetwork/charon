@@ -29,7 +29,7 @@ func TestDutyExpirationV2(t *testing.T) {
 	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: sig})
 	require.NoError(t, err)
 
-	resp, err := db.Await(ctx, duty, pubkey)
+	resp, err := db.Await(ctx, duty, pubkey, 0)
 	require.NoError(t, err)
 	require.Equal(t, sig, resp)
 
@@ -62,7 +62,7 @@ func TestCancelledQueryV2(t *testing.T) {
 	errStore := make([]error, awaitAmt)
 	for idx := range awaitAmt {
 		go func() {
-			_, err := db.Await(qctx, duty, pubkey)
+			_, err := db.Await(qctx, duty, pubkey, 0)
 			errStore[idx] = err
 
 			wg.Done()

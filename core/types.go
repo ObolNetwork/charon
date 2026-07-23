@@ -320,6 +320,21 @@ func (k PubKey) ToETH2() (eth2p0.BLSPubKey, error) {
 	return resp, nil
 }
 
+// SubcommitteeIndex identifies a sync committee subcommittee (0 to
+// SYNC_COMMITTEE_SUBNET_COUNT-1). A validator can occupy multiple sync
+// subcommittees in the same slot, each producing its own partial signature, so
+// it forms part of the partial-signature key for sync-committee aggregator
+// duties (see IsSyncSubcommitteeDuty). It is 0 for all other duty types.
+type SubcommitteeIndex uint64
+
+// IsSyncSubcommitteeDuty reports whether the duty type's partial signatures are
+// keyed by sync subcommittee index (in addition to pubkey). A validator can
+// occupy multiple sync subcommittees in the same slot, each producing its own
+// partial signature, so the subcommittee index disambiguates them.
+func IsSyncSubcommitteeDuty(typ DutyType) bool {
+	return typ == DutyPrepareSyncContribution || typ == DutySyncContribution
+}
+
 // DutyDefinition defines the duty including parameters required
 // to fetch the duty data, it is the result of resolving duties
 // at the start of an epoch.

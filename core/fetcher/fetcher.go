@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 
@@ -36,16 +37,17 @@ func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, buil
 
 // Fetcher fetches proposed duty data.
 type Fetcher struct {
-	eth2Cl            eth2wrap.Client
-	feeRecipientFunc  func(core.PubKey) string
-	subs              []func(context.Context, core.Duty, core.UnsignedDataSet) error
-	aggSigDBFunc      func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
-	awaitAttDataFunc  func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	builderEnabled    bool
-	graffitiBuilder   *GraffitiBuilder
-	electraSlot       eth2p0.Slot
-	fetchOnlyCommIdx0 bool
-	attDataCache      sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
+	eth2Cl                 eth2wrap.Client
+	feeRecipientFunc       func(core.PubKey) string
+	subs                   []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	aggSigDBFunc           func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	awaitAttDataFunc       func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	syncContributionV2Func func(slot uint64) bool
+	builderEnabled         bool
+	graffitiBuilder        *GraffitiBuilder
+	electraSlot            eth2p0.Slot
+	fetchOnlyCommIdx0      bool
+	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
 }
 
 // Subscribe registers a callback for fetched duties.
@@ -189,8 +191,17 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 
 // RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
 // Note: This is not thread safe and should only be called *before* Fetch.
-func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
+func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)) {
 	f.aggSigDBFunc = fn
+}
+
+// RegisterSyncContributionV2 registers a function reporting whether, for a given slot, the
+// cluster supports the plural SyncContributions encoding, i.e. at least a threshold of peers
+// advertised charon >= v1.11. When it returns false, or is unregistered, the fetcher falls
+// back to a single SyncContribution per validator for backwards compatibility.
+// Note: This is not thread safe and should only be called *before* Fetch.
+func (f *Fetcher) RegisterSyncContributionV2(fn func(slot uint64) bool) {
+	f.syncContributionV2Func = fn
 }
 
 // RegisterAwaitAttData registers a function to get attestation data from DutyDB.
@@ -288,7 +299,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		}
 
 		// Query AggSigDB for DutyPrepareAggregator to get beacon committee selections.
-		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey)
+		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, 0)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
@@ -365,7 +376,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		// Fetch previously aggregated randao reveal from AggSigDB
 		dutyRandao := core.NewRandaoDuty(slot)
 
-		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey)
+		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -425,69 +436,169 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 
 	resp := make(core.UnsignedDataSet)
 
-	for pubkey := range defSet {
-		// Query AggSigDB for DutyPrepareSyncContribution to get sync committee selection.
-		selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey)
+	subcommSize, err := f.syncSubcommitteeSize(ctx)
+	if err != nil {
+		return core.UnsignedDataSet{}, err
+	}
+
+	// The plural SyncContributions encoding (one entry per subcommittee) is only
+	// used once a threshold of peers are on a version that understands it
+	// (charon >= v1.11). Until then fall back to a single SyncContribution per
+	// validator, matching the pre-v1.11 wire format. Peers behind that threshold
+	// won't decode the plural form and simply skip contributing.
+	syncContribV2 := f.syncContributionV2Func != nil && f.syncContributionV2Func(slot)
+
+	for pubkey, def := range defSet {
+		// A validator can occupy multiple sync subcommittees in the same slot,
+		// producing a distinct contribution for each it aggregates.
+		subcommIdxs, err := syncSubcommittees(def, subcommSize)
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
 
-		selection, ok := selectionData.(core.SyncCommitteeSelection)
-		if !ok {
-			return core.UnsignedDataSet{}, errors.New("invalid sync committee selection")
+		var contribs core.SyncContributions
+
+		for _, subcommIdx := range subcommIdxs {
+			contrib, ok, err := f.fetchSubcommContribution(ctx, slot, pubkey, subcommIdx)
+			if err != nil {
+				return core.UnsignedDataSet{}, err
+			} else if !ok {
+				continue // Validator is not an aggregator for this subcommittee.
+			}
+
+			contribs = append(contribs, contrib)
+
+			if !syncContribV2 {
+				// Backwards-compatible mode: a single contribution per validator
+				// (the lowest aggregated subcommittee, subcommIdxs is sorted).
+				break
+			}
 		}
 
-		subcommIdx := selection.SubcommitteeIndex
-
-		// Check if the validator is an aggregator for the sync committee.
-		ok, err = eth2exp.IsSyncCommAggregator(ctx, f.eth2Cl, selection.SelectionProof)
-		if err != nil {
-			return core.UnsignedDataSet{}, err
-		} else if !ok {
+		if len(contribs) == 0 {
 			pt.addNotSelected(pubkey.String())
 			continue
 		}
 
-		// Query AggSigDB for DutySyncMessage to get beacon block root.
-		syncMsgData, err := f.aggSigDBFunc(ctx, core.NewSyncMessageDuty(slot), pubkey)
-		if err != nil {
-			return core.UnsignedDataSet{}, err
-		}
-
-		msg, ok := syncMsgData.(core.SignedSyncMessage)
-		if !ok {
-			return core.UnsignedDataSet{}, errors.New("invalid sync committee message")
-		}
-
-		blockRoot := msg.BeaconBlockRoot
-
-		// Query BN for sync committee contribution.
-		opts := &eth2api.SyncCommitteeContributionOpts{
-			Slot:              eth2p0.Slot(slot),
-			SubcommitteeIndex: subcommIdx,
-			BeaconBlockRoot:   blockRoot,
-		}
-
-		eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
-		if err != nil {
-			return core.UnsignedDataSet{}, err
-		}
-
-		contribution := eth2Resp.Data
-		if contribution == nil {
-			// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
-			// This could happen if the beacon node didn't subscribe to the correct subnet.
-			return core.UnsignedDataSet{}, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", subcommIdx), z.Hex("root", blockRoot[:]))
-		}
-
 		pt.addResolved(pubkey.String())
 
-		resp[pubkey] = core.SyncContribution{
-			SyncCommitteeContribution: *contribution,
+		if syncContribV2 {
+			resp[pubkey] = contribs
+		} else {
+			resp[pubkey] = contribs[0] // Single SyncContribution (old wire format).
 		}
 	}
 
 	return resp, nil
+}
+
+// fetchSubcommContribution fetches the sync committee contribution for a single
+// validator and subcommittee. It returns ok=false if the validator is not an
+// aggregator for the subcommittee.
+func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SyncContribution, bool, error) {
+	// Query AggSigDB for DutyPrepareSyncContribution to get the sync committee selection.
+	selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, subcommIdx)
+	if err != nil {
+		return core.SyncContribution{}, false, err
+	}
+
+	selection, ok := selectionData.(core.SyncCommitteeSelection)
+	if !ok {
+		return core.SyncContribution{}, false, errors.New("invalid sync committee selection")
+	}
+
+	// Check if the validator is an aggregator for the subcommittee.
+	ok, err = eth2exp.IsSyncCommAggregator(ctx, f.eth2Cl, selection.SelectionProof)
+	if err != nil {
+		return core.SyncContribution{}, false, err
+	} else if !ok {
+		return core.SyncContribution{}, false, nil
+	}
+
+	// Query AggSigDB for DutySyncMessage to get the beacon block root.
+	syncMsgData, err := f.aggSigDBFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, 0)
+	if err != nil {
+		return core.SyncContribution{}, false, err
+	}
+
+	msg, ok := syncMsgData.(core.SignedSyncMessage)
+	if !ok {
+		return core.SyncContribution{}, false, errors.New("invalid sync committee message")
+	}
+
+	blockRoot := msg.BeaconBlockRoot
+
+	// Query BN for the sync committee contribution.
+	opts := &eth2api.SyncCommitteeContributionOpts{
+		Slot:              eth2p0.Slot(slot),
+		SubcommitteeIndex: uint64(subcommIdx),
+		BeaconBlockRoot:   blockRoot,
+	}
+
+	eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
+	if err != nil {
+		return core.SyncContribution{}, false, err
+	}
+
+	contribution := eth2Resp.Data
+	if contribution == nil {
+		// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
+		// This could happen if the beacon node didn't subscribe to the correct subnet.
+		return core.SyncContribution{}, false, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", uint64(subcommIdx)), z.Hex("root", blockRoot[:]))
+	}
+
+	return core.SyncContribution{SyncCommitteeContribution: *contribution}, true, nil
+}
+
+// syncSubcommitteeSize returns the number of validators per sync subcommittee
+// (SYNC_COMMITTEE_SIZE / SYNC_COMMITTEE_SUBNET_COUNT), used to map a sync
+// committee position to its subcommittee index.
+func (f *Fetcher) syncSubcommitteeSize(ctx context.Context) (uint64, error) {
+	eth2Resp, err := f.eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
+	if err != nil {
+		return 0, err
+	}
+
+	commSize, ok := eth2Resp.Data["SYNC_COMMITTEE_SIZE"].(uint64)
+	if !ok {
+		return 0, errors.New("invalid SYNC_COMMITTEE_SIZE")
+	}
+
+	subnetCount, ok := eth2Resp.Data["SYNC_COMMITTEE_SUBNET_COUNT"].(uint64)
+	if !ok || subnetCount == 0 {
+		return 0, errors.New("invalid SYNC_COMMITTEE_SUBNET_COUNT")
+	}
+
+	return commSize / subnetCount, nil
+}
+
+// syncSubcommittees returns the sorted, unique sync subcommittee indices that the
+// validator of the provided sync committee duty definition occupies. subcommSize
+// is the number of validators per subcommittee.
+func syncSubcommittees(def core.DutyDefinition, subcommSize uint64) ([]core.SubcommitteeIndex, error) {
+	syncDef, ok := def.(core.SyncCommitteeDefinition)
+	if !ok {
+		return nil, errors.New("invalid sync committee duty definition")
+	}
+
+	seen := make(map[core.SubcommitteeIndex]bool)
+
+	var subcommIdxs []core.SubcommitteeIndex
+
+	for _, idx := range syncDef.ValidatorSyncCommitteeIndices {
+		subcommIdx := core.SubcommitteeIndex(uint64(idx) / subcommSize)
+		if seen[subcommIdx] {
+			continue
+		}
+
+		seen[subcommIdx] = true
+
+		subcommIdxs = append(subcommIdxs, subcommIdx)
+	}
+
+	slices.Sort(subcommIdxs)
+
+	return subcommIdxs, nil
 }
 
 // verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.

@@ -43,7 +43,12 @@ type MemDB struct {
 // Store implements core.AggSigDB, see its godoc.
 func (db *MemDB) Store(ctx context.Context, duty core.Duty, set core.SignedDataSet) error {
 	for pubKey, data := range set {
-		if err := db.store(ctx, duty, pubKey, data); err != nil {
+		subcommIdx, err := core.SyncSubcommitteeIndex(duty.Type, data)
+		if err != nil {
+			return err
+		}
+
+		if err := db.store(ctx, memDBKey{duty: duty, pubKey: pubKey, subcommIdx: subcommIdx}, data); err != nil {
 			return err
 		}
 	}
@@ -51,7 +56,7 @@ func (db *MemDB) Store(ctx context.Context, duty core.Duty, set core.SignedDataS
 	return nil
 }
 
-func (db *MemDB) store(ctx context.Context, duty core.Duty, pubKey core.PubKey, data core.SignedData) error {
+func (db *MemDB) store(ctx context.Context, key memDBKey, data core.SignedData) error {
 	clone, err := data.Clone() // Clone before storing.
 	if err != nil {
 		return err
@@ -59,7 +64,7 @@ func (db *MemDB) store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 
 	response := make(chan error, 1)
 	cmd := writeCommand{
-		memDBKey: memDBKey{duty, pubKey},
+		memDBKey: key,
 		data:     clone,
 		response: response,
 	}
@@ -83,14 +88,14 @@ func (db *MemDB) store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 }
 
 // Await implements core.AggSigDB, see its godoc.
-func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.SignedData, error) {
+func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 
 	response := make(chan core.SignedData, 1)
 
 	query := readQuery{
-		memDBKey: memDBKey{duty, pubKey},
+		memDBKey: memDBKey{duty: duty, pubKey: pubKey, subcommIdx: subcommIdx},
 		response: response,
 		cancel:   cancel,
 	}
@@ -146,7 +151,7 @@ func (db *MemDB) execCommand(command writeCommand) {
 
 	_ = db.deadliner.Add(command.duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
 
-	key := memDBKey{command.duty, command.pubKey}
+	key := command.memDBKey
 
 	if existing, ok := db.data[key]; ok {
 		equal, err := dataEqual(existing, command.data)
@@ -178,7 +183,7 @@ func dataEqual(x core.SignedData, y core.SignedData) (bool, error) {
 // execQuery returns true if the query was successfully executed.
 // If the requested entry is found in the DB it will return it via query.response channel.
 func (db *MemDB) execQuery(query readQuery) bool {
-	data, ok := db.data[memDBKey{query.duty, query.pubKey}]
+	data, ok := db.data[query.memDBKey]
 	if !ok {
 		return false
 	}
@@ -228,6 +233,11 @@ func cancelled(cancel <-chan struct{}) bool {
 type memDBKey struct {
 	duty   core.Duty
 	pubKey core.PubKey
+	// subcommIdx is the sync subcommittee index for sync-committee aggregator
+	// duties (DutyPrepareSyncContribution, DutySyncContribution), and 0 otherwise.
+	// A validator can occupy multiple sync subcommittees in the same slot, so it
+	// disambiguates their otherwise-colliding aggregated signatures.
+	subcommIdx core.SubcommitteeIndex
 }
 
 // writeCommand holds the data to write into the database.

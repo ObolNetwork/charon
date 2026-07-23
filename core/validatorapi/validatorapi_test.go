@@ -1916,7 +1916,7 @@ func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 		},
 	}
 
-	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, pk core.PubKey) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, pk core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
 		for _, val := range valSet {
@@ -2055,6 +2055,7 @@ func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 		pk, err := core.PubKeyFromBytes(pubkey[:])
 		require.NoError(t, err)
 
+		// Contributions are grouped by subcommittee, so the set is keyed by plain pubkey.
 		data, ok := set[pk]
 		require.True(t, ok)
 		require.Equal(t, core.NewPartialSignedSyncContributionAndProof(contrib, 0), data)
@@ -2385,7 +2386,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 
 		for _, val := range valSet {
@@ -2399,6 +2400,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 			for _, selection := range selections {
 				if selection.ValidatorIndex == val.Index {
 					require.Equal(t, eth2p0.Slot(slot), selection.Slot)
+					require.EqualValues(t, selection.SubcommitteeIndex, subcommIdx)
 
 					return core.NewSyncCommitteeSelection(selection), nil
 				}
@@ -2408,21 +2410,26 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 		return nil, errors.New("unknown public key")
 	})
 
+	// A validator's selections are grouped by subcommittee, so subscribers are
+	// called once per subcommittee. Accumulate across calls and assert the union.
+	merged := core.ParSignedDataSet{}
+
 	vapi.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
 		require.Equal(t, duty, core.NewPrepareSyncContributionDuty(slot))
 
-		expect := core.ParSignedDataSet{
-			pk1: core.NewPartialSignedSyncCommitteeSelection(selection1, shareIdx),
-			pk2: core.NewPartialSignedSyncCommitteeSelection(selection2, shareIdx),
-		}
-
-		require.Equal(t, expect, set)
+		maps.Copy(merged, set)
 
 		return nil
 	})
 
 	eth2Resp, err := vapi.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: selections})
 	require.NoError(t, err)
+
+	expect := core.ParSignedDataSet{
+		pk1: core.NewPartialSignedSyncCommitteeSelection(selection1, shareIdx),
+		pk2: core.NewPartialSignedSyncCommitteeSelection(selection2, shareIdx),
+	}
+	require.Equal(t, expect, merged)
 
 	got := eth2Resp.Data
 

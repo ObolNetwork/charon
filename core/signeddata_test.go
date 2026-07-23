@@ -1344,3 +1344,20 @@ func TestCloneSSZMarshaler(t *testing.T) {
 		})
 	}
 }
+
+func TestSyncSubcommitteeIndex(t *testing.T) {
+	sel := testutil.RandomCoreSyncCommitteeSelection()
+	idx, err := core.SyncSubcommitteeIndex(core.DutyPrepareSyncContribution, sel)
+	require.NoError(t, err)
+	require.EqualValues(t, sel.SubcommitteeIndex, idx)
+
+	contrib := testutil.RandomCoreSignedSyncContributionAndProof()
+	idx, err = core.SyncSubcommitteeIndex(core.DutySyncContribution, contrib)
+	require.NoError(t, err)
+	require.EqualValues(t, contrib.Message.Contribution.SubcommitteeIndex, idx)
+
+	// Non-sync duty types are keyed by pubkey alone (index 0).
+	idx, err = core.SyncSubcommitteeIndex(core.DutyAttester, testutil.RandomCoreBeaconCommitteeSelection())
+	require.NoError(t, err)
+	require.Zero(t, idx)
+}
