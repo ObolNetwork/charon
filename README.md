@@ -15,7 +15,7 @@ Charon is used by stakers to distribute the responsibility of running Ethereum V
 
 ![Example Obol Cluster](./docs/images/DVCluster.png)
 
-###### A Distributed Validator Cluster that uses the Charon client to hedge client and hardware failure risks
+###### A Distributed Validator Cluster that uses the Charon client to hedge client and hardware failure risks.
 
 ## Quickstart
 
