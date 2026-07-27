@@ -5,6 +5,8 @@ package p2p_test
 import (
 	"context"
 	"math"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,8 +28,17 @@ func TestWithReceiveTimeout(t *testing.T) {
 	servers := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
 	clients := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
 
+	// The zero receive timeout makes the server close the stream almost immediately,
+	// racing the client's request write. TCP closes gracefully, so the write always
+	// lands and the failure surfaces as an EOF on the response read. QUIC instead
+	// resets the stream, which can abort the write already in flight, so accept either.
+	expected := [][]string{
+		{"read response: EOF"},
+		{"read response: EOF", "stream reset"},
+	}
+
 	for i := range len(servers) {
-		client, server := clients[i], servers[i]
+		client, server, expect := clients[i], servers[i], expected[i]
 
 		client.Peerstore().AddAddrs(server.ID(), server.Addrs(), time.Hour)
 
@@ -40,7 +51,9 @@ func TestWithReceiveTimeout(t *testing.T) {
 
 		err := p2p.SendReceive(context.Background(), client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), protocolID)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "read response: EOF")
+		require.True(t, slices.ContainsFunc(expect, func(s string) bool {
+			return strings.Contains(err.Error(), s)
+		}), "error %q contains none of %v", err, expect)
 	}
 }
 
