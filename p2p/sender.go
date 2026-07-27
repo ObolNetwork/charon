@@ -440,7 +440,13 @@ func isCanceledStreamErr(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "close called for canceled stream")
 }
 
-// protocolPrefix returns the common prefix of the provided protocol IDs.
+// protocolPrefix returns the common prefix of the provided protocol IDs,
+// suffixed with "*" if they are not all identical.
+//
+// Only pass IDs that share a non-empty common prefix. The result is the name
+// RegisterHandler registers with the stream muxer, which libp2p identify then
+// advertises to peers, so IDs that diverge at the first byte collapse to a bare
+// "*" and peers are told we support that instead of any real protocol.
 func protocolPrefix(pIDs ...protocol.ID) protocol.ID {
 	if len(pIDs) == 0 {
 		return ""
