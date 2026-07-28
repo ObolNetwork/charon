@@ -112,11 +112,12 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			duration time.Duration
 		)
 
+		//nolint: revive // prioritise clarity
 		switch duty.Type {
 		case DutyProposer, DutyRandao:
 			duration = slotDuration / 3
-		case DutySyncMessage:
-			duration = 2 * slotDuration / 3
+		case DutySyncMessage, DutySyncContribution:
+			duration = slotDuration
 		case DutyAttester, DutyAggregator:
 			// Attestations and aggregations are kept for a full epoch so late partial signatures are not dropped.
 			duration = time.Duration(slotsPerEpoch) * slotDuration
