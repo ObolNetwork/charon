@@ -36,11 +36,19 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const protocolID2 = "charon/priority/2.0.0"
+const (
+	// protocolIDLegacy is the pre-v1.12 priority protocol ID. It was erroneously
+	// registered without a leading slash, unlike every other charon protocol.
+	// It remains supported so that patched and unpatched nodes interoperate.
+	// TODO(v1.14): Remove once all supported versions advertise protocolID2.
+	protocolIDLegacy = "charon/priority/2.0.0"
+
+	protocolID2 = "/charon/priority/2.0.0"
+)
 
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
-	return []protocol.ID{protocolID2}
+	return []protocol.ID{protocolID2, protocolIDLegacy}
 }
 
 // Topic groups priorities in an instance.
@@ -114,23 +122,30 @@ func newInternal(p2pNode host.Host, peers []peer.ID, minRequired int,
 		return nil
 	})
 
-	// Register prioritiser protocol handler.
-	registerHandlerFunc("priority", p2pNode, protocolID2,
-		func() proto.Message { return new(pbv1.PriorityMsg) },
-		func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
-			prioMsg, ok := msg.(*pbv1.PriorityMsg)
-			if !ok || prioMsg == nil {
-				return nil, false, errors.New("invalid priority message")
-			}
+	newReq := func() proto.Message { return new(pbv1.PriorityMsg) }
 
-			resp, err := p.handleRequest(ctx, pID, prioMsg)
-			if err != nil {
-				return nil, false, errors.Wrap(err, "handle priority request",
-					z.Any("duty", core.DutyFromProto(prioMsg.GetDuty())))
-			}
+	handler := func(ctx context.Context, pID peer.ID, msg proto.Message) (proto.Message, bool, error) {
+		prioMsg, ok := msg.(*pbv1.PriorityMsg)
+		if !ok || prioMsg == nil {
+			return nil, false, errors.New("invalid priority message")
+		}
 
-			return resp, true, nil
-		})
+		resp, err := p.handleRequest(ctx, pID, prioMsg)
+		if err != nil {
+			return nil, false, errors.Wrap(err, "handle priority request",
+				z.Any("duty", core.DutyFromProto(prioMsg.GetDuty())))
+		}
+
+		return resp, true, nil
+	}
+
+	// Register prioritiser protocol handlers, one exact-match registration per protocol ID.
+	// Do not collapse these into a single call with p2p.WithDelimitedProtocol: the two IDs
+	// share no common prefix, so protocolPrefix would register (and libp2p identify would
+	// advertise) the bare wildcard "*" instead of the actual protocol IDs.
+	registerHandlerFunc("priority", p2pNode, protocolID2, newReq, handler)
+	// TODO(v1.14): Remove together with protocolIDLegacy.
+	registerHandlerFunc("priority", p2pNode, protocolIDLegacy, newReq, handler)
 
 	return p
 }
@@ -341,7 +356,12 @@ func exchange(ctx context.Context, p2pNode host.Host, peers []peer.ID, msgValida
 		go func(pID peer.ID) {
 			response := new(pbv1.PriorityMsg)
 
-			err := sendFunc(ctx, p2pNode, pID, own, response, protocolID2, p2p.WithSendMetricTopic("priority_consensus"))
+			// WithDelimitedProtocol prepends, so this offers protocolID2 first and
+			// falls back to protocolIDLegacy for peers that only support the latter.
+			// TODO(v1.14): Send protocolID2 directly, dropping the delimited option.
+			err := sendFunc(ctx, p2pNode, pID, own, response, protocolIDLegacy,
+				p2p.WithDelimitedProtocol(protocolID2),
+				p2p.WithSendMetricTopic("priority_consensus"))
 			if err != nil {
 				// No need to log, since transport will do it.
 				return
