@@ -241,24 +241,27 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{
-		sigLock,
-		sigDepositData,
-		sigValidatorRegistration,
-	}, conf.Timeout)
-
-	// Register libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
 
 	for _, p := range peers {
-		nodeIdx, err := def.NodeIdx(p.ID)
+		idx, err := def.NodeIdx(p.ID)
 		if err != nil {
 			return err
 		}
 
-		peerMap[p.ID] = nodeIdx
+		peerMap[p.ID] = idx
 	}
 
+	ex, err := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, peerMap, []sigType{
+		sigLock,
+		sigDepositData,
+		sigValidatorRegistration,
+	}, conf.Timeout)
+	if err != nil {
+		return err
+	}
+
+	// Register libp2p handlers
 	caster := bcast.New(p2pNode, peerIDs, key)
 
 	// register bcast callbacks for frostp2p
