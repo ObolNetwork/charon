@@ -69,8 +69,10 @@ func calculateResult(msgs []*pbv1.PriorityMsg, minRequired int) (*pbv1.PriorityR
 			}
 		}
 
-		// Order by score decreasing
-		slices.SortFunc(allPriorities, func(i, j [32]byte) int {
+		// Order by score decreasing. The sort must be stable so that
+		// equal-score priorities keep first-seen order, with messages
+		// processed in ascending peer ID order.
+		slices.SortStableFunc(allPriorities, func(i, j [32]byte) int {
 			if scores[i] > scores[j] {
 				return -1
 			}

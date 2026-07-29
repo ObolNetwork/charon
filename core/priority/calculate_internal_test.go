@@ -3,6 +3,7 @@
 package priority
 
 import (
+	"fmt"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -213,6 +214,81 @@ func TestCalculateResults(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCalculateResultTieBreak ensures that equal-score priorities are returned
+// in first-seen order, processing messages in ascending peer ID order. Topics
+// with 13 or more priorities exercise pdqsort proper (not its insertion sort
+// fallback for short slices), which reorders equal elements unless the sort is stable.
+func TestCalculateResultTieBreak(t *testing.T) {
+	const (
+		numPriorities = 24
+		half          = numPriorities / 2
+		quorum        = 3
+	)
+
+	// Peers 0 and 1 propose p00..p23, peers 2 and 3 propose the same list
+	// rotated by half its length. So p(k) and p(k+12) receive equal scores,
+	// while first-seen order (peer 0's list) is not score-ordered, forcing
+	// the sort to do real work on the tied pairs.
+	inOrder := make([]string, numPriorities)
+	for i := range inOrder {
+		inOrder[i] = fmt.Sprintf("p%02d", i)
+	}
+
+	rotated := append(append([]string(nil), inOrder[half:]...), inOrder[:half]...)
+
+	// Pair k=(p(k), p(k+12)) scores 2*(1000-k) + 2*(1000-k-12) with ties
+	// ordered by first occurrence in peer 0's list.
+	var (
+		expectedResult []string
+		expectedScores []int64
+	)
+
+	for k := range half {
+		score := int64(4*countWeight - 4*k - numPriorities)
+		expectedResult = append(expectedResult, inOrder[k], inOrder[k+half])
+		expectedScores = append(expectedScores, score, score)
+	}
+
+	topic := toAny("versions")
+
+	var msgs []*pbv1.PriorityMsg
+
+	for j, prioritySet := range [][]string{inOrder, inOrder, rotated, rotated} {
+		msgs = append(msgs, &pbv1.PriorityMsg{
+			Topics: []*pbv1.PriorityTopicProposal{
+				{
+					Topic:      topic,
+					Priorities: toAnys(prioritySet),
+				},
+			},
+			PeerId: strconv.Itoa(j),
+			Duty:   &pbv1.Duty{Slot: 99},
+		})
+	}
+
+	// Shuffle since function should be deterministic.
+	rand.Shuffle(len(msgs), func(i, j int) {
+		msgs[i], msgs[j] = msgs[j], msgs[i]
+	})
+
+	result, err := calculateResult(msgs, quorum)
+	require.NoError(t, err)
+	require.Len(t, result.GetTopics(), 1)
+
+	var (
+		actualResult []string
+		actualScores []int64
+	)
+
+	for _, prio := range result.GetTopics()[0].GetPriorities() {
+		actualResult = append(actualResult, fromAny(prio.GetPriority()))
+		actualScores = append(actualScores, prio.GetScore())
+	}
+
+	require.Equal(t, expectedResult, actualResult)
+	require.Equal(t, expectedScores, actualScores)
 }
 
 // pl returns a slice of priority sets. It is an abridged convenience function.
