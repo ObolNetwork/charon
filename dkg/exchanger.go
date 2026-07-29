@@ -14,6 +14,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
@@ -67,10 +68,25 @@ type exchanger struct {
 	dutyGaterFunc func(duty core.Duty) bool
 }
 
-func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []sigType, timeout time.Duration) *exchanger {
-	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
-	noopVerifier := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
-		return nil
+func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[peer.ID]cluster.NodeIdx, sigTypes []sigType, timeout time.Duration) (*exchanger, error) {
+	if peerIdx < 0 || peerIdx >= len(peers) {
+		return nil, errors.New("peer index out of range", z.Int("peer_idx", peerIdx), z.Int("num_peers", len(peers)))
+	}
+
+	// Every peer must have a valid share index in peerMap, otherwise its partial signatures would be
+	// rejected as unknown and the exchange would silently time out. Fail fast on a misconfigured map.
+	for _, p := range peers {
+		if nodeIdx, ok := peerMap[p]; !ok || nodeIdx.ShareIdx <= 0 {
+			return nil, errors.New("peer map missing valid share index for peer", z.Str("peer", p.String()))
+		}
+	}
+
+	// Partial signature roots are not known during the exchange, so cryptographic verification is
+	// deferred until aggregation. Each received partial signature is still bound to its authenticated
+	// sender: a peer may only contribute partial signatures under its own assigned share index,
+	// consistent with the sender check in nodesigs.go.
+	verifyShareIdx := func(_ context.Context, sender peer.ID, _ core.Duty, _ core.PubKey, data core.ParSignedData) error {
+		return verifyPeerShareIdx(peerMap, sender, data)
 	}
 
 	st := make(map[sigType]bool)
@@ -94,7 +110,7 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []si
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}, parsigdb.NewMemDBMetadata(0, time.Now())), // metadata timestamps are used for metrics, irrelevant for DKG
-		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, noopVerifier, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
+		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, verifyShareIdx, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
 		sigTypes: st,
 		sigData: dataByPubkey{
 			store: sigTypeStore{},
@@ -108,7 +124,25 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []si
 	ex.sigdb.SubscribeThreshold(ex.pushPsigs)
 	ex.sigex.Subscribe(ex.sigdb.StoreExternal)
 
-	return ex
+	return ex, nil
+}
+
+// verifyPeerShareIdx checks that a received partial signature originates from a known peer and uses
+// that peer's assigned share index. peerMap maps each participating peer to its node index, so the
+// check remains correct when share indices are not contiguous with peer positions (for example when
+// operators have been removed and the remaining ones keep their original share indices).
+func verifyPeerShareIdx(peerMap map[peer.ID]cluster.NodeIdx, sender peer.ID, data core.ParSignedData) error {
+	nodeIdx, ok := peerMap[sender]
+	if !ok {
+		return errors.New("partial signature from unknown peer", z.Str("peer", sender.String()))
+	}
+
+	if data.ShareIdx <= 0 || data.ShareIdx != nodeIdx.ShareIdx {
+		return errors.New("partial signature share index does not match sender peer",
+			z.Str("peer", sender.String()), z.Int("share_idx", data.ShareIdx), z.Int("expected_share_idx", nodeIdx.ShareIdx))
+	}
+
+	return nil
 }
 
 // exchange exchanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
