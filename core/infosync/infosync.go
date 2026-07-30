@@ -27,6 +27,12 @@ const (
 	maxResults = 100
 
 	TopicProtocol = topicProtocol
+
+	// minSyncContributionV2Version is the minimum charon version that supports the plural
+	// SyncContributions encoding for DutySyncContribution. The cluster uses that
+	// encoding once the quorum-agreed version topic includes at least this version,
+	// i.e. once at least a threshold of peers advertise it (see SyncContributionsSupported).
+	minSyncContributionV2Version = "v1.11"
 )
 
 // New returns a new infosync component.
@@ -72,6 +78,19 @@ func New(prioritiser *priority.Component, versions []version.SemVer, protocols [
 			c.addResult(res)
 		}
 
+		// Gate the plural SyncContributions encoding on the cluster-agreed versions
+		// including one >= minSyncContributionV2Version. Since the version topic is quorum
+		// filtered, this means at least threshold peers are on that version, which
+		// is also the number needed to complete the duty; any smaller set of lagging
+		// peers simply won't participate in sync contributions (they can't decode the
+		// plural form) rather than blocking the duty.
+		enabled, err := anyVersionAtLeast(res.versions, minSyncContributionV2Version)
+		if err != nil {
+			return err
+		}
+
+		c.addSyncContribResult(syncContribResult{slot: duty.Slot, enabled: enabled})
+
 		return nil
 	})
 
@@ -84,8 +103,9 @@ type Component struct {
 	protocols   []protocol.ID
 	proposals   []core.ProposalType
 
-	mu      sync.Mutex
-	results []result
+	mu                 sync.Mutex
+	results            []result
+	syncContribResults []syncContribResult
 }
 
 // Protocols returns the latest cluster wide supported protocols before the slot.
@@ -124,6 +144,49 @@ func (c *Component) Proposals(slot uint64) []core.ProposalType {
 	}
 
 	return resp
+}
+
+// SyncContributionsSupported reports whether, per the latest info-sync round at
+// or before the slot, the cluster-agreed (quorum-filtered) version topic includes
+// a charon version >= minSyncContributionV2Version - i.e. whether at least a threshold of
+// peers advertised it, and the cluster can use the plural SyncContributions
+// encoding for DutySyncContribution. It defaults to false (the backwards-compatible
+// single encoding) until a round has completed. Note this is a quorum signal, not
+// all-peers: a sub-threshold set of lagging peers is not reflected here and will
+// simply not participate in sync contributions rather than blocking them.
+func (c *Component) SyncContributionsSupported(slot uint64) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var resp bool
+
+	for _, result := range c.syncContribResults {
+		if result.slot > slot {
+			break
+		}
+
+		resp = result.enabled
+	}
+
+	return resp
+}
+
+// addSyncContribResult adds the sync-contribution gate result if it differs from the last.
+func (c *Component) addSyncContribResult(result syncContribResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	last := len(c.syncContribResults) - 1
+	if last >= 0 && c.syncContribResults[last].enabled == result.enabled {
+		// Same decision as previous, so don't add (keep the earliest slot it became true/false).
+		return
+	}
+
+	c.syncContribResults = append(c.syncContribResults, result)
+
+	if len(c.syncContribResults) >= maxResults {
+		c.syncContribResults = c.syncContribResults[1:]
+	}
 }
 
 // addResult adds the result to the results if it is different from the last result.
@@ -188,6 +251,38 @@ func proposalsToStrings(proposals []core.ProposalType) []string {
 	}
 
 	return resp
+}
+
+// syncContribResult is a cluster-wide agreed-upon decision, for a given slot, on
+// whether a threshold of peers support the plural SyncContributions encoding.
+type syncContribResult struct {
+	slot    uint64
+	enabled bool
+}
+
+// anyVersionAtLeast reports whether any of the cluster-agreed versions is at
+// least minVer. The version topic is quorum filtered, so a version only appears
+// here if at least threshold peers support it; the presence of one >= minVer
+// therefore means at least threshold peers are on that version. Unparseable
+// versions are ignored.
+func anyVersionAtLeast(versions []string, minVer string) (bool, error) {
+	minSemVer, err := version.Parse(minVer)
+	if err != nil {
+		return false, err
+	}
+
+	for _, v := range versions {
+		semVer, err := version.Parse(v)
+		if err != nil {
+			continue // Ignore unparseable versions from peers.
+		}
+
+		if version.Compare(semVer, minSemVer) >= 0 {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // result is a cluster-wide agreed-upon infosync result.

@@ -1307,6 +1307,25 @@ func NewPartialSignedSyncCommitteeSelection(selection *eth2v1.SyncCommitteeSelec
 	}
 }
 
+// SyncSubcommitteeIndex returns the sync subcommittee index that keys partial
+// signatures for sync-committee aggregator duties (DutyPrepareSyncContribution
+// and DutySyncContribution), read from the signed payload. It returns 0 for all
+// other duty types, which are keyed by pubkey alone.
+func SyncSubcommitteeIndex(typ DutyType, data SignedData) (SubcommitteeIndex, error) {
+	if !IsSyncSubcommitteeDuty(typ) {
+		return 0, nil
+	}
+
+	switch d := data.(type) {
+	case SyncCommitteeSelection:
+		return SubcommitteeIndex(d.SubcommitteeIndex), nil
+	case SignedSyncContributionAndProof:
+		return SubcommitteeIndex(d.Message.Contribution.SubcommitteeIndex), nil
+	default:
+		return 0, errors.New("signed data is not a sync-committee aggregator duty")
+	}
+}
+
 // SyncCommitteeSelection wraps an eth2exp.SyncCommitteeSelection and implements SignedData.
 type SyncCommitteeSelection struct {
 	eth2v1.SyncCommitteeSelection

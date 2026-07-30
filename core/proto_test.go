@@ -148,7 +148,7 @@ func TestUnsignedDataToProto(t *testing.T) {
 		},
 		{
 			Type: core.DutySyncContribution,
-			Data: core.NewSyncContribution(testutil.RandomSyncCommitteeContribution()),
+			Data: core.SyncContributions{core.NewSyncContribution(testutil.RandomSyncCommitteeContribution())},
 		},
 	}
 
@@ -174,6 +174,44 @@ func TestUnsignedDataToProto(t *testing.T) {
 			err = proto.Unmarshal(b, pb3)
 			require.NoError(t, err)
 			testutil.RequireProtoEqual(t, pb1, pb3)
+		})
+	}
+}
+
+// TestUnsignedDataSyncContributionCompat verifies the DutySyncContribution decoder
+// is tolerant of both wire forms: the plural SyncContributions (v1.11+) and the
+// single SyncContribution (pre-v1.11 / mixed-cluster backwards-compatible form).
+func TestUnsignedDataSyncContributionCompat(t *testing.T) {
+	pubkey := testutil.RandomCorePubKey(t)
+
+	tests := []struct {
+		name string
+		data core.UnsignedData
+	}{
+		{
+			name: "single",
+			data: core.NewSyncContribution(testutil.RandomSyncCommitteeContribution()),
+		},
+		{
+			name: "plural",
+			data: core.SyncContributions{
+				core.NewSyncContribution(testutil.RandomSyncCommitteeContribution()),
+				core.NewSyncContribution(testutil.RandomSyncCommitteeContribution()),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			set1 := core.UnsignedDataSet{pubkey: test.data}
+
+			pb, err := core.UnsignedDataSetToProto(set1)
+			require.NoError(t, err)
+
+			set2, err := core.UnsignedDataSetFromProto(core.DutySyncContribution, pb)
+			require.NoError(t, err)
+
+			require.Equal(t, set1, set2) // Type and value preserved (no lossy normalisation).
 		})
 	}
 }
