@@ -41,8 +41,12 @@ type Fetcher interface {
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 
 	// RegisterAggSigDB registers a function to get resolved aggregated
-	// signed data from the AggSigDB (e.g., randao reveals).
-	RegisterAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
+	// signed data from the AggSigDB (e.g., randao reveals). The SubcommitteeIndex
+	// selects the sync subcommittee for sync-committee aggregator duties
+	// (DutyPrepareSyncContribution, DutySyncContribution) since a validator can
+	// have a distinct aggregated signature per subcommittee in a slot; it is 0
+	// for all other duties.
+	RegisterAggSigDB(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
 
 	// RegisterAwaitAttData registers a function to get attestation data from DutyDB.
 	RegisterAwaitAttData(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error))
@@ -142,7 +146,10 @@ type ValidatorAPI interface {
 	RegisterAwaitAggAttestation(fn func(ctx context.Context, slot uint64, attestationDataRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
 
 	// RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
-	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey) (SignedData, error))
+	// The SubcommitteeIndex selects the sync subcommittee for sync-committee aggregator duties
+	// (DutyPrepareSyncContribution, DutySyncContribution), where a validator can have a distinct
+	// aggregated signature per subcommittee in a slot; it is 0 for all other duties.
+	RegisterAwaitAggSigDB(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
 
 	// Subscribe registers a function to store partially signed data sets.
 	Subscribe(func(context.Context, Duty, ParSignedDataSet) error)
@@ -191,7 +198,11 @@ type AggSigDB interface {
 	Store(context context.Context, duty Duty, data SignedDataSet) error
 
 	// Await blocks and returns the aggregated signed duty data when available.
-	Await(context context.Context, duty Duty, pubKey PubKey) (SignedData, error)
+	// subcommIdx selects the sync subcommittee for sync-committee aggregator duties
+	// (DutyPrepareSyncContribution, DutySyncContribution), where a validator can have
+	// a distinct aggregated signature per subcommittee in a slot; it is 0 for all
+	// other duties (see IsSyncSubcommitteeDuty).
+	Await(context context.Context, duty Duty, pubKey PubKey, subcommIdx SubcommitteeIndex) (SignedData, error)
 
 	// Run runs AggSigDB lifecycle until context is cancelled.
 	Run(context context.Context)
@@ -252,7 +263,7 @@ type wireFuncs struct {
 	FetcherFetch                      func(context.Context, Duty, DutyDefinitionSet) error
 	FetcherFetchOnly                  func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error
 	FetcherSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
-	FetcherRegisterAggSigDB           func(func(context.Context, Duty, PubKey) (SignedData, error))
+	FetcherRegisterAggSigDB           func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
 	FetcherRegisterAwaitAttData       func(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error))
 	ConsensusParticipate              func(context.Context, Duty) error
 	ConsensusPropose                  func(context.Context, Duty, UnsignedDataSet) error
@@ -269,7 +280,7 @@ type wireFuncs struct {
 	VAPIRegisterGetDutyDefinition     func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
-	VAPIRegisterAwaitAggSigDB         func(func(context.Context, Duty, PubKey) (SignedData, error))
+	VAPIRegisterAwaitAggSigDB         func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
 	VAPISubscribe                     func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal             func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBStoreExternal             func(context.Context, Duty, ParSignedDataSet) error
@@ -280,7 +291,7 @@ type wireFuncs struct {
 	SigAggAggregate                   func(context.Context, Duty, map[PubKey][]ParSignedData) error
 	SigAggSubscribe                   func(func(context.Context, Duty, SignedDataSet) error)
 	AggSigDBStore                     func(context.Context, Duty, SignedDataSet) error
-	AggSigDBAwait                     func(context.Context, Duty, PubKey) (SignedData, error)
+	AggSigDBAwait                     func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error)
 	BroadcasterBroadcast              func(context.Context, Duty, SignedDataSet) error
 }
 

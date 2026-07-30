@@ -121,7 +121,7 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		},
 		{
 			dutyType:    core.DutySyncContribution,
-			unsignedPtr: func() any { return new(core.SyncContribution) },
+			unsignedPtr: func() any { return new(core.SyncContributions) },
 		},
 	}
 

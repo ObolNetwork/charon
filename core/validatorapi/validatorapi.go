@@ -193,7 +193,7 @@ type Component struct {
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
-	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)
+	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
 	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
@@ -235,7 +235,7 @@ func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slo
 }
 
 // RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
-func (c *Component) RegisterAwaitAggSigDB(fn func(context.Context, core.Duty, core.PubKey) (core.SignedData, error)) {
+func (c *Component) RegisterAwaitAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)) {
 	c.awaitAggSigDBFunc = fn
 }
 
@@ -790,7 +790,7 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 		duty := core.NewPrepareAggregatorDuty(uint64(slot))
 		for pk := range data {
 			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk, 0)
 			if err != nil {
 				return nil, err
 			}
@@ -977,12 +977,16 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 		return err
 	}
 
-	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	// A validator can aggregate for multiple sync subcommittees in the same slot,
+	// each with its own contribution. Group by (slot, subcommittee index) so a
+	// validator's contributions don't collide on the pubkey-keyed set.
+	psigsBySlotSubcomm := make(map[slotSubcomm]core.ParSignedDataSet)
 
 	for _, contrib := range contributionAndProofs {
 		var (
-			slot = contrib.Message.Contribution.Slot
-			vIdx = contrib.Message.AggregatorIndex
+			slot       = contrib.Message.Contribution.Slot
+			subcommIdx = core.SubcommitteeIndex(contrib.Message.Contribution.SubcommitteeIndex)
+			vIdx       = contrib.Message.AggregatorIndex
 		)
 
 		eth2Pubkey, ok := vals[vIdx]
@@ -1013,16 +1017,16 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 			return err
 		}
 
-		_, ok = psigsBySlot[slot]
-		if !ok {
-			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		key := slotSubcomm{Slot: slot, SubcommIdx: subcommIdx}
+		if _, ok := psigsBySlotSubcomm[key]; !ok {
+			psigsBySlotSubcomm[key] = make(core.ParSignedDataSet)
 		}
 
-		psigsBySlot[slot][pk] = parSigData
+		psigsBySlotSubcomm[key][pk] = parSigData
 	}
 
-	for slot, data := range psigsBySlot {
-		duty := core.NewSyncContributionDuty(uint64(slot))
+	for key, data := range psigsBySlotSubcomm {
+		duty := core.NewSyncContributionDuty(uint64(key.Slot))
 		for _, sub := range c.subs {
 			err = sub(ctx, duty, data)
 			if err != nil {
@@ -1041,7 +1045,10 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 		return nil, err
 	}
 
-	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+	// A validator can occupy multiple sync subcommittees in the same slot, each
+	// with its own selection. Group by (slot, subcommittee index) so a validator's
+	// selections don't collide on the pubkey-keyed set.
+	psigsBySlotSubcomm := make(map[slotSubcomm]core.ParSignedDataSet)
 
 	for _, selection := range opts.Selections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
@@ -1062,16 +1069,16 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 			return nil, err
 		}
 
-		_, ok = psigsBySlot[selection.Slot]
-		if !ok {
-			psigsBySlot[selection.Slot] = make(core.ParSignedDataSet)
+		key := slotSubcomm{Slot: selection.Slot, SubcommIdx: core.SubcommitteeIndex(selection.SubcommitteeIndex)}
+		if _, ok := psigsBySlotSubcomm[key]; !ok {
+			psigsBySlotSubcomm[key] = make(core.ParSignedDataSet)
 		}
 
-		psigsBySlot[selection.Slot][pubkey] = parSigData
+		psigsBySlotSubcomm[key][pubkey] = parSigData
 	}
 
-	for slot, data := range psigsBySlot {
-		duty := core.NewPrepareSyncContributionDuty(uint64(slot))
+	for key, data := range psigsBySlotSubcomm {
+		duty := core.NewPrepareSyncContributionDuty(uint64(key.Slot))
 		for _, sub := range c.subs {
 			err = sub(ctx, duty, data)
 			if err != nil {
@@ -1082,11 +1089,11 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 
 	var resp []*eth2v1.SyncCommitteeSelection
 
-	for slot, data := range psigsBySlot {
-		duty := core.NewPrepareSyncContributionDuty(uint64(slot))
+	for key, data := range psigsBySlotSubcomm {
+		duty := core.NewPrepareSyncContributionDuty(uint64(key.Slot))
 		for pk := range data {
-			// Query aggregated sync committee selection from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.awaitAggSigDBFunc(ctx, duty, pk)
+			// Query aggregated sync committee selection from aggsigdb for each duty, public key and subcommittee (this is blocking).
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk, key.SubcommIdx)
 			if err != nil {
 				return nil, err
 			}
@@ -1101,6 +1108,14 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 	}
 
 	return wrapResponse(resp), nil
+}
+
+// slotSubcomm groups sync-committee aggregator partial signatures by slot and
+// sync subcommittee index, so a validator occupying multiple subcommittees in a
+// slot does not collide on the pubkey-keyed ParSignedDataSet.
+type slotSubcomm struct {
+	Slot       eth2p0.Slot
+	SubcommIdx core.SubcommitteeIndex
 }
 
 // ProposerDuties obtains proposer duties for the given options.

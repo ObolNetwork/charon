@@ -714,11 +714,19 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	coreConsensus := consensusController.CurrentConsensus() // initially points to DefaultConsensus()
 
 	// Priority protocol always uses QBFTv2.
-	err = wirePrioritise(ctx, conf, life, p2pNode, peerIDs, lock.Threshold,
+	isync, err := wirePrioritise(ctx, conf, life, p2pNode, peerIDs, lock.Threshold,
 		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc,
 		consensusController, lock.ConsensusProtocol)
 	if err != nil {
 		return err
+	}
+
+	// Gate the plural SyncContributions encoding on a threshold of peers being on a
+	// version that understands it (charon >= v1.11), re-evaluated each info-sync
+	// round. isync is nil for leader-cast (no priority protocol), leaving the
+	// fetcher on the backwards-compatible single encoding.
+	if isync != nil {
+		fetch.RegisterSyncContributionV2(isync.SyncContributionsSupported)
 	}
 
 	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl)
@@ -765,11 +773,11 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	consensusController core.ConsensusController, clusterPreferredProtocol string,
-) error {
+) (*infosync.Component, error) {
 	cons, ok := coreCons.(*qbft.Consensus)
 	if !ok {
 		// Priority protocol not supported for leader cast.
-		return nil
+		return nil, nil //nolint:nilnil // No infosync component and no error is valid here.
 	}
 
 	// exchangeTimeout of 6 seconds (half a slot) is a good thumb suck.
@@ -779,7 +787,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 	prio, err := priority.NewComponent(ctx, p2pNode, peers, threshold,
 		sendFunc, p2p.RegisterHandler, cons, exchangeTimeout, p2pKey, deadlineFunc)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// The initial protocols order as defined by implementation is altered by:
@@ -837,7 +845,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(prio.Start))
 
-	return nil
+	return isync, nil
 }
 
 // newTracker creates and starts a new tracker instance.

@@ -33,15 +33,13 @@ func NewMemDBV2(deadliner core.Deadliner) *MemDBV2 {
 	}
 }
 
-func (m *MemDBV2) store(duty core.Duty, pubKey core.PubKey, data core.SignedData) error {
+func (m *MemDBV2) store(key memDBKey, data core.SignedData) error {
 	data, err := data.Clone()
 	if err != nil {
 		return err
 	}
 
-	_ = m.deadliner.Add(duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
-
-	key := memDBKey{duty, pubKey}
+	_ = m.deadliner.Add(key.duty) // TODO(corver): Distinguish between no deadline supported vs already expired.
 
 	if existing, ok := m.data[key]; ok {
 		equal, err := dataEqual(existing, data)
@@ -52,7 +50,7 @@ func (m *MemDBV2) store(duty core.Duty, pubKey core.PubKey, data core.SignedData
 		}
 	} else {
 		m.data[key] = data
-		m.keysByDuty[duty] = append(m.keysByDuty[duty], key)
+		m.keysByDuty[key.duty] = append(m.keysByDuty[key.duty], key)
 	}
 
 	return nil
@@ -71,7 +69,12 @@ func (m *MemDBV2) Store(ctx context.Context, duty core.Duty, set core.SignedData
 	}
 
 	for pubKey, data := range set {
-		if err := m.store(duty, pubKey, data); err != nil {
+		subcommIdx, err := core.SyncSubcommitteeIndex(duty.Type, data)
+		if err != nil {
+			return err
+		}
+
+		if err := m.store(memDBKey{duty: duty, pubKey: pubKey, subcommIdx: subcommIdx}, data); err != nil {
 			return err
 		}
 	}
@@ -86,7 +89,7 @@ func (m *MemDBV2) Store(ctx context.Context, duty core.Duty, set core.SignedData
 	return nil
 }
 
-func (m *MemDBV2) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey) (core.SignedData, error) {
+func (m *MemDBV2) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
 	errMustLoop := errors.New("still needs loop")
 
 	query := func() (core.SignedData, error) {
@@ -99,7 +102,7 @@ func (m *MemDBV2) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey)
 		case <-m.closed:
 			return nil, ErrStopped
 		default:
-			data, ok := m.data[memDBKey{duty, pubKey}]
+			data, ok := m.data[memDBKey{duty: duty, pubKey: pubKey, subcommIdx: subcommIdx}]
 			if !ok {
 				return nil, errMustLoop
 			}
