@@ -448,6 +448,12 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 	// won't decode the plural form and simply skip contributing.
 	syncContribV2 := f.syncContributionV2Func != nil && f.syncContributionV2Func(slot)
 
+	// A sync committee contribution is identified by its subcommittee and beacon block
+	// root, not by validator, so all aggregators sharing both contribute the same one.
+	// Cache it for the duration of this fetch to query the beacon node once per distinct
+	// contribution instead of once per aggregating validator.
+	contribByKey := make(map[syncContribKey]core.SyncContribution)
+
 	for pubkey, def := range defSet {
 		// A validator can occupy multiple sync subcommittees in the same slot,
 		// producing a distinct contribution for each it aggregates.
@@ -459,7 +465,7 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 		var contribs core.SyncContributions
 
 		for _, subcommIdx := range subcommIdxs {
-			contrib, ok, err := f.fetchSubcommContribution(ctx, slot, pubkey, subcommIdx)
+			contrib, ok, err := f.fetchSubcommContribution(ctx, slot, pubkey, subcommIdx, contribByKey)
 			if err != nil {
 				return core.UnsignedDataSet{}, err
 			} else if !ok {
@@ -492,10 +498,17 @@ func (f *Fetcher) fetchContributionData(ctx context.Context, slot uint64, defSet
 	return resp, nil
 }
 
+// syncContribKey identifies a sync committee contribution within a slot.
+type syncContribKey struct {
+	SubcommIdx core.SubcommitteeIndex
+	BlockRoot  eth2p0.Root
+}
+
 // fetchSubcommContribution fetches the sync committee contribution for a single
-// validator and subcommittee. It returns ok=false if the validator is not an
+// validator and subcommittee, reusing any contribution already fetched for the same
+// subcommittee and beacon block root. It returns ok=false if the validator is not an
 // aggregator for the subcommittee.
-func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SyncContribution, bool, error) {
+func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex, contribByKey map[syncContribKey]core.SyncContribution) (core.SyncContribution, bool, error) {
 	// Query AggSigDB for DutyPrepareSyncContribution to get the sync committee selection.
 	selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, subcommIdx)
 	if err != nil {
@@ -528,26 +541,39 @@ func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pub
 
 	blockRoot := msg.BeaconBlockRoot
 
-	// Query BN for the sync committee contribution.
-	opts := &eth2api.SyncCommitteeContributionOpts{
-		Slot:              eth2p0.Slot(slot),
-		SubcommitteeIndex: uint64(subcommIdx),
-		BeaconBlockRoot:   blockRoot,
+	// Another aggregator may already have fetched this contribution. Reusing it avoids a
+	// redundant beacon node query and keeps the contributions consistent, since a beacon
+	// node aggregates sync committee messages as they arrive and therefore returns a
+	// different aggregate to each query. Fetch clones the set per subscriber, so sharing
+	// the value between validators here is safe.
+	key := syncContribKey{SubcommIdx: subcommIdx, BlockRoot: blockRoot}
+
+	contrib, ok := contribByKey[key]
+	if !ok {
+		// Query BN for the sync committee contribution.
+		opts := &eth2api.SyncCommitteeContributionOpts{
+			Slot:              eth2p0.Slot(slot),
+			SubcommitteeIndex: uint64(subcommIdx),
+			BeaconBlockRoot:   blockRoot,
+		}
+
+		eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
+		if err != nil {
+			return core.SyncContribution{}, false, err
+		}
+
+		contribution := eth2Resp.Data
+		if contribution == nil {
+			// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
+			// This could happen if the beacon node didn't subscribe to the correct subnet.
+			return core.SyncContribution{}, false, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", uint64(subcommIdx)), z.Hex("root", blockRoot[:]))
+		}
+
+		contrib = core.SyncContribution{SyncCommitteeContribution: *contribution}
+		contribByKey[key] = contrib
 	}
 
-	eth2Resp, err := f.eth2Cl.SyncCommitteeContribution(ctx, opts)
-	if err != nil {
-		return core.SyncContribution{}, false, err
-	}
-
-	contribution := eth2Resp.Data
-	if contribution == nil {
-		// Some beacon nodes return nil if the beacon block root is not found for the subcommittee, return retryable error.
-		// This could happen if the beacon node didn't subscribe to the correct subnet.
-		return core.SyncContribution{}, false, errors.New("sync committee contribution not found by root (retryable)", z.U64("subcommidx", uint64(subcommIdx)), z.Hex("root", blockRoot[:]))
-	}
-
-	return core.SyncContribution{SyncCommitteeContribution: *contribution}, true, nil
+	return contrib, true, nil
 }
 
 // syncSubcommitteeSize returns the number of validators per sync subcommittee
