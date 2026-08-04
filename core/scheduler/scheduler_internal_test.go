@@ -17,6 +17,54 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
+func TestDelaySlotOffset(t *testing.T) {
+	slot := core.Slot{Slot: 100, Time: time.Now(), SlotDuration: 12 * time.Second}
+
+	tests := []struct {
+		name        string
+		offset      time.Duration
+		expectDelay bool
+	}{
+		{
+			name:        "duty with a deadline is delayed to its offset",
+			offset:      3 * time.Second, // Attestations are due 1/4 into the slot from the gloas fork.
+			expectDelay: true,
+		},
+		{
+			name:        "duty without a deadline is triggered at the start of the slot",
+			offset:      0,
+			expectDelay: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var delayed []time.Time
+
+			delayFunc := func(_ core.Duty, deadline time.Time) <-chan time.Time {
+				delayed = append(delayed, deadline)
+
+				resp := make(chan time.Time, 1)
+				resp <- deadline
+
+				return resp
+			}
+
+			offsetFunc := func(core.Duty) time.Duration { return test.offset }
+
+			require.True(t, delaySlotOffset(t.Context(), slot, core.NewAttesterDuty(slot.Slot), delayFunc, offsetFunc))
+
+			if !test.expectDelay {
+				require.Empty(t, delayed)
+
+				return
+			}
+
+			require.Equal(t, []time.Time{slot.Time.Add(test.offset)}, delayed)
+		})
+	}
+}
+
 func setupScheduler(t *testing.T) (*Scheduler, validators) {
 	t.Helper()
 

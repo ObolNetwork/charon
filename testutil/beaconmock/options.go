@@ -313,6 +313,17 @@ func WithGenesisValidatorsRoot(root [32]byte) Option {
 	}
 }
 
+// WithSpecOverride configures the http mock with the provided network spec key and value.
+func WithSpecOverride(key string, value string) Option {
+	return func(mock *Mock) {
+		mock.overrides = append(mock.overrides, staticOverride{
+			Endpoint: specEndpoint,
+			Key:      key,
+			Value:    value,
+		})
+	}
+}
+
 // WithSlotDuration configures the http mock with the provided slots duration.
 func WithSlotDuration(duration time.Duration) Option {
 	return func(mock *Mock) {
