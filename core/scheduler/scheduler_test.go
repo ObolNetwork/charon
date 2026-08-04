@@ -18,10 +18,12 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
@@ -86,7 +88,7 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	s, err := scheduler.New(&stubRegProvider{regs: valRegs}, eth2Cl, false)
+	s, err := scheduler.New(t.Context(), &stubRegProvider{regs: valRegs}, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -110,6 +112,14 @@ func TestIntegration(t *testing.T) {
 //go:generate go test . -run=TestSchedulerWait -count=20
 
 // TestSchedulerWait tests the waitChainStart and waitBeaconSync functions.
+func TestNewSchedulerSpecError(t *testing.T) {
+	client := mocks.NewClient(t)
+	client.On("Spec", mock.Anything, mock.Anything).Return(nil, errors.New("beacon node down"))
+
+	_, err := scheduler.New(t.Context(), &stubRegProvider{}, client, false)
+	require.ErrorContains(t, err, "new slot offset func")
+}
+
 func TestSchedulerWait(t *testing.T) {
 	// Eliminate jitter from exponential backoff for deterministic test timing
 	expbackoff.SetRandFloatForT(t, func() float64 {

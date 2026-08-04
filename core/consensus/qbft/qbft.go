@@ -281,6 +281,11 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host
 		return nil, errors.Wrap(err, "fetch slot duration")
 	}
 
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	if err != nil {
+		return nil, errors.Wrap(err, "new slot offset func")
+	}
+
 	c := &Consensus{
 		p2pNode:             p2pNode,
 		sender:              sender,
@@ -292,7 +297,7 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host
 		snifferFunc:         snifferFunc,
 		gaterFunc:           gaterFunc,
 		dropFilter:          log.Filter(),
-		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration),
+		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration, slotOffsetFunc),
 		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 		compareAttestations: compareAttestations,
 	}

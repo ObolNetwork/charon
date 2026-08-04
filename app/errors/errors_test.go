@@ -8,10 +8,37 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 )
+
+// errPackageLevel mimics a sentinel error incorrectly declared with New instead of NewSentinel,
+// capturing a stack trace at package initialisation.
+var errPackageLevel = errors.New("package level")
+
+// stackTrace returns the stack trace of the error.
+func stackTrace(t *testing.T, err error) string {
+	t.Helper()
+
+	stacker, ok := err.(interface{ Stack() zap.Field })
+	require.True(t, ok)
+
+	return stacker.Stack().String
+}
+
+func TestWrapSentinelStack(t *testing.T) {
+	// Wrapping a sentinel error provides the stack trace of the caller, since the sentinel has none.
+	err := errors.Wrap(errors.NewSentinel("sentinel"), "wrapped")
+	require.Contains(t, stackTrace(t, err), "TestWrapSentinelStack")
+
+	// Wrapping an error that already has a stack trace retains it, so a package level error
+	// declared with New keeps its useless initialisation stack trace.
+	err = errors.Wrap(errPackageLevel, "wrapped")
+	require.Contains(t, stackTrace(t, err), "errors_test.init")
+	require.NotContains(t, stackTrace(t, err), "TestWrapSentinelStack")
+}
 
 func TestComparable(t *testing.T) {
 	require.False(t, reflect.TypeOf(errors.New("x")).Comparable())
