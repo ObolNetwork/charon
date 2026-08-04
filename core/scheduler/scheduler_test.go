@@ -86,7 +86,7 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	s, err := scheduler.New(&stubRegProvider{regs: valRegs}, eth2Cl, false)
+	s, err := scheduler.New(t.Context(), &stubRegProvider{regs: valRegs}, eth2Cl, false)
 	require.NoError(t, err)
 
 	count := 10

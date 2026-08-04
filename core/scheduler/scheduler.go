@@ -48,7 +48,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(builderRegProvider, eth2Cl, builderEnabled)
+	s, err := New(t.Context(), builderRegProvider, eth2Cl, builderEnabled)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -59,9 +59,15 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 }
 
 // New returns a new scheduler.
-func New(builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Scheduler{
 		eth2Cl:                     eth2Cl,
+		slotOffsetFunc:             slotOffsetFunc,
 		builderRegProvider:         builderRegProvider,
 		submittedRegistrationEpoch: math.MaxUint64,
 		quit:                       make(chan struct{}),
@@ -81,6 +87,7 @@ func New(builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client,
 
 type Scheduler struct {
 	eth2Cl                     eth2wrap.Client
+	slotOffsetFunc             core.SlotOffsetFunc
 	builderRegProvider         BuilderRegistrationProvider
 	submittedRegistrationEpoch uint64
 	registrationMutex          sync.Mutex
@@ -356,7 +363,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc) {
+			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
 				return // context cancelled
 			}
 
@@ -386,14 +393,13 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 
 // delaySlotOffset blocks until the slot offset for the duty has been reached and return true.
 // It returns false if the context is cancelled.
-func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc) bool {
-	fn, ok := slotOffsets[duty.Type]
-	if !ok {
+func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc, slotOffsetFunc core.SlotOffsetFunc) bool {
+	offset := slotOffsetFunc(duty)
+	if offset == 0 {
+		// Duty is triggered at the start of the slot.
 		return true
 	}
 
-	// Calculate delay until slot offset
-	offset := fn(slot.SlotDuration)
 	deadline := slot.Time.Add(offset)
 
 	select {
@@ -407,17 +413,13 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 // waitForEarlyFetchOrTimeout waits until the fallback timeout is reached.
 // The head-event-triggered early fetch (HandleHeadEvent) runs concurrently and populates the
 // attestation data cache before this deadline in the happy path.
-// If FetchAttOnBlockWithDelay is enabled, timeout is T=1/3+300ms, otherwise T=1/3.
+// If FetchAttOnBlockWithDelay is enabled, the timeout is the attestation slot offset plus 300ms,
+// otherwise it is the attestation slot offset.
 // Returns false if the context is cancelled, true otherwise.
 func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout
-	fn, ok := slotOffsets[core.DutyAttester]
-	if !ok {
-		log.Warn(ctx, "Slot offset not found for attester duty, proceeding immediately", nil, z.U64("slot", slot.Slot))
-		return true
-	}
+	offset := s.slotOffsetFunc(core.Duty{Slot: slot.Slot, Type: core.DutyAttester})
 
-	offset := fn(slot.SlotDuration)
 	// Add 300ms delay only if FetchAttOnBlockWithDelay is enabled
 	if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
 		offset += 300 * time.Millisecond
@@ -432,11 +434,11 @@ func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Sl
 		// Check if head event triggered early fetch
 		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
 			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-				log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early head event)",
-					z.U64("slot", slot.Slot))
+				log.Debug(ctx, "Proceeding with attestation at 300ms delayed slot offset (no early head event)",
+					z.U64("slot", slot.Slot), z.Any("offset", offset))
 			} else {
-				log.Debug(ctx, "Proceeding with attestation at T=1/3 (no early head event)",
-					z.U64("slot", slot.Slot))
+				log.Debug(ctx, "Proceeding with attestation at slot offset (no early head event)",
+					z.U64("slot", slot.Slot), z.Any("offset", offset))
 			}
 		}
 

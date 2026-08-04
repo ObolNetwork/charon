@@ -877,7 +877,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 		// Use zero values for tests to use default clock.Now() behavior
-		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0)
+		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0, func(core.Duty) time.Duration { return 0 })
 
 		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)

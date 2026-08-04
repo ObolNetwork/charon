@@ -4,6 +4,7 @@ package eth2wrap
 
 import (
 	"context"
+	"math"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
@@ -11,6 +12,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 type ForkSchedule struct {
@@ -48,6 +50,103 @@ var (
 	errFetchNetworkSpec   = errors.New("fetch network spec")
 	errMissingNetworkSpec = errors.New("missing network spec")
 )
+
+// BasisPoints is the total number of basis points, ie. 100% of the slot duration.
+const BasisPoints = 10_000
+
+// gloasSuffix is appended to the intra-slot deadline spec keys that the gloas fork overrides.
+const gloasSuffix = "_GLOAS"
+
+// ForkBPS defines an intra-slot duty deadline in basis points of the slot duration,
+// both before and after the gloas fork.
+type ForkBPS struct {
+	PreGloas uint64
+	Gloas    uint64
+}
+
+// SlotTimingConfig defines the network's intra-slot duty deadlines in basis points of the slot duration.
+type SlotTimingConfig struct {
+	Attestation  ForkBPS
+	Aggregate    ForkBPS
+	SyncMessage  ForkBPS
+	Contribution ForkBPS
+	// GloasEpoch is the epoch at which the gloas deadlines take effect. It is math.MaxUint64
+	// if the beacon node doesn't publish GLOAS_FORK_EPOCH or hasn't scheduled the fork.
+	GloasEpoch eth2p0.Epoch
+}
+
+// Intra-slot duty deadlines as basis points of the slot duration as defined by the consensus spec.
+// These are applied for beacon nodes that predate the corresponding spec keys.
+var (
+	defaultAttestationBPS  = ForkBPS{PreGloas: 3333, Gloas: 2500}
+	defaultAggregateBPS    = ForkBPS{PreGloas: 6667, Gloas: 5000}
+	defaultSyncMessageBPS  = ForkBPS{PreGloas: 3333, Gloas: 2500}
+	defaultContributionBPS = ForkBPS{PreGloas: 6667, Gloas: 5000}
+)
+
+// FetchSlotTimingConfig returns the network's intra-slot duty deadlines.
+func FetchSlotTimingConfig(ctx context.Context, client eth2client.SpecProvider) (SlotTimingConfig, error) {
+	spec, err := client.Spec(ctx, &api.SpecOpts{})
+	if err != nil {
+		return SlotTimingConfig{}, errFetchNetworkSpec
+	}
+
+	if spec == nil {
+		return SlotTimingConfig{}, errMissingNetworkSpec
+	}
+
+	return parseSlotTimingConfig(spec.Data)
+}
+
+// parseSlotTimingConfig returns the intra-slot duty deadlines in the network spec data,
+// defaulting to the consensus spec values for keys the beacon node doesn't publish.
+func parseSlotTimingConfig(data map[string]any) (SlotTimingConfig, error) {
+	resp := SlotTimingConfig{GloasEpoch: math.MaxUint64}
+
+	if epoch, ok := data["GLOAS_FORK_EPOCH"].(uint64); ok {
+		resp.GloasEpoch = eth2p0.Epoch(epoch)
+	}
+
+	for _, field := range []struct {
+		Key      string
+		Default  ForkBPS
+		Resolved *ForkBPS
+	}{
+		{Key: "ATTESTATION_DUE_BPS", Default: defaultAttestationBPS, Resolved: &resp.Attestation},
+		{Key: "AGGREGATE_DUE_BPS", Default: defaultAggregateBPS, Resolved: &resp.Aggregate},
+		{Key: "SYNC_MESSAGE_DUE_BPS", Default: defaultSyncMessageBPS, Resolved: &resp.SyncMessage},
+		{Key: "CONTRIBUTION_DUE_BPS", Default: defaultContributionBPS, Resolved: &resp.Contribution},
+	} {
+		preGloas, err := parseBPS(data, field.Key, field.Default.PreGloas)
+		if err != nil {
+			return SlotTimingConfig{}, err
+		}
+
+		gloas, err := parseBPS(data, field.Key+gloasSuffix, field.Default.Gloas)
+		if err != nil {
+			return SlotTimingConfig{}, err
+		}
+
+		*field.Resolved = ForkBPS{PreGloas: preGloas, Gloas: gloas}
+	}
+
+	return resp, nil
+}
+
+// parseBPS returns the basis points at the key in the network spec data,
+// or def if the beacon node doesn't publish it.
+func parseBPS(data map[string]any, key string, def uint64) (uint64, error) {
+	bps, ok := data[key].(uint64)
+	if !ok {
+		return def, nil
+	}
+
+	if bps == 0 || bps > BasisPoints {
+		return 0, errors.New("invalid basis points in network spec", z.Str("key", key), z.U64("bps", bps))
+	}
+
+	return bps, nil
+}
 
 func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (time.Time, error) {
 	genesisTime, err := client.Genesis(ctx, &api.GenesisOpts{})
