@@ -23,15 +23,16 @@ const (
 type RoundTimerFunc func(core.Duty) RoundTimer
 
 // GetRoundTimerFunc returns a timer function based on the enabled features.
-// Genesis time and slot duration are required to calculate deterministic slot start times.
-func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration) RoundTimerFunc {
+// Genesis time and slot duration are required to calculate deterministic slot start times, while
+// the slot offset function provides the duty's offset into the slot at which consensus starts.
+func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotOffsetFunc core.SlotOffsetFunc) RoundTimerFunc {
 	if featureset.Enabled(featureset.Linear) {
 		return func(duty core.Duty) RoundTimer {
 			// Linear timer only affects Proposer duty
 			if duty.Type == core.DutyProposer {
 				return NewLinearRoundTimerWithDuty(duty)
 			} else if featureset.Enabled(featureset.EagerDoubleLinear) {
-				return NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty, genesisTime, slotDuration)
+				return NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty, genesisTime, slotDuration, slotOffsetFunc(duty))
 			}
 
 			return NewIncreasingRoundTimerWithDuty(duty)
@@ -40,7 +41,7 @@ func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration) RoundT
 
 	if featureset.Enabled(featureset.EagerDoubleLinear) {
 		return func(duty core.Duty) RoundTimer {
-			return NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty, genesisTime, slotDuration)
+			return NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty, genesisTime, slotDuration, slotOffsetFunc(duty))
 		}
 	}
 
@@ -85,20 +86,6 @@ type RoundTimer interface {
 // we are in the first round.
 func proposalTimeoutOptimization(duty core.Duty, round int64) bool {
 	return featureset.Enabled(featureset.ProposalTimeout) && duty.Type == core.DutyProposer && round == 1
-}
-
-// getDutyStartDelayWithDuration returns the delay from slot start to when a duty is scheduled to begin,
-// given the slot duration. This matches the scheduler's slot offsets to ensure timers align with when
-// consensus actually starts.
-func getDutyStartDelayWithDuration(dutyType core.DutyType, slotDuration time.Duration) time.Duration {
-	switch dutyType {
-	case core.DutyAttester:
-		return slotDuration / 3
-	case core.DutyAggregator, core.DutySyncContribution:
-		return (2 * slotDuration) / 3
-	default:
-		return 0
-	}
 }
 
 // NewIncreasingRoundTimer returns a new increasing round timer type.
@@ -181,26 +168,22 @@ func NewDoubleEagerLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockw
 	}
 }
 
-// NewDoubleEagerLinearRoundTimerWithDutyAndTiming returns a new eager double linear round timer type for a specific duty with genesis time and slot duration.
+// NewDoubleEagerLinearRoundTimerWithDutyAndTiming returns a new eager double linear round timer type for a specific
+// duty with genesis time, slot duration and the duty's offset into the slot at which consensus starts.
 // This ensures deterministic behavior across all nodes by using slot start time as the reference.
-func NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty core.Duty, genesisTime time.Time, slotDuration time.Duration) RoundTimer {
-	return &doubleEagerLinearRoundTimer{
-		clock:          clockwork.NewRealClock(),
-		duty:           duty,
-		genesisTime:    genesisTime,
-		slotDuration:   slotDuration,
-		firstDeadlines: make(map[int64]time.Time),
-	}
+func NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty core.Duty, genesisTime time.Time, slotDuration time.Duration, dutyOffset time.Duration) RoundTimer {
+	return NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock(duty, genesisTime, slotDuration, dutyOffset, clockwork.NewRealClock())
 }
 
-// NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock returns a new eager double linear round timer type for a specific duty, genesis time, slot duration, and custom clock.
-// This is primarily used for testing with fake clocks.
-func NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock(duty core.Duty, genesisTime time.Time, slotDuration time.Duration, clock clockwork.Clock) RoundTimer {
+// NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock returns a new eager double linear round timer type for a specific
+// duty, genesis time, slot duration, duty offset into the slot, and custom clock.
+func NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock(duty core.Duty, genesisTime time.Time, slotDuration time.Duration, dutyOffset time.Duration, clock clockwork.Clock) RoundTimer {
 	return &doubleEagerLinearRoundTimer{
 		clock:          clock,
 		duty:           duty,
 		genesisTime:    genesisTime,
 		slotDuration:   slotDuration,
+		dutyOffset:     dutyOffset,
 		firstDeadlines: make(map[int64]time.Time),
 	}
 }
@@ -224,6 +207,7 @@ type doubleEagerLinearRoundTimer struct {
 	duty         core.Duty
 	genesisTime  time.Time
 	slotDuration time.Duration
+	dutyOffset   time.Duration
 
 	mu             sync.Mutex
 	firstDeadlines map[int64]time.Time
@@ -256,9 +240,8 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 			// Calculate slot start time deterministically from duty slot number.
 			slotStart := t.genesisTime.Add(t.slotDuration * time.Duration(t.duty.Slot))
 
-			// Add duty-specific delay to account for when the duty is scheduled to start.
-			dutyDelay := getDutyStartDelayWithDuration(t.duty.Type, t.slotDuration)
-			dutyStart := slotStart.Add(dutyDelay)
+			// Add the duty's offset into the slot to account for when the duty is scheduled to start.
+			dutyStart := slotStart.Add(t.dutyOffset)
 
 			// Deadline is duty start time plus the round timeout
 			deadline = dutyStart.Add(timeout)

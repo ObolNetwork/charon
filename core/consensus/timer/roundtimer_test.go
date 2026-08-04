@@ -14,6 +14,9 @@ import (
 	"github.com/obolnetwork/charon/core/consensus/timer"
 )
 
+// zeroOffsetFunc is a slot offset function that starts all duties at the start of the slot.
+var zeroOffsetFunc core.SlotOffsetFunc = func(core.Duty) time.Duration { return 0 }
+
 func TestIncreasingRoundTimer(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -171,26 +174,61 @@ func TestLinearRoundTimer(t *testing.T) {
 	}
 }
 
+func TestDoubleEagerLinearRoundTimerDutyOffset(t *testing.T) {
+	const (
+		slotDuration = 12 * time.Second
+		dutyOffset   = 3 * time.Second // Attestations are due 1/4 into the slot from the gloas fork.
+		slot         = 1
+	)
+
+	fakeClock := clockwork.NewFakeClock()
+	genesisTime := fakeClock.Now()
+
+	roundTimer := timer.NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock(
+		core.NewAttesterDuty(slot), genesisTime, slotDuration, dutyOffset, fakeClock)
+
+	// The first round deadline is anchored to the duty's offset into the slot, so it expires
+	// slot duration + duty offset + the round 1 timeout of 1s after genesis.
+	timerC, stop := roundTimer.Timer(1)
+	defer stop()
+
+	fakeClock.Advance(slotDuration + dutyOffset + time.Second - time.Millisecond)
+
+	select {
+	case <-timerC:
+		require.Fail(t, "Timer fired before the duty offset deadline")
+	default:
+	}
+
+	fakeClock.Advance(time.Millisecond)
+
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Timer did not fire at the duty offset deadline")
+	}
+}
+
 func TestGetTimerFunc(t *testing.T) {
 	// Use zero values for tests to use default clock.Now() behavior
 	genesisTime := time.Time{}
 	slotDuration := time.Duration(0)
 
-	timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration)
+	timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration, zeroOffsetFunc)
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
 
-	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration)
+	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, zeroOffsetFunc)
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.EnableForT(t, featureset.Linear)
 
-	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration)
+	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, zeroOffsetFunc)
 	// non proposer duty, defaults to increasing
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
