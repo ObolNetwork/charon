@@ -2,13 +2,19 @@
 
 package validatormock
 
-import "time"
+import (
+	"time"
+
+	"github.com/obolnetwork/charon/core"
+)
 
 // specMeta defines the spec constants.
 type specMeta struct {
 	GenesisTime   time.Time
 	SlotDuration  time.Duration
 	SlotsPerEpoch uint64
+	// SlotOffset provides the spec-defined offset into the slot at which duty data is due.
+	SlotOffset core.SlotOffsetFunc
 }
 
 // SlotStartTime calculates the start time of a slot by adding slot duration to the genesis time.
