@@ -60,6 +60,22 @@ func (c Config) Nodes() int {
 	return len(c.PeerMap)
 }
 
+// PeerIDs returns the IDs of all peers participating in the protocol.
+func (c Config) PeerIDs() []peer.ID {
+	pids := make([]peer.ID, 0, len(c.PeerMap))
+	for pid := range c.PeerMap {
+		pids = append(pids, pid)
+	}
+
+	return pids
+}
+
+// collectTimeout bounds waiting for per-peer DKG messages. It equals the configured
+// DKG timeout, since PhaseDuration is derived as timeout/6 by all protocols.
+func (c Config) collectTimeout() time.Duration {
+	return 6 * c.PhaseDuration
+}
+
 func (c Config) ThisNodeIndex() (int, error) {
 	i, ok := c.PeerMap[c.ThisPeerID]
 	if !ok {

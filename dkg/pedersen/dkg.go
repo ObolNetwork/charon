@@ -5,16 +5,19 @@ package pedersen
 import (
 	"context"
 	"slices"
+	"time"
 
 	kbls "github.com/drand/kyber-bls12381"
 	kdkg "github.com/drand/kyber/share/dkg"
 	drandbls "github.com/drand/kyber/sign/bdn"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg/share"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 )
 
@@ -125,7 +128,8 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 func makeNodes(ctx context.Context, config *Config, board *Board) ([]kdkg.Node, map[int][][]byte, error) {
 	var nodes []kdkg.Node
 
-	nodePubKeys, err := readBoardChannel(ctx, board.IncomingNodePubKeys(), len(config.PeerMap))
+	nodePubKeys, err := readBoardChannel(ctx, board.IncomingNodePubKeys(), config.PeerIDs(),
+		func(pk NodePubKeys) peer.ID { return pk.PeerID }, config.collectTimeout())
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "read peer pubkeys")
 	}
@@ -171,7 +175,8 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 		return share.Share{}, errors.Wrap(err, "broadcast share pubkey")
 	}
 
-	valPubKeyShares, err := readBoardChannel(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
+	valPubKeyShares, err := readBoardChannel(ctx, board.IncomingValidatorPubKeyShares(), config.PeerIDs(),
+		func(s ValidatorPubKeyShare) peer.ID { return s.PeerID }, config.collectTimeout())
 	if err != nil {
 		return share.Share{}, errors.Wrap(err, "read validator pubkey shares")
 	}
@@ -208,19 +213,63 @@ func processKey(ctx context.Context, config *Config, board *Board, key *kdkg.Dis
 	}, nil
 }
 
-func readBoardChannel[T any](ctx context.Context, ch <-chan T, count int) ([]T, error) {
-	var pubKeys []T
+// readBoardChannel collects exactly one message per expected peer from the given channel,
+// ignoring duplicate deliveries and messages from unexpected peers. It fails with an error
+// naming the missing peers if the collection does not complete within the given timeout,
+// so a dead peer does not hang the ceremony forever.
+func readBoardChannel[T any](ctx context.Context, ch <-chan T, expected []peer.ID, peerIDFn func(T) peer.ID, timeout time.Duration) ([]T, error) {
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
-	for range count {
+	expectedSet := make(map[peer.ID]struct{}, len(expected))
+	for _, pid := range expected {
+		expectedSet[pid] = struct{}{}
+	}
+
+	var (
+		msgs []T
+		seen = make(map[peer.ID]struct{}, len(expected))
+	)
+
+	for len(msgs) < len(expected) {
 		select {
-		case pkd := <-ch:
-			pubKeys = append(pubKeys, pkd)
+		case msg := <-ch:
+			pid := peerIDFn(msg)
+			if _, ok := expectedSet[pid]; !ok {
+				continue // Ignore messages from unexpected peers.
+			}
+
+			if _, ok := seen[pid]; ok {
+				continue // Ignore duplicate deliveries.
+			}
+
+			seen[pid] = struct{}{}
+
+			msgs = append(msgs, msg)
+		case <-timer.C:
+			return nil, errors.New("timed out waiting for DKG messages from peers",
+				z.Any("missing_peers", missingPeerNames(expected, seen)),
+				z.Int("received", len(msgs)),
+				z.Int("expected", len(expected)))
 		case <-ctx.Done():
 			return nil, errors.New("context done")
 		}
 	}
 
-	return pubKeys, nil
+	return msgs, nil
+}
+
+// missingPeerNames returns the names of the expected peers that no message was received from.
+func missingPeerNames(expected []peer.ID, seen map[peer.ID]struct{}) []string {
+	var missing []string
+
+	for _, pid := range expected {
+		if _, ok := seen[pid]; !ok {
+			missing = append(missing, p2p.PeerName(pid))
+		}
+	}
+
+	return missing
 }
 
 // validateThreshold verifies that the threshold is between 1 and nodeCount.
