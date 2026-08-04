@@ -68,6 +68,20 @@ No user input is required, charon does the work and outputs the following files 
 ./charon/exit_data          # JSON file of exit data that ethdo can broadcast
 ```
 
+### Interruptions and restarts during a ceremony
+
+A DKG ceremony (including `dkg` and the `alpha edit` add/remove/replace-operator and reshare
+ceremonies) holds per-ceremony state in memory on every participating node. A charon process
+that stops or restarts mid-ceremony cannot rejoin the run in progress: the remaining peers
+detect the restart and abort with an error instructing all operators to restart the ceremony.
+Likewise, if a peer goes offline and does not come back, the remaining peers time out waiting
+for its contributions and abort with an error naming the missing peer.
+
+Recovery is always the same: **all operators stop charon and re-run the ceremony together.**
+Do not restart your node mid-ceremony while others keep theirs running, and make sure no
+stale charon or DKG processes (e.g. an orphaned container or an auto-restarting pod) are
+still running from a previous attempt before starting a new one.
+
 ## Backing up the ceremony artifacts
 
 Once the ceremony is complete, all participants should take a backup of the created files. In future versions of charon, if a participant loses access to these key shares, it will be possible to use a key re-sharing protocol to swap the participants old keys out of a distributed validator in favour of new keys, allowing the rest of a cluster to recover from a set of lost key shares. However for now, without a backup, the safest thing to do would be to exit the validator.

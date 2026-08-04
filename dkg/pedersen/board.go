@@ -5,7 +5,9 @@ package pedersen
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"path"
+	"sync"
 
 	kdkg "github.com/drand/kyber/share/dkg"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -25,16 +27,20 @@ import (
 // Board implements kdkg.Board used to exchange protocol messages.
 // Also, it implements logic for exchanging public keys before and after the DKG.
 type Board struct {
-	logCtx            context.Context
-	host              host.Host
-	sender            *p2p.Sender
-	config            *Config
-	bcastComp         *bcast.Component
-	dealCh            chan kdkg.DealBundle
-	responseCh        chan kdkg.ResponseBundle
-	justificationCh   chan kdkg.JustificationBundle
-	nodePubKeysCh     chan NodePubKeys
-	valPubKeySharesCh chan ValidatorPubKeyShare
+	logCtx             context.Context
+	host               host.Host
+	sender             *p2p.Sender
+	config             *Config
+	bcastComp          *bcast.Component
+	dedup              *bundleDedup
+	dealCh             chan kdkg.DealBundle
+	responseCh         chan kdkg.ResponseBundle
+	justificationCh    chan kdkg.JustificationBundle
+	dealOutCh          chan kdkg.DealBundle
+	responseOutCh      chan kdkg.ResponseBundle
+	justificationOutCh chan kdkg.JustificationBundle
+	nodePubKeysCh      chan NodePubKeys
+	valPubKeySharesCh  chan ValidatorPubKeyShare
 }
 
 type NodePubKeys struct {
@@ -66,17 +72,28 @@ var (
 // In the future Kyber fork we will address this and fix all logging as well.
 func NewBoard(ctx context.Context, host host.Host, config *Config, bcastComp *bcast.Component) *Board {
 	board := &Board{
-		logCtx:            log.WithTopic(ctx, "pedersen"),
-		host:              host,
-		sender:            new(p2p.Sender),
-		config:            config,
-		bcastComp:         bcastComp,
-		dealCh:            make(chan kdkg.DealBundle),
-		responseCh:        make(chan kdkg.ResponseBundle),
-		justificationCh:   make(chan kdkg.JustificationBundle),
-		nodePubKeysCh:     make(chan NodePubKeys, config.Nodes()),
-		valPubKeySharesCh: make(chan ValidatorPubKeyShare, config.Nodes()),
+		logCtx:             log.WithTopic(ctx, "pedersen"),
+		host:               host,
+		sender:             new(p2p.Sender),
+		config:             config,
+		bcastComp:          bcastComp,
+		dedup:              newBundleDedup(),
+		dealCh:             make(chan kdkg.DealBundle),
+		responseCh:         make(chan kdkg.ResponseBundle),
+		justificationCh:    make(chan kdkg.JustificationBundle),
+		dealOutCh:          make(chan kdkg.DealBundle),
+		responseOutCh:      make(chan kdkg.ResponseBundle),
+		justificationOutCh: make(chan kdkg.JustificationBundle),
+		nodePubKeysCh:      make(chan NodePubKeys, config.Nodes()),
+		valPubKeySharesCh:  make(chan ValidatorPubKeyShare, config.Nodes()),
 	}
+
+	// Bundles reach kyber via forwarders that close their output channels when the
+	// protocol context is done. Kyber FastSync protocol goroutines exit when a board
+	// channel closes, so an aborted ceremony does not leak running DKG goroutines.
+	go forwardBundles(ctx, board.dealCh, board.dealOutCh)
+	go forwardBundles(ctx, board.responseCh, board.responseOutCh)
+	go forwardBundles(ctx, board.justificationCh, board.justificationOutCh)
 
 	// We use bcast for exchanging node public keys only as they are invariant and sent only once.
 	// This will leverage reliable broadcast and deduplication.
@@ -104,17 +121,17 @@ func (b *Board) IncomingValidatorPubKeyShares() <-chan ValidatorPubKeyShare {
 
 // IncomingDeal implements the kdkg.Board interface.
 func (b *Board) IncomingDeal() <-chan kdkg.DealBundle {
-	return b.dealCh
+	return b.dealOutCh
 }
 
 // IncomingResponse implements the kdkg.Board interface.
 func (b *Board) IncomingResponse() <-chan kdkg.ResponseBundle {
-	return b.responseCh
+	return b.responseOutCh
 }
 
 // IncomingJustification implements the kdkg.Board interface.
 func (b *Board) IncomingJustification() <-chan kdkg.JustificationBundle {
-	return b.justificationCh
+	return b.justificationOutCh
 }
 
 // BroadcastNodePubKey broadcasts a public key and collects the public keys of all peers.
@@ -182,12 +199,17 @@ func (b *Board) PushDeals(bundle *kdkg.DealBundle) {
 	}
 
 	go func() {
-		b.dealCh <- *bundle
+		select {
+		case b.dealCh <- *bundle:
+		case <-b.logCtx.Done(): // Do not leak the self-send once the protocol is aborted.
+		}
 	}()
 }
 
 // PushResponses implements the kdkg.Board interface.
 func (b *Board) PushResponses(bundle *kdkg.ResponseBundle) {
+	logComplaints(b.logCtx, "Sending DKG complaints, deals from these dealers failed verification", b.config.ThisPeerID, *bundle)
+
 	msg, err := ResponseBundleToProto(*bundle)
 	if err != nil {
 		log.Error(b.logCtx, "Failed to create envelope from response bundle", err)
@@ -199,7 +221,10 @@ func (b *Board) PushResponses(bundle *kdkg.ResponseBundle) {
 	}
 
 	go func() {
-		b.responseCh <- *bundle
+		select {
+		case b.responseCh <- *bundle:
+		case <-b.logCtx.Done(): // Do not leak the self-send once the protocol is aborted.
+		}
 	}()
 }
 
@@ -216,7 +241,10 @@ func (b *Board) PushJustifications(bundle *kdkg.JustificationBundle) {
 	}
 
 	go func() {
-		b.justificationCh <- *bundle
+		select {
+		case b.justificationCh <- *bundle:
+		case <-b.logCtx.Done(): // Do not leak the self-send once the protocol is aborted.
+		}
 	}()
 }
 
@@ -292,6 +320,12 @@ func (b *Board) handleDealBundleMessage(ctx context.Context, peerID peer.ID, msg
 		return nil, false, errors.New("deal bundle request malformed", z.Str("peer_id", peerID.String()))
 	}
 
+	// Drop identical re-deliveries: kyber evicts a dealer when it sees a duplicate bundle.
+	if b.dedup.isDuplicate(dealBundleMsg, protoBundle.GetSignature()) {
+		log.Debug(b.logCtx, "Dropping duplicate deal bundle", z.Str("from", peerID.String()))
+		return nil, true, nil
+	}
+
 	bundle, err := DealBundleFromProto(protoBundle, b.config.Suite)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "deal bundle request invalid", z.Str("peer_id", peerID.String()))
@@ -312,10 +346,18 @@ func (b *Board) handleResponseBundleMessage(ctx context.Context, peerID peer.ID,
 		return nil, false, errors.New("response bundle request malformed", z.Str("peer_id", peerID.String()))
 	}
 
+	// Drop identical re-deliveries: kyber evicts a share holder when it sees a duplicate bundle.
+	if b.dedup.isDuplicate(respBundleMsg, protoBundle.GetSignature()) {
+		log.Debug(b.logCtx, "Dropping duplicate response bundle", z.Str("from", peerID.String()))
+		return nil, true, nil
+	}
+
 	bundle, err := ResponseBundleFromProto(protoBundle)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "response bundle request invalid", z.Str("peer_id", peerID.String()))
 	}
+
+	logComplaints(b.logCtx, "Received DKG complaints, this peer rejected deals from these dealers", peerID, bundle)
 
 	select {
 	case b.responseCh <- bundle:
@@ -332,6 +374,12 @@ func (b *Board) handleJustificationBundleMessage(ctx context.Context, peerID pee
 		return nil, false, errors.New("justification bundle request malformed", z.Str("peer_id", peerID.String()))
 	}
 
+	// Drop identical re-deliveries: kyber evicts a dealer when it sees a duplicate bundle.
+	if b.dedup.isDuplicate(justBundleMsg, protoBundle.GetSignature()) {
+		log.Debug(b.logCtx, "Dropping duplicate justification bundle", z.Str("from", peerID.String()))
+		return nil, true, nil
+	}
+
 	bundle, err := JustificationBundleFromProto(protoBundle, b.config.Suite)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "justification bundle request invalid", z.Str("peer_id", peerID.String()))
@@ -344,6 +392,76 @@ func (b *Board) handleJustificationBundleMessage(ctx context.Context, peerID pee
 	}
 
 	return nil, true, nil
+}
+
+// logComplaints surfaces complaint responses which kyber processes silently. A complaint
+// means the sender could not verify a dealer's deal (e.g. undecryptable share or a share
+// inconsistent with the cluster's public commitments).
+func logComplaints(ctx context.Context, msg string, peerID peer.ID, bundle kdkg.ResponseBundle) {
+	var dealers []uint32
+
+	for _, resp := range bundle.Responses {
+		if resp.Status == kdkg.Complaint {
+			dealers = append(dealers, resp.DealerIndex)
+		}
+	}
+
+	if len(dealers) == 0 {
+		return
+	}
+
+	log.Warn(ctx, msg, nil,
+		z.Str("peer_id", peerID.String()),
+		z.U64("share_index", uint64(bundle.ShareIndex)),
+		z.Any("dealer_indices", dealers))
+}
+
+// bundleDedup drops byte-identical re-deliveries of DKG bundles. Bundles are keyed by
+// their signature, which is unique per dealer, content and session.
+type bundleDedup struct {
+	mu   sync.Mutex
+	seen map[[32]byte]struct{}
+}
+
+func newBundleDedup() *bundleDedup {
+	return &bundleDedup{seen: make(map[[32]byte]struct{})}
+}
+
+// isDuplicate returns true if a bundle of this type with this signature was already delivered,
+// and records it otherwise.
+func (d *bundleDedup) isDuplicate(msgType string, signature []byte) bool {
+	h := sha256.Sum256(append([]byte(msgType), signature...))
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if _, ok := d.seen[h]; ok {
+		return true
+	}
+
+	d.seen[h] = struct{}{}
+
+	return false
+}
+
+// forwardBundles forwards bundles from in to out until ctx is canceled, then closes out.
+// Kyber FastSync protocol goroutines exit when a board channel closes, so this stops
+// them without modifying the kyber library.
+func forwardBundles[T any](ctx context.Context, in <-chan T, out chan<- T) {
+	defer close(out)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg := <-in:
+			select {
+			case out <- msg:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
 }
 
 func checkNodePubKeyMessage(_ context.Context, peerID peer.ID, msgAny *anypb.Any) error {

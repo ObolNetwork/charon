@@ -292,6 +292,21 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 		}
 
 		if err := s.updateStep(pID, int(msg.GetStep())); err != nil {
+			// A step regression means the peer (or this node) restarted mid-ceremony with
+			// fresh in-memory state. The ceremony cannot recover from this, so record the
+			// fatal error for the local node and inform the peer so it fails fast too.
+			// Note: in theory a stale message from an abandoned reconnect stream could be
+			// processed after a newer stream advanced the step, mimicking a restart. Step
+			// updates within a stream are sequential and this was never observed in tests;
+			// a per-attempt session nonce would rule it out entirely.
+			err = errors.Wrap(err, "detected peer restart during DKG, ceremony aborted: all operators must stop charon and restart the ceremony together", logOpts...)
+			s.setErr(err)
+
+			resp.Error = err.Error()
+			if werr := writeSizedProto(stream, resp); werr != nil {
+				log.Debug(ctx, "Failed to write restart rejection response", z.Str("peer", p2p.PeerName(pID)))
+			}
+
 			return err
 		}
 

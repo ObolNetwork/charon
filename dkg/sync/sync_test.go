@@ -54,6 +54,66 @@ func TestSyncProtocol(t *testing.T) {
 	})
 }
 
+// TestSyncRestartRejected verifies that a peer which restarts mid-ceremony (a fresh
+// client reporting step 0 after the server recorded a higher step) is rejected fast
+// with an actionable error on both sides, instead of reconnect-looping forever.
+func TestSyncRestartRejected(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	hash := testutil.RandomBytes32()
+
+	nodeA, keyA := newTCPNode(t, 0)
+	nodeB, _ := newTCPNode(t, 1)
+
+	serverB := sync.NewServer(nodeB, 1, hash, version.Version)
+	serverB.Start(log.WithTopic(ctx, "serverB"))
+
+	err := nodeA.Connect(ctx, peer.AddrInfo{ID: nodeB.ID(), Addrs: nodeB.Addrs()})
+	require.NoError(t, err)
+
+	hashSigA, err := keyA.Sign(hash)
+	require.NoError(t, err)
+
+	// First client instance from node A, advanced to step 1 (as after the initial
+	// DKG step sync barrier).
+	client1Ctx, client1Cancel := context.WithCancel(ctx)
+	defer client1Cancel()
+
+	client1 := sync.NewClient(nodeA, nodeB.ID(), hashSigA, version.Version, "nodeA", sync.WithPeriod(time.Millisecond*50))
+	client1.SetStep(1)
+
+	go func() {
+		_ = client1.Run(log.WithTopic(client1Ctx, "client1"))
+	}()
+
+	require.NoError(t, serverB.AwaitAllConnected(ctx))
+	require.NoError(t, serverB.AwaitAllAtStep(ctx, 1))
+
+	// Simulate a process restart of node A: kill the first instance and start a
+	// fresh client which reports step 0.
+	client1Cancel()
+
+	client2 := sync.NewClient(nodeA, nodeB.ID(), hashSigA, version.Version, "nodeA", sync.WithPeriod(time.Millisecond*50))
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- client2.Run(log.WithTopic(ctx, "client2"))
+	}()
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		require.ErrorContains(t, err, "restart the ceremony together")
+	case <-time.After(10 * time.Second):
+		t.Fatal("restarted client did not fail fast, expected rejection by the server")
+	}
+
+	// The server records the fatal condition so the ceremony can be aborted locally.
+	require.Error(t, serverB.Err())
+	require.ErrorContains(t, serverB.Err(), "restart the ceremony together")
+}
+
 func semver(t *testing.T, v string) version.SemVer {
 	t.Helper()
 

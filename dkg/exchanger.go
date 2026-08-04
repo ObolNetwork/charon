@@ -66,6 +66,7 @@ type exchanger struct {
 	sigTypes      map[sigType]bool
 	sigData       dataByPubkey
 	dutyGaterFunc func(duty core.Duty) bool
+	timeout       time.Duration
 }
 
 func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[peer.ID]cluster.NodeIdx, sigTypes []sigType, timeout time.Duration) (*exchanger, error) {
@@ -117,6 +118,7 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[p
 			lock:  sync.Mutex{},
 		},
 		dutyGaterFunc: dutyGaterFunc,
+		timeout:       timeout,
 	}
 
 	// Wiring core workflow components
@@ -173,9 +175,15 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 	e.resolveQueriesUnsafe()
 	e.sigData.lock.Unlock()
 
+	timer := time.NewTimer(e.timeout)
+	defer timer.Stop()
+
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-timer.C:
+		return nil, errors.New("timed out waiting for peer signatures",
+			z.Int("sig_type", int(sigType)))
 	case data := <-response:
 		return data, nil
 	}

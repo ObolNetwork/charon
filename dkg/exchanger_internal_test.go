@@ -400,3 +400,67 @@ func TestNewExchangerRejectsIncompletePeerMap(t *testing.T) {
 	_, err := newExchanger(h, 0, peers, peerMap, []sigType{sigLock}, time.Second)
 	require.ErrorContains(t, err, "missing valid share index")
 }
+
+// TestExchangerTimeout verifies that a signature exchange does not block forever when
+// peers never deliver their partial signatures, but fails with a timeout error instead.
+func TestExchangerTimeout(t *testing.T) {
+	const nodes = 3
+
+	var (
+		peers     []peer.ID
+		hosts     []host.Host
+		hostsInfo []peer.AddrInfo
+	)
+
+	for range nodes {
+		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
+		info := peer.AddrInfo{
+			ID:    h.ID(),
+			Addrs: h.Addrs(),
+		}
+		hostsInfo = append(hostsInfo, info)
+		peers = append(peers, h.ID())
+		hosts = append(hosts, h)
+	}
+
+	for i := range nodes {
+		for j := range nodes {
+			if i == j {
+				continue
+			}
+
+			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
+		}
+	}
+
+	// All nodes create exchangers (registering stream handlers), but only node 0
+	// exchanges. The other nodes never deliver their signatures.
+	var exchangers []*exchanger
+
+	for i := range nodes {
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 2*time.Second)
+		require.NoError(t, err)
+
+		exchangers = append(exchangers, ex)
+	}
+
+	pubkey := testutil.RandomCorePubKey(t)
+	set := core.ParSignedDataSet{
+		pubkey: core.NewPartialSignature(testutil.RandomCoreSignature(), 1),
+	}
+
+	errCh := make(chan error, 1)
+
+	go func() {
+		_, err := exchangers[0].exchange(t.Context(), sigLock, set)
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		require.ErrorContains(t, err, "timed out waiting")
+	case <-time.After(10 * time.Second):
+		t.Fatal("exchange did not time out, expected timeout error")
+	}
+}
