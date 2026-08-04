@@ -391,19 +391,25 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		return nil, err
 	}
 
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
 	return func(slot uint64, duty core.DutyType) time.Duration {
 		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
 
-		expectedSubmission := slotStart
-		if duty == core.DutyAttester {
-			expectedSubmission = slotStart.Add(slotDuration * 1 / 3)
+		// Note that sync message submissions are expected from the start of the slot, even though
+		// the spec defines a deadline for them, since charon doesn't schedule them.
+		var offset time.Duration
+
+		switch duty {
+		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution:
+			offset = slotOffsetFunc(core.Duty{Slot: slot, Type: duty})
+		default:
 		}
 
-		if duty == core.DutyAggregator || duty == core.DutySyncContribution {
-			expectedSubmission = slotStart.Add(slotDuration * 2 / 3)
-		}
-
-		return time.Since(expectedSubmission)
+		return time.Since(slotStart.Add(offset))
 	}, nil
 }
 
