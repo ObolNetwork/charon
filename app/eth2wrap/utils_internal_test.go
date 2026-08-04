@@ -3,11 +3,62 @@
 package eth2wrap
 
 import (
+	"context"
 	"math"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/api"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
+
+// stubSpecProvider returns the configured spec response and error.
+type stubSpecProvider struct {
+	resp *api.Response[map[string]any]
+	err  error
+}
+
+func (p stubSpecProvider) Spec(context.Context, *api.SpecOpts) (*api.Response[map[string]any], error) {
+	return p.resp, p.err
+}
+
+func TestFetchNetworkSpecErrors(t *testing.T) {
+	// The network spec sentinel errors carry no stack trace of their own, so each fetch function
+	// must wrap them to identify which fetch failed.
+	tests := []struct {
+		name     string
+		provider stubSpecProvider
+		sentinel error
+	}{
+		{
+			name:     "fetch fails",
+			provider: stubSpecProvider{err: errors.New("beacon node down")},
+			sentinel: errFetchNetworkSpec,
+		},
+		{
+			name:     "nil response",
+			provider: stubSpecProvider{},
+			sentinel: errMissingNetworkSpec,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := FetchSlotTimingConfig(t.Context(), test.provider)
+			require.ErrorIs(t, err, test.sentinel)
+			require.ErrorContains(t, err, "fetch slot timing config")
+
+			_, _, err = FetchSlotsConfig(t.Context(), test.provider)
+			require.ErrorIs(t, err, test.sentinel)
+			require.ErrorContains(t, err, "fetch slots config")
+
+			_, err = FetchForkConfig(t.Context(), test.provider)
+			require.ErrorIs(t, err, test.sentinel)
+			require.ErrorContains(t, err, "fetch fork config")
+		})
+	}
+}
 
 func TestParseSlotTimingConfig(t *testing.T) {
 	// specDefaults is the config returned when the beacon node publishes none of the keys.

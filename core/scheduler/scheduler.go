@@ -62,7 +62,7 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
 	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "new slot offset func")
 	}
 
 	return &Scheduler{

@@ -46,9 +46,11 @@ var forkLabels = map[Fork]string{
 	Fulu:      "FULU",
 }
 
+// Sentinel errors are wrapped when first returned so that the stack trace and the wrapping message
+// identify which network spec fetch failed.
 var (
-	errFetchNetworkSpec   = errors.New("fetch network spec")
-	errMissingNetworkSpec = errors.New("missing network spec")
+	errFetchNetworkSpec   = errors.NewSentinel("fetch network spec")
+	errMissingNetworkSpec = errors.NewSentinel("missing network spec")
 )
 
 // BasisPoints is the total number of basis points, ie. 100% of the slot duration.
@@ -88,11 +90,11 @@ var (
 func FetchSlotTimingConfig(ctx context.Context, client eth2client.SpecProvider) (SlotTimingConfig, error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
-		return SlotTimingConfig{}, errFetchNetworkSpec
+		return SlotTimingConfig{}, errors.Wrap(errFetchNetworkSpec, "fetch slot timing config")
 	}
 
 	if spec == nil {
-		return SlotTimingConfig{}, errMissingNetworkSpec
+		return SlotTimingConfig{}, errors.Wrap(errMissingNetworkSpec, "fetch slot timing config")
 	}
 
 	return parseSlotTimingConfig(spec.Data)
@@ -151,11 +153,11 @@ func parseBPS(data map[string]any, key string, def uint64) (uint64, error) {
 func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (time.Time, error) {
 	genesisTime, err := client.Genesis(ctx, &api.GenesisOpts{})
 	if err != nil {
-		return time.Time{}, errFetchNetworkSpec
+		return time.Time{}, errors.Wrap(errFetchNetworkSpec, "fetch genesis time")
 	}
 
 	if genesisTime == nil {
-		return time.Time{}, errMissingNetworkSpec
+		return time.Time{}, errors.Wrap(errMissingNetworkSpec, "fetch genesis time")
 	}
 
 	return genesisTime.Data.GenesisTime, nil
@@ -164,11 +166,11 @@ func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (t
 func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slotDuration time.Duration, slotsPerEpoch uint64, err error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
-		return 0, 0, errFetchNetworkSpec
+		return 0, 0, errors.Wrap(errFetchNetworkSpec, "fetch slots config")
 	}
 
 	if spec == nil {
-		return 0, 0, errMissingNetworkSpec
+		return 0, 0, errors.Wrap(errMissingNetworkSpec, "fetch slots config")
 	}
 
 	var ok bool
@@ -193,11 +195,11 @@ func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slot
 func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork ForkForkSchedule, err error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
-		return nil, errFetchNetworkSpec
+		return nil, errors.Wrap(errFetchNetworkSpec, "fetch fork config")
 	}
 
 	if spec == nil {
-		return nil, errMissingNetworkSpec
+		return nil, errors.Wrap(errMissingNetworkSpec, "fetch fork config")
 	}
 
 	res := ForkForkSchedule{}
