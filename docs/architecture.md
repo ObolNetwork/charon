@@ -944,7 +944,10 @@ sync committee messages and sync committee contributions. Internal duty types
 and `DutyBuilderRegistration` is a no-op since registrations are submitted by the scheduler.
 
 Successful broadcasts are instrumented with a broadcast delay metric measuring the time since the
-duty's expected submission offset into the slot.
+duty's expected submission offset into the slot. Offsets are defined by the network spec in basis
+points of the slot duration (`ATTESTATION_DUE_BPS`, `AGGREGATE_DUE_BPS`, `CONTRIBUTION_DUE_BPS`),
+which the gloas fork overrides with earlier deadlines, so they are resolved per slot by
+`core.SlotOffsetFunc`.
 
 The broadcaster interface is defined as:
 ```go

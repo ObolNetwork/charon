@@ -36,6 +36,27 @@ func TestFetchSlotsConfig(t *testing.T) {
 	require.EqualValues(t, 16, slotsPerEpoch)
 }
 
+func TestFetchSlotTimingConfig(t *testing.T) {
+	eth2Cl, err := beaconmock.New(t.Context(),
+		beaconmock.WithSpecOverride("ATTESTATION_DUE_BPS", "2000"),
+		beaconmock.WithSpecOverride("ATTESTATION_DUE_BPS_GLOAS", "1500"),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "1024"),
+	)
+	require.NoError(t, err)
+
+	timing, err := eth2wrap.FetchSlotTimingConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	require.Equal(t, eth2wrap.SlotTimingConfig{
+		Attestation: eth2wrap.ForkBPS{PreGloas: 2000, Gloas: 1500},
+		// Keys the beacon node doesn't publish default to the consensus spec values.
+		Aggregate:    eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
+		SyncMessage:  eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
+		Contribution: eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
+		GloasEpoch:   1024,
+	}, timing)
+}
+
 func TestFetchForkConfig(t *testing.T) {
 	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)

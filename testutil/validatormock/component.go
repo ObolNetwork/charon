@@ -39,6 +39,7 @@ func New(ctx context.Context,
 	genesisTime time.Time,
 	slotDuration time.Duration,
 	slotsPerEpoch uint64,
+	slotOffsetFunc core.SlotOffsetFunc,
 	builderAPI bool,
 ) *Component {
 	c := &Component{
@@ -49,6 +50,7 @@ func New(ctx context.Context,
 			GenesisTime:   genesisTime,
 			SlotDuration:  slotDuration,
 			SlotsPerEpoch: slotsPerEpoch,
+			SlotOffset:    slotOffsetFunc,
 		},
 		builderAPI:       builderAPI,
 		attestersBySlot:  make(map[uint64]*SlotAttester),
@@ -432,13 +434,13 @@ type dutyStartTimeFunc func(metaSlot) time.Time
 // dutyStartTimeFuncsByDuty defines the offsets by duty type.
 var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	core.DutyPrepareAggregator:       {startOfPrevEpoch, startOfCurrentEpoch},
-	core.DutyAttester:                {fraction(1, 3)}, // 1/3 slot duration
-	core.DutyAggregator:              {fraction(2, 3)}, // 2/3 slot duration
+	core.DutyAttester:                {dutyOffset(core.DutyAttester)},
+	core.DutyAggregator:              {dutyOffset(core.DutyAggregator)},
 	core.DutyProposer:                {slotStartTime},
 	core.DutyBuilderRegistration:     {startOfCurrentEpoch},
 	core.DutyPrepareSyncContribution: {slotStartTime},
-	core.DutySyncMessage:             {fraction(1, 3)},
-	core.DutySyncContribution:        {fraction(2, 3)},
+	core.DutySyncMessage:             {dutyOffset(core.DutySyncMessage)},
+	core.DutySyncContribution:        {dutyOffset(core.DutySyncContribution)},
 }
 
 // startOfPrevEpoch returns the start time of the previous epoch.
@@ -451,12 +453,11 @@ func startOfCurrentEpoch(slot metaSlot) time.Time {
 	return slot.Epoch().FirstSlot().StartTime()
 }
 
-// fraction returns a function that calculates slot offset based on the fraction x/y of total slot duration.
-func fraction(x, y int64) func(slot metaSlot) time.Time { //nolint:unparam
+// dutyOffset returns a function that calculates the time at which the duty type's data is due,
+// being its spec-defined offset into the slot.
+func dutyOffset(dutyType core.DutyType) dutyStartTimeFunc {
 	return func(slot metaSlot) time.Time {
-		offset := slot.Duration() * time.Duration(x) / time.Duration(y)
-
-		return slot.StartTime().Add(offset)
+		return slot.StartTime().Add(slot.meta.SlotOffset(core.Duty{Slot: slot.Slot, Type: dutyType}))
 	}
 }
 
