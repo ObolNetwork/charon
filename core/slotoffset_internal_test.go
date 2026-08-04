@@ -15,12 +15,28 @@ import (
 // mainnetTiming returns the intra-slot deadlines of a network that schedules the gloas fork at epoch 64.
 func mainnetTiming() eth2wrap.SlotTimingConfig {
 	return eth2wrap.SlotTimingConfig{
-		Attestation:  eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
-		Aggregate:    eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
-		SyncMessage:  eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
-		Contribution: eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
-		GloasEpoch:   64,
+		Attestation:        eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
+		Aggregate:          eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
+		SyncMessage:        eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
+		Contribution:       eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
+		Payload:            eth2wrap.ForkBPS{Gloas: 5000},
+		PayloadAttestation: eth2wrap.ForkBPS{Gloas: 7500},
+		GloasEpoch:         64,
 	}
+}
+
+func TestSlotOffsetPayloadAttestation(t *testing.T) {
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+
+	const gloasSlot = 64 * 16
+
+	// The payload attestation duty is triggered when the builder's payload is due (1/2 into the
+	// slot), not at its own deadline of 3/4 into the slot, so that consensus, partial signature
+	// exchange and submission can complete before the deadline.
+	require.Equal(t, 6*time.Second, offsetFunc(Duty{Slot: gloasSlot, Type: DutyPayloadAttestation}))
+
+	// The duty doesn't exist before the gloas fork.
+	require.Zero(t, offsetFunc(Duty{Slot: gloasSlot - 1, Type: DutyPayloadAttestation}))
 }
 
 func TestSlotOffsetPreGloasMatchesFractions(t *testing.T) {
