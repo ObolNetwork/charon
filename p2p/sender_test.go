@@ -84,6 +84,40 @@ func TestWithReadLimit(t *testing.T) {
 	}
 }
 
+func TestSendReceiveClosesStreamOnError(t *testing.T) {
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	protocolID := protocol.ID("testprotocol")
+
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+			time.Sleep(time.Second)
+			return nil, false, nil
+		})
+
+	// Send multiple requests that will all time out on read.
+	for range 5 {
+		err := p2p.SendReceive(context.Background(), client, server.ID(),
+			new(pbv1.Duty), new(pbv1.Duty), protocolID, p2p.WithSendTimeout(time.Millisecond))
+		require.Error(t, err)
+	}
+
+	// Allow streams to fully close.
+	time.Sleep(100 * time.Millisecond)
+
+	var openStreams int
+	for _, conn := range client.Network().ConnsToPeer(server.ID()) {
+		openStreams += len(conn.GetStreams())
+	}
+
+	require.Zero(t, openStreams,
+		"all streams must be closed after failed SendReceive calls")
+}
+
 func TestWithSendTimeout(t *testing.T) {
 	servers := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
 	clients := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
