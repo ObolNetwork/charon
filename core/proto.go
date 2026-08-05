@@ -64,21 +64,12 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 
 	switch typ {
 	case DutyAttester:
-		var a Attestation
-
-		err := unmarshal(data.GetData(), &a)
-		if err == nil {
-			signedData = a
-		} else {
-			var av VersionedAttestation
-
-			err = unmarshal(data.GetData(), &av)
-			if err != nil {
-				return ParSignedData{}, errors.Wrap(err, "unmarshal attestation")
-			}
-
-			signedData = av
+		var av VersionedAttestation
+		if err := unmarshal(data.GetData(), &av); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal attestation")
 		}
+
+		signedData = av
 	case DutyProposer:
 		var b VersionedSignedProposal
 		if err := unmarshal(data.GetData(), &b); err != nil {
