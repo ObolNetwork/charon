@@ -224,6 +224,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		compareFailureRound   int64
 		preparedJustification []Msg[I, V, C]
 		qCommit               []Msg[I, V, C]
+		qCommitValue          V
 		buffer                = make(map[int64][]Msg[I, V, C])
 		dedupRules            = make(map[dedupKey]bool)
 		decidedResends        = make(map[int64]decidedResend) // Bounds MsgDecided rebroadcasts by peer source.
@@ -357,7 +358,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 			if len(qCommit) > 0 {
 				if msg.Source() != process && msg.Type() == MsgRoundChange && // Algorithm 3:17
 					allowDecidedResend(msg.Source(), msg.Round()) {
-					err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
+					err = broadcastMsg(MsgDecided, qCommitValue, qCommit)
 				}
 
 				break
@@ -422,6 +423,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				changeRound(msg.Round(), rule)
 
 				qCommit = justification
+				qCommitValue = msg.Value()
 
 				stopTimer()
 
