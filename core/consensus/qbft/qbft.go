@@ -48,7 +48,7 @@ var supportedCompareDuties = []core.DutyType{core.DutyAttester}
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
-	decideCallback func(value [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]), compareAttestations bool,
+	decideCallback func(value [32]byte, round int64, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]), compareAttestations bool,
 ) qbft.Definition[core.Duty, [32]byte, proto.Message] {
 	quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
 
@@ -59,7 +59,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 		},
 
 		// Decide sends consensus output to subscribers.
-		Decide: func(ctx context.Context, duty core.Duty, valueHash [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
+		Decide: func(ctx context.Context, duty core.Duty, valueHash [32]byte, round int64, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			msg, ok := qcommit[0].(Msg)
 			if !ok {
 				log.Error(ctx, "Internal error: Invalid message type in qcommit. This indicates a consensus protocol bug that should be reported", nil, z.Str("got_type", fmt.Sprintf("%T", qcommit[0])))
@@ -78,7 +78,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 				return
 			}
 
-			decideCallback(valueHash, qcommit)
+			decideCallback(valueHash, round, qcommit)
 
 			for _, sub := range subs() {
 				if err := sub(ctx, duty, value); err != nil {
@@ -565,8 +565,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.End()
 	}()
 
-	decideCallback := func(value [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
-		round := matchingCommitRound(value, qcommit)
+	decideCallback := func(value [32]byte, round int64, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 		decided = true
 
 		inst.DecidedAtCh <- time.Now()
@@ -972,19 +971,6 @@ func fmtStepPeers(step roundStep) string {
 	}
 
 	return strings.Join(resp, "")
-}
-
-// matchingCommitRound returns the round from the first COMMIT in qcommit whose
-// value matches the agreed consensus value. It falls back to 0 if no match is
-// found (which should never happen after isJustifiedDecided validation).
-func matchingCommitRound(value [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) int64 {
-	for _, m := range qcommit {
-		if m.Type() == qbft.MsgCommit && m.Value() == value {
-			return m.Round()
-		}
-	}
-
-	return 0
 }
 
 // leader return the deterministic leader index.

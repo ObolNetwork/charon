@@ -311,7 +311,7 @@ func testQBFT(t *testing.T, test test) {
 
 			return clock.NewTimer(d)
 		},
-		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, round int64, qcommit []Msg[int64, int64, int64]) {
 			resultChan <- qcommit
 		},
 		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnErr chan error, returnRes chan int64) {
@@ -661,7 +661,7 @@ func TestDecidedRebroadcastLimits(t *testing.T) {
 		def := noopDef
 		def.Nodes = n
 		def.FIFOLimit = 100
-		def.Decide = func(context.Context, int64, int64, []Msg[int64, int64, int64]) {}
+		def.Decide = func(context.Context, int64, int64, int64, []Msg[int64, int64, int64]) {}
 
 		trans := Transport[int64, int64, int64]{
 			Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, _ int64,
@@ -956,7 +956,7 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			return clock.NewTimer(time.Duration(math.Pow(2, float64(round-1))) * time.Second)
 		},
-		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, round int64, qcommit []Msg[int64, int64, int64]) {
 			resultChan <- qcommit
 		},
 		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnCh chan error, returnIVS chan int64) {
