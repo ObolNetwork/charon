@@ -709,6 +709,10 @@ func isJustifiedPrePrepare[I any, V comparable, C any](d Definition[I, V, C], in
 		return false
 	}
 
+	if isZeroVal(msg.Value()) {
+		return false
+	}
+
 	// Justified if PrePrepare is the first round OR if comparison failed previous round.
 	if msg.Round() == 1 || (msg.Round() == compareFailureRound+1) {
 		return true
