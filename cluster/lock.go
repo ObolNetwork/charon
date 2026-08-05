@@ -136,6 +136,12 @@ func (l Lock) VerifyHashes() error {
 		return errors.Wrap(err, "invalid definition")
 	}
 
+	if len(l.Validators) != l.NumValidators {
+		return errors.New("lock validators count mismatch",
+			z.Int("definition_num_validators", l.NumValidators),
+			z.Int("lock_validators", len(l.Validators)))
+	}
+
 	lockHash, err := hashLock(l)
 	if err != nil {
 		return err
