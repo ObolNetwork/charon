@@ -5,16 +5,23 @@ package qbft
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"math"
+	"math/rand"
 	"testing"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/instance"
 	"github.com/obolnetwork/charon/core/consensus/metrics"
@@ -22,7 +29,10 @@ import (
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	coremocks "github.com/obolnetwork/charon/core/mocks"
 	"github.com/obolnetwork/charon/core/qbft"
+	"github.com/obolnetwork/charon/eth2util/enr"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 //go:generate go test . -run=TestDebugRoundChange -update
@@ -906,6 +916,217 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		require.True(t, ok)
 		require.False(t, inst.MaybeStart())
 	})
+}
+
+// TestDecidedJustificationIgnoresExtraCommits verifies that a MsgDecided containing
+// extra non-matching COMMITs in its justification does not influence the decided value
+// or crash the node. The Decide callback must use the algorithm's agreed value parameter,
+// not qcommit[0], so an attacker-controlled COMMIT at index 0 is harmless.
+func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
+	const (
+		nodes    = 4
+		slot     = 2
+		attacker = 3
+	)
+
+	random := rand.New(rand.NewSource(0))
+	lock, p2pkeys, _ := cluster.NewForT(t, 1, 3, nodes, 0, random)
+
+	var peers []p2p.Peer
+
+	for i := range nodes {
+		record, err := enr.Parse(lock.Operators[i].ENR)
+		require.NoError(t, err)
+
+		p, err := p2p.NewPeerFromENR(record, i)
+		require.NoError(t, err)
+
+		peers = append(peers, p)
+	}
+
+	addr := testutil.AvailableAddr(t)
+	mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/ip4/%s/tcp/%d", addr.IP, addr.Port))
+	require.NoError(t, err)
+
+	priv := (*libp2pcrypto.Secp256k1PrivateKey)(p2pkeys[0])
+	h, err := libp2p.New(libp2p.Identity(priv), libp2p.ListenAddrs(mAddr))
+	testutil.SkipIfBindErr(t, err)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = h.Close() })
+
+	deadliner := coremocks.NewDeadliner(t)
+	deadliner.On("Add", mock.Anything).Maybe().Return(core.DeadlineScheduled)
+	deadliner.On("C").Maybe().Return((<-chan core.Duty)(make(chan core.Duty)))
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
+	require.NoError(t, err)
+
+	c, err := NewConsensus(t.Context(), bmock, h, new(p2p.Sender), peers, p2pkeys[0],
+		deadliner, func(core.Duty) bool { return true }, func(*pbv1.SniffedConsensusInstance) {}, false)
+	require.NoError(t, err)
+
+	results := make(chan core.UnsignedDataSet, 1)
+
+	c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
+		results <- set
+		return nil
+	})
+	c.Start(t.Context())
+
+	// Build two distinct values: the legitimately agreed one and a rogue one.
+	newValue := func() (*anypb.Any, [32]byte) {
+		set := core.UnsignedDataSet{testutil.RandomCorePubKey(t): testutil.RandomCoreAttestationData(t)}
+		pb, err2 := core.UnsignedDataSetToProto(set)
+		require.NoError(t, err2)
+
+		hash, err2 := hashProto(pb)
+		require.NoError(t, err2)
+
+		a, err2 := anypb.New(pb)
+		require.NoError(t, err2)
+
+		return a, hash
+	}
+
+	sign := func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg {
+		m := &pbv1.QBFTMsg{
+			Type:      int64(typ),
+			Duty:      &pbv1.Duty{Slot: slot, Type: int32(core.DutyAttester)},
+			PeerIdx:   peerIdx,
+			Round:     round,
+			ValueHash: valueHash[:],
+		}
+
+		signed, err2 := signMsg(m, key)
+		require.NoError(t, err2)
+
+		return signed
+	}
+
+	agreedAny, agreedHash := newValue()
+	rogueAny, rogueHash := newValue()
+	require.NotEqual(t, agreedHash, rogueHash)
+
+	// runSubtest proposes the agreed value on the given duty, injects a crafted MsgDecided
+	// with the provided justification, and asserts the victim decides on the agreed value
+	// without panicking.
+	nextSlot := uint64(slot)
+	runSubtest := func(t *testing.T, name string, justification []*pbv1.QBFTMsg) {
+		t.Helper()
+
+		t.Run(name, func(t *testing.T) {
+			testDuty := core.Duty{Type: core.DutyAttester, Slot: nextSlot}
+			nextSlot++
+
+			signForDuty := func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg {
+				m := &pbv1.QBFTMsg{
+					Type:      int64(typ),
+					Duty:      &pbv1.Duty{Slot: testDuty.Slot, Type: int32(core.DutyAttester)},
+					PeerIdx:   peerIdx,
+					Round:     round,
+					ValueHash: valueHash[:],
+				}
+
+				signed, err2 := signMsg(m, key)
+				require.NoError(t, err2)
+
+				return signed
+			}
+
+			// Re-sign justification messages with the correct duty slot.
+			var resignedJust []*pbv1.QBFTMsg
+			for _, j := range justification {
+				resignedJust = append(resignedJust, signForDuty(
+					p2pkeys[j.GetPeerIdx()],
+					qbft.MsgType(j.GetType()),
+					j.GetPeerIdx(),
+					j.GetRound(),
+					[32]byte(j.GetValueHash()),
+				))
+			}
+
+			agreedSet, err := core.UnsignedDataSetFromProto(core.DutyAttester, mustUnmarshalUDS(t, agreedAny))
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+			defer cancel()
+
+			proposeErr := make(chan error, 1)
+			go func() { proposeErr <- c.Propose(ctx, testDuty, agreedSet) }()
+
+			time.Sleep(200 * time.Millisecond)
+
+			decided := &pbv1.QBFTConsensusMsg{
+				Msg:           signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 1, agreedHash),
+				Justification: resignedJust,
+				Values:        []*anypb.Any{agreedAny, rogueAny},
+			}
+
+			require.NotPanics(t, func() {
+				_, _, err = c.handle(ctx, "attacker", decided)
+				require.NoError(t, err)
+			})
+
+			select {
+			case got := <-results:
+				gotPb, err := core.UnsignedDataSetToProto(got)
+				require.NoError(t, err)
+
+				gotHash, err := hashProto(gotPb)
+				require.NoError(t, err)
+
+				require.Equal(t, agreedHash, gotHash, "must decide on the agreed value")
+			case <-ctx.Done():
+				t.Fatal("timed out — node may have crashed")
+			}
+
+			cancel()
+			<-proposeErr
+		})
+	}
+
+	// Template justification messages (slot is overridden by runSubtest).
+	honestCommits := []*pbv1.QBFTMsg{
+		sign(p2pkeys[1], qbft.MsgCommit, 1, 1, agreedHash),
+		sign(p2pkeys[2], qbft.MsgCommit, 2, 1, agreedHash),
+		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, agreedHash),
+	}
+
+	rogueFirst := append([]*pbv1.QBFTMsg{
+		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+	}, honestCommits...)
+
+	rogueLast := append(append([]*pbv1.QBFTMsg{}, honestCommits...),
+		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+	)
+
+	rogueMiddle := []*pbv1.QBFTMsg{
+		sign(p2pkeys[1], qbft.MsgCommit, 1, 1, agreedHash),
+		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+		sign(p2pkeys[2], qbft.MsgCommit, 2, 1, agreedHash),
+		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, agreedHash),
+	}
+
+	overflowFirst := append([]*pbv1.QBFTMsg{
+		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, math.MaxInt64-1, rogueHash),
+	}, honestCommits...)
+
+	runSubtest(t, "rogue commit at start", rogueFirst)
+	runSubtest(t, "rogue commit at end", rogueLast)
+	runSubtest(t, "rogue commit in middle", rogueMiddle)
+	runSubtest(t, "overflow round at start", overflowFirst)
+}
+
+func mustUnmarshalUDS(t *testing.T, a *anypb.Any) *pbv1.UnsignedDataSet {
+	t.Helper()
+
+	m, err := a.UnmarshalNew()
+	require.NoError(t, err)
+
+	set, ok := m.(*pbv1.UnsignedDataSet)
+	require.True(t, ok)
+
+	return set
 }
 
 func signConsensusMsg(t *testing.T, msg *pbv1.QBFTConsensusMsg, privKey *k1.PrivateKey, duty core.Duty) *pbv1.QBFTConsensusMsg {
