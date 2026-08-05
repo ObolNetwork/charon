@@ -859,6 +859,76 @@ var noopTransport = Transport[int64, int64, int64]{
 	},
 }
 
+// TestEquivocatingLeaderDoublePrepare verifies that an honest node does NOT
+// prepare two different values in the same round when an equivocating leader
+// sends two justified PRE-PREPAREs with different values.
+func TestEquivocatingLeaderDoublePrepare(t *testing.T) {
+	const (
+		n       = 4
+		process = 0
+		leader  = 1
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	recv := make(chan Msg[int64, int64, int64])
+	prepares := make(chan int64, 100)
+
+	def := noopDef
+	def.Nodes = n
+	def.FIFOLimit = 100
+	def.IsLeader = func(_ int64, _ int64, p int64) bool { return p == leader }
+	def.Compare = func(_ context.Context, _ Msg[int64, int64, int64], _ <-chan int64, _ int64, returnErr chan error, _ chan int64) {
+		returnErr <- nil
+	}
+	def.Decide = func(context.Context, int64, int64, []Msg[int64, int64, int64]) {}
+
+	trans := Transport[int64, int64, int64]{
+		Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, value int64, _ int64, _ int64, _ []Msg[int64, int64, int64]) error {
+			if typ == MsgPrepare {
+				prepares <- value
+			}
+
+			return nil
+		},
+		Receive: recv,
+	}
+
+	go func() {
+		_ = Run(ctx, def, trans, 0, process, make(chan int64), make(chan int64))
+	}()
+
+	send := func(m msg) {
+		select {
+		case recv <- m:
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timeout sending message to qbft instance")
+		}
+	}
+
+	justify := []msg{
+		{msgType: MsgRoundChange, peerIdx: 1, round: 2},
+		{msgType: MsgRoundChange, peerIdx: 2, round: 2},
+		{msgType: MsgRoundChange, peerIdx: 3, round: 2},
+	}
+
+	send(msg{msgType: MsgPrePrepare, peerIdx: leader, round: 2, value: 1, justify: justify})
+	send(msg{msgType: MsgPrePrepare, peerIdx: leader, round: 2, value: 2, justify: justify})
+	// Inert flush: stale round message ensures both above are processed.
+	send(msg{msgType: MsgPrePrepare, peerIdx: leader, round: 1, value: 9})
+
+	close(prepares)
+
+	var prepared []int64
+	for v := range prepares {
+		prepared = append(prepared, v)
+	}
+
+	require.Equal(t, []int64{1}, prepared,
+		"honest node must prepare at most one value per round")
+}
+
 // noopDef is a definition that does nothing.
 var noopDef = Definition[int64, int64, int64]{
 	IsLeader:       func(int64, int64, int64) bool { return false },
