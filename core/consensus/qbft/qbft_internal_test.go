@@ -1054,7 +1054,9 @@ func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
 			proposeErr := make(chan error, 1)
 			go func() { proposeErr <- c.Propose(ctx, testDuty, agreedSet) }()
 
-			time.Sleep(200 * time.Millisecond)
+			require.Eventually(t, func() bool {
+				return c.getInstanceIO(testDuty).Running.Load()
+			}, 5*time.Second, 10*time.Millisecond)
 
 			decided := &pbv1.QBFTConsensusMsg{
 				Msg:           signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 1, agreedHash),
