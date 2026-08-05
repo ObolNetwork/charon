@@ -988,15 +988,14 @@ func TestZeroValuePrePrepareRejected(t *testing.T) {
 	// Inert flush.
 	send(msg{msgType: MsgPrePrepare, peerIdx: leader, round: 1, value: 0})
 
-	close(prepares)
+	// Stop the QBFT goroutine before draining, so no late writes race with the read.
+	cancel()
 
-	var prepared []int64
-	for v := range prepares {
-		prepared = append(prepared, v)
+	select {
+	case v := <-prepares:
+		require.Failf(t, "honest node must reject zero-value PRE-PREPARE", "got PREPARE with value %d", v)
+	default:
 	}
-
-	require.Empty(t, prepared,
-		"honest node must reject zero-value PRE-PREPARE")
 }
 
 // noopDef is a definition that does nothing.

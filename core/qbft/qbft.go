@@ -625,13 +625,10 @@ func nextMinRound[I any, V comparable, C any](d Definition[I, V, C], frc []Msg[I
 
 // isJustified returns true if message is justified or if it does not need justification.
 func isJustified[I any, V comparable, C any](d Definition[I, V, C], instance I, msg Msg[I, V, C], compareFailureRound int64) bool {
-	//nolint:revive // `case MsgPrepare` and `case MsgCommit` having same result is not an issue, it improves readability.
 	switch msg.Type() {
 	case MsgPrePrepare:
 		return isJustifiedPrePrepare(d, instance, msg, compareFailureRound)
-	case MsgPrepare:
-		return true
-	case MsgCommit:
+	case MsgPrepare, MsgCommit:
 		return true
 	case MsgRoundChange:
 		return isJustifiedRoundChange(d, msg)
