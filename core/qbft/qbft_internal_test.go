@@ -918,15 +918,21 @@ func TestEquivocatingLeaderDoublePrepare(t *testing.T) {
 	// Inert flush: stale round message ensures both above are processed.
 	send(msg{msgType: MsgPrePrepare, peerIdx: leader, round: 1, value: 9})
 
-	close(prepares)
+	cancel()
 
 	var prepared []int64
-	for v := range prepares {
-		prepared = append(prepared, v)
-	}
 
-	require.Equal(t, []int64{1}, prepared,
-		"honest node must prepare at most one value per round")
+	for {
+		select {
+		case v := <-prepares:
+			prepared = append(prepared, v)
+		default:
+			require.Equal(t, []int64{1}, prepared,
+				"honest node must prepare at most one value per round")
+
+			return
+		}
+	}
 }
 
 // noopDef is a definition that does nothing.
