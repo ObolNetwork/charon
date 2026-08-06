@@ -48,7 +48,7 @@ var supportedCompareDuties = []core.DutyType{core.DutyAttester}
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
-	decideCallback func(value [32]byte, round int64, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]), compareAttestations bool,
+	decideCallback func(round int64), compareAttestations bool,
 ) qbft.Definition[core.Duty, [32]byte, proto.Message] {
 	quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
 
@@ -78,7 +78,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 				return
 			}
 
-			decideCallback(valueHash, round, qcommit)
+			decideCallback(round)
 
 			for _, sub := range subs() {
 				if err := sub(ctx, duty, value); err != nil {
@@ -565,7 +565,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.End()
 	}()
 
-	decideCallback := func(value [32]byte, round int64, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
+	decideCallback := func(round int64) {
 		decided = true
 
 		inst.DecidedAtCh <- time.Now()

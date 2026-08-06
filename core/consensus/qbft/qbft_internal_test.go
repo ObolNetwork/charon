@@ -918,11 +918,33 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 	})
 }
 
-// TestDecidedJustificationIgnoresExtraCommits verifies that a MsgDecided containing
-// extra non-matching COMMITs in its justification does not influence the decided value
-// or crash the node. The Decide callback must use the algorithm's agreed value parameter,
-// not qcommit[0], so an attacker-controlled COMMIT at index 0 is harmless.
-func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
+// TestDecidedMessageScenarios verifies how a node handles crafted MsgDecided messages:
+//
+//   - A justification containing extra non-matching COMMITs must not influence the
+//     decided value or crash the node. The Decide callback must use the algorithm's
+//     agreed value parameter, not qcommit[0], so an attacker-controlled COMMIT at
+//     index 0 is harmless.
+//   - The decided value must come from the quorum, never from the node's own
+//     (differing) local proposal.
+//   - Malformed decided messages (missing values, unjustified round or quorum) must
+//     be rejected or dropped without corrupting the instance: a subsequent valid
+//     decided message must still decide the agreed value.
+//
+// All scenarios run both with and without attestation comparison (the
+// chain_split_halt feature): the Compare flow only gates the PREPARE step on
+// justified PRE-PREPAREs and must not affect decided message handling.
+func TestDecidedMessageScenarios(t *testing.T) {
+	t.Run("compare disabled", func(t *testing.T) {
+		testDecidedMessageScenarios(t, false)
+	})
+	t.Run("compare enabled", func(t *testing.T) {
+		testDecidedMessageScenarios(t, true)
+	})
+}
+
+func testDecidedMessageScenarios(t *testing.T, compareAttestations bool) {
+	t.Helper()
+
 	const (
 		nodes    = 4
 		slot     = 2
@@ -962,7 +984,7 @@ func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
 	require.NoError(t, err)
 
 	c, err := NewConsensus(t.Context(), bmock, h, new(p2p.Sender), peers, p2pkeys[0],
-		deadliner, func(core.Duty) bool { return true }, func(*pbv1.SniffedConsensusInstance) {}, false)
+		deadliner, func(core.Duty) bool { return true }, func(*pbv1.SniffedConsensusInstance) {}, compareAttestations)
 	require.NoError(t, err)
 
 	results := make(chan core.UnsignedDataSet, 1)
@@ -988,9 +1010,9 @@ func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
 		return a, hash
 	}
 
-	sign := func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg {
+	signCommit := func(key *k1.PrivateKey, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg {
 		m := &pbv1.QBFTMsg{
-			Type:      int64(typ),
+			Type:      int64(qbft.MsgCommit),
 			Duty:      &pbv1.Duty{Slot: slot, Type: int32(core.DutyAttester)},
 			PeerIdx:   peerIdx,
 			Round:     round,
@@ -1005,33 +1027,83 @@ func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
 
 	agreedAny, agreedHash := newValue()
 	rogueAny, rogueHash := newValue()
+	localAny, _ := newValue()
+
 	require.NotEqual(t, agreedHash, rogueHash)
 
-	// runSubtest proposes the agreed value on the given duty, injects a crafted MsgDecided
+	nextSlot := uint64(slot)
+
+	// startInstance proposes the given value on a fresh duty and returns the duty,
+	// a per-duty signing function, the propose error channel and a context.
+	startInstance := func(t *testing.T, propose *anypb.Any) (
+		core.Duty,
+		func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg,
+		chan error,
+		context.Context,
+		context.CancelFunc,
+	) {
+		t.Helper()
+
+		testDuty := core.Duty{Type: core.DutyAttester, Slot: nextSlot}
+		nextSlot++
+
+		signForDuty := func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg {
+			m := &pbv1.QBFTMsg{
+				Type:      int64(typ),
+				Duty:      &pbv1.Duty{Slot: testDuty.Slot, Type: int32(core.DutyAttester)},
+				PeerIdx:   peerIdx,
+				Round:     round,
+				ValueHash: valueHash[:],
+			}
+
+			signed, err2 := signMsg(m, key)
+			require.NoError(t, err2)
+
+			return signed
+		}
+
+		proposeSet, err := core.UnsignedDataSetFromProto(core.DutyAttester, mustUnmarshalUDS(t, propose))
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+
+		proposeErr := make(chan error, 1)
+		go func() { proposeErr <- c.Propose(ctx, testDuty, proposeSet) }()
+
+		require.Eventually(t, func() bool {
+			return c.getInstanceIO(testDuty).Running.Load()
+		}, 5*time.Second, 10*time.Millisecond)
+
+		return testDuty, signForDuty, proposeErr, ctx, cancel
+	}
+
+	// expectDecided asserts the subscriber receives the agreed value before the context expires.
+	expectDecided := func(t *testing.T, ctx context.Context) {
+		t.Helper()
+
+		select {
+		case got := <-results:
+			gotPb, err := core.UnsignedDataSetToProto(got)
+			require.NoError(t, err)
+
+			gotHash, err := hashProto(gotPb)
+			require.NoError(t, err)
+
+			require.Equal(t, agreedHash, gotHash, "must decide on the agreed value")
+		case <-ctx.Done():
+			t.Fatal("timed out — node may have crashed")
+		}
+	}
+
+	// runSubtest proposes the given value on a fresh duty, injects a crafted MsgDecided
 	// with the provided justification, and asserts the victim decides on the agreed value
 	// without panicking.
-	nextSlot := uint64(slot)
-	runSubtest := func(t *testing.T, name string, justification []*pbv1.QBFTMsg) {
+	runSubtest := func(t *testing.T, name string, propose *anypb.Any, justification []*pbv1.QBFTMsg) {
 		t.Helper()
 
 		t.Run(name, func(t *testing.T) {
-			testDuty := core.Duty{Type: core.DutyAttester, Slot: nextSlot}
-			nextSlot++
-
-			signForDuty := func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg {
-				m := &pbv1.QBFTMsg{
-					Type:      int64(typ),
-					Duty:      &pbv1.Duty{Slot: testDuty.Slot, Type: int32(core.DutyAttester)},
-					PeerIdx:   peerIdx,
-					Round:     round,
-					ValueHash: valueHash[:],
-				}
-
-				signed, err2 := signMsg(m, key)
-				require.NoError(t, err2)
-
-				return signed
-			}
+			_, signForDuty, proposeErr, ctx, cancel := startInstance(t, propose)
+			defer cancel()
 
 			// Re-sign justification messages with the correct duty slot.
 			var resignedJust []*pbv1.QBFTMsg
@@ -1045,19 +1117,6 @@ func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
 				))
 			}
 
-			agreedSet, err := core.UnsignedDataSetFromProto(core.DutyAttester, mustUnmarshalUDS(t, agreedAny))
-			require.NoError(t, err)
-
-			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
-			defer cancel()
-
-			proposeErr := make(chan error, 1)
-			go func() { proposeErr <- c.Propose(ctx, testDuty, agreedSet) }()
-
-			require.Eventually(t, func() bool {
-				return c.getInstanceIO(testDuty).Running.Load()
-			}, 5*time.Second, 10*time.Millisecond)
-
 			decided := &pbv1.QBFTConsensusMsg{
 				Msg:           signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 1, agreedHash),
 				Justification: resignedJust,
@@ -1065,22 +1124,54 @@ func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
 			}
 
 			require.NotPanics(t, func() {
-				_, _, err = c.handle(ctx, "attacker", decided)
+				_, _, err := c.handle(ctx, "attacker", decided)
 				require.NoError(t, err)
 			})
 
-			select {
-			case got := <-results:
-				gotPb, err := core.UnsignedDataSetToProto(got)
-				require.NoError(t, err)
+			expectDecided(t, ctx)
 
-				gotHash, err := hashProto(gotPb)
-				require.NoError(t, err)
+			cancel()
+			<-proposeErr
+		})
+	}
 
-				require.Equal(t, agreedHash, gotHash, "must decide on the agreed value")
-			case <-ctx.Done():
-				t.Fatal("timed out — node may have crashed")
+	// runRejectSubtest proposes the agreed value on a fresh duty and injects a bad
+	// MsgDecided that must not decide anything: either handle rejects it outright
+	// (wantHandleErr) or the qbft instance drops it as unjustified. A subsequent
+	// valid MsgDecided must still decide the agreed value, proving the bad message
+	// neither decided nor corrupted the instance.
+	runRejectSubtest := func(t *testing.T, name, wantHandleErr string,
+		buildBad func(signForDuty func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg) *pbv1.QBFTConsensusMsg,
+	) {
+		t.Helper()
+
+		t.Run(name, func(t *testing.T) {
+			_, signForDuty, proposeErr, ctx, cancel := startInstance(t, agreedAny)
+			defer cancel()
+
+			require.NotPanics(t, func() {
+				_, _, err := c.handle(ctx, "attacker", buildBad(signForDuty))
+				if wantHandleErr != "" {
+					require.ErrorContains(t, err, wantHandleErr)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+
+			good := &pbv1.QBFTConsensusMsg{
+				Msg: signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 1, agreedHash),
+				Justification: []*pbv1.QBFTMsg{
+					signForDuty(p2pkeys[1], qbft.MsgCommit, 1, 1, agreedHash),
+					signForDuty(p2pkeys[2], qbft.MsgCommit, 2, 1, agreedHash),
+					signForDuty(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, agreedHash),
+				},
+				Values: []*anypb.Any{agreedAny},
 			}
+
+			_, _, err := c.handle(ctx, "attacker", good)
+			require.NoError(t, err)
+
+			expectDecided(t, ctx)
 
 			cancel()
 			<-proposeErr
@@ -1089,34 +1180,96 @@ func TestDecidedJustificationIgnoresExtraCommits(t *testing.T) {
 
 	// Template justification messages (slot is overridden by runSubtest).
 	honestCommits := []*pbv1.QBFTMsg{
-		sign(p2pkeys[1], qbft.MsgCommit, 1, 1, agreedHash),
-		sign(p2pkeys[2], qbft.MsgCommit, 2, 1, agreedHash),
-		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, agreedHash),
+		signCommit(p2pkeys[1], 1, 1, agreedHash),
+		signCommit(p2pkeys[2], 2, 1, agreedHash),
+		signCommit(p2pkeys[attacker], attacker, 1, agreedHash),
 	}
 
 	rogueFirst := append([]*pbv1.QBFTMsg{
-		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+		signCommit(p2pkeys[attacker], attacker, 1, rogueHash),
 	}, honestCommits...)
 
 	rogueLast := append(append([]*pbv1.QBFTMsg{}, honestCommits...),
-		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+		signCommit(p2pkeys[attacker], attacker, 1, rogueHash),
 	)
 
 	rogueMiddle := []*pbv1.QBFTMsg{
-		sign(p2pkeys[1], qbft.MsgCommit, 1, 1, agreedHash),
-		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
-		sign(p2pkeys[2], qbft.MsgCommit, 2, 1, agreedHash),
-		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, agreedHash),
+		signCommit(p2pkeys[1], 1, 1, agreedHash),
+		signCommit(p2pkeys[attacker], attacker, 1, rogueHash),
+		signCommit(p2pkeys[2], 2, 1, agreedHash),
+		signCommit(p2pkeys[attacker], attacker, 1, agreedHash),
 	}
 
 	overflowFirst := append([]*pbv1.QBFTMsg{
-		sign(p2pkeys[attacker], qbft.MsgCommit, attacker, math.MaxInt64-1, rogueHash),
+		signCommit(p2pkeys[attacker], attacker, math.MaxInt64-1, rogueHash),
 	}, honestCommits...)
 
-	runSubtest(t, "rogue commit at start", rogueFirst)
-	runSubtest(t, "rogue commit at end", rogueLast)
-	runSubtest(t, "rogue commit in middle", rogueMiddle)
-	runSubtest(t, "overflow round at start", overflowFirst)
+	runSubtest(t, "rogue commit at start", agreedAny, rogueFirst)
+	runSubtest(t, "rogue commit at end", agreedAny, rogueLast)
+	runSubtest(t, "rogue commit in middle", agreedAny, rogueMiddle)
+	runSubtest(t, "overflow round at start", agreedAny, overflowFirst)
+
+	// The node's own (differing) local proposal must never leak into the decision:
+	// the subscriber must receive the quorum-agreed value.
+	runSubtest(t, "local proposal differs from decided value", localAny, honestCommits)
+
+	runRejectSubtest(t, "decided value missing from values", "value hash not found in values",
+		func(signForDuty func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg) *pbv1.QBFTConsensusMsg {
+			// The decided message claims the rogue value but does not include it in
+			// its values, only the agreed one. Decoding must fail, so the node can
+			// never be tricked into deciding a value it does not have.
+			return &pbv1.QBFTConsensusMsg{
+				Msg: signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 1, rogueHash),
+				Justification: []*pbv1.QBFTMsg{
+					signForDuty(p2pkeys[1], qbft.MsgCommit, 1, 1, rogueHash),
+					signForDuty(p2pkeys[2], qbft.MsgCommit, 2, 1, rogueHash),
+					signForDuty(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+				},
+				Values: []*anypb.Any{agreedAny},
+			}
+		})
+
+	runRejectSubtest(t, "justification value missing from values", "value hash not found in values",
+		func(signForDuty func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg) *pbv1.QBFTConsensusMsg {
+			// The justification references the rogue value which is absent from values.
+			return &pbv1.QBFTConsensusMsg{
+				Msg: signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 1, agreedHash),
+				Justification: []*pbv1.QBFTMsg{
+					signForDuty(p2pkeys[1], qbft.MsgCommit, 1, 1, agreedHash),
+					signForDuty(p2pkeys[2], qbft.MsgCommit, 2, 1, agreedHash),
+					signForDuty(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+				},
+				Values: []*anypb.Any{agreedAny},
+			}
+		})
+
+	runRejectSubtest(t, "decided round not matching justification commits", "",
+		func(signForDuty func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg) *pbv1.QBFTConsensusMsg {
+			// The decided message claims round 2 while all commits are for round 1.
+			// The message passes wire validation but must be dropped as unjustified.
+			return &pbv1.QBFTConsensusMsg{
+				Msg: signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 2, rogueHash),
+				Justification: []*pbv1.QBFTMsg{
+					signForDuty(p2pkeys[1], qbft.MsgCommit, 1, 1, rogueHash),
+					signForDuty(p2pkeys[2], qbft.MsgCommit, 2, 1, rogueHash),
+					signForDuty(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+				},
+				Values: []*anypb.Any{agreedAny, rogueAny},
+			}
+		})
+
+	runRejectSubtest(t, "decided with insufficient justification", "",
+		func(signForDuty func(key *k1.PrivateKey, typ qbft.MsgType, peerIdx, round int64, valueHash [32]byte) *pbv1.QBFTMsg) *pbv1.QBFTConsensusMsg {
+			// Only two commits back the decided message; quorum is three.
+			return &pbv1.QBFTConsensusMsg{
+				Msg: signForDuty(p2pkeys[attacker], qbft.MsgDecided, attacker, 1, rogueHash),
+				Justification: []*pbv1.QBFTMsg{
+					signForDuty(p2pkeys[1], qbft.MsgCommit, 1, 1, rogueHash),
+					signForDuty(p2pkeys[attacker], qbft.MsgCommit, attacker, 1, rogueHash),
+				},
+				Values: []*anypb.Any{agreedAny, rogueAny},
+			}
+		})
 }
 
 func mustUnmarshalUDS(t *testing.T, a *anypb.Any) *pbv1.UnsignedDataSet {
@@ -1129,6 +1282,93 @@ func mustUnmarshalUDS(t *testing.T, a *anypb.Any) *pbv1.UnsignedDataSet {
 	require.True(t, ok)
 
 	return set
+}
+
+// TestAttestationChecker verifies the chain_split_halt comparator: identical
+// attestation data passes, any source/target vote mismatch fails, and leader
+// validators unknown to the local set are skipped.
+func TestAttestationChecker(t *testing.T) {
+	pubkey := testutil.RandomCorePubKey(t)
+	attData := testutil.RandomCoreAttestationData(t)
+
+	toProto := func(t *testing.T, pk core.PubKey, data core.AttestationData) *pbv1.UnsignedDataSet {
+		t.Helper()
+
+		set, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{pk: data})
+		require.NoError(t, err)
+
+		return set
+	}
+
+	cloneAtt := func(t *testing.T) core.AttestationData {
+		t.Helper()
+
+		dup, err := attData.Clone()
+		require.NoError(t, err)
+
+		att, ok := dup.(core.AttestationData)
+		require.True(t, ok)
+
+		return att
+	}
+
+	local := toProto(t, pubkey, attData)
+
+	tests := []struct {
+		name    string
+		mutate  func(*core.AttestationData)
+		wantErr string
+	}{
+		{
+			name: "identical attestation data",
+		},
+		{
+			name:    "source epoch differs",
+			mutate:  func(a *core.AttestationData) { a.Data.Source.Epoch++ },
+			wantErr: "source epoch differs",
+		},
+		{
+			name:    "source root differs",
+			mutate:  func(a *core.AttestationData) { a.Data.Source.Root[0]++ },
+			wantErr: "source root differs",
+		},
+		{
+			name:    "target epoch differs",
+			mutate:  func(a *core.AttestationData) { a.Data.Target.Epoch++ },
+			wantErr: "target epoch differs",
+		},
+		{
+			name:    "target root differs",
+			mutate:  func(a *core.AttestationData) { a.Data.Target.Root[0]++ },
+			wantErr: "target root differs",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			leaderAtt := cloneAtt(t)
+			if test.mutate != nil {
+				test.mutate(&leaderAtt)
+			}
+
+			err := attestationChecker(t.Context(), toProto(t, pubkey, leaderAtt), local)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.wantErr)
+			}
+		})
+	}
+
+	t.Run("unknown validator is skipped", func(t *testing.T) {
+		// Leader proposes for a validator the local node has no data for: a
+		// conflicting vote cannot be detected, so it is skipped with a warning.
+		leaderAtt := cloneAtt(t)
+		leaderAtt.Data.Target.Epoch++
+
+		err := attestationChecker(t.Context(), toProto(t, testutil.RandomCorePubKey(t), leaderAtt), local)
+		require.NoError(t, err)
+	})
 }
 
 func signConsensusMsg(t *testing.T, msg *pbv1.QBFTConsensusMsg, privKey *k1.PrivateKey, duty core.Duty) *pbv1.QBFTConsensusMsg {
