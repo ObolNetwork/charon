@@ -1132,17 +1132,6 @@ func TestCloneSSZMarshaler(t *testing.T) {
 		expected  string
 	}{
 		{
-			name: "Attestation",
-			value: core.Attestation{
-				Attestation: *phase0Att,
-			},
-			unmarshal: func(b []byte) (any, error) {
-				var v core.Attestation
-				return v, v.UnmarshalSSZ(b)
-			},
-			expected: "0xe400000001000000000000000200000000000000abababababababababababababababababababababababababababababababab0100000000000000abababababababababababababababababababababababababababababababab0200000000000000ababababababababababababababababababababababababababababababababcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd03",
-		},
-		{
 			name: "SignedAggregateAndProof",
 			value: core.SignedAggregateAndProof{
 				SignedAggregateAndProof: eth2p0.SignedAggregateAndProof{

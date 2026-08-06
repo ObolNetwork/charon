@@ -135,17 +135,17 @@ func (a *Aggregator) aggregate(ctx context.Context, pubkey core.PubKey, parSigs 
 		return nil, err
 	}
 
-	// Fix for validator index sent only by validator client and not peers.
+	// ValidatorIndex is only set by the local VC, not forwarded by peers.
 	var fullSig core.SignedData
 
 	for _, parSig := range parSigs {
-		attVidx, ok := parSig.SignedData.(core.VersionedAttestation)
+		att, ok := parSig.SignedData.(core.VersionedAttestation)
 		if !ok {
 			break
 		}
 
-		if attVidx.ValidatorIndex != nil {
-			fullSig = attVidx
+		if att.ValidatorIndex != nil {
+			fullSig = att
 			break
 		}
 	}
