@@ -1696,6 +1696,32 @@ type testChainSplit struct {
 
 var errChainSplitHalt = errors.New("chain split halt")
 
+// TestCompareRetainsValueOnError verifies that the compare flow does not lose the
+// local value read by the comparator when the comparison also fails. The comparator
+// sends the value and the error back-to-back on buffered channels, so both select
+// cases can be ready simultaneously and the select picks one at random; the read
+// value must be returned regardless of which case wins, otherwise subsequent rounds
+// block forever on the already-consumed input value source channel.
+func TestCompareRetainsValueOnError(t *testing.T) {
+	const localValue = 42
+
+	// Repeat since the select picks randomly among the two ready cases.
+	for range 1000 {
+		// Model the racy state directly: the comparator already completed both
+		// sends before the await loop polled the select.
+		compareErr := make(chan error, 1)
+
+		compareValue := make(chan int64, 1)
+		compareValue <- localValue
+
+		compareErr <- errors.New("mismatch")
+
+		vs, err := awaitCompare(context.Background(), compareErr, compareValue, nil, 0)
+		require.ErrorIs(t, err, errCompare)
+		require.EqualValues(t, localValue, vs, "local value must not be lost when comparison fails")
+	}
+}
+
 func TestChainSplit(t *testing.T) {
 	t.Run("same value", func(t *testing.T) {
 		testQBFTChainSplit(t, testChainSplit{
