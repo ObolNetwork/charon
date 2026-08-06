@@ -59,7 +59,9 @@ func (h *slogHandler) Handle(_ context.Context, rec slog.Record) error {
 		return true
 	})
 
-	ce := LoggerCore().Check(entry, nil)
+	// Read the global logger core directly (unlocked), matching getLogger's hot
+	// path, rather than LoggerCore which locks on every record.
+	ce := logger.Core().Check(entry, nil)
 	if ce == nil {
 		return nil
 	}
