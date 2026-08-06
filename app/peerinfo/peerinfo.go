@@ -26,8 +26,9 @@ import (
 )
 
 const (
-	period                  = time.Minute
-	protocolID2 protocol.ID = "/charon/peerinfo/2.0.0"
+	period                         = time.Minute
+	protocolID2        protocol.ID = "/charon/peerinfo/2.0.0"
+	maxPeerInfoMsgSize             = 1 << 20 // 1MB, PeerInfo messages are < 1KB in practice.
 )
 
 var gitHashMatch = regexp.MustCompile("^[0-9a-f]{7}$")
@@ -105,6 +106,7 @@ func newInternal(p2pNode host.Host, peers []peer.ID, version version.SemVer, loc
 				Nickname:          nickname,
 			}, true, nil
 		},
+		p2p.WithReadLimit(maxPeerInfoMsgSize),
 	)
 
 	// Maps peers to their nickname
@@ -197,7 +199,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 
 			resp := new(pbv1.PeerInfo)
 
-			err := p.sendFunc(ctx, p.p2pNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback), p2p.WithSendMetricTopic("peerinfo"))
+			err := p.sendFunc(ctx, p.p2pNode, peerID, req, resp, protocolID2, p2p.WithSendReceiveRTT(rttCallback), p2p.WithSendMetricTopic("peerinfo"), p2p.WithReadLimit(maxPeerInfoMsgSize))
 			if err != nil {
 				return // Logging handled by send func.
 			} else if resp.GetSentAt() == nil || resp.GetStartedAt() == nil {
