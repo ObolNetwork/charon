@@ -357,18 +357,27 @@ func TestRunReplaceOperatorProtocol_PeerDeathCollectTimeout(t *testing.T) {
 		t.Fatal("Kill target did not return after context cancel")
 	}
 
-	// All alive peers must abort with a collection timeout error instead of hanging.
+	// All alive peers must abort promptly instead of hanging. Depending on where the
+	// abort lands on each node, this is a pedersen collection timeout, a transport
+	// error if the node was still exchanging messages with the dying peer, or a
+	// kyber DKG abort due to the dead peer's missing messages.
 	deadline := time.After(3 * time.Minute)
 
 	for range numNodes - 1 {
 		select {
 		case res := <-aliveResults:
 			require.Error(t, res.err, "alive node %d must abort with an error", res.node)
-			require.ErrorContains(t, res.err, "timed out waiting",
-				"alive node %d must report a collection timeout", res.node)
+
+			isTimeoutErr := strings.Contains(res.err.Error(), "timed out waiting")
+			isTransportErr := strings.Contains(res.err.Error(), "stream reset") ||
+				strings.Contains(res.err.Error(), "connection closed")
+			isDKGAbort := strings.Contains(res.err.Error(), "pedersen reshare protocol failed")
+			require.True(t, isTimeoutErr || isTransportErr || isDKGAbort,
+				"alive node %d must abort due to the peer death, got: %v", res.node, res.err)
+
 			t.Logf("Alive node %d aborted with: %v", res.node, res.err)
 		case <-deadline:
-			t.Fatal("Alive peers did not abort, expected collection timeout after peer death")
+			t.Fatal("Alive peers did not abort, expected prompt abort after peer death")
 		}
 	}
 }
