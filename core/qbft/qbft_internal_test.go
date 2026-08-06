@@ -814,6 +814,7 @@ func TestDuplicatePrePreparesRules(t *testing.T) {
 			msgType: MsgPrePrepare,
 			peerIdx: leader,
 			round:   round,
+			value:   42,
 			// Justification not required since nodes and quorum both 0.
 		}
 	}
@@ -932,6 +933,68 @@ func TestEquivocatingLeaderDoublePrepare(t *testing.T) {
 
 			return
 		}
+	}
+}
+
+// TestZeroValuePrePrepareRejected verifies that a zero-value PRE-PREPARE from
+// a Byzantine leader is rejected and does not cause the honest node to PREPARE.
+func TestZeroValuePrePrepareRejected(t *testing.T) {
+	const (
+		n       = 4
+		process = 0
+		leader  = 1
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	recv := make(chan Msg[int64, int64, int64])
+	prepares := make(chan int64, 100)
+
+	def := noopDef
+	def.Nodes = n
+	def.FIFOLimit = 100
+	def.IsLeader = func(_ int64, _ int64, p int64) bool { return p == leader }
+	def.Compare = func(_ context.Context, _ Msg[int64, int64, int64], _ <-chan int64, _ int64, returnErr chan error, _ chan int64) {
+		returnErr <- nil
+	}
+	def.Decide = func(context.Context, int64, int64, []Msg[int64, int64, int64]) {}
+
+	trans := Transport[int64, int64, int64]{
+		Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, value int64, _ int64, _ int64, _ []Msg[int64, int64, int64]) error {
+			if typ == MsgPrepare {
+				prepares <- value
+			}
+
+			return nil
+		},
+		Receive: recv,
+	}
+
+	go func() {
+		_ = Run(ctx, def, trans, 0, process, make(chan int64), make(chan int64))
+	}()
+
+	send := func(m msg) {
+		select {
+		case recv <- m:
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timeout sending message to qbft instance")
+		}
+	}
+
+	// Round-1 PRE-PREPARE with zero value (int64 zero == 0).
+	send(msg{msgType: MsgPrePrepare, peerIdx: leader, round: 1, value: 0})
+	// Inert flush.
+	send(msg{msgType: MsgPrePrepare, peerIdx: leader, round: 1, value: 0})
+
+	// Stop the QBFT goroutine before draining, so no late writes race with the read.
+	cancel()
+
+	select {
+	case v := <-prepares:
+		require.Failf(t, "honest node must reject zero-value PRE-PREPARE", "got PREPARE with value %d", v)
+	default:
 	}
 }
 
