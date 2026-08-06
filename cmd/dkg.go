@@ -6,7 +6,6 @@ import (
 	"context"
 	"time"
 
-	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -45,7 +44,7 @@ this command at the same time.`,
 				return err
 			}
 
-			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
+			routeLibP2PLogs() // Route libp2p logging to charon logger
 
 			printLicense(cmd.Context())
 			printFlags(cmd.Context(), cmd.Flags())
