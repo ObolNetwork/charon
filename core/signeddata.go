@@ -32,7 +32,6 @@ import (
 
 var (
 	_ SignedData = VersionedSignedProposal{}
-	_ SignedData = Attestation{}
 	_ SignedData = VersionedAttestation{}
 	_ SignedData = Signature{}
 	_ SignedData = SignedVoluntaryExit{}
@@ -48,7 +47,6 @@ var (
 
 	// Some types support SSZ marshalling and unmarshalling.
 	_ ssz.Marshaler   = VersionedSignedProposal{}
-	_ ssz.Marshaler   = Attestation{}
 	_ ssz.Marshaler   = VersionedAttestation{}
 	_ ssz.Marshaler   = SignedAggregateAndProof{}
 	_ ssz.Marshaler   = VersionedSignedAggregateAndProof{}
@@ -56,7 +54,6 @@ var (
 	_ ssz.Marshaler   = SyncContributionAndProof{}
 	_ ssz.Marshaler   = SignedSyncContributionAndProof{}
 	_ ssz.Unmarshaler = new(VersionedSignedProposal)
-	_ ssz.Unmarshaler = new(Attestation)
 	_ ssz.Unmarshaler = new(VersionedAttestation)
 	_ ssz.Unmarshaler = new(SignedAggregateAndProof)
 	_ ssz.Unmarshaler = new(VersionedSignedAggregateAndProof)
@@ -603,85 +600,6 @@ type versionedRawBlockJSON struct {
 	Version eth2util.DataVersion `json:"version"`
 	Block   json.RawMessage      `json:"block"`
 	Blinded bool                 `json:"blinded,omitempty"`
-}
-
-// NewAttestation is a convenience function that returns a new wrapped attestation.
-func NewAttestation(att *eth2p0.Attestation) Attestation {
-	return Attestation{Attestation: *att}
-}
-
-// NewPartialAttestation is a convenience function that returns a new partially signed attestation.
-func NewPartialAttestation(att *eth2p0.Attestation, shareIdx int) ParSignedData {
-	return ParSignedData{
-		SignedData: NewAttestation(att),
-		ShareIdx:   shareIdx,
-	}
-}
-
-// Attestation is a signed attestation and implements SignedData.
-type Attestation struct {
-	eth2p0.Attestation
-}
-
-func (a Attestation) MessageRoot() ([32]byte, error) {
-	return a.Data.HashTreeRoot()
-}
-
-func (a Attestation) Clone() (SignedData, error) {
-	return a.clone()
-}
-
-// clone returns a copy of the Attestation.
-// It is similar to Clone that returns the SignedData interface.
-
-func (a Attestation) clone() (Attestation, error) {
-	var resp Attestation
-
-	err := cloneSSZMarshaler(a, &resp)
-	if err != nil {
-		return Attestation{}, errors.Wrap(err, "clone attestation")
-	}
-
-	return resp, nil
-}
-
-func (a Attestation) Signature() Signature {
-	return SigFromETH2(a.Attestation.Signature)
-}
-
-func (a Attestation) SetSignature(sig Signature) (SignedData, error) {
-	resp, err := a.clone()
-	if err != nil {
-		return nil, err
-	}
-
-	resp.Attestation.Signature = sig.ToETH2()
-
-	return resp, nil
-}
-
-func (a Attestation) MarshalJSON() ([]byte, error) {
-	return a.Attestation.MarshalJSON()
-}
-
-func (a *Attestation) UnmarshalJSON(b []byte) error {
-	return a.Attestation.UnmarshalJSON(b)
-}
-
-func (a Attestation) MarshalSSZ() ([]byte, error) {
-	return a.Attestation.MarshalSSZ()
-}
-
-func (a Attestation) MarshalSSZTo(dst []byte) ([]byte, error) {
-	return a.Attestation.MarshalSSZTo(dst)
-}
-
-func (a Attestation) SizeSSZ() int {
-	return a.Attestation.SizeSSZ()
-}
-
-func (a *Attestation) UnmarshalSSZ(b []byte) error {
-	return a.Attestation.UnmarshalSSZ(b)
 }
 
 // NewVersionedAttestation is a convenience function that returns a new wrapped attestation.
