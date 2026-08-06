@@ -382,6 +382,8 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 			case UponJustifiedPrePrepare: // Algorithm 2:1
 				// Applicable to current or future rounds (since justified)
 				changeRound(msg.Round(), rule)
+				// Re-record after round-change wipe to prevent equivocation.
+				dedupRules[dedupKey{UponRule: rule, Round: msg.Round()}] = true
 
 				stopTimer()
 				timerChan, stopTimer = d.NewTimer(round)
