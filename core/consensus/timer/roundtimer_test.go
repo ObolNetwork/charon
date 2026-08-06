@@ -264,15 +264,97 @@ func TestProposalTimeoutOptimizationDoubleEagerLinearRoundTimer(t *testing.T) {
 
 	stop()
 
-	// Second round should use original logic (2s)
+	// Second round should use proposal timeout (2.5s)
 	timerC, stop = timer.Timer(2)
 
-	fakeClock.Advance(2 * time.Second)
+	fakeClock.Advance(2500 * time.Millisecond)
 
 	select {
 	case <-timerC:
 	default:
-		require.Fail(t, "Timer(round 2, proposer) did not fire at 2s")
+		require.Fail(t, "Timer(round 2, proposer) did not fire at 2.5s")
+	}
+
+	stop()
+}
+
+func TestProposalTimeoutOptimizationDoubleEagerLinearGenesis(t *testing.T) {
+	featureset.EnableForT(t, featureset.ProposalTimeout)
+	defer featureset.DisableForT(t, featureset.ProposalTimeout)
+
+	const (
+		slotDuration = 12 * time.Second
+		slot         = 1
+	)
+
+	fakeClock := clockwork.NewFakeClock()
+	genesisTime := fakeClock.Now()
+
+	roundTimer := timer.NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock(
+		core.NewProposerDuty(slot), genesisTime, slotDuration, fakeClock)
+
+	// Advance to slot start.
+	fakeClock.Advance(slotDuration)
+
+	// Round 1 deadline should be at slot start + 1.5s.
+	timerC, stop := roundTimer.Timer(1)
+
+	fakeClock.Advance(1500*time.Millisecond - time.Millisecond)
+
+	select {
+	case <-timerC:
+		require.Fail(t, "Round 1 fired too early")
+	default:
+	}
+
+	fakeClock.Advance(time.Millisecond)
+
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Round 1 did not fire at slot+1.5s")
+	}
+
+	stop()
+
+	// Round 2 deadline should be at slot start + 2.5s (1.0s after round 1), not slot + 2.0s.
+	timerC, stop = roundTimer.Timer(2)
+
+	fakeClock.Advance(time.Second - time.Millisecond)
+
+	select {
+	case <-timerC:
+		require.Fail(t, "Round 2 fired too early")
+	default:
+	}
+
+	fakeClock.Advance(time.Millisecond)
+
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Round 2 did not fire at slot+2.5s")
+	}
+
+	stop()
+
+	// Round 3 deadline should be at slot start + 3.5s (1.0s after round 2).
+	timerC, stop = roundTimer.Timer(3)
+
+	fakeClock.Advance(time.Second - time.Millisecond)
+
+	select {
+	case <-timerC:
+		require.Fail(t, "Round 3 fired too early")
+	default:
+	}
+
+	fakeClock.Advance(time.Millisecond)
+
+	select {
+	case <-timerC:
+	default:
+		require.Fail(t, "Round 3 did not fire at slot+3.5s")
 	}
 
 	stop()
