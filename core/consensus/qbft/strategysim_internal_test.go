@@ -494,7 +494,7 @@ func newSimDefinition(nodes int, roundTimer timer.RoundTimer,
 		IsLeader: func(duty core.Duty, round, process int64) bool {
 			return leader(duty, round, nodes) == process
 		},
-		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
+		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, _ int64, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			decideCallback(qcommit)
 		},
 		Compare: func(ctx context.Context, qcommit qbft.Msg[core.Duty, [32]byte, proto.Message], inputValueSourceCh <-chan proto.Message, inputValueSource proto.Message, returnErr chan error, returnRes chan proto.Message) {

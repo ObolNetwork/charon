@@ -48,7 +48,7 @@ var supportedCompareDuties = []core.DutyType{core.DutyAttester}
 
 // newDefinition returns a qbft definition (this is constant across all consensus instances).
 func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTimer,
-	decideCallback func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]), compareAttestations bool,
+	decideCallback func(round int64), compareAttestations bool,
 ) qbft.Definition[core.Duty, [32]byte, proto.Message] {
 	quorum := qbft.Definition[core.Duty, [32]byte, proto.Message]{Nodes: nodes}.Quorum()
 
@@ -59,14 +59,14 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 		},
 
 		// Decide sends consensus output to subscribers.
-		Decide: func(ctx context.Context, duty core.Duty, _ [32]byte, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
+		Decide: func(ctx context.Context, duty core.Duty, valueHash [32]byte, round int64, qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
 			msg, ok := qcommit[0].(Msg)
 			if !ok {
 				log.Error(ctx, "Internal error: Invalid message type in qcommit. This indicates a consensus protocol bug that should be reported", nil, z.Str("got_type", fmt.Sprintf("%T", qcommit[0])))
 				return
 			}
 
-			anyValue, ok := msg.Values()[msg.Value()]
+			anyValue, ok := msg.Values()[valueHash]
 			if !ok {
 				log.Error(ctx, "Internal error: Consensus value hash not found in values map. This indicates state inconsistency in the QBFT protocol and should be reported", nil)
 				return
@@ -78,7 +78,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 				return
 			}
 
-			decideCallback(qcommit)
+			decideCallback(round)
 
 			for _, sub := range subs() {
 				if err := sub(ctx, duty, value); err != nil {
@@ -565,8 +565,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		span.End()
 	}()
 
-	decideCallback := func(qcommit []qbft.Msg[core.Duty, [32]byte, proto.Message]) {
-		round := qcommit[0].Round()
+	decideCallback := func(round int64) {
 		decided = true
 
 		inst.DecidedAtCh <- time.Now()

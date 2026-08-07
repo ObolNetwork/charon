@@ -311,7 +311,7 @@ func testQBFT(t *testing.T, test test) {
 
 			return clock.NewTimer(d)
 		},
-		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, round int64, qcommit []Msg[int64, int64, int64]) {
 			resultChan <- qcommit
 		},
 		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnErr chan error, returnRes chan int64) {
@@ -620,6 +620,686 @@ func (m msg) Justification() []Msg[int64, int64, int64] {
 	return resp
 }
 
+// TestDecideScenarios verifies which value and round a node decides for
+// adversarial and edge-case message sequences: conflicting COMMIT values and
+// rounds, equivocating and spamming peers, crafted DECIDED messages, and
+// post-decision noise. Deciding requires a full quorum of distinct sources
+// committing to the exact same value in the exact same round, and a node
+// decides at most once.
+func TestDecideScenarios(t *testing.T) {
+	const (
+		n    = 4 // Quorum = 3.
+		valA = 1
+		valB = 2
+		valC = 3
+	)
+
+	commitAt := func(source, round, value int64) msg {
+		return msg{msgType: MsgCommit, peerIdx: source, round: round, value: value}
+	}
+	commit := func(source, value int64) msg {
+		return commitAt(source, 1, value)
+	}
+	roundChange := func(source, round int64) msg {
+		return msg{msgType: MsgRoundChange, peerIdx: source, round: round}
+	}
+	decidedMsg := func(source, round, value int64, justify []msg) msg {
+		return msg{msgType: MsgDecided, peerIdx: source, round: round, value: value, justify: justify}
+	}
+	quorumCommits := func(value int64) []msg {
+		return []msg{commit(1, value), commit(2, value), commit(3, value)}
+	}
+	// spamThenQuorum floods the FIFO buffer of peer 1 with junk commits before
+	// peer 1's real commit completes the quorum.
+	spamThenQuorum := func() []msg {
+		msgs := []msg{commit(2, valB), commit(3, valB)}
+		for range 120 { // FIFOLimit is 100.
+			msgs = append(msgs, commit(1, valC))
+		}
+
+		return append(msgs, commit(1, valB))
+	}
+
+	tests := []struct {
+		name         string
+		msgs         []msg
+		decided      int64 // Zero means no decision expected.
+		decidedRound int64
+		wantQcommit  int // Expected qcommit length, defaults to 3 (quorum).
+	}{
+		{
+			name: "minority value arrives first",
+			msgs: []msg{
+				commit(1, valA),
+				commit(2, valB),
+				commit(3, valB),
+				commit(0, valB),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "minority value arrives in the middle",
+			msgs: []msg{
+				commit(1, valB),
+				commit(2, valA),
+				commit(3, valB),
+				commit(0, valB),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "two-two value split never decides",
+			msgs: []msg{
+				commit(0, valA),
+				commit(1, valA),
+				commit(2, valB),
+				commit(3, valB),
+			},
+			decided: 0,
+		},
+		{
+			name: "minority round arrives first",
+			msgs: []msg{
+				commitAt(1, 2, valB),
+				commit(2, valB),
+				commit(3, valB),
+				commit(0, valB),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "two-two round split never decides",
+			msgs: []msg{
+				commit(0, valB),
+				commit(1, valB),
+				commitAt(2, 2, valB),
+				commitAt(3, 2, valB),
+			},
+			decided: 0,
+		},
+		{
+			name: "decides at future round after f+1 round changes",
+			msgs: []msg{
+				roundChange(1, 2),
+				roundChange(2, 2),
+				commitAt(1, 2, valB),
+				commitAt(2, 2, valB),
+				commitAt(3, 2, valB),
+			},
+			decided:      valB,
+			decidedRound: 2,
+		},
+		{
+			name: "equivocating peer's second vote counts toward quorum",
+			msgs: []msg{
+				commit(1, valA),
+				commit(2, valB),
+				commit(3, valB),
+				commit(1, valB),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "equivocation alone cannot create quorum",
+			msgs: []msg{
+				commit(1, valA),
+				commit(1, valB),
+				commit(2, valA),
+				commit(3, valB),
+			},
+			decided: 0,
+		},
+		{
+			name: "duplicate commits do not inflate quorum",
+			msgs: []msg{
+				commit(1, valB),
+				commit(1, valB),
+				commit(1, valB),
+				commit(2, valB),
+			},
+			decided: 0,
+		},
+		{
+			name: "post-decide quorum for another value is ignored",
+			msgs: []msg{
+				commit(1, valB),
+				commit(2, valB),
+				commit(0, valB),
+				commit(1, valC),
+				commit(2, valC),
+				commit(3, valC),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "justified decided message from a single relay peer",
+			msgs: []msg{
+				decidedMsg(3, 1, valB, quorumCommits(valB)),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "duplicate decided message decides only once",
+			msgs: []msg{
+				decidedMsg(3, 1, valB, quorumCommits(valB)),
+				decidedMsg(2, 1, valB, quorumCommits(valB)),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "decided with insufficient justification is dropped",
+			msgs: []msg{
+				decidedMsg(3, 1, valB, []msg{commit(1, valB), commit(2, valB)}),
+			},
+			decided: 0,
+		},
+		{
+			name: "decided with round-mismatched justification is dropped",
+			msgs: []msg{
+				// Justification commits are for round 1 while the decided message claims round 2.
+				decidedMsg(3, 2, valB, quorumCommits(valB)),
+			},
+			decided: 0,
+		},
+		{
+			name: "decided with value-mismatched justification is dropped",
+			msgs: []msg{
+				// Justification commits are for value A while the decided message claims value B.
+				decidedMsg(3, 1, valB, quorumCommits(valA)),
+			},
+			decided: 0,
+		},
+		{
+			name: "decided with rogue extra commit still decides the quorum value",
+			msgs: []msg{
+				decidedMsg(3, 1, valB, append([]msg{commit(3, valA)}, quorumCommits(valB)...)),
+			},
+			decided:      valB,
+			decidedRound: 1,
+			wantQcommit:  4, // Justification is forwarded verbatim, including the rogue commit.
+		},
+		{
+			name: "stale-round decided accepted after node advanced",
+			msgs: []msg{
+				roundChange(1, 2),
+				roundChange(2, 2),
+				decidedMsg(3, 1, valB, quorumCommits(valB)),
+			},
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "buffered future-round commits alone do not decide",
+			// Quorum commits for round 2 arrive while still in round 1; the f+1 round
+			// jump does not re-classify buffered messages. In production the node
+			// recovers via the MsgDecided resend triggered by its ROUND-CHANGE broadcast.
+			msgs: []msg{
+				commitAt(1, 2, valB),
+				commitAt(2, 2, valB),
+				commitAt(3, 2, valB),
+				roundChange(1, 2),
+				roundChange(2, 2),
+			},
+			decided: 0,
+		},
+		{
+			name: "re-sent commit after round jump decides from buffer",
+			msgs: []msg{
+				commitAt(1, 2, valB),
+				commitAt(2, 2, valB),
+				commitAt(3, 2, valB),
+				roundChange(1, 2),
+				roundChange(2, 2),
+				commitAt(1, 2, valB),
+			},
+			decided:      valB,
+			decidedRound: 2,
+		},
+		{
+			name: "f+1 jump requires distinct sources",
+			msgs: []msg{
+				roundChange(1, 2),
+				roundChange(1, 3),
+				commitAt(1, 2, valB),
+				commitAt(2, 2, valB),
+				commitAt(3, 2, valB),
+			},
+			decided: 0,
+		},
+		{
+			name:         "spam from one peer does not evict other peers' commits",
+			msgs:         spamThenQuorum(),
+			decided:      valB,
+			decidedRound: 1,
+		},
+		{
+			name: "commits with invalid round are ignored",
+			msgs: []msg{
+				commitAt(1, -1, valB),
+				commitAt(2, -1, valB),
+				commitAt(3, -1, valB),
+			},
+			decided: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			type decision struct {
+				value   int64
+				round   int64
+				qcommit []Msg[int64, int64, int64]
+			}
+
+			recv := make(chan Msg[int64, int64, int64])
+			decides := make(chan decision, 10)
+
+			def := noopDef
+			def.Nodes = n
+			def.FIFOLimit = 100
+			def.Decide = func(_ context.Context, _ int64, value int64, round int64, qcommit []Msg[int64, int64, int64]) {
+				decides <- decision{value: value, round: round, qcommit: qcommit}
+			}
+
+			trans := Transport[int64, int64, int64]{
+				Broadcast: func(context.Context, MsgType, int64, int64, int64, int64,
+					int64, int64, []Msg[int64, int64, int64],
+				) error {
+					return nil
+				},
+				Receive: recv,
+			}
+
+			// Never-delivering input channels (this process is not a leader and proposes nothing).
+			go func() {
+				_ = Run(ctx, def, trans, 0, 0, make(chan int64), make(chan int64))
+			}()
+
+			send := func(m msg) {
+				select {
+				case recv <- m:
+				case <-time.After(5 * time.Second):
+					require.Fail(t, "timeout sending message to qbft instance")
+				}
+			}
+
+			for _, m := range test.msgs {
+				send(m)
+			}
+
+			// Inert flush: a commit for a far-future round is ignored, but its send only
+			// completes once all messages above have been fully processed, making the
+			// decide assertion below deterministic.
+			send(commitAt(1, 99, valA))
+
+			cancel()
+
+			var got []decision
+
+			drained := false
+			for !drained {
+				select {
+				case d := <-decides:
+					got = append(got, d)
+				default:
+					drained = true
+				}
+			}
+
+			if test.decided == 0 {
+				require.Empty(t, got, "expected no decision")
+				return
+			}
+
+			require.Len(t, got, 1, "node must decide exactly once")
+
+			d := got[0]
+			require.Equal(t, test.decided, d.value, "decided unexpected value")
+			require.Equal(t, test.decidedRound, d.round, "decided unexpected round")
+
+			wantQcommit := test.wantQcommit
+			if wantQcommit == 0 {
+				wantQcommit = 3
+			}
+
+			require.Len(t, d.qcommit, wantQcommit)
+
+			var matching int
+
+			for _, q := range d.qcommit {
+				if q.Type() == MsgCommit && q.Value() == d.value && q.Round() == d.round {
+					matching++
+				}
+			}
+
+			require.GreaterOrEqual(t, matching, 3,
+				"qcommit must contain a quorum of commits matching the decided value and round")
+		})
+	}
+}
+
+// TestCompareFlowDecideScenarios verifies the interaction between the Compare flow
+// (chain_split_halt feature) and the decide paths. Compare only gates the node's own
+// PREPARE on a justified PRE-PREPARE: a Compare failure or timeout must suppress the
+// PREPARE but never prevent deciding on a quorum of COMMITs or a justified DECIDED
+// message.
+func TestCompareFlowDecideScenarios(t *testing.T) {
+	const (
+		n      = 4
+		leader = 1
+		valB   = 2
+	)
+
+	type decision struct {
+		value int64
+		round int64
+	}
+
+	prePrepare := msg{msgType: MsgPrePrepare, peerIdx: leader, round: 1, value: valB}
+	quorumCommits := []msg{
+		{msgType: MsgCommit, peerIdx: 1, round: 1, value: valB},
+		{msgType: MsgCommit, peerIdx: 2, round: 1, value: valB},
+		{msgType: MsgCommit, peerIdx: 3, round: 1, value: valB},
+	}
+	decidedByRelay := msg{msgType: MsgDecided, peerIdx: 3, round: 1, value: valB, justify: quorumCommits}
+	inertFlush := msg{msgType: MsgCommit, peerIdx: 1, round: 99, value: valB}
+
+	// startNode runs a non-leader node with the given Compare behaviour and returns
+	// a send function plus channels collecting broadcast types and decisions.
+	startNode := func(t *testing.T, compareFn func(returnErr chan error),
+		newTimer func(int64) (<-chan time.Time, func()),
+	) (func(msg), chan MsgType, chan decision) {
+		t.Helper()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		recv := make(chan Msg[int64, int64, int64])
+		broadcasts := make(chan MsgType, 100)
+		decides := make(chan decision, 10)
+
+		def := noopDef
+		def.Nodes = n
+		def.FIFOLimit = 100
+		def.IsLeader = func(_ int64, _ int64, process int64) bool { return process == leader }
+		def.Compare = func(_ context.Context, _ Msg[int64, int64, int64], _ <-chan int64, _ int64, returnErr chan error, _ chan int64) {
+			compareFn(returnErr)
+		}
+		def.Decide = func(_ context.Context, _ int64, value int64, round int64, _ []Msg[int64, int64, int64]) {
+			decides <- decision{value: value, round: round}
+		}
+
+		if newTimer != nil {
+			def.NewTimer = newTimer
+		}
+
+		trans := Transport[int64, int64, int64]{
+			Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, _ int64,
+				_ int64, _ int64, _ []Msg[int64, int64, int64],
+			) error {
+				broadcasts <- typ
+				return nil
+			},
+			Receive: recv,
+		}
+
+		go func() {
+			_ = Run(ctx, def, trans, 0, 0, make(chan int64), make(chan int64))
+		}()
+
+		send := func(m msg) {
+			select {
+			case recv <- m:
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "timeout sending message to qbft instance")
+			}
+		}
+
+		return send, broadcasts, decides
+	}
+
+	expectDecision := func(t *testing.T, decides chan decision) {
+		t.Helper()
+
+		select {
+		case d := <-decides:
+			require.Equal(t, decision{value: valB, round: 1}, d)
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timed out waiting for decision")
+		}
+	}
+
+	requireNoPrepare := func(t *testing.T, broadcasts chan MsgType) {
+		t.Helper()
+
+		drained := false
+		for !drained {
+			select {
+			case typ := <-broadcasts:
+				require.NotEqual(t, MsgPrepare, typ, "node must not prepare a value that failed comparison")
+			default:
+				drained = true
+			}
+		}
+	}
+
+	failCompare := func(returnErr chan error) {
+		returnErr <- errors.New("chain split detected")
+	}
+
+	t.Run("compare failure still decides on commit quorum", func(t *testing.T) {
+		send, broadcasts, decides := startNode(t, failCompare, nil)
+
+		send(prePrepare)
+
+		for _, m := range quorumCommits {
+			send(m)
+		}
+
+		send(inertFlush)
+
+		expectDecision(t, decides)
+		requireNoPrepare(t, broadcasts)
+	})
+
+	t.Run("compare failure still decides on justified decided", func(t *testing.T) {
+		send, broadcasts, decides := startNode(t, failCompare, nil)
+
+		send(prePrepare)
+		send(decidedByRelay)
+		send(inertFlush)
+
+		expectDecision(t, decides)
+		requireNoPrepare(t, broadcasts)
+	})
+
+	t.Run("compare success prepares leader value and decides", func(t *testing.T) {
+		send, broadcasts, decides := startNode(t, func(returnErr chan error) {
+			returnErr <- nil
+		}, nil)
+
+		send(prePrepare)
+
+		select {
+		case typ := <-broadcasts:
+			require.Equal(t, MsgPrepare, typ, "node must prepare the leader value on compare success")
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timed out waiting for prepare broadcast")
+		}
+
+		for _, m := range quorumCommits {
+			send(m)
+		}
+
+		send(inertFlush)
+
+		expectDecision(t, decides)
+	})
+
+	t.Run("compare timeout changes round but decided still accepted", func(t *testing.T) {
+		shortTimer := func(int64) (<-chan time.Time, func()) {
+			timer := time.NewTimer(100 * time.Millisecond)
+			return timer.C, func() { timer.Stop() }
+		}
+
+		// Compare never responds, so the round timer expires while waiting for it.
+		send, broadcasts, decides := startNode(t, func(chan error) {}, shortTimer)
+
+		send(prePrepare)
+
+		// The compare timeout (or racing round timeout) must trigger a round change.
+		deadline := time.After(5 * time.Second)
+
+		roundChanged := false
+		for !roundChanged {
+			select {
+			case typ := <-broadcasts:
+				require.NotEqual(t, MsgPrepare, typ, "node must not prepare a value it could not compare")
+
+				if typ == MsgRoundChange {
+					roundChanged = true
+				}
+			case <-deadline:
+				require.Fail(t, "timed out waiting for round change broadcast")
+			}
+		}
+
+		send(decidedByRelay)
+
+		expectDecision(t, decides)
+		requireNoPrepare(t, broadcasts)
+	})
+}
+
+// TestCommitOwnValueMinority verifies that a node decides the quorum value even when
+// the minority value is its own: the node leads round 1, proposes, prepares and
+// commits its own value A, but a quorum of peers commits value B. The node must
+// decide B, and the qcommit justification must not contain its own A commit.
+func TestCommitOwnValueMinority(t *testing.T) {
+	const (
+		n    = 4 // Quorum = 3.
+		valA = 1
+		valB = 2
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	type decision struct {
+		value   int64
+		round   int64
+		qcommit []Msg[int64, int64, int64]
+	}
+
+	var (
+		recv       = make(chan Msg[int64, int64, int64])
+		echo       = make(chan msg, 100)
+		ownCommits = make(chan int64, 10)
+		decides    = make(chan decision, 1)
+	)
+
+	def := noopDef
+	def.Nodes = n
+	def.FIFOLimit = 100
+	def.IsLeader = func(_ int64, round, process int64) bool { return round == 1 && process == 0 }
+	def.Compare = func(_ context.Context, _ Msg[int64, int64, int64], _ <-chan int64, _ int64, returnErr chan error, _ chan int64) {
+		returnErr <- nil
+	}
+	def.Decide = func(_ context.Context, _ int64, value int64, round int64, qcommit []Msg[int64, int64, int64]) {
+		decides <- decision{value: value, round: round, qcommit: qcommit}
+	}
+
+	trans := Transport[int64, int64, int64]{
+		Broadcast: func(_ context.Context, typ MsgType, _ int64, source int64, round int64,
+			value int64, pr int64, pv int64, _ []Msg[int64, int64, int64],
+		) error {
+			if typ == MsgCommit {
+				ownCommits <- value
+			}
+
+			// Echo own broadcasts back to self, as the real transport does.
+			echo <- msg{msgType: typ, peerIdx: source, round: round, value: value, pr: pr, pv: pv}
+
+			return nil
+		},
+		Receive: recv,
+	}
+
+	// Forward echoed own messages to the receive channel.
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case m := <-echo:
+				select {
+				case <-ctx.Done():
+					return
+				case recv <- m:
+				}
+			}
+		}
+	}()
+
+	// Provide our input value A, making the leader propose it at startup.
+	inputCh := make(chan int64, 1)
+	inputCh <- valA
+
+	go func() {
+		_ = Run(ctx, def, trans, 0, 0, inputCh, make(chan int64))
+	}()
+
+	send := func(m msg) {
+		select {
+		case recv <- m:
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timeout sending message to qbft instance")
+		}
+	}
+
+	// Complete the prepare quorum for our own value A, so the node commits A.
+	send(msg{msgType: MsgPrepare, peerIdx: 1, round: 1, value: valA})
+	send(msg{msgType: MsgPrepare, peerIdx: 2, round: 1, value: valA})
+
+	// Wait until the node has broadcast its own COMMIT for A.
+	select {
+	case v := <-ownCommits:
+		require.EqualValues(t, valA, v, "node must commit its own proposed value")
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for own commit")
+	}
+
+	// A quorum of peers commits a different value B.
+	send(msg{msgType: MsgCommit, peerIdx: 1, round: 1, value: valB})
+	send(msg{msgType: MsgCommit, peerIdx: 2, round: 1, value: valB})
+	send(msg{msgType: MsgCommit, peerIdx: 3, round: 1, value: valB})
+
+	select {
+	case d := <-decides:
+		require.EqualValues(t, valB, d.value, "node must decide the quorum value, not its own")
+		require.EqualValues(t, 1, d.round, "decided unexpected round")
+
+		require.Len(t, d.qcommit, 3)
+
+		for _, q := range d.qcommit {
+			require.EqualValues(t, valB, q.Value(), "qcommit must not contain the node's own minority value")
+			require.NotEqualValues(t, 0, q.Source(), "qcommit must not contain the node's own commit")
+		}
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for decision")
+	}
+}
+
 // TestDecidedRebroadcastLimits verifies that once consensus has decided, post-decision
 // ROUND-CHANGE messages trigger at most one MsgDecided rebroadcast per source per
 // (strictly increasing) round, capped at maxDecidedResends per source. This bounds
@@ -661,7 +1341,7 @@ func TestDecidedRebroadcastLimits(t *testing.T) {
 		def := noopDef
 		def.Nodes = n
 		def.FIFOLimit = 100
-		def.Decide = func(context.Context, int64, int64, []Msg[int64, int64, int64]) {}
+		def.Decide = func(context.Context, int64, int64, int64, []Msg[int64, int64, int64]) {}
 
 		trans := Transport[int64, int64, int64]{
 			Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, _ int64,
@@ -1095,7 +1775,7 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 		NewTimer: func(round int64) (<-chan time.Time, func()) {
 			return clock.NewTimer(time.Duration(math.Pow(2, float64(round-1))) * time.Second)
 		},
-		Decide: func(_ context.Context, instance int64, value int64, qcommit []Msg[int64, int64, int64]) {
+		Decide: func(_ context.Context, instance int64, value int64, round int64, qcommit []Msg[int64, int64, int64]) {
 			resultChan <- qcommit
 		},
 		Compare: func(ctx context.Context, qcommit Msg[int64, int64, int64], inputValueSourceCh <-chan int64, inputValueSource int64, returnCh chan error, returnIVS chan int64) {
