@@ -72,7 +72,7 @@ jobs:
           git clone --depth 1 --branch "$KURTOSIS_BRANCH" \
             https://github.com/ObolNetwork/kurtosis-charon.git \
             /tmp/kurtosis-charon
-          pip install -r /tmp/kurtosis-charon/kurtosis-aws-runner/requirements.txt
+          pip install --only-binary :all: -r /tmp/kurtosis-charon/kurtosis-aws-runner/requirements.txt
 
       - name: Deploy Kurtosis clusters
         id: deploy

@@ -13,5 +13,5 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-go
-      - run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+      - run: go install tool golang.org/x/vuln/cmd/govulncheck
       - run: govulncheck -show=traces -test ./...
