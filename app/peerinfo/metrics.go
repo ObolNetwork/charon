@@ -68,4 +68,11 @@ var (
 		Help:        "Constant gauge with nickname label set to peer's charon nickname.",
 		ConstLabels: nil,
 	}, []string{"peer", "peer_nickname"})
+
+	peerDVTypeGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "peerinfo",
+		Name:      "dv_type",
+		Help:      "Constant gauge with dv_type label set to the peer's distributed validator client type.",
+	}, []string{"peer", "dv_type"})
 )
