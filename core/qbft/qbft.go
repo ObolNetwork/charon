@@ -490,9 +490,31 @@ func compare[I any, V comparable, C any](ctx context.Context, d Definition[I, V,
 	// If comparison or any other unexpected error occurs, the error is returned on compareErr channel.
 	go d.Compare(ctxCompare, msg, inputValueSourceCh, inputValueSource, compareErr, compareValue)
 
+	return awaitCompare(ctx, compareErr, compareValue, timerChan, inputValueSource)
+}
+
+// awaitCompare waits for the comparator's verdict and returns the latest local value.
+func awaitCompare[C any](ctx context.Context, compareErr <-chan error, compareValue <-chan C, timerChan <-chan time.Time, inputValueSource C) (C, error) {
+	// drainValue returns the value read by the comparator if it sent one, otherwise
+	// the current value. Both channels are buffered, so when the comparator reads
+	// the local value and then errors (e.g. a comparison mismatch), both sends may
+	// complete before this loop polls the select, which then picks a ready case at
+	// random. Without draining, the local value would be lost and subsequent rounds
+	// would block waiting for the already-consumed input value source channel.
+	drainValue := func() C {
+		select {
+		case v := <-compareValue:
+			return v
+		default:
+			return inputValueSource
+		}
+	}
+
 	for {
 		select {
 		case err := <-compareErr:
+			inputValueSource = drainValue()
+
 			if err != nil {
 				log.Warn(ctx, errCompare.Error(), err)
 				return inputValueSource, errCompare
@@ -502,7 +524,7 @@ func compare[I any, V comparable, C any](ctx context.Context, d Definition[I, V,
 		case inputValueSource = <-compareValue:
 		case <-timerChan:
 			log.Warn(ctx, "", errors.New("timeout waiting for local data, used for comparing with leader's proposed data"))
-			return inputValueSource, errTimeout
+			return drainValue(), errTimeout
 		}
 	}
 }

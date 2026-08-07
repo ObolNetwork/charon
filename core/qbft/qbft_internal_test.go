@@ -1696,6 +1696,32 @@ type testChainSplit struct {
 
 var errChainSplitHalt = errors.New("chain split halt")
 
+// TestCompareRetainsValueOnError verifies that the compare flow does not lose the
+// local value read by the comparator when the comparison also fails. The comparator
+// sends the value and the error back-to-back on buffered channels, so both select
+// cases can be ready simultaneously and the select picks one at random; the read
+// value must be returned regardless of which case wins, otherwise subsequent rounds
+// block forever on the already-consumed input value source channel.
+func TestCompareRetainsValueOnError(t *testing.T) {
+	const localValue = 42
+
+	// Repeat since the select picks randomly among the two ready cases.
+	for range 1000 {
+		// Model the racy state directly: the comparator already completed both
+		// sends before the await loop polled the select.
+		compareErr := make(chan error, 1)
+
+		compareValue := make(chan int64, 1)
+		compareValue <- localValue
+
+		compareErr <- errors.New("mismatch")
+
+		vs, err := awaitCompare(context.Background(), compareErr, compareValue, nil, 0)
+		require.ErrorIs(t, err, errCompare)
+		require.EqualValues(t, localValue, vs, "local value must not be lost when comparison fails")
+	}
+}
+
 func TestChainSplit(t *testing.T) {
 	t.Run("same value", func(t *testing.T) {
 		testQBFTChainSplit(t, testChainSplit{
@@ -1838,20 +1864,16 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 			Receive: receive,
 		}
 
+		// Enqueue input values synchronously (channels are buffered), so nodes
+		// never wait on a feeder goroutine while virtual time advances.
+		vChan := make(chan int64, 1)
+		vsChan := make(chan int64, 1)
+
+		vChan <- test.ValueSource[i]
+
+		vsChan <- test.ValueSource[i]
+
 		go func(i int64) {
-			// Only enqueue input values for instances that:
-			// - have a value delay
-			// - or expect multiple rounds
-			// - or otherwise only the leader of round 1.
-			vChan := make(chan int64, 1)
-			vsChan := make(chan int64, 1)
-
-			go func() {
-				vChan <- test.ValueSource[i]
-
-				vsChan <- test.ValueSource[i]
-			}()
-
 			runChan <- Run(ctx, defs, transport, instance, i, vChan, vsChan)
 		}(i)
 	}
@@ -1915,7 +1937,26 @@ func testQBFTChainSplit(t *testing.T, test testChainSplit) {
 				return
 			}
 		default:
+			// Only advance virtual time when the system is quiescent: every node
+			// still deciding is parked on its round timer, and no messages remain
+			// queued in the receive buffers. Otherwise real-world goroutine
+			// scheduling lag skews nodes multiple virtual seconds apart, pushing
+			// consensus to a later round than the scenario expects.
+			quiescent := clock.NumActive() >= n-done-count
+
+			for _, out := range receiveChannelsPerNode {
+				if len(out) > 0 {
+					quiescent = false
+					break
+				}
+			}
+
 			time.Sleep(time.Microsecond)
+
+			if !quiescent {
+				continue
+			}
+
 			clock.Advance(time.Millisecond * 1)
 		}
 	}
