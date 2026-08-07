@@ -1563,7 +1563,7 @@ func TestEquivocatingLeaderDoublePrepare(t *testing.T) {
 	def.Compare = func(_ context.Context, _ Msg[int64, int64, int64], _ <-chan int64, _ int64, returnErr chan error, _ chan int64) {
 		returnErr <- nil
 	}
-	def.Decide = func(context.Context, int64, int64, []Msg[int64, int64, int64]) {}
+	def.Decide = func(context.Context, int64, int64, int64, []Msg[int64, int64, int64]) {}
 
 	trans := Transport[int64, int64, int64]{
 		Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, value int64, _ int64, _ int64, _ []Msg[int64, int64, int64]) error {
@@ -1638,7 +1638,7 @@ func TestZeroValuePrePrepareRejected(t *testing.T) {
 	def.Compare = func(_ context.Context, _ Msg[int64, int64, int64], _ <-chan int64, _ int64, returnErr chan error, _ chan int64) {
 		returnErr <- nil
 	}
-	def.Decide = func(context.Context, int64, int64, []Msg[int64, int64, int64]) {}
+	def.Decide = func(context.Context, int64, int64, int64, []Msg[int64, int64, int64]) {}
 
 	trans := Transport[int64, int64, int64]{
 		Broadcast: func(_ context.Context, typ MsgType, _ int64, _ int64, _ int64, value int64, _ int64, _ int64, _ []Msg[int64, int64, int64]) error {
