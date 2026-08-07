@@ -34,6 +34,22 @@ func (c *fakeClock) NewTimer(d time.Duration) (<-chan time.Time, func()) {
 	}
 }
 
+// NumActive returns the number of pending timers that have neither fired nor been stopped.
+func (c *fakeClock) NumActive() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var count int
+
+	for _, ch := range c.chans {
+		if ch != nil {
+			count++
+		}
+	}
+
+	return count
+}
+
 // NowStr returns the current time as a debug string.
 func (c *fakeClock) NowStr() string {
 	c.mu.Lock()
