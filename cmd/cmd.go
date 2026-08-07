@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"strings"
 
+	libp2plog "github.com/ipfs/go-log/v2"
+	"github.com/libp2p/go-libp2p/gologshim"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -192,6 +194,14 @@ func titledHelp(cmd *cobra.Command) {
 // printFlags INFO logs all the given flags in alphabetical order.
 func printFlags(ctx context.Context, flags *pflag.FlagSet) {
 	log.Info(ctx, "Parsed config", flagsToLogFields(flags)...)
+}
+
+// routeLibP2PLogs routes libp2p logs to the charon logger; go-log based libp2p loggers
+// via the go-log primary zap core and slog based (gologshim) loggers via the slog bridge.
+// Must be called after log.InitLogger and before any libp2p activity.
+func routeLibP2PLogs() {
+	libp2plog.SetPrimaryCore(log.LoggerCore())
+	gologshim.SetDefaultHandler(log.SlogHandler())
 }
 
 // printLicense INFO logs the license notice.
