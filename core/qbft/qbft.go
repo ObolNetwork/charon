@@ -39,7 +39,7 @@ type Definition[I any, V comparable, C any] struct {
 	// Compare is an opt-in feature that should instantly return nil on returnErr channel if it is not turned on.
 	Compare func(ctx context.Context, qcommit Msg[I, V, C], inputValueSourceCh <-chan C, inputValueSource C, returnErr chan error, returnValue chan C)
 	// Decide is called when consensus has been reached on a value.
-	Decide func(ctx context.Context, instance I, value V, qcommit []Msg[I, V, C])
+	Decide func(ctx context.Context, instance I, value V, round int64, qcommit []Msg[I, V, C])
 	// LogUponRule allows debug logging of triggered upon rules on message receipt.
 	LogUponRule func(ctx context.Context, instance I, process, round int64, msg Msg[I, V, C], uponRule UponRule)
 	// LogRoundChange allows debug logging of round changes.
@@ -224,6 +224,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 		compareFailureRound   int64
 		preparedJustification []Msg[I, V, C]
 		qCommit               []Msg[I, V, C]
+		qCommitValue          V
 		buffer                = make(map[int64][]Msg[I, V, C])
 		dedupRules            = make(map[dedupKey]bool)
 		decidedResends        = make(map[int64]decidedResend) // Bounds MsgDecided rebroadcasts by peer source.
@@ -357,7 +358,7 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 			if len(qCommit) > 0 {
 				if msg.Source() != process && msg.Type() == MsgRoundChange && // Algorithm 3:17
 					allowDecidedResend(msg.Source(), msg.Round()) {
-					err = broadcastMsg(MsgDecided, qCommit[0].Value(), qCommit)
+					err = broadcastMsg(MsgDecided, qCommitValue, qCommit)
 				}
 
 				break
@@ -424,12 +425,13 @@ func Run[I any, V comparable, C any](ctx context.Context, d Definition[I, V, C],
 				changeRound(msg.Round(), rule)
 
 				qCommit = justification
+				qCommitValue = msg.Value()
 
 				stopTimer()
 
 				timerChan = nil
 
-				d.Decide(ctx, instance, msg.Value(), justification)
+				d.Decide(ctx, instance, msg.Value(), msg.Round(), justification)
 
 			case UponFPlus1RoundChanges: // Algorithm 3:5
 				// Only applicable to future rounds
