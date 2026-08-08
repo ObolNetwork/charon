@@ -14,7 +14,7 @@ message PeerInfo {
   optional google.protobuf.Timestamp started_at = 5;
   bool                      builder_api_enabled = 6;
   string                               nickname = 7;
-  string                                dv_type = 8;
+  string                              dv_client = 8;
 
   // NOTE: Always populate timestamps when sending, then make them required after subsequent release.
 }

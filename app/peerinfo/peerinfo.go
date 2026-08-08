@@ -30,7 +30,7 @@ const (
 	protocolID2        protocol.ID = "/charon/peerinfo/2.0.0"
 	maxPeerInfoMsgSize             = 1 << 20 // 1MB, PeerInfo messages are < 1KB in practice.
 
-	DVTypeCharon = "charon"
+	DVClientCharon = "charon"
 )
 
 var gitHashMatch = regexp.MustCompile("^[0-9a-f]{7}$")
@@ -55,7 +55,7 @@ func New(p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 	peerVersion.WithLabelValues(name, version.String()).Set(1)
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
 	peerNickname.WithLabelValues(name, nickname).Set(1)
-	peerDVTypeGauge.WithLabelValues(name, DVTypeCharon).Set(1)
+	peerDVClientGauge.WithLabelValues(name, DVClientCharon).Set(1)
 	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
 
 	if builderEnabled {
@@ -107,7 +107,7 @@ func newInternal(p2pNode host.Host, peers []peer.ID, version version.SemVer, loc
 				StartedAt:         startTime,
 				BuilderApiEnabled: builderAPIEnabled,
 				Nickname:          nickname,
-				DvType:            DVTypeCharon,
+				DvClient:          DVClientCharon,
 			}, true, nil
 		},
 		p2p.WithReadLimit(maxPeerInfoMsgSize),
@@ -192,7 +192,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			StartedAt:         p.startTime,
 			BuilderApiEnabled: p.builderAPIEnabled,
 			Nickname:          p.nicknames[p2p.PeerName(p.p2pNode.ID())],
-			DvType:            DVTypeCharon,
+			DvClient:          DVClientCharon,
 		}
 
 		go func(peerID peer.ID) {
@@ -234,15 +234,15 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			actualSentAt := resp.GetSentAt().AsTime()
 			clockOffset := actualSentAt.Sub(expectedSentAt)
 
-			peerDvType := resp.GetDvType()
-			if peerDvType == "" {
-				peerDvType = DVTypeCharon
+			peerDvClient := resp.GetDvClient()
+			if peerDvClient == "" {
+				peerDvClient = DVClientCharon
 			}
 
-			peerDVTypeGauge.Reset(name)
-			peerDVTypeGauge.WithLabelValues(name, peerDvType).Set(1)
+			peerDVClientGauge.Reset(name)
+			peerDVClientGauge.WithLabelValues(name, peerDvClient).Set(1)
 
-			if peerDvType == DVTypeCharon {
+			if peerDvClient == DVClientCharon {
 				if err := supportedPeerVersion(resp.GetCharonVersion(), version.Supported()); err != nil {
 					peerCompatibleGauge.WithLabelValues(name).Set(0)
 

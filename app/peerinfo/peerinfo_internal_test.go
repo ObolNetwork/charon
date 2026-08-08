@@ -106,7 +106,7 @@ func TestPeerBuilderAPIEnabledGauge(t *testing.T) {
 	}
 }
 
-func TestDVTypeVersionCheck(t *testing.T) {
+func TestDVClientVersionCheck(t *testing.T) {
 	now := time.Now()
 	lockHash := []byte("abcdef")
 
@@ -122,49 +122,49 @@ func TestDVTypeVersionCheck(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		dvType          string
+		dvClient        string
 		peerVersion     string
 		expectSubmitted bool
 		expectCompat    float64
-		expectDvType    string
+		expectDvClient  string
 	}{
 		{
 			name:            "non-charon skips version check",
-			dvType:          "pluto",
+			dvClient:        "pluto",
 			peerVersion:     "v0.0.1",
 			expectSubmitted: true,
 			expectCompat:    1,
-			expectDvType:    "pluto",
+			expectDvClient:  "pluto",
 		},
 		{
-			name:            "empty dv_type defaults to charon and checks version",
-			dvType:          "",
+			name:            "empty dv_client defaults to charon and checks version",
+			dvClient:        "",
 			peerVersion:     "v0.0.1",
 			expectSubmitted: false,
 			expectCompat:    0,
-			expectDvType:    DVTypeCharon,
+			expectDvClient:  DVClientCharon,
 		},
 		{
 			name:            "charon with supported version passes",
-			dvType:          DVTypeCharon,
+			dvClient:        DVClientCharon,
 			peerVersion:     version.Supported()[0].String(),
 			expectSubmitted: true,
 			expectCompat:    1,
-			expectDvType:    DVTypeCharon,
+			expectDvClient:  DVClientCharon,
 		},
 		{
 			name:            "charon with unsupported version fails",
-			dvType:          DVTypeCharon,
+			dvClient:        DVClientCharon,
 			peerVersion:     "v0.0.1",
 			expectSubmitted: false,
 			expectCompat:    0,
-			expectDvType:    DVTypeCharon,
+			expectDvClient:  DVClientCharon,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Register a custom handler on the server with the test's dv_type and version.
+			// Register a custom handler on the server with the test's dv_client and version.
 			p2p.RegisterHandler("peerinfo", server, protocolID2,
 				func() proto.Message { return new(pbv1.PeerInfo) },
 				func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
@@ -174,7 +174,7 @@ func TestDVTypeVersionCheck(t *testing.T) {
 						GitHash:       gitCommit,
 						SentAt:        timestamppb.New(now),
 						StartedAt:     timestamppb.New(now),
-						DvType:        test.dvType,
+						DvClient:      test.dvClient,
 					}, true, nil
 				},
 				p2p.WithReadLimit(maxPeerInfoMsgSize),
@@ -218,8 +218,8 @@ func TestDVTypeVersionCheck(t *testing.T) {
 			compatVal := promtestutil.ToFloat64(peerCompatibleGauge.WithLabelValues(serverName))
 			require.InDelta(t, test.expectCompat, compatVal, 0)
 
-			dvTypeVal := promtestutil.ToFloat64(peerDVTypeGauge.WithLabelValues(serverName, test.expectDvType))
-			require.InDelta(t, 1, dvTypeVal, 0)
+			dvClientVal := promtestutil.ToFloat64(peerDVClientGauge.WithLabelValues(serverName, test.expectDvClient))
+			require.InDelta(t, 1, dvClientVal, 0)
 
 			require.Equal(t, test.expectSubmitted, submitted)
 		})
