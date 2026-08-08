@@ -14,6 +14,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
@@ -40,10 +41,22 @@ const (
 // sigTypeStore is a shorthand for a map of sigType to map of core.PubKey to slice of core.ParSignedData.
 type sigTypeStore map[sigType]map[core.PubKey][]core.ParSignedData
 
-// dataByPubkey maps a sigType to its map of public key to slice of core.ParSignedData..
+// dataByPubkey holds the partial signatures collected per sigType and the pending exchange queries
+// awaiting them. Both are guarded by lock.
 type dataByPubkey struct {
-	store sigTypeStore
-	lock  sync.Mutex
+	store   sigTypeStore
+	queries []exchangeQuery
+	lock    sync.Mutex
+}
+
+// exchangeQuery is a pending exchange call awaiting all its expected partial signatures for a sigType.
+type exchangeQuery struct {
+	sigType  sigType
+	expected int
+	// response is buffered (size 1) so resolveQueriesUnsafe never blocks, even when it runs on the
+	// exchange goroutine itself (pushPsigs may resolve queries synchronously via StoreInternal).
+	response chan<- map[core.PubKey][]core.ParSignedData
+	cancel   <-chan struct{}
 }
 
 // exchanger is responsible for exchanging partial signatures between peers on libp2p.
@@ -53,13 +66,28 @@ type exchanger struct {
 	sigTypes      map[sigType]bool
 	sigData       dataByPubkey
 	dutyGaterFunc func(duty core.Duty) bool
-	sigDatasChan  chan map[core.PubKey][]core.ParSignedData
+	timeout       time.Duration
 }
 
-func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []sigType, timeout time.Duration) *exchanger {
-	// Partial signature roots not known yet, so skip verification in parsigex, rather verify before we aggregate.
-	noopVerifier := func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error {
-		return nil
+func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[peer.ID]cluster.NodeIdx, sigTypes []sigType, timeout time.Duration) (*exchanger, error) {
+	if peerIdx < 0 || peerIdx >= len(peers) {
+		return nil, errors.New("peer index out of range", z.Int("peer_idx", peerIdx), z.Int("num_peers", len(peers)))
+	}
+
+	// Every peer must have a valid share index in peerMap, otherwise its partial signatures would be
+	// rejected as unknown and the exchange would silently time out. Fail fast on a misconfigured map.
+	for _, p := range peers {
+		if nodeIdx, ok := peerMap[p]; !ok || nodeIdx.ShareIdx <= 0 {
+			return nil, errors.New("peer map missing valid share index for peer", z.Str("peer", p.String()))
+		}
+	}
+
+	// Partial signature roots are not known during the exchange, so cryptographic verification is
+	// deferred until aggregation. Each received partial signature is still bound to its authenticated
+	// sender: a peer may only contribute partial signatures under its own assigned share index,
+	// consistent with the sender check in nodesigs.go.
+	verifyShareIdx := func(_ context.Context, sender peer.ID, _ core.Duty, _ core.PubKey, data core.ParSignedData) error {
+		return verifyPeerShareIdx(peerMap, sender, data)
 	}
 
 	st := make(map[sigType]bool)
@@ -83,14 +111,14 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []si
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}, parsigdb.NewMemDBMetadata(0, time.Now())), // metadata timestamps are used for metrics, irrelevant for DKG
-		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, noopVerifier, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
+		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, verifyShareIdx, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
 		sigTypes: st,
 		sigData: dataByPubkey{
 			store: sigTypeStore{},
 			lock:  sync.Mutex{},
 		},
 		dutyGaterFunc: dutyGaterFunc,
-		sigDatasChan:  make(chan map[core.PubKey][]core.ParSignedData, 1),
+		timeout:       timeout,
 	}
 
 	// Wiring core workflow components
@@ -98,7 +126,25 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, sigTypes []si
 	ex.sigdb.SubscribeThreshold(ex.pushPsigs)
 	ex.sigex.Subscribe(ex.sigdb.StoreExternal)
 
-	return ex
+	return ex, nil
+}
+
+// verifyPeerShareIdx checks that a received partial signature originates from a known peer and uses
+// that peer's assigned share index. peerMap maps each participating peer to its node index, so the
+// check remains correct when share indices are not contiguous with peer positions (for example when
+// operators have been removed and the remaining ones keep their original share indices).
+func verifyPeerShareIdx(peerMap map[peer.ID]cluster.NodeIdx, sender peer.ID, data core.ParSignedData) error {
+	nodeIdx, ok := peerMap[sender]
+	if !ok {
+		return errors.New("partial signature from unknown peer", z.Str("peer", sender.String()))
+	}
+
+	if data.ShareIdx <= 0 || data.ShareIdx != nodeIdx.ShareIdx {
+		return errors.New("partial signature share index does not match sender peer",
+			z.Str("peer", sender.String()), z.Int("share_idx", data.ShareIdx), z.Int("expected_share_idx", nodeIdx.ShareIdx))
+	}
+
+	return nil
 }
 
 // exchange exchanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
@@ -112,27 +158,76 @@ func (e *exchanger) exchange(ctx context.Context, sigType sigType, set core.ParS
 		return nil, err
 	}
 
-	expectedSigs := len(set)
+	cancel := make(chan struct{})
+	defer close(cancel)
 
-	for {
-		select {
-		case sigDatas, ok := <-e.sigDatasChan:
-			if !ok {
-				return nil, errors.New("sigdata channel has been closed")
-			}
+	response := make(chan map[core.PubKey][]core.ParSignedData, 1)
 
-			if len(sigDatas) == expectedSigs {
-				// We are done when we have ParSignedData of all the DVs from all each peer
-				return sigDatas, nil
-			}
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+	// Register the query, then resolve immediately in case all expected signatures are already
+	// collected (e.g. peers delivered theirs before the StoreInternal above completed the threshold).
+	e.sigData.lock.Lock()
+	e.sigData.queries = append(e.sigData.queries, exchangeQuery{
+		sigType:  sigType,
+		expected: len(set),
+		response: response,
+		cancel:   cancel,
+	})
+	e.resolveQueriesUnsafe()
+	e.sigData.lock.Unlock()
+
+	timer := time.NewTimer(e.timeout)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+		return nil, errors.New("timed out waiting for peer signatures",
+			z.Int("sig_type", int(sigType)))
+	case data := <-response:
+		return data, nil
 	}
 }
 
-// pushPsigs is responsible for writing partial signature data to sigChan obtained from other peers.
-func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
+// resolveQueriesUnsafe delivers the collected signatures to every pending query whose sigType has
+// reached its expected count, dropping cancelled queries. It must be called with sigData.lock held.
+func (e *exchanger) resolveQueriesUnsafe() {
+	var remaining []exchangeQuery
+
+	for _, q := range e.sigData.queries {
+		if cancelled(q.cancel) {
+			continue
+		}
+
+		data := e.sigData.store[q.sigType]
+		if len(data) != q.expected {
+			remaining = append(remaining, q)
+			continue
+		}
+
+		// We are done when we have ParSignedData of all the DVs from each peer.
+		ret := make(map[core.PubKey][]core.ParSignedData, len(data))
+		maps.Copy(ret, data)
+
+		q.response <- ret // Never blocks: response is buffered and each query is resolved at most once.
+	}
+
+	e.sigData.queries = remaining
+}
+
+// cancelled returns true if the channel is closed.
+func cancelled(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
+// pushPsigs stores partial signature data obtained from peers and resolves any pending query in
+// exchange whose expected signatures are now all collected.
+func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.PubKey][]core.ParSignedData) error {
 	sigType := sigType(duty.Slot)
 
 	if !e.dutyGaterFunc(duty) {
@@ -140,32 +235,16 @@ func (e *exchanger) pushPsigs(ctx context.Context, duty core.Duty, set map[core.
 	}
 
 	e.sigData.lock.Lock()
+	defer e.sigData.lock.Unlock()
 
-	for pk, psigs := range set {
-		_, ok := e.sigData.store[sigType]
-		if !ok {
-			e.sigData.store[sigType] = map[core.PubKey][]core.ParSignedData{}
-		}
-
-		e.sigData.store[sigType][pk] = psigs
-	}
-
-	data, ok := e.sigData.store[sigType]
+	_, ok := e.sigData.store[sigType]
 	if !ok {
-		e.sigData.lock.Unlock()
-		return nil
+		e.sigData.store[sigType] = map[core.PubKey][]core.ParSignedData{}
 	}
 
-	ret := make(map[core.PubKey][]core.ParSignedData)
-	maps.Copy(ret, data)
+	maps.Copy(e.sigData.store[sigType], set)
 
-	e.sigData.lock.Unlock()
-
-	select {
-	case e.sigDatasChan <- ret:
-	case <-ctx.Done():
-		return errors.Wrap(ctx.Err(), "feed collected sig data")
-	}
+	e.resolveQueriesUnsafe()
 
 	return nil
 }

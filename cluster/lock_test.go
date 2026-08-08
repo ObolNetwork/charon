@@ -60,6 +60,29 @@ func TestVerifyLockRejectsExtraShareNotOnPolynomial(t *testing.T) {
 	require.Contains(t, err.Error(), "extra share does not lie on distributed key polynomial")
 }
 
+func TestVerifyLockRejectsValidatorCountMismatch(t *testing.T) {
+	seed := 0
+	random := rand.New(rand.NewSource(int64(seed)))
+	lock, _, _ := cluster.NewForT(t, 2, 3, 4, seed, random)
+
+	// Tamper definition to claim fewer validators than the lock contains,
+	// then recompute all hashes so they verify correctly (models the attack).
+	lock.NumValidators = 1
+	lock.ValidatorAddresses = lock.ValidatorAddresses[:1]
+
+	def, err := lock.SetDefinitionHashes()
+	require.NoError(t, err)
+
+	lock.Definition = def
+
+	lock, err = lock.SetLockHash()
+	require.NoError(t, err)
+
+	err = lock.VerifyHashes()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "lock validators count mismatch")
+}
+
 func TestVerifyLockRejectsDuplicatePublicShares(t *testing.T) {
 	seed := 0
 	random := rand.New(rand.NewSource(int64(seed)))

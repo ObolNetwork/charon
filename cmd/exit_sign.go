@@ -9,7 +9,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -37,7 +36,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 				return err
 			}
 
-			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
+			routeLibP2PLogs() // Route libp2p logging to charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())
 
@@ -65,6 +64,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 		{testnetCapellaHardFork, false},
 		{beaconNodeHeaders, false},
 		{fallbackBeaconNodeAddrs, false},
+		{allowIncompleteKeystores, false},
 	})
 
 	bindLogFlags(cmd.Flags(), &config.Log)
@@ -114,19 +114,9 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return err
 	}
 
-	rawValKeys, err := keystore.LoadFilesUnordered(config.ValidatorKeysDir)
+	shares, err := loadValidatorShares(ctx, *cl, config.ValidatorKeysDir, config.AllowIncompleteKeystores)
 	if err != nil {
-		return errors.Wrap(err, "load keystore, check if path exists", z.Str("validator_keys_dir", config.ValidatorKeysDir))
-	}
-
-	valKeys, err := rawValKeys.SequencedKeys()
-	if err != nil {
-		return errors.Wrap(err, "load keystore")
-	}
-
-	shares, err := keystore.KeysharesToValidatorPubkey(*cl, valKeys)
-	if err != nil {
-		return errors.Wrap(err, "match local validator key shares with their counterparty in cluster lock")
+		return err
 	}
 
 	shareIdx, err := keystore.ShareIdxForCluster(*cl, *identityKey.PubKey())

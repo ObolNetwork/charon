@@ -9,6 +9,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -162,7 +163,7 @@ func TestFetchAggregator(t *testing.T) {
 	}
 
 	fetch := mustCreateFetcher(t, bmock)
-	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
 		return signedCommSubByPubKey[key], nil
@@ -301,7 +302,7 @@ func TestFetchBlocks(t *testing.T) {
 		duty := core.NewProposerDuty(slot)
 		fetch := mustCreateFetcherWithAddressAndGraffiti(t, bmock, feeRecipientAddr, graffitiBuilder)
 
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
 		})
 
@@ -356,8 +357,12 @@ func TestFetchSyncContribution(t *testing.T) {
 		slot        = 1
 		vIdxA       = 2
 		vIdxB       = 3
-		subCommIdxA = 4
-		subCommIdxB = 5
+		subCommIdxA = 0
+		subCommIdxB = 1
+		// subcommitteeSize is SYNC_COMMITTEE_SIZE / SYNC_COMMITTEE_SUBNET_COUNT
+		// (512 / 4) for the mainnet spec used by beaconmock. A sync committee
+		// position maps to subcommittee = position / subcommitteeSize.
+		subcommitteeSize = 128
 	)
 
 	var (
@@ -371,10 +376,18 @@ func TestFetchSyncContribution(t *testing.T) {
 		vIdxB: testutil.RandomCorePubKey(t),
 	}
 
-	// Construct duty definition set.
+	// Construct duty definition set with sync committee positions that map to each
+	// validator's subcommittee (position / subcommitteeSize).
+	dutyA := testutil.RandomSyncCommitteeDuty(t)
+	dutyA.ValidatorIndex = vIdxA
+	dutyA.ValidatorSyncCommitteeIndices = []eth2p0.CommitteeIndex{eth2p0.CommitteeIndex(subCommIdxA * subcommitteeSize)}
+	dutyB := testutil.RandomSyncCommitteeDuty(t)
+	dutyB.ValidatorIndex = vIdxB
+	dutyB.ValidatorSyncCommitteeIndices = []eth2p0.CommitteeIndex{eth2p0.CommitteeIndex(subCommIdxB * subcommitteeSize)}
+
 	defSet := map[core.PubKey]core.DutyDefinition{
-		pubkeysByIdx[vIdxA]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
-		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeDefinition(testutil.RandomSyncCommitteeDuty(t)),
+		pubkeysByIdx[vIdxA]: core.NewSyncCommitteeDefinition(dutyA),
+		pubkeysByIdx[vIdxB]: core.NewSyncCommitteeDefinition(dutyB),
 	}
 
 	var (
@@ -455,7 +468,9 @@ func TestFetchSyncContribution(t *testing.T) {
 		}
 
 		fetch := mustCreateFetcher(t, bmock)
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		// All peers on v1.11+ -> plural SyncContributions encoding.
+		fetch.RegisterSyncContributionV2(func(uint64) bool { return true })
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 				return commSelectionsByPubkey[key], nil
@@ -474,8 +489,11 @@ func TestFetchSyncContribution(t *testing.T) {
 			require.Len(t, resDataSet, 2)
 
 			for pubkey, data := range resDataSet {
-				contribution, ok := data.(core.SyncContribution)
+				contributions, ok := data.(core.SyncContributions)
 				require.True(t, ok)
+				require.Len(t, contributions, 1) // Each validator aggregates a single subcommittee here.
+
+				contribution := contributions[0]
 				require.Equal(t, eth2p0.Slot(slot), contribution.Slot)
 
 				selection, ok := commSelectionsByPubkey[pubkey].(core.SyncCommitteeSelection)
@@ -508,12 +526,124 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("backwards compatible single contribution", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		bmock.SyncCommitteeContributionFunc = func(_ context.Context, _ eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+			return &altair.SyncCommitteeContribution{
+				Slot:              slot,
+				BeaconBlockRoot:   beaconBlockRoot,
+				SubcommitteeIndex: subcommitteeIndex,
+				AggregationBits:   testutil.RandomBitVec128(),
+				Signature:         testutil.RandomEth2Signature(),
+			}, nil
+		}
+
+		fetch := mustCreateFetcher(t, bmock)
+		// No RegisterSyncContribV2 → gate off → single (pre-v1.11) encoding.
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+			if duty.Type == core.DutyPrepareSyncContribution {
+				return commSelectionsByPubkey[key], nil
+			}
+
+			if duty.Type == core.DutySyncMessage {
+				return syncMsgsByPubkey[key], nil
+			}
+
+			return nil, errors.New("unsupported duty")
+		})
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Len(t, resDataSet, 2)
+
+			for _, data := range resDataSet {
+				// Single SyncContribution, not the plural SyncContributions.
+				_, ok := data.(core.SyncContribution)
+				require.True(t, ok)
+			}
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, defSet)
+		require.NoError(t, err)
+	})
+
+	t.Run("aggregator in multiple subcommittees", func(t *testing.T) {
+		// The bug scenario: a single validator occupies two sync subcommittees in
+		// the same slot and must produce a distinct contribution for each.
+		pubkey := pubkeysByIdx[vIdxA]
+
+		multiDuty := testutil.RandomSyncCommitteeDuty(t)
+		multiDuty.ValidatorIndex = vIdxA
+		multiDuty.ValidatorSyncCommitteeIndices = []eth2p0.CommitteeIndex{
+			eth2p0.CommitteeIndex(subCommIdxA * subcommitteeSize), // subcommittee 0
+			eth2p0.CommitteeIndex(subCommIdxB * subcommitteeSize), // subcommittee 1
+		}
+		multiDefSet := map[core.PubKey]core.DutyDefinition{
+			pubkey: core.NewSyncCommitteeDefinition(multiDuty),
+		}
+
+		// An aggregator selection proof per subcommittee (both sigA and sigB are aggregators).
+		selectionsBySubcomm := map[core.SubcommitteeIndex]core.SignedData{
+			subCommIdxA: core.NewSyncCommitteeSelection(&eth2v1.SyncCommitteeSelection{
+				ValidatorIndex: vIdxA, Slot: slot, SubcommitteeIndex: subCommIdxA, SelectionProof: blsSigFromHex(t, sigA),
+			}),
+			subCommIdxB: core.NewSyncCommitteeSelection(&eth2v1.SyncCommitteeSelection{
+				ValidatorIndex: vIdxA, Slot: slot, SubcommitteeIndex: subCommIdxB, SelectionProof: blsSigFromHex(t, sigB),
+			}),
+		}
+
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		bmock.SyncCommitteeContributionFunc = func(_ context.Context, _ eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+			return &altair.SyncCommitteeContribution{
+				Slot:              slot,
+				BeaconBlockRoot:   beaconBlockRoot,
+				SubcommitteeIndex: subcommitteeIndex,
+				AggregationBits:   testutil.RandomBitVec128(),
+				Signature:         testutil.RandomEth2Signature(),
+			}, nil
+		}
+
+		fetch := mustCreateFetcher(t, bmock)
+		fetch.RegisterSyncContributionV2(func(uint64) bool { return true }) // Plural encoding.
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+			switch duty.Type {
+			case core.DutyPrepareSyncContribution:
+				return selectionsBySubcomm[subcommIdx], nil
+			case core.DutySyncMessage:
+				return syncMsgsByPubkey[pubkey], nil
+			default:
+				return nil, errors.New("unsupported duty")
+			}
+		})
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Len(t, resDataSet, 1)
+
+			contribs, ok := resDataSet[pubkey].(core.SyncContributions)
+			require.True(t, ok)
+			require.Len(t, contribs, 2) // One contribution per subcommittee - the fix.
+
+			require.ElementsMatch(t, []uint64{subCommIdxA, subCommIdxB},
+				[]uint64{contribs[0].SubcommitteeIndex, contribs[1].SubcommitteeIndex})
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, multiDefSet)
+		require.NoError(t, err)
+	})
+
 	t.Run("not contribution aggregator", func(t *testing.T) {
 		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		fetch := mustCreateFetcher(t, bmock)
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 
@@ -534,12 +664,112 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	// A contribution is identified by its subcommittee and beacon block root, so
+	// aggregators sharing both must reuse one beacon node query. Querying per validator
+	// returns a different aggregate each time, since a beacon node aggregates sync
+	// committee messages as they arrive.
+	t.Run("aggregators sharing a subcommittee query beacon node once", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		sharedRoot := testutil.RandomRoot()
+
+		// Both validators hold a position in subcommittee 0.
+		aggDutyA := testutil.RandomSyncCommitteeDuty(t)
+		aggDutyA.ValidatorIndex = vIdxA
+		aggDutyA.ValidatorSyncCommitteeIndices = []eth2p0.CommitteeIndex{0}
+		aggDutyB := testutil.RandomSyncCommitteeDuty(t)
+		aggDutyB.ValidatorIndex = vIdxB
+		aggDutyB.ValidatorSyncCommitteeIndices = []eth2p0.CommitteeIndex{1}
+
+		sharedDefSet := core.DutyDefinitionSet{
+			pubkeysByIdx[vIdxA]: core.NewSyncCommitteeDefinition(aggDutyA),
+			pubkeysByIdx[vIdxB]: core.NewSyncCommitteeDefinition(aggDutyB),
+		}
+
+		// Both validators are aggregators for subcommittee 0.
+		selectionsByPubkey := map[core.PubKey]core.SignedData{
+			pubkeysByIdx[vIdxA]: core.NewSyncCommitteeSelection(&eth2v1.SyncCommitteeSelection{
+				ValidatorIndex: vIdxA, Slot: slot, SubcommitteeIndex: subCommIdxA, SelectionProof: blsSigFromHex(t, sigA),
+			}),
+			pubkeysByIdx[vIdxB]: core.NewSyncCommitteeSelection(&eth2v1.SyncCommitteeSelection{
+				ValidatorIndex: vIdxB, Slot: slot, SubcommitteeIndex: subCommIdxA, SelectionProof: blsSigFromHex(t, sigB),
+			}),
+		}
+
+		// Both validators agree on the head, so both resolve to the same block root.
+		sharedMsgA := testutil.RandomSyncCommitteeMessage()
+		sharedMsgA.BeaconBlockRoot = sharedRoot
+		sharedMsgB := testutil.RandomSyncCommitteeMessage()
+		sharedMsgB.BeaconBlockRoot = sharedRoot
+		sharedMsgsByPubkey := map[core.PubKey]core.SignedData{
+			pubkeysByIdx[vIdxA]: core.NewSignedSyncMessage(sharedMsgA),
+			pubkeysByIdx[vIdxB]: core.NewSignedSyncMessage(sharedMsgB),
+		}
+
+		var queries int
+
+		bmock.SyncCommitteeContributionFunc = func(_ context.Context, _ eth2p0.Slot, subcommitteeIndex uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error) {
+			queries++
+
+			// Return a distinct aggregate per query, growing as a real beacon node's would.
+			aggBits := bitfield.NewBitvector128()
+			for i := range queries {
+				aggBits.SetBitAt(uint64(i), true)
+			}
+
+			return &altair.SyncCommitteeContribution{
+				Slot:              slot,
+				BeaconBlockRoot:   beaconBlockRoot,
+				SubcommitteeIndex: subcommitteeIndex,
+				AggregationBits:   aggBits,
+				Signature:         testutil.RandomEth2Signature(),
+			}, nil
+		}
+
+		fetch := mustCreateFetcher(t, bmock)
+		fetch.RegisterSyncContributionV2(func(uint64) bool { return true })
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+			switch duty.Type {
+			case core.DutyPrepareSyncContribution:
+				return selectionsByPubkey[key], nil
+			case core.DutySyncMessage:
+				return sharedMsgsByPubkey[key], nil
+			default:
+				return nil, errors.New("unsupported duty")
+			}
+		})
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Len(t, resDataSet, 2)
+
+			contribA, ok := resDataSet[pubkeysByIdx[vIdxA]].(core.SyncContributions)
+			require.True(t, ok)
+			require.Len(t, contribA, 1)
+
+			contribB, ok := resDataSet[pubkeysByIdx[vIdxB]].(core.SyncContributions)
+			require.True(t, ok)
+			require.Len(t, contribB, 1)
+
+			// Both aggregators carry the identical contribution, so DutyDB stores it
+			// without contention.
+			require.Equal(t, contribA[0], contribB[0])
+			require.EqualValues(t, subCommIdxA, contribA[0].SubcommitteeIndex)
+
+			return nil
+		})
+
+		err = fetch.Fetch(ctx, duty, sharedDefSet)
+		require.NoError(t, err)
+		require.Equal(t, 1, queries)
+	})
+
 	t.Run("fetch contribution data error", func(t *testing.T) {
 		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
 
 		fetch := mustCreateFetcher(t, bmock)
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
 			return nil, errors.New("error")
 		})
 

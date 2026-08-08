@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -37,7 +36,7 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 				return err
 			}
 
-			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
+			routeLibP2PLogs() // Route libp2p logging to charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())
 

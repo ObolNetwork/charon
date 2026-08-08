@@ -134,7 +134,12 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	output := make(map[core.PubKey][]core.ParSignedData)
 
 	for pubkey, sig := range signedSet {
-		sigs, ok, err := db.store(ctx, key{Duty: duty, PubKey: pubkey}, sig, exempt)
+		subcommIdx, err := core.SyncSubcommitteeIndex(duty.Type, sig.SignedData)
+		if err != nil {
+			return err
+		}
+
+		sigs, ok, err := db.store(ctx, key{Duty: duty, PubKey: pubkey, SubcommIdx: subcommIdx}, sig, exempt)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -324,6 +329,11 @@ func parSignedDataEqual(x, y core.ParSignedData) (bool, error) {
 type key struct {
 	Duty   core.Duty
 	PubKey core.PubKey
+	// SubcommIdx is the sync subcommittee index for sync-committee aggregator
+	// duties (DutyPrepareSyncContribution, DutySyncContribution), and 0 otherwise.
+	// A validator can occupy multiple sync subcommittees in the same slot, so it
+	// disambiguates their otherwise-colliding partial signatures.
+	SubcommIdx core.SubcommitteeIndex
 }
 
 // exemptEntryKey indexes exempt-duty entries by share index, validator and duty type.

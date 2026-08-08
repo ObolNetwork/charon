@@ -46,6 +46,10 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+// shutdownSyncTimeout bounds the final shutdown synchronization between peers. All protocol
+// steps are complete and artifacts are stored by then, so waiting longer serves no purpose.
+const shutdownSyncTimeout = 2 * time.Minute
+
 type Config struct {
 	DefFile       string
 	NoVerify      bool
@@ -241,24 +245,27 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
-	ex := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, []sigType{
-		sigLock,
-		sigDepositData,
-		sigValidatorRegistration,
-	}, conf.Timeout)
-
-	// Register libp2p handlers
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
 
 	for _, p := range peers {
-		nodeIdx, err := def.NodeIdx(p.ID)
+		idx, err := def.NodeIdx(p.ID)
 		if err != nil {
 			return err
 		}
 
-		peerMap[p.ID] = nodeIdx
+		peerMap[p.ID] = idx
 	}
 
+	ex, err := newExchanger(p2pNode, nodeIdx.PeerIdx, peerIDs, peerMap, []sigType{
+		sigLock,
+		sigDepositData,
+		sigValidatorRegistration,
+	}, conf.Timeout)
+	if err != nil {
+		return err
+	}
+
+	// Register libp2p handlers
 	caster := bcast.New(p2pNode, peerIDs, key)
 
 	// register bcast callbacks for frostp2p
@@ -280,11 +287,29 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig, conf.Nickname)
+	nextStepSyncRaw, stopSync, fatalErr, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig, conf.Nickname)
 	if err != nil {
 		log.Error(ctx, "Failed to start sync protocol, please make sure you don't have any other long-running charon or dkg processes running", err)
 
 		return err
+	}
+
+	// fatalOr returns the actionable fatal sync failure (e.g. a peer restarting
+	// mid-ceremony) instead of the generic error the interrupted operation returned.
+	fatalOr := func(err error) error {
+		if fatal := fatalErr(); fatal != nil {
+			return fatal
+		}
+
+		return err
+	}
+
+	nextStepSync := func(ctx context.Context) error {
+		if err := nextStepSyncRaw(ctx); err != nil {
+			return fatalOr(err)
+		}
+
+		return nil
 	}
 
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
@@ -295,12 +320,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	case "default", "frost":
 		shares, err = runFrostParallel(ctx, tp, uint32(newValidators), uint32(len(peerMap)), uint32(def.Threshold), uint32(nodeIdx.ShareIdx), defHash)
 		if err != nil {
-			return err
+			return fatalOr(err)
 		}
 	case "pedersen":
 		shares, err = pedersen.RunDKG(ctx, pedersenConfig, pedersenBoard, newValidators)
 		if err != nil {
-			return err
+			return fatalOr(err)
 		}
 	default:
 		return errors.New("unsupported dkg algorithm")
@@ -494,12 +519,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 // when all peers are connected.
 func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKey, defHash []byte,
 	peerIDs []peer.ID, onFailure func(), testConfig TestConfig, nickname string,
-) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, err error) {
+) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, fatalFunc func() error, err error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
 	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "sign definition hash")
+		return nil, nil, nil, errors.Wrap(err, "sign definition hash")
 	}
 
 	// DKG compatibility is minor version dependent.
@@ -511,7 +536,22 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 	var (
 		clients         []*sync.Client
 		shutdownStarted atomic.Bool
+		fatal           atomic.Pointer[error]
 	)
+
+	// recordFatal stores the first fatal sync failure so callers can return an
+	// actionable error instead of a generic "context canceled" one.
+	recordFatal := func(err error) {
+		fatal.CompareAndSwap(nil, &err)
+	}
+
+	fatalFunc = func() error {
+		if p := fatal.Load(); p != nil {
+			return *p
+		}
+
+		return nil
+	}
 
 	for _, pID := range peerIDs {
 		if p2pNode.ID() == pID {
@@ -529,6 +569,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 			// During shutdown, connection errors are expected and should not fail the protocol.
 			if err != nil && !errors.Is(err, context.Canceled) && !shutdownStarted.Load() {
 				log.Error(ctx, "Failed to sync with peer during DKG. Check network connectivity and peer availability", err)
+				recordFatal(errors.Wrap(err, "sync failed with peer", z.Str("peer", p2p.PeerName(pID))))
 				onFailure()
 			}
 		}()
@@ -538,11 +579,15 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 	for {
 		// Return if there is a context error.
 		if ctx.Err() != nil {
-			return nil, nil, ctx.Err()
+			if fatal := fatalFunc(); fatal != nil {
+				return nil, nil, nil, fatal
+			}
+
+			return nil, nil, nil, ctx.Err()
 		}
 
 		if err := server.Err(); err != nil {
-			return nil, nil, errors.Wrap(err, "sync server error")
+			return nil, nil, nil, errors.Wrap(err, "sync server error")
 		}
 
 		var connectedCount int
@@ -572,8 +617,34 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 	err = server.AwaitAllConnected(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+
+	// Monitor the sync server for fatal errors (e.g. a peer restarting mid-ceremony)
+	// and abort the protocol promptly instead of hanging inside a protocol step.
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if shutdownStarted.Load() {
+					return
+				}
+
+				if err := server.Err(); err != nil {
+					log.Error(ctx, "Aborting DKG ceremony due to peer failure", err)
+					recordFatal(err)
+					onFailure()
+
+					return
+				}
+			}
+		}
+	}()
 
 	var step int
 
@@ -595,13 +666,23 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 	// All peer start on step 0, so advance to step 1.
 	if err := stepSyncFunc(ctx); err != nil {
-		return nil, nil, err
+		if fatal := fatalFunc(); fatal != nil {
+			return nil, nil, nil, fatal
+		}
+
+		return nil, nil, nil, err
 	}
 
 	// Shutdown function stops all clients and server
 	shutdownFunc = func(ctx context.Context) error {
 		// Mark shutdown as started so client errors don't trigger onFailure.
 		shutdownStarted.Store(true)
+
+		// All protocol steps have completed and artifacts are stored by now, so bound the
+		// shutdown sync: a peer dying at this point must not hang the process forever,
+		// especially since failure detection is disabled during shutdown.
+		ctx, cancel := context.WithTimeout(ctx, shutdownSyncTimeout)
+		defer cancel()
 
 		// Sync all peers to a "shutdown ready" step before sending shutdown messages.
 		// This ensures all peers have completed their work before any starts teardown.
@@ -624,7 +705,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		return server.AwaitAllShutdown(ctx)
 	}
 
-	return stepSyncFunc, shutdownFunc, nil
+	return stepSyncFunc, shutdownFunc, fatalFunc, nil
 }
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.

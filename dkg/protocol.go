@@ -163,23 +163,33 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
-	nextStepSync, stopSync, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, cancel, TestConfig{}, config.Nickname)
+	nextStepSync, stopSync, fatalErr, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, cancel, TestConfig{}, config.Nickname)
 	if err != nil {
+		return err
+	}
+
+	// fatalOr returns the actionable fatal sync failure (e.g. a peer restarting
+	// mid-ceremony) instead of the generic error the interrupted step returned.
+	fatalOr := func(err error) error {
+		if fatal := fatalErr(); fatal != nil {
+			return fatal
+		}
+
 		return err
 	}
 
 	for _, step := range protocol.Steps(protocolCtx) {
 		if err := step.Run(ctx, protocolCtx); err != nil {
-			return err
+			return fatalOr(err)
 		}
 
 		if err := nextStepSync(ctx); err != nil {
-			return errors.Wrap(err, "sync next step")
+			return fatalOr(errors.Wrap(err, "sync next step"))
 		}
 	}
 
 	if err = stopSync(ctx); err != nil {
-		return errors.Wrap(err, "sync shutdown")
+		return fatalOr(errors.Wrap(err, "sync shutdown"))
 	}
 
 	time.Sleep(config.ShutdownDelay)

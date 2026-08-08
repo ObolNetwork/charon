@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	IncRoundStart    = time.Millisecond * 750
-	IncRoundIncrease = time.Millisecond * 250
-	LinearRoundInc   = time.Second
+	IncRoundStart      = time.Millisecond * 750
+	IncRoundIncrease   = time.Millisecond * 250
+	LinearRoundInc     = time.Second
+	ProposalRoundExtra = time.Millisecond * 500
 )
 
 // RoundTimerFunc is a function that returns a round timer.
@@ -73,18 +74,18 @@ func linearRoundTimeout(round int64) time.Duration {
 	return time.Duration(round) * LinearRoundInc
 }
 
+// proposalRoundTimeout returns the round timeout for proposer duties, adding ProposalRoundExtra
+// to the linear timeout to give extra time for block proposal fetching.
+func proposalRoundTimeout(round int64) time.Duration {
+	return linearRoundTimeout(round) + ProposalRoundExtra
+}
+
 // RoundTimer provides the duration for each consensus round.
 type RoundTimer interface {
 	// Timer returns a channel that will be closed when the round expires and a stop function.
 	Timer(round int64) (<-chan time.Time, func())
 	// Type returns the type of the round timerType.
 	Type() Type
-}
-
-// proposalTimeoutOptimization returns true if ProposalTimeout feature is enabled, the duty is proposer and
-// we are in the first round.
-func proposalTimeoutOptimization(duty core.Duty, round int64) bool {
-	return featureset.Enabled(featureset.ProposalTimeout) && duty.Type == core.DutyProposer && round == 1
 }
 
 // getDutyStartDelayWithDuration returns the delay from slot start to when a duty is scheduled to begin,
@@ -141,8 +142,8 @@ func (increasingRoundTimer) Type() Type {
 
 func (t increasingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 	timeout := increasingRoundTimeout(round)
-	if proposalTimeoutOptimization(t.duty, round) {
-		timeout = 1500 * time.Millisecond
+	if featureset.Enabled(featureset.ProposalTimeout) && t.duty.Type == core.DutyProposer && round == 1 {
+		timeout = proposalRoundTimeout(round)
 	}
 
 	timer := t.clock.NewTimer(timeout)
@@ -237,30 +238,20 @@ func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	var timeout time.Duration
-	if proposalTimeoutOptimization(t.duty, round) {
-		timeout = 1500 * time.Millisecond
-	} else {
-		timeout = linearRoundTimeout(round)
+	timeout := linearRoundTimeout(round)
+	if featureset.Enabled(featureset.ProposalTimeout) && t.duty.Type == core.DutyProposer {
+		timeout = proposalRoundTimeout(round)
 	}
 
 	var deadline time.Time
 	if first, ok := t.firstDeadlines[round]; ok {
-		// Deadline is either double the first timeout
 		deadline = first.Add(timeout)
 	} else {
-		// Calculate the first deadline.
-		// If genesisTime and slotDuration are set, use slot start time for determinism.
-		// Otherwise, fall back to clock.Now().
 		if !t.genesisTime.IsZero() && t.slotDuration > 0 {
-			// Calculate slot start time deterministically from duty slot number.
 			slotStart := t.genesisTime.Add(t.slotDuration * time.Duration(t.duty.Slot))
-
-			// Add duty-specific delay to account for when the duty is scheduled to start.
 			dutyDelay := getDutyStartDelayWithDuration(t.duty.Type, t.slotDuration)
 			dutyStart := slotStart.Add(dutyDelay)
 
-			// Deadline is duty start time plus the round timeout
 			deadline = dutyStart.Add(timeout)
 		} else {
 			deadline = t.clock.Now().Add(timeout)
@@ -291,13 +282,13 @@ func (*linearRoundTimer) Type() Type {
 
 func (t *linearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
 	var timeout time.Duration
-	if proposalTimeoutOptimization(t.duty, round) {
-		timeout = 1500 * time.Millisecond
-	} else if round == 1 {
-		// First round has 1 second
+
+	switch {
+	case featureset.Enabled(featureset.ProposalTimeout) && t.duty.Type == core.DutyProposer && round == 1:
+		timeout = proposalRoundTimeout(round)
+	case round == 1:
 		timeout = time.Second
-	} else {
-		// Subsequent rounds have linearly more time starting at 400 milliseconds
+	default:
 		timeout = time.Duration(200*(round-1)+200) * time.Millisecond
 	}
 

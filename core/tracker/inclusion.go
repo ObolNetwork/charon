@@ -114,26 +114,18 @@ func (i *inclusionCore) Submitted(duty core.Duty, pubkey core.PubKey, data core.
 
 	if duty.Type == core.DutyAttester {
 		att, ok := data.(core.VersionedAttestation)
-		if ok {
-			attData, err := att.Data()
-			if err != nil {
-				return errors.Wrap(err, "get attestation data")
-			}
+		if !ok {
+			return errors.New("invalid attestation")
+		}
 
-			attRoot, err = attData.HashTreeRoot()
-			if err != nil {
-				return errors.Wrap(err, "hash attestation")
-			}
-		} else {
-			att, ok := data.(core.Attestation)
-			if !ok {
-				return errors.New("invalid attestation")
-			}
+		attData, err := att.Data()
+		if err != nil {
+			return errors.Wrap(err, "get attestation data")
+		}
 
-			attRoot, err = att.Data.HashTreeRoot()
-			if err != nil {
-				return errors.Wrap(err, "hash attestation")
-			}
+		attRoot, err = attData.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "hash attestation")
 		}
 	}
 

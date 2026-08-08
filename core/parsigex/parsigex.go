@@ -40,7 +40,7 @@ func Protocols() []protocol.ID {
 }
 
 func NewParSigEx(p2pNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID,
-	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error,
+	verifyFunc func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error,
 	gaterFunc core.DutyGaterFunc, p2pOpts ...p2p.SendRecvOption,
 ) *ParSigEx {
 	parSigEx := &ParSigEx{
@@ -72,12 +72,12 @@ type ParSigEx struct {
 	sendFunc   p2p.SendFunc
 	peerIdx    int
 	peers      []peer.ID
-	verifyFunc func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error
+	verifyFunc func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error
 	gaterFunc  core.DutyGaterFunc
 	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+func (m *ParSigEx) handle(ctx context.Context, sender peer.ID, req proto.Message) (proto.Message, bool, error) {
 	pb, ok := req.(*pbv1.ParSigExMsg)
 	if !ok {
 		return nil, false, errors.New("invalid request type")
@@ -110,7 +110,7 @@ func (m *ParSigEx) handle(ctx context.Context, _ peer.ID, req proto.Message) (pr
 	verifyStart := time.Now()
 
 	for pubkey, data := range set {
-		if err = m.verifyFunc(ctx, duty, pubkey, data); err != nil {
+		if err = m.verifyFunc(ctx, sender, duty, pubkey, data); err != nil {
 			return nil, false, errors.Wrap(err, "invalid partial signature")
 		}
 	}
@@ -165,8 +165,10 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 }
 
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
-func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey) (func(context.Context, core.Duty, core.PubKey, core.ParSignedData) error, error) {
-	return func(ctx context.Context, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
+// Core workflow partial signatures are verified cryptographically against the pubshare for the
+// claimed share index, so the authenticated sender is not needed here.
+func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey) (func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error, error) {
+	return func(ctx context.Context, _ peer.ID, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
 		pubshares, ok := pubSharesByKey[pubkey]
 		if !ok {
 			return errors.New("unknown pubkey, not part of cluster lock")

@@ -41,6 +41,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_peer_name` | Gauge | Constant gauge with label set to the name of the cluster peer | `peer_name` |
 | `app_peerinfo_builder_api_enabled` | Gauge | Set to 1 if builder API is enabled on this peer, else 0 if disabled. | `peer` |
 | `app_peerinfo_clock_offset_seconds` | Gauge | Peer clock offset in seconds | `peer` |
+| `app_peerinfo_dv_client` | Gauge | Constant gauge with dv_client label set to the peer`s distributed validator client type. | `peer, dv_client` |
 | `app_peerinfo_git_commit` | Gauge | Constant gauge with git_hash label set to peer`s git commit hash. | `peer, git_hash` |
 | `app_peerinfo_index` | Gauge | Constant gauge set to the peer index in the cluster definition | `peer` |
 | `app_peerinfo_nickname` | Gauge | Constant gauge with nickname label set to peer`s charon nickname. | `peer, peer_nickname` |

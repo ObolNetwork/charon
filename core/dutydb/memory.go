@@ -478,18 +478,38 @@ func (db *MemDB) storeAggAttestationUnsafe(unsignedData core.UnsignedData) error
 	return nil
 }
 
-// storeSyncContributionUnsafe stores the unsigned aggregated attestation. It is unsafe since it assumes the lock is held.
+// storeSyncContributionUnsafe stores the unsigned sync committee contributions.
+// A validator can aggregate for multiple sync subcommittees in the same slot, so
+// the unsigned data is a collection of contributions (one per subcommittee), each
+// stored independently by (slot, subcommittee index, beacon block root). It is
+// unsafe since it assumes the lock is held.
 func (db *MemDB) storeSyncContributionUnsafe(unsignedData core.UnsignedData) error {
 	cloned, err := unsignedData.Clone() // Clone before storing.
 	if err != nil {
 		return err
 	}
 
-	contrib, ok := cloned.(core.SyncContribution)
-	if !ok {
-		return errors.New("invalid unsigned sync committee contribution")
-	}
+	// The unsigned data is either a plural SyncContributions (v1.11+, one per
+	// subcommittee) or, for backwards compatibility, a single SyncContribution.
+	switch contrib := cloned.(type) {
+	case core.SyncContributions:
+		for _, entry := range contrib {
+			if err := db.storeSyncContributionEntryUnsafe(entry); err != nil {
+				return err
+			}
+		}
 
+		return nil
+	case core.SyncContribution:
+		return db.storeSyncContributionEntryUnsafe(contrib)
+	default:
+		return errors.New("invalid unsigned sync committee contributions")
+	}
+}
+
+// storeSyncContributionEntryUnsafe stores a single sync committee contribution.
+// It is unsafe since it assumes the lock is held.
+func (db *MemDB) storeSyncContributionEntryUnsafe(contrib core.SyncContribution) error {
 	contribRoot, err := contrib.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash sync committee contribution")

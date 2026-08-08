@@ -13,6 +13,7 @@ import (
 	kdkg "github.com/drand/kyber/share/dkg"
 	drandbls "github.com/drand/kyber/sign/bdn"
 	ssz "github.com/ferranbt/fastssz"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -321,7 +322,8 @@ func broadcastNoneKey(ctx context.Context, config *Config, board *Board) error {
 		return errors.Wrap(err, "broadcast none pubkey")
 	}
 
-	_, err := readBoardChannel(ctx, board.IncomingValidatorPubKeyShares(), len(config.PeerMap))
+	_, err := readBoardChannel(ctx, board.IncomingValidatorPubKeyShares(), config.PeerIDs(),
+		func(s ValidatorPubKeyShare) peer.ID { return s.PeerID }, config.collectTimeout())
 
 	return err
 }

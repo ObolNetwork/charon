@@ -9,7 +9,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	libp2plog "github.com/ipfs/go-log/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -32,7 +31,7 @@ func newListActiveValidatorsCmd(runFunc func(context.Context, exitConfig) error)
 				return err
 			}
 
-			libp2plog.SetPrimaryCore(log.LoggerCore()) // Set libp2p logger to use charon logger
+			routeLibP2PLogs() // Route libp2p logging to charon logger
 
 			printFlags(cmd.Context(), cmd.Flags())
 
