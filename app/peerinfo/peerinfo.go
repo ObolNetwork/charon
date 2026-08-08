@@ -29,6 +29,8 @@ const (
 	period                         = time.Minute
 	protocolID2        protocol.ID = "/charon/peerinfo/2.0.0"
 	maxPeerInfoMsgSize             = 1 << 20 // 1MB, PeerInfo messages are < 1KB in practice.
+
+	DVClientCharon = "charon"
 )
 
 var gitHashMatch = regexp.MustCompile("^[0-9a-f]{7}$")
@@ -53,6 +55,7 @@ func New(p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 	peerVersion.WithLabelValues(name, version.String()).Set(1)
 	peerGitHash.WithLabelValues(name, gitHash).Set(1)
 	peerNickname.WithLabelValues(name, nickname).Set(1)
+	peerDVClientGauge.WithLabelValues(name, DVClientCharon).Set(1)
 	peerStartGauge.WithLabelValues(name).Set(float64(time.Now().Unix()))
 
 	if builderEnabled {
@@ -104,6 +107,7 @@ func newInternal(p2pNode host.Host, peers []peer.ID, version version.SemVer, loc
 				StartedAt:         startTime,
 				BuilderApiEnabled: builderAPIEnabled,
 				Nickname:          nickname,
+				DvClient:          DVClientCharon,
 			}, true, nil
 		},
 		p2p.WithReadLimit(maxPeerInfoMsgSize),
@@ -188,6 +192,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			StartedAt:         p.startTime,
 			BuilderApiEnabled: p.builderAPIEnabled,
 			Nickname:          p.nicknames[p2p.PeerName(p.p2pNode.ID())],
+			DvClient:          DVClientCharon,
 		}
 
 		go func(peerID peer.ID) {
@@ -229,21 +234,29 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			actualSentAt := resp.GetSentAt().AsTime()
 			clockOffset := actualSentAt.Sub(expectedSentAt)
 
-			if err := supportedPeerVersion(resp.GetCharonVersion(), version.Supported()); err != nil {
-				peerCompatibleGauge.WithLabelValues(name).Set(0) // Set to false
-
-				// Log as error since user action required
-				log.Error(ctx, "Peer is running an incompatible Charon version. Please coordinate with the peer to upgrade or downgrade to a compatible version", err,
-					z.Str("peer", name),
-					z.Str("peer_version", resp.GetCharonVersion()),
-					z.Any("supported_versions", version.Supported()),
-					p.versionFilters[peerID],
-				)
-
-				return
+			peerDvClient := resp.GetDvClient()
+			if peerDvClient == "" {
+				peerDvClient = DVClientCharon
 			}
 
-			// Set peer compatibility to true.
+			peerDVClientGauge.Reset(name)
+			peerDVClientGauge.WithLabelValues(name, peerDvClient).Set(1)
+
+			if peerDvClient == DVClientCharon {
+				if err := supportedPeerVersion(resp.GetCharonVersion(), version.Supported()); err != nil {
+					peerCompatibleGauge.WithLabelValues(name).Set(0)
+
+					log.Error(ctx, "Peer is running an incompatible Charon version. Please coordinate with the peer to upgrade or downgrade to a compatible version", err,
+						z.Str("peer", name),
+						z.Str("peer_version", resp.GetCharonVersion()),
+						z.Any("supported_versions", version.Supported()),
+						p.versionFilters[peerID],
+					)
+
+					return
+				}
+			}
+
 			peerCompatibleGauge.WithLabelValues(name).Set(1)
 
 			p.metricSubmitter(peerID, clockOffset, resp.GetCharonVersion(), resp.GetGitHash(), resp.GetStartedAt().AsTime(), resp.GetBuilderApiEnabled(), resp.GetNickname())
