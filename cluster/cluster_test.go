@@ -317,6 +317,81 @@ func TestDefinitionPeers(t *testing.T) {
 	}
 }
 
+func TestUnmarshalDefinitionDepositAmounts(t *testing.T) {
+	defJSON := func(version, depositAmounts, compounding string) string {
+		return `{
+			"version": "` + version + `",
+			"num_validators": 1,
+			"validators": [{"fee_recipient_address": "", "withdrawal_address": ""}],
+			"operators": [],
+			"deposit_amounts": ` + depositAmounts + `,
+			"compounding": ` + compounding + `}`
+	}
+
+	const (
+		oneGwei       = `["1"]` // Below 1ETH minimum.
+		thirtyTwoEth  = `["16000000000","16000000000"]`
+		fortyEightEth = `["48000000000"]` // Valid only for compounding validators.
+	)
+
+	tests := []struct {
+		name   string
+		json   string
+		errMsg string
+	}{
+		{
+			name:   "v1.8 invalid amounts",
+			json:   defJSON(v1_8, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.9 invalid amounts",
+			json:   defJSON(v1_9, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.10 invalid amounts",
+			json:   defJSON(v1_10, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.11 invalid amounts",
+			json:   defJSON(v1_11, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.11 amount too large without compounding",
+			json:   defJSON(v1_11, fortyEightEth, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name: "v1.11 large amount valid with compounding",
+			json: defJSON(v1_11, fortyEightEth, "true"),
+		},
+		{
+			name: "v1.8 valid amounts",
+			json: defJSON(v1_8, thirtyTwoEth, "false"),
+		},
+		{
+			name: "v1.8 no amounts",
+			json: defJSON(v1_8, "[]", "false"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var def cluster.Definition
+
+			err := json.Unmarshal([]byte(tt.json), &def)
+			if tt.errMsg != "" {
+				require.ErrorContains(t, err, tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 // TestV1x11SafeSignatures tests that v1.11 supports variable-length signatures (Safe multisig).
 func TestV1x11SafeSignatures(t *testing.T) {
 	r := rand.New(rand.NewSource(1))

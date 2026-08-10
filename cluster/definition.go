@@ -933,7 +933,8 @@ func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
+	// Definition versions prior to v1.10 don't support compounding.
+	if err := deposit.VerifyDepositAmounts(defJSON.DepositAmounts, false); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
@@ -968,7 +969,8 @@ func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
+	// Definition versions prior to v1.10 don't support compounding.
+	if err := deposit.VerifyDepositAmounts(defJSON.DepositAmounts, false); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
@@ -1004,7 +1006,7 @@ func unmarshalDefinitionV1x10to11(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
+	if err := deposit.VerifyDepositAmounts(defJSON.DepositAmounts, defJSON.Compounding); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
