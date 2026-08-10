@@ -37,35 +37,39 @@ const (
 	// multiple cluster peers to share one IP (NAT or local test clusters).
 	clusterConnsPerIP = 64
 
+	// System and transient stream and connection limits are fixed for the same reason
+	// as the per-peer limits. go-libp2p's autoscaled defaults are derived from an
+	// eighth of host memory and fall below the per-peer limits on typical validator
+	// hardware (3072 inbound streams and 64 transient inbound connections on a 16GB
+	// host, less below that), which makes the per-peer allowances unreachable and the
+	// effective limits depend on host memory. Memory and FD limits stay host derived,
+	// since those track resources the host actually has.
+	//
+	// transientConns bounds connections that have not yet negotiated a protocol. It
+	// exceeds clusterConnsPerIP so a cluster sharing one NAT IP can reconnect in a
+	// single burst, matching the connection rate limiter burst.
+	transientConns = 2 * clusterConnsPerIP
+
+	// The system scope stays above the per-peer limits so no single peer can exhaust
+	// it: 16384 inbound streams is four cluster peers' worth. Connections are sized
+	// against the transient scope instead, because a pending connection holds a
+	// transient and a system reservation until it identifies, so the system scope must
+	// admit a full transient burst alongside established peers.
+	systemStreamsInbound  = 4 * clusterPeerStreamsInbound
+	systemStreamsOutbound = 4 * clusterPeerStreamsOutbound
+	systemConns           = 2 * transientConns
+
 	// relayServiceMemory bounds the circuit relay scopes, covering per-circuit
 	// buffers at full circuit load.
 	relayServiceMemory = 512 << 20
 )
 
 // NewResourceManager returns a libp2p resource manager for charon nodes.
-// System-wide limits scale with available memory while per-peer limits are fixed,
-// with elevated limits for the authenticated cluster peers.
+// Stream and connection limits are fixed, with elevated limits for the
+// authenticated cluster peers, while memory and FD limits scale with the host.
 func NewResourceManager(clusterPeers []peer.ID) (network.ResourceManager, error) {
-	limits := rcmgr.DefaultLimits
-	libp2p.SetDefaultServiceLimits(&limits)
-
-	clusterLimits := make(map[peer.ID]rcmgr.ResourceLimits, len(clusterPeers))
-	for _, pID := range clusterPeers {
-		clusterLimits[pID] = peerLimits(clusterPeerStreamsInbound, clusterPeerStreamsOutbound, clusterPeerConns, clusterPeerMemory)
-	}
-
-	cfg := rcmgr.PartialLimitConfig{
-		PeerDefault: peerLimits(defaultPeerStreamsInbound, defaultPeerStreamsOutbound, defaultPeerConns, defaultPeerMemory),
-		Peer:        clusterLimits,
-		// All charon protocols share the default protocol limits, so raise them to
-		// match the elevated cluster peer limits; the peer and system scopes remain
-		// the effective bounds.
-		ProtocolDefault:     streamLimits(4 * clusterPeerStreamsInbound),
-		ProtocolPeerDefault: streamLimits(clusterPeerStreamsInbound),
-	}
-
 	rm, err := rcmgr.NewResourceManager(
-		rcmgr.NewFixedLimiter(cfg.Build(limits.AutoScale())),
+		rcmgr.NewFixedLimiter(clusterLimitConfig(clusterPeers)),
 		rcmgr.WithLimitPerSubnet(
 			[]rcmgr.ConnLimitPerSubnet{{ConnCount: clusterConnsPerIP, PrefixLength: 32}},
 			[]rcmgr.ConnLimitPerSubnet{{ConnCount: clusterConnsPerIP, PrefixLength: 56}},
@@ -98,6 +102,44 @@ func NewRelayResourceManager(maxConns, maxConnsPerIP int) (network.ResourceManag
 	return rm, nil
 }
 
+// clusterLimitConfig returns charon node resource limits: fixed system, transient and
+// per-peer stream and connection limits, with elevated allowances for cluster peers.
+// Memory and FD limits are left at their host derived defaults.
+func clusterLimitConfig(clusterPeers []peer.ID) rcmgr.ConcreteLimitConfig {
+	limits := rcmgr.DefaultLimits
+	libp2p.SetDefaultServiceLimits(&limits)
+
+	clusterLimits := make(map[peer.ID]rcmgr.ResourceLimits, len(clusterPeers))
+	for _, pID := range clusterPeers {
+		clusterLimits[pID] = peerLimits(clusterPeerStreamsInbound, clusterPeerStreamsOutbound, clusterPeerConns, clusterPeerMemory)
+	}
+
+	cfg := rcmgr.PartialLimitConfig{
+		System: rcmgr.ResourceLimits{
+			StreamsInbound:  systemStreamsInbound,
+			StreamsOutbound: systemStreamsOutbound,
+			Streams:         systemStreamsInbound + systemStreamsOutbound,
+			ConnsInbound:    systemConns,
+			ConnsOutbound:   systemConns,
+			Conns:           2 * systemConns,
+		},
+		Transient: rcmgr.ResourceLimits{
+			ConnsInbound:  transientConns,
+			ConnsOutbound: transientConns,
+			Conns:         2 * transientConns,
+		},
+		PeerDefault: peerLimits(defaultPeerStreamsInbound, defaultPeerStreamsOutbound, defaultPeerConns, defaultPeerMemory),
+		Peer:        clusterLimits,
+		// All charon protocols share the default protocol limits, so raise them to
+		// match the system and cluster peer limits in both directions; the peer and
+		// system scopes remain the effective bounds.
+		ProtocolDefault:     streamLimits(systemStreamsInbound, systemStreamsOutbound),
+		ProtocolPeerDefault: streamLimits(clusterPeerStreamsInbound, clusterPeerStreamsOutbound),
+	}
+
+	return cfg.Build(limits.AutoScale())
+}
+
 // relayLimitConfig returns relay resource limits derived from the relay connection config.
 func relayLimitConfig(maxConns, maxConnsPerIP int) rcmgr.ConcreteLimitConfig {
 	limits := rcmgr.DefaultLimits
@@ -125,8 +167,9 @@ func relayLimitConfig(maxConns, maxConnsPerIP int) rcmgr.ConcreteLimitConfig {
 		StreamsOutbound: rcmgr.LimitVal(maxStreams),
 		Memory:          relayServiceMemory,
 	}
-	// The relay allows maxConnsPerIP circuit reservations per peer.
-	relayPeerStreams := streamLimits(2 * maxConnsPerIP)
+	// The relay allows maxConnsPerIP circuit reservations per peer, each costing an
+	// inbound and an outbound stream.
+	relayPeerStreams := streamLimits(2*maxConnsPerIP, 2*maxConnsPerIP)
 
 	cfg := rcmgr.PartialLimitConfig{
 		System: systemLimits,
@@ -179,11 +222,11 @@ func newConnRateLimiter(perIPConns int) *rate.Limiter {
 }
 
 // streamLimits returns fixed stream-only resource limits, leaving other resources at their defaults.
-func streamLimits(streams int) rcmgr.ResourceLimits {
+func streamLimits(inbound, outbound int) rcmgr.ResourceLimits {
 	return rcmgr.ResourceLimits{
-		StreamsInbound:  rcmgr.LimitVal(streams),
-		StreamsOutbound: rcmgr.LimitVal(streams),
-		Streams:         rcmgr.LimitVal(2 * streams),
+		StreamsInbound:  rcmgr.LimitVal(inbound),
+		StreamsOutbound: rcmgr.LimitVal(outbound),
+		Streams:         rcmgr.LimitVal(inbound + outbound),
 	}
 }
 

@@ -163,6 +163,27 @@ func TestConnRateLimiterAllowsPerIPBurst(t *testing.T) {
 	openConns(t, clusterRM, "/ip4/10.2.2.2/tcp/1234", clusterConnsPerIP)
 }
 
+// TestClusterLimitConfig ensures system and transient stream and connection limits
+// are fixed instead of scaling with host memory, and that they leave room for the
+// per-peer limits, which would otherwise be unreachable on smaller hosts.
+func TestClusterLimitConfig(t *testing.T) {
+	cfg := clusterLimitConfig([]peer.ID{randomPeerID(t)}).ToPartialLimitConfig()
+
+	require.Equal(t, rcmgr.LimitVal(systemStreamsInbound), cfg.System.StreamsInbound)
+	require.Equal(t, rcmgr.LimitVal(systemConns), cfg.System.ConnsInbound)
+	require.Equal(t, rcmgr.LimitVal(transientConns), cfg.Transient.ConnsInbound)
+
+	// The system scope must exceed a single peer's allowance so no one peer can
+	// exhaust it, and the transient scope must admit a full per-IP connection burst.
+	require.Greater(t, cfg.System.StreamsInbound, rcmgr.LimitVal(clusterPeerStreamsInbound))
+	require.Greater(t, cfg.System.ConnsInbound, rcmgr.LimitVal(clusterPeerConns))
+	require.Greater(t, cfg.Transient.ConnsInbound, rcmgr.LimitVal(clusterConnsPerIP))
+
+	// Memory stays host derived, bounding aggregate load on small hosts.
+	require.Equal(t, rcmgr.LimitVal64(defaultPeerMemory), cfg.PeerDefault.Memory)
+	require.NotZero(t, cfg.System.Memory)
+}
+
 // TestRelayLimitConfig ensures relay capacity limits derive from the relay
 // connection config instead of scaling with host memory.
 func TestRelayLimitConfig(t *testing.T) {
