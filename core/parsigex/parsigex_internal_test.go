@@ -32,6 +32,8 @@ func newTestMsg(t *testing.T, duty core.Duty, numEntries int) *pbv1.ParSigExMsg 
 		set[testutil.RandomCorePubKey(t)] = newData()
 	}
 
+	require.Len(t, set, numEntries)
+
 	setPb, err := core.ParSignedDataSetToProto(set)
 	require.NoError(t, err)
 

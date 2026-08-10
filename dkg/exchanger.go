@@ -250,12 +250,12 @@ func (e *exchanger) pushPsigs(_ context.Context, duty core.Duty, set map[core.Pu
 	return nil
 }
 
-// noopDeadliner is a deadliner that does nothing.
 // neverExpires is a core.DeadlineFunc for duties that never expire.
 func neverExpires(core.Duty) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// noopDeadliner is a deadliner that does nothing.
 type noopDeadliner struct{}
 
 func (noopDeadliner) Add(core.Duty) core.DeadlineStatus {

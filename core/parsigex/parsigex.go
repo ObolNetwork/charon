@@ -63,7 +63,9 @@ func NewParSigEx(p2pNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
 
-	p2pOpts = append([]p2p.SendRecvOption{p2p.WithReadLimit(maxMsgSize)}, p2pOpts...)
+	// Applied last so the cap holds regardless of the caller's options, including any
+	// protocols they add (WithDelimitedProtocol registers readers at the p2p default).
+	p2pOpts = append(p2pOpts, p2p.WithReadLimit(maxMsgSize))
 	p2p.RegisterHandler(
 		"parsigex",
 		p2pNode,
