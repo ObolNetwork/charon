@@ -69,7 +69,7 @@ func TestSigsExchange(t *testing.T) {
 	}
 
 	for i := range n {
-		component := bcast.New(tcpNodes[i], peers, secrets[i])
+		component := bcast.New(tcpNodes[i], peers, secrets[i], []byte("session hash"))
 		nsigs = append(nsigs, newNodeSigBcast(
 			clusterPeers,
 			cluster.NodeIdx{PeerIdx: i},
@@ -160,7 +160,7 @@ func TestSigsCallbacks(t *testing.T) {
 		}
 	}
 
-	component := bcast.New(tcpNodes[0], peers, secrets[0])
+	component := bcast.New(tcpNodes[0], peers, secrets[0], []byte("session hash"))
 
 	ns := newNodeSigBcast(
 		clusterPeers,

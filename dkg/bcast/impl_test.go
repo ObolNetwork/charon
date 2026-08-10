@@ -84,7 +84,7 @@ func TestBCast(t *testing.T) {
 			return nil
 		}
 
-		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i])
+		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], []byte("session hash"))
 
 		bcastFunc.RegisterMessageIDFuncs(msgID1, callback, checkMessage)
 		bcastFunc.RegisterMessageIDFuncs(msgID2, callback, checkMessage)
@@ -148,4 +148,62 @@ func TestBCast(t *testing.T) {
 	err = bcasts[0](ctx, p0Result.MsgID, p0Result.Msg)
 	require.NoError(t, err)
 	assertResults(t, p0Result, peers[0])
+}
+
+// TestBCastSessionHashMismatch ensures that messages signed in one session
+// cannot be verified in another, binding broadcasts to the cluster session.
+func TestBCastSessionHashMismatch(t *testing.T) {
+	const (
+		n     = 2
+		msgID = "msgID"
+	)
+
+	var (
+		ctx      = context.Background()
+		secrets  []*k1.PrivateKey
+		tcpNodes []host.Host
+		peers    []peer.ID
+		bcasts   []bcast.BroadcastFunc
+	)
+
+	for range n {
+		secret, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		secrets = append(secrets, secret)
+
+		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
+		tcpNodes = append(tcpNodes, tcpNode)
+
+		peers = append(peers, tcpNode.ID())
+	}
+
+	for i := range n {
+		for j := range n {
+			tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
+		}
+	}
+
+	callback := func(context.Context, peer.ID, string, proto.Message) error {
+		return nil
+	}
+	checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
+		var ts timestamppb.Timestamp
+		if err := msgAny.UnmarshalTo(&ts); err != nil {
+			return errors.Wrap(err, "anypb error")
+		}
+
+		return nil
+	}
+
+	// Each peer runs with a different session hash.
+	for i := range n {
+		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], []byte{byte(i)})
+		bcastFunc.RegisterMessageIDFuncs(msgID, callback, checkMessage)
+		bcasts = append(bcasts, bcastFunc.Broadcast)
+	}
+
+	// Signatures from a peer in a different session must not verify.
+	err := bcasts[0](ctx, msgID, timestamppb.Now())
+	require.ErrorContains(t, err, "verify signatures")
 }

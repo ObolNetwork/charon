@@ -12,15 +12,18 @@ import (
 )
 
 const (
-	protocolIDPrefix = "/charon/dkg/bcast/1.0.0"
+	// Note: v2.0.0 binds signed hashes to the session hash and message ID,
+	// the version bump makes mixed-version ceremonies fail at stream negotiation
+	// instead of at signature verification.
+	protocolIDPrefix = "/charon/dkg/bcast/2.0.0"
 	protocolIDSig    = protocolIDPrefix + "/sig"
 	protocolIDMsg    = protocolIDPrefix + "/msg"
 	receiveTimeout   = time.Minute                    // Allow for peers to be out of sync, with some sending messages much earlier and having to wait.
 	sendTimeout      = receiveTimeout + 2*time.Second // Allow for server to timeout first.
 )
 
-// hashFunc is a function that hashes a any-wrapped protobuf message.
-type hashFunc func(*anypb.Any) ([]byte, error)
+// hashFunc is a function that hashes a message ID and a any-wrapped protobuf message.
+type hashFunc func(string, *anypb.Any) ([]byte, error)
 
 // Callback is a function that is called when a reliably-broadcast message was successfully received.
 type Callback func(ctx context.Context, peerID peer.ID, msgID string, msg proto.Message) error

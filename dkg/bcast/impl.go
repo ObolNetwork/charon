@@ -5,6 +5,7 @@ package bcast
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"sync"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -55,31 +56,39 @@ func (c *Component) Broadcast(ctx context.Context, msgID string, msg proto.Messa
 }
 
 // New registers a new reliable-broadcast server and returns a reliable-broadcast client function.
-func New(p2pNode host.Host, peers []peer.ID, secret *k1.PrivateKey) *Component {
+// All messages are bound to sessionHash, so signatures from other sessions fail verification.
+func New(p2pNode host.Host, peers []peer.ID, secret *k1.PrivateKey, sessionHash []byte) *Component {
 	c := Component{
 		allowedMsgIDs: map[string]struct{}{},
 		secret:        secret,
 		peers:         peers,
 	}
 
+	hashFunc := newHashAny(sessionHash)
 	signFunc := c.newK1Signer()
-	verifyFunc := c.newPeerK1Verifier()
+	verifyFunc := c.newPeerK1Verifier(hashFunc)
 
-	cl := newClient(p2pNode, peers, p2p.SendReceive, p2p.Send, hashAny, signFunc, verifyFunc)
+	cl := newClient(p2pNode, peers, p2p.SendReceive, p2p.Send, hashFunc, signFunc, verifyFunc)
 
 	c.broadcastFunc = cl.Broadcast
-	c.srv = newServer(p2pNode, signFunc, hashAny, verifyFunc)
+	c.srv = newServer(p2pNode, signFunc, hashFunc, verifyFunc)
 
 	return &c
 }
 
-// hashAny is a function that hashes a any-wrapped protobuf message.
-func hashAny(anyPB *anypb.Any) ([]byte, error) {
-	h := sha256.New()
-	_, _ = h.Write([]byte(anyPB.GetTypeUrl()))
-	_, _ = h.Write(anyPB.GetValue())
+// newHashAny returns a function that hashes a message ID and a any-wrapped protobuf
+// message, binding them to the session hash. Fields are length-prefixed to
+// avoid ambiguous concatenation.
+func newHashAny(sessionHash []byte) hashFunc {
+	return func(msgID string, anyPB *anypb.Any) ([]byte, error) {
+		h := sha256.New()
+		for _, field := range [][]byte{sessionHash, []byte(msgID), []byte(anyPB.GetTypeUrl()), anyPB.GetValue()} {
+			_ = binary.Write(h, binary.BigEndian, uint64(len(field)))
+			_, _ = h.Write(field)
+		}
 
-	return h.Sum(nil), nil
+		return h.Sum(nil), nil
+	}
 }
 
 // newK1Signer returns a function that signs a hash using the given private key.
@@ -94,7 +103,7 @@ func (c *Component) newK1Signer() func(string, []byte) ([]byte, error) {
 }
 
 // newPeerK1Verifier returns a function that verifies a hash using the given peer IDs (public keys).
-func (c *Component) newPeerK1Verifier() func(string, *anypb.Any, [][]byte) error {
+func (c *Component) newPeerK1Verifier(hashFunc hashFunc) func(string, *anypb.Any, [][]byte) error {
 	return func(msgID string, anyPB *anypb.Any, sigs [][]byte) error {
 		if len(sigs) != len(c.peers) {
 			return errors.New("invalid number of signatures")
@@ -104,7 +113,7 @@ func (c *Component) newPeerK1Verifier() func(string, *anypb.Any, [][]byte) error
 			return errors.New("invalid message id")
 		}
 
-		hash, err := hashAny(anyPB)
+		hash, err := hashFunc(msgID, anyPB)
 		if err != nil {
 			return errors.Wrap(err, "hash any")
 		}
