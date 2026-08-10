@@ -50,6 +50,7 @@ func startP2P(ctx context.Context, config Config, key *k1.PrivateKey, reporter m
 	p2pNode, err := p2p.NewNode(ctx, config.P2PConfig, key, p2p.NewOpenGater(), config.FilterPrivAddrs, p2p.NodeTypeQUIC, nil,
 		libp2p.ResourceManager(rm), libp2p.BandwidthReporter(reporter))
 	if err != nil {
+		_ = rm.Close() // The host owns the resource manager only once created.
 		return nil, nil, errors.Wrap(err, "new relay node")
 	}
 

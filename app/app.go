@@ -374,19 +374,15 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	wrappedRegisterer := prometheus.WrapRegistererWith(labels, promRegistry)
 	swarmOpts := []swarm.Option{p2p.WithSwarmMetrics(wrappedRegisterer)}
 
-	opts := []libp2p.Option{bwOpt}
-
+	rmgr := network.ResourceManager(new(network.NullResourceManager))
 	if featureset.Enabled(featureset.Libp2pResourceManager) {
-		rm, err := p2p.NewResourceManager(peerIDs)
+		rmgr, err = p2p.NewResourceManager(peerIDs)
 		if err != nil {
 			return nil, err
 		}
-
-		opts = append(opts, libp2p.ResourceManager(rm))
-	} else {
-		opts = append(opts, libp2p.ResourceManager(new(network.NullResourceManager)))
 	}
 
+	opts := []libp2p.Option{bwOpt, libp2p.ResourceManager(rmgr)}
 	opts = append(opts, conf.TestConfig.LibP2POpts...)
 
 	var p2pNode host.Host
@@ -397,6 +393,7 @@ func wireP2P(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	if err != nil {
+		_ = rmgr.Close() // The host owns the resource manager only once created.
 		return nil, err
 	}
 
