@@ -1,9 +1,11 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
+//nolint:revive,nolintlint // somehow the nolintlint linter catches revive as unnecessary, while it is
 package log
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
@@ -11,6 +13,8 @@ import (
 	"sync"
 
 	"go.uber.org/zap/zapcore"
+
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 // SlogHandler returns a slog.Handler that writes records to the global charon logger.
@@ -42,7 +46,16 @@ func (h *slogHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= h.level
 }
 
-func (h *slogHandler) Handle(_ context.Context, rec slog.Record) error {
+func (h *slogHandler) Handle(_ context.Context, rec slog.Record) (err error) {
+	// Never let a logging panic crash the process.
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "slog handler panic (dropped log): %v\n", r)
+
+			err = errors.New("slog handler panic")
+		}
+	}()
+
 	entry := zapcore.Entry{
 		Level:   toZapLevel(rec.Level),
 		Time:    rec.Time,
@@ -105,13 +118,15 @@ func (h *slogHandler) clone() *slogHandler {
 }
 
 // toZapField converts a slog attribute to a zap field, prefixing open group names.
+// All values are stringified to avoid zapcore.ReflectType, which panics in the
+// logfmt encoder on named types (e.g. protocol.ID).
 func (h *slogHandler) toZapField(a slog.Attr) zapcore.Field {
 	key := a.Key
 	if len(h.groups) > 0 {
 		key = strings.Join(h.groups, ".") + "." + key
 	}
 
-	return zapcore.Field{Key: key, Type: zapcore.ReflectType, Interface: a.Value.Resolve().Any()}
+	return zapcore.Field{Key: key, Type: zapcore.StringType, String: fmt.Sprint(a.Value.Resolve().Any())}
 }
 
 // toZapLevel maps a slog level to the closest zap level.
