@@ -107,7 +107,7 @@ func TestSlogHandlerNamedTypes(t *testing.T) {
 	require.Contains(t, buf.String(), "sending identify")
 	require.Contains(t, buf.String(), "/proto/1.0")
 
-	// Float, int, bool, and duration values must also survive logfmt encoding.
+	// Float, int, and bool values must also survive logfmt encoding.
 	buf.Reset()
 	require.NotPanics(t, func() {
 		identify.Debug("peer stats",
@@ -119,4 +119,5 @@ func TestSlogHandlerNamedTypes(t *testing.T) {
 
 	require.Contains(t, buf.String(), "3.14")
 	require.Contains(t, buf.String(), "42")
+	require.Contains(t, buf.String(), "true")
 }

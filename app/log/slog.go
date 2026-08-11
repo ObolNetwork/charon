@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // SlogHandler returns a slog.Handler that writes records to the global charon logger.
@@ -46,13 +47,12 @@ func (h *slogHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= h.level
 }
 
-func (h *slogHandler) Handle(_ context.Context, rec slog.Record) (err error) {
+func (h *slogHandler) Handle(_ context.Context, rec slog.Record) error {
 	// Never let a logging panic crash the process.
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "slog handler panic (dropped log): %v\n", r)
-
-			err = errors.New("slog handler panic")
+			Error(context.Background(), "Libp2p slog handler panic, log line dropped",
+				errors.New("slog handler panic", z.Str("panic", fmt.Sprint(r))))
 		}
 	}()
 
