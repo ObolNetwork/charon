@@ -51,6 +51,12 @@ func (h *slogHandler) Handle(_ context.Context, rec slog.Record) error {
 	// Never let a logging panic crash the process.
 	defer func() {
 		if r := recover(); r != nil {
+			defer func() {
+				if r2 := recover(); r2 != nil {
+					fmt.Fprintf(os.Stderr, "slog handler panic (logging also failed): %v\n", r)
+				}
+			}()
+
 			Error(context.Background(), "Libp2p slog handler panic, log line dropped",
 				errors.New("slog handler panic", z.Str("panic", fmt.Sprint(r))))
 		}
