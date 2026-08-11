@@ -2537,7 +2537,9 @@ func TestComponent_SyncCommitteeSelectionsResponseOrder(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	valSet := beaconmock.ValidatorSetA
+
+	valSet, err := beaconmock.ValidatorSetA.Clone()
+	require.NoError(t, err)
 
 	secret, err := tbls.GenerateSecretKey()
 	require.NoError(t, err)
