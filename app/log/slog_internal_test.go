@@ -83,3 +83,41 @@ func TestSlogHandler(t *testing.T) {
 	other.Error("failed to listen", "err", "address in use")
 	require.Contains(t, buf.String(), "failed to listen")
 }
+
+// namedString is a named string type like protocol.ID that is not plain string.
+type namedString string
+
+func TestSlogHandlerNamedTypes(t *testing.T) {
+	var buf bytes.Buffer
+
+	InitLogfmtForT(t, zapcore.AddSync(&buf))
+
+	levels := parseSlogLevels("identify=debug")
+	h := slog.Handler(&slogHandler{levels: levels, level: levels.fallback})
+	identify := slog.New(h.WithAttrs([]slog.Attr{slog.String("logger", "identify")}))
+
+	// Logging a slice of named-string types (like []protocol.ID) previously
+	// panicked because logfmt's AppendReflected asserts interface{} to string.
+	protocols := []namedString{"/proto/1.0", "/proto/2.0"}
+
+	require.NotPanics(t, func() {
+		identify.Debug("sending identify", "protocols", protocols)
+	})
+
+	require.Contains(t, buf.String(), "sending identify")
+	require.Contains(t, buf.String(), "/proto/1.0")
+
+	// Float, int, and bool values must also survive logfmt encoding.
+	buf.Reset()
+	require.NotPanics(t, func() {
+		identify.Debug("peer stats",
+			"score", 3.14,
+			"conns", 42,
+			"relay", true,
+		)
+	})
+
+	require.Contains(t, buf.String(), "3.14")
+	require.Contains(t, buf.String(), "42")
+	require.Contains(t, buf.String(), "true")
+}
