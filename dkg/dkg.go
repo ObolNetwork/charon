@@ -270,7 +270,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// Register libp2p handlers
-	caster := bcast.New(p2pNode, peerIDs, key)
+	caster := bcast.New(p2pNode, peerIDs, key, def.DefinitionHash)
 
 	// register bcast callbacks for frostp2p
 	tp, err := newFrostP2P(p2pNode, peerMap, caster, def.Threshold, newValidators)

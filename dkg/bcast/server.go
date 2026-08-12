@@ -117,7 +117,7 @@ func (s *server) handleSigRequest(ctx context.Context, pID peer.ID, m proto.Mess
 		return nil, false, errors.Wrap(err, "signature request message check")
 	}
 
-	reqMessageHash, err := s.hashFunc(req.GetMessage())
+	reqMessageHash, err := s.hashFunc(req.GetId(), req.GetMessage())
 	if err != nil {
 		return nil, false, errors.Wrap(err, "hash any")
 	}

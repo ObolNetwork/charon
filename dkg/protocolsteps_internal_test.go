@@ -194,7 +194,7 @@ func TestUpdateNodeSignaturesProtocolStep(t *testing.T) {
 
 	for n := range numNodes {
 		group.Go(func() error {
-			caster := bcast.New(nodes[n].NodeHost, peers, nodeKeys[n])
+			caster := bcast.New(nodes[n].NodeHost, peers, nodeKeys[n], lock.DefinitionHash)
 			nodeSigCaster := newNodeSigBcast(allPeers, cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1}, caster)
 
 			step := &updateNodeSignaturesProtocolStep{}

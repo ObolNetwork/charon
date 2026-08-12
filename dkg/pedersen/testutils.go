@@ -74,7 +74,7 @@ func ConnectTestNodes(t *testing.T, nodes []*TestNode) {
 func (n *TestNode) InitBoard(t *testing.T, threshold int, peers []peer.ID, peerMap map[peer.ID]cluster.NodeIdx, session []byte) {
 	t.Helper()
 
-	bc := bcast.New(n.NodeHost, peers, n.NodeSecret)
+	bc := bcast.New(n.NodeHost, peers, n.NodeSecret, session)
 	logCtx := log.WithCtx(t.Context(), z.Int("index", n.NodeIdx.PeerIdx))
 	n.Config = NewConfig(n.NodeHost.ID(), peerMap, threshold, session, 3*time.Second, nil)
 	n.Board = NewBoard(logCtx, n.NodeHost, n.Config, bc)
