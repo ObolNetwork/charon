@@ -11,10 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -388,6 +390,60 @@ func TestUnmarshalDefinitionDepositAmounts(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestDefinitionPeersDuplicatePeerID(t *testing.T) {
+	newENR := func(key *k1.PrivateKey, opts ...enr.Option) string {
+		record, err := enr.New(key, opts...)
+		require.NoError(t, err)
+
+		return record.String()
+	}
+
+	dupKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	// Two distinct ENR strings encoding the same public key, so the same peer ID.
+	dupENR1 := newENR(dupKey)
+	dupENR2 := newENR(dupKey, enr.WithTCP(3610))
+	require.NotEqual(t, dupENR1, dupENR2)
+
+	uniqueENR := func() string {
+		key, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		return newENR(key)
+	}
+
+	tests := []struct {
+		name string
+		enrs []string
+	}{
+		{
+			name: "duplicate peer ids with distinct enrs",
+			enrs: []string{uniqueENR(), dupENR1, dupENR2, uniqueENR()},
+		},
+		{
+			name: "duplicate peer ids at tail",
+			enrs: []string{uniqueENR(), uniqueENR(), dupENR1, dupENR2},
+		},
+		{
+			name: "duplicate identical enrs",
+			enrs: []string{uniqueENR(), dupENR1, dupENR1, uniqueENR()},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var def cluster.Definition
+			for _, e := range tt.enrs {
+				def.Operators = append(def.Operators, cluster.Operator{ENR: e})
+			}
+
+			_, err := def.Peers()
+			require.ErrorContains(t, err, "definition contains duplicate peer ids")
 		})
 	}
 }

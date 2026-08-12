@@ -8,7 +8,9 @@ import (
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util"
@@ -196,6 +198,68 @@ func TestValidateKeymanagerFlags(t *testing.T) {
 			err := validateKeymanagerFlags(context.Background(), tt.addr, tt.authToken)
 			if tt.errMsg != "" {
 				require.ErrorContains(t, err, tt.errMsg)
+			}
+		})
+	}
+}
+
+func TestCheckThreshold(t *testing.T) {
+	tests := []struct {
+		name         string
+		threshold    int
+		numOperators int
+		errMsg       string
+		warnMsg      string
+	}{
+		{
+			name:         "safe threshold",
+			threshold:    3,
+			numOperators: 4,
+		},
+		{
+			name:         "unsafe low threshold",
+			threshold:    2,
+			numOperators: 4,
+			warnMsg:      "Cluster definition threshold differs from recommended value",
+		},
+		{
+			name:         "unsafe high threshold",
+			threshold:    4,
+			numOperators: 4,
+			warnMsg:      "Cluster definition threshold differs from recommended value",
+		},
+		{
+			name:         "threshold below minimum",
+			threshold:    1,
+			numOperators: 4,
+			errMsg:       "threshold below minimum",
+		},
+		{
+			name:         "threshold exceeds number of operators",
+			threshold:    5,
+			numOperators: 4,
+			errMsg:       "threshold exceeds number of operators",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf zaptest.Buffer
+
+			log.InitLogfmtForT(t, &buf)
+
+			err := checkThreshold(context.Background(), tt.threshold, tt.numOperators)
+			if tt.errMsg != "" {
+				require.ErrorContains(t, err, tt.errMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			if tt.warnMsg != "" {
+				require.Contains(t, buf.String(), tt.warnMsg)
+			} else {
+				require.Empty(t, buf.String())
 			}
 		})
 	}

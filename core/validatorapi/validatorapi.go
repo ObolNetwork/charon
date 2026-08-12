@@ -1050,7 +1050,10 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 	// selections don't collide on the pubkey-keyed set.
 	psigsBySlotSubcomm := make(map[slotSubcomm]core.ParSignedDataSet)
 
-	for _, selection := range opts.Selections {
+	// Resolve pubkeys upfront so the response can be built in request order.
+	pubkeys := make([]core.PubKey, len(opts.Selections))
+
+	for i, selection := range opts.Selections {
 		eth2Pubkey, ok := vals[selection.ValidatorIndex]
 		if !ok {
 			return nil, errors.New("validator not found")
@@ -1060,6 +1063,8 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 		if err != nil {
 			return nil, err
 		}
+
+		pubkeys[i] = pubkey
 
 		parSigData := core.NewPartialSignedSyncCommitteeSelection(selection, c.shareIdx)
 
@@ -1087,24 +1092,25 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 		}
 	}
 
-	var resp []*eth2v1.SyncCommitteeSelection
+	// Build response in the same order as the request so index-matching VCs
+	// (e.g. prysm) associate aggregated proofs with the correct subcommittee.
+	resp := make([]*eth2v1.SyncCommitteeSelection, 0, len(opts.Selections))
 
-	for key, data := range psigsBySlotSubcomm {
-		duty := core.NewPrepareSyncContributionDuty(uint64(key.Slot))
-		for pk := range data {
-			// Query aggregated sync committee selection from aggsigdb for each duty, public key and subcommittee (this is blocking).
-			s, err := c.awaitAggSigDBFunc(ctx, duty, pk, key.SubcommIdx)
-			if err != nil {
-				return nil, err
-			}
+	for i, selection := range opts.Selections {
+		duty := core.NewPrepareSyncContributionDuty(uint64(selection.Slot))
+		subcommIdx := core.SubcommitteeIndex(selection.SubcommitteeIndex)
 
-			sub, ok := s.(core.SyncCommitteeSelection)
-			if !ok {
-				return nil, errors.New("invalid sync committee selection")
-			}
-
-			resp = append(resp, &sub.SyncCommitteeSelection)
+		s, err := c.awaitAggSigDBFunc(ctx, duty, pubkeys[i], subcommIdx)
+		if err != nil {
+			return nil, err
 		}
+
+		sub, ok := s.(core.SyncCommitteeSelection)
+		if !ok {
+			return nil, errors.New("invalid sync committee selection")
+		}
+
+		resp = append(resp, &sub.SyncCommitteeSelection)
 	}
 
 	return wrapResponse(resp), nil
