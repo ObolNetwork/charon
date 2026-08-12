@@ -150,7 +150,9 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 	}
 
 	// The broadcaster is created for all participating nodes, because it is used by the board and the node signature caster.
-	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey)
+	// Bind broadcasts to the lock hash since it changes with every cluster mutation,
+	// preventing replay of messages from previous ceremonies of the same cluster.
+	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
 
 	if !p.oldNode {

@@ -91,7 +91,9 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 	}
 
 	pctx.SigExchanger = sigEx
-	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey)
+	// Bind broadcasts to the lock hash since it changes with every cluster mutation,
+	// preventing replay of messages from previous ceremonies of the same cluster.
+	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
 
 	newPeerIDs := pctx.PeerIDs[len(pctx.Lock.Operators):]
