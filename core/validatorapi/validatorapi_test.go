@@ -2431,14 +2431,8 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	}
 	require.Equal(t, expect, merged)
 
-	got := eth2Resp.Data
-
-	// Sort by VIdx before comparing.
-	sort.Slice(got, func(i, j int) bool {
-		return got[i].ValidatorIndex < got[j].ValidatorIndex
-	})
-
-	require.Equal(t, selections, got)
+	// Response must preserve request order (prysm matches by index).
+	require.Equal(t, selections, eth2Resp.Data)
 }
 
 // TestComponent_SyncCommitteeSelectionsMultiSubcommittee exercises the bug scenario:
@@ -2527,7 +2521,82 @@ func TestComponent_SyncCommitteeSelectionsMultiSubcommittee(t *testing.T) {
 	require.Contains(t, stored, uint64(subcommA))
 	require.Contains(t, stored, uint64(subcommB))
 
-	require.ElementsMatch(t, selections, eth2Resp.Data)
+	// Response must preserve request order (prysm matches by index).
+	require.Equal(t, selections, eth2Resp.Data)
+}
+
+// TestComponent_SyncCommitteeSelectionsResponseOrder verifies that the response
+// preserves request order. Prysm matches response[i] to request[i] by index;
+// Go map iteration randomises order, so the response must be built from the
+// request slice, not from the internal map.
+func TestComponent_SyncCommitteeSelectionsResponseOrder(t *testing.T) {
+	const (
+		slot     = 0
+		shareIdx = 1
+		vIdx     = 1
+	)
+
+	ctx := context.Background()
+
+	valSet, err := beaconmock.ValidatorSetA.Clone()
+	require.NoError(t, err)
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	pk, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+
+	valSet[vIdx].Validator.PublicKey = eth2p0.BLSPubKey(pubkey)
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet))
+	require.NoError(t, err)
+
+	newSelection := func(subcommIdx uint64) *eth2v1.SyncCommitteeSelection {
+		sel := testutil.RandomSyncCommitteeSelection()
+		sel.ValidatorIndex = valSet[vIdx].Index
+		sel.Slot = slot
+		sel.SubcommitteeIndex = subcommIdx
+		sel.SelectionProof = syncCommSelectionProof(t, bmock, secret, slot, subcommIdx)
+
+		return sel
+	}
+
+	// Send subcommittees in REVERSE order (3,2,1,0) — any iteration over a
+	// map keyed by ascending subcommittee index would produce 0,1,2,3.
+	selections := []*eth2v1.SyncCommitteeSelection{
+		newSelection(3), newSelection(2), newSelection(1), newSelection(0),
+	}
+
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{pk: {shareIdx: pubkey}}
+
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+		for _, sel := range selections {
+			if sel.SubcommitteeIndex == uint64(subcommIdx) {
+				return core.NewSyncCommitteeSelection(sel), nil
+			}
+		}
+
+		return nil, errors.New("selection not found")
+	})
+
+	vapi.Subscribe(func(context.Context, core.Duty, core.ParSignedDataSet) error {
+		return nil
+	})
+
+	eth2Resp, err := vapi.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: selections})
+	require.NoError(t, err)
+
+	for i, got := range eth2Resp.Data {
+		require.Equal(t, selections[i].SubcommitteeIndex, got.SubcommitteeIndex,
+			"response[%d]: expected subcommittee %d, got %d", i, selections[i].SubcommitteeIndex, got.SubcommitteeIndex)
+	}
 }
 
 // syncCommSelectionProof returns the selection_proof corresponding to the provided altair.ContributionAndProof.
