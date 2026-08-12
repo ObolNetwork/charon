@@ -172,6 +172,10 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("only v1.6.0 and newer cluster definition versions supported")
 	}
 
+	if err := checkThreshold(ctx, def.Threshold, len(def.Operators)); err != nil {
+		return err
+	}
+
 	if err := validateKeymanagerFlags(ctx, conf.KeymanagerAddr, conf.KeymanagerAuthToken); err != nil {
 		return err
 	}
@@ -1277,6 +1281,27 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock, 
 	log.Debug(ctx, "Published lock file to api")
 
 	return cl.LaunchpadURLForLock(lock), nil
+}
+
+// checkThreshold returns an error if the threshold is out of bounds and
+// logs a warning if it differs from the recommended value for the number of operators.
+func checkThreshold(ctx context.Context, threshold, numOperators int) error {
+	const minThreshold = 2
+
+	if threshold < minThreshold {
+		return errors.New("threshold below minimum", z.Int("threshold", threshold), z.Int("min", minThreshold))
+	}
+
+	if threshold > numOperators {
+		return errors.New("threshold exceeds number of operators", z.Int("threshold", threshold), z.Int("operators", numOperators))
+	}
+
+	if safe := cluster.Threshold(numOperators); threshold != safe {
+		log.Warn(ctx, "Cluster definition threshold differs from recommended value, this will affect cluster safety",
+			nil, z.Int("threshold", threshold), z.Int("safe_threshold", safe))
+	}
+
+	return nil
 }
 
 // validateKeymanagerFlags returns an error if one keymanager flag is present but the other is not.
