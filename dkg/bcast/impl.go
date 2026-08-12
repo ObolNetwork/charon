@@ -83,8 +83,13 @@ func newHashAny(sessionHash []byte) hashFunc {
 	return func(msgID string, anyPB *anypb.Any) ([]byte, error) {
 		h := sha256.New()
 		for _, field := range [][]byte{sessionHash, []byte(msgID), []byte(anyPB.GetTypeUrl()), anyPB.GetValue()} {
-			_ = binary.Write(h, binary.BigEndian, uint64(len(field)))
-			_, _ = h.Write(field)
+			if err := binary.Write(h, binary.BigEndian, uint64(len(field))); err != nil {
+				return nil, errors.Wrap(err, "write field length")
+			}
+
+			if _, err := h.Write(field); err != nil {
+				return nil, errors.Wrap(err, "write field")
+			}
 		}
 
 		return h.Sum(nil), nil
