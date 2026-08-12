@@ -53,6 +53,7 @@ type ScoredPriority struct {
 func NewComponent(ctx context.Context, p2pNode host.Host, peers []peer.ID, minRequired int, sendFunc p2p.SendReceiveFunc,
 	registerHandlerFunc p2p.RegisterHandlerFunc, consensus Consensus,
 	exchangeTimeout time.Duration, privkey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
+	gaterFunc core.DutyGaterFunc,
 ) (*Component, error) {
 	verifier, err := newMsgVerifier(peers)
 	if err != nil {
@@ -62,7 +63,7 @@ func NewComponent(ctx context.Context, p2pNode host.Host, peers []peer.ID, minRe
 	deadliner := core.NewDeadliner(ctx, "priority", deadlineFunc)
 
 	prioritiser := newInternal(p2pNode, peers, minRequired, sendFunc, registerHandlerFunc,
-		consensus, verifier, exchangeTimeout, deadliner)
+		consensus, verifier, exchangeTimeout, deadliner, gaterFunc)
 
 	return &Component{
 		peerID:       p2pNode.ID(),

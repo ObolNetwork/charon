@@ -716,7 +716,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	// Priority protocol always uses QBFTv2.
 	isync, err := wirePrioritise(ctx, conf, life, p2pNode, peerIDs, lock.Threshold,
 		sender.SendReceive, defaultConsensus, sched, p2pKey, deadlineFunc,
-		consensusController, lock.ConsensusProtocol)
+		consensusController, lock.ConsensusProtocol, gaterFunc)
 	if err != nil {
 		return err
 	}
@@ -773,6 +773,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 	peers []peer.ID, threshold int, sendFunc p2p.SendReceiveFunc, coreCons core.Consensus,
 	sched core.Scheduler, p2pKey *k1.PrivateKey, deadlineFunc func(duty core.Duty) (time.Time, bool),
 	consensusController core.ConsensusController, clusterPreferredProtocol string,
+	gaterFunc core.DutyGaterFunc,
 ) (*infosync.Component, error) {
 	cons, ok := coreCons.(*qbft.Consensus)
 	if !ok {
@@ -785,7 +786,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 	const exchangeTimeout = time.Second * 6
 
 	prio, err := priority.NewComponent(ctx, p2pNode, peers, threshold,
-		sendFunc, p2p.RegisterHandler, cons, exchangeTimeout, p2pKey, deadlineFunc)
+		sendFunc, p2p.RegisterHandler, cons, exchangeTimeout, p2pKey, deadlineFunc, gaterFunc)
 	if err != nil {
 		return nil, err
 	}

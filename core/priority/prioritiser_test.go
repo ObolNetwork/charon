@@ -69,7 +69,7 @@ func TestPrioritiser(t *testing.T) {
 		}
 
 		prio := priority.NewForT(t, tcpNode, peers, n, p2p.SendReceive, p2p.RegisterHandler,
-			consensus, msgValidator, time.Hour, deadliner)
+			consensus, msgValidator, time.Hour, deadliner, allowAllDuties)
 
 		prio.Subscribe(func(_ context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
 			require.Len(t, result.GetTopics(), 1)
@@ -325,8 +325,11 @@ func newTestPrioritiser(t *testing.T, p2pNode host.Host, peers []peer.ID, send p
 	t.Helper()
 
 	return priority.NewForT(t, p2pNode, peers, len(peers), send, register, consensus,
-		func(*pbv1.PriorityMsg) error { return nil }, time.Hour, deadliner)
+		func(*pbv1.PriorityMsg) error { return nil }, time.Hour, deadliner, allowAllDuties)
 }
+
+// allowAllDuties is a core.DutyGaterFunc that gates nothing.
+func allowAllDuties(core.Duty) bool { return true }
 
 // testConsensus is a mock consensus implementation that "decides" on the first proposal.
 // It also expects all proposals to be identical.
