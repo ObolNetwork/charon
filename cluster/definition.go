@@ -386,14 +386,10 @@ func validateSignatureLength(version string, sig []byte, fieldName string) error
 func (d Definition) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
 
-	dedup := make(map[string]bool)
+	// Dedup by peer ID (not ENR string) since distinct ENRs can encode the same public key.
+	dedup := make(map[peer.ID]bool)
+
 	for i, operator := range d.Operators {
-		if dedup[operator.ENR] {
-			return nil, errors.New("definition contains duplicate peer enrs", z.Str("enr", operator.ENR))
-		}
-
-		dedup[operator.ENR] = true
-
 		record, err := enr.Parse(operator.ENR)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.ENR))
@@ -403,6 +399,12 @@ func (d Definition) Peers() ([]p2p.Peer, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if dedup[p.ID] {
+			return nil, errors.New("definition contains duplicate peer ids", z.Str("enr", operator.ENR), z.Str("peer", p.Name))
+		}
+
+		dedup[p.ID] = true
 
 		resp = append(resp, p)
 	}
