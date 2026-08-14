@@ -50,10 +50,12 @@ func TestFetchSlotTimingConfig(t *testing.T) {
 	require.Equal(t, eth2wrap.SlotTimingConfig{
 		Attestation: eth2wrap.ForkBPS{PreGloas: 2000, Gloas: 1500},
 		// Keys the beacon node doesn't publish default to the consensus spec values.
-		Aggregate:    eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
-		SyncMessage:  eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
-		Contribution: eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
-		GloasEpoch:   1024,
+		Aggregate:          eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
+		SyncMessage:        eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
+		Contribution:       eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
+		Payload:            eth2wrap.ForkBPS{Gloas: 5000},
+		PayloadAttestation: eth2wrap.ForkBPS{Gloas: 7500},
+		GloasEpoch:         1024,
 	}, timing)
 }
 

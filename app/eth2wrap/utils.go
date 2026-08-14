@@ -56,11 +56,8 @@ var (
 // BasisPoints is the total number of basis points, ie. 100% of the slot duration.
 const BasisPoints = 10_000
 
-// gloasSuffix is appended to the intra-slot deadline spec keys that the gloas fork overrides.
-const gloasSuffix = "_GLOAS"
-
-// ForkBPS defines an intra-slot duty deadline in basis points of the slot duration,
-// both before and after the gloas fork.
+// ForkBPS defines an intra-slot duty deadline in basis points of the slot duration, per fork.
+// PreGloas is zero for deadlines that the gloas fork introduces, since they don't apply before it.
 type ForkBPS struct {
 	PreGloas uint64
 	Gloas    uint64
@@ -72,6 +69,11 @@ type SlotTimingConfig struct {
 	Aggregate    ForkBPS
 	SyncMessage  ForkBPS
 	Contribution ForkBPS
+	// Payload is the deadline for the builder to reveal the execution payload.
+	Payload ForkBPS
+	// PayloadAttestation is the deadline for payload timeliness committee members to broadcast
+	// payload attestations.
+	PayloadAttestation ForkBPS
 	// GloasEpoch is the epoch at which the gloas deadlines take effect. It is math.MaxUint64
 	// if the beacon node doesn't publish GLOAS_FORK_EPOCH or hasn't scheduled the fork.
 	GloasEpoch eth2p0.Epoch
@@ -80,10 +82,12 @@ type SlotTimingConfig struct {
 // Intra-slot duty deadlines as basis points of the slot duration as defined by the consensus spec.
 // These are applied for beacon nodes that predate the corresponding spec keys.
 var (
-	defaultAttestationBPS  = ForkBPS{PreGloas: 3333, Gloas: 2500}
-	defaultAggregateBPS    = ForkBPS{PreGloas: 6667, Gloas: 5000}
-	defaultSyncMessageBPS  = ForkBPS{PreGloas: 3333, Gloas: 2500}
-	defaultContributionBPS = ForkBPS{PreGloas: 6667, Gloas: 5000}
+	defaultAttestationBPS        = ForkBPS{PreGloas: 3333, Gloas: 2500}
+	defaultAggregateBPS          = ForkBPS{PreGloas: 6667, Gloas: 5000}
+	defaultSyncMessageBPS        = ForkBPS{PreGloas: 3333, Gloas: 2500}
+	defaultContributionBPS       = ForkBPS{PreGloas: 6667, Gloas: 5000}
+	defaultPayloadBPS            = ForkBPS{Gloas: 5000}
+	defaultPayloadAttestationBPS = ForkBPS{Gloas: 7500}
 )
 
 // FetchSlotTimingConfig returns the network's intra-slot duty deadlines.
@@ -109,27 +113,40 @@ func parseSlotTimingConfig(data map[string]any) (SlotTimingConfig, error) {
 		resp.GloasEpoch = eth2p0.Epoch(epoch)
 	}
 
+	// Note that the deadlines introduced by the gloas fork have no pre-gloas key, since the
+	// unsuffixed key is itself the gloas value.
 	for _, field := range []struct {
-		Key      string
-		Default  ForkBPS
-		Resolved *ForkBPS
+		PreGloasKey string
+		GloasKey    string
+		Default     ForkBPS
+		Resolved    *ForkBPS
 	}{
-		{Key: "ATTESTATION_DUE_BPS", Default: defaultAttestationBPS, Resolved: &resp.Attestation},
-		{Key: "AGGREGATE_DUE_BPS", Default: defaultAggregateBPS, Resolved: &resp.Aggregate},
-		{Key: "SYNC_MESSAGE_DUE_BPS", Default: defaultSyncMessageBPS, Resolved: &resp.SyncMessage},
-		{Key: "CONTRIBUTION_DUE_BPS", Default: defaultContributionBPS, Resolved: &resp.Contribution},
+		{PreGloasKey: "ATTESTATION_DUE_BPS", GloasKey: "ATTESTATION_DUE_BPS_GLOAS", Default: defaultAttestationBPS, Resolved: &resp.Attestation},
+		{PreGloasKey: "AGGREGATE_DUE_BPS", GloasKey: "AGGREGATE_DUE_BPS_GLOAS", Default: defaultAggregateBPS, Resolved: &resp.Aggregate},
+		{PreGloasKey: "SYNC_MESSAGE_DUE_BPS", GloasKey: "SYNC_MESSAGE_DUE_BPS_GLOAS", Default: defaultSyncMessageBPS, Resolved: &resp.SyncMessage},
+		{PreGloasKey: "CONTRIBUTION_DUE_BPS", GloasKey: "CONTRIBUTION_DUE_BPS_GLOAS", Default: defaultContributionBPS, Resolved: &resp.Contribution},
+		{GloasKey: "PAYLOAD_DUE_BPS", Default: defaultPayloadBPS, Resolved: &resp.Payload},
+		{GloasKey: "PAYLOAD_ATTESTATION_DUE_BPS", Default: defaultPayloadAttestationBPS, Resolved: &resp.PayloadAttestation},
 	} {
-		preGloas, err := parseBPS(data, field.Key, field.Default.PreGloas)
+		resolved := field.Default
+
+		if field.PreGloasKey != "" {
+			preGloas, err := parseBPS(data, field.PreGloasKey, field.Default.PreGloas)
+			if err != nil {
+				return SlotTimingConfig{}, err
+			}
+
+			resolved.PreGloas = preGloas
+		}
+
+		gloas, err := parseBPS(data, field.GloasKey, field.Default.Gloas)
 		if err != nil {
 			return SlotTimingConfig{}, err
 		}
 
-		gloas, err := parseBPS(data, field.Key+gloasSuffix, field.Default.Gloas)
-		if err != nil {
-			return SlotTimingConfig{}, err
-		}
+		resolved.Gloas = gloas
 
-		*field.Resolved = ForkBPS{PreGloas: preGloas, Gloas: gloas}
+		*field.Resolved = resolved
 	}
 
 	return resp, nil

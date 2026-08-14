@@ -32,6 +32,7 @@ const (
 	DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF"
 	DomainDeposit                     DomainName = "DOMAIN_DEPOSIT"
 	DomainBlobSidecar                 DomainName = "DOMAIN_BLOB_SIDECAR"
+	DomainPTCAttester                 DomainName = "DOMAIN_PTC_ATTESTER"
 )
 
 // GetDomain returns the beacon domain for the provided type.
