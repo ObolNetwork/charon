@@ -37,10 +37,11 @@ func NewSlotOffsetFunc(ctx context.Context, eth2Cl eth2wrap.Client) (SlotOffsetF
 // newSlotOffsetFunc returns a slot offset function for the provided spec values.
 func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing eth2wrap.SlotTimingConfig) SlotOffsetFunc {
 	bpsByDuty := map[DutyType]eth2wrap.ForkBPS{
-		DutyAttester:         timing.Attestation,
-		DutyAggregator:       timing.Aggregate,
-		DutySyncMessage:      timing.SyncMessage,
-		DutySyncContribution: timing.Contribution,
+		DutyAttester:           timing.Attestation,
+		DutyAggregator:         timing.Aggregate,
+		DutySyncMessage:        timing.SyncMessage,
+		DutySyncContribution:   timing.Contribution,
+		DutyPayloadAttestation: timing.Payload,
 	}
 
 	gloasSlot, gloasScheduled := forkSlot(timing.GloasEpoch, slotsPerEpoch)
