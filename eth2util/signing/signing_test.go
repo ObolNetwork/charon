@@ -21,6 +21,19 @@ import (
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
+func TestGetDomainPTCAttester(t *testing.T) {
+	// The gloas fork adds DOMAIN_PTC_ATTESTER for payload timeliness attestations.
+	// See https://github.com/ethereum/consensus-specs/blob/v1.7.0-alpha.13/specs/gloas/beacon-chain.md
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithSpecOverride("DOMAIN_PTC_ATTESTER", "0x0c000000"))
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(t.Context(), bmock, signing.DomainPTCAttester, 0)
+	require.NoError(t, err)
+
+	// The first four bytes of a signing domain are its domain type.
+	require.Equal(t, []byte{0x0c, 0x00, 0x00, 0x00}, domain[:4])
+}
+
 func TestVerifyRegistrationReference(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)

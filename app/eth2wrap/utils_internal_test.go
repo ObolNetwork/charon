@@ -63,11 +63,13 @@ func TestFetchNetworkSpecErrors(t *testing.T) {
 func TestParseSlotTimingConfig(t *testing.T) {
 	// specDefaults is the config returned when the beacon node publishes none of the keys.
 	specDefaults := SlotTimingConfig{
-		Attestation:  ForkBPS{PreGloas: 3333, Gloas: 2500},
-		Aggregate:    ForkBPS{PreGloas: 6667, Gloas: 5000},
-		SyncMessage:  ForkBPS{PreGloas: 3333, Gloas: 2500},
-		Contribution: ForkBPS{PreGloas: 6667, Gloas: 5000},
-		GloasEpoch:   math.MaxUint64,
+		Attestation:        ForkBPS{PreGloas: 3333, Gloas: 2500},
+		Aggregate:          ForkBPS{PreGloas: 6667, Gloas: 5000},
+		SyncMessage:        ForkBPS{PreGloas: 3333, Gloas: 2500},
+		Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
+		Payload:            ForkBPS{Gloas: 5000},
+		PayloadAttestation: ForkBPS{Gloas: 7500},
+		GloasEpoch:         math.MaxUint64,
 	}
 
 	tests := []struct {
@@ -93,15 +95,40 @@ func TestParseSlotTimingConfig(t *testing.T) {
 				"CONTRIBUTION_DUE_BPS":        uint64(6667),
 				"CONTRIBUTION_DUE_BPS_GLOAS":  uint64(5000),
 				"GLOAS_FORK_EPOCH":            uint64(1024),
-				"PAYLOAD_ATTESTATION_DUE_BPS": uint64(7500), // Unused, must be ignored.
+				"PAYLOAD_DUE_BPS":             uint64(5000),
+				"PAYLOAD_ATTESTATION_DUE_BPS": uint64(7500),
+				"INCLUSION_LIST_DUE_BPS":      uint64(6667), // Heze only, must be ignored.
 			},
 			expect: SlotTimingConfig{
-				Attestation:  ForkBPS{PreGloas: 3333, Gloas: 2500},
-				Aggregate:    ForkBPS{PreGloas: 6667, Gloas: 5000},
-				SyncMessage:  ForkBPS{PreGloas: 3333, Gloas: 2500},
-				Contribution: ForkBPS{PreGloas: 6667, Gloas: 5000},
-				GloasEpoch:   1024,
+				Attestation:        ForkBPS{PreGloas: 3333, Gloas: 2500},
+				Aggregate:          ForkBPS{PreGloas: 6667, Gloas: 5000},
+				SyncMessage:        ForkBPS{PreGloas: 3333, Gloas: 2500},
+				Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
+				Payload:            ForkBPS{Gloas: 5000},
+				PayloadAttestation: ForkBPS{Gloas: 7500},
+				GloasEpoch:         1024,
 			},
+		},
+		{
+			name: "custom payload deadlines",
+			data: map[string]any{
+				"PAYLOAD_DUE_BPS":             uint64(4000),
+				"PAYLOAD_ATTESTATION_DUE_BPS": uint64(8000),
+			},
+			expect: SlotTimingConfig{
+				Attestation:        ForkBPS{PreGloas: 3333, Gloas: 2500},
+				Aggregate:          ForkBPS{PreGloas: 6667, Gloas: 5000},
+				SyncMessage:        ForkBPS{PreGloas: 3333, Gloas: 2500},
+				Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
+				Payload:            ForkBPS{Gloas: 4000},
+				PayloadAttestation: ForkBPS{Gloas: 8000},
+				GloasEpoch:         math.MaxUint64,
+			},
+		},
+		{
+			name:    "invalid payload attestation basis points",
+			data:    map[string]any{"PAYLOAD_ATTESTATION_DUE_BPS": uint64(10001)},
+			errorIs: "invalid basis points in network spec",
 		},
 		{
 			name: "custom values override defaults",
@@ -111,11 +138,13 @@ func TestParseSlotTimingConfig(t *testing.T) {
 				"GLOAS_FORK_EPOCH":          uint64(0),
 			},
 			expect: SlotTimingConfig{
-				Attestation:  ForkBPS{PreGloas: 2000, Gloas: 1500},
-				Aggregate:    ForkBPS{PreGloas: 6667, Gloas: 5000},
-				SyncMessage:  ForkBPS{PreGloas: 3333, Gloas: 2500},
-				Contribution: ForkBPS{PreGloas: 6667, Gloas: 5000},
-				GloasEpoch:   0,
+				Attestation:        ForkBPS{PreGloas: 2000, Gloas: 1500},
+				Aggregate:          ForkBPS{PreGloas: 6667, Gloas: 5000},
+				SyncMessage:        ForkBPS{PreGloas: 3333, Gloas: 2500},
+				Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
+				Payload:            ForkBPS{Gloas: 5000},
+				PayloadAttestation: ForkBPS{Gloas: 7500},
+				GloasEpoch:         0,
 			},
 		},
 		{
