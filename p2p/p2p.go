@@ -461,7 +461,6 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 
 	forceQUICConn := func(ctx context.Context) {
 		if !isQUICEnabled(p2pNode) {
-			log.Debug(ctx, "QUIC feature not enabled on this node")
 			return // doesn't support QUIC
 		}
 
@@ -481,8 +480,6 @@ func UpgradeToQUICConnections(p2pNode host.Host, peerIDs []peer.ID) lifecycle.Ho
 			}
 
 			if hasDirectQUICConn(conns) {
-				log.Debug(ctx, "Direct QUIC connection to peer already established", z.Str("peer", PeerName(p)), z.Any("conns", conns))
-
 				// Remove unwanted TCP connections
 				for _, conn := range conns {
 					addr := conn.RemoteMultiaddr()
