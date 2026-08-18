@@ -310,6 +310,8 @@ func RunReshareDKG(ctx context.Context, config *Config, board *Board, shares []s
 				newShares = append(newShares, newShare)
 			}
 		}
+
+		log.Info(ctx, "Reshare for key successful", z.Int("key", shareNum+1), z.Int("total", config.Reshare.TotalShares))
 	}
 
 	log.Info(ctx, "Pedersen reshare completed.")
