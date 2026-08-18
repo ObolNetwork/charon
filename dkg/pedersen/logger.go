@@ -31,7 +31,7 @@ func (l *kyberLogger) Error(keyvals ...any) {
 
 func (l *kyberLogger) Info(keyvals ...any) {
 	msg, _ := concatKeyVals(keyvals)
-	log.Info(l.logCtx, msg)
+	log.Debug(l.logCtx, msg)
 }
 
 func concatKeyVals(keyvals []any) (str string, err error) {
