@@ -118,6 +118,8 @@ func RunDKG(ctx context.Context, config *Config, board *Board, numVals int) ([]s
 
 			shares = append(shares, share)
 		}
+
+		log.Info(ctx, "DKG for key successful", z.Int("key", i+1), z.Int("total", numVals))
 	}
 
 	log.Info(ctx, "Pedersen DKG completed.")
