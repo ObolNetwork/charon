@@ -12,8 +12,8 @@ import (
 	kshare "github.com/drand/kyber/share"
 	kdkg "github.com/drand/kyber/share/dkg"
 	drandbls "github.com/drand/kyber/sign/bdn"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/pk910/dynamic-ssz/hasher"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -442,8 +442,8 @@ func restoreCommits(publicShares map[int][][]byte, shareNum, threshold int, expe
 }
 
 func generateNonce(nodes []kdkg.Node, iteration int) ([]byte, error) {
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	indx := hh.Index()
 

@@ -9,7 +9,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -57,8 +57,8 @@ func runHashDef(t *testing.T, d Definition, configOnly bool) string {
 	fn, err := getDefinitionHashFunc(d.Version)
 	require.NoError(t, err)
 
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	require.NoError(t, fn(d, hh, configOnly))
 
@@ -280,8 +280,8 @@ func TestHashBuilderRegistration(t *testing.T) {
 	eth2hash, err := eth2Reg.Message.HashTreeRoot()
 	require.NoError(t, err)
 
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	require.NoError(t, hashRegistration(clusterReg.Message, hh))
 	clusterRegHash, err := hh.HashRoot()

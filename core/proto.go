@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"testing"
 
-	ssz "github.com/ferranbt/fastssz"
-
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/protonil"
 	"github.com/obolnetwork/charon/app/z"
@@ -270,8 +268,10 @@ func recoverPanicErr(r any) error {
 
 // marshal marshals the given value into bytes, either as SSZ if supported by the type (and if enabled) or as json.
 func marshal(v any) ([]byte, error) {
+	type sszMarshaler interface{ MarshalSSZ() ([]byte, error) }
+
 	// First try SSZ
-	if marshaller, ok := v.(ssz.Marshaler); ok && sszMarshallingEnabled {
+	if marshaller, ok := v.(sszMarshaler); ok && sszMarshallingEnabled {
 		b, err := marshaller.MarshalSSZ()
 		if err != nil {
 			return nil, errors.Wrap(err, "marshal ssz")
@@ -292,8 +292,10 @@ func marshal(v any) ([]byte, error) {
 // unmarshal unmarshals the data into the given value pointer
 // It tries to unmarshal as ssz first, then as json.
 func unmarshal(data []byte, v any) error {
+	type sszUnmarshaler interface{ UnmarshalSSZ([]byte) error }
+
 	// First try ssz
-	if unmarshaller, ok := v.(ssz.Unmarshaler); ok {
+	if unmarshaller, ok := v.(sszUnmarshaler); ok {
 		if err := unmarshaller.UnmarshalSSZ(data); err == nil {
 			return nil
 		} else if !bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {

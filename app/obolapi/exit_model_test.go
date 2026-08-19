@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/obolapi"
@@ -45,7 +45,7 @@ func TestPartialExitRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, other, pr)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -69,7 +69,7 @@ func TestUnsignedPartialExitRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -94,7 +94,7 @@ func TestPartialExits(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -117,7 +117,7 @@ func TestFullExitAuthBlob(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -136,7 +136,7 @@ func TestExitBlob(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }

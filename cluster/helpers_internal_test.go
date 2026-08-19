@@ -17,8 +17,9 @@ import (
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/google/uuid"
+	"github.com/pk910/dynamic-ssz/hasher"
+	"github.com/pk910/dynamic-ssz/sszutils"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -30,12 +31,12 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-// hashRootOf calls fn on a fresh ssz.HashWalker and returns the HashRoot as a hex string.
-func hashRootOf(t *testing.T, fn func(ssz.HashWalker) error) string {
+// hashRootOf calls fn on a fresh sszutils.HashWalker and returns the HashRoot as a hex string.
+func hashRootOf(t *testing.T, fn func(sszutils.HashWalker) error) string {
 	t.Helper()
 
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	require.NoError(t, fn(hh))
 
@@ -48,11 +49,11 @@ func hashRootOf(t *testing.T, fn func(ssz.HashWalker) error) string {
 // hashRootWithPrefix simulates the real usage pattern: open an index, call setup to
 // write a prior field, then call fn to append the field under test, merkleize, and
 // return the HashRoot. This mirrors how these helpers are called inside hashDefinition*.
-func hashRootWithPrefix(t *testing.T, setup func(ssz.HashWalker), fn func(ssz.HashWalker) error) string {
+func hashRootWithPrefix(t *testing.T, setup func(sszutils.HashWalker), fn func(sszutils.HashWalker) error) string {
 	t.Helper()
 
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	indx := hh.Index()
 	setup(hh)
@@ -68,7 +69,7 @@ func hashRootWithPrefix(t *testing.T, setup func(ssz.HashWalker), fn func(ssz.Ha
 func TestPutByteList(t *testing.T) {
 	tests := []struct {
 		name     string
-		setup    func(ssz.HashWalker) // nil = empty walker, non-nil = pre-populated
+		setup    func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
 		b        []byte
 		limit    int
 		expected string
@@ -99,14 +100,14 @@ func TestPutByteList(t *testing.T) {
 		},
 		{
 			name:     "after_uint64_42",
-			setup:    func(hh ssz.HashWalker) { hh.PutUint64(42) },
+			setup:    func(hh sszutils.HashWalker) { hh.PutUint64(42) },
 			b:        []byte("hello"),
 			limit:    256,
 			expected: "bbc79cd2fdb2cc4810be1c265d80e601221f69df244a956b222db5454dd7d439",
 		},
 		{
 			name:     "after_bytes4",
-			setup:    func(hh ssz.HashWalker) { hh.PutBytes([]byte{0x01, 0x02, 0x03, 0x04}) },
+			setup:    func(hh sszutils.HashWalker) { hh.PutBytes([]byte{0x01, 0x02, 0x03, 0x04}) },
 			b:        []byte{0xff},
 			limit:    32,
 			expected: "e27cef6249214493f3e7ade1aa0af8130029eedfc7c17d928ed8af341a5511e9",
@@ -115,7 +116,7 @@ func TestPutByteList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fn := func(hh ssz.HashWalker) error { return putByteList(hh, tt.b, tt.limit, "field") }
+			fn := func(hh sszutils.HashWalker) error { return putByteList(hh, tt.b, tt.limit, "field") }
 
 			var got string
 			if tt.setup != nil {
@@ -132,7 +133,7 @@ func TestPutByteList(t *testing.T) {
 func TestPutBytesN(t *testing.T) {
 	tests := []struct {
 		name     string
-		setup    func(ssz.HashWalker) // nil = empty walker, non-nil = pre-populated
+		setup    func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
 		b        []byte
 		n        int
 		expected string
@@ -169,14 +170,14 @@ func TestPutBytesN(t *testing.T) {
 		},
 		{
 			name:     "after_uint64_1",
-			setup:    func(hh ssz.HashWalker) { hh.PutUint64(1) },
+			setup:    func(hh sszutils.HashWalker) { hh.PutUint64(1) },
 			b:        []byte{0xab, 0xcd},
 			n:        32,
 			expected: "392b769bc14dd0593bbb9d28f2fa7c4ec6eb113ef750db4046b7136c5844c95d",
 		},
 		{
 			name:     "after_bytes20",
-			setup:    func(hh ssz.HashWalker) { hh.PutBytes(make([]byte, 20)) },
+			setup:    func(hh sszutils.HashWalker) { hh.PutBytes(make([]byte, 20)) },
 			b:        []byte{0x01, 0x02, 0x03, 0x04},
 			n:        4,
 			expected: "c092c674a087720f7136046e41d587e355a5f359b3940336f8e4e9dde2ffe236",
@@ -185,7 +186,7 @@ func TestPutBytesN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fn := func(hh ssz.HashWalker) error { return putBytesN(hh, tt.b, tt.n) }
+			fn := func(hh sszutils.HashWalker) error { return putBytesN(hh, tt.b, tt.n) }
 
 			var got string
 			if tt.setup != nil {
@@ -202,7 +203,7 @@ func TestPutBytesN(t *testing.T) {
 func TestPutHexBytes20(t *testing.T) {
 	tests := []struct {
 		name     string
-		setup    func(ssz.HashWalker) // nil = empty walker, non-nil = pre-populated
+		setup    func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
 		addr     string
 		expected string
 	}{
@@ -223,13 +224,13 @@ func TestPutHexBytes20(t *testing.T) {
 		},
 		{
 			name:     "after_uint64_99",
-			setup:    func(hh ssz.HashWalker) { hh.PutUint64(99) },
+			setup:    func(hh sszutils.HashWalker) { hh.PutUint64(99) },
 			addr:     "0x1111111111111111111111111111111111111111",
 			expected: "2051384e282f804390dac5c19fcfd1e4cacca29abacb0f07cd6c17995388f5b0",
 		},
 		{
 			name: "after_bytelist",
-			setup: func(hh ssz.HashWalker) {
+			setup: func(hh sszutils.HashWalker) {
 				_ = putByteList(hh, []byte("prefix"), 256, "f")
 			},
 			addr:     "0xabcdef0123456789abcdef0123456789abcdef01",
@@ -239,7 +240,7 @@ func TestPutHexBytes20(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fn := func(hh ssz.HashWalker) error { return putHexBytes20(hh, tt.addr) }
+			fn := func(hh sszutils.HashWalker) error { return putHexBytes20(hh, tt.addr) }
 
 			var got string
 			if tt.setup != nil {
