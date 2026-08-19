@@ -51,7 +51,7 @@ func (c *client) Broadcast(ctx context.Context, msgID string, msg proto.Message)
 		return errors.Wrap(err, "new any")
 	}
 
-	hash, err := c.hashFunc(anyMsg)
+	hash, err := c.hashFunc(msgID, anyMsg)
 	if err != nil {
 		return errors.Wrap(err, "hash any")
 	}

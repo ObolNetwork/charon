@@ -9,10 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/golang/snappy"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
 	"google.golang.org/protobuf/proto"
 
 	pbv1 "github.com/obolnetwork/charon/app/log/loki/lokipb/v1"
@@ -66,6 +69,56 @@ func TestLokiCaller(t *testing.T) {
 
 	Info(context.Background(), "test")
 	<-done
+}
+
+var initForTFuncs = map[string]func(*testing.T, zapcore.WriteSyncer, ...func(*zapcore.EncoderConfig)){
+	"console": InitConsoleForT,
+	"logfmt":  InitLogfmtForT,
+	"json":    InitJSONForT,
+}
+
+func TestInitForTRestoresLogger(t *testing.T) {
+	for name, initFunc := range initForTFuncs {
+		t.Run(name, func(t *testing.T) {
+			var buf zaptest.Buffer
+
+			t.Run("install", func(t *testing.T) {
+				initFunc(t, &buf)
+				Debug(context.Background(), "inside test")
+				require.Contains(t, buf.String(), "inside test")
+			})
+
+			// The previous logger must be restored on test cleanup,
+			// so this log must not be written to the buffer.
+			lenBefore := buf.Len()
+
+			Debug(context.Background(), "after test")
+			require.Equal(t, lenBefore, buf.Len())
+		})
+	}
+}
+
+func TestInitForTConcurrentLogging(t *testing.T) {
+	for name, initFunc := range initForTFuncs {
+		t.Run(name, func(t *testing.T) {
+			// zaptest.Buffer is not safe for concurrent use, the
+			// initialisers must synchronise writes to it.
+			var buf zaptest.Buffer
+
+			initFunc(t, &buf)
+
+			var wg sync.WaitGroup
+			for range 8 {
+				wg.Go(func() {
+					for range 100 {
+						Debug(context.Background(), "concurrent log")
+					}
+				})
+			}
+
+			wg.Wait()
+		})
+	}
 }
 
 func decode(t *testing.T, b []byte) *pbv1.PushRequest {

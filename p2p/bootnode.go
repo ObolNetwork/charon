@@ -140,6 +140,15 @@ func resolveRelay(ctx context.Context, rawURL, lockHashHex, uuid string, callbac
 	}
 }
 
+const (
+	// maxRelayResponseSize is the maximum accepted relay query response size. Valid responses are
+	// either an ENR string or a small json array of multiaddrs, so this is a generous upper bound.
+	maxRelayResponseSize = 64 << 10 // 64KB
+
+	// relayQueryTimeout bounds a single relay query attempt, including reading the response body.
+	relayQueryTimeout = 10 * time.Second
+)
+
 // queryRelayAddrs returns the relay multiaddrs via a http GET query to the url.
 //
 // This supports resolving relay addrs from known http URLs which is handy
@@ -155,7 +164,7 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 	}
 
 	var (
-		client    http.Client
+		client    = http.Client{Timeout: relayQueryTimeout}
 		doBackoff bool
 	)
 	for ctx.Err() == nil {
@@ -178,15 +187,23 @@ func queryRelayAddrs(ctx context.Context, relayURL string, backoff func(), lockH
 			log.Warn(ctx, "Failure querying relay addresses (will try again)", err)
 			continue
 		} else if resp.StatusCode/100 != 2 {
+			_ = resp.Body.Close()
+
 			log.Warn(ctx, "Non-200 response querying relay addresses (will try again)", nil, z.Int("status_code", resp.StatusCode))
+
 			continue
 		}
 
-		b, err := io.ReadAll(resp.Body)
+		b, err := io.ReadAll(io.LimitReader(resp.Body, maxRelayResponseSize+1))
 		_ = resp.Body.Close()
 
 		if err != nil {
 			log.Warn(ctx, "Failure reading relay addresses (will try again)", err)
+			continue
+		}
+
+		if len(b) > maxRelayResponseSize {
+			log.Warn(ctx, "Relay addresses response too large (will try again)", nil, z.Int("max_bytes", maxRelayResponseSize))
 			continue
 		}
 

@@ -386,14 +386,10 @@ func validateSignatureLength(version string, sig []byte, fieldName string) error
 func (d Definition) Peers() ([]p2p.Peer, error) {
 	var resp []p2p.Peer
 
-	dedup := make(map[string]bool)
+	// Dedup by peer ID (not ENR string) since distinct ENRs can encode the same public key.
+	dedup := make(map[peer.ID]bool)
+
 	for i, operator := range d.Operators {
-		if dedup[operator.ENR] {
-			return nil, errors.New("definition contains duplicate peer enrs", z.Str("enr", operator.ENR))
-		}
-
-		dedup[operator.ENR] = true
-
 		record, err := enr.Parse(operator.ENR)
 		if err != nil {
 			return nil, errors.Wrap(err, "decode enr", z.Str("enr", operator.ENR))
@@ -403,6 +399,12 @@ func (d Definition) Peers() ([]p2p.Peer, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if dedup[p.ID] {
+			return nil, errors.New("definition contains duplicate peer ids", z.Str("enr", operator.ENR), z.Str("peer", p.Name))
+		}
+
+		dedup[p.ID] = true
 
 		resp = append(resp, p)
 	}
@@ -933,7 +935,8 @@ func unmarshalDefinitionV1x8(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
+	// Definition versions prior to v1.10 don't support compounding.
+	if err := deposit.VerifyDepositAmounts(defJSON.DepositAmounts, false); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
@@ -968,7 +971,8 @@ func unmarshalDefinitionV1x9(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
+	// Definition versions prior to v1.10 don't support compounding.
+	if err := deposit.VerifyDepositAmounts(defJSON.DepositAmounts, false); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 
@@ -1004,7 +1008,7 @@ func unmarshalDefinitionV1x10to11(data []byte) (def Definition, err error) {
 		return Definition{}, errors.New("num_validators does not match validators length")
 	}
 
-	if err := deposit.VerifyDepositAmounts(def.DepositAmounts, def.Compounding); err != nil {
+	if err := deposit.VerifyDepositAmounts(defJSON.DepositAmounts, defJSON.Compounding); err != nil {
 		return Definition{}, errors.Wrap(err, "invalid deposit amounts")
 	}
 

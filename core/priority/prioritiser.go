@@ -78,17 +78,17 @@ type request struct {
 func NewForT(_ *testing.T, p2pNode host.Host, peers []peer.ID, minRequired int,
 	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator, exchangeTimeout time.Duration,
-	deadliner core.Deadliner,
+	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
 ) *Prioritiser {
 	return newInternal(p2pNode, peers, minRequired, sendFunc, registerHandlerFunc,
-		consensus, msgValidator, exchangeTimeout, deadliner)
+		consensus, msgValidator, exchangeTimeout, deadliner, gaterFunc)
 }
 
 // newInternal returns a new prioritiser, it is the constructor.
 func newInternal(p2pNode host.Host, peers []peer.ID, minRequired int,
 	sendFunc p2p.SendReceiveFunc, registerHandlerFunc p2p.RegisterHandlerFunc,
 	consensus Consensus, msgValidator msgValidator,
-	exchangeTimeout time.Duration, deadliner core.Deadliner,
+	exchangeTimeout time.Duration, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
 ) *Prioritiser {
 	// Create log filters
 	noSupportFilters := make(map[peer.ID]z.Field)
@@ -105,6 +105,7 @@ func newInternal(p2pNode host.Host, peers []peer.ID, minRequired int,
 		msgValidator:     msgValidator,
 		exchangeTimeout:  exchangeTimeout,
 		deadliner:        deadliner,
+		gaterFunc:        gaterFunc,
 		quit:             make(chan struct{}),
 		noSupportFilters: noSupportFilters,
 		skipAllFilter:    log.Filter(),
@@ -163,6 +164,7 @@ type Prioritiser struct {
 	peers            []peer.ID
 	consensus        Consensus
 	msgValidator     msgValidator
+	gaterFunc        core.DutyGaterFunc
 	subs             []subscriber
 	noSupportFilters map[peer.ID]z.Field
 	skipAllFilter    z.Field
@@ -222,16 +224,22 @@ func (p *Prioritiser) handleRequest(ctx context.Context, pID peer.ID, msg *pbv1.
 		return nil, errors.Wrap(err, "invalid priority message")
 	}
 
+	duty := core.DutyFromProto(msg.GetDuty())
+
+	// Gate before any per-duty state is allocated below, otherwise a peer can retain
+	// unbounded deadliner and request buffer entries by varying the duty slot.
+	if !p.gaterFunc(duty) {
+		return nil, errors.New("invalid duty", z.Any("duty", duty))
+	}
+
+	if status := p.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+		return nil, errors.New("duty expired or exempt", z.Any("duty", duty))
+	}
+
 	response := make(chan *pbv1.PriorityMsg, 1) // Ensure responding goroutine never blocks.
 	req := request{
 		Msg:      msg,
 		Response: response,
-	}
-
-	duty := core.DutyFromProto(msg.GetDuty())
-
-	if status := p.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
-		return nil, errors.New("duty expired or exempt", z.Any("duty", duty))
 	}
 
 	reqBuffer := p.getReqBuffer(duty)

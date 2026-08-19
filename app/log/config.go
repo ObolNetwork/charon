@@ -264,39 +264,51 @@ func NewConsoleForT(_ *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.
 }
 
 // InitConsoleForT initialises a global console logger for testing purposes.
+// The previous global logger is restored on test cleanup.
 func InitConsoleForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
 	t.Helper()
-
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	logger = NewConsoleForT(t, ws, opts...)
+	setLoggerForT(t, NewConsoleForT(t, zapcore.Lock(ws), opts...))
 }
 
 // InitJSONForT initialises a json logger for testing purposes.
+// The previous global logger is restored on test cleanup.
 func InitJSONForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
 	t.Helper()
 
-	initMu.Lock()
-	defer initMu.Unlock()
-
-	var err error
-
-	logger, err = newStructuredLogger("json", zapcore.DebugLevel, true, ws, defaultCallerSkip, opts...)
+	l, err := newStructuredLogger("json", zapcore.DebugLevel, true, zapcore.Lock(ws), defaultCallerSkip, opts...)
 	require.NoError(t, err)
+
+	setLoggerForT(t, l)
 }
 
 // InitLogfmtForT initialises a logfmt logger for testing purposes.
+// The previous global logger is restored on test cleanup.
 func InitLogfmtForT(t *testing.T, ws zapcore.WriteSyncer, opts ...func(*zapcore.EncoderConfig)) {
+	t.Helper()
+
+	l, err := newStructuredLogger("logfmt", zapcore.DebugLevel, false, zapcore.Lock(ws), defaultCallerSkip, opts...)
+	require.NoError(t, err)
+
+	setLoggerForT(t, l)
+}
+
+// setLoggerForT sets the global logger and restores the previous logger on test cleanup.
+// Note the write syncer must be safe for concurrent use since logging may happen from multiple goroutines.
+func setLoggerForT(t *testing.T, l zapLogger) {
 	t.Helper()
 
 	initMu.Lock()
 	defer initMu.Unlock()
 
-	var err error
+	prev := logger
+	logger = l
 
-	logger, err = newStructuredLogger("logfmt", zapcore.DebugLevel, false, ws, defaultCallerSkip, opts...)
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		initMu.Lock()
+		defer initMu.Unlock()
+
+		logger = prev
+	})
 }
 
 // Stop stops all log processors.

@@ -11,10 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -314,6 +316,135 @@ func TestDefinitionPeers(t *testing.T) {
 	for i, peer := range peers {
 		require.Equal(t, i, peer.Index)
 		require.Equal(t, names[i], peer.Name)
+	}
+}
+
+func TestUnmarshalDefinitionDepositAmounts(t *testing.T) {
+	defJSON := func(version, depositAmounts, compounding string) string {
+		return `{
+			"version": "` + version + `",
+			"num_validators": 1,
+			"validators": [{"fee_recipient_address": "", "withdrawal_address": ""}],
+			"operators": [],
+			"deposit_amounts": ` + depositAmounts + `,
+			"compounding": ` + compounding + `}`
+	}
+
+	const (
+		oneGwei       = `["1"]` // Below 1ETH minimum.
+		thirtyTwoEth  = `["16000000000","16000000000"]`
+		fortyEightEth = `["48000000000"]` // Valid only for compounding validators.
+	)
+
+	tests := []struct {
+		name   string
+		json   string
+		errMsg string
+	}{
+		{
+			name:   "v1.8 invalid amounts",
+			json:   defJSON(v1_8, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.9 invalid amounts",
+			json:   defJSON(v1_9, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.10 invalid amounts",
+			json:   defJSON(v1_10, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.11 invalid amounts",
+			json:   defJSON(v1_11, oneGwei, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name:   "v1.11 amount too large without compounding",
+			json:   defJSON(v1_11, fortyEightEth, "false"),
+			errMsg: "invalid deposit amounts",
+		},
+		{
+			name: "v1.11 large amount valid with compounding",
+			json: defJSON(v1_11, fortyEightEth, "true"),
+		},
+		{
+			name: "v1.8 valid amounts",
+			json: defJSON(v1_8, thirtyTwoEth, "false"),
+		},
+		{
+			name: "v1.8 no amounts",
+			json: defJSON(v1_8, "[]", "false"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var def cluster.Definition
+
+			err := json.Unmarshal([]byte(tt.json), &def)
+			if tt.errMsg != "" {
+				require.ErrorContains(t, err, tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDefinitionPeersDuplicatePeerID(t *testing.T) {
+	newENR := func(key *k1.PrivateKey, opts ...enr.Option) string {
+		record, err := enr.New(key, opts...)
+		require.NoError(t, err)
+
+		return record.String()
+	}
+
+	dupKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	// Two distinct ENR strings encoding the same public key, so the same peer ID.
+	dupENR1 := newENR(dupKey)
+	dupENR2 := newENR(dupKey, enr.WithTCP(3610))
+	require.NotEqual(t, dupENR1, dupENR2)
+
+	uniqueENR := func() string {
+		key, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		return newENR(key)
+	}
+
+	tests := []struct {
+		name string
+		enrs []string
+	}{
+		{
+			name: "duplicate peer ids with distinct enrs",
+			enrs: []string{uniqueENR(), dupENR1, dupENR2, uniqueENR()},
+		},
+		{
+			name: "duplicate peer ids at tail",
+			enrs: []string{uniqueENR(), uniqueENR(), dupENR1, dupENR2},
+		},
+		{
+			name: "duplicate identical enrs",
+			enrs: []string{uniqueENR(), dupENR1, dupENR1, uniqueENR()},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var def cluster.Definition
+			for _, e := range tt.enrs {
+				def.Operators = append(def.Operators, cluster.Operator{ENR: e})
+			}
+
+			_, err := def.Peers()
+			require.ErrorContains(t, err, "definition contains duplicate peer ids")
+		})
 	}
 }
 
