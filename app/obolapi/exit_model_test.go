@@ -3,11 +3,14 @@
 package obolapi_test
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
+	"github.com/pk910/dynamic-ssz/treeproof"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/obolapi"
@@ -45,7 +48,10 @@ func TestPartialExitRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, other, pr)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -69,7 +75,10 @@ func TestUnsignedPartialExitRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -94,7 +103,10 @@ func TestPartialExits(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -117,7 +129,10 @@ func TestFullExitAuthBlob(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -136,7 +151,10 @@ func TestExitBlob(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(ssz.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -152,9 +170,8 @@ func TestExitBlobHashTreeRoot(t *testing.T) {
 	nonZeroSig[0] = 0x01
 
 	tests := []struct {
-		name     string
-		input    obolapi.ExitBlob
-		expected string
+		name  string
+		input obolapi.ExitBlob
 	}{
 		{
 			name: "zeros",
@@ -165,7 +182,6 @@ func TestExitBlobHashTreeRoot(t *testing.T) {
 					Signature: eth2p0.BLSSignature{},
 				},
 			},
-			expected: "65595314b41aeacd2f0469c979f93cdff0aeb5cfa1c290d2a4084cbc9855de48",
 		},
 		{
 			name: "epoch1_validator3",
@@ -176,17 +192,21 @@ func TestExitBlobHashTreeRoot(t *testing.T) {
 					Signature: nonZeroSig,
 				},
 			},
-			expected: "004ff00a261f09275d978c524ee23ad02629eb2fc94d16d3a3cab9035247d28c",
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.input.HashTreeRoot()
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, hex.EncodeToString(got[:]))
+
+			roots[tt.name] = hex.EncodeToString(got[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestPartialExitsHashTreeRoot(t *testing.T) {
@@ -213,34 +233,35 @@ func TestPartialExitsHashTreeRoot(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		input    obolapi.PartialExits
-		expected string
+		name  string
+		input obolapi.PartialExits
 	}{
 		{
-			name:     "empty",
-			input:    obolapi.PartialExits{},
-			expected: "6080a24df6cb76f31cacdf4419ac9bf0ac092087f40ec93f10c4608f967ca23a",
+			name:  "empty",
+			input: obolapi.PartialExits{},
 		},
 		{
-			name:     "one_exit",
-			input:    obolapi.PartialExits{exitZero},
-			expected: "243b6b384bcf8dc6e72369247c6b0fa784c98077c15b402a9e4ea3335e479a12",
+			name:  "one_exit",
+			input: obolapi.PartialExits{exitZero},
 		},
 		{
-			name:     "two_exits",
-			input:    obolapi.PartialExits{exitZero, exitNonZero},
-			expected: "7e7ee8b65d37f3e5bdd859c150c8bc7f329c1c873cb2042636c6f25f730af037",
+			name:  "two_exits",
+			input: obolapi.PartialExits{exitZero, exitNonZero},
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.input.HashTreeRoot()
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, hex.EncodeToString(got[:]))
+
+			roots[tt.name] = hex.EncodeToString(got[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestUnsignedPartialExitRequestHashTreeRoot(t *testing.T) {
@@ -267,34 +288,35 @@ func TestUnsignedPartialExitRequestHashTreeRoot(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		input    obolapi.UnsignedPartialExitRequest
-		expected string
+		name  string
+		input obolapi.UnsignedPartialExitRequest
 	}{
 		{
-			name:     "empty_share0",
-			input:    obolapi.UnsignedPartialExitRequest{PartialExits: obolapi.PartialExits{}, ShareIdx: 0},
-			expected: "b0dd7cbd107e45dbfa315f1d5da8ff11d50dcffbe38a4d2473583437ab18a408",
+			name:  "empty_share0",
+			input: obolapi.UnsignedPartialExitRequest{PartialExits: obolapi.PartialExits{}, ShareIdx: 0},
 		},
 		{
-			name:     "one_exit_share2",
-			input:    obolapi.UnsignedPartialExitRequest{PartialExits: obolapi.PartialExits{exitZero}, ShareIdx: 2},
-			expected: "821eb5ff317540ae8e3e3c819b879a90bf42ad11be959f60c670f44f88cfa6a2",
+			name:  "one_exit_share2",
+			input: obolapi.UnsignedPartialExitRequest{PartialExits: obolapi.PartialExits{exitZero}, ShareIdx: 2},
 		},
 		{
-			name:     "two_exits_share1",
-			input:    obolapi.UnsignedPartialExitRequest{PartialExits: obolapi.PartialExits{exitZero, exitNonZero}, ShareIdx: 1},
-			expected: "44a05ee801102e3b179cf2f70163fd2e2ede5bb53545336cf5912438b9e80125",
+			name:  "two_exits_share1",
+			input: obolapi.UnsignedPartialExitRequest{PartialExits: obolapi.PartialExits{exitZero, exitNonZero}, ShareIdx: 1},
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.input.HashTreeRoot()
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, hex.EncodeToString(got[:]))
+
+			roots[tt.name] = hex.EncodeToString(got[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestFullExitAuthBlobHashTreeRoot(t *testing.T) {
@@ -306,9 +328,8 @@ func TestFullExitAuthBlobHashTreeRoot(t *testing.T) {
 	nonZeroValidatorPubkey[0] = 0x11
 
 	tests := []struct {
-		name     string
-		input    obolapi.FullExitAuthBlob
-		expected string
+		name  string
+		input obolapi.FullExitAuthBlob
 	}{
 		{
 			name: "zeros",
@@ -317,7 +338,6 @@ func TestFullExitAuthBlobHashTreeRoot(t *testing.T) {
 				ValidatorPubkey: make([]byte, 48),
 				ShareIndex:      0,
 			},
-			expected: "bad1ebffe915f474f39873c538915f5cb1b246dfc5dc98eed668aac9292f1351",
 		},
 		{
 			name: "non_zero",
@@ -326,15 +346,95 @@ func TestFullExitAuthBlobHashTreeRoot(t *testing.T) {
 				ValidatorPubkey: nonZeroValidatorPubkey,
 				ShareIndex:      7,
 			},
-			expected: "876b5e058873adfcd3cdadf87332d0fd2e21311e35df96b2c42529ae313b9a5b",
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.input.HashTreeRoot()
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, hex.EncodeToString(got[:]))
+
+			roots[tt.name] = hex.EncodeToString(got[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
+}
+
+// TestExitBlobProofTree ensures ExitBlob.GetTree exposes the interior of SignedExitMessage,
+// so Merkle proofs can be generated for fields inside the signed exit. Inserting the
+// precomputed SignedExitMessage root as an opaque leaf keeps the root identical but breaks
+// these proofs, so this test fails on such an implementation.
+func TestExitBlobProofTree(t *testing.T) {
+	var sig eth2p0.BLSSignature
+	for i := range sig {
+		sig[i] = 0x11
+	}
+
+	pubkey := make([]byte, 48)
+	for i := range pubkey {
+		pubkey[i] = 0xab
+	}
+
+	e := obolapi.ExitBlob{
+		PublicKey: "0x" + hex.EncodeToString(pubkey),
+		SignedExitMessage: eth2p0.SignedVoluntaryExit{
+			Message: &eth2p0.VoluntaryExit{
+				Epoch:          42,
+				ValidatorIndex: 7,
+			},
+			Signature: sig,
+		},
+	}
+
+	root, err := e.HashTreeRoot()
+	require.NoError(t, err)
+
+	node, err := e.GetTree()
+	require.NoError(t, err)
+	require.Equal(t, root[:], node.Hash())
+
+	msgRoot, err := e.SignedExitMessage.Message.HashTreeRoot()
+	require.NoError(t, err)
+
+	epochLeaf := make([]byte, 32)
+	binary.LittleEndian.PutUint64(epochLeaf, uint64(e.SignedExitMessage.Message.Epoch))
+
+	for name, target := range map[string][]byte{
+		"voluntary_exit_root": msgRoot[:],
+		"epoch_leaf":          epochLeaf,
+	} {
+		t.Run(name, func(t *testing.T) {
+			gindex, ok := findGeneralizedIndex(node, target, 1, 8)
+			require.True(t, ok, "target node not present in proof tree: SignedExitMessage is an opaque leaf")
+
+			proof, err := node.Prove(gindex)
+			require.NoError(t, err)
+			require.Equal(t, target, proof.Leaf)
+
+			valid, err := treeproof.VerifyProof(root[:], proof)
+			require.NoError(t, err)
+			require.True(t, valid)
+		})
+	}
+}
+
+// findGeneralizedIndex walks the proof tree up to maxDepth levels and returns the generalized
+// index of the first node whose hash equals target.
+func findGeneralizedIndex(n *treeproof.Node, target []byte, gindex, maxDepth int) (int, bool) {
+	if n == nil || maxDepth < 0 {
+		return 0, false
+	}
+
+	if bytes.Equal(n.Hash(), target) {
+		return gindex, true
+	}
+
+	if idx, ok := findGeneralizedIndex(n.Left(), target, gindex*2, maxDepth-1); ok {
+		return idx, ok
+	}
+
+	return findGeneralizedIndex(n.Right(), target, gindex*2+1, maxDepth-1)
 }

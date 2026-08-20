@@ -36,7 +36,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -623,7 +622,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(proposal.Bellatrix)
+			b, err := proposal.Bellatrix.MarshalSSZ()
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -657,7 +656,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(proposal.Capella)
+			b, err := proposal.Capella.MarshalSSZ()
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -691,7 +690,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(proposal.Deneb)
+			b, err := proposal.Deneb.MarshalSSZ()
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -725,7 +724,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(proposal.Electra)
+			b, err := proposal.Electra.MarshalSSZ()
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -759,7 +758,7 @@ func TestRawRouter(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			b, err := ssz.MarshalSSZ(proposal.Fulu)
+			b, err := proposal.Fulu.MarshalSSZ()
 			require.NoError(t, err)
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -2519,7 +2518,7 @@ func TestUnmarshalSSZ(t *testing.T) {
 			} else {
 				var err error
 
-				b, err = ssz.MarshalSSZ(tt.proposal)
+				b, err = tt.proposal.MarshalSSZ()
 				require.NoError(t, err)
 			}
 

@@ -11,7 +11,6 @@ require (
 	github.com/drand/kyber v1.3.2
 	github.com/drand/kyber-bls12381 v0.3.4
 	github.com/ethereum/go-ethereum v1.17.5
-	github.com/ferranbt/fastssz v1.0.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/golang/snappy v1.0.1-0.20260716114414-9ae09f520e93
 	github.com/google/gofuzz v1.2.0
@@ -25,6 +24,7 @@ require (
 	github.com/libp2p/go-libp2p v0.48.0
 	github.com/libp2p/go-msgio v0.3.0
 	github.com/multiformats/go-multiaddr v0.16.1
+	github.com/pk910/dynamic-ssz v1.3.2
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.2
 	github.com/protolambda/eth2-shuffle v1.1.0
@@ -123,6 +123,7 @@ require (
 	github.com/ethereum/c-kzg-4844/v2 v2.1.8 // indirect
 	github.com/ethereum/go-bigmodexpfix v0.0.0-20250911101455-f9e208c548ab // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
+	github.com/ferranbt/fastssz v1.0.0 // indirect
 	github.com/fjl/jsonw v0.1.0 // indirect
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
@@ -223,7 +224,6 @@ require (
 	github.com/pion/transport/v4 v4.0.2 // indirect
 	github.com/pion/turn/v4 v4.0.2 // indirect
 	github.com/pion/webrtc/v4 v4.1.2 // indirect
-	github.com/pk910/dynamic-ssz v1.3.2 // indirect
 	github.com/pk910/hashtree-bindings v0.2.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/common v0.70.1 // indirect
@@ -289,7 +289,7 @@ require (
 replace github.com/coinbase/kryptology => github.com/ObolNetwork/kryptology v0.1.0
 
 // We're replacing go-eth2-client with a branch off our fork. The branch is kept up to date with the latest attestantio versions.
-replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.28.1-obol //nolint
+replace github.com/attestantio/go-eth2-client => github.com/ObolNetwork/go-eth2-client v0.29.0-obol.1-gloas //nolint
 
 tool (
 	github.com/bufbuild/buf/cmd/buf

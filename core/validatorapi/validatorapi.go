@@ -17,7 +17,6 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -502,7 +501,9 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 		)
 	}
 
-	checkHashes := func(d1, d2 ssz.HashRoot) error {
+	type hashRoot interface{ HashTreeRoot() ([32]byte, error) }
+
+	checkHashes := func(d1, d2 hashRoot) error {
 		ddb, err := d1.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "hash tree root dutydb")

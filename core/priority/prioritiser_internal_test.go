@@ -24,24 +24,20 @@ import (
 
 func TestHashProto(t *testing.T) {
 	tests := []struct {
-		name     string
-		msg      proto.Message
-		expected string
+		name string
+		msg  proto.Message
 	}{
 		{
-			name:     "empty_priority_msg",
-			msg:      &pbv1.PriorityMsg{},
-			expected: "0x0000000000000000000000000000000000000000000000000000000000000000",
+			name: "empty_priority_msg",
+			msg:  &pbv1.PriorityMsg{},
 		},
 		{
-			name:     "priority_msg_peer1",
-			msg:      &pbv1.PriorityMsg{PeerId: "peer1"},
-			expected: "0x1a05706565723100000000000000000000000000000000000000000000000000",
+			name: "priority_msg_peer1",
+			msg:  &pbv1.PriorityMsg{PeerId: "peer1"},
 		},
 		{
-			name:     "priority_msg_peer2",
-			msg:      &pbv1.PriorityMsg{PeerId: "peer2"},
-			expected: "0x1a05706565723200000000000000000000000000000000000000000000000000",
+			name: "priority_msg_peer2",
+			msg:  &pbv1.PriorityMsg{PeerId: "peer2"},
 		},
 		{
 			name: "priority_msg_with_signature",
@@ -49,29 +45,31 @@ func TestHashProto(t *testing.T) {
 				PeerId:    "peer1",
 				Signature: []byte{0xde, 0xad, 0xbe, 0xef},
 			},
-			expected: "0x1a0570656572312204deadbeef00000000000000000000000000000000000000",
 		},
 		{
-			name:     "empty_priority_result",
-			msg:      &pbv1.PriorityResult{},
-			expected: "0x0000000000000000000000000000000000000000000000000000000000000000",
+			name: "empty_priority_result",
+			msg:  &pbv1.PriorityResult{},
 		},
 		{
 			name: "priority_result_with_msgs",
 			msg: &pbv1.PriorityResult{
 				Msgs: []*pbv1.PriorityMsg{{PeerId: "peer1"}},
 			},
-			expected: "0x0a071a0570656572310000000000000000000000000000000000000000000000",
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := hashProto(tt.msg)
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, "0x"+hex.EncodeToString(got[:]))
+
+			roots[tt.name] = hex.EncodeToString(got[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 // gaterSlot is the highest duty slot allowed by the gater used in the tests below.
