@@ -263,7 +263,7 @@ func (e ExitBlob) HashTreeRootWith(hh sszutils.HashWalker) error {
 	// Field (0) 'PublicKey'
 	hh.PutBytes(pkBytes)
 
-	// Field (1) 'SignedExitMessage' — hash tree root computed via fastssz and placed as a 32-byte leaf.
+	// Field (1) 'SignedExitMessage' — hash tree root placed as a 32-byte leaf.
 	exitHash, err := e.SignedExitMessage.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "signed exit message hash tree root")

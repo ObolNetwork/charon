@@ -45,7 +45,10 @@ func TestPartialExitRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, other, pr)
 
-	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -69,7 +72,10 @@ func TestUnsignedPartialExitRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -94,7 +100,10 @@ func TestPartialExits(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -117,7 +126,10 @@ func TestFullExitAuthBlob(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
@@ -136,7 +148,10 @@ func TestExitBlob(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, node)
 
-	err = pr.HashTreeRootWith(hasher.DefaultHasherPool.Get())
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	err = pr.HashTreeRootWith(hh)
 	require.NoError(t, err)
 	require.NotEmpty(t, htr)
 }
