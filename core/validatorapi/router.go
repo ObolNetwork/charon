@@ -37,8 +37,8 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/gorilla/mux"
+	"github.com/pk910/dynamic-ssz/sszutils"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -1823,7 +1823,7 @@ func unmarshal(typ contentType, body []byte, v any) error {
 
 		return nil
 	case contentTypeSSZ:
-		unmarshaller, ok := v.(ssz.Unmarshaler)
+		unmarshaller, ok := v.(sszutils.FastsszUnmarshaler)
 		if !ok {
 			return apiError{
 				StatusCode: http.StatusUnsupportedMediaType,

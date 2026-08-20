@@ -1,0 +1,6 @@
+{
+ "v1.11_config_deposit_amounts_with_zero_element": "2c99bee9221f28d61c85f3dba4ed6d553f76b0a5aa23f96f8feeb2254fbf6a49",
+ "v1.11_config_empty_deposit_amounts": "d2c1c9a81b4415fc6e5c9fc0143459de1632c38c72561a492e1aaaeddbe9b9ee",
+ "v1.11_full_empty_signatures": "bce69aaef710e47f36a671734f12973f580e89f32e5c36006a9bb5594082380a",
+ "v1.11_full_with_signatures": "906b7e3b069edd1d184427ba46baf12af250781dd10174ff40ea4d8f774d1062"
+}

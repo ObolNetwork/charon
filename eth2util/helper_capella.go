@@ -10,7 +10,9 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
+	"github.com/pk910/dynamic-ssz/sszutils"
+	"github.com/pk910/dynamic-ssz/treeproof"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -35,25 +37,33 @@ type forkDataType struct {
 	GenesisValidatorsRoot [32]byte
 }
 
-func (e forkDataType) GetTree() (*ssz.Node, error) {
-	node, err := ssz.ProofTree(e)
-	if err != nil {
+func (e forkDataType) GetTree() (*treeproof.Node, error) {
+	w := treeproof.NewWrapper()
+
+	if err := e.HashTreeRootWith(w); err != nil {
 		return nil, errors.Wrap(err, "proof tree")
 	}
 
-	return node, nil
+	return w.Node(), nil
 }
 
 func (e forkDataType) HashTreeRoot() ([32]byte, error) {
-	hash, err := ssz.HashWithDefaultHasher(e)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash with default hasher")
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	if err := e.HashTreeRootWith(hh); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash tree root")
 	}
 
-	return hash, nil
+	root, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return root, nil
 }
 
-func (e forkDataType) HashTreeRootWith(hh ssz.HashWalker) error {
+func (e forkDataType) HashTreeRootWith(hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'CurrentVersion'
