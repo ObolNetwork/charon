@@ -5,12 +5,15 @@ package cmd
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/testutil"
 )
 
 // TestBeaconBasicAuth verifies that HTTP basic authentication is correctly extracted
@@ -162,4 +165,38 @@ func TestParseEndpointURL(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAllCategoriesResultHash asserts the signing hash of JSON-encoded test results
+// for fixed inputs against golden files.
+func TestAllCategoriesResultHash(t *testing.T) {
+	tests := []struct {
+		name  string
+		input allCategoriesResult
+	}{
+		{
+			name:  "zero",
+			input: allCategoriesResult{},
+		},
+		{
+			name: "populated",
+			input: allCategoriesResult{
+				Peers:  testCategoryResult{CategoryName: "peers", Score: "A"},
+				Beacon: testCategoryResult{CategoryName: "beacon", Score: "C"},
+			},
+		},
+	}
+
+	hashes := make(map[string]string)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.input.hash()
+			require.NoError(t, err)
+
+			hashes[tt.name] = hex.EncodeToString(got[:])
+		})
+	}
+
+	testutil.RequireGoldenJSON(t, hashes)
 }

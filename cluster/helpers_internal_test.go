@@ -68,51 +68,46 @@ func hashRootWithPrefix(t *testing.T, setup func(sszutils.HashWalker), fn func(s
 
 func TestPutByteList(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
-		b        []byte
-		limit    int
-		expected string
+		name  string
+		setup func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
+		b     []byte
+		limit int
 	}{
 		{
-			name:     "empty_limit64",
-			b:        []byte{},
-			limit:    64,
-			expected: "7a0501f5957bdf9cb3a8ff4966f02265f968658b7a9c62642cba1165e86642f5",
+			name:  "empty_limit64",
+			b:     []byte{},
+			limit: 64,
 		},
 		{
-			name:     "hello_limit256",
-			b:        []byte("hello"),
-			limit:    256,
-			expected: "d714c994fb91ed0c822936ddab0934529ab7816e60dc94027e77a4188e2e4459",
+			name:  "hello_limit256",
+			b:     []byte("hello"),
+			limit: 256,
 		},
 		{
-			name:     "32bytes_limit64",
-			b:        make([]byte, 32),
-			limit:    64,
-			expected: "e36306f41e65a19bc26226df4c969ef1ae6ac2e29edf4038761d553854385723",
+			name:  "32bytes_limit64",
+			b:     make([]byte, 32),
+			limit: 64,
 		},
 		{
-			name:     "all0xff_limit32",
-			b:        []byte{0xff, 0xff, 0xff, 0xff},
-			limit:    32,
-			expected: "a729ed14d00c6e5f58c31993077a42444a53cc9bed4cbf64e43afd4c29a38880",
+			name:  "all0xff_limit32",
+			b:     []byte{0xff, 0xff, 0xff, 0xff},
+			limit: 32,
 		},
 		{
-			name:     "after_uint64_42",
-			setup:    func(hh sszutils.HashWalker) { hh.PutUint64(42) },
-			b:        []byte("hello"),
-			limit:    256,
-			expected: "bbc79cd2fdb2cc4810be1c265d80e601221f69df244a956b222db5454dd7d439",
+			name:  "after_uint64_42",
+			setup: func(hh sszutils.HashWalker) { hh.PutUint64(42) },
+			b:     []byte("hello"),
+			limit: 256,
 		},
 		{
-			name:     "after_bytes4",
-			setup:    func(hh sszutils.HashWalker) { hh.PutBytes([]byte{0x01, 0x02, 0x03, 0x04}) },
-			b:        []byte{0xff},
-			limit:    32,
-			expected: "e27cef6249214493f3e7ade1aa0af8130029eedfc7c17d928ed8af341a5511e9",
+			name:  "after_bytes4",
+			setup: func(hh sszutils.HashWalker) { hh.PutBytes([]byte{0x01, 0x02, 0x03, 0x04}) },
+			b:     []byte{0xff},
+			limit: 32,
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,64 +120,60 @@ func TestPutByteList(t *testing.T) {
 				got = hashRootOf(t, fn)
 			}
 
-			require.Equal(t, tt.expected, got)
+			roots[tt.name] = got
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestPutBytesN(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
-		b        []byte
-		n        int
-		expected string
+		name  string
+		setup func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
+		b     []byte
+		n     int
 	}{
 		{
-			name:     "nil_n32",
-			b:        nil,
-			n:        32,
-			expected: "0000000000000000000000000000000000000000000000000000000000000000",
+			name: "nil_n32",
+			b:    nil,
+			n:    32,
 		},
 		{
-			name:     "nil_n20",
-			b:        nil,
-			n:        20,
-			expected: "0000000000000000000000000000000000000000000000000000000000000000",
+			name: "nil_n20",
+			b:    nil,
+			n:    20,
 		},
 		{
-			name:     "4bytes_n4",
-			b:        []byte{0x01, 0x02, 0x03, 0x04},
-			n:        4,
-			expected: "0102030400000000000000000000000000000000000000000000000000000000",
+			name: "4bytes_n4",
+			b:    []byte{0x01, 0x02, 0x03, 0x04},
+			n:    4,
 		},
 		{
-			name:     "short_n32",
-			b:        []byte{0xab, 0xcd},
-			n:        32,
-			expected: "000000000000000000000000000000000000000000000000000000000000abcd",
+			name: "short_n32",
+			b:    []byte{0xab, 0xcd},
+			n:    32,
 		},
 		{
-			name:     "full_n4",
-			b:        []byte{0xde, 0xad, 0xbe, 0xef},
-			n:        4,
-			expected: "deadbeef00000000000000000000000000000000000000000000000000000000",
+			name: "full_n4",
+			b:    []byte{0xde, 0xad, 0xbe, 0xef},
+			n:    4,
 		},
 		{
-			name:     "after_uint64_1",
-			setup:    func(hh sszutils.HashWalker) { hh.PutUint64(1) },
-			b:        []byte{0xab, 0xcd},
-			n:        32,
-			expected: "392b769bc14dd0593bbb9d28f2fa7c4ec6eb113ef750db4046b7136c5844c95d",
+			name:  "after_uint64_1",
+			setup: func(hh sszutils.HashWalker) { hh.PutUint64(1) },
+			b:     []byte{0xab, 0xcd},
+			n:     32,
 		},
 		{
-			name:     "after_bytes20",
-			setup:    func(hh sszutils.HashWalker) { hh.PutBytes(make([]byte, 20)) },
-			b:        []byte{0x01, 0x02, 0x03, 0x04},
-			n:        4,
-			expected: "c092c674a087720f7136046e41d587e355a5f359b3940336f8e4e9dde2ffe236",
+			name:  "after_bytes20",
+			setup: func(hh sszutils.HashWalker) { hh.PutBytes(make([]byte, 20)) },
+			b:     []byte{0x01, 0x02, 0x03, 0x04},
+			n:     4,
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -195,48 +186,46 @@ func TestPutBytesN(t *testing.T) {
 				got = hashRootOf(t, fn)
 			}
 
-			require.Equal(t, tt.expected, got)
+			roots[tt.name] = got
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestPutHexBytes20(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
-		addr     string
-		expected string
+		name  string
+		setup func(sszutils.HashWalker) // nil = empty walker, non-nil = pre-populated
+		addr  string
 	}{
 		{
-			name:     "zero_addr",
-			addr:     "0x0000000000000000000000000000000000000000",
-			expected: "0000000000000000000000000000000000000000000000000000000000000000",
+			name: "zero_addr",
+			addr: "0x0000000000000000000000000000000000000000",
 		},
 		{
-			name:     "all_ones",
-			addr:     "0x1111111111111111111111111111111111111111",
-			expected: "1111111111111111111111111111111111111111000000000000000000000000",
+			name: "all_ones",
+			addr: "0x1111111111111111111111111111111111111111",
 		},
 		{
-			name:     "mixed",
-			addr:     "0xabcdef0123456789abcdef0123456789abcdef01",
-			expected: "abcdef0123456789abcdef0123456789abcdef01000000000000000000000000",
+			name: "mixed",
+			addr: "0xabcdef0123456789abcdef0123456789abcdef01",
 		},
 		{
-			name:     "after_uint64_99",
-			setup:    func(hh sszutils.HashWalker) { hh.PutUint64(99) },
-			addr:     "0x1111111111111111111111111111111111111111",
-			expected: "2051384e282f804390dac5c19fcfd1e4cacca29abacb0f07cd6c17995388f5b0",
+			name:  "after_uint64_99",
+			setup: func(hh sszutils.HashWalker) { hh.PutUint64(99) },
+			addr:  "0x1111111111111111111111111111111111111111",
 		},
 		{
 			name: "after_bytelist",
 			setup: func(hh sszutils.HashWalker) {
 				_ = putByteList(hh, []byte("prefix"), 256, "f")
 			},
-			addr:     "0xabcdef0123456789abcdef0123456789abcdef01",
-			expected: "c3105b794bd2b28cc863326f5ffa8baad9e1c1d7d424556e188961ca59f69100",
+			addr: "0xabcdef0123456789abcdef0123456789abcdef01",
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -249,9 +238,11 @@ func TestPutHexBytes20(t *testing.T) {
 				got = hashRootOf(t, fn)
 			}
 
-			require.Equal(t, tt.expected, got)
+			roots[tt.name] = got
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestLeftPad(t *testing.T) {
