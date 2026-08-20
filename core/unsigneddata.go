@@ -18,7 +18,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -34,16 +33,16 @@ var (
 	_ UnsignedData = SyncContributions{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
-	_ ssz.Marshaler   = AttestationData{}
-	_ ssz.Marshaler   = AggregatedAttestation{}
-	_ ssz.Marshaler   = VersionedAggregatedAttestation{}
-	_ ssz.Marshaler   = VersionedProposal{}
-	_ ssz.Marshaler   = SyncContribution{}
-	_ ssz.Unmarshaler = new(AttestationData)
-	_ ssz.Unmarshaler = new(AggregatedAttestation)
-	_ ssz.Unmarshaler = new(VersionedAggregatedAttestation)
-	_ ssz.Unmarshaler = new(VersionedProposal)
-	_ ssz.Unmarshaler = new(SyncContribution)
+	_ sszMarshaler   = AttestationData{}
+	_ sszMarshaler   = AggregatedAttestation{}
+	_ sszMarshaler   = VersionedAggregatedAttestation{}
+	_ sszMarshaler   = VersionedProposal{}
+	_ sszMarshaler   = SyncContribution{}
+	_ sszUnmarshaler = new(AttestationData)
+	_ sszUnmarshaler = new(AggregatedAttestation)
+	_ sszUnmarshaler = new(VersionedAggregatedAttestation)
+	_ sszUnmarshaler = new(VersionedProposal)
+	_ sszUnmarshaler = new(SyncContribution)
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.

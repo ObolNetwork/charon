@@ -24,7 +24,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -34,6 +33,16 @@ import (
 
 //go:generate go test . -run=TestSSZSerialisation -update
 
+type sszMarshaler interface {
+	MarshalSSZ() ([]byte, error)
+	MarshalSSZTo([]byte) ([]byte, error)
+	SizeSSZ() int
+}
+
+type sszUnmarshaler interface {
+	UnmarshalSSZ([]byte) error
+}
+
 func TestSSZSerialisation(t *testing.T) {
 	for _, typFunc := range coreTypeFuncs {
 		any1, any2 := typFunc(), typFunc()
@@ -42,7 +51,7 @@ func TestSSZSerialisation(t *testing.T) {
 		name = strings.TrimPrefix(name, "*core.")
 		name += ".ssz"
 
-		if _, ok := any1.(ssz.Marshaler); !ok {
+		if _, ok := any1.(sszMarshaler); !ok {
 			t.Logf("Skipping non SSZ type: %v", name)
 			continue
 		}
@@ -50,11 +59,12 @@ func TestSSZSerialisation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			testutil.NewEth2Fuzzer(t, 1).Fuzz(any1)
 
-			b, err := ssz.MarshalSSZ(any1.(ssz.Marshaler))
+			m := any1.(sszMarshaler)
+			b, err := m.MarshalSSZTo(make([]byte, 0, m.SizeSSZ()))
 			testutil.RequireNoError(t, err)
 			testutil.RequireGoldenBytes(t, b)
 
-			err = any2.(ssz.Unmarshaler).UnmarshalSSZ(b)
+			err = any2.(sszUnmarshaler).UnmarshalSSZ(b)
 			testutil.RequireNoError(t, err)
 			require.Equal(t, any1, any2)
 		})
@@ -85,13 +95,13 @@ func TestSSZ(t *testing.T) {
 
 			f.Fuzz(val1)
 
-			marshaller, ok := val1.(ssz.Marshaler)
+			marshaller, ok := val1.(sszMarshaler)
 			require.True(t, ok)
 
 			b, err := marshaller.MarshalSSZ()
 			testutil.RequireNoError(t, err)
 
-			unmarshaller, ok := val2.(ssz.Unmarshaler)
+			unmarshaller, ok := val2.(sszUnmarshaler)
 			require.True(t, ok)
 
 			err = unmarshaller.UnmarshalSSZ(b)
@@ -385,7 +395,7 @@ func TestV3SignedProposalSSZSerialisation(t *testing.T) {
 			p, err := core.NewVersionedSignedProposal(&test.proposal)
 			require.NoError(t, err)
 
-			b, err := ssz.MarshalSSZ(p)
+			b, err := p.MarshalSSZTo(make([]byte, 0, p.SizeSSZ()))
 			require.NoError(t, err)
 
 			p2 := new(core.VersionedSignedProposal)
@@ -470,7 +480,7 @@ func TestV3ProposalSSZSerialisation(t *testing.T) {
 			p, err := core.NewVersionedProposal(&test.proposal)
 			require.NoError(t, err)
 
-			b, err := ssz.MarshalSSZ(p)
+			b, err := p.MarshalSSZTo(make([]byte, 0, p.SizeSSZ()))
 			require.NoError(t, err)
 
 			p2 := new(core.VersionedProposal)

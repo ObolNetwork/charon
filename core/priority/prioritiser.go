@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/pk910/dynamic-ssz/hasher"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -414,8 +414,8 @@ func startConsensus(ctx context.Context, duty core.Duty, msgs []*pbv1.PriorityMs
 // hashProto returns a deterministic ssz hash root of the proto message.
 // It is the same logic as that used by the consensus package.
 func hashProto(msg proto.Message) ([32]byte, error) {
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	index := hh.Index()
 

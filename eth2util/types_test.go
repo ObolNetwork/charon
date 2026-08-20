@@ -19,16 +19,17 @@ import (
 
 func TestSignedEpochHashTreeRoot(t *testing.T) {
 	tests := []struct {
-		name     string
-		epoch    eth2p0.Epoch
-		expected string
+		name  string
+		epoch eth2p0.Epoch
 	}{
 		{
-			name:     "epoch_12345",
-			epoch:    12345,
-			expected: "3930000000000000000000000000000000000000000000000000000000000000",
+			name:  "epoch_12345",
+			epoch: 12345,
 		},
 	}
+
+	roots := make(map[string]string)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Signature is not included in the hash; verify same epoch with different
@@ -38,13 +39,16 @@ func TestSignedEpochHashTreeRoot(t *testing.T) {
 
 			got1, err := se1.HashTreeRoot()
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, hex.EncodeToString(got1[:]))
 
 			got2, err := se2.HashTreeRoot()
 			require.NoError(t, err)
 			require.Equal(t, got1, got2)
+
+			roots[tt.name] = hex.EncodeToString(got1[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestUnmarshallingSignedEpoch(t *testing.T) {

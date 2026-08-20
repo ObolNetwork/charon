@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
+	"github.com/pk910/dynamic-ssz/sszutils"
+	"github.com/pk910/dynamic-ssz/treeproof"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -76,25 +78,33 @@ type UnsignedPartialExitRequest struct {
 	ShareIdx     uint64       `json:"share_idx,omitempty"`
 }
 
-func (p UnsignedPartialExitRequest) GetTree() (*ssz.Node, error) {
-	node, err := ssz.ProofTree(p)
-	if err != nil {
+func (p UnsignedPartialExitRequest) GetTree() (*treeproof.Node, error) {
+	w := treeproof.NewWrapper()
+
+	if err := p.HashTreeRootWith(w); err != nil {
 		return nil, errors.Wrap(err, "proof tree")
 	}
 
-	return node, nil
+	return w.Node(), nil
 }
 
 func (p UnsignedPartialExitRequest) HashTreeRoot() ([32]byte, error) {
-	hash, err := ssz.HashWithDefaultHasher(p)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash with default hasher")
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	if err := p.HashTreeRootWith(hh); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash tree root")
 	}
 
-	return hash, nil
+	root, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return root, nil
 }
 
-func (p UnsignedPartialExitRequest) HashTreeRootWith(hh ssz.HashWalker) error {
+func (p UnsignedPartialExitRequest) HashTreeRootWith(hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	if err := p.PartialExits.HashTreeRootWith(hh); err != nil {
@@ -111,25 +121,33 @@ func (p UnsignedPartialExitRequest) HashTreeRootWith(hh ssz.HashWalker) error {
 // PartialExits is an array of ExitMessage that have been signed with a partial key.
 type PartialExits []ExitBlob
 
-func (p PartialExits) GetTree() (*ssz.Node, error) {
-	hash, err := ssz.ProofTree(p)
-	if err != nil {
+func (p PartialExits) GetTree() (*treeproof.Node, error) {
+	w := treeproof.NewWrapper()
+
+	if err := p.HashTreeRootWith(w); err != nil {
 		return nil, errors.Wrap(err, "proof tree")
 	}
 
-	return hash, nil
+	return w.Node(), nil
 }
 
 func (p PartialExits) HashTreeRoot() ([32]byte, error) {
-	hash, err := ssz.HashWithDefaultHasher(p)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash with default hasher")
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	if err := p.HashTreeRootWith(hh); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash tree root")
 	}
 
-	return hash, nil
+	root, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return root, nil
 }
 
-func (p PartialExits) HashTreeRootWith(hh ssz.HashWalker) error {
+func (p PartialExits) HashTreeRootWith(hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	num := uint64(len(p))
@@ -160,25 +178,33 @@ type FullExitAuthBlob struct {
 	ShareIndex      uint64
 }
 
-func (f FullExitAuthBlob) GetTree() (*ssz.Node, error) {
-	node, err := ssz.ProofTree(f)
-	if err != nil {
+func (f FullExitAuthBlob) GetTree() (*treeproof.Node, error) {
+	w := treeproof.NewWrapper()
+
+	if err := f.HashTreeRootWith(w); err != nil {
 		return nil, errors.Wrap(err, "proof tree")
 	}
 
-	return node, nil
+	return w.Node(), nil
 }
 
 func (f FullExitAuthBlob) HashTreeRoot() ([32]byte, error) {
-	hash, err := ssz.HashWithDefaultHasher(f)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash with default hasher")
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	if err := f.HashTreeRootWith(hh); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash tree root")
 	}
 
-	return hash, nil
+	root, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return root, nil
 }
 
-func (f FullExitAuthBlob) HashTreeRootWith(hh ssz.HashWalker) error {
+func (f FullExitAuthBlob) HashTreeRootWith(hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	hh.PutBytes(f.LockHash)
@@ -200,25 +226,33 @@ type ExitBlob struct {
 	SignedExitMessage eth2p0.SignedVoluntaryExit `json:"signed_exit_message"`
 }
 
-func (e ExitBlob) GetTree() (*ssz.Node, error) {
-	node, err := ssz.ProofTree(e)
-	if err != nil {
+func (e ExitBlob) GetTree() (*treeproof.Node, error) {
+	w := treeproof.NewWrapper()
+
+	if err := e.HashTreeRootWith(w); err != nil {
 		return nil, errors.Wrap(err, "proof tree")
 	}
 
-	return node, nil
+	return w.Node(), nil
 }
 
 func (e ExitBlob) HashTreeRoot() ([32]byte, error) {
-	hash, err := ssz.HashWithDefaultHasher(e)
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "hash with default hasher")
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	if err := e.HashTreeRootWith(hh); err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash tree root")
 	}
 
-	return hash, nil
+	root, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return root, nil
 }
 
-func (e ExitBlob) HashTreeRootWith(hh ssz.HashWalker) error {
+func (e ExitBlob) HashTreeRootWith(hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	pkBytes, err := from0x(e.PublicKey, 48) // public key is 48 bytes long
@@ -249,7 +283,7 @@ func leftPad(b []byte, l int) []byte {
 }
 
 // putBytesN appends b as a ssz fixed size byte array of length n.
-func putBytesN(h ssz.HashWalker, b []byte, n int) error {
+func putBytesN(h sszutils.HashWalker, b []byte, n int) error {
 	if len(b) > n {
 		return errors.New("bytes too long", z.Int("n", n), z.Int("l", len(b)))
 	}

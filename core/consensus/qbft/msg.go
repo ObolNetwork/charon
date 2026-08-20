@@ -4,7 +4,7 @@ package qbft
 
 import (
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
@@ -142,8 +142,8 @@ func hashProto(msg proto.Message) ([32]byte, error) {
 		return [32]byte{}, errors.New("cannot hash any proto, must hash inner value")
 	}
 
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	index := hh.Index()
 

@@ -21,7 +21,7 @@ import (
 	"unicode/utf8"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -224,6 +224,28 @@ type allCategoriesResult struct {
 	Infra     testCategoryResult `json:"infra"`
 }
 
+// hash returns the hash root of the JSON-encoded result.
+func (r allCategoriesResult) hash() ([32]byte, error) {
+	b, err := json.Marshal(r)
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "marshal all test categories signing data")
+	}
+
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
+
+	indx := hh.Index()
+	hh.PutBytes(b)
+	hh.Merkleize(indx)
+
+	root, err := hh.HashRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash root")
+	}
+
+	return root, nil
+}
+
 func appendScore(cat []string, score []string) []string {
 	var res []string
 	for i, l := range cat {
@@ -264,21 +286,9 @@ func publishResultToObolAPI(ctx context.Context, data allCategoriesResult, path 
 		return err
 	}
 
-	signDataBytes, err := json.Marshal(data)
+	hash, err := data.hash()
 	if err != nil {
-		return errors.Wrap(err, "marshal all test categories signing data")
-	}
-
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
-
-	indx := hh.Index()
-	hh.PutBytes(signDataBytes)
-	hh.Merkleize(indx)
-
-	hash, err := hh.HashRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash root")
+		return err
 	}
 
 	sig, err := k1util.Sign(p2pPrivKey, hash[:])

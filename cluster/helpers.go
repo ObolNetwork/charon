@@ -16,8 +16,8 @@ import (
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/google/uuid"
+	"github.com/pk910/dynamic-ssz/sszutils"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
@@ -243,12 +243,12 @@ func Threshold(nodes int) int {
 
 // putByteList appends a ssz byte list.
 // See reference: github.com/attestantio/go-eth2-client/spec/bellatrix/executionpayload_encoding.go:277-284.
-func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
+func putByteList(h sszutils.HashWalker, b []byte, limit int, field string) error {
 	elemIndx := h.Index()
 
 	byteLen := len(b)
 	if byteLen > limit {
-		return errors.Wrap(ssz.ErrIncorrectListSize, "put byte list", z.Str("field", field))
+		return errors.New("incorrect list size", z.Str("field", field))
 	}
 
 	h.AppendBytes32(b)
@@ -257,14 +257,14 @@ func putByteList(h ssz.HashWalker, b []byte, limit int, field string) error {
 	return nil
 }
 
-func putK1SigList(h ssz.HashWalker, sig []byte, maxAmountSigs int, field string) error {
+func putK1SigList(h sszutils.HashWalker, sig []byte, maxAmountSigs int, field string) error {
 	if len(sig)%sszLenK1Sig != 0 {
 		return errors.New("signature not a multiple of 65 bytes", z.Str("field", field), z.Int("length", len(sig)))
 	}
 
 	num := uint64(len(sig) / sszLenK1Sig)
 	if num > uint64(maxAmountSigs) {
-		return errors.Wrap(ssz.ErrIncorrectListSize, "put k1 sig list", z.Str("field", field))
+		return errors.New("incorrect list size", z.Str("field", field))
 	}
 
 	elemIndx := h.Index()
@@ -278,7 +278,7 @@ func putK1SigList(h ssz.HashWalker, sig []byte, maxAmountSigs int, field string)
 }
 
 // putBytesN appends b as a ssz fixed size byte array of length n.
-func putBytesN(h ssz.HashWalker, b []byte, n int) error {
+func putBytesN(h sszutils.HashWalker, b []byte, n int) error {
 	if len(b) > n {
 		return errors.New("bytes too long", z.Int("n", n), z.Int("l", len(b)))
 	}
@@ -289,7 +289,7 @@ func putBytesN(h ssz.HashWalker, b []byte, n int) error {
 }
 
 // putHexBytes20 appends a 20 byte fixed size byte ssz array from the 0xhex address.
-func putHexBytes20(h ssz.HashWalker, addr string) error {
+func putHexBytes20(h sszutils.HashWalker, addr string) error {
 	b, err := from0xHex(addr, addressLen)
 	if err != nil {
 		return err

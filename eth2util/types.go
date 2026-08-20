@@ -7,7 +7,9 @@ import (
 
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	dynssz "github.com/pk910/dynamic-ssz"
+	"github.com/pk910/dynamic-ssz/sszutils"
+	"github.com/pk910/dynamic-ssz/treeproof"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
@@ -249,17 +251,17 @@ type SignedEpoch struct {
 }
 
 // GetTree ssz hashes the SignedEpoch object.
-func (s SignedEpoch) GetTree() (*ssz.Node, error) {
-	return ssz.ProofTree(s) //nolint:wrapcheck
+func (s SignedEpoch) GetTree() (*treeproof.Node, error) {
+	return dynssz.GetGlobalDynSsz().GetTree(s) //nolint:wrapcheck
 }
 
 // HashTreeRoot ssz hashes the SignedEpoch object.
 func (s SignedEpoch) HashTreeRoot() ([32]byte, error) {
-	return ssz.HashWithDefaultHasher(s) //nolint:wrapcheck
+	return dynssz.GetGlobalDynSsz().HashTreeRoot(s) //nolint:wrapcheck
 }
 
 // HashTreeRootWith ssz hashes the epoch from SignedEpoch.
-func (s SignedEpoch) HashTreeRootWith(hh ssz.HashWalker) error {
+func (s SignedEpoch) HashTreeRootWith(hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	hh.PutUint64(uint64(s.Epoch))
