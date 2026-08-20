@@ -4,23 +4,23 @@ package eth2util
 
 import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
 
 	"github.com/obolnetwork/charon/app/errors"
 )
 
 // SlotHashRoot returns the ssz hash root of the slot.
 func SlotHashRoot(slot eth2p0.Slot) ([32]byte, error) {
-	hasher := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hasher)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
-	indx := hasher.Index()
+	indx := hh.Index()
 
-	hasher.PutUint64(uint64(slot))
+	hh.PutUint64(uint64(slot))
 
-	hasher.Merkleize(indx)
+	hh.Merkleize(indx)
 
-	hash, err := hasher.HashRoot()
+	hash, err := hh.HashRoot()
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "hash epoch")
 	}
