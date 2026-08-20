@@ -20,7 +20,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -28,6 +27,11 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
+)
+
+type (
+	sszMarshaler   interface{ MarshalSSZ() ([]byte, error) }
+	sszUnmarshaler interface{ UnmarshalSSZ([]byte) error }
 )
 
 var (
@@ -46,20 +50,20 @@ var (
 	_ SignedData = SyncCommitteeSelection{}
 
 	// Some types support SSZ marshalling and unmarshalling.
-	_ ssz.Marshaler   = VersionedSignedProposal{}
-	_ ssz.Marshaler   = VersionedAttestation{}
-	_ ssz.Marshaler   = SignedAggregateAndProof{}
-	_ ssz.Marshaler   = VersionedSignedAggregateAndProof{}
-	_ ssz.Marshaler   = SignedSyncMessage{}
-	_ ssz.Marshaler   = SyncContributionAndProof{}
-	_ ssz.Marshaler   = SignedSyncContributionAndProof{}
-	_ ssz.Unmarshaler = new(VersionedSignedProposal)
-	_ ssz.Unmarshaler = new(VersionedAttestation)
-	_ ssz.Unmarshaler = new(SignedAggregateAndProof)
-	_ ssz.Unmarshaler = new(VersionedSignedAggregateAndProof)
-	_ ssz.Unmarshaler = new(SignedSyncMessage)
-	_ ssz.Unmarshaler = new(SyncContributionAndProof)
-	_ ssz.Unmarshaler = new(SignedSyncContributionAndProof)
+	_ sszMarshaler   = VersionedSignedProposal{}
+	_ sszMarshaler   = VersionedAttestation{}
+	_ sszMarshaler   = SignedAggregateAndProof{}
+	_ sszMarshaler   = VersionedSignedAggregateAndProof{}
+	_ sszMarshaler   = SignedSyncMessage{}
+	_ sszMarshaler   = SyncContributionAndProof{}
+	_ sszMarshaler   = SignedSyncContributionAndProof{}
+	_ sszUnmarshaler = new(VersionedSignedProposal)
+	_ sszUnmarshaler = new(VersionedAttestation)
+	_ sszUnmarshaler = new(SignedAggregateAndProof)
+	_ sszUnmarshaler = new(VersionedSignedAggregateAndProof)
+	_ sszUnmarshaler = new(SignedSyncMessage)
+	_ sszUnmarshaler = new(SyncContributionAndProof)
+	_ sszUnmarshaler = new(SignedSyncContributionAndProof)
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -2046,7 +2050,7 @@ func cloneJSONMarshaler(data json.Marshaler, v any) error {
 
 // cloneSSZMarshaler clones the marshaler by serialising to-from ssz
 // since eth2 types contain pointers. The result is stored in the value pointed to by v.
-func cloneSSZMarshaler(data ssz.Marshaler, v ssz.Unmarshaler) error {
+func cloneSSZMarshaler(data sszMarshaler, v sszUnmarshaler) error {
 	bytes, err := data.MarshalSSZ()
 	if err != nil {
 		return errors.Wrap(err, "marshal data")

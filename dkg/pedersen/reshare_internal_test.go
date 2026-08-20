@@ -3,6 +3,7 @@
 package pedersen
 
 import (
+	"encoding/hex"
 	"testing"
 
 	kbls "github.com/drand/kyber-bls12381"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestRestoreDistKeyShare(t *testing.T) {
@@ -336,4 +338,47 @@ func TestGenerateNonceDeterminism(t *testing.T) {
 			require.Equal(t, nonce1, nonce2, "same inputs must produce the same nonce")
 		})
 	}
+}
+
+// TestGenerateNonceGolden asserts generateNonce output for fixed inputs against golden files,
+// covering the empty node list and a populated list with deterministic public keys.
+func TestGenerateNonceGolden(t *testing.T) {
+	suite := kbls.NewBLS12381Suite().G1().(kdkg.Suite)
+
+	// Deterministic public keys from fixed scalars.
+	pub1 := suite.Point().Mul(suite.Scalar().SetInt64(1), nil)
+	pub2 := suite.Point().Mul(suite.Scalar().SetInt64(2), nil)
+
+	tests := []struct {
+		name      string
+		nodes     []kdkg.Node
+		iteration int
+	}{
+		{
+			name:      "no_nodes_iteration_zero",
+			nodes:     []kdkg.Node{},
+			iteration: 0,
+		},
+		{
+			name: "two_nodes_iteration_seven",
+			nodes: []kdkg.Node{
+				{Index: 1, Public: pub1},
+				{Index: 2, Public: pub2},
+			},
+			iteration: 7,
+		},
+	}
+
+	nonces := make(map[string]string)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := generateNonce(tt.nodes, tt.iteration)
+			require.NoError(t, err)
+
+			nonces[tt.name] = hex.EncodeToString(got)
+		})
+	}
+
+	testutil.RequireGoldenJSON(t, nonces)
 }
