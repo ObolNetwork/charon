@@ -2762,9 +2762,10 @@ func TestComponent_PayloadAttestationData(t *testing.T) {
 		return expected, nil
 	})
 
-	data, err := vapi.PayloadAttestationData(ctx, 42)
+	resp, err := vapi.PayloadAttestationData(ctx, &eth2api.PayloadAttestationDataOpts{Slot: 42})
 	require.NoError(t, err)
-	require.Equal(t, expected, data)
+	require.Equal(t, eth2spec.DataVersionGloas, resp.Data.Version)
+	require.Equal(t, expected, resp.Data.Gloas)
 }
 
 func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
@@ -2800,6 +2801,8 @@ func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, vapi.SubmitPayloadAttestationMessages(ctx, []*gloas.PayloadAttestationMessage{msg}))
+	require.NoError(t, vapi.SubmitPayloadAttestationMessages(ctx, &eth2api.SubmitPayloadAttestationMessagesOpts{
+		Messages: []*eth2spec.VersionedPayloadAttestationMessage{{Version: eth2spec.DataVersionGloas, Gloas: msg}},
+	}))
 	require.Equal(t, 1, count)
 }

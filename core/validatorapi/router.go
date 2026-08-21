@@ -78,6 +78,8 @@ type Handler interface {
 	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
+	eth2client.PayloadAttestationDataProvider
+	eth2client.PayloadAttestationMessagesSubmitter
 	eth2client.ProposerDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
@@ -88,15 +90,6 @@ type Handler interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
-
-	// TODO(gloas): replace with eth2client.PayloadAttestationDataProvider and
-	// eth2client.PayloadAttestationMessagesSubmitter once go-eth2-client exposes them
-	// (attestantio/go-eth2-client#311).
-
-	// PayloadAttestationData returns the payload attestation data for the provided slot.
-	PayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
-	// SubmitPayloadAttestationMessages receives partially signed payload attestation messages.
-	SubmitPayloadAttestationMessages(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error
 
 	// Address returns the address of the beacon node.
 	Address() string
@@ -1606,32 +1599,41 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 }
 
 // payloadAttestationData returns a handler function for the payload attestation data endpoint.
-func payloadAttestationData(h Handler) handlerFunc {
+func payloadAttestationData(p eth2client.PayloadAttestationDataProvider) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		slot, err := uintQuery(query, "slot")
 		if err != nil {
 			return nil, nil, err
 		}
 
-		data, err := h.PayloadAttestationData(ctx, slot)
+		opts := &eth2api.PayloadAttestationDataOpts{
+			Slot: eth2p0.Slot(slot),
+		}
+
+		eth2Resp, err := p.PayloadAttestationData(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		version := eth2spec.DataVersionGloas.String()
+		data := eth2Resp.Data
+		if data.Version != eth2spec.DataVersionGloas || data.Gloas == nil {
+			return nil, nil, errors.New("unsupported payload attestation data version")
+		}
+
+		version := data.Version.String()
 
 		return struct {
 			Version string                        `json:"version"`
 			Data    *gloas.PayloadAttestationData `json:"data"`
 		}{
 			Version: version,
-			Data:    data,
+			Data:    data.Gloas,
 		}, http.Header{versionHeader: []string{version}}, nil
 	}
 }
 
 // submitPayloadAttestationMessages returns a handler function for the payload attestation pool submission endpoint.
-func submitPayloadAttestationMessages(h Handler) handlerFunc {
+func submitPayloadAttestationMessages(s eth2client.PayloadAttestationMessagesSubmitter) handlerFunc {
 	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		var version eth2spec.DataVersion
 
@@ -1658,7 +1660,15 @@ func submitPayloadAttestationMessages(h Handler) handlerFunc {
 			return nil, nil, errors.Wrap(err, "unmarshal payload attestation messages")
 		}
 
-		err = h.SubmitPayloadAttestationMessages(ctx, msgs)
+		versioned := make([]*eth2spec.VersionedPayloadAttestationMessage, 0, len(msgs))
+		for _, msg := range msgs {
+			versioned = append(versioned, &eth2spec.VersionedPayloadAttestationMessage{
+				Version: version,
+				Gloas:   msg,
+			})
+		}
+
+		err = s.SubmitPayloadAttestationMessages(ctx, &eth2api.SubmitPayloadAttestationMessagesOpts{Messages: versioned})
 		if err != nil {
 			return nil, nil, err
 		}
