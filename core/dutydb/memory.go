@@ -12,6 +12,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -30,6 +31,7 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
 		contribKeysBySlot: make(map[uint64][]contribKey),
+		payloadAttDuties:  make(map[uint64]*gloas.PayloadAttestationData),
 		shutdown:          make(chan struct{}),
 		deadliner:         deadliner,
 	}
@@ -58,6 +60,10 @@ type MemDB struct {
 	contribDuties     map[contribKey]*altair.SyncCommitteeContribution
 	contribKeysBySlot map[uint64][]contribKey
 	contribQueries    []contribQuery
+
+	// DutyPayloadAttestation
+	payloadAttDuties  map[uint64]*gloas.PayloadAttestationData
+	payloadAttQueries []payloadAttQuery
 
 	shutdown  chan struct{}
 	deadliner core.Deadliner
@@ -123,6 +129,15 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		}
 
 		db.resolveContribQueriesUnsafe()
+	case core.DutyPayloadAttestation:
+		for _, unsignedData := range unsignedSet {
+			err := db.storePayloadAttestationUnsafe(unsignedData)
+			if err != nil {
+				return err
+			}
+		}
+
+		db.resolvePayloadAttQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
@@ -173,6 +188,32 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 		return nil, ctx.Err()
 	case block := <-response:
 		return block, nil
+	}
+}
+
+// AwaitPayloadAttestationData implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+	cancel := make(chan struct{})
+	defer close(cancel)
+
+	response := make(chan *gloas.PayloadAttestationData, 1)
+
+	db.mu.Lock()
+	db.payloadAttQueries = append(db.payloadAttQueries, payloadAttQuery{
+		Key:      slot,
+		Response: response,
+		Cancel:   cancel,
+	})
+	db.resolvePayloadAttQueriesUnsafe()
+	db.mu.Unlock()
+
+	select {
+	case <-db.shutdown:
+		return nil, errors.New("dutydb shutdown")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case data := <-response:
+		return data, nil
 	}
 }
 
@@ -576,6 +617,41 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 	return nil
 }
 
+// storePayloadAttestationUnsafe stores the payload attestation data. It is unsafe since it assumes the lock is held.
+func (db *MemDB) storePayloadAttestationUnsafe(unsignedData core.UnsignedData) error {
+	cloned, err := unsignedData.Clone() // Clone before storing.
+	if err != nil {
+		return err
+	}
+
+	data, ok := cloned.(core.PayloadAttestationData)
+	if !ok {
+		return errors.New("invalid payload attestation data")
+	}
+
+	slot := uint64(data.Slot)
+
+	if existing, ok := db.payloadAttDuties[slot]; ok {
+		existingRoot, err := existing.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "existing payload attestation data root")
+		}
+
+		providedRoot, err := data.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "provided payload attestation data root")
+		}
+
+		if existingRoot != providedRoot {
+			return errors.New("clashing payload attestation data")
+		}
+	} else {
+		db.payloadAttDuties[slot] = &data.PayloadAttestationData
+	}
+
+	return nil
+}
+
 // resolveAttQueriesUnsafe resolve any attQuery to a result if found.
 // It is unsafe since it assume that the lock is held.
 func (db *MemDB) resolveAttQueriesUnsafe() {
@@ -618,6 +694,28 @@ func (db *MemDB) resolveProQueriesUnsafe() {
 	}
 
 	db.proQueries = unresolved
+}
+
+// resolvePayloadAttQueriesUnsafe resolve any payloadAttQuery to a result if found.
+// It is unsafe since it assume that the lock is held.
+func (db *MemDB) resolvePayloadAttQueriesUnsafe() {
+	var unresolved []payloadAttQuery
+
+	for _, query := range db.payloadAttQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
+		value, ok := db.payloadAttDuties[query.Key]
+		if !ok {
+			unresolved = append(unresolved, query)
+			continue
+		}
+
+		query.Response <- value
+	}
+
+	db.payloadAttQueries = unresolved
 }
 
 // resolveAggQueriesUnsafe resolve any aggQuery to a result if found.
@@ -690,6 +788,8 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 		}
 
 		delete(db.contribKeysBySlot, duty.Slot)
+	case core.DutyPayloadAttestation:
+		delete(db.payloadAttDuties, duty.Slot)
 	default:
 		return errors.New("unknown duty type")
 	}
@@ -735,6 +835,13 @@ type attQuery struct {
 type proQuery struct {
 	Key      uint64
 	Response chan<- *eth2api.VersionedProposal
+	Cancel   <-chan struct{}
+}
+
+// payloadAttQuery is a waiting payloadAttQuery with a response channel.
+type payloadAttQuery struct {
+	Key      uint64
+	Response chan<- *gloas.PayloadAttestationData
 	Cancel   <-chan struct{}
 }
 
