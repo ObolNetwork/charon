@@ -63,6 +63,10 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			data: core.NewSignedSyncMessage(testutil.RandomSyncCommitteeMessage()),
 		},
 		{
+			name: "verify payload attestation message",
+			data: core.NewSignedPayloadAttestationMessage(testutil.RandomPayloadAttestationMessage()),
+		},
+		{
 			name: "verify sync committee contribution and proof",
 			data: core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 		},
