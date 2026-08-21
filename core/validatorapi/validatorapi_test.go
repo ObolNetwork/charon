@@ -25,6 +25,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -2741,4 +2742,64 @@ func TestSlotFromTimestamp(t *testing.T) {
 			require.GreaterOrEqual(t, got, tt.want)
 		})
 	}
+}
+
+func TestComponent_PayloadAttestationData(t *testing.T) {
+	ctx := context.Background()
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	expected := testutil.RandomPayloadAttestationData()
+	expected.Slot = 42
+
+	vapi.RegisterAwaitPayloadAttestationData(func(_ context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+		require.Equal(t, uint64(42), slot)
+
+		return expected, nil
+	})
+
+	data, err := vapi.PayloadAttestationData(ctx, 42)
+	require.NoError(t, err)
+	require.Equal(t, expected, data)
+}
+
+func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		ctx    = context.Background()
+		msg    = testutil.RandomPayloadAttestationMessage()
+		pubkey = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		count  = 0 // No of times the subscription function is called.
+	)
+
+	msg.ValidatorIndex = vIdx
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewPayloadAttestationDuty(uint64(msg.Data.Slot)), duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedPayloadAttestationMessage(msg, 0), data)
+
+		count++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitPayloadAttestationMessages(ctx, []*gloas.PayloadAttestationMessage{msg}))
+	require.Equal(t, 1, count)
 }

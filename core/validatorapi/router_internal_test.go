@@ -35,6 +35,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -2287,6 +2288,8 @@ type testHandler struct {
 	SubmitSyncCommitteeMessagesFunc  func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SyncCommitteeDutiesFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc    func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
+	PayloadAttestationDataFunc       func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
+	SubmitPayloadAttMsgsFunc         func(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error
 	ProxyFunc                        func(ctx context.Context, req *http.Request) (*http.Response, error)
 	AddressFunc                      func() string
 	HeadersFunc                      func() map[string]string
@@ -2294,6 +2297,14 @@ type testHandler struct {
 
 func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
 	return h.AttestationDataFunc(ctx, opts)
+}
+
+func (h testHandler) PayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+	return h.PayloadAttestationDataFunc(ctx, slot)
+}
+
+func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error {
+	return h.SubmitPayloadAttMsgsFunc(ctx, messages)
 }
 
 func (h testHandler) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -2553,4 +2564,110 @@ func nest(data any, nests ...string) any {
 	}
 
 	return res
+}
+
+func TestPayloadAttestationRoutes(t *testing.T) {
+	t.Run("payload_attestation_data", func(t *testing.T) {
+		expected := testutil.RandomPayloadAttestationData()
+		expected.Slot = 42
+
+		handler := testHandler{
+			PayloadAttestationDataFunc: func(_ context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+				require.Equal(t, uint64(42), slot)
+
+				return expected, nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data?slot=42", nil)
+			require.NoError(t, err)
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "gloas", resp.Header.Get(versionHeader))
+
+			var res struct {
+				Version string                        `json:"version"`
+				Data    *gloas.PayloadAttestationData `json:"data"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
+			require.Equal(t, "gloas", res.Version)
+			require.Equal(t, expected, res.Data)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("submit_payload_attestations", func(t *testing.T) {
+		msg := testutil.RandomPayloadAttestationMessage()
+
+		var received []*gloas.PayloadAttestationMessage
+
+		handler := testHandler{
+			SubmitPayloadAttMsgsFunc: func(_ context.Context, messages []*gloas.PayloadAttestationMessage) error {
+				received = messages
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			body, err := json.Marshal([]*gloas.PayloadAttestationMessage{msg})
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/beacon/pool/payload_attestations", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(versionHeader, "gloas")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Len(t, received, 1)
+			require.Equal(t, msg, received[0])
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("submit_payload_attestations_bad_version_header", func(t *testing.T) {
+		handler := testHandler{
+			SubmitPayloadAttMsgsFunc: func(_ context.Context, _ []*gloas.PayloadAttestationMessage) error {
+				require.Fail(t, "handler must not be called")
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			body, err := json.Marshal([]*gloas.PayloadAttestationMessage{testutil.RandomPayloadAttestationMessage()})
+			require.NoError(t, err)
+
+			for _, version := range []string{"", "electra"} {
+				req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/beacon/pool/payload_attestations", bytes.NewReader(body))
+				require.NoError(t, err)
+				req.Header.Set("Content-Type", "application/json")
+
+				if version != "" {
+					req.Header.Set(versionHeader, version)
+				}
+
+				resp, err := new(http.Client).Do(req)
+				require.NoError(t, err)
+
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+				resp.Body.Close()
+			}
+		}
+
+		testRawRouter(t, handler, callback)
+	})
 }

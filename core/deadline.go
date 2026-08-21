@@ -123,6 +123,9 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			duration = time.Duration(slotsPerEpoch) * slotDuration
 		case DutyPrepareAggregator, DutyPrepareSyncContribution:
 			duration = 2 * time.Duration(slotsPerEpoch) * slotDuration
+		case DutyPayloadAttestation:
+			// Payload attestation messages are only accepted on gossip within their own slot.
+			duration = slotDuration
 		default:
 			duration = slotDuration
 		}
