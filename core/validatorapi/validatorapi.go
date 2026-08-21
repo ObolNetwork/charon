@@ -16,6 +16,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -189,6 +190,7 @@ type Component struct {
 	// Registered input functions
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
@@ -207,6 +209,12 @@ func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint
 // It only supports a single function, since it is an input of the component.
 func (c *Component) RegisterAwaitAttestation(fn func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)) {
 	c.awaitAttFunc = fn
+}
+
+// RegisterAwaitPayloadAttestationData registers a function to query payload attestation data.
+// It only supports a single function, since it is an input of the component.
+func (c *Component) RegisterAwaitPayloadAttestationData(fn func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)) {
+	c.awaitPayloadAttDataFunc = fn
 }
 
 // RegisterAwaitSyncContribution registers a function to query sync contribution data.
@@ -958,6 +966,79 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 
 	for slot, data := range psigsBySlot {
 		duty := core.NewSyncMessageDuty(uint64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// PayloadAttestationData returns the payload attestation data for the provided slot.
+func (c Component) PayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+	var span trace.Span
+
+	duty := core.NewPayloadAttestationDuty(slot)
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.PayloadAttestationData")
+
+	defer span.End()
+
+	return c.awaitPayloadAttDataFunc(ctx, slot)
+}
+
+// SubmitPayloadAttestationMessages receives partially signed gloas.PayloadAttestationMessage.
+// - It verifies the partial signature on each message.
+// - It then calls all the subscribers for further steps on the partially signed messages.
+func (c Component) SubmitPayloadAttestationMessages(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error {
+	vals, err := c.eth2Cl.ActiveValidators(ctx)
+	if err != nil {
+		return err
+	}
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+
+	for _, msg := range messages {
+		if msg.Data == nil {
+			return errors.New("no payload attestation data")
+		}
+
+		slot := msg.Data.Slot
+
+		eth2Pubkey, ok := vals[msg.ValidatorIndex]
+		if !ok {
+			return errors.New("validator not found")
+		}
+
+		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		parSigData := core.NewPartialSignedPayloadAttestationMessage(msg, c.shareIdx)
+
+		err = c.verifyPartialSig(ctx, parSigData, pk)
+		if err != nil {
+			return err
+		}
+
+		log.Debug(ctx, "Payload attestation message received from validator client",
+			z.U64("slot", uint64(slot)),
+			z.Str("beacon_block_root", msg.Data.BeaconBlockRoot.String()),
+			z.Bool("payload_present", msg.Data.PayloadPresent))
+
+		_, ok = psigsBySlot[slot]
+		if !ok {
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[slot][pk] = parSigData
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewPayloadAttestationDuty(uint64(slot))
 		for _, sub := range c.subs {
 			err = sub(ctx, duty, data)
 			if err != nil {

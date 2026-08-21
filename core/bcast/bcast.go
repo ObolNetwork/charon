@@ -404,7 +404,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		var offset time.Duration
 
 		switch duty {
-		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution:
+		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation:
 			offset = slotOffsetFunc(core.Duty{Slot: slot, Type: duty})
 		default:
 		}
