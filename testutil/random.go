@@ -31,6 +31,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/holiman/uint256"
@@ -974,6 +975,23 @@ func RandomSyncCommitteeContribution() *altair.SyncCommitteeContribution {
 		SubcommitteeIndex: rand.Uint64(),
 		AggregationBits:   RandomBitVec128(),
 		Signature:         RandomEth2Signature(),
+	}
+}
+
+func RandomPayloadAttestationData() *gloas.PayloadAttestationData {
+	return &gloas.PayloadAttestationData{
+		BeaconBlockRoot:   RandomRoot(),
+		Slot:              RandomSlot(),
+		PayloadPresent:    rand.Intn(2) == 1,
+		BlobDataAvailable: rand.Intn(2) == 1,
+	}
+}
+
+func RandomPayloadAttestationMessage() *gloas.PayloadAttestationMessage {
+	return &gloas.PayloadAttestationMessage{
+		ValidatorIndex: RandomVIdx(),
+		Data:           RandomPayloadAttestationData(),
+		Signature:      RandomEth2Signature(),
 	}
 }
 
