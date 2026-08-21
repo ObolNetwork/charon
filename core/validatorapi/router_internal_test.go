@@ -2288,8 +2288,8 @@ type testHandler struct {
 	SubmitSyncCommitteeMessagesFunc  func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SyncCommitteeDutiesFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc    func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
-	PayloadAttestationDataFunc       func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
-	SubmitPayloadAttMsgsFunc         func(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error
+	PayloadAttestationDataFunc       func(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error)
+	SubmitPayloadAttMsgsFunc         func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
 	ProxyFunc                        func(ctx context.Context, req *http.Request) (*http.Response, error)
 	AddressFunc                      func() string
 	HeadersFunc                      func() map[string]string
@@ -2299,12 +2299,12 @@ func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.Attestat
 	return h.AttestationDataFunc(ctx, opts)
 }
 
-func (h testHandler) PayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
-	return h.PayloadAttestationDataFunc(ctx, slot)
+func (h testHandler) PayloadAttestationData(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+	return h.PayloadAttestationDataFunc(ctx, opts)
 }
 
-func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error {
-	return h.SubmitPayloadAttMsgsFunc(ctx, messages)
+func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+	return h.SubmitPayloadAttMsgsFunc(ctx, opts)
 }
 
 func (h testHandler) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
@@ -2572,10 +2572,13 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 		expected.Slot = 42
 
 		handler := testHandler{
-			PayloadAttestationDataFunc: func(_ context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
-				require.Equal(t, uint64(42), slot)
+			PayloadAttestationDataFunc: func(_ context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+				require.Equal(t, eth2p0.Slot(42), opts.Slot)
 
-				return expected, nil
+				return wrapResponse(&eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   expected,
+				}), nil
 			},
 		}
 
@@ -2606,11 +2609,11 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 	t.Run("submit_payload_attestations", func(t *testing.T) {
 		msg := testutil.RandomPayloadAttestationMessage()
 
-		var received []*gloas.PayloadAttestationMessage
+		var received []*eth2spec.VersionedPayloadAttestationMessage
 
 		handler := testHandler{
-			SubmitPayloadAttMsgsFunc: func(_ context.Context, messages []*gloas.PayloadAttestationMessage) error {
-				received = messages
+			SubmitPayloadAttMsgsFunc: func(_ context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+				received = opts.Messages
 
 				return nil
 			},
@@ -2632,7 +2635,8 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Len(t, received, 1)
-			require.Equal(t, msg, received[0])
+			require.Equal(t, eth2spec.DataVersionGloas, received[0].Version)
+			require.Equal(t, msg, received[0].Gloas)
 		}
 
 		testRawRouter(t, handler, callback)
@@ -2640,7 +2644,7 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 
 	t.Run("submit_payload_attestations_bad_version_header", func(t *testing.T) {
 		handler := testHandler{
-			SubmitPayloadAttMsgsFunc: func(_ context.Context, _ []*gloas.PayloadAttestationMessage) error {
+			SubmitPayloadAttMsgsFunc: func(_ context.Context, _ *eth2api.SubmitPayloadAttestationMessagesOpts) error {
 				require.Fail(t, "handler must not be called")
 
 				return nil
