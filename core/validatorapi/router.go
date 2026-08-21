@@ -1616,8 +1616,8 @@ func payloadAttestationData(p eth2client.PayloadAttestationDataProvider) handler
 		}
 
 		data := eth2Resp.Data
-		if data.IsEmpty() {
-			return nil, nil, errors.New("empty payload attestation data")
+		if data.Version != eth2spec.DataVersionGloas || data.Gloas == nil {
+			return nil, nil, errors.New("unsupported payload attestation data version")
 		}
 
 		version := data.Version.String()
