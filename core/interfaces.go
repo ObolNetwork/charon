@@ -138,6 +138,9 @@ type ValidatorAPI interface {
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 
+	// RegisterAwaitPayloadAttestationData registers a function to query payload attestation data.
+	RegisterAwaitPayloadAttestationData(func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error))
+
 	// RegisterAwaitSyncContribution registers a function to query sync contribution data.
 	RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 
@@ -279,6 +282,7 @@ type wireFuncs struct {
 	DutyDBPubKeyByAttestation         func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
 	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
 	DutyDBAwaitSyncContribution       func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
+	DutyDBAwaitPayloadAttestation     func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
 	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
@@ -286,6 +290,7 @@ type wireFuncs struct {
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
 	VAPIRegisterAwaitAggSigDB         func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
+	VAPIRegisterAwaitPayloadAttData   func(func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error))
 	VAPISubscribe                     func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal             func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBStoreExternal             func(context.Context, Duty, ParSignedDataSet) error
@@ -335,6 +340,7 @@ func Wire(sched Scheduler,
 		DutyDBPubKeyByAttestation:         dutyDB.PubKeyByAttestation,
 		DutyDBAwaitAggAttestation:         dutyDB.AwaitAggAttestation,
 		DutyDBAwaitSyncContribution:       dutyDB.AwaitSyncContribution,
+		DutyDBAwaitPayloadAttestation:     dutyDB.AwaitPayloadAttestationData,
 		VAPIRegisterAwaitProposal:         vapi.RegisterAwaitProposal,
 		VAPIRegisterAwaitAttestation:      vapi.RegisterAwaitAttestation,
 		VAPIRegisterAwaitSyncContribution: vapi.RegisterAwaitSyncContribution,
@@ -342,6 +348,7 @@ func Wire(sched Scheduler,
 		VAPIRegisterPubKeyByAttestation:   vapi.RegisterPubKeyByAttestation,
 		VAPIRegisterAwaitAggAttestation:   vapi.RegisterAwaitAggAttestation,
 		VAPIRegisterAwaitAggSigDB:         vapi.RegisterAwaitAggSigDB,
+		VAPIRegisterAwaitPayloadAttData:   vapi.RegisterAwaitPayloadAttestationData,
 		VAPISubscribe:                     vapi.Subscribe,
 		ParSigDBStoreInternal:             parSigDB.StoreInternal,
 		ParSigDBStoreExternal:             parSigDB.StoreExternal,
@@ -372,6 +379,7 @@ func Wire(sched Scheduler,
 	w.VAPIRegisterAwaitProposal(w.DutyDBAwaitProposal)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterAwaitSyncContribution(w.DutyDBAwaitSyncContribution)
+	w.VAPIRegisterAwaitPayloadAttData(w.DutyDBAwaitPayloadAttestation)
 	w.VAPIRegisterGetDutyDefinition(w.SchedulerGetDutyDefinition)
 	w.VAPIRegisterPubKeyByAttestation(w.DutyDBPubKeyByAttestation)
 	w.VAPIRegisterAwaitAggAttestation(w.DutyDBAwaitAggAttestation)

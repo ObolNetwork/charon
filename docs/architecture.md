@@ -136,6 +136,7 @@ type Duty struct {
 - `DutyPrepareSyncContribution = 11`: Prepare sync contribution duty
 - `DutySyncContribution = 12`: Sync contribution duty
 - `DutyInfoSync = 13`: Sending versions of peers in a cluster over wire
+- `DutyPayloadAttestation = 14`: Payload timeliness committee (PTC) attestation duty (gloas/ePBS)
 
 > ℹ️ Duty is on a cluster level, not a DV level. A duty defines the “unit of work” for the whole cluster,
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
