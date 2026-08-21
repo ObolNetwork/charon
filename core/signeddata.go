@@ -19,6 +19,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -48,6 +49,7 @@ var (
 	_ SignedData = SyncContributionAndProof{}
 	_ SignedData = SignedSyncContributionAndProof{}
 	_ SignedData = SyncCommitteeSelection{}
+	_ SignedData = SignedPayloadAttestationMessage{}
 
 	// Some types support SSZ marshalling and unmarshalling.
 	_ sszMarshaler   = VersionedSignedProposal{}
@@ -57,6 +59,7 @@ var (
 	_ sszMarshaler   = SignedSyncMessage{}
 	_ sszMarshaler   = SyncContributionAndProof{}
 	_ sszMarshaler   = SignedSyncContributionAndProof{}
+	_ sszMarshaler   = SignedPayloadAttestationMessage{}
 	_ sszUnmarshaler = new(VersionedSignedProposal)
 	_ sszUnmarshaler = new(VersionedAttestation)
 	_ sszUnmarshaler = new(SignedAggregateAndProof)
@@ -64,6 +67,7 @@ var (
 	_ sszUnmarshaler = new(SignedSyncMessage)
 	_ sszUnmarshaler = new(SyncContributionAndProof)
 	_ sszUnmarshaler = new(SignedSyncContributionAndProof)
+	_ sszUnmarshaler = new(SignedPayloadAttestationMessage)
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -2061,4 +2065,93 @@ func cloneSSZMarshaler(data sszMarshaler, v sszUnmarshaler) error {
 	}
 
 	return nil
+}
+
+// PayloadAttestationMessage: https://github.com/ethereum/consensus-specs/blob/dev/specs/gloas/beacon-chain.md#payloadattestationmessage.
+
+// NewSignedPayloadAttestationMessage is a convenience function which returns a new SignedPayloadAttestationMessage.
+func NewSignedPayloadAttestationMessage(msg *gloas.PayloadAttestationMessage) SignedPayloadAttestationMessage {
+	return SignedPayloadAttestationMessage{PayloadAttestationMessage: *msg}
+}
+
+// NewPartialSignedPayloadAttestationMessage is a convenience function which returns a new partially signed SignedPayloadAttestationMessage.
+func NewPartialSignedPayloadAttestationMessage(msg *gloas.PayloadAttestationMessage, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedPayloadAttestationMessage(msg),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedPayloadAttestationMessage wraps gloas.PayloadAttestationMessage and implements SignedData.
+type SignedPayloadAttestationMessage struct {
+	gloas.PayloadAttestationMessage
+}
+
+// MessageRoot returns the hash tree root of the payload attestation data.
+// PTC members sign only the data; the validator index is not part of the signed message.
+func (s SignedPayloadAttestationMessage) MessageRoot() ([32]byte, error) {
+	if s.Data == nil {
+		return [32]byte{}, errors.New("no payload attestation data")
+	}
+
+	root, err := s.Data.HashTreeRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash payload attestation data")
+	}
+
+	return root, nil
+}
+
+func (s SignedPayloadAttestationMessage) Signature() Signature {
+	return SigFromETH2(s.PayloadAttestationMessage.Signature)
+}
+
+func (s SignedPayloadAttestationMessage) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := s.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.PayloadAttestationMessage.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (s SignedPayloadAttestationMessage) Clone() (SignedData, error) {
+	return s.clone()
+}
+
+func (s SignedPayloadAttestationMessage) clone() (SignedPayloadAttestationMessage, error) {
+	var resp SignedPayloadAttestationMessage
+
+	err := cloneSSZMarshaler(s, &resp)
+	if err != nil {
+		return SignedPayloadAttestationMessage{}, errors.Wrap(err, "clone signed payload attestation message")
+	}
+
+	return resp, nil
+}
+
+func (s SignedPayloadAttestationMessage) MarshalJSON() ([]byte, error) {
+	return s.PayloadAttestationMessage.MarshalJSON()
+}
+
+func (s *SignedPayloadAttestationMessage) UnmarshalJSON(input []byte) error {
+	return s.PayloadAttestationMessage.UnmarshalJSON(input)
+}
+
+func (s SignedPayloadAttestationMessage) MarshalSSZ() ([]byte, error) {
+	return s.PayloadAttestationMessage.MarshalSSZ()
+}
+
+func (s SignedPayloadAttestationMessage) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return s.PayloadAttestationMessage.MarshalSSZTo(dst)
+}
+
+func (s SignedPayloadAttestationMessage) SizeSSZ() int {
+	return s.PayloadAttestationMessage.SizeSSZ()
+}
+
+func (s *SignedPayloadAttestationMessage) UnmarshalSSZ(b []byte) error {
+	return s.PayloadAttestationMessage.UnmarshalSSZ(b)
 }
