@@ -977,22 +977,30 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 	return nil
 }
 
-// PayloadAttestationData returns the payload attestation data for the provided slot.
-func (c Component) PayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+// PayloadAttestationData implements the eth2client.PayloadAttestationDataProvider for the router.
+func (c Component) PayloadAttestationData(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
 	var span trace.Span
 
-	duty := core.NewPayloadAttestationDuty(slot)
+	duty := core.NewPayloadAttestationDuty(uint64(opts.Slot))
 	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.PayloadAttestationData")
 
 	defer span.End()
 
-	return c.awaitPayloadAttDataFunc(ctx, slot)
+	data, err := c.awaitPayloadAttDataFunc(ctx, uint64(opts.Slot))
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(&eth2spec.VersionedPayloadAttestationData{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   data,
+	}), nil
 }
 
-// SubmitPayloadAttestationMessages receives partially signed gloas.PayloadAttestationMessage.
+// SubmitPayloadAttestationMessages implements the eth2client.PayloadAttestationMessagesSubmitter for the router.
 // - It verifies the partial signature on each message.
 // - It then calls all the subscribers for further steps on the partially signed messages.
-func (c Component) SubmitPayloadAttestationMessages(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error {
+func (c Component) SubmitPayloadAttestationMessages(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
 	vals, err := c.eth2Cl.ActiveValidators(ctx)
 	if err != nil {
 		return err
@@ -1000,7 +1008,12 @@ func (c Component) SubmitPayloadAttestationMessages(ctx context.Context, message
 
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 
-	for _, msg := range messages {
+	for _, versioned := range opts.Messages {
+		if versioned.Version != eth2spec.DataVersionGloas || versioned.Gloas == nil {
+			return errors.New("unsupported payload attestation message version")
+		}
+
+		msg := versioned.Gloas
 		if msg.Data == nil {
 			return errors.New("no payload attestation data")
 		}

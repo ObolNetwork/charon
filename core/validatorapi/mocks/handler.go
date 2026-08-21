@@ -10,8 +10,6 @@ import (
 
 	context "context"
 
-	gloas "github.com/attestantio/go-eth2-client/spec/gloas"
-
 	http "net/http"
 
 	mock "github.com/stretchr/testify/mock"
@@ -216,29 +214,29 @@ func (_m *Handler) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (
 	return r0, r1
 }
 
-// PayloadAttestationData provides a mock function with given fields: ctx, slot
-func (_m *Handler) PayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
-	ret := _m.Called(ctx, slot)
+// PayloadAttestationData provides a mock function with given fields: ctx, opts
+func (_m *Handler) PayloadAttestationData(ctx context.Context, opts *api.PayloadAttestationDataOpts) (*api.Response[*spec.VersionedPayloadAttestationData], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for PayloadAttestationData")
 	}
 
-	var r0 *gloas.PayloadAttestationData
+	var r0 *api.Response[*spec.VersionedPayloadAttestationData]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) (*gloas.PayloadAttestationData, error)); ok {
-		return rf(ctx, slot)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PayloadAttestationDataOpts) (*api.Response[*spec.VersionedPayloadAttestationData], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, uint64) *gloas.PayloadAttestationData); ok {
-		r0 = rf(ctx, slot)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PayloadAttestationDataOpts) *api.Response[*spec.VersionedPayloadAttestationData]); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*gloas.PayloadAttestationData)
+			r0 = ret.Get(0).(*api.Response[*spec.VersionedPayloadAttestationData])
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, uint64) error); ok {
-		r1 = rf(ctx, slot)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.PayloadAttestationDataOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -390,17 +388,17 @@ func (_m *Handler) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBl
 	return r0
 }
 
-// SubmitPayloadAttestationMessages provides a mock function with given fields: ctx, messages
-func (_m *Handler) SubmitPayloadAttestationMessages(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error {
-	ret := _m.Called(ctx, messages)
+// SubmitPayloadAttestationMessages provides a mock function with given fields: ctx, opts
+func (_m *Handler) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.SubmitPayloadAttestationMessagesOpts) error {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SubmitPayloadAttestationMessages")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*gloas.PayloadAttestationMessage) error); ok {
-		r0 = rf(ctx, messages)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitPayloadAttestationMessagesOpts) error); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		r0 = ret.Error(0)
 	}
