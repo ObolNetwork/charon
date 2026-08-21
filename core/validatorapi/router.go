@@ -36,6 +36,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/gorilla/mux"
 	"github.com/pk910/dynamic-ssz/sszutils"
@@ -87,6 +88,15 @@ type Handler interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
+
+	// TODO(gloas): replace with eth2client.PayloadAttestationDataProvider and
+	// eth2client.PayloadAttestationMessagesSubmitter once go-eth2-client exposes them
+	// (attestantio/go-eth2-client#311).
+
+	// PayloadAttestationData returns the payload attestation data for the provided slot.
+	PayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
+	// SubmitPayloadAttestationMessages receives partially signed payload attestation messages.
+	SubmitPayloadAttestationMessages(ctx context.Context, messages []*gloas.PayloadAttestationMessage) error
 
 	// Address returns the address of the beacon node.
 	Address() string
@@ -285,6 +295,20 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Name:      "submit_sync_committee_messages",
 			Path:      "/eth/v1/beacon/pool/sync_committees",
 			Handler:   submitSyncCommitteeMessages(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON},
+		},
+		{
+			Name:      "payload_attestation_data",
+			Path:      "/eth/v1/validator/payload_attestation_data",
+			Handler:   payloadAttestationData(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
+		},
+		{
+			Name:      "submit_payload_attestations",
+			Path:      "/eth/v1/beacon/pool/payload_attestations",
+			Handler:   submitPayloadAttestationMessages(h),
 			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON},
 		},
@@ -1578,6 +1602,68 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 		return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{
 			SignedAggregateAndProofs: aggs,
 		})
+	}
+}
+
+// payloadAttestationData returns a handler function for the payload attestation data endpoint.
+func payloadAttestationData(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		data, err := h.PayloadAttestationData(ctx, slot)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		version := eth2spec.DataVersionGloas.String()
+
+		return struct {
+			Version string                        `json:"version"`
+			Data    *gloas.PayloadAttestationData `json:"data"`
+		}{
+			Version: version,
+			Data:    data,
+		}, http.Header{versionHeader: []string{version}}, nil
+	}
+}
+
+// submitPayloadAttestationMessages returns a handler function for the payload attestation pool submission endpoint.
+func submitPayloadAttestationMessages(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version != eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas",
+			}
+		}
+
+		var msgs []*gloas.PayloadAttestationMessage
+
+		err = unmarshal(typ, body, &msgs)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal payload attestation messages")
+		}
+
+		err = h.SubmitPayloadAttestationMessages(ctx, msgs)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
 	}
 }
 
