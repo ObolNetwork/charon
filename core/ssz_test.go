@@ -23,6 +23,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -85,6 +86,8 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.VersionedAggregatedAttestation) }},
 		{zero: func() any { return new(core.VersionedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
+		{zero: func() any { return new(core.PayloadAttestationData) }},
+		{zero: func() any { return new(core.SignedPayloadAttestationMessage) }},
 	}
 
 	f := testutil.NewEth2Fuzzer(t, 0)
@@ -132,6 +135,10 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		{
 			dutyType:    core.DutySyncContribution,
 			unsignedPtr: func() any { return new(core.SyncContributions) },
+		},
+		{
+			dutyType:    core.DutyPayloadAttestation,
+			unsignedPtr: func() any { return new(core.PayloadAttestationData) },
 		},
 	}
 
@@ -207,6 +214,10 @@ func TestMarshalParSignedProto(t *testing.T) {
 		{
 			dutyType:  core.DutySyncContribution,
 			signedPtr: func() any { return new(core.SignedSyncContributionAndProof) },
+		},
+		{
+			dutyType:  core.DutyPayloadAttestation,
+			signedPtr: func() any { return new(core.SignedPayloadAttestationMessage) },
 		},
 	}
 
@@ -1312,6 +1323,126 @@ func TestVersionedProposalSSZ(t *testing.T) {
 
 			p2 := new(core.VersionedProposal)
 			require.NoError(t, p2.UnmarshalSSZ(b))
+		})
+	}
+}
+
+func TestPayloadAttestationDataSSZ(t *testing.T) {
+	var root eth2p0.Root
+	for i := range root {
+		root[i] = 0xab
+	}
+
+	tests := []struct {
+		name     string
+		value    core.PayloadAttestationData
+		expected string
+	}{
+		{
+			name: "zeros",
+			value: core.PayloadAttestationData{
+				PayloadAttestationData: gloas.PayloadAttestationData{},
+			},
+			// Fixed-size container: beacon_block_root(32) + slot(8) + payload_present(1) + blob_data_available(1).
+			expected: "0x" +
+				strings.Repeat("00", 32) + // BeaconBlockRoot
+				"0000000000000000" + // Slot
+				"00" + // PayloadPresent
+				"00", // BlobDataAvailable
+		},
+		{
+			name: "populated",
+			value: core.PayloadAttestationData{
+				PayloadAttestationData: gloas.PayloadAttestationData{
+					BeaconBlockRoot:   root,
+					Slot:              42,
+					PayloadPresent:    true,
+					BlobDataAvailable: false,
+				},
+			},
+			expected: "0x" +
+				strings.Repeat("ab", 32) + // BeaconBlockRoot
+				"2a00000000000000" + // Slot=42 (LE)
+				"01" + // PayloadPresent=true
+				"00", // BlobDataAvailable=false
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := tt.value.MarshalSSZ()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
+
+			var got core.PayloadAttestationData
+			require.NoError(t, got.UnmarshalSSZ(b))
+			require.Equal(t, tt.value, got)
+		})
+	}
+}
+
+func TestSignedPayloadAttestationMessageSSZ(t *testing.T) {
+	var root eth2p0.Root
+	for i := range root {
+		root[i] = 0xab
+	}
+
+	var sig eth2p0.BLSSignature
+	for i := range sig {
+		sig[i] = 0x11
+	}
+
+	tests := []struct {
+		name     string
+		value    core.SignedPayloadAttestationMessage
+		expected string
+	}{
+		{
+			name: "zeros",
+			value: core.SignedPayloadAttestationMessage{
+				PayloadAttestationMessage: gloas.PayloadAttestationMessage{
+					Data: new(gloas.PayloadAttestationData),
+				},
+			},
+			// Fixed-size container: validator_index(8) + data(42) + signature(96).
+			expected: "0x" +
+				"0000000000000000" + // ValidatorIndex
+				strings.Repeat("00", 42) + // Data
+				strings.Repeat("00", 96), // Signature
+		},
+		{
+			name: "populated",
+			value: core.SignedPayloadAttestationMessage{
+				PayloadAttestationMessage: gloas.PayloadAttestationMessage{
+					ValidatorIndex: 7,
+					Data: &gloas.PayloadAttestationData{
+						BeaconBlockRoot:   root,
+						Slot:              42,
+						PayloadPresent:    true,
+						BlobDataAvailable: true,
+					},
+					Signature: sig,
+				},
+			},
+			expected: "0x" +
+				"0700000000000000" + // ValidatorIndex=7 (LE)
+				strings.Repeat("ab", 32) + // Data.BeaconBlockRoot
+				"2a00000000000000" + // Data.Slot=42 (LE)
+				"01" + // Data.PayloadPresent=true
+				"01" + // Data.BlobDataAvailable=true
+				strings.Repeat("11", 96), // Signature
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := tt.value.MarshalSSZ()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
+
+			var got core.SignedPayloadAttestationMessage
+			require.NoError(t, got.UnmarshalSSZ(b))
+			require.Equal(t, tt.value, got)
 		})
 	}
 }

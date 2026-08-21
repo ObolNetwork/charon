@@ -149,6 +149,13 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		}
 
 		signedData = s
+	case DutyPayloadAttestation:
+		var s SignedPayloadAttestationMessage
+		if err := unmarshal(data.GetData(), &s); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal payload attestation message")
+		}
+
+		signedData = s
 	default:
 		return ParSignedData{}, errors.New("unsupported duty type")
 	}

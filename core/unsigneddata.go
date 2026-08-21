@@ -17,6 +17,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -31,6 +32,7 @@ var (
 	_ UnsignedData = VersionedProposal{}
 	_ UnsignedData = SyncContribution{}
 	_ UnsignedData = SyncContributions{}
+	_ UnsignedData = PayloadAttestationData{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
 	_ sszMarshaler   = AttestationData{}
@@ -38,11 +40,13 @@ var (
 	_ sszMarshaler   = VersionedAggregatedAttestation{}
 	_ sszMarshaler   = VersionedProposal{}
 	_ sszMarshaler   = SyncContribution{}
+	_ sszMarshaler   = PayloadAttestationData{}
 	_ sszUnmarshaler = new(AttestationData)
 	_ sszUnmarshaler = new(AggregatedAttestation)
 	_ sszUnmarshaler = new(VersionedAggregatedAttestation)
 	_ sszUnmarshaler = new(VersionedProposal)
 	_ sszUnmarshaler = new(SyncContribution)
+	_ sszUnmarshaler = new(PayloadAttestationData)
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.
@@ -755,7 +759,61 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 		}
 
 		return single, nil
+	case DutyPayloadAttestation:
+		var resp PayloadAttestationData
+		if err := unmarshal(data, &resp); err != nil {
+			return nil, errors.Wrap(err, "unmarshal payload attestation data")
+		}
+
+		return resp, nil
 	default:
 		return nil, errors.New("unsupported unsigned data duty type")
 	}
+}
+
+// PayloadAttestationData: https://github.com/ethereum/consensus-specs/blob/dev/specs/gloas/beacon-chain.md#payloadattestationdata.
+
+// NewPayloadAttestationData returns a new PayloadAttestationData.
+func NewPayloadAttestationData(data *gloas.PayloadAttestationData) PayloadAttestationData {
+	return PayloadAttestationData{PayloadAttestationData: *data}
+}
+
+// PayloadAttestationData wraps gloas.PayloadAttestationData and implements UnsignedData.
+type PayloadAttestationData struct {
+	gloas.PayloadAttestationData
+}
+
+func (p PayloadAttestationData) Clone() (UnsignedData, error) {
+	var resp PayloadAttestationData
+
+	err := cloneSSZMarshaler(p, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone payload attestation data")
+	}
+
+	return resp, nil
+}
+
+func (p PayloadAttestationData) MarshalJSON() ([]byte, error) {
+	return p.PayloadAttestationData.MarshalJSON()
+}
+
+func (p *PayloadAttestationData) UnmarshalJSON(input []byte) error {
+	return p.PayloadAttestationData.UnmarshalJSON(input)
+}
+
+func (p PayloadAttestationData) MarshalSSZ() ([]byte, error) {
+	return p.PayloadAttestationData.MarshalSSZ()
+}
+
+func (p PayloadAttestationData) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return p.PayloadAttestationData.MarshalSSZTo(dst)
+}
+
+func (p PayloadAttestationData) SizeSSZ() int {
+	return p.PayloadAttestationData.SizeSSZ()
+}
+
+func (p *PayloadAttestationData) UnmarshalSSZ(b []byte) error {
+	return p.PayloadAttestationData.UnmarshalSSZ(b)
 }
