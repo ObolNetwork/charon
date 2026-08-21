@@ -8,6 +8,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
@@ -64,6 +65,10 @@ type DutyDB interface {
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
 	AwaitAttestation(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+
+	// AwaitPayloadAttestationData blocks and returns the payload attestation data
+	// for the slot when available.
+	AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
 
 	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
 	// slot, committee index and validator index. This allows mapping of attestation
