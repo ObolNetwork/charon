@@ -36,6 +36,8 @@ var coreTypeFuncs = []func() any{
 	func() any { return new(core.VersionedAggregatedAttestation) },
 	func() any { return new(core.VersionedProposal) },
 	func() any { return new(core.SyncContribution) },
+	func() any { return new(core.PayloadAttestationData) },
+	func() any { return new(core.SignedPayloadAttestationMessage) },
 }
 
 //go:generate go test . -run=TestJSONSerialisation -update
