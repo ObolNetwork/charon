@@ -113,13 +113,32 @@ var vcUserAgentRegistry = struct {
 	agents map[string]time.Time
 }{agents: make(map[string]time.Time)}
 
-// vcUserAgentTTL bounds how long a user agent is considered connected after its last request.
-const vcUserAgentTTL = time.Hour
+const (
+	// vcUserAgentTTL bounds how long a user agent is considered connected after its last request.
+	vcUserAgentTTL = time.Hour
+	// maxVCUserAgents bounds the registry size (and the resulting metric cardinality) since
+	// user agents are untrusted request input. New agents are dropped when the registry is
+	// full; expired entries make room again. Validator clients connect continuously, so
+	// legitimate agents recorded early are retained.
+	maxVCUserAgents = 10
+)
 
 // recordVCUserAgent records a validator client user agent seen on an API request.
 func recordVCUserAgent(agent string) {
 	vcUserAgentRegistry.Lock()
 	defer vcUserAgentRegistry.Unlock()
+
+	if _, ok := vcUserAgentRegistry.agents[agent]; !ok {
+		for existing, seen := range vcUserAgentRegistry.agents {
+			if time.Since(seen) > vcUserAgentTTL {
+				delete(vcUserAgentRegistry.agents, existing)
+			}
+		}
+
+		if len(vcUserAgentRegistry.agents) >= maxVCUserAgents {
+			return
+		}
+	}
 
 	vcUserAgentRegistry.agents[agent] = time.Now()
 }

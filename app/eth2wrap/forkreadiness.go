@@ -53,23 +53,34 @@ func StartForkReadinessMetric(ctx context.Context, client eth2client.SpecProvide
 	clk clockwork.Clock,
 ) {
 	go func() {
-		applied, err := FetchForkConfig(ctx, client)
-		if err != nil {
-			log.Error(ctx, "Failed to fetch startup fork schedule for fork readiness metrics", err)
-			return
-		}
-
-		for fork, fs := range applied {
-			if fs.Epoch != math.MaxUint64 {
-				appliedForkEpochGauge.WithLabelValues(forkMetricLabel(fork.String())).Set(float64(fs.Epoch))
-			}
-		}
+		var applied ForkForkSchedule
 
 		ticker := clk.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
 
 		for {
-			evaluateForkReadiness(ctx, client, nodeVersions, vcUserAgents, applied)
+			// Capture the startup fork schedule on the first successful fetch, retrying on
+			// later ticks so a transient error does not disable the metric permanently.
+			// The spec is cached at startup, so this observes the same schedule the other
+			// components applied.
+			if applied == nil {
+				var err error
+
+				applied, err = FetchForkConfig(ctx, client)
+				if err != nil {
+					log.Warn(ctx, "Failed to fetch startup fork schedule for fork readiness metrics", err)
+				} else {
+					for fork, fs := range applied {
+						if fs.Epoch != math.MaxUint64 {
+							appliedForkEpochGauge.WithLabelValues(forkMetricLabel(fork.String())).Set(float64(fs.Epoch))
+						}
+					}
+				}
+			}
+
+			if applied != nil {
+				evaluateForkReadiness(ctx, client, nodeVersions, vcUserAgents, applied)
+			}
 
 			select {
 			case <-ctx.Done():
