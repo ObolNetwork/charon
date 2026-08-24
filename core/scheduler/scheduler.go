@@ -65,9 +65,15 @@ func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, et
 		return nil, errors.Wrap(err, "new slot offset func")
 	}
 
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch fork config")
+	}
+
 	return &Scheduler{
 		eth2Cl:                     eth2Cl,
 		slotOffsetFunc:             slotOffsetFunc,
+		forkSchedule:               forkSchedule,
 		builderRegProvider:         builderRegProvider,
 		submittedRegistrationEpoch: math.MaxUint64,
 		quit:                       make(chan struct{}),
@@ -88,6 +94,7 @@ func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, et
 type Scheduler struct {
 	eth2Cl                     eth2wrap.Client
 	slotOffsetFunc             core.SlotOffsetFunc
+	forkSchedule               eth2wrap.ForkForkSchedule
 	builderRegProvider         BuilderRegistrationProvider
 	submittedRegistrationEpoch uint64
 	registrationMutex          sync.Mutex
@@ -480,6 +487,11 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 		return err
 	}
 
+	err = s.resolvePTCDuties(ctx, slot, vals)
+	if err != nil {
+		return err
+	}
+
 	s.setResolvedEpoch(slot.Epoch())
 	s.trimDuties(slot.Epoch() - trimEpochOffset)
 
@@ -700,6 +712,60 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 	}
 
 	logResolvedDuties(ctx, "Resolved sync committee duties", slot.Epoch(), syncResolvedPubkeys)
+
+	return nil
+}
+
+// resolvePTCDuties resolves payload timeliness committee duties for the epoch of the slot.
+// PTC duties only exist from the gloas fork onwards.
+func (s *Scheduler) resolvePTCDuties(ctx context.Context, slot core.Slot, vals validators) error {
+	if !s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
+		return nil
+	}
+
+	eth2Resp, err := s.eth2Cl.PTCDuties(ctx, &eth2api.PTCDutiesOpts{
+		Epoch:   eth2p0.Epoch(slot.Epoch()),
+		Indices: vals.Indexes(),
+	})
+	if err != nil {
+		return err
+	}
+
+	var ptcResolvedPubkeys []string
+
+	for _, ptcDuty := range eth2Resp.Data {
+		if ptcDuty == nil {
+			return errors.New("ptc duty is nil")
+		}
+
+		if ptcDuty.Slot < eth2p0.Slot(slot.Slot) {
+			// Skip duties for earlier slots in initial epoch.
+			continue
+		}
+
+		pubkey, ok := vals.PubKeyFromIndex(ptcDuty.ValidatorIndex)
+		if !ok {
+			log.Warn(ctx, "Received ptc duty for unknown validator. The validator may not be part of this cluster. Ignoring", nil, z.U64("vidx", uint64(ptcDuty.ValidatorIndex)), z.U64("slot", uint64(ptcDuty.Slot)))
+			continue
+		}
+
+		if core.PubKeyFrom48Bytes(ptcDuty.PubKey) != pubkey {
+			return errors.New("invalid ptc duty pubkey")
+		}
+
+		duty := core.NewPayloadAttestationDuty(uint64(ptcDuty.Slot))
+		if !s.setDutyDefinition(duty, slot.Epoch(), pubkey, core.NewPTCDefinition(ptcDuty)) {
+			continue
+		}
+
+		ptcResolvedPubkeys = append(ptcResolvedPubkeys, pubkey.String())
+	}
+
+	if len(ptcResolvedPubkeys) > 0 {
+		log.Info(ctx, "Resolved ptc duties for validators",
+			z.U64("epoch", slot.Epoch()),
+			z.Any("pubkeys", ptcResolvedPubkeys))
+	}
 
 	return nil
 }
