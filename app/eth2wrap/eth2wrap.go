@@ -151,6 +151,7 @@ func newBeaconClient(svcCtx context.Context, timeout time.Duration, forkVersion 
 
 		return adaptedCl, nil
 	})
+	cl.confAddress = address
 
 	return cl
 }

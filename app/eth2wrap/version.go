@@ -29,6 +29,20 @@ var (
 	}
 
 	incompatibleBeaconNodeVersion = map[string][]version.SemVer{}
+
+	// The following tables define the minimum client versions required to support a scheduled
+	// fork. Clients absent from a fork's map have no expectation set. Populated as clients cut
+	// fork-ready releases, e.g.:
+	//  Gloas: {"Lighthouse": minLighthouseGloasVersion},
+
+	// minimumBeaconNodeVersionByFork defines the minimum beacon node versions per fork.
+	minimumBeaconNodeVersionByFork = map[Fork]map[string]version.SemVer{}
+
+	// minimumValidatorClientVersionByFork defines the minimum validator client versions per fork.
+	minimumValidatorClientVersionByFork = map[Fork]map[string]version.SemVer{}
+
+	// minimumExecutionEngineVersionByFork defines the minimum execution engine versions per fork.
+	minimumExecutionEngineVersionByFork = map[Fork]map[string]version.SemVer{}
 )
 
 type BeaconNodeVersionStatus int
@@ -98,4 +112,32 @@ func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 	case VersionOK:
 		// Do nothing
 	}
+}
+
+// checkClientForkSupport checks a client version string (formatted "Name/vX.Y.Z...", as
+// published by beacon nodes, execution engines and validator client user agents) against the
+// provided per-client fork minimums. It returns the fork readiness status, the current
+// version and the minimum required version.
+func checkClientForkSupport(minVersions map[string]version.SemVer, clientVersion string) (status string, clVer string, minVer string) {
+	matches := versionExtractRegex.FindStringSubmatch(clientVersion)
+	if len(matches) != 3 {
+		return forkStatusUnknown, "", ""
+	}
+
+	parsed, err := version.Parse("v" + matches[2])
+	if err != nil {
+		return forkStatusUnknown, "", ""
+	}
+
+	minVersion, ok := minVersions[matches[1]]
+	if !ok {
+		// No expectation set for this client.
+		return forkStatusReady, parsed.String(), ""
+	}
+
+	if version.Compare(parsed, minVersion) == -1 {
+		return forkStatusUpgradeRequired, parsed.String(), minVersion.String()
+	}
+
+	return forkStatusReady, parsed.String(), minVersion.String()
 }
