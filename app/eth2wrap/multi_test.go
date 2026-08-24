@@ -233,3 +233,28 @@ func TestMulti_ClientForAddress(t *testing.T) {
 		require.Equal(t, "http://bn1:5051", scoped.Address())
 	})
 }
+
+func TestMulti_ClientForAddressMasked(t *testing.T) {
+	// Client addresses are stored in masked form (scheme prefixed, credentials redacted),
+	// while operators configure raw addresses. ClientForAddress must still scope correctly.
+	// Note the target client is deliberately not first: an unscoped multi falls back to the
+	// first client's address, which would falsely satisfy the assertions below.
+	clientA := mocks.NewClient(t)
+	clientA.On("Address").Return("http://bn-a.example.com:5052").Maybe()
+
+	clientB := mocks.NewClient(t)
+	clientB.On("Address").Return("http://user:xxxxx@bn-b.example.com:5052").Maybe()
+
+	clientC := mocks.NewClient(t)
+	clientC.On("Address").Return("http://bn-c.example.com:5052").Maybe()
+
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{clientA, clientB, clientC}, nil)
+
+	// Raw configured address with credentials matches the client's masked address.
+	scoped := m.ClientForAddress("http://user:secret@bn-b.example.com:5052")
+	require.Equal(t, "http://user:xxxxx@bn-b.example.com:5052", scoped.Address())
+
+	// Scheme-less configured address matches the scheme-prefixed client address.
+	scoped = m.ClientForAddress("bn-c.example.com:5052")
+	require.Equal(t, "http://bn-c.example.com:5052", scoped.Address())
+}
