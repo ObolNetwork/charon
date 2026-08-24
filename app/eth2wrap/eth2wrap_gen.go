@@ -58,6 +58,9 @@ type Client interface {
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.NodeVersionV2Provider
+	eth2client.PTCDutiesProvider
+	eth2client.PayloadAttestationDataProvider
+	eth2client.PayloadAttestationMessagesSubmitter
 	eth2client.ProposalPreparationsSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
@@ -528,7 +531,7 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return err
 }
 
-// BeaconCommitteeSelections submits beacon committee selections.
+// BeaconCommitteeSelections obtains beacon committee selections.
 func (m multi) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (*api.Response[[]*apiv1.BeaconCommitteeSelection], error) {
 	const label = "beacon_committee_selections"
 	defer latency(ctx, label, false)()
@@ -919,6 +922,66 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	return res0, err
 }
 
+func (m multi) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (*api.Response[[]*apiv1.PTCDuty], error) {
+	const label = "ptc_duties"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.PTCDuty], error) {
+			return args.client.PTCDuties(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) PayloadAttestationData(ctx context.Context, opts *api.PayloadAttestationDataOpts) (*api.Response[*spec.VersionedPayloadAttestationData], error) {
+	const label = "payload_attestation_data"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedPayloadAttestationData], error) {
+			return args.client.PayloadAttestationData(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.SubmitPayloadAttestationMessagesOpts) error {
+	const label = "submit_payload_attestation_messages"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitPayloadAttestationMessages(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
 // SlotDuration provides the duration of a slot of the chain.
 //
 // Deprecated: use Spec()
@@ -1134,7 +1197,7 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 }
 
-// BeaconCommitteeSelections submits beacon committee selections.
+// BeaconCommitteeSelections obtains beacon committee selections.
 func (l *lazy) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (res0 *api.Response[[]*apiv1.BeaconCommitteeSelection], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
@@ -1317,6 +1380,33 @@ func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	}
 
 	return cl.GenesisDomain(ctx, domainType)
+}
+
+func (l *lazy) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (res0 *api.Response[[]*apiv1.PTCDuty], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.PTCDuties(ctx, opts)
+}
+
+func (l *lazy) PayloadAttestationData(ctx context.Context, opts *api.PayloadAttestationDataOpts) (res0 *api.Response[*spec.VersionedPayloadAttestationData], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.PayloadAttestationData(ctx, opts)
+}
+
+func (l *lazy) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.SubmitPayloadAttestationMessagesOpts) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitPayloadAttestationMessages(ctx, opts)
 }
 
 // Proxy performs an HTTP proxy request and returns the response.

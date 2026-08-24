@@ -22,6 +22,13 @@ type ForkSchedule struct {
 
 type ForkForkSchedule map[Fork]ForkSchedule
 
+// Active returns true if the fork is scheduled and active at the provided epoch.
+func (s ForkForkSchedule) Active(fork Fork, epoch eth2p0.Epoch) bool {
+	fs, ok := s[fork]
+
+	return ok && fs.Epoch != math.MaxUint64 && epoch >= fs.Epoch
+}
+
 type Fork uint64
 
 const (
@@ -31,6 +38,7 @@ const (
 	Deneb
 	Electra
 	Fulu
+	Gloas
 )
 
 func (f Fork) String() string {
@@ -44,6 +52,13 @@ var forkLabels = map[Fork]string{
 	Deneb:     "DENEB",
 	Electra:   "ELECTRA",
 	Fulu:      "FULU",
+	Gloas:     "GLOAS",
+}
+
+// optionalForks are future forks that beacon nodes may not publish spec keys for yet.
+// Missing spec keys resolve to an unscheduled fork instead of an error.
+var optionalForks = map[Fork]bool{
+	Gloas: true,
 }
 
 // Sentinel errors are wrapped when first returned so that the stack trace and the wrapping message
@@ -222,7 +237,7 @@ func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork 
 	res := ForkForkSchedule{}
 
 	for k, v := range forkLabels {
-		fs, err := fetchFork(v, spec.Data)
+		fs, err := fetchFork(v, spec.Data, optionalForks[k])
 		if err != nil {
 			return nil, err
 		}
@@ -233,14 +248,18 @@ func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork 
 	return res, nil
 }
 
-func fetchFork(forkName string, data map[string]any) (ForkSchedule, error) {
+// fetchFork returns the fork schedule of the named fork from the network spec.
+// Optional (future) forks tolerate missing spec keys and resolve to an unscheduled
+// fork with an epoch of math.MaxUint64, consistent with how beacon nodes publish
+// unscheduled forks.
+func fetchFork(forkName string, data map[string]any, optional bool) (ForkSchedule, error) {
 	var ok bool
 
-	fs := ForkSchedule{}
+	fs := ForkSchedule{Epoch: math.MaxUint64}
 	forkVersion := forkName + "_FORK_VERSION"
 
 	version, ok := data[forkVersion].(eth2p0.Version)
-	if !ok {
+	if !ok && !optional {
 		return fs, errors.New("missing " + forkVersion + " in network spec")
 	}
 
@@ -249,11 +268,13 @@ func fetchFork(forkName string, data map[string]any) (ForkSchedule, error) {
 	forkEpoch := forkName + "_FORK_EPOCH"
 
 	epoch, ok := data[forkEpoch].(uint64)
-	if !ok {
+	if !ok && !optional {
 		return fs, errors.New("missing " + forkEpoch + " in network spec")
 	}
 
-	fs.Epoch = eth2p0.Epoch(epoch)
+	if ok {
+		fs.Epoch = eth2p0.Epoch(epoch)
+	}
 
 	return fs, nil
 }
