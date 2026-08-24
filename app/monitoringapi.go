@@ -59,8 +59,12 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 		var resp []eth2wrap.NodeClientVersions
 
 		for _, addr := range beaconNodeAddrs {
-			bnVersion, eeVersion, _ := fetchBeaconAndExecutionVersion(ctx, eth2Cl.ClientForAddress(addr), addr)
-			resp = append(resp, eth2wrap.NodeClientVersions{Address: addr, BeaconNode: bnVersion, ExecutionClient: eeVersion})
+			scopedClient := eth2Cl.ClientForAddress(addr)
+			bnVersion, eeVersion, _ := fetchBeaconAndExecutionVersion(ctx, scopedClient, addr)
+
+			// Address returns the masked address (credentials, path and query redacted by
+			// go-eth2-client), safe for metric labels and logs.
+			resp = append(resp, eth2wrap.NodeClientVersions{Address: scopedClient.Address(), BeaconNode: bnVersion, ExecutionClient: eeVersion})
 		}
 
 		return resp
