@@ -432,6 +432,7 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 
 			vcUserAgentGauge.Reset()
 			vcUserAgentGauge.WithLabelValues(userAgent).Set(1)
+			recordVCUserAgent(userAgent)
 		}
 
 		body, err := io.ReadAll(r.Body)

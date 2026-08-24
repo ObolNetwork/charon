@@ -29,8 +29,16 @@ func newLazy(provider func(context.Context) (Client, error)) *lazy {
 	}
 }
 
+// configuredAddress returns the original configured beacon node address of this client,
+// used to match configured addresses since Address returns the masked form.
+func (l *lazy) configuredAddress() string {
+	return l.confAddress
+}
+
 // lazy is a client that is created on demand.
 type lazy struct {
+	confAddress string
+
 	providerMu sync.Mutex
 	provider   func(context.Context) (Client, error)
 
