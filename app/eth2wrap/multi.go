@@ -7,9 +7,6 @@ import (
 	"context"
 	"io"
 	"net/http"
-	"net/url"
-	"regexp"
-	"strings"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -73,13 +70,9 @@ func (m multi) ClientForAddress(addr string) Client {
 		return m
 	}
 
-	// Client addresses are stored in masked form (credentials, path and query redacted by
-	// go-eth2-client), so normalize the provided address the same way before matching.
-	masked := maskedAddress(addr)
-
 	// Find client matching the address
 	for _, cl := range m.clients {
-		if cl.Address() == addr || cl.Address() == masked {
+		if matchesAddress(cl, addr) {
 			return multi{
 				clients:   []Client{cl},
 				fallbacks: m.fallbacks,
@@ -90,7 +83,7 @@ func (m multi) ClientForAddress(addr string) Client {
 
 	// Address not found in clients, check fallbacks
 	for _, cl := range m.fallbacks {
-		if cl.Address() == addr || cl.Address() == masked {
+		if matchesAddress(cl, addr) {
 			return multi{
 				clients:   []Client{cl},
 				fallbacks: nil,
@@ -295,36 +288,18 @@ func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, er
 	return res0, err
 }
 
-// maskedAddress returns the provided beacon node address in the masked form used by client
-// Address(): scheme prefixed, trailing path slash trimmed, and credentials, path and query
-// masked. It mirrors go-eth2-client's address parsing so configured addresses can be matched
-// against client addresses.
-func maskedAddress(addr string) string {
-	if !strings.HasPrefix(addr, "http") {
-		addr = "http://" + addr
+// matchesAddress returns true if the client corresponds to the provided configured beacon
+// node address. Clients constructed from a configured address match on the original address,
+// since Address returns the masked form (credentials, path and query redacted) which is both
+// lossy and ambiguous between endpoints on the same host.
+func matchesAddress(cl Client, addr string) bool {
+	type configuredAddresser interface {
+		configuredAddress() string
 	}
 
-	u, err := url.Parse(addr)
-	if err != nil {
-		return addr
+	if ca, ok := cl.(configuredAddresser); ok && ca.configuredAddress() == addr {
+		return true
 	}
 
-	u.Path = strings.TrimSuffix(u.Path, "/")
-
-	if _, ok := u.User.Password(); ok {
-		u.User = url.UserPassword(u.User.Username(), "xxxxx")
-	}
-
-	if u.Path != "" {
-		u.Path = "xxxxx"
-	}
-
-	if u.RawQuery != "" {
-		u.RawQuery = maskQueryRegex.ReplaceAllString(u.RawQuery, "=xxxxx$2")
-	}
-
-	return u.String()
+	return cl.Address() == addr
 }
-
-// maskQueryRegex masks query parameter values, mirroring go-eth2-client's address masking.
-var maskQueryRegex = regexp.MustCompile("=([^&]*)(&)?")
