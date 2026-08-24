@@ -72,7 +72,7 @@ func (m multi) ClientForAddress(addr string) Client {
 
 	// Find client matching the address
 	for _, cl := range m.clients {
-		if cl.Address() == addr {
+		if matchesAddress(cl, addr) {
 			return multi{
 				clients:   []Client{cl},
 				fallbacks: m.fallbacks,
@@ -83,7 +83,7 @@ func (m multi) ClientForAddress(addr string) Client {
 
 	// Address not found in clients, check fallbacks
 	for _, cl := range m.fallbacks {
-		if cl.Address() == addr {
+		if matchesAddress(cl, addr) {
 			return multi{
 				clients:   []Client{cl},
 				fallbacks: nil,
@@ -286,4 +286,20 @@ func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, er
 	)
 
 	return res0, err
+}
+
+// matchesAddress returns true if the client corresponds to the provided configured beacon
+// node address. Clients constructed from a configured address match on the original address,
+// since Address returns the masked form (credentials, path and query redacted) which is both
+// lossy and ambiguous between endpoints on the same host.
+func matchesAddress(cl Client, addr string) bool {
+	type configuredAddresser interface {
+		configuredAddress() string
+	}
+
+	if ca, ok := cl.(configuredAddresser); ok && ca.configuredAddress() == addr {
+		return true
+	}
+
+	return cl.Address() == addr
 }

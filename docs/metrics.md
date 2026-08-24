@@ -30,6 +30,9 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_eth2_using_fallback` | Gauge | Indicates if client is using fallback (1) or primary (0) beacon node |  |
 | `app_execution_layer_version` | Gauge | Constant gauge with labels set to the version of the upstream execution layer | `version` |
 | `app_feature_flags` | Gauge | Constant gauge with custom enabled feature flags | `feature_flags` |
+| `app_fork_applied_epoch` | Gauge | Constant gauge with the fork activation epoch charon applied at startup | `fork` |
+| `app_fork_network_epoch` | Gauge | Constant gauge with the scheduled activation epoch per fork as published by the beacon node | `fork` |
+| `app_fork_readiness` | Gauge | Constant gauge set to 1 per fork and component with the fork readiness status: ready, restart_required, upgrade_required or unknown. The address label is set for per-beacon-node rows | `fork, component, status, address` |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
 | `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name, description` |
 | `app_health_checks_failed_total` | Counter | Total number of times each health check has been observed failing. Allows querying historical failures via increase(). | `severity, name, description` |

@@ -146,6 +146,7 @@ func newBeaconClient(timeout time.Duration, forkVersion [4]byte, headers map[str
 
 		return adaptedCl, nil
 	})
+	cl.confAddress = address
 
 	return cl
 }
