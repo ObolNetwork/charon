@@ -761,11 +761,7 @@ func (s *Scheduler) resolvePTCDuties(ctx context.Context, slot core.Slot, vals v
 		ptcResolvedPubkeys = append(ptcResolvedPubkeys, pubkey.String())
 	}
 
-	if len(ptcResolvedPubkeys) > 0 {
-		log.Info(ctx, "Resolved ptc duties for validators",
-			z.U64("epoch", slot.Epoch()),
-			z.Any("pubkeys", ptcResolvedPubkeys))
-	}
+	logResolvedDuties(ctx, "Resolved ptc duties", slot.Epoch(), ptcResolvedPubkeys)
 
 	return nil
 }

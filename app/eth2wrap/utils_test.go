@@ -122,8 +122,9 @@ func TestForkForkScheduleActive(t *testing.T) {
 	require.True(t, ffs.Active(eth2wrap.Electra, 5000))
 	require.False(t, ffs.Active(eth2wrap.Electra, 2047))
 
-	// Unscheduled forks are never active.
+	// Unscheduled forks are never active, even at the far-future sentinel epoch.
 	require.False(t, ffs.Active(eth2wrap.Gloas, 5000))
+	require.False(t, ffs.Active(eth2wrap.Gloas, math.MaxUint64))
 
 	// Forks absent from the schedule are never active.
 	require.False(t, ffs.Active(eth2wrap.Fulu, 5000))

@@ -26,7 +26,7 @@ type ForkForkSchedule map[Fork]ForkSchedule
 func (s ForkForkSchedule) Active(fork Fork, epoch eth2p0.Epoch) bool {
 	fs, ok := s[fork]
 
-	return ok && epoch >= fs.Epoch
+	return ok && fs.Epoch != math.MaxUint64 && epoch >= fs.Epoch
 }
 
 type Fork uint64
