@@ -52,7 +52,11 @@ type Client interface {
     CachedValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
 		CachedDutiesProvider
-		SetDutiesCache(func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error), func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error), func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error))
+		SetDutiesCache(
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
+		)
 
 		SetForkVersion(forkVersion [4]byte)
 
@@ -132,6 +136,9 @@ type Client interface {
 		"NodeVersionV2Provider":                 {Latency: false, Log: false},
 		"PendingDepositProvider":                {Latency: true, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},
+		"PTCDutiesProvider":                     {Latency: true, Log: false},
+		"PayloadAttestationDataProvider":        {Latency: true, Log: false},
+		"PayloadAttestationMessagesSubmitter":   {Latency: true, Log: false},
 		"ProposalPreparationsSubmitter":         {Latency: true, Log: true},
 		"SlotDurationProvider":                  {Latency: false, Log: false},
 		"SlotsPerEpochProvider":                 {Latency: false, Log: false},
