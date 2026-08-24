@@ -51,9 +51,22 @@ func wireMonitoringAPI(ctx context.Context, life *lifecycle.Manager, promAddr, d
 	p2pNode host.Host, eth2Cl eth2wrap.Client, beaconNodeAddrs []string, eth1Cl eth1wrap.EthClientRunner,
 	peerIDs []peer.ID, registry *prometheus.Registry, consensusDebugger http.Handler,
 	pubkeys []core.PubKey, vapiCalls <-chan struct{},
-	numValidators int,
+	numValidators int, vcUserAgents func() []string,
 ) {
 	consensusAndExecutionVersionMetric(ctx, eth2Cl, beaconNodeAddrs, eth1Cl, clockwork.NewRealClock())
+
+	nodeVersions := func(ctx context.Context) []eth2wrap.NodeClientVersions {
+		var resp []eth2wrap.NodeClientVersions
+
+		for _, addr := range beaconNodeAddrs {
+			bnVersion, eeVersion, _ := fetchBeaconAndExecutionVersion(ctx, eth2Cl.ClientForAddress(addr), addr)
+			resp = append(resp, eth2wrap.NodeClientVersions{Address: addr, BeaconNode: bnVersion, ExecutionClient: eeVersion})
+		}
+
+		return resp
+	}
+
+	eth2wrap.StartForkReadinessMetric(ctx, eth2Cl, nodeVersions, vcUserAgents, clockwork.NewRealClock())
 
 	mux := http.NewServeMux()
 

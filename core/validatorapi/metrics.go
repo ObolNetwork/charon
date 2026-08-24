@@ -3,8 +3,10 @@
 package validatorapi
 
 import (
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -101,4 +103,44 @@ func isNumeric(s string) bool {
 	return !strings.ContainsFunc(s, func(r rune) bool {
 		return r < '0' || r > '9'
 	})
+}
+
+// vcUserAgentRegistry tracks validator client user agents recently seen on API requests,
+// so fork readiness checks can evaluate the connected validator clients.
+var vcUserAgentRegistry = struct {
+	sync.Mutex
+
+	agents map[string]time.Time
+}{agents: make(map[string]time.Time)}
+
+// vcUserAgentTTL bounds how long a user agent is considered connected after its last request.
+const vcUserAgentTTL = time.Hour
+
+// recordVCUserAgent records a validator client user agent seen on an API request.
+func recordVCUserAgent(agent string) {
+	vcUserAgentRegistry.Lock()
+	defer vcUserAgentRegistry.Unlock()
+
+	vcUserAgentRegistry.agents[agent] = time.Now()
+}
+
+// SeenVCUserAgents returns the validator client user agents seen recently on API requests.
+func SeenVCUserAgents() []string {
+	vcUserAgentRegistry.Lock()
+	defer vcUserAgentRegistry.Unlock()
+
+	var resp []string
+
+	for agent, seen := range vcUserAgentRegistry.agents {
+		if time.Since(seen) > vcUserAgentTTL {
+			delete(vcUserAgentRegistry.agents, agent)
+			continue
+		}
+
+		resp = append(resp, agent)
+	}
+
+	slices.Sort(resp)
+
+	return resp
 }
