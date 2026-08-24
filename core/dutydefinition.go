@@ -91,3 +91,29 @@ func (s SyncCommitteeDefinition) Clone() (DutyDefinition, error) {
 func (s SyncCommitteeDefinition) MarshalJSON() ([]byte, error) {
 	return s.SyncCommitteeDuty.MarshalJSON()
 }
+
+// NewPTCDefinition is a convenience function that returns a new PTCDefinition.
+func NewPTCDefinition(duty *eth2v1.PTCDuty) DutyDefinition {
+	return PTCDefinition{PTCDuty: *duty}
+}
+
+// PTCDefinition defines a payload timeliness committee attestation duty. It implements DutyDefinition.
+// Note the slight rename from Duty to Definition to avoid overloading the term Duty.
+type PTCDefinition struct {
+	eth2v1.PTCDuty
+}
+
+func (d PTCDefinition) Clone() (DutyDefinition, error) {
+	duty := new(eth2v1.PTCDuty)
+
+	err := cloneJSONMarshaler(&d.PTCDuty, duty)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone ptc definition")
+	}
+
+	return NewPTCDefinition(duty), nil
+}
+
+func (d PTCDefinition) MarshalJSON() ([]byte, error) {
+	return d.PTCDuty.MarshalJSON()
+}

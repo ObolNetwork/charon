@@ -805,3 +805,129 @@ func (c *testClock) AfterFunc(time.Duration, func()) clockwork.Timer {
 func (c *testClock) Until(t time.Time) time.Duration {
 	panic("not supported")
 }
+
+func TestSchedulerPTCDuties(t *testing.T) {
+	var (
+		t0     time.Time
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	// Configure beacon mock with the gloas fork active from genesis and single-slot epochs.
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithSlotsPerEpoch(1),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+	)
+	require.NoError(t, err)
+
+	eth2Cl.PTCDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+		var duties []*eth2v1.PTCDuty
+		for _, vIdx := range indices {
+			duties = append(duties, &eth2v1.PTCDuty{
+				PubKey:         valSet[vIdx].Validator.PublicKey,
+				Slot:           eth2p0.Slot(epoch), // Single-slot epochs, so the epoch's slot equals the epoch.
+				ValidatorIndex: vIdx,
+			})
+		}
+
+		return duties, nil
+	}
+
+	// Construct scheduler.
+	clock := newTestClock(t0)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: beaconmock.BuilderRegistrationSetA}, eth2Cl, nil, false)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	// Stop is not idempotent, and both the failsafe and the subscriber may trigger it.
+	var stopOnce sync.Once
+
+	stop := func() { stopOnce.Do(sched.Stop) }
+
+	// Failsafe: stop the scheduler after a few slots so the test fails cleanly instead of hanging.
+	clock.CallbackAfter(t0.Add(4*slotDuration), func() {
+		stop()
+	})
+
+	// Collect the pubkeys of the first triggered payload attestation duty.
+	var (
+		mu    sync.Mutex
+		found = make(map[core.PubKey]bool)
+	)
+
+	sched.SubscribeDuties(func(_ context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
+		if duty.Type != core.DutyPayloadAttestation {
+			return nil
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+
+		for pubkey := range set {
+			found[pubkey] = true
+		}
+
+		stop()
+
+		return nil
+	})
+
+	require.NoError(t, sched.Run())
+
+	pubKeys, err := valSet.CorePubKeys()
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	for _, pubKey := range pubKeys {
+		require.True(t, found[pubKey], "missing payload attestation duty for validator %s", pubKey)
+	}
+}
+
+func TestSchedulerNoPTCDutiesPreGloas(t *testing.T) {
+	var (
+		t0     time.Time
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	// Configure beacon mock without a scheduled gloas fork.
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithSlotsPerEpoch(1),
+	)
+	require.NoError(t, err)
+
+	var ptcDutiesCalled atomic.Bool
+
+	eth2Cl.PTCDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+		ptcDutiesCalled.Store(true)
+
+		return nil, nil
+	}
+
+	// Construct scheduler.
+	clock := newTestClock(t0)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: beaconmock.BuilderRegistrationSetA}, eth2Cl, nil, false)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	clock.CallbackAfter(t0.Add(2*slotDuration), func() {
+		sched.Stop()
+	})
+
+	require.NoError(t, sched.Run())
+
+	require.False(t, ptcDutiesCalled.Load(), "PTC duties must not be requested before the gloas fork")
+
+	_, err = sched.GetDutyDefinition(t.Context(), core.NewPayloadAttestationDuty(1))
+	require.Error(t, err)
+}

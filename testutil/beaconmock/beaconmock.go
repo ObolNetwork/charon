@@ -220,6 +220,9 @@ type Mock struct {
 	AggregateAttestationFunc               func(ctx context.Context, slot eth2p0.Slot, attestationDataRoot eth2p0.Root) (*eth2spec.VersionedAttestation, error)
 	SubmitAggregateAttestationsFunc        func(ctx context.Context, aggregateAndProofs *eth2api.SubmitAggregateAttestationsOpts) error
 	SyncCommitteeDutiesFunc                func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error)
+	PTCDutiesFunc                          func(ctx context.Context, epoch eth2p0.Epoch, validatorIndices []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error)
+	PayloadAttestationDataFunc             func(ctx context.Context, slot eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error)
+	SubmitPayloadAttestationMessagesFunc   func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
 	CachedSyncCommDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error)
 	SubmitSyncCommitteeMessagesFunc        func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
 	SubmitSyncCommitteeContributionsFunc   func(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error
@@ -340,6 +343,28 @@ func (m Mock) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitt
 	}
 
 	return wrapResponse(duties), nil
+}
+
+func (m Mock) PTCDuties(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error) {
+	duties, err := m.PTCDutiesFunc(ctx, opts.Epoch, opts.Indices)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[[]*eth2v1.PTCDuty]{Data: duties, Metadata: make(map[string]any)}, nil
+}
+
+func (m Mock) PayloadAttestationData(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+	data, err := m.PayloadAttestationDataFunc(ctx, opts.Slot)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[*eth2spec.VersionedPayloadAttestationData]{Data: data, Metadata: make(map[string]any)}, nil
+}
+
+func (m Mock) SubmitPayloadAttestationMessages(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+	return m.SubmitPayloadAttestationMessagesFunc(ctx, opts)
 }
 
 func (m Mock) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error) {
