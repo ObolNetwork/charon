@@ -3,8 +3,10 @@
 package validatorapi
 
 import (
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -101,4 +103,63 @@ func isNumeric(s string) bool {
 	return !strings.ContainsFunc(s, func(r rune) bool {
 		return r < '0' || r > '9'
 	})
+}
+
+// vcUserAgentRegistry tracks validator client user agents recently seen on API requests,
+// so fork readiness checks can evaluate the connected validator clients.
+var vcUserAgentRegistry = struct {
+	sync.Mutex
+
+	agents map[string]time.Time
+}{agents: make(map[string]time.Time)}
+
+const (
+	// vcUserAgentTTL bounds how long a user agent is considered connected after its last request.
+	vcUserAgentTTL = time.Hour
+	// maxVCUserAgents bounds the registry size (and the resulting metric cardinality) since
+	// user agents are untrusted request input. New agents are dropped when the registry is
+	// full; expired entries make room again. Validator clients connect continuously, so
+	// legitimate agents recorded early are retained.
+	maxVCUserAgents = 10
+)
+
+// recordVCUserAgent records a validator client user agent seen on an API request.
+func recordVCUserAgent(agent string) {
+	vcUserAgentRegistry.Lock()
+	defer vcUserAgentRegistry.Unlock()
+
+	if _, ok := vcUserAgentRegistry.agents[agent]; !ok {
+		for existing, seen := range vcUserAgentRegistry.agents {
+			if time.Since(seen) > vcUserAgentTTL {
+				delete(vcUserAgentRegistry.agents, existing)
+			}
+		}
+
+		if len(vcUserAgentRegistry.agents) >= maxVCUserAgents {
+			return
+		}
+	}
+
+	vcUserAgentRegistry.agents[agent] = time.Now()
+}
+
+// SeenVCUserAgents returns the validator client user agents seen recently on API requests.
+func SeenVCUserAgents() []string {
+	vcUserAgentRegistry.Lock()
+	defer vcUserAgentRegistry.Unlock()
+
+	var resp []string
+
+	for agent, seen := range vcUserAgentRegistry.agents {
+		if time.Since(seen) > vcUserAgentTTL {
+			delete(vcUserAgentRegistry.agents, agent)
+			continue
+		}
+
+		resp = append(resp, agent)
+	}
+
+	slices.Sort(resp)
+
+	return resp
 }
