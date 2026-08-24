@@ -806,15 +806,13 @@ func (c *testClock) Until(t time.Time) time.Duration {
 	panic("not supported")
 }
 
-func TestScheduler_GetPTCDuty(t *testing.T) {
+func TestSchedulerPTCDuties(t *testing.T) {
 	var (
-		ctx    = t.Context()
 		t0     time.Time
-		slot   = uint64(1)
 		valSet = beaconmock.ValidatorSetA
 	)
 
-	// Configure beacon mock with the gloas fork active from genesis.
+	// Configure beacon mock with the gloas fork active from genesis and single-slot epochs.
 	eth2Cl, err := beaconmock.New(
 		t.Context(),
 		beaconmock.WithValidatorSet(valSet),
@@ -824,12 +822,12 @@ func TestScheduler_GetPTCDuty(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	eth2Cl.PTCDutiesFunc = func(_ context.Context, _ eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+	eth2Cl.PTCDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
 		var duties []*eth2v1.PTCDuty
 		for _, vIdx := range indices {
 			duties = append(duties, &eth2v1.PTCDuty{
 				PubKey:         valSet[vIdx].Validator.PublicKey,
-				Slot:           eth2p0.Slot(slot),
+				Slot:           eth2p0.Slot(epoch), // Single-slot epochs, so the epoch's slot equals the epoch.
 				ValidatorIndex: vIdx,
 			})
 		}
@@ -842,34 +840,58 @@ func TestScheduler_GetPTCDuty(t *testing.T) {
 	dd := new(delayer)
 	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: beaconmock.BuilderRegistrationSetA}, eth2Cl, nil, false)
 
-	_, err = sched.GetDutyDefinition(ctx, core.NewPayloadAttestationDuty(slot))
-	require.ErrorContains(t, err, "epoch not resolved yet")
-
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), eth2Cl)
 	require.NoError(t, err)
 
-	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
-		res, err := sched.GetDutyDefinition(ctx, core.NewPayloadAttestationDuty(slot))
-		require.NoError(t, err)
+	// Stop is not idempotent, and both the failsafe and the subscriber may trigger it.
+	var stopOnce sync.Once
 
-		pubKeys, err := valSet.CorePubKeys()
-		require.NoError(t, err)
+	stop := func() { stopOnce.Do(sched.Stop) }
 
-		for _, pubKey := range pubKeys {
-			require.NotNil(t, res[pubKey])
+	// Failsafe: stop the scheduler after a few slots so the test fails cleanly instead of hanging.
+	clock.CallbackAfter(t0.Add(4*slotDuration), func() {
+		stop()
+	})
+
+	// Collect the pubkeys of the first triggered payload attestation duty.
+	var (
+		mu    sync.Mutex
+		found = make(map[core.PubKey]bool)
+	)
+
+	sched.SubscribeDuties(func(_ context.Context, duty core.Duty, set core.DutyDefinitionSet) error {
+		if duty.Type != core.DutyPayloadAttestation {
+			return nil
 		}
 
-		sched.Stop()
+		mu.Lock()
+		defer mu.Unlock()
+
+		for pubkey := range set {
+			found[pubkey] = true
+		}
+
+		stop()
+
+		return nil
 	})
 
 	require.NoError(t, sched.Run())
+
+	pubKeys, err := valSet.CorePubKeys()
+	require.NoError(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	for _, pubKey := range pubKeys {
+		require.True(t, found[pubKey], "missing payload attestation duty for validator %s", pubKey)
+	}
 }
 
-func TestScheduler_NoPTCDutiesPreGloas(t *testing.T) {
+func TestSchedulerNoPTCDutiesPreGloas(t *testing.T) {
 	var (
-		ctx    = t.Context()
 		t0     time.Time
-		slot   = uint64(1)
 		valSet = beaconmock.ValidatorSetA
 	)
 
@@ -882,8 +904,10 @@ func TestScheduler_NoPTCDutiesPreGloas(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	var ptcDutiesCalled atomic.Bool
+
 	eth2Cl.PTCDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
-		require.Fail(t, "PTC duties must not be requested before the gloas fork")
+		ptcDutiesCalled.Store(true)
 
 		return nil, nil
 	}
@@ -893,15 +917,17 @@ func TestScheduler_NoPTCDutiesPreGloas(t *testing.T) {
 	dd := new(delayer)
 	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: beaconmock.BuilderRegistrationSetA}, eth2Cl, nil, false)
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), eth2Cl)
 	require.NoError(t, err)
 
-	clock.CallbackAfter(t0.Add(slotDuration).Add(time.Second), func() {
-		_, err := sched.GetDutyDefinition(ctx, core.NewPayloadAttestationDuty(slot))
-		require.Error(t, err)
-
+	clock.CallbackAfter(t0.Add(2*slotDuration), func() {
 		sched.Stop()
 	})
 
 	require.NoError(t, sched.Run())
+
+	require.False(t, ptcDutiesCalled.Load(), "PTC duties must not be requested before the gloas fork")
+
+	_, err = sched.GetDutyDefinition(t.Context(), core.NewPayloadAttestationDuty(1))
+	require.Error(t, err)
 }
