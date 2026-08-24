@@ -4,6 +4,7 @@ package eth2wrap_test
 
 import (
 	"encoding/hex"
+	"math"
 	"testing"
 	"time"
 
@@ -86,8 +87,45 @@ func TestFetchForkConfig(t *testing.T) {
 		eth2wrap.Deneb:     eth2wrap.ForkSchedule{Epoch: 0, Version: [4]byte(dVersion)},
 		eth2wrap.Electra:   eth2wrap.ForkSchedule{Epoch: 2048, Version: [4]byte(eVersion)},
 		eth2wrap.Fulu:      eth2wrap.ForkSchedule{Epoch: 18446744073709551615, Version: [4]byte(fVersion)},
+		// Gloas spec keys are absent from beaconmock/static.json, so the optional fork resolves to unscheduled.
+		eth2wrap.Gloas: eth2wrap.ForkSchedule{Epoch: math.MaxUint64},
 	}
 
 	// Matching beaconmock/static.json
 	require.Equal(t, forkConfig, ffs)
+}
+
+func TestFetchForkConfigGloasScheduled(t *testing.T) {
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x80000910"),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "4096"),
+	)
+	require.NoError(t, err)
+
+	forkConfig, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	gVersion, err := hex.DecodeString("80000910")
+	require.NoError(t, err)
+
+	require.Equal(t, eth2wrap.ForkSchedule{Epoch: 4096, Version: [4]byte(gVersion)}, forkConfig[eth2wrap.Gloas])
+}
+
+func TestForkForkScheduleActive(t *testing.T) {
+	ffs := eth2wrap.ForkForkSchedule{
+		eth2wrap.Electra: eth2wrap.ForkSchedule{Epoch: 2048},
+		eth2wrap.Gloas:   eth2wrap.ForkSchedule{Epoch: math.MaxUint64},
+	}
+
+	require.True(t, ffs.Active(eth2wrap.Electra, 2048))
+	require.True(t, ffs.Active(eth2wrap.Electra, 5000))
+	require.False(t, ffs.Active(eth2wrap.Electra, 2047))
+
+	// Unscheduled forks are never active, even at the far-future sentinel epoch.
+	require.False(t, ffs.Active(eth2wrap.Gloas, 5000))
+	require.False(t, ffs.Active(eth2wrap.Gloas, math.MaxUint64))
+
+	// Forks absent from the schedule are never active.
+	require.False(t, ffs.Active(eth2wrap.Fulu, 5000))
 }

@@ -25,6 +25,7 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -635,6 +636,23 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
+		},
+		PTCDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+			return []*eth2v1.PTCDuty{}, nil
+		},
+		PayloadAttestationDataFunc: func(_ context.Context, slot eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+			return &eth2spec.VersionedPayloadAttestationData{
+				Version: eth2spec.DataVersionGloas,
+				Gloas: &gloas.PayloadAttestationData{
+					BeaconBlockRoot:   testutil.RandomRoot(),
+					Slot:              slot,
+					PayloadPresent:    true,
+					BlobDataAvailable: true,
+				},
+			}, nil
+		},
+		SubmitPayloadAttestationMessagesFunc: func(context.Context, *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+			return nil
 		},
 		CachedAttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 			return eth2wrap.AttesterDutyWithMeta{Duties: []*eth2v1.AttesterDuty{}, Metadata: nil}, nil
