@@ -32,7 +32,7 @@ var (
 	_ UnsignedData = VersionedProposal{}
 	_ UnsignedData = SyncContribution{}
 	_ UnsignedData = SyncContributions{}
-	_ UnsignedData = PayloadAttestationData{}
+	_ UnsignedData = VersionedPayloadAttestationData{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
 	_ sszMarshaler   = AttestationData{}
@@ -40,13 +40,13 @@ var (
 	_ sszMarshaler   = VersionedAggregatedAttestation{}
 	_ sszMarshaler   = VersionedProposal{}
 	_ sszMarshaler   = SyncContribution{}
-	_ sszMarshaler   = PayloadAttestationData{}
+	_ sszMarshaler   = VersionedPayloadAttestationData{}
 	_ sszUnmarshaler = new(AttestationData)
 	_ sszUnmarshaler = new(AggregatedAttestation)
 	_ sszUnmarshaler = new(VersionedAggregatedAttestation)
 	_ sszUnmarshaler = new(VersionedProposal)
 	_ sszUnmarshaler = new(SyncContribution)
-	_ sszUnmarshaler = new(PayloadAttestationData)
+	_ sszUnmarshaler = new(VersionedPayloadAttestationData)
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.
@@ -760,7 +760,7 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 
 		return single, nil
 	case DutyPayloadAttestation:
-		var resp PayloadAttestationData
+		var resp VersionedPayloadAttestationData
 		if err := unmarshal(data, &resp); err != nil {
 			return nil, errors.Wrap(err, "unmarshal payload attestation data")
 		}
@@ -771,20 +771,29 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 	}
 }
 
-// PayloadAttestationData: https://github.com/ethereum/consensus-specs/blob/dev/specs/gloas/beacon-chain.md#payloadattestationdata.
+// VersionedPayloadAttestationData: https://github.com/ethereum/consensus-specs/blob/dev/specs/gloas/beacon-chain.md#payloadattestationdata.
 
-// NewPayloadAttestationData returns a new PayloadAttestationData.
-func NewPayloadAttestationData(data *gloas.PayloadAttestationData) PayloadAttestationData {
-	return PayloadAttestationData{PayloadAttestationData: *data}
+// NewVersionedPayloadAttestationData validates and returns a new VersionedPayloadAttestationData.
+func NewVersionedPayloadAttestationData(data *eth2spec.VersionedPayloadAttestationData) (VersionedPayloadAttestationData, error) {
+	switch data.Version {
+	case eth2spec.DataVersionGloas:
+		if data.Gloas == nil {
+			return VersionedPayloadAttestationData{}, errors.New("no gloas payload attestation data")
+		}
+	default:
+		return VersionedPayloadAttestationData{}, errors.New("unknown version")
+	}
+
+	return VersionedPayloadAttestationData{VersionedPayloadAttestationData: *data}, nil
 }
 
-// PayloadAttestationData wraps gloas.PayloadAttestationData and implements UnsignedData.
-type PayloadAttestationData struct {
-	gloas.PayloadAttestationData
+// VersionedPayloadAttestationData wraps a versioned payload attestation data and implements UnsignedData.
+type VersionedPayloadAttestationData struct {
+	eth2spec.VersionedPayloadAttestationData
 }
 
-func (p PayloadAttestationData) Clone() (UnsignedData, error) {
-	var resp PayloadAttestationData
+func (p VersionedPayloadAttestationData) Clone() (UnsignedData, error) {
+	var resp VersionedPayloadAttestationData
 
 	err := cloneSSZMarshaler(p, &resp)
 	if err != nil {
@@ -794,26 +803,77 @@ func (p PayloadAttestationData) Clone() (UnsignedData, error) {
 	return resp, nil
 }
 
-func (p PayloadAttestationData) MarshalJSON() ([]byte, error) {
-	return p.PayloadAttestationData.MarshalJSON()
+func (p VersionedPayloadAttestationData) MarshalJSON() ([]byte, error) {
+	var marshaller json.Marshaler
+
+	switch p.Version {
+	// No nil checks since `NewVersionedPayloadAttestationData` assumed.
+	case eth2spec.DataVersionGloas:
+		marshaller = p.Gloas
+	default:
+		return nil, errors.New("unknown version")
+	}
+
+	data, err := marshaller.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal payload attestation data")
+	}
+
+	version, err := eth2util.DataVersionFromETH2(p.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
+	resp, err := json.Marshal(versionedRawPayloadAttDataJSON{
+		Version: version,
+		Data:    data,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal wrapper")
+	}
+
+	return resp, nil
 }
 
-func (p *PayloadAttestationData) UnmarshalJSON(input []byte) error {
-	return p.PayloadAttestationData.UnmarshalJSON(input)
+func (p *VersionedPayloadAttestationData) UnmarshalJSON(input []byte) error {
+	var raw versionedRawPayloadAttDataJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal payload attestation data")
+	}
+
+	resp := eth2spec.VersionedPayloadAttestationData{Version: raw.Version.ToETH2()}
+
+	switch resp.Version {
+	case eth2spec.DataVersionGloas:
+		data := new(gloas.PayloadAttestationData)
+
+		err := json.Unmarshal(raw.Data, data)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = data
+	default:
+		return errors.New("unknown version")
+	}
+
+	p.VersionedPayloadAttestationData = resp
+
+	return nil
 }
 
-func (p PayloadAttestationData) MarshalSSZ() ([]byte, error) {
-	return p.PayloadAttestationData.MarshalSSZ()
+func (p VersionedPayloadAttestationData) HashTreeRoot() ([32]byte, error) {
+	switch p.Version {
+	// No nil checks since `NewVersionedPayloadAttestationData` assumed.
+	case eth2spec.DataVersionGloas:
+		return p.Gloas.HashTreeRoot()
+	default:
+		return [32]byte{}, errors.New("unknown version")
+	}
 }
 
-func (p PayloadAttestationData) MarshalSSZTo(dst []byte) ([]byte, error) {
-	return p.PayloadAttestationData.MarshalSSZTo(dst)
-}
-
-func (p PayloadAttestationData) SizeSSZ() int {
-	return p.PayloadAttestationData.SizeSSZ()
-}
-
-func (p *PayloadAttestationData) UnmarshalSSZ(b []byte) error {
-	return p.PayloadAttestationData.UnmarshalSSZ(b)
+// versionedRawPayloadAttDataJSON is a custom VersionedPayloadAttestationData serialiser.
+type versionedRawPayloadAttDataJSON struct {
+	Version eth2util.DataVersion `json:"version"`
+	Data    json.RawMessage      `json:"data"`
 }

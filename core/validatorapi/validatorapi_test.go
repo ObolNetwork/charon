@@ -25,7 +25,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -2753,10 +2752,10 @@ func TestComponent_PayloadAttestationData(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
 	require.NoError(t, err)
 
-	expected := testutil.RandomPayloadAttestationData()
-	expected.Slot = 42
+	expected := testutil.RandomVersionedPayloadAttestationData()
+	expected.Gloas.Slot = 42
 
-	vapi.RegisterAwaitPayloadAttestationData(func(_ context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+	vapi.RegisterAwaitPayloadAttestationData(func(_ context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error) {
 		require.Equal(t, uint64(42), slot)
 
 		return expected, nil
@@ -2765,7 +2764,7 @@ func TestComponent_PayloadAttestationData(t *testing.T) {
 	resp, err := vapi.PayloadAttestationData(ctx, &eth2api.PayloadAttestationDataOpts{Slot: 42})
 	require.NoError(t, err)
 	require.Equal(t, eth2spec.DataVersionGloas, resp.Data.Version)
-	require.Equal(t, expected, resp.Data.Gloas)
+	require.Equal(t, expected, resp.Data)
 }
 
 func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
