@@ -583,9 +583,10 @@ func TestInclusion404Handling(t *testing.T) {
 }
 
 // TestRunNoFalseMissesAtChainStart is a regression test for the first slots
-// after genesis (wall slots below InclCheckLag+InclMissedLag): the trim-slot
-// arithmetic underflowed, so Trim deleted every pending submission and
-// reported fresh duties as "duty not included on-chain".
+// after genesis: the trim-slot arithmetic underflowed, so Trim deleted every
+// pending submission and reported fresh duties as "duty not included
+// on-chain", and the zero-valued checkedSlot skipped the genesis slot's
+// inclusion check entirely.
 func TestRunNoFalseMissesAtChainStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -610,15 +611,22 @@ func TestRunNoFalseMissesAtChainStart(t *testing.T) {
 		beaconCommittees: make(map[eth2p0.Slot][]*eth2v1.BeaconCommittee),
 	}
 
-	// Pin the wall slot to 10 for the whole test (inside the underflow
-	// window): genesis 10 slots ago with a slot duration far longer than
-	// the test.
+	// Pin the checked slot to 0 for the whole test: genesis InclCheckLag
+	// slots ago with a slot duration far longer than the test.
+	checked := make(chan uint64, 1)
 	checker := &InclusionChecker{
-		core:           incl,
-		eth2Cl:         bmock,
-		genesis:        time.Now().Add(-10 * time.Hour),
-		slotDuration:   time.Hour,
-		checkBlockFunc: incl.CheckBlock,
+		core:         incl,
+		eth2Cl:       bmock,
+		genesis:      time.Now().Add(-InclCheckLag * time.Hour),
+		slotDuration: time.Hour,
+		checkBlockFunc: func(ctx context.Context, slot uint64, found bool) {
+			incl.CheckBlock(ctx, slot, found)
+
+			select {
+			case checked <- slot:
+			default:
+			}
+		},
 	}
 
 	// A pending proposal from slot 3: too recent to be declared missed.
@@ -627,11 +635,21 @@ func TestRunNoFalseMissesAtChainStart(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, incl.Submitted(core.NewProposerDuty(3), "", coreBlock, 0))
 
-	go checker.Run(ctx)
+	var wg sync.WaitGroup
 
-	// Let the checker tick at least twice (1s ticker).
-	time.Sleep(2500 * time.Millisecond)
+	wg.Go(func() {
+		checker.Run(ctx)
+	})
+
+	select {
+	case slot := <-checked:
+		require.Zero(t, slot, "the genesis slot must be checked, not skipped as already-checked")
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for the genesis slot inclusion check")
+	}
+
 	cancel()
+	wg.Wait() // Run exits only after the tick completes, including any trim.
 
 	mu.Lock()
 	defer mu.Unlock()

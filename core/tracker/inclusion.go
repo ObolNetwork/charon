@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -589,7 +590,9 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	}
 
 	var (
-		checkedSlot    uint64
+		// MaxUint64 sentinel so the first computed slot (0 at chain start)
+		// is not skipped as already-checked.
+		checkedSlot    = uint64(math.MaxUint64)
 		attesterDuties []*eth2v1.AttesterDuty
 	)
 
