@@ -86,7 +86,7 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.VersionedAggregatedAttestation) }},
 		{zero: func() any { return new(core.VersionedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
-		{zero: func() any { return new(core.PayloadAttestationData) }},
+		{zero: func() any { return new(core.VersionedPayloadAttestationData) }},
 		{zero: func() any { return new(core.SignedPayloadAttestationMessage) }},
 	}
 
@@ -138,7 +138,7 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		},
 		{
 			dutyType:    core.DutyPayloadAttestation,
-			unsignedPtr: func() any { return new(core.PayloadAttestationData) },
+			unsignedPtr: func() any { return new(core.VersionedPayloadAttestationData) },
 		},
 	}
 
@@ -1333,18 +1333,25 @@ func TestPayloadAttestationDataSSZ(t *testing.T) {
 		root[i] = 0xab
 	}
 
+	// Versioned envelope: version(uint64) + offset(uint32) prefixing the payload.
+	versionedPrefix := "0700000000000000" + // Version=7 (gloas, LE)
+		"0c000000" // Offset=12 (LE)
+
 	tests := []struct {
 		name     string
-		value    core.PayloadAttestationData
+		value    core.VersionedPayloadAttestationData
 		expected string
 	}{
 		{
 			name: "zeros",
-			value: core.PayloadAttestationData{
-				PayloadAttestationData: gloas.PayloadAttestationData{},
+			value: core.VersionedPayloadAttestationData{
+				VersionedPayloadAttestationData: eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   &gloas.PayloadAttestationData{},
+				},
 			},
 			// Fixed-size container: beacon_block_root(32) + slot(8) + payload_present(1) + blob_data_available(1).
-			expected: "0x" +
+			expected: "0x" + versionedPrefix +
 				strings.Repeat("00", 32) + // BeaconBlockRoot
 				"0000000000000000" + // Slot
 				"00" + // PayloadPresent
@@ -1352,15 +1359,18 @@ func TestPayloadAttestationDataSSZ(t *testing.T) {
 		},
 		{
 			name: "populated",
-			value: core.PayloadAttestationData{
-				PayloadAttestationData: gloas.PayloadAttestationData{
-					BeaconBlockRoot:   root,
-					Slot:              42,
-					PayloadPresent:    true,
-					BlobDataAvailable: false,
+			value: core.VersionedPayloadAttestationData{
+				VersionedPayloadAttestationData: eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.PayloadAttestationData{
+						BeaconBlockRoot:   root,
+						Slot:              42,
+						PayloadPresent:    true,
+						BlobDataAvailable: false,
+					},
 				},
 			},
-			expected: "0x" +
+			expected: "0x" + versionedPrefix +
 				strings.Repeat("ab", 32) + // BeaconBlockRoot
 				"2a00000000000000" + // Slot=42 (LE)
 				"01" + // PayloadPresent=true
@@ -1374,7 +1384,7 @@ func TestPayloadAttestationDataSSZ(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
 
-			var got core.PayloadAttestationData
+			var got core.VersionedPayloadAttestationData
 			require.NoError(t, got.UnmarshalSSZ(b))
 			require.Equal(t, tt.value, got)
 		})

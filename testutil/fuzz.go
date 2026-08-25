@@ -12,6 +12,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
@@ -397,6 +398,12 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
+			},
+			// Payload attestation data only exists from gloas onwards.
+			func(e *core.VersionedPayloadAttestationData, c fuzz.Continue) {
+				e.Version = eth2spec.DataVersionGloas
+				e.Gloas = new(gloas.PayloadAttestationData)
+				c.Fuzz(e.Gloas)
 			},
 		)
 }
