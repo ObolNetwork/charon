@@ -1018,6 +1018,13 @@ func RandomPayloadAttestationData() *gloas.PayloadAttestationData {
 	}
 }
 
+func RandomVersionedPayloadAttestationData() *eth2spec.VersionedPayloadAttestationData {
+	return &eth2spec.VersionedPayloadAttestationData{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   RandomPayloadAttestationData(),
+	}
+}
+
 func RandomPayloadAttestationMessage() *gloas.PayloadAttestationMessage {
 	return &gloas.PayloadAttestationMessage{
 		ValidatorIndex: RandomVIdx(),

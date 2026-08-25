@@ -16,7 +16,6 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -190,7 +189,7 @@ type Component struct {
 	// Registered input functions
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
+	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
@@ -213,7 +212,7 @@ func (c *Component) RegisterAwaitAttestation(fn func(ctx context.Context, slot, 
 
 // RegisterAwaitPayloadAttestationData registers a function to query payload attestation data.
 // It only supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitPayloadAttestationData(fn func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)) {
+func (c *Component) RegisterAwaitPayloadAttestationData(fn func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)) {
 	c.awaitPayloadAttDataFunc = fn
 }
 
@@ -991,10 +990,7 @@ func (c Component) PayloadAttestationData(ctx context.Context, opts *eth2api.Pay
 		return nil, err
 	}
 
-	return wrapResponse(&eth2spec.VersionedPayloadAttestationData{
-		Version: eth2spec.DataVersionGloas,
-		Gloas:   data,
-	}), nil
+	return wrapResponse(data), nil
 }
 
 // SubmitPayloadAttestationMessages implements the eth2client.PayloadAttestationMessagesSubmitter for the router.
