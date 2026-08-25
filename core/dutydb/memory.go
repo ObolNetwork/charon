@@ -12,7 +12,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -31,7 +30,7 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
 		contribKeysBySlot: make(map[uint64][]contribKey),
-		payloadAttDuties:  make(map[uint64]*gloas.PayloadAttestationData),
+		payloadAttDuties:  make(map[uint64]core.VersionedPayloadAttestationData),
 		shutdown:          make(chan struct{}),
 		deadliner:         deadliner,
 	}
@@ -62,7 +61,7 @@ type MemDB struct {
 	contribQueries    []contribQuery
 
 	// DutyPayloadAttestation
-	payloadAttDuties  map[uint64]*gloas.PayloadAttestationData
+	payloadAttDuties  map[uint64]core.VersionedPayloadAttestationData
 	payloadAttQueries []payloadAttQuery
 
 	shutdown  chan struct{}
@@ -192,11 +191,11 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 }
 
 // AwaitPayloadAttestationData implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 
-	response := make(chan *gloas.PayloadAttestationData, 1)
+	response := make(chan core.VersionedPayloadAttestationData, 1)
 
 	db.mu.Lock()
 	db.payloadAttQueries = append(db.payloadAttQueries, payloadAttQuery{
@@ -212,8 +211,19 @@ func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (
 		return nil, errors.New("dutydb shutdown")
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case data := <-response:
-		return data, nil
+	case value := <-response:
+		// Clone before returning.
+		clone, err := value.Clone()
+		if err != nil {
+			return nil, err
+		}
+
+		data, ok := clone.(core.VersionedPayloadAttestationData)
+		if !ok {
+			return nil, errors.New("invalid payload attestation data")
+		}
+
+		return &data.VersionedPayloadAttestationData, nil
 	}
 }
 
@@ -624,12 +634,17 @@ func (db *MemDB) storePayloadAttestationUnsafe(unsignedData core.UnsignedData) e
 		return err
 	}
 
-	data, ok := cloned.(core.PayloadAttestationData)
+	data, ok := cloned.(core.VersionedPayloadAttestationData)
 	if !ok {
 		return errors.New("invalid payload attestation data")
 	}
 
-	slot := uint64(data.Slot)
+	dataSlot, err := data.Slot()
+	if err != nil {
+		return errors.Wrap(err, "payload attestation data slot")
+	}
+
+	slot := uint64(dataSlot)
 
 	if existing, ok := db.payloadAttDuties[slot]; ok {
 		existingRoot, err := existing.HashTreeRoot()
@@ -646,7 +661,7 @@ func (db *MemDB) storePayloadAttestationUnsafe(unsignedData core.UnsignedData) e
 			return errors.New("clashing payload attestation data")
 		}
 	} else {
-		db.payloadAttDuties[slot] = &data.PayloadAttestationData
+		db.payloadAttDuties[slot] = data
 	}
 
 	return nil
@@ -841,7 +856,7 @@ type proQuery struct {
 // payloadAttQuery is a waiting payloadAttQuery with a response channel.
 type payloadAttQuery struct {
 	Key      uint64
-	Response chan<- *gloas.PayloadAttestationData
+	Response chan<- core.VersionedPayloadAttestationData
 	Cancel   <-chan struct{}
 }
 

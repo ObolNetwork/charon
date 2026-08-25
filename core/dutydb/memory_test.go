@@ -13,7 +13,6 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/electra"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -564,7 +563,7 @@ func TestMemDBPayloadAttestation(t *testing.T) {
 	slots := [queries]uint64{123, 456, 789}
 
 	type response struct {
-		data *gloas.PayloadAttestationData
+		data *eth2spec.VersionedPayloadAttestationData
 	}
 
 	var awaitResponse [queries]chan response
@@ -580,19 +579,21 @@ func TestMemDBPayloadAttestation(t *testing.T) {
 		}(i)
 	}
 
-	datas := make([]*gloas.PayloadAttestationData, queries)
+	datas := make([]*eth2spec.VersionedPayloadAttestationData, queries)
 	for i := range queries {
-		datas[i] = testutil.RandomPayloadAttestationData()
-		datas[i].Slot = eth2p0.Slot(slots[i])
+		datas[i] = testutil.RandomVersionedPayloadAttestationData()
+		datas[i].Gloas.Slot = eth2p0.Slot(slots[i])
 	}
 
 	// Store the payload attestation data, with multiple cluster validators
 	// in the PTC for the same slot sharing identical data.
 	for i := range queries {
-		unsigned := core.NewPayloadAttestationData(datas[i])
+		unsigned, err := core.NewVersionedPayloadAttestationData(datas[i])
+		require.NoError(t, err)
+
 		duty := core.Duty{Slot: slots[i], Type: core.DutyPayloadAttestation}
 
-		err := db.Store(ctx, duty, core.UnsignedDataSet{
+		err = db.Store(ctx, duty, core.UnsignedDataSet{
 			testutil.RandomCorePubKey(t): unsigned,
 			testutil.RandomCorePubKey(t): unsigned,
 		})
@@ -615,18 +616,24 @@ func TestMemDBPayloadAttestation(t *testing.T) {
 	require.Equal(t, datas[0], data)
 
 	// Storing identical data for the same slot is idempotent.
+	identical, err := core.NewVersionedPayloadAttestationData(datas[0])
+	require.NoError(t, err)
+
 	err = db.Store(ctx, core.Duty{Slot: slots[0], Type: core.DutyPayloadAttestation}, core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): core.NewPayloadAttestationData(datas[0]),
+		testutil.RandomCorePubKey(t): identical,
 	})
 	require.NoError(t, err)
 
 	// Storing different data for the same slot errors.
-	clashing := testutil.RandomPayloadAttestationData()
-	clashing.Slot = eth2p0.Slot(slots[0])
-	clashing.PayloadPresent = !datas[0].PayloadPresent
+	clashing := testutil.RandomVersionedPayloadAttestationData()
+	clashing.Gloas.Slot = eth2p0.Slot(slots[0])
+	clashing.Gloas.PayloadPresent = !datas[0].Gloas.PayloadPresent
+
+	clashingUnsigned, err := core.NewVersionedPayloadAttestationData(clashing)
+	require.NoError(t, err)
 
 	err = db.Store(ctx, core.Duty{Slot: slots[0], Type: core.DutyPayloadAttestation}, core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): core.NewPayloadAttestationData(clashing),
+		testutil.RandomCorePubKey(t): clashingUnsigned,
 	})
 	require.ErrorContains(t, err, "clashing payload attestation data")
 }
