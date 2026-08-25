@@ -588,6 +588,9 @@ func TestInclusion404Handling(t *testing.T) {
 // on-chain", and the zero-valued checkedSlot skipped the genesis slot's
 // inclusion check entirely.
 func TestRunNoFalseMissesAtChainStart(t *testing.T) {
+	// Run must take the checkBlockFunc path below, not checkBlockAndAttsFunc.
+	featureset.DisableForT(t, featureset.AttestationInclusion)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
