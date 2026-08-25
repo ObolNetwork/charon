@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
@@ -105,7 +105,7 @@ func WithTracing() WireOption {
 
 			return vp, withSpanStatus(span, err)
 		}
-		w.DutyDBAwaitPayloadAttestation = func(parent context.Context, slot uint64) (*gloas.PayloadAttestationData, error) {
+		w.DutyDBAwaitPayloadAttestation = func(parent context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitPayloadAttestationData")
 			defer span.End()
 

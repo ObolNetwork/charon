@@ -8,7 +8,6 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/libp2p/go-libp2p/core/protocol"
 )
@@ -68,7 +67,7 @@ type DutyDB interface {
 
 	// AwaitPayloadAttestationData blocks and returns the payload attestation data
 	// for the slot when available.
-	AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
+	AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)
 
 	// PubKeyByAttestation returns the validator PubKey for the provided attestation data
 	// slot, committee index and validator index. This allows mapping of attestation
@@ -139,7 +138,7 @@ type ValidatorAPI interface {
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 
 	// RegisterAwaitPayloadAttestationData registers a function to query payload attestation data.
-	RegisterAwaitPayloadAttestationData(func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error))
+	RegisterAwaitPayloadAttestationData(func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error))
 
 	// RegisterAwaitSyncContribution registers a function to query sync contribution data.
 	RegisterAwaitSyncContribution(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
@@ -282,7 +281,7 @@ type wireFuncs struct {
 	DutyDBPubKeyByAttestation         func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
 	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
 	DutyDBAwaitSyncContribution       func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
-	DutyDBAwaitPayloadAttestation     func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error)
+	DutyDBAwaitPayloadAttestation     func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)
 	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
 	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
@@ -290,7 +289,7 @@ type wireFuncs struct {
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
 	VAPIRegisterAwaitAggSigDB         func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
-	VAPIRegisterAwaitPayloadAttData   func(func(ctx context.Context, slot uint64) (*gloas.PayloadAttestationData, error))
+	VAPIRegisterAwaitPayloadAttData   func(func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error))
 	VAPISubscribe                     func(func(context.Context, Duty, ParSignedDataSet) error)
 	ParSigDBStoreInternal             func(context.Context, Duty, ParSignedDataSet) error
 	ParSigDBStoreExternal             func(context.Context, Duty, ParSignedDataSet) error
