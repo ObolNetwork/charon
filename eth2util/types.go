@@ -30,6 +30,7 @@ const (
 	DataVersionDeneb     DataVersion = "deneb"
 	DataVersionElectra   DataVersion = "electra"
 	DataVersionFulu      DataVersion = "fulu"
+	DataVersionGloas     DataVersion = "gloas"
 )
 
 // dataVersionValues maps DataVersion to the integer value used by go-eth2-client pre-v0.18.
@@ -41,6 +42,7 @@ var dataVersionValues = map[DataVersion]int{
 	DataVersionDeneb:     4,
 	DataVersionElectra:   5,
 	DataVersionFulu:      6,
+	DataVersionGloas:     7,
 }
 
 // MarshalJSON marshals the DataVersion as a number equaled to the go-eth2-client
@@ -99,6 +101,8 @@ func (v DataVersion) ToETH2() eth2spec.DataVersion {
 		return eth2spec.DataVersionElectra
 	case DataVersionFulu:
 		return eth2spec.DataVersionFulu
+	case DataVersionGloas:
+		return eth2spec.DataVersionGloas
 	default:
 		return eth2spec.DataVersion(0)
 	}
@@ -142,6 +146,8 @@ func DataVersionFromETH2(version eth2spec.DataVersion) (DataVersion, error) {
 		return DataVersionElectra, nil
 	case eth2spec.DataVersionFulu:
 		return DataVersionFulu, nil
+	case eth2spec.DataVersionGloas:
+		return DataVersionGloas, nil
 	default:
 		return DataVersionUnknown, errors.New("unknown data version")
 	}

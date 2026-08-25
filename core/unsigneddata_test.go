@@ -216,6 +216,45 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 	})
 }
 
+func TestNewVersionedPayloadAttestationData(t *testing.T) {
+	type testCase struct {
+		error   string
+		version eth2spec.DataVersion
+	}
+
+	tests := []testCase{
+		{
+			error:   "unknown version",
+			version: eth2spec.DataVersion(999),
+		},
+		{
+			error:   "unknown version",
+			version: eth2spec.DataVersionFulu, // Payload attestation data only exists from gloas onwards.
+		},
+		{
+			error:   "no gloas payload attestation data",
+			version: eth2spec.DataVersionGloas,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.error, func(t *testing.T) {
+			_, err := core.NewVersionedPayloadAttestationData(&eth2spec.VersionedPayloadAttestationData{
+				Version: test.version,
+			})
+			require.ErrorContains(t, err, test.error)
+		})
+	}
+
+	t.Run("happy path gloas", func(t *testing.T) {
+		data := testutil.RandomVersionedPayloadAttestationData()
+
+		p, err := core.NewVersionedPayloadAttestationData(data)
+		require.NoError(t, err)
+		require.Equal(t, *data, p.VersionedPayloadAttestationData)
+	})
+}
+
 func TestVersionedAggregatedAttestationUtilFunctions(t *testing.T) {
 	data := testutil.RandomAttestationDataPhase0()
 	aggregationBits := testutil.RandomBitList(64)

@@ -16,6 +16,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -677,6 +678,71 @@ func (a *VersionedAggregatedAttestation) sszValFromVersion(version eth2util.Data
 		}
 
 		return a.Fulu, nil
+	default:
+		return nil, errors.New("invalid version")
+	}
+}
+
+// ================== VersionedPayloadAttestationData ===================
+
+// MarshalSSZ ssz marshals the VersionedPayloadAttestationData object.
+func (p VersionedPayloadAttestationData) MarshalSSZ() ([]byte, error) {
+	resp, err := p.MarshalSSZTo(make([]byte, 0, p.SizeSSZ()))
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal VersionedPayloadAttestationData")
+	}
+
+	return resp, nil
+}
+
+// MarshalSSZTo ssz marshals the VersionedPayloadAttestationData object to a target array.
+func (p VersionedPayloadAttestationData) MarshalSSZTo(dst []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(dst, version, p.sszValFromVersion)
+}
+
+// UnmarshalSSZ ssz unmarshalls the VersionedPayloadAttestationData object.
+func (p *VersionedPayloadAttestationData) UnmarshalSSZ(b []byte) error {
+	version, err := unmarshalSSZVersioned(b, p.sszValFromVersion)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal VersionedPayloadAttestationData")
+	}
+
+	p.Version = version.ToETH2()
+
+	return nil
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedPayloadAttestationData object.
+func (p VersionedPayloadAttestationData) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(p.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := p.sszValFromVersion(version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	return sizeSSZVersioned(val)
+}
+
+// sszValFromVersion returns the internal value of the VersionedPayloadAttestationData object for a given version.
+func (p *VersionedPayloadAttestationData) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+	switch version {
+	case eth2util.DataVersionGloas:
+		if p.Gloas == nil {
+			p.Gloas = new(gloas.PayloadAttestationData)
+		}
+
+		return p.Gloas, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
