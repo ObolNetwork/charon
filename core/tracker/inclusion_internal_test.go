@@ -6,7 +6,9 @@ import (
 	"context"
 	"math/rand"
 	"slices"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -578,4 +580,61 @@ func TestInclusion404Handling(t *testing.T) {
 		err = incl.checkBlockAndAtts(ctx, 12345, nil)
 		require.Error(t, err, "checkBlockAndAtts should return an error for non-404 errors")
 	})
+}
+
+// TestRunNoFalseMissesAtChainStart is a regression test for the first slots
+// after genesis (wall slots below InclCheckLag+InclMissedLag): the trim-slot
+// arithmetic underflowed, so Trim deleted every pending submission and
+// reported fresh duties as "duty not included on-chain".
+func TestRunNoFalseMissesAtChainStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	bmock, err := beaconmock.New(ctx)
+	require.NoError(t, err)
+
+	var (
+		mu     sync.Mutex
+		missed []core.Duty
+	)
+
+	incl := &inclusionCore{
+		missedFunc: func(ctx context.Context, sub submission) {
+			mu.Lock()
+			defer mu.Unlock()
+
+			missed = append(missed, sub.Duty)
+		},
+		trackerInclFunc:  func(duty core.Duty, key core.PubKey, data core.SignedData, err error) {},
+		submissions:      make(map[subkey]submission),
+		beaconCommittees: make(map[eth2p0.Slot][]*eth2v1.BeaconCommittee),
+	}
+
+	// Pin the wall slot to 10 for the whole test (inside the underflow
+	// window): genesis 10 slots ago with a slot duration far longer than
+	// the test.
+	checker := &InclusionChecker{
+		core:           incl,
+		eth2Cl:         bmock,
+		genesis:        time.Now().Add(-10 * time.Hour),
+		slotDuration:   time.Hour,
+		checkBlockFunc: incl.CheckBlock,
+	}
+
+	// A pending proposal from slot 3: too recent to be declared missed.
+	block := testutil.RandomDenebVersionedSignedProposal()
+	coreBlock, err := core.NewVersionedSignedProposal(block)
+	require.NoError(t, err)
+	require.NoError(t, incl.Submitted(core.NewProposerDuty(3), "", coreBlock, 0))
+
+	go checker.Run(ctx)
+
+	// Let the checker tick at least twice (1s ticker).
+	time.Sleep(2500 * time.Millisecond)
+	cancel()
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.Empty(t, missed, "fresh submissions must not be reported missed right after genesis")
 }
