@@ -26,7 +26,7 @@ var (
 	_ Eth2SignedData = SignedSyncMessage{}
 	_ Eth2SignedData = SignedSyncContributionAndProof{}
 	_ Eth2SignedData = SyncCommitteeSelection{}
-	_ Eth2SignedData = SignedPayloadAttestationMessage{}
+	_ Eth2SignedData = VersionedPayloadAttestationMessage{}
 )
 
 // VerifyEth2SignedData verifies signature associated with the given Eth2SignedData.
@@ -172,16 +172,17 @@ func (s SyncCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Clien
 	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
 }
 
-// Implement Eth2SignedData for SignedPayloadAttestationMessage.
+// Implement Eth2SignedData for VersionedPayloadAttestationMessage.
 
-func (SignedPayloadAttestationMessage) DomainName() signing.DomainName {
+func (VersionedPayloadAttestationMessage) DomainName() signing.DomainName {
 	return signing.DomainPTCAttester
 }
 
-func (s SignedPayloadAttestationMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
-	if s.Data == nil {
-		return 0, errors.New("no payload attestation data")
+func (m VersionedPayloadAttestationMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	data, err := m.Data()
+	if err != nil {
+		return 0, errors.Wrap(err, "get payload attestation data")
 	}
 
-	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Data.Slot)
+	return eth2util.EpochFromSlot(ctx, eth2Cl, data.Slot)
 }
