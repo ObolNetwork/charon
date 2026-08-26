@@ -297,6 +297,21 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		}
 
 		return err
+	case core.DutyPayloadAttestation:
+		msgs, err := setToPayloadAttestationMessages(set)
+		if err != nil {
+			return err
+		}
+
+		err = b.eth2Cl.SubmitPayloadAttestationMessages(ctx, msgs)
+		if err == nil {
+			log.Info(ctx, "Successfully submitted payload attestation messages to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyPayloadAttestation)),
+				z.Int("amount", len(msgs.Messages)),
+			)
+		}
+
+		return err
 	default:
 		return errors.New("unsupported duty type")
 	}
@@ -348,6 +363,22 @@ func setToAggAndProof(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestati
 	}
 
 	return &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: resp}, nil
+}
+
+// setToPayloadAttestationMessages converts a set of signed data into payload attestation message submission options.
+func setToPayloadAttestationMessages(set core.SignedDataSet) (*eth2api.SubmitPayloadAttestationMessagesOpts, error) {
+	var resp []*eth2spec.VersionedPayloadAttestationMessage
+
+	for _, msg := range set {
+		msg, ok := msg.(core.VersionedPayloadAttestationMessage)
+		if !ok {
+			return nil, errors.New("invalid payload attestation message")
+		}
+
+		resp = append(resp, &msg.VersionedPayloadAttestationMessage)
+	}
+
+	return &eth2api.SubmitPayloadAttestationMessagesOpts{Messages: resp}, nil
 }
 
 // setToOne converts a set of signed data into a single signed data.

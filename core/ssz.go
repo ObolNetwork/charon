@@ -748,6 +748,71 @@ func (p *VersionedPayloadAttestationData) sszValFromVersion(version eth2util.Dat
 	}
 }
 
+// ================== VersionedPayloadAttestationMessage ===================
+
+// MarshalSSZ ssz marshals the VersionedPayloadAttestationMessage object.
+func (m VersionedPayloadAttestationMessage) MarshalSSZ() ([]byte, error) {
+	resp, err := m.MarshalSSZTo(make([]byte, 0, m.SizeSSZ()))
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal VersionedPayloadAttestationMessage")
+	}
+
+	return resp, nil
+}
+
+// MarshalSSZTo ssz marshals the VersionedPayloadAttestationMessage object to a target array.
+func (m VersionedPayloadAttestationMessage) MarshalSSZTo(dst []byte) ([]byte, error) {
+	version, err := eth2util.DataVersionFromETH2(m.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid version")
+	}
+
+	return marshalSSZVersionedTo(dst, version, m.sszValFromVersion)
+}
+
+// UnmarshalSSZ ssz unmarshalls the VersionedPayloadAttestationMessage object.
+func (m *VersionedPayloadAttestationMessage) UnmarshalSSZ(b []byte) error {
+	version, err := unmarshalSSZVersioned(b, m.sszValFromVersion)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal VersionedPayloadAttestationMessage")
+	}
+
+	m.Version = version.ToETH2()
+
+	return nil
+}
+
+// SizeSSZ returns the ssz encoded size in bytes for the VersionedPayloadAttestationMessage object.
+func (m VersionedPayloadAttestationMessage) SizeSSZ() int {
+	version, err := eth2util.DataVersionFromETH2(m.Version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := m.sszValFromVersion(version)
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	return sizeSSZVersioned(val)
+}
+
+// sszValFromVersion returns the internal value of the VersionedPayloadAttestationMessage object for a given version.
+func (m *VersionedPayloadAttestationMessage) sszValFromVersion(version eth2util.DataVersion) (sszType, error) {
+	switch version {
+	case eth2util.DataVersionGloas:
+		if m.Gloas == nil {
+			m.Gloas = new(gloas.PayloadAttestationMessage)
+		}
+
+		return m.Gloas, nil
+	default:
+		return nil, errors.New("invalid version")
+	}
+}
+
 const (
 	// versionedBlindedOffset is the offset of a versioned blinded ssz encoded object.
 	versionedBlindedOffset = 8 + 1 + 4 // version (uint64) + blinded (uint8) + offset (uint32)
