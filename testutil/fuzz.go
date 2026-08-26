@@ -405,5 +405,11 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				e.Gloas = new(gloas.PayloadAttestationData)
 				c.Fuzz(e.Gloas)
 			},
+			// Payload attestation messages only exist from gloas onwards.
+			func(e *core.VersionedPayloadAttestationMessage, c fuzz.Continue) {
+				e.Version = eth2spec.DataVersionGloas
+				e.Gloas = new(gloas.PayloadAttestationMessage)
+				c.Fuzz(e.Gloas)
+			},
 		)
 }
