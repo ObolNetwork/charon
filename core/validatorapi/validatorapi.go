@@ -1005,18 +1005,24 @@ func (c Component) SubmitPayloadAttestationMessages(ctx context.Context, opts *e
 	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
 
 	for _, versioned := range opts.Messages {
-		if versioned.Version != eth2spec.DataVersionGloas || versioned.Gloas == nil {
-			return errors.New("unsupported payload attestation message version")
+		parSigData, err := core.NewPartialVersionedPayloadAttestationMessage(versioned, c.shareIdx)
+		if err != nil {
+			return err
 		}
 
-		msg := versioned.Gloas
-		if msg.Data == nil {
-			return errors.New("no payload attestation data")
+		valIdx, err := versioned.ValidatorIndex()
+		if err != nil {
+			return err
 		}
 
-		slot := msg.Data.Slot
+		data, err := versioned.Data()
+		if err != nil {
+			return err
+		}
 
-		eth2Pubkey, ok := vals[msg.ValidatorIndex]
+		slot := data.Slot
+
+		eth2Pubkey, ok := vals[valIdx]
 		if !ok {
 			return errors.New("validator not found")
 		}
@@ -1026,8 +1032,6 @@ func (c Component) SubmitPayloadAttestationMessages(ctx context.Context, opts *e
 			return err
 		}
 
-		parSigData := core.NewPartialSignedPayloadAttestationMessage(msg, c.shareIdx)
-
 		err = c.verifyPartialSig(ctx, parSigData, pk)
 		if err != nil {
 			return err
@@ -1035,8 +1039,8 @@ func (c Component) SubmitPayloadAttestationMessages(ctx context.Context, opts *e
 
 		log.Debug(ctx, "Payload attestation message received from validator client",
 			z.U64("slot", uint64(slot)),
-			z.Str("beacon_block_root", msg.Data.BeaconBlockRoot.String()),
-			z.Bool("payload_present", msg.Data.PayloadPresent))
+			z.Str("beacon_block_root", data.BeaconBlockRoot.String()),
+			z.Bool("payload_present", data.PayloadPresent))
 
 		_, ok = psigsBySlot[slot]
 		if !ok {

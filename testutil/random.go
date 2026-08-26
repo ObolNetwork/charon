@@ -1033,6 +1033,13 @@ func RandomPayloadAttestationMessage() *gloas.PayloadAttestationMessage {
 	}
 }
 
+func RandomVersionedPayloadAttestationMessage() *eth2spec.VersionedPayloadAttestationMessage {
+	return &eth2spec.VersionedPayloadAttestationMessage{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   RandomPayloadAttestationMessage(),
+	}
+}
+
 func RandomSyncCommitteeMessage() *altair.SyncCommitteeMessage {
 	return &altair.SyncCommitteeMessage{
 		Slot:            RandomSlot(),

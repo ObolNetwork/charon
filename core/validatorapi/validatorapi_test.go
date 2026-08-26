@@ -2793,7 +2793,11 @@ func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
 
 		data, ok := set[pk]
 		require.True(t, ok)
-		require.Equal(t, core.NewPartialSignedPayloadAttestationMessage(msg, 0), data)
+
+		expected, err := core.NewPartialVersionedPayloadAttestationMessage(
+			&eth2spec.VersionedPayloadAttestationMessage{Version: eth2spec.DataVersionGloas, Gloas: msg}, 0)
+		require.NoError(t, err)
+		require.Equal(t, expected, data)
 
 		count++
 
