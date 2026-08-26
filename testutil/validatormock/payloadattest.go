@@ -69,7 +69,7 @@ func PayloadAttest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFun
 
 	versioned := dataResp.Data
 	if versioned == nil {
-		return errors.New("payload attestation data is nil")
+		return errors.New("versioned payload attestation data is nil")
 	}
 
 	var data *gloas.PayloadAttestationData
@@ -82,7 +82,7 @@ func PayloadAttest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFun
 	}
 
 	if data == nil {
-		return errors.New("payload attestation data is nil")
+		return errors.New("no gloas payload attestation data")
 	}
 
 	root, err := data.HashTreeRoot()
