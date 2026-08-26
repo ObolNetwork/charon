@@ -87,7 +87,7 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.VersionedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
 		{zero: func() any { return new(core.VersionedPayloadAttestationData) }},
-		{zero: func() any { return new(core.SignedPayloadAttestationMessage) }},
+		{zero: func() any { return new(core.VersionedPayloadAttestationMessage) }},
 	}
 
 	f := testutil.NewEth2Fuzzer(t, 0)
@@ -217,7 +217,7 @@ func TestMarshalParSignedProto(t *testing.T) {
 		},
 		{
 			dutyType:  core.DutyPayloadAttestation,
-			signedPtr: func() any { return new(core.SignedPayloadAttestationMessage) },
+			signedPtr: func() any { return new(core.VersionedPayloadAttestationMessage) },
 		},
 	}
 
@@ -1402,39 +1402,49 @@ func TestSignedPayloadAttestationMessageSSZ(t *testing.T) {
 		sig[i] = 0x11
 	}
 
+	// Versioned envelope: version(uint64) + offset(uint32) prefixing the payload.
+	versionedPrefix := "0700000000000000" + // Version=7 (gloas, LE)
+		"0c000000" // Offset=12 (LE)
+
 	tests := []struct {
 		name     string
-		value    core.SignedPayloadAttestationMessage
+		value    core.VersionedPayloadAttestationMessage
 		expected string
 	}{
 		{
 			name: "zeros",
-			value: core.SignedPayloadAttestationMessage{
-				PayloadAttestationMessage: gloas.PayloadAttestationMessage{
-					Data: new(gloas.PayloadAttestationData),
+			value: core.VersionedPayloadAttestationMessage{
+				VersionedPayloadAttestationMessage: eth2spec.VersionedPayloadAttestationMessage{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.PayloadAttestationMessage{
+						Data: new(gloas.PayloadAttestationData),
+					},
 				},
 			},
 			// Fixed-size container: validator_index(8) + data(42) + signature(96).
-			expected: "0x" +
+			expected: "0x" + versionedPrefix +
 				"0000000000000000" + // ValidatorIndex
 				strings.Repeat("00", 42) + // Data
 				strings.Repeat("00", 96), // Signature
 		},
 		{
 			name: "populated",
-			value: core.SignedPayloadAttestationMessage{
-				PayloadAttestationMessage: gloas.PayloadAttestationMessage{
-					ValidatorIndex: 7,
-					Data: &gloas.PayloadAttestationData{
-						BeaconBlockRoot:   root,
-						Slot:              42,
-						PayloadPresent:    true,
-						BlobDataAvailable: true,
+			value: core.VersionedPayloadAttestationMessage{
+				VersionedPayloadAttestationMessage: eth2spec.VersionedPayloadAttestationMessage{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.PayloadAttestationMessage{
+						ValidatorIndex: 7,
+						Data: &gloas.PayloadAttestationData{
+							BeaconBlockRoot:   root,
+							Slot:              42,
+							PayloadPresent:    true,
+							BlobDataAvailable: true,
+						},
+						Signature: sig,
 					},
-					Signature: sig,
 				},
 			},
-			expected: "0x" +
+			expected: "0x" + versionedPrefix +
 				"0700000000000000" + // ValidatorIndex=7 (LE)
 				strings.Repeat("ab", 32) + // Data.BeaconBlockRoot
 				"2a00000000000000" + // Data.Slot=42 (LE)
@@ -1450,7 +1460,7 @@ func TestSignedPayloadAttestationMessageSSZ(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
 
-			var got core.SignedPayloadAttestationMessage
+			var got core.VersionedPayloadAttestationMessage
 			require.NoError(t, got.UnmarshalSSZ(b))
 			require.Equal(t, tt.value, got)
 		})
