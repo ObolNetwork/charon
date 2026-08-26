@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/OffchainLabs/go-bitfield"
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -840,6 +841,111 @@ func assertRandao(t *testing.T, randao eth2p0.BLSSignature, block core.Versioned
 		}
 	default:
 		require.Fail(t, "invalid block")
+	}
+}
+
+func TestFetchPayloadAttestation(t *testing.T) {
+	const slot = 1
+
+	pubkeyA := testutil.RandomCorePubKey(t)
+	pubkeyB := testutil.RandomCorePubKey(t)
+
+	defSet := core.DutyDefinitionSet{
+		pubkeyA: core.NewPTCDefinition(&eth2v1.PTCDuty{Slot: slot, ValidatorIndex: 2}),
+		pubkeyB: core.NewPTCDefinition(&eth2v1.PTCDuty{Slot: slot, ValidatorIndex: 3}),
+	}
+	duty := core.NewPayloadAttestationDuty(slot)
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	attData := testutil.RandomPayloadAttestationData()
+	attData.Slot = slot
+
+	bmock.PayloadAttestationDataFunc = func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+		return &eth2spec.VersionedPayloadAttestationData{
+			Version: eth2spec.DataVersionGloas,
+			Gloas:   attData,
+		}, nil
+	}
+
+	fetch := mustCreateFetcher(t, bmock)
+
+	var subCalled bool
+
+	fetch.Subscribe(func(_ context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+		subCalled = true
+
+		require.Equal(t, duty, resDuty)
+		require.Len(t, resDataSet, 2)
+
+		// All committee members attest to the same per-slot data.
+		for _, pubkey := range []core.PubKey{pubkeyA, pubkeyB} {
+			data, ok := resDataSet[pubkey].(core.VersionedPayloadAttestationData)
+			require.True(t, ok)
+			require.Equal(t, eth2spec.DataVersionGloas, data.Version)
+			require.Equal(t, attData, data.Gloas)
+		}
+
+		return nil
+	})
+
+	require.NoError(t, fetch.Fetch(t.Context(), duty, defSet))
+	require.True(t, subCalled)
+}
+
+func TestFetchPayloadAttestationError(t *testing.T) {
+	const slot = 1
+
+	defSet := core.DutyDefinitionSet{
+		testutil.RandomCorePubKey(t): core.NewPTCDefinition(&eth2v1.PTCDuty{Slot: slot, ValidatorIndex: 2}),
+	}
+	duty := core.NewPayloadAttestationDuty(slot)
+
+	tests := []struct {
+		name        string
+		dataFunc    func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error)
+		errContains string
+	}{
+		{
+			name: "no block seen for slot",
+			dataFunc: func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+				return nil, eth2client.ErrNoPayloadAttestationData
+			},
+			errContains: "no block seen for payload attestation slot",
+		},
+		{
+			name: "nil data",
+			dataFunc: func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+				return nil, nil //nolint:nilnil // Mimics a beacon node responding 200 with an empty body.
+			},
+			errContains: "payload attestation data is nil",
+		},
+		{
+			name: "invalid version",
+			dataFunc: func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+				return &eth2spec.VersionedPayloadAttestationData{Version: eth2spec.DataVersionElectra}, nil
+			},
+			errContains: "unknown version",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			bmock, err := beaconmock.New(t.Context())
+			require.NoError(t, err)
+
+			bmock.PayloadAttestationDataFunc = test.dataFunc
+
+			fetch := mustCreateFetcher(t, bmock)
+			fetch.Subscribe(func(context.Context, core.Duty, core.UnsignedDataSet) error {
+				require.Fail(t, "unexpected subscriber call")
+				return nil
+			})
+
+			err = fetch.Fetch(t.Context(), duty, defSet)
+			require.ErrorContains(t, err, test.errContains)
+		})
 	}
 }
 
