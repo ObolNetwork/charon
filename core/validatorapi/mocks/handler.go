@@ -214,6 +214,36 @@ func (_m *Handler) NodeVersion(ctx context.Context, opts *api.NodeVersionOpts) (
 	return r0, r1
 }
 
+// PTCDuties provides a mock function with given fields: ctx, opts
+func (_m *Handler) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (*api.Response[[]*v1.PTCDuty], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PTCDuties")
+	}
+
+	var r0 *api.Response[[]*v1.PTCDuty]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PTCDutiesOpts) (*api.Response[[]*v1.PTCDuty], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PTCDutiesOpts) *api.Response[[]*v1.PTCDuty]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*v1.PTCDuty])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.PTCDutiesOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // PayloadAttestationData provides a mock function with given fields: ctx, opts
 func (_m *Handler) PayloadAttestationData(ctx context.Context, opts *api.PayloadAttestationDataOpts) (*api.Response[*spec.VersionedPayloadAttestationData], error) {
 	ret := _m.Called(ctx, opts)

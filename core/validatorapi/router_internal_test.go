@@ -936,6 +936,56 @@ func TestRouter(t *testing.T) {
 		testRouter(t, handler, callback)
 	})
 
+	t.Run("ptcduty", func(t *testing.T) {
+		handler := testHandler{
+			PTCDutiesFunc: func(_ context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error) {
+				var res []*eth2v1.PTCDuty
+				for _, index := range opts.Indices {
+					res = append(res, &eth2v1.PTCDuty{
+						ValidatorIndex: index,                                   // Echo index
+						Slot:           eth2p0.Slot(slotsPerEpoch * opts.Epoch), // Echo first slot of epoch
+						PubKey:         testutil.RandomEth2PubKey(t),
+					})
+				}
+
+				return wrapResponseWithMetadata(res, metadata), nil
+			},
+		}
+
+		callback := func(ctx context.Context, cl *eth2http.Service) {
+			const (
+				slotEpoch = 1
+				index0    = 2
+				index1    = 3
+			)
+
+			opts := &eth2api.PTCDutiesOpts{
+				Epoch: eth2p0.Epoch(slotEpoch),
+				Indices: []eth2p0.ValidatorIndex{
+					eth2p0.ValidatorIndex(index0),
+					eth2p0.ValidatorIndex(index1),
+				},
+			}
+			resp, err := cl.PTCDuties(ctx, opts)
+			require.NoError(t, err)
+
+			res := resp.Data
+
+			require.Len(t, res, 2)
+			require.Equal(t, int(res[0].Slot), slotEpoch*slotsPerEpoch)
+			require.Equal(t, int(res[0].ValidatorIndex), index0)
+			require.Equal(t, int(res[1].Slot), slotEpoch*slotsPerEpoch)
+			require.Equal(t, int(res[1].ValidatorIndex), index1)
+
+			metadata := resp.Metadata
+			require.Len(t, metadata, 2)
+			require.Equal(t, true, metadata["execution_optimistic"])
+			require.Equal(t, dependentRoot, metadata["dependent_root"].(eth2p0.Root))
+		}
+
+		testRouter(t, handler, callback)
+	})
+
 	t.Run("proposerduty", func(t *testing.T) {
 		const total = 2
 
@@ -2289,6 +2339,7 @@ type testHandler struct {
 	SyncCommitteeDutiesFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc    func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
 	PayloadAttestationDataFunc       func(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error)
+	PTCDutiesFunc                    func(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error)
 	SubmitPayloadAttMsgsFunc         func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
 	ProxyFunc                        func(ctx context.Context, req *http.Request) (*http.Response, error)
 	AddressFunc                      func() string
@@ -2305,6 +2356,10 @@ func (h testHandler) PayloadAttestationData(ctx context.Context, opts *eth2api.P
 
 func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
 	return h.SubmitPayloadAttMsgsFunc(ctx, opts)
+}
+
+func (h testHandler) PTCDuties(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error) {
+	return h.PTCDutiesFunc(ctx, opts)
 }
 
 func (h testHandler) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
