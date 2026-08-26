@@ -81,6 +81,7 @@ type Handler interface {
 	eth2client.PayloadAttestationDataProvider
 	eth2client.PayloadAttestationMessagesSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.PTCDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
 	eth2client.SyncCommitteeDutiesProvider
@@ -121,6 +122,13 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Path:      "/eth/v1/validator/duties/proposer/{epoch}",
 			Handler:   proposerDuties(h),
 			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
+		},
+		{
+			Name:      "ptc_duties",
+			Path:      "/eth/v1/validator/duties/ptc/{epoch}",
+			Handler:   ptcDuties(h),
+			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
@@ -790,6 +798,52 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 		}
 
 		return attesterDutiesResponse{
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
+			Data:                data,
+		}, nil, nil
+	}
+}
+
+// ptcDuties returns a handler function for the payload timeliness committee duty endpoint.
+func ptcDuties(p eth2client.PTCDutiesProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var req valIndexesJSON
+		if err := unmarshal(typ, body, &req); err != nil {
+			return nil, nil, err
+		}
+
+		opts := &eth2api.PTCDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: req,
+		}
+
+		eth2Resp, err := p.PTCDuties(ctx, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
+			data = []*eth2v1.PTCDuty{}
+		}
+
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode PTCDuties response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode PTCDuties response metadata")
+		}
+
+		return ptcDutiesResponse{
 			ExecutionOptimistic: executionOptimistic,
 			DependentRoot:       dependentRoot,
 			Data:                data,

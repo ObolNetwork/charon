@@ -73,6 +73,13 @@ type proposerDutiesResponse struct {
 	ExecutionOptimistic bool                   `json:"execution_optimistic"`
 }
 
+// ptcDutiesResponse defines the response to the ptcDuties endpoint.
+type ptcDutiesResponse struct {
+	DependentRoot       root              `json:"dependent_root"`
+	Data                []*eth2v1.PTCDuty `json:"data"`
+	ExecutionOptimistic bool              `json:"execution_optimistic"`
+}
+
 type proposeBlockV3Response struct {
 	ExecutionPayloadBlinded bool   `json:"execution_payload_blinded"`
 	ExecutionPayloadValue   string `json:"execution_payload_value"`
