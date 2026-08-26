@@ -1851,6 +1851,33 @@ func TestComponent_Duties(t *testing.T) {
 		require.Equal(t, duties[0].PubKey, eth2Share)
 	})
 
+	t.Run("ptc_duties", func(t *testing.T) {
+		bmock.PTCDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
+
+			return []*eth2v1.PTCDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
+		// Construct the validator api component
+		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+		require.NoError(t, err)
+
+		opts := &eth2api.PTCDutiesOpts{
+			Epoch:   eth2p0.Epoch(epch),
+			Indices: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)},
+		}
+		resp, err := vapi.PTCDuties(ctx, opts)
+		require.NoError(t, err)
+
+		duties := resp.Data
+		require.Len(t, duties, 1)
+		require.Equal(t, duties[0].PubKey, eth2Share)
+	})
+
 	t.Run("sync_committee_duties", func(t *testing.T) {
 		bmock.SyncCommitteeDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))

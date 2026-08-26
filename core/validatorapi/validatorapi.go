@@ -1313,6 +1313,39 @@ func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDut
 	return wrapResponseWithMetadata(duties, metadata), nil
 }
 
+// PTCDuties obtains payload timeliness committee duties with the root public keys replaced by public shares.
+func (c Component) PTCDuties(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error) {
+	var span trace.Span
+
+	ctx, span = tracer.Start(ctx, "core/validatorapi.PTCDuties")
+
+	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
+	defer span.End()
+
+	eth2Resp, err := c.eth2Cl.PTCDuties(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	duties := eth2Resp.Data
+
+	// Replace root public keys with public shares.
+	for _, d := range duties {
+		if d == nil {
+			return nil, errors.New("ptc duty cannot be nil")
+		}
+
+		pubshare, ok := c.getPubShareFunc(d.PubKey)
+		if !ok {
+			return nil, errors.New("pubshare not found", z.Str("pubkey", d.PubKey.String()))
+		}
+
+		d.PubKey = pubshare
+	}
+
+	return wrapResponseWithMetadata(duties, eth2Resp.Metadata), nil
+}
+
 // SyncCommitteeDuties obtains sync committee duties. If validatorIndices is nil it will return all duties for the given epoch.
 func (c Component) SyncCommitteeDuties(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error) {
 	var duties []*eth2v1.SyncCommitteeDuty
