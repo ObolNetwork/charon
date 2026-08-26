@@ -38,6 +38,7 @@ func TestBroadcast(t *testing.T) {
 		beaconCommitteeSelections, // BeaconCommitteeSelections
 		syncCommitteeMessage,      // SyncCommitteeMessage
 		syncCommitteeContribution, // SyncCommitteeContribution
+		payloadAttestationMessage, // PayloadAttestationMessage
 	}
 
 	for _, testFunc := range testFuncs {
@@ -266,6 +267,31 @@ func syncCommitteeMessage(t *testing.T, mock *beaconmock.Mock) test {
 		name:     "Broadcast Sync Committee Message",
 		aggData:  msg,
 		duty:     core.DutySyncMessage,
+		bcastCnt: 1,
+		asserted: asserted,
+	}
+}
+
+func payloadAttestationMessage(t *testing.T, mock *beaconmock.Mock) test {
+	t.Helper()
+
+	asserted := make(chan struct{})
+
+	msg, err := core.NewVersionedPayloadAttestationMessage(testutil.RandomVersionedPayloadAttestationMessage())
+	require.NoError(t, err)
+
+	mock.SubmitPayloadAttestationMessagesFunc = func(_ context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+		require.Len(t, opts.Messages, 1)
+		require.Equal(t, msg.VersionedPayloadAttestationMessage, *opts.Messages[0])
+		close(asserted)
+
+		return nil
+	}
+
+	return test{
+		name:     "Broadcast Payload Attestation Message",
+		aggData:  msg,
+		duty:     core.DutyPayloadAttestation,
 		bcastCnt: 1,
 		asserted: asserted,
 	}

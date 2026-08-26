@@ -2122,14 +2122,13 @@ func (m VersionedPayloadAttestationMessage) MessageRoot() ([32]byte, error) {
 }
 
 func (m VersionedPayloadAttestationMessage) Signature() Signature {
-	sig, err := m.VersionedPayloadAttestationMessage.Signature()
-	// This should never happen as if data is signed it should have data and signature in the object
-	if err != nil {
-		log.Error(context.Background(), "Failed to get payload attestation message signature", err)
-		return []byte{}
+	switch m.Version {
+	// No nil checks since `NewVersionedPayloadAttestationMessage` assumed.
+	case eth2spec.DataVersionGloas:
+		return SigFromETH2(m.Gloas.Signature)
+	default:
+		return Signature{}
 	}
-
-	return SigFromETH2(sig)
 }
 
 func (m VersionedPayloadAttestationMessage) SetSignature(sig Signature) (SignedData, error) {
