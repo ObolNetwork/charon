@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -170,6 +171,11 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return errors.Wrap(err, "fetch contribution data")
 		} else if len(unsignedSet) == 0 { // No sync committee contributors found in this slot
 			return nil
+		}
+	case core.DutyPayloadAttestation:
+		unsignedSet, err = f.fetchPayloadAttestationData(ctx, duty.Slot, defSet)
+		if err != nil {
+			return errors.Wrap(err, "fetch payload attestation data")
 		}
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
@@ -424,6 +430,39 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 		proposalBlindedGauge.Set(blinded)
 
 		resp[pubkey] = coreProposal
+	}
+
+	return resp, nil
+}
+
+// fetchPayloadAttestationData returns the fetched payload attestation data for the slot.
+// The data is per-slot, not per-validator, so all payload timeliness committee members
+// in the arg set attest to the same data.
+func (f *Fetcher) fetchPayloadAttestationData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	opts := &eth2api.PayloadAttestationDataOpts{
+		Slot: eth2p0.Slot(slot),
+	}
+
+	eth2Resp, err := f.eth2Cl.PayloadAttestationData(ctx, opts)
+	if errors.Is(err, eth2client.ErrNoPayloadAttestationData) {
+		// The beacon node has not seen a block for the slot, so there is nothing to attest.
+		return nil, errors.New("no block seen for payload attestation slot", z.U64("slot", slot))
+	} else if err != nil {
+		return nil, err
+	}
+
+	if eth2Resp.Data == nil {
+		return nil, errors.New("payload attestation data is nil")
+	}
+
+	data, err := core.NewVersionedPayloadAttestationData(eth2Resp.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := make(core.UnsignedDataSet)
+	for pubkey := range defSet {
+		resp[pubkey] = data
 	}
 
 	return resp, nil
