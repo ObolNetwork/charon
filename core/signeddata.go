@@ -641,6 +641,10 @@ func NewVersionedAttestation(att *eth2spec.VersionedAttestation) (VersionedAttes
 		if att.Fulu == nil {
 			return VersionedAttestation{}, errors.New("no fulu attestation")
 		}
+	case eth2spec.DataVersionGloas:
+		if att.Gloas == nil {
+			return VersionedAttestation{}, errors.New("no gloas attestation")
+		}
 	default:
 		return VersionedAttestation{}, errors.New("unknown version")
 	}
@@ -738,6 +742,8 @@ func (a VersionedAttestation) SetSignature(sig Signature) (SignedData, error) {
 		resp.Electra.Signature = sig.ToETH2()
 	case eth2spec.DataVersionFulu:
 		resp.Fulu.Signature = sig.ToETH2()
+	case eth2spec.DataVersionGloas:
+		resp.Gloas.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -767,6 +773,8 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 		marshaller = a.Electra
 	case eth2spec.DataVersionFulu:
 		marshaller = a.Fulu
+	case eth2spec.DataVersionGloas:
+		marshaller = a.Gloas
 	default:
 		return nil, errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -793,10 +801,11 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 	return resp, nil
 }
 
-func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
+// unmarshalVersionedAttestationJSON unmarshals a versionedRawAttestationJSON envelope into a versioned attestation.
+func unmarshalVersionedAttestationJSON(input []byte) (eth2spec.VersionedAttestation, error) {
 	var raw versionedRawAttestationJSON
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal attestation")
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal attestation")
 	}
 
 	resp := eth2spec.VersionedAttestation{Version: raw.Version.ToETH2()}
@@ -806,7 +815,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal phase0")
 		}
 
 		resp.Phase0 = att
@@ -815,7 +824,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal altair")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal altair")
 		}
 
 		resp.Altair = att
@@ -824,7 +833,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal bellatrix")
 		}
 
 		resp.Bellatrix = att
@@ -833,7 +842,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal capella")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal capella")
 		}
 
 		resp.Capella = att
@@ -842,7 +851,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal deneb")
 		}
 
 		resp.Deneb = att
@@ -851,7 +860,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal electra")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal electra")
 		}
 
 		resp.Electra = att
@@ -860,15 +869,33 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal fulu")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal fulu")
 		}
 
 		resp.Fulu = att
+	case eth2spec.DataVersionGloas:
+		att := new(gloas.Attestation)
+
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = att
 	default:
-		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
+		return eth2spec.VersionedAttestation{}, errors.New("unknown attestation version", z.Str("version", resp.Version.String()))
 	}
 
 	resp.ValidatorIndex = raw.ValidatorIndex
+
+	return resp, nil
+}
+
+func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
+	resp, err := unmarshalVersionedAttestationJSON(b)
+	if err != nil {
+		return err
+	}
 
 	a.VersionedAttestation = resp
 
@@ -1444,6 +1471,12 @@ func (ap VersionedSignedAggregateAndProof) MessageRoot() ([32]byte, error) {
 		}
 
 		return ap.Fulu.Message.HashTreeRoot()
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return [32]byte{}, errors.New("unmarshal gloas")
+		}
+
+		return ap.Gloas.Message.HashTreeRoot()
 	default:
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -1493,6 +1526,12 @@ func (ap VersionedSignedAggregateAndProof) Signature() Signature {
 		}
 
 		return SigFromETH2(ap.Fulu.Signature)
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return Signature{}
+		}
+
+		return SigFromETH2(ap.Gloas.Signature)
 	default:
 		return Signature{}
 	}
@@ -1547,6 +1586,12 @@ func (ap VersionedSignedAggregateAndProof) SetSignature(sig Signature) (SignedDa
 		}
 
 		resp.Fulu.Signature = sig.ToETH2()
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return nil, errors.New("unmarshal gloas")
+		}
+
+		resp.Gloas.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -1591,6 +1636,8 @@ func (ap VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
 		marshaller = ap.Electra
 	case eth2spec.DataVersionFulu:
 		marshaller = ap.Fulu
+	case eth2spec.DataVersionGloas:
+		marshaller = ap.Gloas
 	default:
 		return nil, errors.New("unknown signedAggregateAndProof version", z.Str("version", ap.Version.String()))
 	}
@@ -1673,6 +1720,13 @@ func (ap *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 		}
 
 		resp.Fulu = aggregateAndProof
+	case eth2spec.DataVersionGloas:
+		aggregateAndProof := new(gloas.SignedAggregateAndProof)
+		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
+			return errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = aggregateAndProof
 	default:
 		return errors.New("unknown version")
 	}
@@ -1726,6 +1780,12 @@ func (ap VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
 		}
 
 		return ap.Fulu.Message.Aggregate.Data
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return nil
+		}
+
+		return ap.Gloas.Message.Aggregate.Data
 	default:
 		return nil
 	}
@@ -1775,6 +1835,12 @@ func (ap VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
 		}
 
 		return ap.Fulu.Message.Aggregate.AggregationBits
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return nil
+		}
+
+		return ap.Gloas.Message.Aggregate.AggregationBits
 	default:
 		return nil
 	}

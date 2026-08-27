@@ -351,6 +351,12 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 			}
 
 			valIdx = *att.ValidatorIndex
+		case eth2spec.DataVersionGloas:
+			if att.ValidatorIndex == nil {
+				return errors.New("missing attestation validator index from gloas attestation")
+			}
+
+			valIdx = *att.ValidatorIndex
 		default:
 			return errors.New("invalid attestations version", z.Str("version", att.Version.String()))
 		}

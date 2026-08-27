@@ -188,6 +188,10 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 			error:   "no fulu attestation",
 			version: eth2spec.DataVersionFulu,
 		},
+		{
+			error:   "no gloas attestation",
+			version: eth2spec.DataVersionGloas,
+		},
 	}
 
 	for _, test := range tests {
@@ -209,6 +213,14 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 
 	t.Run("happy path fulu", func(t *testing.T) {
 		attestation := testutil.RandomFuluCoreVersionedAttestation()
+
+		p, err := core.NewVersionedAggregatedAttestation(&attestation.VersionedAttestation)
+		require.NoError(t, err)
+		require.Equal(t, attestation.VersionedAttestation, p.VersionedAttestation)
+	})
+
+	t.Run("happy path gloas", func(t *testing.T) {
+		attestation := testutil.RandomGloasCoreVersionedAttestation()
 
 		p, err := core.NewVersionedAggregatedAttestation(&attestation.VersionedAttestation)
 		require.NoError(t, err)
