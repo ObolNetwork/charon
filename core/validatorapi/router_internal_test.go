@@ -2622,6 +2622,40 @@ func nest(data any, nests ...string) any {
 }
 
 func TestPayloadAttestationRoutes(t *testing.T) {
+	t.Run("attestation data without deprecated committee_index", func(t *testing.T) {
+		expected := testutil.RandomAttestationDataPhase0()
+		expected.Slot = 42
+
+		handler := testHandler{
+			AttestationDataFunc: func(_ context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
+				require.Equal(t, eth2p0.Slot(42), opts.Slot)
+				require.Equal(t, eth2p0.CommitteeIndex(0), opts.CommitteeIndex)
+
+				return wrapResponse(expected), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/attestation_data?slot=42", nil)
+			require.NoError(t, err)
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			var res struct {
+				Data *eth2p0.AttestationData `json:"data"`
+			}
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
+			require.Equal(t, expected, res.Data)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
 	t.Run("payload_attestation_data", func(t *testing.T) {
 		expected := testutil.RandomPayloadAttestationData()
 		expected.Slot = 42

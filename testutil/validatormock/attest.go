@@ -318,6 +318,8 @@ func attest(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc, slot
 	)
 
 	for commIdx, duties := range dutyByComm {
+		// The committee index is kept for backwards compatibility with pre-electra forks,
+		// post-electra beacon nodes ignore the deprecated committee_index query parameter.
 		opts := &eth2api.AttestationDataOpts{
 			Slot:           slot,
 			CommitteeIndex: commIdx,
