@@ -21,19 +21,12 @@ import (
 )
 
 // TestSimnetDutyTimingGloasMigration asserts that intra-slot duty timings migrate from
-// pre-gloas thirds to gloas quarters at the fork boundary:
-//   - attestation data and sync messages: 1/3 -> 1/4 of the slot
-//   - aggregate attestations and sync contributions: 2/3 -> 2/4 of the slot
-//   - payload attestation data: only exists from gloas onwards, at 2/4 of the slot
-//
-// It observes the beacon node side (fetch and submission times at the beaconmock) while
-// a full cluster with mock VCs performs all duties across the fork transition.
+// pre-gloas thirds to gloas quarters at the fork boundary, by observing the beacon node
+// side of a full cluster with mock VCs performing all duties across the fork transition.
 func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 	skipIfDisabled(t)
 
-	// Slot duration balances total test time against the width of the timing assertion
-	// windows (the gap between quarters and thirds of the slot). It must be whole seconds
-	// since it is published as SECONDS_PER_SLOT.
+	// Whole seconds only, since it is published as SECONDS_PER_SLOT.
 	const slotDuration = time.Second
 
 	args := newSimnetArgs(t)
@@ -45,8 +38,7 @@ func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 
 	// Simnet uses one slot per epoch, so epochs equal slots.
 	startSlot := uint64(time.Since(genesis)/slotDuration) + 1
-	// Leave a startup margin so pre-fork duties are observed: node and vmock startup take
-	// a few slots and the first sync contribution lands only a few slots after that.
+	// Startup margin so the slow pre-fork duties (sync contributions) are observed.
 	forkSlot := startSlot + 12
 	forkTime := genesis.Add(time.Duration(forkSlot) * slotDuration)
 
@@ -57,8 +49,7 @@ func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 		beaconmock.WithSlotDuration(slotDuration),
 		beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
 		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", strconv.FormatUint(forkSlot, 10)),
-		// Make every validator an aggregator so aggregate attestations and sync contributions
-		// are performed every slot, ensuring timing observations on both sides of the fork.
+		// Make every validator an aggregator so aggregations happen every slot.
 		beaconmock.WithSpecOverride("TARGET_AGGREGATORS_PER_COMMITTEE", "1000000"),
 		beaconmock.WithSpecOverride("TARGET_AGGREGATORS_PER_SYNC_SUBCOMMITTEE", "1000000"),
 		beaconmock.WithNoProposerDuties(),
@@ -76,14 +67,12 @@ func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 
 	require.Greater(t, time.Now(), forkTime, "test finished before the gloas fork activated")
 
-	// Duty offsets are defined in basis points of the slot duration, so the assertion
-	// windows are computed the same way (e.g. ATTESTATION_DUE_BPS=3333, not exactly 1/3),
-	// including the millisecond rounding applied by core.NewSlotOffsetFunc.
+	// Assertion windows use spec basis points and the millisecond rounding of core.NewSlotOffsetFunc.
 	bps := func(bps int64) time.Duration {
 		return time.Duration(int64(slotDuration) * bps / 10000).Round(time.Millisecond)
 	}
 
-	// Pre-gloas duties are due at (roughly) thirds of the slot.
+	// Pre-gloas duties are due at thirds of the slot.
 	rec.assertMinOffset(t, "attestation_data", false, bps(3333), bps(6667))
 	rec.assertMinOffset(t, "aggregate_attestation", false, bps(6667), slotDuration)
 	rec.assertMinOffset(t, "sync_message", false, bps(3333), bps(6667))
@@ -143,8 +132,8 @@ func (r *timingRecorder) get(metric string, postFork bool) []time.Duration {
 	return slices.Clone(r.offsets[key])
 }
 
-// assertMinOffset asserts that the earliest observed offset of the metric is within [minOffset, maxOffset).
-// The minimum is used since scheduling and pipeline delays only ever push observations later.
+// assertMinOffset asserts that the earliest observed offset of the metric is within
+// [minOffset, maxOffset), since delays only ever push observations later.
 func (r *timingRecorder) assertMinOffset(t *testing.T, metric string, postFork bool, minOffset, maxOffset time.Duration) {
 	t.Helper()
 
