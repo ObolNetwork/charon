@@ -351,7 +351,7 @@ func (m Mock) PTCDuties(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2
 		return nil, err
 	}
 
-	return &eth2api.Response[[]*eth2v1.PTCDuty]{Data: duties, Metadata: make(map[string]any)}, nil
+	return wrapResponseWithMetadata(duties), nil
 }
 
 func (m Mock) PayloadAttestationData(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
