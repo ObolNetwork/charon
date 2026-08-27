@@ -1690,7 +1690,7 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 				aggs = append(aggs, &versionedAgg)
 			}
 		default:
-			return nil, nil, errors.Wrap(err, "unknown signed aggregate and proofs version", z.Hex("body", body), z.Str("version", version.String()))
+			return nil, nil, errors.New("unknown signed aggregate and proofs version", z.Hex("body", body), z.Str("version", version.String()))
 		}
 
 		return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{

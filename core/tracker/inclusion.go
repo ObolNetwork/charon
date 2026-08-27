@@ -415,7 +415,7 @@ func checkAttestationInclusion(sub submission, block block) (bool, error) {
 		return ok, nil
 	case eth2spec.DataVersionElectra, eth2spec.DataVersionFulu, eth2spec.DataVersionGloas:
 		if subData.ValidatorIndex == nil {
-			return false, errors.New("no validator index in electra attestation")
+			return false, errors.New("no validator index in attestation", z.Str("version", subData.Version.String()))
 		}
 
 		var attesterDutyData *eth2v1.AttesterDuty
