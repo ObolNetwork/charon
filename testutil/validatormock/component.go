@@ -304,6 +304,10 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		if _, err = syncComm.Aggregate(ctx, eth2Slot); err != nil { // Rename to sync.Comm.AggregateSyncContribution
 			return err
 		}
+	case core.DutyPayloadAttestation:
+		if err = PayloadAttest(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
+			return err
+		}
 	case core.DutyBuilderRegistration:
 		// Expected duty, but no action needed in validatormock.
 	default:
@@ -441,6 +445,7 @@ var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	core.DutyPrepareSyncContribution: {slotStartTime},
 	core.DutySyncMessage:             {dutyOffset(core.DutySyncMessage)},
 	core.DutySyncContribution:        {dutyOffset(core.DutySyncContribution)},
+	core.DutyPayloadAttestation:      {dutyOffset(core.DutyPayloadAttestation)},
 }
 
 // startOfPrevEpoch returns the start time of the previous epoch.
