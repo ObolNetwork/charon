@@ -708,6 +708,31 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 				}
 				versionedAtts = append(versionedAtts, &versionedAtt)
 			}
+		case eth2spec.DataVersionGloas:
+			singleAtts := new([]electra.SingleAttestation)
+
+			err = unmarshal(typ, body, singleAtts)
+			if err != nil {
+				return nil, nil, errors.New("invalid gloas attestations", z.Hex("body", body))
+			}
+
+			for _, singleAtt := range *singleAtts {
+				commBits := bitfield.NewBitvector64()
+				commBits.SetBitAt(uint64(singleAtt.CommitteeIndex), true)
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version:        eth2spec.DataVersionGloas,
+					ValidatorIndex: &singleAtt.AttesterIndex,
+					Gloas: &gloas.Attestation{
+						// the VersionedAttestation object will be converted back to SingleAttestation object inside go-eth2-client's SubmitAttestations,
+						// SingleAttestation object disregards AggregationBits, so this empty Bitlist is safe
+						AggregationBits: bitfield.NewBitlist(0),
+						Data:            singleAtt.Data,
+						Signature:       singleAtt.Signature,
+						CommitteeBits:   commBits,
+					},
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
 		default:
 			return nil, nil, errors.New("invalid attestations version", z.Hex("body", body), z.Str("version", version.String()))
 		}
@@ -1519,6 +1544,12 @@ func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggrega
 		}
 
 		res.Data = aggAtt.Fulu
+	case eth2spec.DataVersionGloas:
+		if aggAtt.Gloas == nil {
+			return nil, errors.New("no gloas attestation")
+		}
+
+		res.Data = aggAtt.Gloas
 	default:
 		return nil, errors.New("invalid attestation")
 	}
@@ -1640,6 +1671,21 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
 					Version: eth2spec.DataVersionFulu,
 					Fulu:    electraAgg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
+		case eth2spec.DataVersionGloas:
+			var gloasAggs []*gloas.SignedAggregateAndProof
+
+			err := unmarshal(typ, body, &gloasAggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal gloas signed aggregate and proofs", z.Hex("body", body))
+			}
+
+			for _, gloasAgg := range gloasAggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   gloasAgg,
 				}
 				aggs = append(aggs, &versionedAgg)
 			}

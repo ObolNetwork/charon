@@ -476,6 +476,12 @@ func (a *VersionedAttestation) sszValFromVersion(version eth2util.DataVersion) (
 		}
 
 		return a.Fulu, nil
+	case eth2util.DataVersionGloas:
+		if a.Gloas == nil {
+			a.Gloas = new(gloas.Attestation)
+		}
+
+		return a.Gloas, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -577,6 +583,12 @@ func (ap *VersionedSignedAggregateAndProof) sszValFromVersion(version eth2util.D
 		}
 
 		return ap.Fulu, nil
+	case eth2util.DataVersionGloas:
+		if ap.Gloas == nil {
+			ap.Gloas = new(gloas.SignedAggregateAndProof)
+		}
+
+		return ap.Gloas, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -678,6 +690,12 @@ func (a *VersionedAggregatedAttestation) sszValFromVersion(version eth2util.Data
 		}
 
 		return a.Fulu, nil
+	case eth2util.DataVersionGloas:
+		if a.Gloas == nil {
+			a.Gloas = new(gloas.Attestation)
+		}
+
+		return a.Gloas, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
