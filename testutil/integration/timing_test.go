@@ -78,8 +78,8 @@ func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 
 	// Duty offsets are defined in basis points of the slot duration, so the assertion
 	// windows are computed the same way (e.g. ATTESTATION_DUE_BPS=3333, not exactly 1/3).
-	bps := func(bps time.Duration) time.Duration {
-		return slotDuration * bps / 10000
+	bps := func(bps int64) time.Duration {
+		return time.Duration(int64(slotDuration) * bps / 10000)
 	}
 
 	// Pre-gloas duties are due at (roughly) thirds of the slot.
