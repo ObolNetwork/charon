@@ -4,6 +4,7 @@ package testutil
 
 import (
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -45,6 +46,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 		eth2spec.DataVersionElectra,
 		eth2spec.DataVersionFulu,
 	}
+
+	// Attestation types support gloas, unlike proposals which don't yet.
+	attestationVersions := append(slices.Clone(allVersions), eth2spec.DataVersionGloas)
 
 	if seed == 0 {
 		seed = time.Now().Unix()
@@ -354,7 +358,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 			},
 			func(e *core.VersionedAttestation, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = attestationVersions[(c.Intn(len(attestationVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
@@ -383,8 +387,19 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 
 				e.CommitteeBits = bits
 			},
+			// gloas.Attestation must have 8 bits
+			func(e *gloas.Attestation, c fuzz.Continue) {
+				c.FuzzNoCustom(e)
+
+				bits := bitfield.NewBitvector64()
+				for i := range 8 {
+					bits.SetBitAt(uint64(i), true)
+				}
+
+				e.CommitteeBits = bits
+			},
 			func(e *core.VersionedAggregatedAttestation, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = attestationVersions[(c.Intn(len(attestationVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
@@ -392,7 +407,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedSignedAggregateAndProof, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = attestationVersions[(c.Intn(len(attestationVersions)))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 

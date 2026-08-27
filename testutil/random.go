@@ -177,6 +177,27 @@ func RandomFuluCoreVersionedAttestation() core.VersionedAttestation {
 	}
 }
 
+func RandomGloasAttestation() *gloas.Attestation {
+	return &gloas.Attestation{
+		AggregationBits: RandomBitList(64),
+		Data:            RandomAttestationDataPhase0(),
+		Signature:       RandomEth2Signature(),
+		CommitteeBits:   RandomBitVec64(),
+	}
+}
+
+func RandomGloasCoreVersionedAttestation() core.VersionedAttestation {
+	vIdx := RandomVIdx()
+
+	return core.VersionedAttestation{
+		VersionedAttestation: eth2spec.VersionedAttestation{
+			Version:        eth2spec.DataVersionGloas,
+			ValidatorIndex: &vIdx,
+			Gloas:          RandomGloasAttestation(),
+		},
+	}
+}
+
 func RandomDenebVersionedAttestation() *eth2spec.VersionedAttestation {
 	return &eth2spec.VersionedAttestation{
 		Version: eth2spec.DataVersionDeneb,
