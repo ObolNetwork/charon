@@ -140,6 +140,53 @@ func TestMemDB(t *testing.T) {
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
 }
 
+// TestMemDBGloasPayloadStatusIndex asserts that post-gloas attestation data with the payload
+// status bit set (Data.Index=1) flows through the dutydb unmangled: it is keyed by the duty
+// committee index (and 0), not by Data.Index.
+func TestMemDBGloasPayloadStatusIndex(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const (
+		slot    = 123
+		commIdx = 4
+		valIdx  = 5
+		notZero = 99
+	)
+
+	attData := eth2p0.AttestationData{
+		Slot:   slot,
+		Index:  1, // Payload present in the canonical chain.
+		Source: &eth2p0.Checkpoint{},
+		Target: &eth2p0.Checkpoint{},
+	}
+
+	unsigned := core.AttestationData{
+		Data: attData,
+		Duty: eth2v1.AttesterDuty{
+			Slot:             slot,
+			CommitteeIndex:   commIdx,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+			ValidatorIndex:   valIdx,
+		},
+	}
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.Duty{Slot: slot, Type: core.DutyAttester}
+
+	err := db.Store(ctx, duty, core.UnsignedDataSet{pubkey: unsigned})
+	require.NoError(t, err)
+
+	// Served by duty committee index and by the post-electra hardcoded 0, both with the index intact.
+	for _, reqCommIdx := range []uint64{commIdx, 0} {
+		data, err := db.AwaitAttestation(ctx, slot, reqCommIdx)
+		require.NoError(t, err)
+		require.Equal(t, eth2p0.CommitteeIndex(1), data.Index)
+		require.Equal(t, attData.String(), data.String())
+	}
+}
+
 func TestMemDBStoreUnsupported(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
