@@ -21,6 +21,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -315,6 +316,22 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "signed aggregate and proof gloas",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.SignedAggregateAndProof{
+						Message: &gloas.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomGloasAttestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
 			name: "signed attestation phase0",
 			data: core.VersionedAttestation{
 				VersionedAttestation: eth2spec.VersionedAttestation{
@@ -399,6 +416,20 @@ func TestSignedDataSetSignature(t *testing.T) {
 				VersionedAttestation: eth2spec.VersionedAttestation{
 					Version: eth2spec.DataVersionFulu,
 					Fulu: &electra.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationDataPhase0(),
+						Signature:       testutil.RandomEth2Signature(),
+						CommitteeBits:   testutil.RandomBitVec64(),
+					},
+				},
+			},
+		},
+		{
+			name: "signed attestation gloas",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.Attestation{
 						AggregationBits: testutil.RandomBitList(1),
 						Data:            testutil.RandomAttestationDataPhase0(),
 						Signature:       testutil.RandomEth2Signature(),

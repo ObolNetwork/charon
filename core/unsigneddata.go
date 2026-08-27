@@ -16,12 +16,10 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
-	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -180,6 +178,10 @@ func NewVersionedAggregatedAttestation(att *eth2spec.VersionedAttestation) (Vers
 		if att.Fulu == nil {
 			return VersionedAggregatedAttestation{}, errors.New("no fulu attestation")
 		}
+	case eth2spec.DataVersionGloas:
+		if att.Gloas == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no gloas attestation")
+		}
 	default:
 		return VersionedAggregatedAttestation{}, errors.New("unknown version")
 	}
@@ -222,6 +224,8 @@ func (a VersionedAggregatedAttestation) MarshalJSON() ([]byte, error) {
 		marshaller = a.Electra
 	case eth2spec.DataVersionFulu:
 		marshaller = a.Fulu
+	case eth2spec.DataVersionGloas:
+		marshaller = a.Gloas
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -265,87 +269,18 @@ func (a VersionedAggregatedAttestation) HashTreeRoot() ([32]byte, error) {
 		return a.Electra.HashTreeRoot()
 	case eth2spec.DataVersionFulu:
 		return a.Fulu.HashTreeRoot()
+	case eth2spec.DataVersionGloas:
+		return a.Gloas.HashTreeRoot()
 	default:
 		return [32]byte{}, errors.New("unknown version")
 	}
 }
 
 func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
-	var raw versionedRawAttestationJSON
-	if err := json.Unmarshal(input, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal attestation")
+	resp, err := unmarshalVersionedAttestationJSON(input)
+	if err != nil {
+		return err
 	}
-
-	resp := eth2spec.VersionedAttestation{Version: raw.Version.ToETH2()}
-	switch resp.Version {
-	case eth2spec.DataVersionPhase0:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
-		}
-
-		resp.Phase0 = att
-	case eth2spec.DataVersionAltair:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal altair")
-		}
-
-		resp.Altair = att
-	case eth2spec.DataVersionBellatrix:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
-		}
-
-		resp.Bellatrix = att
-	case eth2spec.DataVersionCapella:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal capella")
-		}
-
-		resp.Capella = att
-	case eth2spec.DataVersionDeneb:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
-		}
-
-		resp.Deneb = att
-	case eth2spec.DataVersionElectra:
-		att := new(eth2e.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal electra")
-		}
-
-		resp.Electra = att
-	case eth2spec.DataVersionFulu:
-		att := new(eth2e.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal fulu")
-		}
-
-		resp.Fulu = att
-	default:
-		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
-	}
-
-	resp.ValidatorIndex = raw.ValidatorIndex
 
 	a.VersionedAttestation = resp
 

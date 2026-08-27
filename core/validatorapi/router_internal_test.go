@@ -1791,6 +1791,20 @@ func TestSubmitAggregateAttestations(t *testing.T) {
 				},
 			},
 		},
+		{
+			version: eth2spec.DataVersionGloas,
+			versionedSignedAggregateAndProof: &eth2spec.VersionedSignedAggregateAndProof{
+				Version: eth2spec.DataVersionGloas,
+				Gloas: &gloas.SignedAggregateAndProof{
+					Message: &gloas.AggregateAndProof{
+						AggregatorIndex: vIdx,
+						Aggregate:       testutil.RandomGloasAttestation(),
+						SelectionProof:  testutil.RandomEth2Signature(),
+					},
+					Signature: testutil.RandomEth2Signature(),
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.version.String(), func(t *testing.T) {
@@ -1869,6 +1883,14 @@ func TestSubmitAttestations(t *testing.T) {
 				Fulu:           testutil.RandomElectraAttestation(),
 			},
 		},
+		{
+			version: eth2spec.DataVersionGloas,
+			versionedAttestation: &eth2spec.VersionedAttestation{
+				Version:        eth2spec.DataVersionGloas,
+				ValidatorIndex: &vidx,
+				Gloas:          testutil.RandomGloasAttestation(),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.version.String(), func(t *testing.T) {
@@ -1903,6 +1925,11 @@ func TestSubmitAttestations(t *testing.T) {
 					require.Equal(t, att.Fulu.Data, attestations.Attestations[0].Fulu.Data)
 					require.Equal(t, att.Fulu.Signature, attestations.Attestations[0].Fulu.Signature)
 					require.Equal(t, att.Fulu.CommitteeBits, attestations.Attestations[0].Fulu.CommitteeBits)
+				case eth2spec.DataVersionGloas:
+					// we don't check for aggregation bits post-electra, as it uses SingleAttestation structure which does not include them aggregation bits
+					require.Equal(t, att.Gloas.Data, attestations.Attestations[0].Gloas.Data)
+					require.Equal(t, att.Gloas.Signature, attestations.Attestations[0].Gloas.Signature)
+					require.Equal(t, att.Gloas.CommitteeBits, attestations.Attestations[0].Gloas.CommitteeBits)
 				default:
 					require.Fail(t, "unknown version")
 				}
