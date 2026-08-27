@@ -68,6 +68,12 @@ func TestSimnetDuties(t *testing.T) {
 			duties:        []core.DutyType{core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution},
 			vcType:        vcVmock,
 		},
+		{
+			name:          "payload attestation with mock VCs",
+			scheduledType: core.DutyPayloadAttestation,
+			duties:        []core.DutyType{core.DutyPayloadAttestation},
+			vcType:        vcVmock,
+		},
 		// TODO(andrei): Need a redesign due to how builder registration is handled now.
 		// {
 		// 	name:       "builder registration with mock VCs",
@@ -123,6 +129,15 @@ func TestSimnetDuties(t *testing.T) {
 			} else {
 				// Enable for all epochs
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithDeterministicSyncCommDuties(2, 2))
+			}
+
+			if test.scheduledType == core.DutyPayloadAttestation {
+				// PTC duties only exist from gloas onwards, activate the fork and enable duties for all epochs.
+				args.BMockOpts = append(args.BMockOpts,
+					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+					beaconmock.WithDeterministicPTCDuties(2, 2),
+				)
 			}
 
 			expect := newSimnetExpect(args.N, test.duties...)

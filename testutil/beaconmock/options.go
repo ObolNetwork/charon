@@ -560,6 +560,54 @@ func WithDeterministicSyncCommDuties(n, k int) Option {
 	}
 }
 
+// WithDeterministicPTCDuties configures the mock to override PTCDutiesFunc to return payload
+// timeliness committee duties for all validators on every slot of the first N epochs in every K epochs.
+func WithDeterministicPTCDuties(n, k int) Option {
+	return func(mock *Mock) {
+		mock.PTCDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+			if int(epoch)%k >= n {
+				return nil, nil
+			}
+
+			opts := &eth2api.ValidatorsOpts{
+				State:   "",
+				Indices: indices,
+			}
+
+			eth2Resp, err := mock.Validators(ctx, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			vals := eth2Resp.Data
+
+			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+			if err != nil {
+				return nil, err
+			}
+
+			var resp []*eth2v1.PTCDuty
+
+			for _, index := range indices {
+				val, ok := vals[index]
+				if !ok {
+					continue
+				}
+
+				for s := range slotsPerEpoch {
+					resp = append(resp, &eth2v1.PTCDuty{
+						PubKey:         val.Validator.PublicKey,
+						ValidatorIndex: index,
+						Slot:           eth2p0.Slot(uint64(epoch)*slotsPerEpoch + s),
+					})
+				}
+			}
+
+			return resp, nil
+		}
+	}
+}
+
 // WithSyncCommitteeSize configures the http mock with the provided sync committee size.
 func WithSyncCommitteeSize(size int) Option {
 	return func(mock *Mock) {
