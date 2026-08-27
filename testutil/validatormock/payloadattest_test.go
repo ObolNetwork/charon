@@ -39,7 +39,7 @@ func TestPayloadAttest(t *testing.T) {
 	attData.Gloas.Slot = slot
 
 	sig := testutil.RandomEth2Signature()
-	signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) {
+	signFunc := func(key eth2p0.BLSPubKey, _ []byte) (eth2p0.BLSSignature, error) { //nolint:unparam // The SignFunc signature requires an error.
 		require.Equal(t, dutyPubkey, key)
 		return sig, nil
 	}

@@ -77,9 +77,10 @@ func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 	require.Greater(t, time.Now(), forkTime, "test finished before the gloas fork activated")
 
 	// Duty offsets are defined in basis points of the slot duration, so the assertion
-	// windows are computed the same way (e.g. ATTESTATION_DUE_BPS=3333, not exactly 1/3).
+	// windows are computed the same way (e.g. ATTESTATION_DUE_BPS=3333, not exactly 1/3),
+	// including the millisecond rounding applied by core.NewSlotOffsetFunc.
 	bps := func(bps int64) time.Duration {
-		return time.Duration(int64(slotDuration) * bps / 10000)
+		return time.Duration(int64(slotDuration) * bps / 10000).Round(time.Millisecond)
 	}
 
 	// Pre-gloas duties are due at (roughly) thirds of the slot.
