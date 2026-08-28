@@ -261,6 +261,9 @@ func (f *Fetcher) fetchAttesterDataWithClient(ctx context.Context, slot uint64, 
 		if !ok {
 			var err error
 
+			// The committee index is kept for backwards compatibility with pre-electra forks.
+			// Per the spec the deprecated committee_index parameter may always be 0 for electra
+			// and later slots, and should be omitted for gloas and later slots.
 			opts := &eth2api.AttestationDataOpts{
 				Slot:           eth2p0.Slot(slot),
 				CommitteeIndex: commIdx,
