@@ -545,9 +545,15 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		commIdx, err := uintQuery(query, "committee_index")
-		if err != nil {
-			return nil, nil, err
+		// The committee_index parameter is deprecated: post-electra it may always be 0 and
+		// post-gloas spec-compliant validator clients should omit it entirely, so default to 0.
+		var commIdx uint64
+
+		if query.Has("committee_index") {
+			commIdx, err = uintQuery(query, "committee_index")
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 
 		opts := &eth2api.AttestationDataOpts{
