@@ -16,15 +16,13 @@ import (
 
 func TestPartialExitRequest(t *testing.T) {
 	pr := obolapi.PartialExitRequest{
-		UnsignedPartialExitRequest: obolapi.UnsignedPartialExitRequest{
-			PartialExits: []obolapi.ExitBlob{
-				{
-					PublicKey:         string(testutil.RandomCorePubKey(t)),
-					SignedExitMessage: *testutil.RandomExit(),
-				},
+		PartialExits: []obolapi.ExitBlob{
+			{
+				PublicKey:         string(testutil.RandomCorePubKey(t)),
+				SignedExitMessage: *testutil.RandomExit(),
 			},
-			ShareIdx: 0,
 		},
+		ShareIdx:  0,
 		Signature: testutil.RandomSecp256k1Signature(),
 	}
 

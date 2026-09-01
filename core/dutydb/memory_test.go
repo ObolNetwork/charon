@@ -270,14 +270,12 @@ func TestMemDBAggregatorElectraMultiCommittee(t *testing.T) {
 		bits.SetBitAt(uint64(commIdx), true)
 
 		return core.VersionedAggregatedAttestation{
-			VersionedAttestation: eth2spec.VersionedAttestation{
-				Version: eth2spec.DataVersionElectra,
-				Electra: &electra.Attestation{
-					AggregationBits: testutil.RandomBitList(64),
-					Data:            attData,
-					Signature:       testutil.RandomEth2Signature(),
-					CommitteeBits:   bits,
-				},
+			Version: eth2spec.DataVersionElectra,
+			Electra: &electra.Attestation{
+				AggregationBits: testutil.RandomBitList(64),
+				Data:            attData,
+				Signature:       testutil.RandomEth2Signature(),
+				CommitteeBits:   bits,
 			},
 		}
 	}

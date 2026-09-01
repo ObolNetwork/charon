@@ -2461,31 +2461,29 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 
 func TestUnmarshalSSZ(t *testing.T) {
 	phase0Proposal := core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Version: eth2spec.DataVersionPhase0,
-			Phase0: &eth2p0.SignedBeaconBlock{
-				Message: &eth2p0.BeaconBlock{
-					Slot:          1,
-					ProposerIndex: 2,
-					ParentRoot:    eth2p0.Root{0x01},
-					StateRoot:     eth2p0.Root{0x02},
-					Body: &eth2p0.BeaconBlockBody{
-						RANDAOReveal: eth2p0.BLSSignature{0xAA},
-						ETH1Data: &eth2p0.ETH1Data{
-							DepositRoot:  eth2p0.Root{0x03},
-							DepositCount: 5,
-							BlockHash:    append([]byte{0x04}, make([]byte, 31)...),
-						},
-						Graffiti:          [32]byte{0x05},
-						ProposerSlashings: []*eth2p0.ProposerSlashing{},
-						AttesterSlashings: []*eth2p0.AttesterSlashing{},
-						Attestations:      []*eth2p0.Attestation{},
-						Deposits:          []*eth2p0.Deposit{},
-						VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
+		Version: eth2spec.DataVersionPhase0,
+		Phase0: &eth2p0.SignedBeaconBlock{
+			Message: &eth2p0.BeaconBlock{
+				Slot:          1,
+				ProposerIndex: 2,
+				ParentRoot:    eth2p0.Root{0x01},
+				StateRoot:     eth2p0.Root{0x02},
+				Body: &eth2p0.BeaconBlockBody{
+					RANDAOReveal: eth2p0.BLSSignature{0xAA},
+					ETH1Data: &eth2p0.ETH1Data{
+						DepositRoot:  eth2p0.Root{0x03},
+						DepositCount: 5,
+						BlockHash:    append([]byte{0x04}, make([]byte, 31)...),
 					},
+					Graffiti:          [32]byte{0x05},
+					ProposerSlashings: []*eth2p0.ProposerSlashing{},
+					AttesterSlashings: []*eth2p0.AttesterSlashing{},
+					Attestations:      []*eth2p0.Attestation{},
+					Deposits:          []*eth2p0.Deposit{},
+					VoluntaryExits:    []*eth2p0.SignedVoluntaryExit{},
 				},
-				Signature: eth2p0.BLSSignature{0xBB},
 			},
+			Signature: eth2p0.BLSSignature{0xBB},
 		},
 	}
 

@@ -74,16 +74,14 @@ func signConfigForOperator(c feeRecipientTestCluster, opIdx int, validatorPubkey
 	baseDir := filepath.Join(c.root, fmt.Sprintf("op%d", opIdx))
 
 	return feerecipientSignConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{validatorPubkey},
-			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-			PublishAddress:      c.srvURL,
-			PublishTimeout:      10 * time.Second,
-		},
-		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		FeeRecipient:     feeRecipient,
-		Timestamp:        timestamp,
+		ValidatorPublicKeys: []string{validatorPubkey},
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      c.srvURL,
+		PublishTimeout:      10 * time.Second,
+		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+		FeeRecipient:        feeRecipient,
+		Timestamp:           timestamp,
 	}
 }
 
@@ -102,13 +100,11 @@ func fetchFeeRecipient(ctx context.Context, t *testing.T, c feeRecipientTestClus
 	t.Helper()
 
 	fetchConfig := feerecipientFetchConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: validatorPubkeys,
-			LockFilePath:        filepath.Join(c.root, "op0", "cluster-lock.json"),
-			OverridesFilePath:   overridesFile,
-			PublishAddress:      c.srvURL,
-			PublishTimeout:      10 * time.Second,
-		},
+		ValidatorPublicKeys: validatorPubkeys,
+		LockFilePath:        filepath.Join(c.root, "op0", "cluster-lock.json"),
+		OverridesFilePath:   overridesFile,
+		PublishAddress:      c.srvURL,
+		PublishTimeout:      10 * time.Second,
 	}
 
 	require.NoError(t, runFeeRecipientFetch(ctx, fetchConfig))
@@ -287,11 +283,9 @@ func TestFeeRecipientFetchSkipsInvalidSignature(t *testing.T) {
 
 func TestFeeRecipientFetchInvalidLockFile(t *testing.T) {
 	config := feerecipientFetchConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:   "nonexistent-lock.json",
-			PublishAddress: "http://localhost:0",
-			PublishTimeout: time.Second,
-		},
+		LockFilePath:   "nonexistent-lock.json",
+		PublishAddress: "http://localhost:0",
+		PublishTimeout: time.Second,
 	}
 
 	err := runFeeRecipientFetch(t.Context(), config)
@@ -308,11 +302,9 @@ func TestFeeRecipientFetchAPIUnreachable(t *testing.T) {
 	srv.Close()
 
 	config := feerecipientFetchConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:   filepath.Join(c.root, "op0", "cluster-lock.json"),
-			PublishAddress: srv.URL,
-			PublishTimeout: time.Second,
-		},
+		LockFilePath:   filepath.Join(c.root, "op0", "cluster-lock.json"),
+		PublishAddress: srv.URL,
+		PublishTimeout: time.Second,
 	}
 
 	err := runFeeRecipientFetch(ctx, config)
@@ -357,15 +349,13 @@ func TestFeeRecipientFetchNoQuorum(t *testing.T) {
 	baseDir := filepath.Join(root, "op0")
 
 	signConfig := feerecipientSignConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{validatorPubkey},
-			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-			PublishAddress:      srv.URL,
-			PublishTimeout:      10 * time.Second,
-		},
-		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		FeeRecipient:     newFeeRecipient,
+		ValidatorPublicKeys: []string{validatorPubkey},
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		PublishTimeout:      10 * time.Second,
+		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+		FeeRecipient:        newFeeRecipient,
 	}
 
 	require.NoError(t, runFeeRecipientSign(ctx, signConfig))
@@ -374,12 +364,10 @@ func TestFeeRecipientFetchNoQuorum(t *testing.T) {
 	overridesFile := filepath.Join(root, "output", "builder_registrations_overrides.json")
 
 	fetchConfig := feerecipientFetchConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
-			OverridesFilePath: overridesFile,
-			PublishAddress:    srv.URL,
-			PublishTimeout:    10 * time.Second,
-		},
+		LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
+		OverridesFilePath: overridesFile,
+		PublishAddress:    srv.URL,
+		PublishTimeout:    10 * time.Second,
 	}
 
 	require.NoError(t, runFeeRecipientFetch(ctx, fetchConfig))

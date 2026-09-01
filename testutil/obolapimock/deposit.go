@@ -140,11 +140,9 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 		}
 
 		ts.partialDeposits[depositData.PublicKey.String()] = depositBlob{
-			FullDepositResponse: obolapi.FullDepositResponse{
-				PublicKey:             depositData.PublicKey.String(),
-				WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
-				Amounts:               amounts,
-			},
+			PublicKey:             depositData.PublicKey.String(),
+			WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
+			Amounts:               amounts,
 		}
 	}
 

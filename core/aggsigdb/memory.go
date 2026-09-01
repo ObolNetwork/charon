@@ -95,7 +95,7 @@ func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 	response := make(chan core.SignedData, 1)
 
 	query := readQuery{
-		memDBKey: memDBKey{duty: duty, pubKey: pubKey, subcommIdx: subcommIdx},
+		duty: duty, pubKey: pubKey, subcommIdx: subcommIdx,
 		response: response,
 		cancel:   cancel,
 	}
