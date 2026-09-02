@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -120,6 +122,7 @@ func TestHandleEvents(t *testing.T) {
 				slotDuration:   12 * time.Second,
 				slotsPerEpoch:  32,
 				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
+				slotOffsetFunc: func(core.Duty) time.Duration { return 4 * time.Second },
 			}
 
 			err := l.eventHandler(t.Context(), test.event, "test")
@@ -182,6 +185,28 @@ func TestSubscribeNotifyHeadEvent(t *testing.T) {
 	require.Equal(t, eth2p0.Slot(100), reportedSlots[0])
 	require.Equal(t, eth2p0.Slot(100), reportedSlots[1])
 	require.Equal(t, eth2p0.Slot(101), reportedSlots[2])
+}
+
+func TestAttestationOffset(t *testing.T) {
+	// Schedule gloas at epoch 2, so with 16 slots per epoch the threshold migrates at slot 32.
+	bmock, err := beaconmock.New(t.Context(),
+		beaconmock.WithSlotsPerEpoch(16),
+		beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "2"),
+	)
+	require.NoError(t, err)
+
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock)
+	require.NoError(t, err)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	l := &listener{slotOffsetFunc: slotOffsetFunc}
+
+	// A third of the slot pre-gloas, a quarter from the fork onwards.
+	require.Equal(t, slotDuration/3, l.attestationOffset(31))
+	require.Equal(t, slotDuration/4, l.attestationOffset(32))
 }
 
 func TestComputeDelay(t *testing.T) {

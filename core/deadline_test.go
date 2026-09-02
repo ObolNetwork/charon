@@ -197,6 +197,24 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 			require.Equal(t, time.Millisecond, end.Sub(now))
 		})
 	}
+
+	t.Run("proposer and randao deadline post gloas", func(t *testing.T) {
+		gloasBmock, err := beaconmock.New(t.Context(),
+			beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+			beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+		)
+		require.NoError(t, err)
+
+		gloasDeadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), gloasBmock)
+		require.NoError(t, err)
+
+		// The proposal deadline follows the attestation due offset, a quarter of the slot post-gloas.
+		for _, duty := range []core.Duty{core.NewProposerDuty(currentSlot), core.NewRandaoDuty(currentSlot)} {
+			end, ok := gloasDeadlineFunc(duty)
+			require.True(t, ok)
+			require.Equal(t, now.Add(slotDuration/4+margin), end)
+		}
+	})
 }
 
 // addDuties runs a goroutine which adds the duties to the deadliner channel.
