@@ -14,11 +14,11 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | Name | Type | Help | Labels |
 |---|---|---|---|
 | `app_beacon_node_peers` | Gauge | Gauge set to the peer count of the upstream beacon node |  |
-| `app_beacon_node_sse_block` | Histogram | Block imported into fork choice delay, supplied by beacon node`s SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe | `addr` |
-| `app_beacon_node_sse_block_gossip` | Histogram | Block reception via gossip delay, supplied by beacon node`s SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe | `addr` |
+| `app_beacon_node_sse_block` | Histogram | Block imported into fork choice delay, supplied by beacon node`s SSE endpoint. Values below the attestation due offset (4s pre-gloas, 3s post-gloas for Ethereum mainnet) are considered safe | `addr` |
+| `app_beacon_node_sse_block_gossip` | Histogram | Block reception via gossip delay, supplied by beacon node`s SSE endpoint. Values below the attestation due offset (4s pre-gloas, 3s post-gloas for Ethereum mainnet) are considered safe | `addr` |
 | `app_beacon_node_sse_block_processing_time` | Histogram | Time in seconds between block gossip and head events, indicating block processing time. Lower values indicate better CPU/disk/RAM performance. | `addr` |
 | `app_beacon_node_sse_chain_reorg_depth` | Histogram | Chain reorg depth, supplied by beacon node`s SSE endpoint | `addr` |
-| `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
+| `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values up to the end of the slot (12s for Ethereum mainnet) are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with labels set to the version and beacon_id of the upstream beacon node | `version, beacon_id` |
 | `app_cache_hits_total` | Counter | Total number of times the cache was used | `endpoint` |

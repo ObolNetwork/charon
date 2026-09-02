@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -44,9 +45,10 @@ type listener struct {
 	blockGossipTimes map[uint64]map[string]time.Time
 
 	// immutable fields
-	genesisTime   time.Time
-	slotDuration  time.Duration
-	slotsPerEpoch uint64
+	genesisTime    time.Time
+	slotDuration   time.Duration
+	slotsPerEpoch  uint64
+	slotOffsetFunc core.SlotOffsetFunc
 }
 
 var _ Listener = (*listener)(nil)
@@ -64,6 +66,11 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 		return nil, err
 	}
 
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
 	l := &listener{
 		chainReorgSubs:   make([]ChainReorgEventHandlerFunc, 0),
 		headSubs:         make([]HeadEventHandlerFunc, 0),
@@ -71,6 +78,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 		genesisTime:      genesisTime,
 		slotDuration:     slotDuration,
 		slotsPerEpoch:    slotsPerEpoch,
+		slotOffsetFunc:   slotOffsetFunc,
 	}
 
 	parsedHeaders, err := eth2util.ParseHTTPHeaders(headers)
@@ -231,10 +239,8 @@ func (p *listener) handleBlockGossipEvent(ctx context.Context, event *event, add
 		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
 	}
 
-	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
-		// Beacon node should receive a block via P2P or API between 0/3 and 1/3 of the slot's timeframe.
-		return delay < (p.slotDuration / 3)
-	})
+	// Beacon node should receive a block via P2P or API before the attestation due offset.
+	delay, ok := p.computeDelay(slot, event.Timestamp, p.blockOnTimeFunc(slot))
 	if !ok {
 		log.Debug(ctx, "Beacon node received block_gossip event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
 	}
@@ -264,10 +270,8 @@ func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr stri
 		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
 	}
 
-	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
-		// Beacon node should import a block to its fork-choice between 0/3 and 1/3 of the slot's timeframe.
-		return delay < (p.slotDuration / 3)
-	})
+	// Beacon node should import a block to its fork-choice before the attestation due offset.
+	delay, ok := p.computeDelay(slot, event.Timestamp, p.blockOnTimeFunc(slot))
 	if !ok {
 		log.Debug(ctx, "Beacon node received block event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
 	}
@@ -323,6 +327,21 @@ func parseRoot(hexRoot string) (eth2p0.Root, error) {
 }
 
 // computeDelay computes the delay between start of the slot and receiving the event.
+// attestationOffset returns the intra slot offset at which attestation data is due for the
+// provided slot, before which beacon nodes are expected to have received the slot's block.
+// It is a third of the slot pre-gloas and a quarter from the gloas fork onwards.
+func (p *listener) attestationOffset(slot uint64) time.Duration {
+	return p.slotOffsetFunc(core.Duty{Slot: slot, Type: core.DutyAttester})
+}
+
+// blockOnTimeFunc returns a function reporting whether a block related delay is
+// within the attestation due offset of the provided slot.
+func (p *listener) blockOnTimeFunc(slot uint64) func(time.Duration) bool {
+	return func(delay time.Duration) bool {
+		return delay < p.attestationOffset(slot)
+	}
+}
+
 func (p *listener) computeDelay(slot uint64, eventTS time.Time, delayOKFunc func(delay time.Duration) bool) (time.Duration, bool) {
 	slotStartTime := p.genesisTime.Add(time.Duration(slot) * p.slotDuration)
 	delay := eventTS.Sub(slotStartTime)

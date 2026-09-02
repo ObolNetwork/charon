@@ -98,6 +98,13 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 		return nil, err
 	}
 
+	timing, err := eth2wrap.FetchSlotTimingConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
+	slotOffset := newSlotOffsetFunc(slotDuration, slotsPerEpoch, timing)
+
 	return func(duty Duty) (time.Time, bool) {
 		switch duty.Type {
 		case DutyExit, DutyBuilderRegistration:
@@ -115,7 +122,9 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 		//nolint: revive // prioritise clarity
 		switch duty.Type {
 		case DutyProposer, DutyRandao:
-			duration = slotDuration / 3
+			// A proposal's useful life ends once attesters vote at the attestation due offset,
+			// a third of the slot pre-gloas and a quarter from the gloas fork onwards.
+			duration = slotOffset(Duty{Slot: duty.Slot, Type: DutyAttester})
 		case DutySyncMessage, DutySyncContribution:
 			duration = slotDuration
 		case DutyAttester, DutyAggregator:
