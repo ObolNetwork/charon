@@ -49,12 +49,10 @@ func TestFeeRecipientListValid(t *testing.T) {
 	require.NoError(t, os.WriteFile(lockFile, lockJSON, 0o644))
 
 	config := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      lockFile,
-			OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
-			PublishAddress:    "http://127.0.0.1:0",
-			PublishTimeout:    500 * time.Millisecond,
-		},
+		LockFilePath:      lockFile,
+		OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
+		PublishAddress:    "http://127.0.0.1:0",
+		PublishTimeout:    500 * time.Millisecond,
 	}
 
 	require.NoError(t, runFeeRecipientList(t.Context(), config))
@@ -75,13 +73,11 @@ func TestFeeRecipientListWithFilter(t *testing.T) {
 	require.NoError(t, os.WriteFile(lockFile, lockJSON, 0o644))
 
 	config := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
-			LockFilePath:        lockFile,
-			OverridesFilePath:   filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
-			PublishAddress:      "http://127.0.0.1:0",
-			PublishTimeout:      500 * time.Millisecond,
-		},
+		ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
+		LockFilePath:        lockFile,
+		OverridesFilePath:   filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
+		PublishAddress:      "http://127.0.0.1:0",
+		PublishTimeout:      500 * time.Millisecond,
 	}
 
 	require.NoError(t, runFeeRecipientList(t.Context(), config))
@@ -102,11 +98,9 @@ func TestFeeRecipientListInvalidPubkey(t *testing.T) {
 	require.NoError(t, os.WriteFile(lockFile, lockJSON, 0o644))
 
 	config := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{"0x" + strings.Repeat("ab", 48)},
-			LockFilePath:        lockFile,
-			OverridesFilePath:   filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
-		},
+		ValidatorPublicKeys: []string{"0x" + strings.Repeat("ab", 48)},
+		LockFilePath:        lockFile,
+		OverridesFilePath:   filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
 	}
 
 	err = runFeeRecipientList(t.Context(), config)
@@ -115,10 +109,8 @@ func TestFeeRecipientListInvalidPubkey(t *testing.T) {
 
 func TestFeeRecipientListInvalidLockFile(t *testing.T) {
 	config := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      "nonexistent-lock.json",
-			OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
-		},
+		LockFilePath:      "nonexistent-lock.json",
+		OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
 	}
 
 	err := runFeeRecipientList(t.Context(), config)
@@ -153,12 +145,10 @@ func TestFeeRecipientListWithOverrides(t *testing.T) {
 	require.NoError(t, os.WriteFile(overridesFile, overridesJSON, 0o644))
 
 	config := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      lockFile,
-			OverridesFilePath: overridesFile,
-			PublishAddress:    "http://127.0.0.1:0",
-			PublishTimeout:    500 * time.Millisecond,
-		},
+		LockFilePath:      lockFile,
+		OverridesFilePath: overridesFile,
+		PublishAddress:    "http://127.0.0.1:0",
+		PublishTimeout:    500 * time.Millisecond,
 	}
 
 	require.NoError(t, runFeeRecipientList(t.Context(), config))
@@ -463,15 +453,13 @@ func TestFeeRecipientListFetchesRemote(t *testing.T) {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", opIdx))
 
 		signConfig := feerecipientSignConfig{
-			feerecipientConfig: feerecipientConfig{
-				ValidatorPublicKeys: []string{validatorPubkey},
-				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-				PublishAddress:      srv.URL,
-				PublishTimeout:      10 * time.Second,
-			},
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			FeeRecipient:     newFeeRecipient,
+			ValidatorPublicKeys: []string{validatorPubkey},
+			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:      srv.URL,
+			PublishTimeout:      10 * time.Second,
+			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+			FeeRecipient:        newFeeRecipient,
 		}
 
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator %d submit feerecipient sign", opIdx)
@@ -480,12 +468,10 @@ func TestFeeRecipientListFetchesRemote(t *testing.T) {
 	overridesFile := filepath.Join(root, "output", "builder_registrations_overrides.json")
 
 	listConfig := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
-			OverridesFilePath: overridesFile,
-			PublishAddress:    srv.URL,
-			PublishTimeout:    10 * time.Second,
-		},
+		LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
+		OverridesFilePath: overridesFile,
+		PublishAddress:    srv.URL,
+		PublishTimeout:    10 * time.Second,
 	}
 
 	require.NoError(t, runFeeRecipientList(ctx, listConfig))
@@ -532,26 +518,22 @@ func TestFeeRecipientListRemoteOnlyTriggersSuggestion(t *testing.T) {
 	for opIdx := range lock.Threshold {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", opIdx))
 		signConfig := feerecipientSignConfig{
-			feerecipientConfig: feerecipientConfig{
-				ValidatorPublicKeys: []string{validatorPubkey},
-				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-				PublishAddress:      srv.URL,
-				PublishTimeout:      10 * time.Second,
-			},
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			FeeRecipient:     newFeeRecipient,
+			ValidatorPublicKeys: []string{validatorPubkey},
+			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:      srv.URL,
+			PublishTimeout:      10 * time.Second,
+			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+			FeeRecipient:        newFeeRecipient,
 		}
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig))
 	}
 
 	listConfig := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
-			OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
-			PublishAddress:    srv.URL,
-			PublishTimeout:    10 * time.Second,
-		},
+		LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
+		OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
+		PublishAddress:    srv.URL,
+		PublishTimeout:    10 * time.Second,
 	}
 
 	require.NoError(t, runFeeRecipientList(ctx, listConfig))
@@ -602,15 +584,13 @@ func TestFeeRecipientListOverridesMatchRemote(t *testing.T) {
 	for opIdx := range lock.Threshold {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", opIdx))
 		signConfig := feerecipientSignConfig{
-			feerecipientConfig: feerecipientConfig{
-				ValidatorPublicKeys: []string{validatorPubkey},
-				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-				PublishAddress:      srv.URL,
-				PublishTimeout:      10 * time.Second,
-			},
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			FeeRecipient:     newFeeRecipient,
+			ValidatorPublicKeys: []string{validatorPubkey},
+			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:      srv.URL,
+			PublishTimeout:      10 * time.Second,
+			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+			FeeRecipient:        newFeeRecipient,
 		}
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig))
 	}
@@ -619,22 +599,18 @@ func TestFeeRecipientListOverridesMatchRemote(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(overridesFile), 0o755))
 
 	fetchConfig := feerecipientFetchConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
-			OverridesFilePath: overridesFile,
-			PublishAddress:    srv.URL,
-			PublishTimeout:    10 * time.Second,
-		},
+		LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
+		OverridesFilePath: overridesFile,
+		PublishAddress:    srv.URL,
+		PublishTimeout:    10 * time.Second,
 	}
 	require.NoError(t, runFeeRecipientFetch(ctx, fetchConfig))
 
 	listConfig := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
-			OverridesFilePath: overridesFile,
-			PublishAddress:    srv.URL,
-			PublishTimeout:    10 * time.Second,
-		},
+		LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
+		OverridesFilePath: overridesFile,
+		PublishAddress:    srv.URL,
+		PublishTimeout:    10 * time.Second,
 	}
 	require.NoError(t, runFeeRecipientList(ctx, listConfig))
 
@@ -668,12 +644,10 @@ func TestFeeRecipientListRemoteUnreachable(t *testing.T) {
 	srv.Close()
 
 	listConfig := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      lockFile,
-			OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
-			PublishAddress:    srv.URL,
-			PublishTimeout:    500 * time.Millisecond,
-		},
+		LockFilePath:      lockFile,
+		OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
+		PublishAddress:    srv.URL,
+		PublishTimeout:    500 * time.Millisecond,
 	}
 
 	require.NoError(t, runFeeRecipientList(ctx, listConfig))
@@ -726,26 +700,22 @@ func TestFeeRecipientListIncompleteNoQuorum(t *testing.T) {
 	for opIdx := range lock.Threshold - 1 {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", opIdx))
 		signConfig := feerecipientSignConfig{
-			feerecipientConfig: feerecipientConfig{
-				ValidatorPublicKeys: []string{validatorPubkey},
-				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-				PublishAddress:      srv.URL,
-				PublishTimeout:      10 * time.Second,
-			},
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			FeeRecipient:     newFeeRecipient,
+			ValidatorPublicKeys: []string{validatorPubkey},
+			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:      srv.URL,
+			PublishTimeout:      10 * time.Second,
+			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+			FeeRecipient:        newFeeRecipient,
 		}
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig))
 	}
 
 	listConfig := feerecipientListConfig{
-		feerecipientConfig: feerecipientConfig{
-			LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
-			OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
-			PublishAddress:    srv.URL,
-			PublishTimeout:    10 * time.Second,
-		},
+		LockFilePath:      filepath.Join(root, "op0", "cluster-lock.json"),
+		OverridesFilePath: filepath.Join(t.TempDir(), "nonexistent-overrides.json"),
+		PublishAddress:    srv.URL,
+		PublishTimeout:    10 * time.Second,
 	}
 
 	require.NoError(t, runFeeRecipientList(ctx, listConfig))

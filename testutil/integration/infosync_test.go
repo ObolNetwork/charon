@@ -39,8 +39,8 @@ func TestInfoSync(t *testing.T) {
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, seed, random)
 
 	asserter := &priorityAsserter{
-		asserter: asserter{Timeout: time.Second * 10},
-		N:        n,
+		Timeout: time.Second * 10,
+		N:       n,
 	}
 
 	p2pNodeCallback := testutil.NewP2PNodeCallback(t, priority.Protocols()...)

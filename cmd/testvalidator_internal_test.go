@@ -211,9 +211,7 @@ func TestValidatorTestTimeoutAlwaysProducesResults(t *testing.T) {
 		var buf bytes.Buffer
 
 		res, err := runTestValidator(context.Background(), &buf, testValidatorConfig{
-			testConfig: testConfig{
-				Timeout: time.Nanosecond,
-			},
+			Timeout:    time.Nanosecond,
 			APIAddress: fmt.Sprintf("localhost:%v", testutil.GetFreePort(t)),
 		})
 		require.NoError(t, err)
