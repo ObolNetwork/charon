@@ -20,8 +20,8 @@ var (
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "sse_head_delay",
-		Help:      "Delay in seconds between slot start and head update, supplied by beacon node's SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe.",
-		Buckets:   []float64{2, 4, 6, 8, 10, 12},
+		Help:      "Delay in seconds between slot start and head update, supplied by beacon node's SSE endpoint. Values up to the end of the slot (12s for Ethereum mainnet) are considered safe.",
+		Buckets:   []float64{1, 2, 3, 4, 5, 6, 8, 9, 10, 12},
 	}, []string{"addr"})
 
 	sseChainReorgDepthHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -36,7 +36,7 @@ var (
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "sse_block_gossip",
-		Help:      "Block reception via gossip delay, supplied by beacon node's SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe",
+		Help:      "Block reception via gossip delay, supplied by beacon node's SSE endpoint. Values below the attestation due offset (4s pre-gloas, 3s post-gloas for Ethereum mainnet) are considered safe",
 		Buckets:   []float64{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 8, 10, 12},
 	}, []string{"addr"})
 
@@ -44,7 +44,7 @@ var (
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "sse_block",
-		Help:      "Block imported into fork choice delay, supplied by beacon node's SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe",
+		Help:      "Block imported into fork choice delay, supplied by beacon node's SSE endpoint. Values below the attestation due offset (4s pre-gloas, 3s post-gloas for Ethereum mainnet) are considered safe",
 		Buckets:   []float64{0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 8, 10, 12},
 	}, []string{"addr"})
 
