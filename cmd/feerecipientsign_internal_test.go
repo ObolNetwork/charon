@@ -67,15 +67,13 @@ func TestFeeRecipientSignValid(t *testing.T) {
 	baseDir := filepath.Join(root, fmt.Sprintf("op%d", idx))
 
 	signConfig := feerecipientSignConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
-			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-			PublishAddress:      srv.URL,
-			PublishTimeout:      10 * time.Second,
-		},
-		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		FeeRecipient:     "0x0000000000000000000000000000000000001234",
+		ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		PublishTimeout:      10 * time.Second,
+		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+		FeeRecipient:        "0x0000000000000000000000000000000000001234",
 	}
 
 	require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator index submit feerecipient sign: %v", idx)
@@ -122,16 +120,14 @@ func TestFeeRecipientSignWithTimestamp(t *testing.T) {
 		baseDir := filepath.Join(root, fmt.Sprintf("op%d", opIdx))
 
 		signConfig := feerecipientSignConfig{
-			feerecipientConfig: feerecipientConfig{
-				ValidatorPublicKeys: []string{validatorPubkey},
-				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-				PublishAddress:      srv.URL,
-				PublishTimeout:      10 * time.Second,
-			},
-			ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-			FeeRecipient:     newFeeRecipient,
-			Timestamp:        fixedTimestamp,
+			ValidatorPublicKeys: []string{validatorPubkey},
+			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+			PublishAddress:      srv.URL,
+			PublishTimeout:      10 * time.Second,
+			ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+			FeeRecipient:        newFeeRecipient,
+			Timestamp:           fixedTimestamp,
 		}
 
 		require.NoError(t, runFeeRecipientSign(ctx, signConfig), "operator %d sign with timestamp", opIdx)
@@ -140,13 +136,11 @@ func TestFeeRecipientSignWithTimestamp(t *testing.T) {
 
 func TestFeeRecipientSignInvalidFeeRecipient(t *testing.T) {
 	config := feerecipientSignConfig{
-		feerecipientConfig: feerecipientConfig{
-			PrivateKeyPath: "nonexistent",
-			LockFilePath:   "nonexistent",
-			PublishAddress: "http://localhost:0",
-			PublishTimeout: time.Second,
-		},
-		FeeRecipient: "not-an-address",
+		PrivateKeyPath: "nonexistent",
+		LockFilePath:   "nonexistent",
+		PublishAddress: "http://localhost:0",
+		PublishTimeout: time.Second,
+		FeeRecipient:   "not-an-address",
 	}
 
 	err := runFeeRecipientSign(t.Context(), config)
@@ -255,13 +249,11 @@ func TestFeeRecipientSignAdoptsInProgressTimestamp(t *testing.T) {
 
 func TestFeeRecipientSignInvalidLockFile(t *testing.T) {
 	config := feerecipientSignConfig{
-		feerecipientConfig: feerecipientConfig{
-			PrivateKeyPath: "nonexistent",
-			LockFilePath:   "nonexistent-lock.json",
-			PublishAddress: "http://localhost:0",
-			PublishTimeout: time.Second,
-		},
-		FeeRecipient: "0x0000000000000000000000000000000000001234",
+		PrivateKeyPath: "nonexistent",
+		LockFilePath:   "nonexistent-lock.json",
+		PublishAddress: "http://localhost:0",
+		PublishTimeout: time.Second,
+		FeeRecipient:   "0x0000000000000000000000000000000000001234",
 	}
 
 	err := runFeeRecipientSign(t.Context(), config)
@@ -299,15 +291,13 @@ func TestFeeRecipientSignAPIUnreachable(t *testing.T) {
 	baseDir := filepath.Join(root, "op0")
 
 	config := feerecipientSignConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
-			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-			PublishAddress:      srv.URL,
-			PublishTimeout:      time.Second,
-		},
-		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		FeeRecipient:     "0x0000000000000000000000000000000000001234",
+		ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		PublishTimeout:      time.Second,
+		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+		FeeRecipient:        "0x0000000000000000000000000000000000001234",
 	}
 
 	err = runFeeRecipientSign(ctx, config)
@@ -348,15 +338,13 @@ func TestFeeRecipientSignPubkeyNotInCluster(t *testing.T) {
 	baseDir := filepath.Join(root, "op0")
 
 	config := feerecipientSignConfig{
-		feerecipientConfig: feerecipientConfig{
-			ValidatorPublicKeys: []string{"0x" + strings.Repeat("ab", 48)},
-			PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
-			LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
-			PublishAddress:      srv.URL,
-			PublishTimeout:      10 * time.Second,
-		},
-		ValidatorKeysDir: filepath.Join(baseDir, "validator_keys"),
-		FeeRecipient:     "0x0000000000000000000000000000000000001234",
+		ValidatorPublicKeys: []string{"0x" + strings.Repeat("ab", 48)},
+		PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+		LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:      srv.URL,
+		PublishTimeout:      10 * time.Second,
+		ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+		FeeRecipient:        "0x0000000000000000000000000000000000001234",
 	}
 
 	err = runFeeRecipientSign(ctx, config)

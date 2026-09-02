@@ -113,7 +113,7 @@ func fetchBeaconNodeToken(eth2Cl eth2wrap.Client) string {
 		return ""
 	}
 
-	productToken := strings.Split(eth2Resp.Data, "/")[0]
+	productToken, _, _ := strings.Cut(eth2Resp.Data, "/")
 
 	token, ok := ClientGraffitiMappings()[productToken]
 	if !ok {

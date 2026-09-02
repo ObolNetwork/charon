@@ -277,9 +277,7 @@ func TestBeaconTestTimeoutAlwaysProducesResults(t *testing.T) {
 		var buf bytes.Buffer
 
 		res, err := runTestBeacon(context.Background(), &buf, testBeaconConfig{
-			testConfig: testConfig{
-				Timeout: time.Nanosecond,
-			},
+			Timeout:   time.Nanosecond,
 			Endpoints: endpoints,
 		})
 		require.NoError(t, err)

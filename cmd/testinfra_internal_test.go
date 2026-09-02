@@ -247,9 +247,7 @@ func TestInfraTestTimeoutAlwaysProducesResults(t *testing.T) {
 		var buf bytes.Buffer
 
 		res, err := runTestInfra(context.Background(), &buf, testInfraConfig{
-			testConfig: testConfig{
-				Timeout: time.Nanosecond,
-			},
+			Timeout:      time.Nanosecond,
 			DiskTestTool: DiskTestToolMock{},
 		})
 		require.NoError(t, err)

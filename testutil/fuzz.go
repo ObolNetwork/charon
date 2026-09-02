@@ -133,9 +133,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 			},
 			// Populate one of the versions of these VersionedSignedProposal types.
 			func(e *core.VersionedSignedProposal, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = allVersions[c.Intn(len(allVersions))]
 				if e.Blinded {
-					e.Version = blindedVersions[(c.Intn(len(blindedVersions)))]
+					e.Version = blindedVersions[c.Intn(len(blindedVersions))]
 				}
 
 				version, err := eth2util.DataVersionFromETH2(e.Version)
@@ -270,7 +270,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 			},
 			func(e *core.VersionedProposal, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = allVersions[c.Intn(len(allVersions))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
@@ -353,7 +353,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 			},
 			func(e *core.VersionedAttestation, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = allVersions[c.Intn(len(allVersions))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
@@ -383,7 +383,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				e.CommitteeBits = bits
 			},
 			func(e *core.VersionedAggregatedAttestation, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = allVersions[c.Intn(len(allVersions))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
@@ -391,7 +391,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedSignedAggregateAndProof, c fuzz.Continue) {
-				e.Version = allVersions[(c.Intn(len(allVersions)))]
+				e.Version = allVersions[c.Intn(len(allVersions))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 

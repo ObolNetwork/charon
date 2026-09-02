@@ -85,11 +85,9 @@ func pingCluster(t *testing.T, test pingTest) {
 	random := rand.New(rand.NewSource(int64(seed)))
 	lock, p2pKeys, _ := cluster.NewForT(t, 1, n, n, seed, random)
 	asserter := &pingAsserter{
-		asserter: asserter{
-			Timeout: time.Second * 10,
-		},
-		N:    n,
-		Lock: lock,
+		Timeout: time.Second * 10,
+		N:       n,
+		Lock:    lock,
 	}
 
 	var eg errgroup.Group
