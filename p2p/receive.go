@@ -100,12 +100,16 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 			log.Error(ctx, "Failed to read p2p request from peer. Check network connectivity and peer health", err, z.Any("duration", time.Since(t0)))
 
 			return
-		} else if err := protonil.Check(req); err != nil {
+		}
+
+		// Observe before application-level validation so malformed-but-readable messages
+		// are still visible in the size histogram.
+		observeReceivedMessage(s.Protocol(), s.Conn().RemotePeer(), req)
+
+		if err := protonil.Check(req); err != nil {
 			log.Warn(ctx, "LibP2P received invalid proto", err)
 			return
 		}
-
-		observeReceivedMessage(s.Protocol(), s.Conn().RemotePeer(), req)
 
 		resp, ok, err := handlerFunc(ctx, s.Conn().RemotePeer(), req)
 		if err != nil {
