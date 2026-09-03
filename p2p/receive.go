@@ -53,6 +53,9 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
 
+		handlerDone := observeHandlerStart(s.Protocol(), s.Conn().RemotePeer())
+		defer handlerDone()
+
 		_ = s.SetReadDeadline(time.Now().Add(o.receiveTimeout))
 		ctx, cancel := context.WithTimeout(context.Background(), o.receiveTimeout)
 		ctx = log.WithTopic(ctx, logTopic)
@@ -82,15 +85,21 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		if IsRelayError(err) {
 			return // Ignore relay errors.
 		} else if netErr := net.Error(nil); errors.As(err, &netErr) && netErr.Timeout() {
+			incMessageReadError(s.Protocol(), s.Conn().RemotePeer())
 			log.Error(ctx, "Timeout reading p2p message from peer. This may indicate network latency issues or unresponsive peer", err, z.Any("duration", time.Since(t0)))
+
 			return
 		} else if err != nil {
+			incMessageReadError(s.Protocol(), s.Conn().RemotePeer())
 			log.Error(ctx, "Failed to read p2p request from peer. Check network connectivity and peer health", err, z.Any("duration", time.Since(t0)))
+
 			return
 		} else if err := protonil.Check(req); err != nil {
 			log.Warn(ctx, "LibP2P received invalid proto", err)
 			return
 		}
+
+		observeReceivedMessage(s.Protocol(), s.Conn().RemotePeer(), req)
 
 		resp, ok, err := handlerFunc(ctx, s.Conn().RemotePeer(), req)
 		if err != nil {
@@ -108,5 +117,7 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 			log.Error(ctx, "Failed to write p2p response to peer. Connection may have been closed", err)
 			return
 		}
+
+		observeSentMessage(s.Protocol(), resp)
 	})
 }
