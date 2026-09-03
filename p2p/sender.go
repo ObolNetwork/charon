@@ -361,8 +361,9 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	observeSentMessage(s.Protocol(), req)
 
 	if err = reader.ReadMsg(resp); err != nil {
-		// Relay resets are benign churn, exclude them like the receive path does.
-		if !IsRelayError(err) {
+		// Resets on relayed (limited) connections are benign circuit recycling,
+		// but any other failure (including a reset on a direct connection) counts.
+		if !IsRelayError(err) || !s.Conn().Stat().Limited {
 			incMessageReadError(s.Protocol(), peerID)
 		}
 

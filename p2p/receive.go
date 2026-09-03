@@ -83,6 +83,12 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 
 		err := readFunc(s).ReadMsg(req)
 		if IsRelayError(err) {
+			// Resets on relayed (limited) connections are benign circuit recycling,
+			// but a reset on a direct connection is a genuine read failure.
+			if !s.Conn().Stat().Limited {
+				incMessageReadError(s.Protocol(), s.Conn().RemotePeer())
+			}
+
 			return // Ignore relay errors.
 		} else if netErr := net.Error(nil); errors.As(err, &netErr) && netErr.Timeout() {
 			incMessageReadError(s.Protocol(), s.Conn().RemotePeer())
