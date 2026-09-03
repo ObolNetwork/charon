@@ -361,7 +361,11 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	observeSentMessage(s.Protocol(), req)
 
 	if err = reader.ReadMsg(resp); err != nil {
-		incMessageReadError(s.Protocol(), peerID)
+		// Relay resets are benign churn, exclude them like the receive path does.
+		if !IsRelayError(err) {
+			incMessageReadError(s.Protocol(), peerID)
+		}
+
 		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
 	}
 

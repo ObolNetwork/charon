@@ -4,6 +4,7 @@ package p2p
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -146,4 +147,62 @@ func TestInflightRequestMetrics(t *testing.T) {
 	gauge, err := inflightGauge.GetMetricWithLabelValues(string(pID), clientName)
 	require.NoError(t, err)
 	require.Zero(t, promtestutil.ToFloat64(gauge))
+}
+
+func TestConcurrentRequestDepths(t *testing.T) {
+	var (
+		pID    = protocol.ID("test-concurrency")
+		ctx    = context.Background()
+		client = testutil.CreateHost(t, testutil.AvailableAddr(t))
+		server = testutil.CreateHost(t, testutil.AvailableAddr(t))
+	)
+
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	release := make(chan struct{})
+	RegisterHandler("server", server, pID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			<-release
+			return req, true, nil
+		},
+	)
+
+	clientName := PeerName(client.ID())
+
+	// Issue concurrent requests against a blocked handler.
+	const n = 3
+
+	var wg sync.WaitGroup
+	for range n {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			resp := new(pbv1.Duty)
+			_ = SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: 1}, resp, pID)
+		}()
+	}
+
+	gauge, err := inflightGauge.GetMetricWithLabelValues(string(pID), clientName)
+	require.NoError(t, err)
+
+	// All requests block in the handler, so the gauge reaches n.
+	require.Eventually(t, func() bool {
+		return promtestutil.ToFloat64(gauge) == n
+	}, time.Second*5, time.Millisecond*10)
+
+	close(release)
+	wg.Wait()
+
+	// Gauge returns to zero once all handlers complete.
+	require.Eventually(t, func() bool {
+		return promtestutil.ToFloat64(gauge) == 0
+	}, time.Second*5, time.Millisecond*10)
+
+	// The concurrency histogram observed depths 1, 2 and 3 (in some order), so the sum is 6.
+	concCount, concSum := histSample(t, concurrentRequestsHist, string(pID), clientName)
+	require.Equal(t, uint64(n), concCount)
+	require.InDelta(t, 6, concSum, 0.1)
 }
