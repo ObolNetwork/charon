@@ -405,6 +405,8 @@ func sendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
 
+	observeSentMessage(s.Protocol(), req)
+
 	if err := s.CloseWrite(); err != nil {
 		// A canceled-stream error here is benign: the request was already written and
 		// delivered above, and the peer resetting our send-direction (STOP_SENDING) does
@@ -420,8 +422,11 @@ func sendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	}
 
 	if err = reader.ReadMsg(resp); err != nil {
+		incMessageReadError(s.Protocol(), peerID)
 		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
+
+	observeReceivedMessage(s.Protocol(), peerID, resp)
 
 	o.rttCallback(time.Since(t0))
 
@@ -485,6 +490,8 @@ func send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	if err = writeFunc(s).WriteMsg(msg); err != nil {
 		return errors.Wrap(err, "write message", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
+
+	observeSentMessage(s.Protocol(), msg)
 
 	return nil
 }

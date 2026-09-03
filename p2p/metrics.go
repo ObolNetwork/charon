@@ -3,6 +3,7 @@
 package p2p
 
 import (
+	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
@@ -12,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/promauto"
 )
@@ -99,7 +101,103 @@ var (
 		Name:      "peer_network_sent_bytes_total",
 		Help:      "Total number of network bytes sent to the peer by protocol and transport. Transport is based on first active connection (accurate in steady state).",
 	}, []string{"peer", "protocol", "transport"})
+
+	receivedMsgSizeHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "p2p",
+		Name:      "received_message_size_bytes",
+		Help:      "Size in bytes of received libp2p protobuf messages by protocol and sending peer.",
+		Buckets:   messageSizeBuckets,
+	}, []string{"protocol", "peer"})
+
+	sentMsgSizeHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "p2p",
+		Name:      "sent_message_size_bytes",
+		Help:      "Size in bytes of sent libp2p protobuf messages by protocol. Not labelled by peer since duty messages are broadcast identically to all peers.",
+		Buckets:   messageSizeBuckets,
+	}, []string{"protocol"})
+
+	msgReadErrorCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "p2p",
+		Name:      "message_read_errors_total",
+		Help:      "Total number of failures reading a libp2p message by protocol and sending peer. Includes messages exceeding the protocol read limit.",
+	}, []string{"protocol", "peer"})
+
+	inflightGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "p2p",
+		Name:      "inflight_requests",
+		Help:      "Current number of inbound libp2p messages being handled (stream accept to handler completion) by protocol and sending peer.",
+	}, []string{"protocol", "peer"})
+
+	concurrentRequestsHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "p2p",
+		Name:      "concurrent_requests",
+		Help:      "Number of concurrently handled inbound messages, observed at each message arrival, by protocol and sending peer. Unlike the sampled inflight_requests gauge, this captures bursts between scrapes.",
+		Buckets:   []float64{1, 2, 4, 8, 16, 32, 64, 128, 256},
+	}, []string{"protocol", "peer"})
+
+	handlerDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "p2p",
+		Name:      "handler_duration_seconds",
+		Help:      "Duration of inbound libp2p message handling from stream accept to handler completion by protocol. Explains inflight_requests: inflight equals message rate times this duration.",
+		Buckets:   prometheus.ExponentialBuckets(0.001, 2, 15), // 1ms .. ~16s, covers the ~10s default receive timeout.
+	}, []string{"protocol"})
 )
+
+// inflightCounts tracks the number of concurrently handled inbound messages per (protocol, peer).
+// It is the source of truth for both inflightGauge and concurrentRequestsHist so they never drift.
+var inflightCounts = struct {
+	sync.Mutex
+
+	counts map[[2]string]int
+}{counts: make(map[[2]string]int)}
+
+// observeHandlerStart records the start of inbound message handling and returns a done function
+// to be called (deferred) when handling completes.
+func observeHandlerStart(pID protocol.ID, peerID peer.ID) func() {
+	key := [2]string{string(pID), PeerName(peerID)}
+	t0 := time.Now()
+
+	inflightCounts.Lock()
+	inflightCounts.counts[key]++
+	n := inflightCounts.counts[key]
+	inflightCounts.Unlock()
+
+	inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
+	concurrentRequestsHist.WithLabelValues(key[0], key[1]).Observe(float64(n))
+
+	return func() {
+		inflightCounts.Lock()
+		inflightCounts.counts[key]--
+		n := inflightCounts.counts[key]
+		inflightCounts.Unlock()
+
+		inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
+		handlerDuration.WithLabelValues(key[0]).Observe(time.Since(t0).Seconds())
+	}
+}
+
+// messageSizeBuckets covers charon p2p message sizes from small control messages up to the
+// 128MiB default read limit. The 32MiB and 128MiB edges match protocol read limits, so
+// messages that (would) exceed a limit are countable by exact bucket subtraction.
+var messageSizeBuckets = []float64{
+	256, 1 << 10, 4 << 10, 16 << 10, 64 << 10, 256 << 10, 512 << 10,
+	1 << 20, 2 << 20, 4 << 20, 8 << 20, 16 << 20, 32 << 20, 64 << 20, 128 << 20,
+}
+
+// observeReceivedMessage records the size of a successfully read libp2p protobuf message.
+func observeReceivedMessage(pID protocol.ID, peerID peer.ID, msg proto.Message) {
+	receivedMsgSizeHist.WithLabelValues(string(pID), PeerName(peerID)).Observe(float64(proto.Size(msg)))
+}
+
+// observeSentMessage records the size of a successfully written libp2p protobuf message.
+func observeSentMessage(pID protocol.ID, msg proto.Message) {
+	sentMsgSizeHist.WithLabelValues(string(pID)).Observe(float64(proto.Size(msg)))
+}
+
+// incMessageReadError increments the read error counter for the protocol and sending peer.
+func incMessageReadError(pID protocol.ID, peerID peer.ID) {
+	msgReadErrorCounter.WithLabelValues(string(pID), PeerName(peerID)).Inc()
+}
 
 func observePing(p peer.ID, d time.Duration) {
 	pingLatencies.WithLabelValues(PeerName(p)).Observe(d.Seconds())
