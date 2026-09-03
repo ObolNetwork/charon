@@ -169,7 +169,11 @@ func observeHandlerStart(pID protocol.ID, peerID peer.ID) func() {
 	return func() {
 		inflightCounts.Lock()
 		inflightCounts.counts[key]--
-		inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(inflightCounts.counts[key]))
+		n := inflightCounts.counts[key]
+		if n <= 0 {
+			delete(inflightCounts.counts, key) // Don't grow the map with idle keys.
+		}
+		inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
 		inflightCounts.Unlock()
 
 		handlerDuration.WithLabelValues(key[0]).Observe(time.Since(t0).Seconds())
