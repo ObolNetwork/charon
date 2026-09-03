@@ -160,18 +160,18 @@ func observeHandlerStart(pID protocol.ID, peerID peer.ID) func() {
 	inflightCounts.Lock()
 	inflightCounts.counts[key]++
 	n := inflightCounts.counts[key]
+	// Update the gauge while holding the lock so concurrent Set calls cannot be reordered.
+	inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
 	inflightCounts.Unlock()
 
-	inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
 	concurrentRequestsHist.WithLabelValues(key[0], key[1]).Observe(float64(n))
 
 	return func() {
 		inflightCounts.Lock()
 		inflightCounts.counts[key]--
-		n := inflightCounts.counts[key]
+		inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(inflightCounts.counts[key]))
 		inflightCounts.Unlock()
 
-		inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
 		handlerDuration.WithLabelValues(key[0]).Observe(time.Since(t0).Seconds())
 	}
 }
