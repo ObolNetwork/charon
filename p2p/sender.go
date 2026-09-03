@@ -344,8 +344,6 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()))
 	}
 
-	observeSentMessage(s.Protocol(), req)
-
 	if err := s.CloseWrite(); err != nil {
 		// A canceled-stream error here is benign: the request was already written and
 		// delivered above, and the peer resetting our send-direction (STOP_SENDING) does
@@ -359,6 +357,8 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 			return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
 		}
 	}
+
+	observeSentMessage(s.Protocol(), req)
 
 	if err = reader.ReadMsg(resp); err != nil {
 		incMessageReadError(s.Protocol(), peerID)
