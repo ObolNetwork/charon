@@ -358,9 +358,19 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		}
 	}
 
+	observeSentMessage(s.Protocol(), req)
+
 	if err = reader.ReadMsg(resp); err != nil {
+		// Resets on relayed (limited) connections are benign circuit recycling,
+		// but any other failure (including a reset on a direct connection) counts.
+		if !IsRelayError(err) || !s.Conn().Stat().Limited {
+			incMessageReadError(s.Protocol(), peerID)
+		}
+
 		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
 	}
+
+	observeReceivedMessage(s.Protocol(), peerID, resp)
 
 	o.rttCallback(time.Since(t0))
 
@@ -407,6 +417,8 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	if err = writeFunc(s).WriteMsg(msg); err != nil {
 		return errors.Wrap(err, "write message", z.Any("protocol", s.Protocol()))
 	}
+
+	observeSentMessage(s.Protocol(), msg)
 
 	return nil
 }
