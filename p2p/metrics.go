@@ -143,40 +143,48 @@ var (
 	}, []string{"protocol"})
 )
 
+// inflightKey identifies a per-protocol, per-peer inflight request counter.
+type inflightKey struct {
+	protocol string
+	peer     string
+}
+
 // inflightCounts tracks the number of concurrently handled inbound messages per (protocol, peer).
 // It is the source of truth for both inflightGauge and concurrentRequestsHist so they never drift.
 var inflightCounts = struct {
 	sync.Mutex
 
-	counts map[[2]string]int
-}{counts: make(map[[2]string]int)}
+	counts map[inflightKey]int
+}{counts: make(map[inflightKey]int)}
 
 // observeHandlerStart records the start of inbound message handling and returns a done function
 // to be called (deferred) when handling completes.
 func observeHandlerStart(pID protocol.ID, peerID peer.ID) func() {
-	key := [2]string{string(pID), PeerName(peerID)}
+	key := inflightKey{protocol: string(pID), peer: PeerName(peerID)}
 	t0 := time.Now()
 
 	inflightCounts.Lock()
 	inflightCounts.counts[key]++
 	n := inflightCounts.counts[key]
 	// Update the gauge while holding the lock so concurrent Set calls cannot be reordered.
-	inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
+	inflightGauge.WithLabelValues(key.protocol, key.peer).Set(float64(n))
 	inflightCounts.Unlock()
 
-	concurrentRequestsHist.WithLabelValues(key[0], key[1]).Observe(float64(n))
+	concurrentRequestsHist.WithLabelValues(key.protocol, key.peer).Observe(float64(n))
 
 	return func() {
 		inflightCounts.Lock()
 		inflightCounts.counts[key]--
+
 		n := inflightCounts.counts[key]
 		if n <= 0 {
 			delete(inflightCounts.counts, key) // Don't grow the map with idle keys.
 		}
-		inflightGauge.WithLabelValues(key[0], key[1]).Set(float64(n))
+
+		inflightGauge.WithLabelValues(key.protocol, key.peer).Set(float64(n))
 		inflightCounts.Unlock()
 
-		handlerDuration.WithLabelValues(key[0]).Observe(time.Since(t0).Seconds())
+		handlerDuration.WithLabelValues(key.protocol).Observe(time.Since(t0).Seconds())
 	}
 }
 
