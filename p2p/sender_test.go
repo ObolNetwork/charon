@@ -333,6 +333,39 @@ func TestSendTimeoutBoundsStreamCreation(t *testing.T) {
 	}
 }
 
+// TestSendReceiveRetriesAfterStall ensures a stalled attempt only consumes its slice of
+// the total send budget, leaving room for a retry on a fresh stream — the incident mode
+// where a stream stalls until its I/O deadline.
+func TestSendReceiveRetriesAfterStall(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	var calls atomic.Int32
+
+	protocolID := protocol.ID("testprotocol-stall-retries")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			if calls.Add(1) == 1 {
+				time.Sleep(3 * time.Second) // Stall the first attempt past its deadline.
+			}
+
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			return &pbv1.Duty{Slot: duty.GetSlot() + 1}, true, nil
+		})
+
+	resp := new(pbv1.Duty)
+	err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: 41}, resp, protocolID,
+		p2p.WithSendTimeout(2*time.Second), p2p.WithRetries(2))
+	require.NoError(t, err)
+	require.EqualValues(t, 42, resp.GetSlot())
+	require.GreaterOrEqual(t, calls.Load(), int32(2))
+}
+
 func TestSendReceiveRetries(t *testing.T) {
 	ctx := context.Background()
 	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
