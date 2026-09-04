@@ -24,7 +24,7 @@ const (
 	// sendRetries is the number of additional p2p send attempts. A DKG ceremony aborts on the
 	// first failed exchange, so transient failures (e.g. a stalled relay connection) are retried
 	// instead of failing the whole ceremony. Receivers deduplicate re-delivered messages.
-	sendRetries = 2
+	sendRetries = 5
 )
 
 // hashFunc is a function that hashes a message ID and a any-wrapped protobuf message.

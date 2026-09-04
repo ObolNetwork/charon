@@ -46,7 +46,7 @@ const (
 	// relay connection) are retried instead of failing the whole ceremony. All DKG
 	// receive paths deduplicate messages, so a retry of an already-delivered message
 	// is harmless.
-	sendRetries = 2
+	sendRetries = 5
 
 	// sendTimeout is the p2p send deadline per attempt during DKG ceremonies. Ceremony
 	// peers may lag behind (e.g. slower operators or relay-routed connections), so sends
