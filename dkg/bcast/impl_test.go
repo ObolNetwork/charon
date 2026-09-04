@@ -5,6 +5,7 @@ package bcast_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -229,6 +230,77 @@ func TestBCastRetriesTransientSendFailures(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBCastSigRequestAllowsSlowPeer ensures a signature request tolerates a peer that
+// responds slower than the default p2p send timeout (7s), since ceremony peers may
+// lawfully lag by up to the bcast receive timeout (1min) while catching up.
+func TestBCastSigRequestAllowsSlowPeer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping slow-peer timeout test in short mode")
+	}
+
+	const (
+		n     = 2
+		msgID = "msgID"
+		// slowDelay must exceed the 7s default p2p send timeout to prove the
+		// bcast send timeout is applied to signature requests.
+		slowDelay = 8 * time.Second
+	)
+
+	var (
+		ctx      = context.Background()
+		secrets  []*k1.PrivateKey
+		tcpNodes []host.Host
+		peers    []peer.ID
+		bcasts   []bcast.BroadcastFunc
+	)
+
+	for range n {
+		secret, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		secrets = append(secrets, secret)
+
+		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
+		tcpNodes = append(tcpNodes, tcpNode)
+
+		peers = append(peers, tcpNode.ID())
+	}
+
+	for i := range n {
+		for j := range n {
+			tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
+		}
+	}
+
+	callback := func(context.Context, peer.ID, string, proto.Message) error {
+		return nil
+	}
+
+	for i := range n {
+		delay := time.Duration(0)
+		if i == 1 {
+			delay = slowDelay // Node 1 is slow to check (and so sign) node 0's message.
+		}
+
+		checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
+			time.Sleep(delay)
+
+			var ts timestamppb.Timestamp
+			if err := msgAny.UnmarshalTo(&ts); err != nil {
+				return errors.Wrap(err, "anypb error")
+			}
+
+			return nil
+		}
+
+		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], []byte("session hash"))
+		bcastFunc.RegisterMessageIDFuncs(msgID, callback, checkMessage)
+		bcasts = append(bcasts, bcastFunc.Broadcast)
+	}
+
+	require.NoError(t, bcasts[0](ctx, msgID, timestamppb.Now()))
 }
 
 // TestBCastSessionHashMismatch ensures that messages signed in one session

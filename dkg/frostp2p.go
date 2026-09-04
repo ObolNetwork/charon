@@ -305,7 +305,7 @@ func (f *frostP2P) Round1(ctx context.Context, castR1 map[msgKey]frost.Round1Bca
 			return nil, nil, errors.New("bug: unexpected p2p message to self")
 		}
 
-		err := p2p.Send(ctx, f.p2pNode, round1P2PID, pID, p2pMsg, p2p.WithRetries(sendRetries))
+		err := p2p.Send(ctx, f.p2pNode, round1P2PID, pID, p2pMsg, p2p.WithSendTimeout(sendTimeout), p2p.WithRetries(sendRetries))
 		if err != nil {
 			return nil, nil, err
 		}
