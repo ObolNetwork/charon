@@ -203,6 +203,78 @@ func TestSendErrorContainsPeerField(t *testing.T) {
 	})
 }
 
+func TestSendRetries(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	received := make(chan *pbv1.Duty, 1)
+	protocolID := protocol.ID("testprotocol-retries")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			received <- duty
+
+			return nil, false, nil
+		})
+
+	t.Run("no retries by default", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 1)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 1})
+		require.Error(t, err)
+		require.Equal(t, 1, flaky.Calls())
+	})
+
+	t.Run("retries transient failures", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 2)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 2}, p2p.WithRetries(2))
+		require.NoError(t, err)
+		require.Equal(t, 3, flaky.Calls())
+
+		select {
+		case duty := <-received:
+			require.EqualValues(t, 2, duty.GetSlot())
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timed out waiting for message")
+		}
+	})
+
+	t.Run("fails when retries exhausted", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 3)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 3}, p2p.WithRetries(2))
+		require.ErrorContains(t, err, "transient stream failure")
+		require.Equal(t, 3, flaky.Calls())
+	})
+}
+
+func TestSendReceiveRetries(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	protocolID := protocol.ID("testprotocol-sendrecv-retries")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			return &pbv1.Duty{Slot: duty.GetSlot() + 1}, true, nil
+		})
+
+	flaky := testutil.NewFlakyHost(client, 2)
+	resp := new(pbv1.Duty)
+	err := p2p.SendReceive(ctx, flaky, server.ID(), &pbv1.Duty{Slot: 41}, resp, protocolID, p2p.WithRetries(2))
+	require.NoError(t, err)
+	require.Equal(t, 3, flaky.Calls())
+	require.EqualValues(t, 42, resp.GetSlot())
+}
+
 func TestSend(t *testing.T) {
 	var (
 		undelimID = protocol.ID("undelimited")

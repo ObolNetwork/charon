@@ -11,6 +11,8 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -37,6 +39,20 @@ const (
 	sigDepositData sigType = 200
 	// Do not add new values greater than sigDepositData.
 )
+
+// sendRetries is the number of additional p2p send attempts during DKG ceremonies.
+// A DKG aborts on the first failed exchange, so transient failures (e.g. a stalled
+// relay connection) are retried instead of failing the whole ceremony. All DKG
+// receive paths deduplicate messages, so a retry of an already-delivered message
+// is harmless.
+const sendRetries = 2
+
+// sendRetrying wraps p2p.Send with sendRetries retries. It implements p2p.SendFunc.
+func sendRetrying(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID,
+	msg proto.Message, opts ...p2p.SendRecvOption,
+) error {
+	return p2p.Send(ctx, p2pNode, protoID, peerID, msg, append(opts, p2p.WithRetries(sendRetries))...)
+}
 
 // sigTypeStore is a shorthand for a map of sigType to map of core.PubKey to slice of core.ParSignedData.
 type sigTypeStore map[sigType]map[core.PubKey][]core.ParSignedData
@@ -111,7 +127,7 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[p
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}, parsigdb.NewMemDBMetadata(0, time.Now())), // metadata timestamps are used for metrics, irrelevant for DKG
-		sigex:    parsigex.NewParSigEx(p2pNode, p2p.Send, peerIdx, peers, verifyShareIdx, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
+		sigex:    parsigex.NewParSigEx(p2pNode, sendRetrying, peerIdx, peers, verifyShareIdx, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
 		sigTypes: st,
 		sigData: dataByPubkey{
 			store: sigTypeStore{},

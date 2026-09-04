@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -202,6 +203,7 @@ type sendRecvOpts struct {
 	rttCallback       func(time.Duration)
 	receiveTimeout    time.Duration
 	sendTimeout       time.Duration
+	retries           int    // Number of additional send attempts after a failure.
 	metricTopic       string // Optional sub-protocol label for the send_duration metric.
 }
 
@@ -216,6 +218,17 @@ func WithReceiveTimeout(timeout time.Duration) func(*sendRecvOpts) {
 func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		opts.sendTimeout = timeout
+	}
+}
+
+// WithRetries returns an option that retries a failed send up to the given number of
+// additional attempts, each on a fresh stream, backing off briefly in between.
+// Only use it for protocols whose handlers tolerate duplicate delivery, since a send
+// that failed on the sender side may still have been delivered (e.g. DKG ceremony
+// messages, which are deduplicated by all receivers).
+func WithRetries(retries int) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.retries = retries
 	}
 }
 
@@ -288,6 +301,27 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	}
 }
 
+// withRetries calls fn and retries it up to the given number of additional times,
+// backing off briefly between attempts. It stops early once the context is done.
+func withRetries(ctx context.Context, retries int, fn func() error) error {
+	var err error
+
+	for attempt := 0; ; attempt++ {
+		err = fn()
+		if err == nil || attempt >= retries || ctx.Err() != nil {
+			return err
+		}
+
+		timer := time.NewTimer(expbackoff.Backoff(expbackoff.FastConfig, attempt))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return err
+		case <-timer.C:
+		}
+	}
+}
+
 // SendReceive sends and receives a libp2p request and response message
 // pair synchronously and then closes the stream.
 // The provided response proto will be populated if err is nil.
@@ -295,8 +329,6 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	req, resp proto.Message, pID protocol.ID, opts ...SendRecvOption,
 ) error {
-	tStart := time.Now()
-
 	if !isZeroProto(resp) {
 		return errors.New("bug: response proto must be zero value")
 	}
@@ -305,6 +337,20 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	for _, opt := range opts {
 		opt(&o)
 	}
+
+	return withRetries(ctx, o.retries, func() error {
+		// A failed attempt may have partially populated the response.
+		proto.Reset(resp)
+
+		return sendReceive(ctx, p2pNode, peerID, req, resp, pID, o)
+	})
+}
+
+// sendReceive is a single SendReceive attempt.
+func sendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
+	req, resp proto.Message, pID protocol.ID, o sendRecvOpts,
+) error {
+	tStart := time.Now()
 
 	protoLabel := string(pID) // Updated to the negotiated protocol once NewStream succeeds.
 
@@ -371,12 +417,21 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
 	opts ...SendRecvOption,
 ) error {
-	t0 := time.Now()
-
 	o := defaultSendRecvOpts(protoID)
 	for _, opt := range opts {
 		opt(&o)
 	}
+
+	return withRetries(ctx, o.retries, func() error {
+		return send(ctx, p2pNode, protoID, peerID, msg, o)
+	})
+}
+
+// send is a single Send attempt.
+func send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
+	o sendRecvOpts,
+) error {
+	t0 := time.Now()
 
 	protoLabel := string(protoID)
 	if len(o.protocols) > 0 {

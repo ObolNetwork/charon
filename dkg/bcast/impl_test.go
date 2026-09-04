@@ -150,6 +150,73 @@ func TestBCast(t *testing.T) {
 	assertResults(t, p0Result, peers[0])
 }
 
+// TestBCastRetriesTransientSendFailures ensures a reliable-broadcast survives transient
+// p2p send failures instead of aborting the whole ceremony on the first one.
+func TestBCastRetriesTransientSendFailures(t *testing.T) {
+	const (
+		n     = 3
+		msgID = "msgID"
+	)
+
+	var (
+		ctx      = context.Background()
+		secrets  []*k1.PrivateKey
+		tcpNodes []host.Host
+		peers    []peer.ID
+	)
+
+	for range n {
+		secret, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		secrets = append(secrets, secret)
+
+		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
+		tcpNodes = append(tcpNodes, tcpNode)
+
+		peers = append(peers, tcpNode.ID())
+	}
+
+	for i := range n {
+		for j := range n {
+			tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
+		}
+	}
+
+	// Node 0's first sends fail transiently: one signature request per peer plus one message send.
+	tcpNodes[0] = testutil.NewFlakyHost(tcpNodes[0], n)
+
+	received := make(chan proto.Message, n)
+	callback := func(_ context.Context, _ peer.ID, _ string, msg proto.Message) error {
+		received <- msg
+		return nil
+	}
+	checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
+		var ts timestamppb.Timestamp
+		if err := msgAny.UnmarshalTo(&ts); err != nil {
+			return errors.Wrap(err, "anypb error")
+		}
+
+		return nil
+	}
+
+	var bcasts []bcast.BroadcastFunc
+
+	for i := range n {
+		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], []byte("session hash"))
+		bcastFunc.RegisterMessageIDFuncs(msgID, callback, checkMessage)
+		bcasts = append(bcasts, bcastFunc.Broadcast)
+	}
+
+	msg := timestamppb.Now()
+	err := bcasts[0](ctx, msgID, msg)
+	require.NoError(t, err)
+
+	for range n - 1 {
+		require.True(t, proto.Equal(msg, <-received))
+	}
+}
+
 // TestBCastSessionHashMismatch ensures that messages signed in one session
 // cannot be verified in another, binding broadcasts to the cluster session.
 func TestBCastSessionHashMismatch(t *testing.T) {
