@@ -365,7 +365,14 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		// A failed attempt may have partially populated the response.
 		proto.Reset(resp)
 
-		return sendReceive(ctx, p2pNode, peerID, req, resp, pID, o, attemptDeadline(attemptTimeout, deadline))
+		// Bound the attempt's dialing and negotiation by its deadline as well,
+		// so a hung dial cannot consume the remaining attempts' budget.
+		attemptDL := attemptDeadline(attemptTimeout, deadline)
+
+		attemptCtx, cancel := context.WithDeadline(ctx, attemptDL)
+		defer cancel()
+
+		return sendReceive(attemptCtx, p2pNode, peerID, req, resp, pID, o, attemptDL)
 	})
 }
 
@@ -468,7 +475,14 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	defer cancel()
 
 	return withRetries(ctx, o.retries, deadline, func() error {
-		return send(ctx, p2pNode, protoID, peerID, msg, o, attemptDeadline(attemptTimeout, deadline))
+		// Bound the attempt's dialing and negotiation by its deadline as well,
+		// so a hung dial cannot consume the remaining attempts' budget.
+		attemptDL := attemptDeadline(attemptTimeout, deadline)
+
+		attemptCtx, cancel := context.WithDeadline(ctx, attemptDL)
+		defer cancel()
+
+		return send(attemptCtx, p2pNode, protoID, peerID, msg, o, attemptDL)
 	})
 }
 

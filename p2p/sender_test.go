@@ -333,6 +333,58 @@ func TestSendTimeoutBoundsStreamCreation(t *testing.T) {
 	}
 }
 
+// blockOnceHost wraps a host whose first NewStream blocks until the context is done,
+// simulating a hung dial on the first attempt only.
+type blockOnceHost struct {
+	host.Host
+
+	calls atomic.Int32
+}
+
+func (h *blockOnceHost) NewStream(ctx context.Context, peerID peer.ID, pIDs ...protocol.ID) (network.Stream, error) {
+	if h.calls.Add(1) == 1 {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	return h.Host.NewStream(ctx, peerID, pIDs...)
+}
+
+// TestSendRetriesAfterStalledDial ensures a hung dial only consumes its slice of the
+// total send budget, leaving room for a retry.
+func TestSendRetriesAfterStalledDial(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	received := make(chan *pbv1.Duty, 1)
+	protocolID := protocol.ID("testprotocol-stalled-dial")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			received <- duty
+
+			return nil, false, nil
+		})
+
+	blocking := &blockOnceHost{Host: client}
+	err := p2p.Send(ctx, blocking, protocolID, server.ID(), &pbv1.Duty{Slot: 7},
+		p2p.WithSendTimeout(2*time.Second), p2p.WithRetries(2))
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, blocking.calls.Load(), int32(2))
+
+	select {
+	case duty := <-received:
+		require.EqualValues(t, 7, duty.GetSlot())
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for message")
+	}
+}
+
 // TestSendReceiveRetriesAfterStall ensures a stalled attempt only consumes its slice of
 // the total send budget, leaving room for a retry on a fresh stream — the incident mode
 // where a stream stalls until its I/O deadline.
