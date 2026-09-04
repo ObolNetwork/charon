@@ -16,103 +16,203 @@ import (
 	"github.com/obolnetwork/charon/testutil"
 )
 
-// TestBoardBuffersEarlyDealBundles verifies that deal bundles arriving before the
-// kyber protocol starts reading IncomingDeal are buffered and delivered later,
-// instead of being dropped when the p2p request context expires. This happens when
-// peers start the DKG a few seconds earlier than this node.
-func TestBoardBuffersEarlyDealBundles(t *testing.T) {
+// bundleKind abstracts delivering a bundle of one type via its p2p handler and
+// receiving it from the corresponding incoming board channel.
+type bundleKind struct {
+	name    string
+	deliver func(ctx context.Context, t *testing.T, board *Board, from peer.ID, idx uint32, session, sig []byte)
+	receive func(t *testing.T, board *Board) (uint32, bool)
+}
+
+func bundleKinds() []bundleKind {
+	return []bundleKind{
+		{
+			name: "deal",
+			deliver: func(ctx context.Context, t *testing.T, board *Board, from peer.ID, idx uint32, session, sig []byte) {
+				t.Helper()
+
+				protoBundle, err := DealBundleToProto(kdkg.DealBundle{
+					DealerIndex: idx,
+					Deals: []kdkg.Deal{
+						{
+							ShareIndex:     1,
+							EncryptedShare: []byte{1, 2, 3},
+						},
+					},
+					Public:    []kyber.Point{RandomPoint(t)},
+					SessionID: session,
+					Signature: sig,
+				})
+				require.NoError(t, err)
+
+				_, _, err = board.handleDealBundleMessage(ctx, from, protoBundle)
+				require.NoError(t, err)
+			},
+			receive: func(t *testing.T, board *Board) (uint32, bool) {
+				t.Helper()
+
+				select {
+				case bundle := <-board.IncomingDeal():
+					return bundle.DealerIndex, true
+				case <-time.After(time.Second):
+					return 0, false
+				}
+			},
+		},
+		{
+			name: "response",
+			deliver: func(ctx context.Context, t *testing.T, board *Board, from peer.ID, idx uint32, session, sig []byte) {
+				t.Helper()
+
+				protoBundle, err := ResponseBundleToProto(kdkg.ResponseBundle{
+					ShareIndex: idx,
+					Responses: []kdkg.Response{
+						{
+							DealerIndex: 1,
+							Status:      true,
+						},
+					},
+					SessionID: session,
+					Signature: sig,
+				})
+				require.NoError(t, err)
+
+				_, _, err = board.handleResponseBundleMessage(ctx, from, protoBundle)
+				require.NoError(t, err)
+			},
+			receive: func(t *testing.T, board *Board) (uint32, bool) {
+				t.Helper()
+
+				select {
+				case bundle := <-board.IncomingResponse():
+					return bundle.ShareIndex, true
+				case <-time.After(time.Second):
+					return 0, false
+				}
+			},
+		},
+		{
+			name: "justification",
+			deliver: func(ctx context.Context, t *testing.T, board *Board, from peer.ID, idx uint32, session, sig []byte) {
+				t.Helper()
+
+				protoBundle, err := JustificationBundleToProto(kdkg.JustificationBundle{
+					DealerIndex: idx,
+					Justifications: []kdkg.Justification{
+						{
+							ShareIndex: 1,
+							Share:      RandomScalar(t),
+						},
+					},
+					SessionID: session,
+					Signature: sig,
+				})
+				require.NoError(t, err)
+
+				_, _, err = board.handleJustificationBundleMessage(ctx, from, protoBundle)
+				require.NoError(t, err)
+			},
+			receive: func(t *testing.T, board *Board) (uint32, bool) {
+				t.Helper()
+
+				select {
+				case bundle := <-board.IncomingJustification():
+					return bundle.DealerIndex, true
+				case <-time.After(time.Second):
+					return 0, false
+				}
+			},
+		},
+	}
+}
+
+// TestBoardBuffersEarlyBundles verifies that bundles arriving before the kyber
+// protocol starts reading the incoming board channels are buffered and delivered
+// later, instead of being dropped when the p2p request context expires. This
+// happens when peers start the DKG a few seconds earlier than this node.
+func TestBoardBuffersEarlyBundles(t *testing.T) {
 	const (
 		numNodes  = 4
 		threshold = 3
 	)
 
-	board, nodes, session := newTestBoard(t, numNodes, threshold)
+	for _, kind := range bundleKinds() {
+		t.Run(kind.name, func(t *testing.T) {
+			board, nodes, session := newTestBoard(t, numNodes, threshold)
 
-	// Deliver deal bundles from all other peers before anything reads
-	// IncomingDeal. Each handler call gets a short-lived context, like an
-	// expiring p2p request context.
-	for i := 1; i < numNodes; i++ {
-		protoBundle, err := DealBundleToProto(testDealBundle(t, uint32(i), session, []byte{byte(i)}))
-		require.NoError(t, err)
+			// Deliver bundles from all other peers before anything reads the
+			// incoming channel. Each handler call gets a short-lived context,
+			// like an expiring p2p request context.
+			for i := 1; i < numNodes; i++ {
+				ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+				kind.deliver(ctx, t, board, nodes[i].NodeHost.ID(), uint32(i), session, []byte{byte(i)})
+				cancel()
+			}
 
-		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
-		_, _, err = board.handleDealBundleMessage(ctx, nodes[i].NodeHost.ID(), protoBundle)
+			// All early bundles must be delivered once the protocol starts reading.
+			received := make(map[uint32]bool)
 
-		cancel()
-		require.NoError(t, err)
+			for i := 1; i < numNodes; i++ {
+				idx, ok := kind.receive(t, board)
+				if !ok {
+					require.Failf(t, "early bundle dropped", "received %d of %d bundles", len(received), numNodes-1)
+				}
+
+				received[idx] = true
+			}
+
+			require.Len(t, received, numNodes-1)
+		})
 	}
-
-	// All early bundles must be delivered once the protocol starts reading.
-	received := make(map[uint32]bool)
-
-	for i := 1; i < numNodes; i++ {
-		select {
-		case bundle := <-board.IncomingDeal():
-			received[bundle.DealerIndex] = true
-		case <-time.After(time.Second):
-			require.Failf(t, "early deal bundle dropped", "received %d of %d bundles", len(received), numNodes-1)
-		}
-	}
-
-	require.Len(t, received, numNodes-1)
 }
 
-// TestBoardAcceptsRedeliveryAfterDrop verifies that a deal bundle dropped because
-// the request context expired is not recorded as a duplicate, so a redelivery of
-// the same bundle is accepted.
+// TestBoardAcceptsRedeliveryAfterDrop verifies that a bundle dropped because the
+// request context expired is not recorded as a duplicate, so a redelivery of the
+// same bundle is accepted.
 func TestBoardAcceptsRedeliveryAfterDrop(t *testing.T) {
 	const (
 		numNodes  = 4
 		threshold = 3
 	)
 
-	board, nodes, session := newTestBoard(t, numNodes, threshold)
+	for _, kind := range bundleKinds() {
+		t.Run(kind.name, func(t *testing.T) {
+			board, nodes, session := newTestBoard(t, numNodes, threshold)
+			from := nodes[1].NodeHost.ID()
 
-	// Fill the deal channel buffer plus the forwarder's in-flight slot so the
-	// next delivery blocks and gets dropped.
-	total := numNodes + 1
-	for i := range total {
-		protoBundle, err := DealBundleToProto(testDealBundle(t, uint32(i), session, []byte{byte(i)}))
-		require.NoError(t, err)
+			// Fill the channel buffer plus the forwarder's in-flight slot so the
+			// next delivery blocks and gets dropped.
+			total := numNodes + 1
+			for i := range total {
+				ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+				kind.deliver(ctx, t, board, from, uint32(i), session, []byte{byte(i)})
+				cancel()
+			}
 
-		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
-		_, _, err = board.handleDealBundleMessage(ctx, nodes[1].NodeHost.ID(), protoBundle)
+			// This bundle is dropped since nothing is reading yet and the buffer is full.
+			droppedIdx := uint32(total)
+			droppedSig := []byte{byte(total)}
 
-		cancel()
-		require.NoError(t, err)
-	}
+			ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+			kind.deliver(ctx, t, board, from, droppedIdx, session, droppedSig)
+			cancel()
 
-	// This bundle is dropped since nothing is reading yet and the buffer is full.
-	droppedBundle, err := DealBundleToProto(testDealBundle(t, uint32(total), session, []byte{byte(total)}))
-	require.NoError(t, err)
+			// Drain the buffered bundles.
+			for range total {
+				_, ok := kind.receive(t, board)
+				require.True(t, ok, "buffered bundle not delivered")
+			}
 
-	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
-	_, _, err = board.handleDealBundleMessage(ctx, nodes[1].NodeHost.ID(), droppedBundle)
+			// Redeliver the dropped bundle. It must not be refused as a duplicate.
+			ctx, cancel = context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
 
-	cancel()
-	require.NoError(t, err)
+			kind.deliver(ctx, t, board, from, droppedIdx, session, droppedSig)
 
-	// Drain the buffered bundles.
-	for range total {
-		select {
-		case <-board.IncomingDeal():
-		case <-time.After(time.Second):
-			require.Fail(t, "buffered deal bundle not delivered")
-		}
-	}
-
-	// Redeliver the dropped bundle. It must not be refused as a duplicate.
-	ctx, cancel = context.WithTimeout(t.Context(), time.Second)
-	defer cancel()
-
-	_, _, err = board.handleDealBundleMessage(ctx, nodes[1].NodeHost.ID(), droppedBundle)
-	require.NoError(t, err)
-
-	select {
-	case bundle := <-board.IncomingDeal():
-		require.Equal(t, uint32(total), bundle.DealerIndex)
-	case <-time.After(time.Second):
-		require.Fail(t, "redelivered deal bundle refused as duplicate")
+			idx, ok := kind.receive(t, board)
+			require.True(t, ok, "redelivered bundle refused as duplicate")
+			require.Equal(t, droppedIdx, idx)
+		})
 	}
 }
 
@@ -135,21 +235,4 @@ func newTestBoard(t *testing.T, numNodes, threshold int) (*Board, []*TestNode, [
 	nodes[0].InitBoard(t, threshold, peers, peerMap, session[:])
 
 	return nodes[0].Board, nodes, session[:]
-}
-
-func testDealBundle(t *testing.T, dealerIdx uint32, session, sig []byte) kdkg.DealBundle {
-	t.Helper()
-
-	return kdkg.DealBundle{
-		DealerIndex: dealerIdx,
-		Deals: []kdkg.Deal{
-			{
-				ShareIndex:     1,
-				EncryptedShare: []byte{1, 2, 3},
-			},
-		},
-		Public:    []kyber.Point{RandomPoint(t)},
-		SessionID: session,
-		Signature: sig,
-	}
 }
