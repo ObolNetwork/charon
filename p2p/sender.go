@@ -232,7 +232,7 @@ func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
 // delivered (e.g. DKG ceremony messages, which are deduplicated by all receivers).
 func WithRetries(retries int) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
-		opts.retries = retries
+		opts.retries = max(retries, 0)
 	}
 }
 
@@ -350,13 +350,12 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		opt(&o)
 	}
 
-	// The send timeout is the total budget for the call: stream creation and all
-	// attempts share one deadline, also enforced via the context so dialing and
-	// protocol negotiation cannot block past it. Each attempt gets a slice of the
-	// budget, so a stalled stream cannot consume it all and a retry on a fresh
-	// stream can still occur.
-	deadline := time.Now().Add(o.sendTimeout)
-	attemptTimeout := o.sendTimeout / time.Duration(o.retries+1)
+	// Unlike a one-way Send, each SendReceive attempt gets the full send timeout, not a
+	// slice of it: the response wait is a legitimate long operation (a peer may take up to
+	// its receive timeout to process and reply), so slicing it across retries would abort
+	// valid slow responses. The overall deadline therefore spans all attempts.
+	attemptTimeout := o.sendTimeout
+	deadline := time.Now().Add(attemptTimeout * time.Duration(o.retries+1))
 
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
@@ -365,8 +364,8 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		// A failed attempt may have partially populated the response.
 		proto.Reset(resp)
 
-		// Bound the attempt's dialing and negotiation by its deadline as well,
-		// so a hung dial cannot consume the remaining attempts' budget.
+		// Bound each attempt (dialing, negotiation and the response wait) by its own
+		// deadline so a hung attempt cannot consume the remaining attempts' budget.
 		attemptDL := attemptDeadline(attemptTimeout, deadline)
 
 		attemptCtx, cancel := context.WithDeadline(ctx, attemptDL)

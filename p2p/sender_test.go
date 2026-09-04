@@ -385,6 +385,63 @@ func TestSendRetriesAfterStalledDial(t *testing.T) {
 	}
 }
 
+// TestSendReceiveAllowsSlowResponse ensures each SendReceive attempt gets the full send
+// timeout for the response wait, not a slice of it, so a peer that legitimately responds
+// slower than sendTimeout/(retries+1) is not aborted.
+func TestSendReceiveAllowsSlowResponse(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	var calls atomic.Int32
+
+	protocolID := protocol.ID("testprotocol-slow-response")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			calls.Add(1)
+			// Respond slower than a sliced budget (1s/6 ≈ 166ms) would allow, but
+			// well within the full 1s send timeout.
+			time.Sleep(400 * time.Millisecond)
+
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			return &pbv1.Duty{Slot: duty.GetSlot() + 1}, true, nil
+		})
+
+	resp := new(pbv1.Duty)
+	err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: 41}, resp, protocolID,
+		p2p.WithSendTimeout(time.Second), p2p.WithRetries(5))
+	require.NoError(t, err)
+	require.EqualValues(t, 42, resp.GetSlot())
+	require.EqualValues(t, 1, calls.Load(), "slow but valid response must succeed on the first attempt")
+}
+
+func TestWithRetriesClampsNegative(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	protocolID := protocol.ID("testprotocol-negative-retries")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+			return nil, false, nil
+		})
+
+	// A negative retry count must not panic (it would divide by zero when computing the
+	// per-attempt slice) and behaves as zero retries.
+	require.NotPanics(t, func() {
+		flaky := testutil.NewFlakyHost(client, 1)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 1}, p2p.WithRetries(-1))
+		require.Error(t, err)
+		require.Equal(t, 1, flaky.Calls())
+	})
+}
+
 // TestSendReceiveRetriesAfterStall ensures a stalled attempt only consumes its slice of
 // the total send budget, leaving room for a retry on a fresh stream — the incident mode
 // where a stream stalls until its I/O deadline.
