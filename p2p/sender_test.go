@@ -249,6 +249,16 @@ func TestSendRetries(t *testing.T) {
 		require.ErrorContains(t, err, "transient stream failure")
 		require.Equal(t, 3, flaky.Calls())
 	})
+
+	t.Run("cancellation surfaces as context error", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		flaky := testutil.NewFlakyHost(client, 10)
+		err := p2p.Send(cancelledCtx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 4}, p2p.WithRetries(5))
+		require.ErrorIs(t, err, context.Canceled)
+		require.Equal(t, 1, flaky.Calls())
+	})
 }
 
 func TestSendReceiveRetries(t *testing.T) {

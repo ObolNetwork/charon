@@ -302,13 +302,15 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 }
 
 // withRetries calls fn and retries it up to the given number of additional times,
-// backing off briefly between attempts. It stops early once the context is done.
+// backing off briefly between attempts. Cancellation stops retrying and surfaces
+// as the context error (with the last attempt error attached as a field), so
+// callers can detect it with errors.Is.
 func withRetries(ctx context.Context, retries int, fn func() error) error {
 	var err error
 
 	for attempt := 0; ; attempt++ {
 		err = fn()
-		if err == nil || attempt >= retries || ctx.Err() != nil {
+		if err == nil || attempt >= retries {
 			return err
 		}
 
@@ -316,7 +318,7 @@ func withRetries(ctx context.Context, retries int, fn func() error) error {
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return err
+			return errors.Wrap(ctx.Err(), "aborting send retries", z.Err(err))
 		case <-timer.C:
 		}
 	}

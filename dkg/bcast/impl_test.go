@@ -10,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -151,69 +152,82 @@ func TestBCast(t *testing.T) {
 }
 
 // TestBCastRetriesTransientSendFailures ensures a reliable-broadcast survives transient
-// p2p send failures instead of aborting the whole ceremony on the first one.
+// p2p send failures in each phase instead of aborting the whole ceremony on the first one.
 func TestBCastRetriesTransientSendFailures(t *testing.T) {
 	const (
 		n     = 3
 		msgID = "msgID"
 	)
 
-	var (
-		ctx      = context.Background()
-		secrets  []*k1.PrivateKey
-		tcpNodes []host.Host
-		peers    []peer.ID
-	)
-
-	for range n {
-		secret, err := k1.GeneratePrivateKey()
-		require.NoError(t, err)
-
-		secrets = append(secrets, secret)
-
-		tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
-		tcpNodes = append(tcpNodes, tcpNode)
-
-		peers = append(peers, tcpNode.ID())
+	// The bcast protocol IDs are unexported; keep in sync with helpers.go.
+	tests := []struct {
+		name          string
+		flakyProtocol protocol.ID
+	}{
+		{name: "signature request phase", flakyProtocol: "/charon/dkg/bcast/2.0.0/sig"},
+		{name: "message send phase", flakyProtocol: "/charon/dkg/bcast/2.0.0/msg"},
 	}
 
-	for i := range n {
-		for j := range n {
-			tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
-		}
-	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var (
+				ctx      = context.Background()
+				secrets  []*k1.PrivateKey
+				tcpNodes []host.Host
+				peers    []peer.ID
+			)
 
-	// Node 0's first sends fail transiently: one signature request per peer plus one message send.
-	tcpNodes[0] = testutil.NewFlakyHost(tcpNodes[0], n)
+			for range n {
+				secret, err := k1.GeneratePrivateKey()
+				require.NoError(t, err)
 
-	received := make(chan proto.Message, n)
-	callback := func(_ context.Context, _ peer.ID, _ string, msg proto.Message) error {
-		received <- msg
-		return nil
-	}
-	checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
-		var ts timestamppb.Timestamp
-		if err := msgAny.UnmarshalTo(&ts); err != nil {
-			return errors.Wrap(err, "anypb error")
-		}
+				secrets = append(secrets, secret)
 
-		return nil
-	}
+				tcpNode := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
+				tcpNodes = append(tcpNodes, tcpNode)
 
-	var bcasts []bcast.BroadcastFunc
+				peers = append(peers, tcpNode.ID())
+			}
 
-	for i := range n {
-		bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], []byte("session hash"))
-		bcastFunc.RegisterMessageIDFuncs(msgID, callback, checkMessage)
-		bcasts = append(bcasts, bcastFunc.Broadcast)
-	}
+			for i := range n {
+				for j := range n {
+					tcpNodes[i].Peerstore().AddAddrs(tcpNodes[j].ID(), tcpNodes[j].Addrs(), peerstore.PermanentAddrTTL)
+				}
+			}
 
-	msg := timestamppb.Now()
-	err := bcasts[0](ctx, msgID, msg)
-	require.NoError(t, err)
+			// Node 0's first send to each peer in this phase fails transiently.
+			tcpNodes[0] = testutil.NewFlakyHost(tcpNodes[0], n-1, test.flakyProtocol)
 
-	for range n - 1 {
-		require.True(t, proto.Equal(msg, <-received))
+			received := make(chan proto.Message, n)
+			callback := func(_ context.Context, _ peer.ID, _ string, msg proto.Message) error {
+				received <- msg
+				return nil
+			}
+			checkMessage := func(_ context.Context, _ peer.ID, msgAny *anypb.Any) error {
+				var ts timestamppb.Timestamp
+				if err := msgAny.UnmarshalTo(&ts); err != nil {
+					return errors.Wrap(err, "anypb error")
+				}
+
+				return nil
+			}
+
+			var bcasts []bcast.BroadcastFunc
+
+			for i := range n {
+				bcastFunc := bcast.New(tcpNodes[i], peers, secrets[i], []byte("session hash"))
+				bcastFunc.RegisterMessageIDFuncs(msgID, callback, checkMessage)
+				bcasts = append(bcasts, bcastFunc.Broadcast)
+			}
+
+			msg := timestamppb.Now()
+			err := bcasts[0](ctx, msgID, msg)
+			require.NoError(t, err)
+
+			for range n - 1 {
+				require.True(t, proto.Equal(msg, <-received))
+			}
+		})
 	}
 }
 

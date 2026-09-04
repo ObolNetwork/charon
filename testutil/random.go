@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1534,14 +1535,17 @@ func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Hos
 }
 
 // NewFlakyHost wraps a host, failing the first `failures` outbound NewStream calls
-// with a transient error. It is used to test p2p send retry behavior.
-func NewFlakyHost(h host.Host, failures int) *FlakyHost {
-	return &FlakyHost{Host: h, failures: failures}
+// with a transient error. If protocols are provided, only NewStream calls for those
+// protocols fail; other calls pass through. It is used to test p2p send retry behavior.
+func NewFlakyHost(h host.Host, failures int, protocols ...protocol.ID) *FlakyHost {
+	return &FlakyHost{Host: h, failures: failures, protocols: protocols}
 }
 
 // FlakyHost is a host whose first outbound NewStream calls fail with a transient error.
 type FlakyHost struct {
 	host.Host
+
+	protocols []protocol.ID
 
 	mu       sync.Mutex
 	failures int
@@ -1549,9 +1553,16 @@ type FlakyHost struct {
 }
 
 func (h *FlakyHost) NewStream(ctx context.Context, peerID peer.ID, pIDs ...protocol.ID) (network.Stream, error) {
+	match := len(h.protocols) == 0
+	for _, pID := range pIDs {
+		if slices.Contains(h.protocols, pID) {
+			match = true
+		}
+	}
+
 	h.mu.Lock()
 	h.calls++
-	fail := h.failures > 0
+	fail := match && h.failures > 0
 
 	if fail {
 		h.failures--
