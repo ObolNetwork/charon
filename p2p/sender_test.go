@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
@@ -124,10 +125,9 @@ func TestSendReceiveClosesStreamOnError(t *testing.T) {
 func TestWithSendTimeout(t *testing.T) {
 	servers := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
 	clients := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
-	errors := []string{"deadline reached", "deadline exceeded"}
 
 	for i := range len(servers) {
-		client, server, errorStr := clients[i], servers[i], errors[i]
+		client, server := clients[i], servers[i]
 
 		client.Peerstore().AddAddrs(server.ID(), server.Addrs(), time.Hour)
 
@@ -141,10 +141,13 @@ func TestWithSendTimeout(t *testing.T) {
 				return nil, false, nil
 			})
 
+		// Depending on how far the tiny budget lets the call get, the deadline error
+		// surfaces at dialing ("context deadline exceeded"), or on the stream
+		// ("deadline reached" on TCP, "deadline exceeded" on QUIC).
 		err := p2p.SendReceive(context.Background(), client, server.ID(),
 			new(pbv1.Duty), new(pbv1.Duty), protocolID, p2p.WithSendTimeout(sendTimeout))
 		require.Error(t, err)
-		require.ErrorContains(t, err, errorStr)
+		require.ErrorContains(t, err, "deadline")
 	}
 }
 
@@ -272,6 +275,62 @@ func TestSendRetries(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 		require.Equal(t, 1, flaky.Calls())
 	})
+}
+
+// blockingHost wraps a host whose NewStream blocks until the context is done,
+// simulating a hung dial or protocol negotiation.
+type blockingHost struct {
+	host.Host
+}
+
+func (h blockingHost) NewStream(ctx context.Context, _ peer.ID, _ ...protocol.ID) (network.Stream, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestSendTimeoutBoundsStreamCreation(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	blocking := blockingHost{Host: client}
+
+	tests := []struct {
+		name string
+		send func() error
+	}{
+		{
+			name: "send",
+			send: func() error {
+				return p2p.Send(ctx, blocking, "proto", server.ID(), &pbv1.Duty{Slot: 1},
+					p2p.WithSendTimeout(100*time.Millisecond), p2p.WithRetries(2))
+			},
+		},
+		{
+			name: "send receive",
+			send: func() error {
+				return p2p.SendReceive(ctx, blocking, server.ID(), new(pbv1.Duty), new(pbv1.Duty), "proto",
+					p2p.WithSendTimeout(100*time.Millisecond), p2p.WithRetries(2))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			errChan := make(chan error, 1)
+			go func() {
+				errChan <- test.send()
+			}()
+
+			select {
+			case err := <-errChan:
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+			case <-time.After(2 * time.Second):
+				require.Fail(t, "send blocked past its timeout budget on stream creation")
+			}
+		})
+	}
 }
 
 func TestSendReceiveRetries(t *testing.T) {

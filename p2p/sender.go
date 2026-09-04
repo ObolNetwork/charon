@@ -349,8 +349,13 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		opt(&o)
 	}
 
-	// The send timeout is the total budget for the call: all attempts share one deadline.
+	// The send timeout is the total budget for the call: stream creation and all
+	// attempts share one deadline, also enforced via the context so dialing and
+	// protocol negotiation cannot block past it.
 	deadline := time.Now().Add(o.sendTimeout)
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 
 	return withRetries(ctx, o.retries, deadline, func() error {
 		// A failed attempt may have partially populated the response.
@@ -436,8 +441,13 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 		opt(&o)
 	}
 
-	// The send timeout is the total budget for the call: all attempts share one deadline.
+	// The send timeout is the total budget for the call: stream creation and all
+	// attempts share one deadline, also enforced via the context so dialing and
+	// protocol negotiation cannot block past it.
 	deadline := time.Now().Add(o.sendTimeout)
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 
 	return withRetries(ctx, o.retries, deadline, func() error {
 		return send(ctx, p2pNode, protoID, peerID, msg, o, deadline)
