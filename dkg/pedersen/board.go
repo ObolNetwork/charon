@@ -63,9 +63,9 @@ const (
 	// connection) are retried instead. Receivers deduplicate re-delivered messages.
 	sendRetries = 5
 
-	// sendTimeout is the p2p send deadline per attempt. Ceremony peers may lag behind
-	// (e.g. slower operators or relay-routed connections), so sends get much more
-	// headroom than the 7s p2p default.
+	// sendTimeout is the total p2p send budget, shared by all retry attempts. Ceremony
+	// peers may lag behind (e.g. slower operators or relay-routed connections), so
+	// sends get much more headroom than the 7s p2p default.
 	sendTimeout = time.Minute
 )
 

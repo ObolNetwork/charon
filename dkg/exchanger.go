@@ -48,9 +48,9 @@ const (
 	// is harmless.
 	sendRetries = 5
 
-	// sendTimeout is the p2p send deadline per attempt during DKG ceremonies. Ceremony
-	// peers may lag behind (e.g. slower operators or relay-routed connections), so sends
-	// get much more headroom than the 7s p2p default.
+	// sendTimeout is the total p2p send budget during DKG ceremonies, shared by all
+	// retry attempts. Ceremony peers may lag behind (e.g. slower operators or
+	// relay-routed connections), so sends get much more headroom than the 7s p2p default.
 	sendTimeout = time.Minute
 )
 

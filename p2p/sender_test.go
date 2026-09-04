@@ -250,6 +250,19 @@ func TestSendRetries(t *testing.T) {
 		require.Equal(t, 3, flaky.Calls())
 	})
 
+	t.Run("retries bounded by send timeout", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 100)
+		t0 := time.Now()
+
+		// The send timeout is the total budget for all attempts, so the retry
+		// sequence must stop long before all 8 retries (~7s of backoff) elapse.
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 5},
+			p2p.WithRetries(8), p2p.WithSendTimeout(200*time.Millisecond))
+		require.ErrorContains(t, err, "transient stream failure")
+		require.Less(t, time.Since(t0), 3*time.Second)
+		require.Less(t, flaky.Calls(), 9)
+	})
+
 	t.Run("cancellation surfaces as context error", func(t *testing.T) {
 		cancelledCtx, cancel := context.WithCancel(ctx)
 		cancel()
