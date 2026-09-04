@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"path"
 	"sync"
+	"time"
 
 	kdkg "github.com/drand/kyber/share/dkg"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -56,6 +57,16 @@ type ValidatorPubKeyShare struct {
 
 const (
 	protocolID = "/charon/dkg/pedersen/1.0.0"
+
+	// sendRetries is the number of additional p2p send attempts. A DKG ceremony cannot
+	// complete if a bundle is dropped, so transient failures (e.g. a stalled relay
+	// connection) are retried instead. Receivers deduplicate re-delivered messages.
+	sendRetries = 5
+
+	// sendTimeout is the total p2p send budget, shared by all retry attempts. Ceremony
+	// peers may lag behind (e.g. slower operators or relay-routed connections), so
+	// sends get much more headroom than the 7s p2p default.
+	sendTimeout = time.Minute
 )
 
 var (
@@ -254,7 +265,7 @@ func (b *Board) broadcastP2P(ctx context.Context, msgID string, msg proto.Messag
 			continue
 		}
 
-		if err := b.sender.SendAsync(ctx, b.host, protocol.ID(msgID), peerID, msg); err != nil {
+		if err := b.sender.SendAsync(ctx, b.host, protocol.ID(msgID), peerID, msg, p2p.WithSendTimeout(sendTimeout), p2p.WithRetries(sendRetries)); err != nil {
 			return errors.Wrap(err, "p2p send", z.Str("msg", msgID), z.Str("to", peerID.String()))
 		}
 	}

@@ -12,13 +12,17 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -121,10 +125,9 @@ func TestSendReceiveClosesStreamOnError(t *testing.T) {
 func TestWithSendTimeout(t *testing.T) {
 	servers := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
 	clients := []host.Host{testutil.CreateHost(t, testutil.AvailableAddr(t)), testutil.CreateQUICHost(t, testutil.AvailableUDPAddr(t))}
-	errors := []string{"deadline reached", "deadline exceeded"}
 
 	for i := range len(servers) {
-		client, server, errorStr := clients[i], servers[i], errors[i]
+		client, server := clients[i], servers[i]
 
 		client.Peerstore().AddAddrs(server.ID(), server.Addrs(), time.Hour)
 
@@ -138,11 +141,354 @@ func TestWithSendTimeout(t *testing.T) {
 				return nil, false, nil
 			})
 
+		// Depending on how far the tiny budget lets the call get, the deadline error
+		// surfaces at dialing ("context deadline exceeded"), or on the stream
+		// ("deadline reached" on TCP, "deadline exceeded" on QUIC).
 		err := p2p.SendReceive(context.Background(), client, server.ID(),
 			new(pbv1.Duty), new(pbv1.Duty), protocolID, p2p.WithSendTimeout(sendTimeout))
 		require.Error(t, err)
-		require.ErrorContains(t, err, errorStr)
+		require.ErrorContains(t, err, "deadline")
 	}
+}
+
+// errFields extracts the structured fields of an error into a map.
+func errFields(t *testing.T, err error) map[string]any {
+	t.Helper()
+
+	fielder, ok := err.(interface{ Fields() []z.Field })
+	require.True(t, ok, "error does not have structured fields")
+
+	enc := zapcore.NewMapObjectEncoder()
+
+	for _, field := range fielder.Fields() {
+		field(func(zf zap.Field) {
+			zf.AddTo(enc)
+		})
+	}
+
+	return enc.Fields
+}
+
+func TestSendErrorContainsPeerField(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	peerName := p2p.PeerName(server.ID())
+
+	t.Run("send new stream error", func(t *testing.T) {
+		// No handler registered on the server, so protocol negotiation fails.
+		err := p2p.Send(ctx, client, "unknown", server.ID(), &pbv1.Duty{Slot: 1})
+		require.Error(t, err)
+		require.Equal(t, peerName, errFields(t, err)["peer"])
+	})
+
+	t.Run("send receive new stream error", func(t *testing.T) {
+		err := p2p.SendReceive(ctx, client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), "unknown")
+		require.Error(t, err)
+		require.Equal(t, peerName, errFields(t, err)["peer"])
+	})
+
+	t.Run("send write error", func(t *testing.T) {
+		protocolID := protocol.ID("testprotocol-peerfield")
+		p2p.RegisterHandler("test", server, protocolID,
+			func() proto.Message { return new(pbv1.Duty) },
+			func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+				return nil, false, nil
+			})
+
+		// The negative send timeout sets an already-expired stream deadline, failing the write.
+		err := p2p.Send(ctx, client, protocolID, server.ID(), &pbv1.Duty{Slot: 1},
+			p2p.WithSendTimeout(-time.Second))
+		require.Error(t, err)
+		require.Equal(t, peerName, errFields(t, err)["peer"])
+	})
+}
+
+func TestSendRetries(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	received := make(chan *pbv1.Duty, 1)
+	protocolID := protocol.ID("testprotocol-retries")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			received <- duty
+
+			return nil, false, nil
+		})
+
+	t.Run("no retries by default", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 1)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 1})
+		require.Error(t, err)
+		require.Equal(t, 1, flaky.Calls())
+	})
+
+	t.Run("retries transient failures", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 2)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 2}, p2p.WithRetries(2))
+		require.NoError(t, err)
+		require.Equal(t, 3, flaky.Calls())
+
+		select {
+		case duty := <-received:
+			require.EqualValues(t, 2, duty.GetSlot())
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timed out waiting for message")
+		}
+	})
+
+	t.Run("fails when retries exhausted", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 3)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 3}, p2p.WithRetries(2))
+		require.ErrorContains(t, err, "transient stream failure")
+		require.Equal(t, 3, flaky.Calls())
+	})
+
+	t.Run("retries bounded by send timeout", func(t *testing.T) {
+		flaky := testutil.NewFlakyHost(client, 100)
+		t0 := time.Now()
+
+		// The send timeout is the total budget for all attempts, so the retry
+		// sequence must stop long before all 8 retries (~7s of backoff) elapse.
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 5},
+			p2p.WithRetries(8), p2p.WithSendTimeout(200*time.Millisecond))
+		require.ErrorContains(t, err, "transient stream failure")
+		require.Less(t, time.Since(t0), 3*time.Second)
+		require.Less(t, flaky.Calls(), 9)
+	})
+
+	t.Run("cancellation surfaces as context error", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		flaky := testutil.NewFlakyHost(client, 10)
+		err := p2p.Send(cancelledCtx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 4}, p2p.WithRetries(5))
+		require.ErrorIs(t, err, context.Canceled)
+		require.Equal(t, 1, flaky.Calls())
+	})
+}
+
+// blockingHost wraps a host whose NewStream blocks until the context is done,
+// simulating a hung dial or protocol negotiation.
+type blockingHost struct {
+	host.Host
+}
+
+func (h blockingHost) NewStream(ctx context.Context, _ peer.ID, _ ...protocol.ID) (network.Stream, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestSendTimeoutBoundsStreamCreation(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	blocking := blockingHost{Host: client}
+
+	tests := []struct {
+		name string
+		send func() error
+	}{
+		{
+			name: "send",
+			send: func() error {
+				return p2p.Send(ctx, blocking, "proto", server.ID(), &pbv1.Duty{Slot: 1},
+					p2p.WithSendTimeout(100*time.Millisecond), p2p.WithRetries(2))
+			},
+		},
+		{
+			name: "send receive",
+			send: func() error {
+				return p2p.SendReceive(ctx, blocking, server.ID(), new(pbv1.Duty), new(pbv1.Duty), "proto",
+					p2p.WithSendTimeout(100*time.Millisecond), p2p.WithRetries(2))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			errChan := make(chan error, 1)
+			go func() {
+				errChan <- test.send()
+			}()
+
+			select {
+			case err := <-errChan:
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+			case <-time.After(2 * time.Second):
+				require.Fail(t, "send blocked past its timeout budget on stream creation")
+			}
+		})
+	}
+}
+
+// blockOnceHost wraps a host whose first NewStream blocks until the context is done,
+// simulating a hung dial on the first attempt only.
+type blockOnceHost struct {
+	host.Host
+
+	calls atomic.Int32
+}
+
+func (h *blockOnceHost) NewStream(ctx context.Context, peerID peer.ID, pIDs ...protocol.ID) (network.Stream, error) {
+	if h.calls.Add(1) == 1 {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	return h.Host.NewStream(ctx, peerID, pIDs...)
+}
+
+// TestSendRetriesAfterStalledDial ensures a hung dial only consumes its slice of the
+// total send budget, leaving room for a retry.
+func TestSendRetriesAfterStalledDial(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	received := make(chan *pbv1.Duty, 1)
+	protocolID := protocol.ID("testprotocol-stalled-dial")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			received <- duty
+
+			return nil, false, nil
+		})
+
+	blocking := &blockOnceHost{Host: client}
+	err := p2p.Send(ctx, blocking, protocolID, server.ID(), &pbv1.Duty{Slot: 7},
+		p2p.WithSendTimeout(2*time.Second), p2p.WithRetries(2))
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, blocking.calls.Load(), int32(2))
+
+	select {
+	case duty := <-received:
+		require.EqualValues(t, 7, duty.GetSlot())
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for message")
+	}
+}
+
+// TestSendReceiveAllowsSlowResponse ensures each SendReceive attempt gets the full send
+// timeout for the response wait, not a slice of it, so a peer that legitimately responds
+// slower than sendTimeout/(retries+1) is not aborted.
+func TestSendReceiveAllowsSlowResponse(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	var calls atomic.Int32
+
+	protocolID := protocol.ID("testprotocol-slow-response")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			calls.Add(1)
+			// Respond slower than a sliced budget (1s/6 ≈ 166ms) would allow, but
+			// well within the full 1s send timeout.
+			time.Sleep(400 * time.Millisecond)
+
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			return &pbv1.Duty{Slot: duty.GetSlot() + 1}, true, nil
+		})
+
+	resp := new(pbv1.Duty)
+	err := p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: 41}, resp, protocolID,
+		p2p.WithSendTimeout(time.Second), p2p.WithRetries(5))
+	require.NoError(t, err)
+	require.EqualValues(t, 42, resp.GetSlot())
+	require.EqualValues(t, 1, calls.Load(), "slow but valid response must succeed on the first attempt")
+}
+
+func TestWithRetriesClampsNegative(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	protocolID := protocol.ID("testprotocol-negative-retries")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+			return nil, false, nil
+		})
+
+	// A negative retry count must not panic (it would divide by zero when computing the
+	// per-attempt slice) and behaves as zero retries.
+	require.NotPanics(t, func() {
+		flaky := testutil.NewFlakyHost(client, 1)
+		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 1}, p2p.WithRetries(-1))
+		require.Error(t, err)
+		require.Equal(t, 1, flaky.Calls())
+	})
+}
+
+// TestSendReceiveBoundedBySendTimeout ensures the whole SendReceive call, retries included,
+// is bounded by the send timeout: a stalled attempt consumes the budget and is not retried
+// past it (a delivered request to a slow peer is waited out, not re-sent).
+func TestSendReceiveBoundedBySendTimeout(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	protocolID := protocol.ID("testprotocol-sendrecv-bounded")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+			time.Sleep(3 * time.Second) // Always stall past the budget.
+			return new(pbv1.Duty), true, nil
+		})
+
+	t0 := time.Now()
+	err := p2p.SendReceive(ctx, client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), protocolID,
+		p2p.WithSendTimeout(500*time.Millisecond), p2p.WithRetries(5))
+	require.Error(t, err)
+	// Bounded by the 500ms budget, not 6 × 500ms, despite 5 retries.
+	require.Less(t, time.Since(t0), 2*time.Second)
+}
+
+func TestSendReceiveRetries(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	protocolID := protocol.ID("testprotocol-sendrecv-retries")
+	p2p.RegisterHandler("test", server, protocolID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			return &pbv1.Duty{Slot: duty.GetSlot() + 1}, true, nil
+		})
+
+	flaky := testutil.NewFlakyHost(client, 2)
+	resp := new(pbv1.Duty)
+	err := p2p.SendReceive(ctx, flaky, server.ID(), &pbv1.Duty{Slot: 41}, resp, protocolID, p2p.WithRetries(2))
+	require.NoError(t, err)
+	require.Equal(t, 3, flaky.Calls())
+	require.EqualValues(t, 42, resp.GetSlot())
 }
 
 func TestSend(t *testing.T) {
