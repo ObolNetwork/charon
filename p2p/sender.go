@@ -350,12 +350,14 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		opt(&o)
 	}
 
-	// Unlike a one-way Send, each SendReceive attempt gets the full send timeout, not a
-	// slice of it: the response wait is a legitimate long operation (a peer may take up to
-	// its receive timeout to process and reply), so slicing it across retries would abort
-	// valid slow responses. The overall deadline therefore spans all attempts.
-	attemptTimeout := o.sendTimeout
-	deadline := time.Now().Add(attemptTimeout * time.Duration(o.retries+1))
+	// The send timeout is the total budget for the whole call. Unlike a one-way Send, each
+	// SendReceive attempt may use the full remaining budget rather than a fixed slice: the
+	// response wait is a legitimate long operation (a peer may take up to its receive
+	// timeout to reply), so slicing it would abort valid slow responses. Retries therefore
+	// only fire on attempts that fail fast enough to leave budget (e.g. dial errors); a
+	// stalled attempt consumes the budget and is not retried, since a delivered request to
+	// a slow peer must be waited out, not re-sent.
+	deadline := time.Now().Add(o.sendTimeout)
 
 	ctx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
@@ -364,14 +366,7 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		// A failed attempt may have partially populated the response.
 		proto.Reset(resp)
 
-		// Bound each attempt (dialing, negotiation and the response wait) by its own
-		// deadline so a hung attempt cannot consume the remaining attempts' budget.
-		attemptDL := attemptDeadline(attemptTimeout, deadline)
-
-		attemptCtx, cancel := context.WithDeadline(ctx, attemptDL)
-		defer cancel()
-
-		return sendReceive(attemptCtx, p2pNode, peerID, req, resp, pID, o, attemptDL)
+		return sendReceive(ctx, p2pNode, peerID, req, resp, pID, o, deadline)
 	})
 }
 
