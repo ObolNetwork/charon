@@ -16,9 +16,12 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/z"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -143,6 +146,61 @@ func TestWithSendTimeout(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, errorStr)
 	}
+}
+
+// errFields extracts the structured fields of an error into a map.
+func errFields(t *testing.T, err error) map[string]any {
+	t.Helper()
+
+	fielder, ok := err.(interface{ Fields() []z.Field })
+	require.True(t, ok, "error does not have structured fields")
+
+	enc := zapcore.NewMapObjectEncoder()
+
+	for _, field := range fielder.Fields() {
+		field(func(zf zap.Field) {
+			zf.AddTo(enc)
+		})
+	}
+
+	return enc.Fields
+}
+
+func TestSendErrorContainsPeerField(t *testing.T) {
+	ctx := context.Background()
+	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	peerName := p2p.PeerName(server.ID())
+
+	t.Run("send new stream error", func(t *testing.T) {
+		// No handler registered on the server, so protocol negotiation fails.
+		err := p2p.Send(ctx, client, "unknown", server.ID(), &pbv1.Duty{Slot: 1})
+		require.Error(t, err)
+		require.Equal(t, peerName, errFields(t, err)["peer"])
+	})
+
+	t.Run("send receive new stream error", func(t *testing.T) {
+		err := p2p.SendReceive(ctx, client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), "unknown")
+		require.Error(t, err)
+		require.Equal(t, peerName, errFields(t, err)["peer"])
+	})
+
+	t.Run("send write error", func(t *testing.T) {
+		protocolID := protocol.ID("testprotocol-peerfield")
+		p2p.RegisterHandler("test", server, protocolID,
+			func() proto.Message { return new(pbv1.Duty) },
+			func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+				return nil, false, nil
+			})
+
+		// The negative send timeout sets an already-expired stream deadline, failing the write.
+		err := p2p.Send(ctx, client, protocolID, server.ID(), &pbv1.Duty{Slot: 1},
+			p2p.WithSendTimeout(-time.Second))
+		require.Error(t, err)
+		require.Equal(t, peerName, errFields(t, err)["peer"])
+	})
 }
 
 func TestSend(t *testing.T) {

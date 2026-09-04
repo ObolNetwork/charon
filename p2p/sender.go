@@ -315,14 +315,14 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
-		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
+		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols), z.Str("peer", PeerName(peerID)))
 	}
 	defer s.Close()
 
 	protoLabel = string(s.Protocol())
 
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
-		return errors.Wrap(err, "set deadline")
+		return errors.Wrap(err, "set deadline", z.Str("peer", PeerName(peerID)))
 	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
@@ -341,7 +341,7 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	t0 := time.Now()
 
 	if err = writer.WriteMsg(req); err != nil {
-		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()))
+		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
 
 	if err := s.CloseWrite(); err != nil {
@@ -354,12 +354,12 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		if isCanceledStreamErr(err) {
 			log.Debug(ctx, "Closing write of canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
 		} else {
-			return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
+			return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 		}
 	}
 
 	if err = reader.ReadMsg(resp); err != nil {
-		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
+		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
 
 	o.rttCallback(time.Since(t0))
@@ -389,14 +389,14 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
-		return errors.Wrap(err, "p2pNode stream")
+		return errors.Wrap(err, "p2pNode stream", z.Str("peer", PeerName(peerID)))
 	}
 	defer s.Close()
 
 	protoLabel = string(s.Protocol())
 
 	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
-		return errors.Wrap(err, "set deadline")
+		return errors.Wrap(err, "set deadline", z.Str("peer", PeerName(peerID)))
 	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
@@ -405,7 +405,7 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	}
 
 	if err = writeFunc(s).WriteMsg(msg); err != nil {
-		return errors.Wrap(err, "write message", z.Any("protocol", s.Protocol()))
+		return errors.Wrap(err, "write message", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
 
 	return nil
