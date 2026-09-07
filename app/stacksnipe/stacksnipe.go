@@ -38,6 +38,22 @@ var maybeVCs = map[string]struct{}{
 	"node": {},
 }
 
+// sensitiveFlagFragments are the flag name fragments whose values must never leave the process.
+// Validator client command lines routinely carry keystore passwords, keymanager bearer tokens and
+// the paths of files holding them, none of which belong in a metric label or a log line.
+var sensitiveFlagFragments = []string{
+	"auth",
+	"jwt",
+	"key",
+	"passphrase",
+	"password",
+	"secret",
+	"token",
+}
+
+// redactedValue replaces the value of a sensitive flag in an exported command line.
+const redactedValue = "<redacted>"
+
 // StackComponent is a named process of the Ethereum validator stack running on the machine,
 // whose CLI parameters (also called cmdline) is read from a /proc-like filesystem.
 type StackComponent struct {
@@ -78,6 +94,10 @@ func (i *Instance) Run(ctx context.Context) {
 		log.Info(ctx, "Stack component sniping disabled")
 		return
 	}
+
+	log.Warn(ctx, "Stack component sniping enabled: command lines of detected validator clients are exported "+
+		"to the monitoring endpoint and debug logs, with the values of secret-shaped flags redacted", nil,
+		z.Str("proc_directory", i.procPath))
 
 	ticker := time.NewTicker(i.interval)
 	defer ticker.Stop()
@@ -133,6 +153,68 @@ func snipe(ctx context.Context, procPath string) ([]StackComponent, error) {
 	}
 
 	return ret, nil
+}
+
+// isSensitiveFlag reports whether name looks like a flag whose value carries secret material.
+func isSensitiveFlag(name string) bool {
+	name = strings.ToLower(strings.TrimLeft(name, "-"))
+
+	for _, fragment := range sensitiveFlagFragments {
+		if strings.Contains(name, fragment) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// redactCmdline returns args with the values of sensitive flags replaced by redactedValue.
+// Both the "--flag value" and the "--flag=value" forms are handled.
+//
+// A /proc cmdline is NUL separated, so each element is normally a single argument. Should a caller
+// hand over one blob holding the whole command line instead, it is split on whitespace first, so
+// that redaction fails safe rather than passing the blob through untouched.
+func redactCmdline(args []string) []string {
+	if len(args) == 1 && strings.ContainsAny(args[0], " \t") {
+		args = strings.Fields(args[0])
+	}
+
+	redacted := make([]string, 0, len(args))
+	redactNext := false
+
+	for _, arg := range args {
+		if redactNext {
+			redactNext = false
+
+			// A flag rather than a value means the previous flag was a boolean, keep walking.
+			if !strings.HasPrefix(arg, "-") {
+				redacted = append(redacted, redactedValue)
+				continue
+			}
+		}
+
+		if !strings.HasPrefix(arg, "-") {
+			redacted = append(redacted, arg)
+			continue
+		}
+
+		name, _, hasValue := strings.Cut(arg, "=")
+		if !isSensitiveFlag(name) {
+			redacted = append(redacted, arg)
+			continue
+		}
+
+		if hasValue {
+			redacted = append(redacted, name+"="+redactedValue)
+			continue
+		}
+
+		redactNext = true
+
+		redacted = append(redacted, arg)
+	}
+
+	return redacted
 }
 
 // walkFunc walks a /proc-like filesystem as invoked by filepath.WalkDir, and sends entries to wb.
@@ -216,7 +298,7 @@ func walkFunc(ctx context.Context, wb chan<- StackComponent) fs.WalkDirFunc {
 			return nil
 		}
 
-		cmdLineStr := strings.Join(cmdLine, " ")
+		cmdLineStr := strings.Join(redactCmdline(cmdLine), " ")
 
 		log.Debug(ctx, "Detected stack component", z.Str("name", vcName), z.U64("host_pid", hostPID), z.Str("cmdline", cmdLineStr))
 
