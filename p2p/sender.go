@@ -215,8 +215,8 @@ func WithReceiveTimeout(timeout time.Duration) func(*sendRecvOpts) {
 }
 
 // WithSendTimeout returns an option for SendReceive that sets a timeout for sending messages.
-// The timeout is the total wall-clock budget for the call, including all retry attempts
-// and backoff when combined with WithRetries.
+// The timeout applies per attempt, so with WithRetries the whole call can take up to
+// (retries+1) times this timeout plus the inter-attempt backoff.
 func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		opts.sendTimeout = timeout
@@ -224,12 +224,11 @@ func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
 }
 
 // WithRetries returns an option that retries a failed send up to the given number of
-// additional attempts, each on a fresh stream, backing off briefly in between. The whole
-// sequence shares the send timeout as its total budget, so retries never extend a send
-// beyond it; each attempt is capped at its slice of the budget, so a stalled stream
-// cannot starve the remaining attempts. Only use it for protocols whose handlers tolerate
-// duplicate delivery, since a send that failed on the sender side may still have been
-// delivered (e.g. DKG ceremony messages, which are deduplicated by all receivers).
+// additional attempts, each on a fresh stream with the full send timeout, backing off
+// briefly in between. Only use it for protocols whose handlers tolerate duplicate delivery,
+// since a send that failed on the sender side may still have been delivered (e.g. DKG
+// ceremony messages, which are deduplicated by all receivers). Negative values are clamped
+// to zero (no retries); left unclamped they would make the retry loop skip the send entirely.
 func WithRetries(retries int) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		opts.retries = max(retries, 0)
@@ -306,25 +305,20 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 }
 
 // withRetries calls fn and retries it up to the given number of additional times,
-// backing off briefly between attempts. The whole sequence (attempts and backoff)
-// is bounded by the deadline, so retries never extend a send beyond its configured
-// send timeout. Cancellation stops retrying and surfaces as the context error (with
-// the last attempt error attached as a field), so callers can detect it with errors.Is.
-func withRetries(ctx context.Context, retries int, deadline time.Time, fn func() error) error {
+// backing off briefly between attempts. Each attempt is independently timed by fn (via
+// the send timeout), so the whole call takes up to (retries+1) attempts plus the backoffs.
+// Cancellation of ctx stops retrying and surfaces as the context error (with the last
+// attempt error attached as a field), so callers can detect it with errors.Is.
+func withRetries(ctx context.Context, retries int, fn func() error) error {
 	var err error
 
-	for attempt := 0; ; attempt++ {
+	for attempt := range retries + 1 {
 		err = fn()
-		if err == nil || attempt >= retries {
+		if err == nil || attempt == retries {
 			return err
 		}
 
-		backoff := expbackoff.Backoff(expbackoff.FastConfig, attempt)
-		if !time.Now().Add(backoff).Before(deadline) {
-			return err // Budget exhausted, another attempt would fail its deadline immediately.
-		}
-
-		timer := time.NewTimer(backoff)
+		timer := time.NewTimer(expbackoff.Backoff(expbackoff.FastConfig, attempt))
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -332,6 +326,8 @@ func withRetries(ctx context.Context, retries int, deadline time.Time, fn func()
 		case <-timer.C:
 		}
 	}
+
+	return err // Unreachable: the final iteration (attempt == retries) always returns.
 }
 
 // SendReceive sends and receives a libp2p request and response message
@@ -350,40 +346,17 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		opt(&o)
 	}
 
-	// The send timeout is the total budget for the whole call. Unlike a one-way Send, each
-	// SendReceive attempt may use the full remaining budget rather than a fixed slice: the
-	// response wait is a legitimate long operation (a peer may take up to its receive
-	// timeout to reply), so slicing it would abort valid slow responses. Retries therefore
-	// only fire on attempts that fail fast enough to leave budget (e.g. dial errors); a
-	// stalled attempt consumes the budget and is not retried, since a delivered request to
-	// a slow peer must be waited out, not re-sent.
-	deadline := time.Now().Add(o.sendTimeout)
-
-	ctx, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
-
-	return withRetries(ctx, o.retries, deadline, func() error {
+	return withRetries(ctx, o.retries, func() error {
 		// A failed attempt may have partially populated the response.
 		proto.Reset(resp)
 
-		return sendReceive(ctx, p2pNode, peerID, req, resp, pID, o, deadline)
+		return sendReceive(ctx, p2pNode, peerID, req, resp, pID, o)
 	})
 }
 
-// attemptDeadline returns the deadline for a single send attempt: its slice of the
-// total budget, capped by the overall deadline.
-func attemptDeadline(attemptTimeout time.Duration, overall time.Time) time.Time {
-	deadline := time.Now().Add(attemptTimeout)
-	if deadline.After(overall) {
-		return overall
-	}
-
-	return deadline
-}
-
-// sendReceive is a single SendReceive attempt.
+// sendReceive is a single SendReceive attempt, timed out after the send timeout.
 func sendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
-	req, resp proto.Message, pID protocol.ID, o sendRecvOpts, deadline time.Time,
+	req, resp proto.Message, pID protocol.ID, o sendRecvOpts,
 ) error {
 	tStart := time.Now()
 
@@ -392,6 +365,13 @@ func sendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	defer func() {
 		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(tStart).Seconds())
 	}()
+
+	// The send timeout bounds this attempt: the context covers dialing and protocol
+	// negotiation, the stream deadline covers the write and response read.
+	deadline := time.Now().Add(o.sendTimeout)
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
@@ -457,32 +437,14 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 		opt(&o)
 	}
 
-	// The send timeout is the total budget for the call: stream creation and all
-	// attempts share one deadline, also enforced via the context so dialing and
-	// protocol negotiation cannot block past it. Each attempt gets a slice of the
-	// budget, so a stalled stream cannot consume it all and a retry on a fresh
-	// stream can still occur.
-	deadline := time.Now().Add(o.sendTimeout)
-	attemptTimeout := o.sendTimeout / time.Duration(o.retries+1)
-
-	ctx, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
-
-	return withRetries(ctx, o.retries, deadline, func() error {
-		// Bound the attempt's dialing and negotiation by its deadline as well,
-		// so a hung dial cannot consume the remaining attempts' budget.
-		attemptDL := attemptDeadline(attemptTimeout, deadline)
-
-		attemptCtx, cancel := context.WithDeadline(ctx, attemptDL)
-		defer cancel()
-
-		return send(attemptCtx, p2pNode, protoID, peerID, msg, o, attemptDL)
+	return withRetries(ctx, o.retries, func() error {
+		return send(ctx, p2pNode, protoID, peerID, msg, o)
 	})
 }
 
-// send is a single Send attempt.
+// send is a single Send attempt, timed out after the send timeout.
 func send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
-	o sendRecvOpts, deadline time.Time,
+	o sendRecvOpts,
 ) error {
 	t0 := time.Now()
 
@@ -494,6 +456,14 @@ func send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	defer func() {
 		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(t0).Seconds())
 	}()
+
+	// The send timeout bounds this attempt: the context covers dialing and protocol
+	// negotiation, the stream deadline covers the message write.
+	deadline := time.Now().Add(o.sendTimeout)
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {

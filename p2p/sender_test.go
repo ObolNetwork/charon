@@ -253,17 +253,19 @@ func TestSendRetries(t *testing.T) {
 		require.Equal(t, 3, flaky.Calls())
 	})
 
-	t.Run("retries bounded by send timeout", func(t *testing.T) {
-		flaky := testutil.NewFlakyHost(client, 100)
+	t.Run("each attempt gets the full send timeout", func(t *testing.T) {
+		// blocking dials never succeed, so every attempt runs until its own send
+		// timeout. The send timeout is per attempt, so the total spans all attempts.
+		const perAttempt = 300 * time.Millisecond
+
+		blocking := blockingHost{Host: client}
 		t0 := time.Now()
 
-		// The send timeout is the total budget for all attempts, so the retry
-		// sequence must stop long before all 8 retries (~7s of backoff) elapse.
-		err := p2p.Send(ctx, flaky, protocolID, server.ID(), &pbv1.Duty{Slot: 5},
-			p2p.WithRetries(8), p2p.WithSendTimeout(200*time.Millisecond))
-		require.ErrorContains(t, err, "transient stream failure")
-		require.Less(t, time.Since(t0), 3*time.Second)
-		require.Less(t, flaky.Calls(), 9)
+		err := p2p.Send(ctx, blocking, protocolID, server.ID(), &pbv1.Duty{Slot: 5},
+			p2p.WithRetries(2), p2p.WithSendTimeout(perAttempt))
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		// 3 attempts each get the full timeout (not a sliced share of it).
+		require.GreaterOrEqual(t, time.Since(t0), 3*perAttempt)
 	})
 
 	t.Run("cancellation surfaces as context error", func(t *testing.T) {
@@ -440,31 +442,6 @@ func TestWithRetriesClampsNegative(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, 1, flaky.Calls())
 	})
-}
-
-// TestSendReceiveBoundedBySendTimeout ensures the whole SendReceive call, retries included,
-// is bounded by the send timeout: a stalled attempt consumes the budget and is not retried
-// past it (a delivered request to a slow peer is waited out, not re-sent).
-func TestSendReceiveBoundedBySendTimeout(t *testing.T) {
-	ctx := context.Background()
-	server := testutil.CreateHost(t, testutil.AvailableAddr(t))
-	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
-	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
-
-	protocolID := protocol.ID("testprotocol-sendrecv-bounded")
-	p2p.RegisterHandler("test", server, protocolID,
-		func() proto.Message { return new(pbv1.Duty) },
-		func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
-			time.Sleep(3 * time.Second) // Always stall past the budget.
-			return new(pbv1.Duty), true, nil
-		})
-
-	t0 := time.Now()
-	err := p2p.SendReceive(ctx, client, server.ID(), new(pbv1.Duty), new(pbv1.Duty), protocolID,
-		p2p.WithSendTimeout(500*time.Millisecond), p2p.WithRetries(5))
-	require.Error(t, err)
-	// Bounded by the 500ms budget, not 6 × 500ms, despite 5 retries.
-	require.Less(t, time.Since(t0), 2*time.Second)
 }
 
 func TestSendReceiveRetries(t *testing.T) {
