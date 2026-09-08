@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,7 @@ var sensitiveFlagFragments = []string{
 	"auth",
 	"jwt",
 	"key",
+	"mnemonic",
 	"passphrase",
 	"password",
 	"secret",
@@ -53,6 +55,14 @@ var sensitiveFlagFragments = []string{
 
 // redactedValue replaces the value of a sensitive flag in an exported command line.
 const redactedValue = "<redacted>"
+
+// basicAuthRe matches the userinfo of a URL so a credential embedded in an otherwise innocuous
+// flag value (e.g. https://user:pass@host) is redacted while the scheme, user and host stay visible.
+var basicAuthRe = regexp.MustCompile(`([a-zA-Z][a-zA-Z0-9+.-]*://[^:@/?#\s]+):[^@/?#\s]+@`)
+
+// queryParamRe matches a single URL query parameter so sensitive ones (?token=..., &jwt=...)
+// can be redacted by name while the rest of the value is preserved.
+var queryParamRe = regexp.MustCompile(`([?&])([^=&#\s]+)=([^&#\s]*)`)
 
 // StackComponent is a named process of the Ethereum validator stack running on the machine,
 // whose CLI parameters (also called cmdline) is read from a /proc-like filesystem.
@@ -168,39 +178,137 @@ func isSensitiveFlag(name string) bool {
 	return false
 }
 
-// redactCmdline returns args with the values of sensitive flags replaced by redactedValue.
-// Both the "--flag value" and the "--flag=value" forms are handled.
+// redactValue scrubs secret material embedded inside a value that a flag name check misses:
+// basic-auth credentials in a URL and the values of sensitive query parameters. The rest of the
+// value (scheme, host, path, innocuous parameters) is preserved so telemetry stays useful.
+func redactValue(value string) string {
+	value = basicAuthRe.ReplaceAllString(value, "${1}:"+redactedValue+"@")
+
+	value = queryParamRe.ReplaceAllStringFunc(value, func(param string) string {
+		groups := queryParamRe.FindStringSubmatch(param)
+		if groups[3] != "" && isSensitiveFlag(groups[2]) {
+			return groups[1] + groups[2] + "=" + redactedValue
+		}
+
+		return param
+	})
+
+	return value
+}
+
+// splitCmdlineBlob tokenises a whole command line that arrived as a single blob, honouring single
+// and double quotes so a quoted value containing spaces stays one argument (and is redacted whole)
+// rather than being split into leaking fragments.
+func splitCmdlineBlob(blob string) []string {
+	var (
+		tokens []string
+		cur    strings.Builder
+		quote  rune
+		inTok  bool
+	)
+
+	flush := func() {
+		if inTok {
+			tokens = append(tokens, cur.String())
+			cur.Reset()
+
+			inTok = false
+		}
+	}
+
+	for _, r := range blob {
+		switch {
+		case quote != 0:
+			if r == quote {
+				quote = 0
+			} else {
+				cur.WriteRune(r)
+			}
+
+			inTok = true
+		case r == '\'' || r == '"':
+			quote = r
+			inTok = true
+		case r == ' ' || r == '\t':
+			flush()
+		default:
+			cur.WriteRune(r)
+
+			inTok = true
+		}
+	}
+
+	flush()
+
+	return tokens
+}
+
+// redactCmdline returns args with every value that carries secret material replaced by redactedValue,
+// while keeping flag names and innocuous values so the exported command line stays diagnostically useful.
+//
+// Three shapes of secret are handled:
+//   - the value of a sensitive flag, in both "--flag value" and "--flag=value" form;
+//   - basic-auth credentials and sensitive query parameters embedded in a URL valued flag whose
+//     flag name is itself innocuous (e.g. --beacon-node https://user:pass@host?token=abc);
+//   - a value that begins with "-" (e.g. --password -hunter2): the token after a value taking
+//     sensitive flag is redacted regardless of a leading dash, resolving the arity ambiguity toward
+//     redaction rather than leaking. Only a long flag ("--x") is taken to mean the sensitive flag
+//     was a boolean that took no value.
 //
 // A /proc cmdline is NUL separated, so each element is normally a single argument. Should a caller
-// hand over one blob holding the whole command line instead, it is split on whitespace first, so
-// that redaction fails safe rather than passing the blob through untouched.
+// hand over one blob holding the whole command line instead, it is tokenised (honouring quotes) and
+// the value taken by a sensitive flag is redacted greedily, so a multi word value fails safe rather
+// than leaking its tail.
 func redactCmdline(args []string) []string {
+	greedy := false
+
 	if len(args) == 1 && strings.ContainsAny(args[0], " \t") {
-		args = strings.Fields(args[0])
+		args = splitCmdlineBlob(args[0])
+		greedy = true
 	}
 
 	redacted := make([]string, 0, len(args))
-	redactNext := false
+
+	var (
+		redactNext   bool // the following token(s) are the value of a sensitive flag
+		valueEmitted bool // the single marker for that value has already been appended
+	)
 
 	for _, arg := range args {
 		if redactNext {
-			redactNext = false
+			// A long flag means the sensitive flag took no value; stop redacting and reprocess
+			// this token as a flag. Anything else is (part of) the value.
+			if !strings.HasPrefix(arg, "--") {
+				if !valueEmitted {
+					redacted = append(redacted, redactedValue)
+					valueEmitted = true
+				}
 
-			// A flag rather than a value means the previous flag was a boolean, keep walking.
-			if !strings.HasPrefix(arg, "-") {
-				redacted = append(redacted, redactedValue)
+				// A NUL separated cmdline gives one value per flag; only the ambiguous blob
+				// fallback keeps consuming tokens into the same value.
+				if !greedy {
+					redactNext = false
+				}
+
 				continue
 			}
+
+			redactNext = false
 		}
 
 		if !strings.HasPrefix(arg, "-") {
-			redacted = append(redacted, arg)
+			redacted = append(redacted, redactValue(arg))
 			continue
 		}
 
-		name, _, hasValue := strings.Cut(arg, "=")
+		name, value, hasValue := strings.Cut(arg, "=")
 		if !isSensitiveFlag(name) {
-			redacted = append(redacted, arg)
+			if hasValue {
+				redacted = append(redacted, name+"="+redactValue(value))
+			} else {
+				redacted = append(redacted, arg)
+			}
+
 			continue
 		}
 
@@ -210,6 +318,7 @@ func redactCmdline(args []string) []string {
 		}
 
 		redactNext = true
+		valueEmitted = false
 
 		redacted = append(redacted, arg)
 	}
