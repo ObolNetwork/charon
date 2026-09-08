@@ -105,8 +105,8 @@ func (i *Instance) Run(ctx context.Context) {
 		return
 	}
 
-	log.Warn(ctx, "Stack component sniping enabled: command lines of detected validator clients are exported "+
-		"to the monitoring endpoint and debug logs, with the values of secret-shaped flags redacted", nil,
+	log.Info(ctx, "Stack component sniping enabled: command lines of detected validator clients are exported "+
+		"to the monitoring endpoint and debug logs, with the values of secret-shaped flags redacted",
 		z.Str("proc_directory", i.procPath))
 
 	ticker := time.NewTicker(i.interval)
