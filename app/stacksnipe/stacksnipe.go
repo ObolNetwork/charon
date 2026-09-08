@@ -243,22 +243,12 @@ func splitCmdlineBlob(blob string) []string {
 	return tokens
 }
 
-// redactCmdline returns args with every value that carries secret material replaced by redactedValue,
-// while keeping flag names and innocuous values so the exported command line stays diagnostically useful.
-//
-// Three shapes of secret are handled:
-//   - the value of a sensitive flag, in both "--flag value" and "--flag=value" form;
-//   - basic-auth credentials and sensitive query parameters embedded in a URL valued flag whose
-//     flag name is itself innocuous (e.g. --beacon-node https://user:pass@host?token=abc);
-//   - a value that begins with "-" (e.g. --password -hunter2): the token after a value taking
-//     sensitive flag is redacted regardless of a leading dash, resolving the arity ambiguity toward
-//     redaction rather than leaking. Only a long flag ("--x") is taken to mean the sensitive flag
-//     was a boolean that took no value.
-//
-// A /proc cmdline is NUL separated, so each element is normally a single argument. Should a caller
-// hand over one blob holding the whole command line instead, it is tokenised (honouring quotes) and
-// the value taken by a sensitive flag is redacted greedily, so a multi word value fails safe rather
-// than leaking its tail.
+// redactCmdline redacts the value of every sensitive flag while keeping flag names and innocuous
+// values, so the exported command line stays diagnostically useful. It covers the "--flag value"
+// and "--flag=value" forms, secrets embedded in a URL value of an innocuous flag (see redactValue),
+// and values beginning with "-". Args are normally the NUL separated /proc elements; a whole command
+// line handed over as one blob is tokenised (see splitCmdlineBlob) and its sensitive values redacted
+// greedily, so redaction fails safe rather than leaking.
 func redactCmdline(args []string) []string {
 	greedy := false
 
