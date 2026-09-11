@@ -2368,6 +2368,7 @@ type testHandler struct {
 	PayloadAttestationDataFunc       func(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error)
 	PTCDutiesFunc                    func(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error)
 	SubmitPayloadAttMsgsFunc         func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
+	SubmitProposerPreferencesFunc    func(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
 	ProxyFunc                        func(ctx context.Context, req *http.Request) (*http.Response, error)
 	AddressFunc                      func() string
 	HeadersFunc                      func() map[string]string
@@ -2383,6 +2384,10 @@ func (h testHandler) PayloadAttestationData(ctx context.Context, opts *eth2api.P
 
 func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
 	return h.SubmitPayloadAttMsgsFunc(ctx, opts)
+}
+
+func (h testHandler) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	return h.SubmitProposerPreferencesFunc(ctx, preferences)
 }
 
 func (h testHandler) PTCDuties(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error) {
@@ -2791,5 +2796,134 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 		}
 
 		testRawRouter(t, handler, callback)
+	})
+}
+
+func TestUnmarshalProposerPreferencesSSZ(t *testing.T) {
+	pref1 := testutil.RandomProposerPreferences()
+	pref2 := testutil.RandomProposerPreferences()
+
+	b1, err := pref1.MarshalSSZ()
+	require.NoError(t, err)
+	b2, err := pref2.MarshalSSZ()
+	require.NoError(t, err)
+
+	prefs, err := unmarshalProposerPreferencesSSZ(append(b1, b2...))
+	require.NoError(t, err)
+	require.Len(t, prefs, 2)
+	require.Equal(t, pref1, prefs[0])
+	require.Equal(t, pref2, prefs[1])
+
+	// An empty body is a valid empty list.
+	prefs, err = unmarshalProposerPreferencesSSZ(nil)
+	require.NoError(t, err)
+	require.Empty(t, prefs)
+
+	// Invalid lengths are rejected.
+	_, err = unmarshalProposerPreferencesSSZ(b1[:len(b1)-1])
+	require.Error(t, err)
+}
+
+func TestSubmitProposerPreferencesRouter(t *testing.T) {
+	prefs := []*gloas.SignedProposerPreferences{testutil.RandomProposerPreferences(), testutil.RandomProposerPreferences()}
+
+	newHandler := func(submitted *[][]*gloas.SignedProposerPreferences) testHandler {
+		return testHandler{
+			SubmitProposerPreferencesFunc: func(_ context.Context, preferences []*gloas.SignedProposerPreferences) error {
+				*submitted = append(*submitted, preferences)
+
+				return nil
+			},
+		}
+	}
+
+	post := func(ctx context.Context, t *testing.T, baseURL, contentType, version string, body []byte) *http.Response {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/validator/proposer_preferences", bytes.NewReader(body))
+		require.NoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+		if version != "" {
+			req.Header.Set(versionHeader, version)
+		}
+
+		res, err := new(http.Client).Do(req)
+		require.NoError(t, err)
+
+		return res
+	}
+
+	t.Run("json", func(t *testing.T) {
+		var submitted [][]*gloas.SignedProposerPreferences
+
+		body, err := json.Marshal(prefs)
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "gloas", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, submitted, 1)
+			require.Equal(t, prefs, submitted[0])
+		})
+	})
+
+	t.Run("ssz", func(t *testing.T) {
+		var submitted [][]*gloas.SignedProposerPreferences
+
+		var body []byte
+		for _, pref := range prefs {
+			b, err := pref.MarshalSSZ()
+			require.NoError(t, err)
+
+			body = append(body, b...)
+		}
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/octet-stream", "gloas", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, submitted, 1)
+			require.Equal(t, prefs, submitted[0])
+		})
+	})
+
+	t.Run("missing version header", func(t *testing.T) {
+		var submitted [][]*gloas.SignedProposerPreferences
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "", []byte("[]"))
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, submitted)
+		})
+	})
+
+	t.Run("wrong version header", func(t *testing.T) {
+		var submitted [][]*gloas.SignedProposerPreferences
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "electra", []byte("[]"))
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, submitted)
+		})
+	})
+
+	t.Run("invalid ssz length", func(t *testing.T) {
+		var submitted [][]*gloas.SignedProposerPreferences
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/octet-stream", "gloas", []byte{0x01, 0x02})
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, submitted)
+		})
+	})
+
+	t.Run("oversized body", func(t *testing.T) {
+		var submitted [][]*gloas.SignedProposerPreferences
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/octet-stream", "gloas", make([]byte, maxProposerPreferencesBody+1))
+			require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
+			require.Empty(t, submitted)
+		})
 	})
 }

@@ -92,6 +92,10 @@ type Handler interface {
 	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
 
+	// SubmitProposerPreferences receives partially signed proposer preferences from the validator client.
+	// TODO(gloas): replace with eth2client.ProposerPreferencesSubmitter once attestantio/go-eth2-client#316 merges.
+	SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
+
 	// Address returns the address of the beacon node.
 	Address() string
 	// Headers returns custom headers to include in requests to the beacon node.
@@ -109,6 +113,9 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 		Handler   handlerFunc
 		Methods   []string
 		Encodings []contentType
+		// MaxBody limits the request body size in bytes, enforced at the read boundary
+		// before the body is buffered; zero means unlimited.
+		MaxBody int64
 	}{
 		{
 			Name:      "attester_duties",
@@ -335,6 +342,14 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
+			Name:      "submit_proposer_preferences",
+			Path:      "/eth/v1/validator/proposer_preferences",
+			Handler:   submitProposerPreferences(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			MaxBody:   maxProposerPreferencesBody,
+		},
+		{
 			Name:      "aggregate_sync_committee_selections",
 			Path:      "/eth/v1/validator/sync_committee_selections",
 			Handler:   syncCommitteeSelections(h),
@@ -352,7 +367,7 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 
 	r := mux.NewRouter()
 	for _, e := range endpoints {
-		handler := r.Handle(e.Path, wrap(e.Name, e.Handler, e.Encodings))
+		handler := r.Handle(e.Path, wrap(e.Name, e.Handler, e.Encodings, e.MaxBody))
 		if len(e.Methods) != 0 {
 			handler.Methods(e.Methods...)
 		}
@@ -381,13 +396,26 @@ func (a apiError) Error() string {
 	return fmt.Sprintf("api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
 }
 
+// badRequestError returns an apiError with status 400 for client input validation failures.
+func badRequestError(msg string, err error) error {
+	if err == nil {
+		err = errors.New(msg)
+	}
+
+	return apiError{
+		StatusCode: http.StatusBadRequest,
+		Message:    msg,
+		Err:        err,
+	}
+}
+
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
 // the request body, and returning the response struct or an error.
 type handlerFunc func(ctx context.Context, params map[string]string, header http.Header, query url.Values, typ contentType, body []byte) (res any, headers http.Header, err error)
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
-func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Handler {
+func wrap(endpoint string, handler handlerFunc, encodings []contentType, maxBody int64) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
@@ -443,9 +471,23 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 			recordVCUserAgent(userAgent)
 		}
 
+		if maxBody > 0 {
+			// Enforce the endpoint body limit at the read boundary, before buffering.
+			r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+		}
+
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			if maxBytesErr := new(http.MaxBytesError); errors.As(err, &maxBytesErr) {
+				err = apiError{
+					StatusCode: http.StatusRequestEntityTooLarge,
+					Message:    "request body too large",
+					Err:        err,
+				}
+			}
+
 			writeError(ctx, w, endpoint, err)
+
 			return
 		}
 
@@ -1800,6 +1842,88 @@ func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) ha
 
 		return nil, nil, nil
 	}
+}
+
+// maxProposerPreferencesBody is a sanity cap on the proposer preferences request body size,
+// enforced by the route's MaxBody at the read boundary. It is far above the encoded size of
+// the spec list limit ((MIN_SEED_LOOKAHEAD+1)*SLOTS_PER_EPOCH items) on any network; the
+// exact spec limit is enforced in Component.SubmitProposerPreferences.
+const maxProposerPreferencesBody = 1 << 20 // 1MB
+
+// submitProposerPreferences receives partially signed proposer preferences from the validator
+// client and forwards them for threshold aggregation. From the gloas fork, these supersede
+// prepare_beacon_proposer and register_validator as the source of fee recipient and gas limit.
+func submitProposerPreferences(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version != eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas",
+			}
+		}
+
+		var prefs []*gloas.SignedProposerPreferences
+
+		if typ == contentTypeSSZ {
+			prefs, err = unmarshalProposerPreferencesSSZ(body)
+		} else {
+			err = unmarshal(typ, body, &prefs)
+		}
+
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal proposer preferences")
+		}
+
+		err = h.SubmitProposerPreferences(ctx, prefs)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
+}
+
+// unmarshalProposerPreferencesSSZ decodes an SSZ List[SignedProposerPreferences]. The element
+// type is fixed-size, so the list is encoded as plain concatenation without an offset table.
+// An empty body is a valid empty list, matching the JSON `[]` behavior.
+func unmarshalProposerPreferencesSSZ(body []byte) ([]*gloas.SignedProposerPreferences, error) {
+	itemSize := (&gloas.SignedProposerPreferences{Message: &gloas.ProposerPreferences{}}).SizeSSZ()
+
+	if len(body)%itemSize != 0 {
+		return nil, apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "invalid ssz proposer preferences list length",
+			Err:        errors.New("invalid ssz list length", z.Int("length", len(body)), z.Int("item_size", itemSize)),
+		}
+	}
+
+	prefs := make([]*gloas.SignedProposerPreferences, 0, len(body)/itemSize)
+
+	for i := 0; i < len(body); i += itemSize {
+		pref := new(gloas.SignedProposerPreferences)
+		if err := pref.UnmarshalSSZ(body[i : i+itemSize]); err != nil {
+			return nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "failed parsing ssz proposer preferences",
+				Err:        err,
+			}
+		}
+
+		prefs = append(prefs, pref)
+	}
+
+	return prefs, nil
 }
 
 // submitProposalPreparations swallows fee-recipient-address from validator client as it should be
