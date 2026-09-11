@@ -3,6 +3,7 @@ on:
     branches:
       - main*
       - electra
+      - gloas
     tags:
       - 'v*'
 name: Build and Publish Docker Image
@@ -45,8 +46,11 @@ jobs:
           # Tag "electra" only when pushing to the "electra" branch
           type=raw,value=electra,event=branch,enable=${{ github.ref == 'refs/heads/electra' }}
 
+          # Tag "gloas" only when pushing to the "gloas" branch
+          type=raw,value=gloas,event=branch,enable=${{ github.ref == 'refs/heads/gloas' }}
+
           # Tag "$APP_VERSION" on git-push-to-branch events
-          type=raw,value=${{ env.APP_VERSION }},event=branch,enable=${{ github.ref != 'refs/heads/electra' }}
+          type=raw,value=${{ env.APP_VERSION }},event=branch,enable=${{ github.ref != 'refs/heads/electra' && github.ref != 'refs/heads/gloas' }}
 
 
           # Tag "tag ref" on git-tag events
