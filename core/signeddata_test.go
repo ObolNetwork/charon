@@ -457,6 +457,10 @@ func TestSignedDataSetSignature(t *testing.T) {
 			name: "signed sync committee selection",
 			data: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
 		},
+		{
+			name: "signed proposer preferences",
+			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
+		},
 	}
 
 	for _, test := range tests {

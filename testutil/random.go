@@ -1061,6 +1061,19 @@ func RandomVersionedPayloadAttestationMessage() *eth2spec.VersionedPayloadAttest
 	}
 }
 
+func RandomProposerPreferences() *gloas.SignedProposerPreferences {
+	return &gloas.SignedProposerPreferences{
+		Message: &gloas.ProposerPreferences{
+			DependentRoot:  RandomRoot(),
+			ProposalSlot:   RandomSlot(),
+			ValidatorIndex: RandomVIdx(),
+			FeeRecipient:   RandomExecutionAddress(),
+			TargetGasLimit: rand.Uint64(),
+		},
+		Signature: RandomEth2Signature(),
+	}
+}
+
 func RandomSyncCommitteeMessage() *altair.SyncCommitteeMessage {
 	return &altair.SyncCommitteeMessage{
 		Slot:            RandomSlot(),
