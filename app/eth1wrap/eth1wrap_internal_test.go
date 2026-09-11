@@ -171,12 +171,9 @@ func TestNoopClientCreation(t *testing.T) {
 	require.IsType(t, noopClient{}, client, "Client should be a noopClient")
 }
 
-// TestMaybeReconnectBlocksWhenFull documents that maybeReconnect does a
-// blocking send on a buffer-1 channel. Callers that hold cl.Mutex across this
-// send (ClientVersion, VerifySmartContractBasedSignature) can deadlock when
-// Run is not draining reconnectCh — e.g. hung BlockNumber against a silent EL.
-// See https://github.com/ObolNetwork/charon/issues/4689
-func TestMaybeReconnectBlocksWhenFull(t *testing.T) {
+// TestMaybeReconnectNonBlockingWhenFull ensures maybeReconnect does not block
+// when reconnectCh is already full (charon#4689).
+func TestMaybeReconnectNonBlockingWhenFull(t *testing.T) {
 	cl := &client{reconnectCh: make(chan struct{}, 1)}
 	cl.maybeReconnect()
 	require.Len(t, cl.reconnectCh, 1)
@@ -189,16 +186,9 @@ func TestMaybeReconnectBlocksWhenFull(t *testing.T) {
 
 	select {
 	case <-done:
-		t.Fatal("maybeReconnect should block when reconnectCh is full")
+		// Expected: non-blocking drop when already signaled.
 	case <-time.After(200 * time.Millisecond):
-		// Expected: blocked on channel send.
-	}
-
-	<-cl.reconnectCh // unblock the goroutine
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("maybeReconnect did not unblock after drain")
+		t.Fatal("maybeReconnect blocked when reconnectCh is full")
 	}
 }
 
