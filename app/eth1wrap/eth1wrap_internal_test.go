@@ -5,6 +5,8 @@ package eth1wrap
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -167,4 +169,79 @@ func TestNoopClientCreation(t *testing.T) {
 
 	require.NotNil(t, client, "Client should be created")
 	require.IsType(t, noopClient{}, client, "Client should be a noopClient")
+}
+
+// TestMaybeReconnectBlocksWhenFull documents that maybeReconnect does a
+// blocking send on a buffer-1 channel. Callers that hold cl.Mutex across this
+// send (ClientVersion, VerifySmartContractBasedSignature) can deadlock when
+// Run is not draining reconnectCh — e.g. hung BlockNumber against a silent EL.
+// See https://github.com/ObolNetwork/charon/issues/4689
+func TestMaybeReconnectBlocksWhenFull(t *testing.T) {
+	cl := &client{reconnectCh: make(chan struct{}, 1)}
+	cl.maybeReconnect()
+	require.Len(t, cl.reconnectCh, 1)
+
+	done := make(chan struct{})
+	go func() {
+		cl.maybeReconnect()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("maybeReconnect should block when reconnectCh is full")
+	case <-time.After(200 * time.Millisecond):
+		// Expected: blocked on channel send.
+	}
+
+	<-cl.reconnectCh // unblock the goroutine
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("maybeReconnect did not unblock after drain")
+	}
+}
+
+// TestClientVersionDeadlocksOnFullReconnectCh reproduces charon#4689:
+// ClientVersion holds the mutex across CallContext and maybeReconnect.
+// With a full reconnectCh and a silent/hanging EL RPC, ClientVersion never
+// returns even after its context times out — wedging WaitConnected / startup.
+//
+// Expected healthy behavior: return once ctx is done. Current code hangs.
+func TestClientVersionDeadlocksOnFullReconnectCh(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	srv.Start()
+
+	ethCl, err := ethclient.Dial(srv.URL)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		ethCl.Close()
+		srv.CloseClientConnections()
+		go srv.Close()
+	})
+
+	cl := &client{
+		eth1client:  ethCl,
+		reconnectCh: make(chan struct{}, 1),
+	}
+	cl.reconnectCh <- struct{}{} // already full (Run stuck / prior failures)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		_, _ = cl.ClientVersion(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Fixed: ClientVersion respects ctx and does not block forever on reconnect.
+	case <-time.After(2 * time.Second):
+		t.Fatal("ClientVersion hung after RPC ctx timeout with full reconnectCh (charon#4689)")
+	}
 }
