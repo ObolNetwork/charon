@@ -45,9 +45,10 @@ const (
 	DutySyncContribution        DutyType = 12
 	DutyInfoSync                DutyType = 13
 	DutyPayloadAttestation      DutyType = 14
+	DutyProposerPreferences     DutyType = 15
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 15 // Must always be last
+	dutySentinel DutyType = 16 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -71,6 +72,7 @@ func (d DutyType) String() string {
 		DutySyncContribution:        "sync_contribution",
 		DutyInfoSync:                "info_sync",
 		DutyPayloadAttestation:      "payload_attestation",
+		DutyProposerPreferences:     "proposer_preferences",
 	}[d]
 }
 
@@ -268,6 +270,16 @@ func NewPayloadAttestationDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyPayloadAttestation,
+	}
+}
+
+// NewProposerPreferencesDuty returns a new proposer preferences duty, keyed by the proposal slot.
+// It is a convenience function that is slightly more readable and concise than the struct literal
+// equivalent.
+func NewProposerPreferencesDuty(slot uint64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyProposerPreferences,
 	}
 }
 
