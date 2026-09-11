@@ -99,6 +99,10 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_validatorapi_request_latency_seconds` | Histogram | The validatorapi request latencies in seconds by endpoint | `endpoint` |
 | `core_validatorapi_request_total` | Counter | The total number of requests per content-type and endpoint | `endpoint, content_type` |
 | `core_validatorapi_vc_user_agent` | Gauge | Gauge with label set to user agent string of requests made by VC | `user_agent` |
+| `p2p_concurrent_requests` | Histogram | Number of concurrently handled inbound messages, observed at each message arrival, by protocol and sending peer. Unlike the sampled inflight_requests gauge, this captures bursts between scrapes. | `protocol, peer` |
+| `p2p_handler_duration_seconds` | Histogram | Duration of inbound libp2p message handling from stream accept to handler completion by protocol. Explains inflight_requests: inflight equals message rate times this duration. | `protocol` |
+| `p2p_inflight_requests` | Gauge | Current number of inbound libp2p messages being handled (stream accept to handler completion) by protocol and sending peer. | `protocol, peer` |
+| `p2p_message_read_errors_total` | Counter | Total number of failures reading a libp2p message by protocol and sending peer. Includes messages exceeding the protocol read limit. | `protocol, peer` |
 | `p2p_peer_connection_total` | Counter | Total number of libp2p connections per peer. | `peer` |
 | `p2p_peer_connection_types` | Gauge | Current number of libp2p connections by peer, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections. | `peer, type, protocol` |
 | `p2p_peer_network_receive_bytes_total` | Counter | Total number of network bytes received from the peer by protocol and transport. Transport is based on first active connection (accurate in steady state). | `peer, protocol, transport` |
@@ -108,9 +112,11 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `p2p_ping_latency_secs` | Histogram | Ping latencies in seconds per peer | `peer` |
 | `p2p_ping_success` | Gauge | Whether the last ping was successful (1) or not (0). Can be used as proxy for connected peers | `peer` |
 | `p2p_reachability_status` | Gauge | Current libp2p reachability status of this node as detected by autonat: unknown(0), public(1) or private(2). |  |
+| `p2p_received_message_size_bytes` | Histogram | Size in bytes of received libp2p protobuf messages by protocol and sending peer. | `protocol, peer` |
 | `p2p_relay_connection_types` | Gauge | Current number of libp2p connections by relay, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections. | `peer, type, protocol` |
 | `p2p_relay_connections` | Gauge | Connected relays by name | `peer` |
 | `p2p_send_duration_seconds` | Histogram | Wall-clock duration of synchronous libp2p Send (one-way) and SendReceive (round-trip) calls, by peer, protocol, and topic. Topic is a sub-protocol label (e.g. qbft_pre_prepare, parsigex_proposer); empty when not set by the caller. | `peer, protocol, topic` |
+| `p2p_sent_message_size_bytes` | Histogram | Size in bytes of sent libp2p protobuf messages by protocol. Not labelled by peer since duty messages are broadcast identically to all peers. | `protocol` |
 | `relay_p2p_active_connections` | Gauge | Current number of active connections by peer and cluster | `peer, peer_cluster` |
 | `relay_p2p_connection_total` | Counter | Total number of new connections by peer and cluster | `peer, peer_cluster` |
 | `relay_p2p_network_receive_bytes_total` | Counter | Total number of network bytes received from the peer and cluster | `peer, peer_cluster` |
