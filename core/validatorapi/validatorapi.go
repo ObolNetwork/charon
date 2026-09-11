@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"net/http"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -980,6 +982,142 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 	}
 
 	return nil
+}
+
+// SubmitProposerPreferences receives partially signed gloas.SignedProposerPreferences from the
+// validator client, verifies each partial signature and forwards them to subscribers grouped by
+// proposal slot for threshold aggregation. Preferences are aggregated ungated (like sync committee
+// messages): the call never waits for other shares; the submission completing the threshold
+// synchronously triggers aggregation, like other VC-pushed duties.
+//
+// TODO(gloas): swap for eth2client.ProposerPreferencesSubmitter once attestantio/go-eth2-client#316
+// merges.
+func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	// Use complete validators since preferences are submitted ahead of time: a validator
+	// activating in the proposal epoch is a valid proposer but not yet active when submitting.
+	vals, err := c.eth2Cl.CompleteValidators(ctx)
+	if err != nil {
+		return err
+	}
+
+	currentSlot, err := SlotFromTimestamp(ctx, c.eth2Cl, time.Now())
+	if err != nil {
+		return err
+	}
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, c.eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	// MIN_SEED_LOOKAHEAD as per the consensus spec phase0 preset (identical on all networks).
+	const minSeedLookahead = 1
+
+	// The request body is defined as List[SignedProposerPreferences, (MIN_SEED_LOOKAHEAD + 1) * SLOTS_PER_EPOCH].
+	// Enforce the list limit before any signature verification to bound memory and CPU.
+	if uint64(len(preferences)) > (minSeedLookahead+1)*slotsPerEpoch {
+		return badRequestError("too many proposer preferences",
+			errors.New("too many proposer preferences", z.Int("count", len(preferences)), z.U64("limit", (minSeedLookahead+1)*slotsPerEpoch)))
+	}
+
+	// Preferences are only valid for future proposal slots within the proposer lookahead:
+	// the current epoch up to MIN_SEED_LOOKAHEAD epochs ahead. Rejecting the rest bounds
+	// the entries stored and exchanged with peers per valid share.
+	maxSlot := eth2p0.Slot((uint64(currentSlot)/slotsPerEpoch + 1 + minSeedLookahead) * slotsPerEpoch)
+
+	psigsBySlot := make(map[eth2p0.Slot]core.ParSignedDataSet)
+
+	// Faulty entries are skipped with a warning instead of failing the whole batch: entries
+	// target independent proposal slots, and the list limit above already bounds the work.
+	for _, pref := range preferences {
+		if pref == nil || pref.Message == nil {
+			log.Warn(ctx, "Skipping nil proposer preferences message", nil)
+			continue
+		}
+
+		slot := pref.Message.ProposalSlot
+		if slot <= currentSlot || slot >= maxSlot {
+			log.Warn(ctx, "Skipping proposer preferences with proposal slot outside lookahead window", nil,
+				z.U64("proposal_slot", uint64(slot)), z.U64("current_slot", uint64(currentSlot)), z.U64("max_slot", uint64(maxSlot)))
+			continue
+		}
+
+		val, ok := vals[pref.Message.ValidatorIndex]
+		if !ok || val.Validator == nil {
+			log.Warn(ctx, "Skipping proposer preferences for unknown validator", nil,
+				z.U64("validator_index", uint64(pref.Message.ValidatorIndex)))
+			continue
+		}
+
+		pk, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
+		if err != nil {
+			return err
+		}
+
+		parSigData := core.NewPartialSignedProposerPreferences(pref, c.shareIdx)
+
+		err = c.verifyPartialSig(ctx, parSigData, pk)
+		if err != nil {
+			log.Warn(ctx, "Skipping proposer preferences with invalid partial signature", err,
+				z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pk))
+			continue
+		}
+
+		c.warnProposerPreferencesMismatch(ctx, pk, pref.Message)
+
+		log.Debug(ctx, "Proposer preferences received from validator client",
+			z.U64("proposal_slot", uint64(slot)),
+			z.Str("fee_recipient", fmt.Sprintf("%#x", pref.Message.FeeRecipient)),
+			z.U64("target_gas_limit", pref.Message.TargetGasLimit))
+
+		if _, ok := psigsBySlot[slot]; !ok {
+			psigsBySlot[slot] = make(core.ParSignedDataSet)
+		}
+
+		psigsBySlot[slot][pk] = parSigData
+	}
+
+	for slot, data := range psigsBySlot {
+		duty := core.NewProposerPreferencesDuty(uint64(slot))
+		for _, sub := range c.subs {
+			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// warnProposerPreferencesMismatch logs a warning and increments a metric when the VC-submitted fee
+// recipient or target gas limit differs from the cluster-lock value. It does not reject the
+// preference: aggregation proceeds on whatever value reaches threshold (so a staggered gas-limit
+// change self-heals); the warning surfaces operator misconfiguration.
+func (c Component) warnProposerPreferencesMismatch(ctx context.Context, pubkey core.PubKey, msg *gloas.ProposerPreferences) {
+	if c.feeRecipientFunc == nil {
+		return
+	}
+
+	expectedFeeRecipient := c.feeRecipientFunc(pubkey)
+	actualFeeRecipient := fmt.Sprintf("%#x", msg.FeeRecipient)
+
+	if !strings.EqualFold(actualFeeRecipient, expectedFeeRecipient) {
+		log.Warn(ctx, "Proposer preferences with unexpected fee recipient", nil,
+			z.Any("pubkey", pubkey),
+			z.Str("expected", expectedFeeRecipient),
+			z.Str("actual", actualFeeRecipient))
+		incProposerPrefMismatch("fee_recipient")
+	}
+
+	// TargetGasLimit is only enforced for cluster-lock versions that support it (non-zero).
+	if c.targetGasLimit != 0 && msg.TargetGasLimit != uint64(c.targetGasLimit) {
+		log.Warn(ctx, "Proposer preferences with unexpected target gas limit", nil,
+			z.Any("pubkey", pubkey),
+			z.U64("expected", uint64(c.targetGasLimit)),
+			z.U64("actual", msg.TargetGasLimit))
+		incProposerPrefMismatch("gas_limit")
+	}
 }
 
 // PayloadAttestationData implements the eth2client.PayloadAttestationDataProvider for the router.

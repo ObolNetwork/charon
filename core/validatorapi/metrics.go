@@ -49,7 +49,18 @@ var (
 		Name:      "vc_user_agent",
 		Help:      "Gauge with label set to user agent string of requests made by VC",
 	}, []string{"user_agent"})
+
+	proposerPrefMismatch = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "proposer_preferences_mismatch_total",
+		Help:      "Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field",
+	}, []string{"field"})
 )
+
+func incProposerPrefMismatch(field string) {
+	proposerPrefMismatch.WithLabelValues(field).Inc()
+}
 
 func incAPIErrors(endpoint string, statusCode int) {
 	apiErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
