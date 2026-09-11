@@ -153,13 +153,14 @@ func (cl *client) Run(ctx context.Context) {
 // VerifySmartContractBasedSignature returns true if sig is a valid signature of hash according to ERC-1271.
 func (cl *client) VerifySmartContractBasedSignature(contractAddress string, hash [32]byte, sig []byte) (bool, error) {
 	cl.Lock()
-	defer cl.Unlock()
+	eth1client := cl.eth1client
+	cl.Unlock()
 
-	if cl.eth1client == nil {
+	if eth1client == nil {
 		return false, ErrEthClientNotConnected
 	}
 
-	erc1271, err := cl.erc1271FactoryFn(contractAddress, cl.eth1client)
+	erc1271, err := cl.erc1271FactoryFn(contractAddress, eth1client)
 	if err != nil {
 		cl.maybeReconnect()
 		return false, err
@@ -189,15 +190,18 @@ func (noopClient) ClientVersion(_ context.Context) (string, error) {
 
 // ClientVersion returns the execution engine client version string via web3_clientVersion RPC.
 func (cl *client) ClientVersion(ctx context.Context) (string, error) {
+	// Do not hold the mutex across the RPC call or maybeReconnect: a hanging EL
+	// otherwise deadlocks WaitConnected / startup (charon#4689).
 	cl.Lock()
-	defer cl.Unlock()
+	eth1client := cl.eth1client
+	cl.Unlock()
 
-	if cl.eth1client == nil {
+	if eth1client == nil {
 		return "", ErrEthClientNotConnected
 	}
 
 	var ver string
-	if err := cl.eth1client.Client().CallContext(ctx, &ver, "web3_clientVersion"); err != nil {
+	if err := eth1client.Client().CallContext(ctx, &ver, "web3_clientVersion"); err != nil {
 		cl.maybeReconnect()
 		return "", errors.Wrap(err, "get execution layer client version")
 	}
@@ -205,17 +209,29 @@ func (cl *client) ClientVersion(ctx context.Context) (string, error) {
 	return ver, nil
 }
 
+// maybeReconnect signals Run to reconnect. Non-blocking so callers never hang
+// when reconnectCh is already full (e.g. Run stuck on a silent EL).
 func (cl *client) maybeReconnect() {
-	cl.reconnectCh <- struct{}{}
+	select {
+	case cl.reconnectCh <- struct{}{}:
+	default:
+	}
 }
 
 func (cl *client) checkClientIsAlive(ctx context.Context) bool {
-	if cl.eth1client == nil {
+	cl.Lock()
+	eth1client := cl.eth1client
+	cl.Unlock()
+
+	if eth1client == nil {
 		return false
 	}
 
-	// Simple lightweight check if RPC is alive
-	if _, err := cl.eth1client.BlockNumber(ctx); err != nil {
+	// Bound the probe so a silent EL cannot wedge the Run loop forever.
+	ctx, cancel := context.WithTimeout(ctx, defaultConnectTimeout)
+	defer cancel()
+
+	if _, err := eth1client.BlockNumber(ctx); err != nil {
 		return false
 	}
 
