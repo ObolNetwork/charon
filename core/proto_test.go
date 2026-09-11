@@ -100,6 +100,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Type: core.DutySyncContribution,
 			Data: core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 		},
+		{
+			Type: core.DutyProposerPreferences,
+			Data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Type.String(), func(t *testing.T) {
