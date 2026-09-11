@@ -35,9 +35,6 @@ const (
 	// round while still waiting for an unsigned data from beacon node.
 	ConsensusParticipate Feature = "consensus_participate"
 
-	// AggSigDBV2 enables a newer, simpler implementation of `aggsigdb`.
-	AggSigDBV2 Feature = "aggsigdb_v2"
-
 	// JSONRequests enables JSON requests for eth2 client.
 	JSONRequests Feature = "json_requests"
 
@@ -93,7 +90,6 @@ var (
 		EagerDoubleLinear:        statusStable,
 		ConsensusParticipate:     statusStable,
 		MockAlpha:                statusAlpha,
-		AggSigDBV2:               statusAlpha,
 		JSONRequests:             statusAlpha,
 		GnosisBlockHotfix:        statusAlpha,
 		Linear:                   statusAlpha,
