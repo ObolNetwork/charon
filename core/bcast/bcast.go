@@ -249,6 +249,13 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 	case core.DutyPrepareAggregator:
 		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
+	case core.DutyProposerPreferences:
+		// TODO(gloas): submit the aggregated SignedProposerPreferences to the beacon node once
+		// go-eth2-client supports it (attestantio/go-eth2-client#316). No-op meanwhile so
+		// reaching threshold doesn't fail the intake path.
+		log.Debug(ctx, "Proposer preferences submission not yet supported, skipping broadcast")
+
+		return nil
 	case core.DutyAggregator:
 		aggAndProofs, err := setToAggAndProof(set)
 		if err != nil {
