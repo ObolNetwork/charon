@@ -85,6 +85,11 @@ const (
 
 	// DisableDutiesCache is a safety measure to disable duties cache.
 	DisableDutiesCache = "disable_duties_cache"
+
+	// Libp2pResourceManager enables the libp2p resource manager, limiting connections,
+	// streams and memory to protect against resource exhaustion (DoS). When disabled,
+	// the null resource manager is used which never rejects anything.
+	Libp2pResourceManager = "libp2p_resource_manager"
 )
 
 var (
@@ -106,6 +111,7 @@ var (
 		FetchAttOnBlock:          statusAlpha,
 		FetchAttOnBlockWithDelay: statusAlpha,
 		DisableDutiesCache:       statusAlpha,
+		Libp2pResourceManager:    statusAlpha,
 		// Add all features and their status here.
 	}
 
