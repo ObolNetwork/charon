@@ -34,25 +34,38 @@ var setVerificationDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 
 const protocolID2 = "/charon/parsigex/2.0.0"
 
+// maxMsgSize caps the wire size of a parsigex message. Legitimate messages hold at most one
+// partial signature per cluster validator, so this is orders of magnitude above normal usage.
+// It bounds the buffer a peer can make this node allocate before the message is even parsed.
+const maxMsgSize = 32 * 1024 * 1024 // 32MB
+
 // Protocols returns the supported protocols of this package in order of precedence.
 func Protocols() []protocol.ID {
 	return []protocol.ID{protocolID2}
 }
 
+// NewParSigEx returns a new ParSigEx. maxSetSize is the maximum number of partial signatures
+// in a received set, which is the number of validators in the cluster.
 func NewParSigEx(p2pNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID,
 	verifyFunc func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error,
-	gaterFunc core.DutyGaterFunc, p2pOpts ...p2p.SendRecvOption,
+	gaterFunc core.DutyGaterFunc, deadlineFunc core.DeadlineFunc, maxSetSize int, p2pOpts ...p2p.SendRecvOption,
 ) *ParSigEx {
 	parSigEx := &ParSigEx{
-		p2pNode:    p2pNode,
-		sendFunc:   sendFunc,
-		peerIdx:    peerIdx,
-		peers:      peers,
-		verifyFunc: verifyFunc,
-		gaterFunc:  gaterFunc,
+		p2pNode:      p2pNode,
+		sendFunc:     sendFunc,
+		peerIdx:      peerIdx,
+		peers:        peers,
+		verifyFunc:   verifyFunc,
+		gaterFunc:    gaterFunc,
+		deadlineFunc: deadlineFunc,
+		maxSetSize:   maxSetSize,
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
+
+	// Applied last so the cap holds regardless of the caller's options, including any
+	// protocols they add (WithDelimitedProtocol registers readers at the p2p default).
+	p2pOpts = append(p2pOpts, p2p.WithReadLimit(maxMsgSize))
 	p2p.RegisterHandler(
 		"parsigex",
 		p2pNode,
@@ -68,13 +81,15 @@ func NewParSigEx(p2pNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 // ParSigEx exchanges partially signed duty data sets.
 // It ensures that all partial signatures are persisted by all peers.
 type ParSigEx struct {
-	p2pNode    host.Host
-	sendFunc   p2p.SendFunc
-	peerIdx    int
-	peers      []peer.ID
-	verifyFunc func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error
-	gaterFunc  core.DutyGaterFunc
-	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	p2pNode      host.Host
+	sendFunc     p2p.SendFunc
+	peerIdx      int
+	peers        []peer.ID
+	verifyFunc   func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error
+	gaterFunc    core.DutyGaterFunc
+	deadlineFunc core.DeadlineFunc
+	maxSetSize   int
+	subs         []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
 func (m *ParSigEx) handle(ctx context.Context, sender peer.ID, req proto.Message) (proto.Message, bool, error) {
@@ -92,6 +107,20 @@ func (m *ParSigEx) handle(ctx context.Context, sender peer.ID, req proto.Message
 
 	if !m.gaterFunc(duty) {
 		return nil, false, errors.New("invalid duty")
+	}
+
+	// The duty gater only bounds how far in the future a duty may be. Drop duties whose deadline
+	// has already passed here, before decoding and verifying, since parsigdb would discard them
+	// anyway. Duty types that never expire (exits, builder registrations) are exempt.
+	if deadline, canExpire := m.deadlineFunc(duty); canExpire && deadline.Before(time.Now()) {
+		return nil, false, errors.New("duty deadline expired")
+	}
+
+	// Legitimate sets hold at most one partial signature per cluster validator. Reject larger
+	// sets before decoding, since each entry is unmarshalled before any of it is authenticated.
+	if len(pb.GetDataSet().GetSet()) > m.maxSetSize {
+		return nil, false, errors.New("partial signature set too large",
+			z.Int("size", len(pb.GetDataSet().GetSet())), z.Int("max", m.maxSetSize))
 	}
 
 	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.GetDataSet())

@@ -6,6 +6,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -81,13 +82,17 @@ func TestParSigEx(t *testing.T) {
 		return true
 	}
 
+	deadlineFunc := func(core.Duty) (time.Time, bool) {
+		return time.Now().Add(time.Hour), true
+	}
+
 	var wg sync.WaitGroup
 
 	// create ParSigEx components for each host
 	for i := range n {
 		wg.Add(n - 1)
 
-		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, verifyFunc, gaterFunc)
+		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, verifyFunc, gaterFunc, deadlineFunc, 1)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			defer wg.Done()
 
