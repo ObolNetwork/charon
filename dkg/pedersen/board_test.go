@@ -4,6 +4,7 @@ package pedersen_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/drand/kyber"
 	kdkg "github.com/drand/kyber/share/dkg"
@@ -14,6 +15,63 @@ import (
 	"github.com/obolnetwork/charon/dkg/pedersen"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+// TestBoardRetriesTransientSendFailures ensures board bundle broadcasts survive transient
+// p2p send failures instead of silently dropping the bundle for a peer.
+func TestBoardRetriesTransientSendFailures(t *testing.T) {
+	const (
+		numNodes  = 3
+		threshold = 2
+	)
+
+	var (
+		peers   []peer.ID
+		peerMap = make(map[peer.ID]cluster.NodeIdx)
+		session = testutil.RandomArray32()
+	)
+
+	nodes := make([]*pedersen.TestNode, numNodes)
+	for i := range numNodes {
+		nodes[i] = pedersen.NewTestNode(t, i)
+		peerMap[nodes[i].NodeHost.ID()] = nodes[i].NodeIdx
+		peers = append(peers, nodes[i].NodeHost.ID())
+	}
+
+	pedersen.ConnectTestNodes(t, nodes)
+
+	// Node 0's first send to each peer fails transiently.
+	nodes[0].NodeHost = testutil.NewFlakyHost(nodes[0].NodeHost, numNodes-1)
+
+	for i := range nodes {
+		nodes[i].InitBoard(t, threshold, peers, peerMap, session[:])
+	}
+
+	dealBundle := kdkg.DealBundle{
+		DealerIndex: 0,
+		Deals: []kdkg.Deal{
+			{
+				ShareIndex:     1,
+				EncryptedShare: []byte{1, 2, 3},
+			},
+		},
+		Public: []kyber.Point{
+			pedersen.RandomPoint(t),
+		},
+		SessionID: []byte("sessionID"),
+		Signature: []byte{13, 14, 15},
+	}
+
+	nodes[0].Board.PushDeals(&dealBundle)
+
+	for i := range nodes {
+		select {
+		case received := <-nodes[i].Board.IncomingDeal():
+			require.Equal(t, []byte{13, 14, 15}, received.Signature)
+		case <-time.After(10 * time.Second):
+			require.Fail(t, "timed out waiting for deal bundle", "node %d", i)
+		}
+	}
+}
 
 func TestBoard(t *testing.T) {
 	const (
