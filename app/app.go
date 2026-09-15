@@ -680,12 +680,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	var aggSigDB core.AggSigDB
-	if featureset.Enabled(featureset.AggSigDBV2) {
-		aggSigDB = aggsigdb.NewMemDBV2(deadlinerFunc("aggsigdb"))
-	} else {
-		aggSigDB = aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
-	}
+	aggSigDB := aggsigdb.NewMemDB(deadlinerFunc("aggsigdb"))
 
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
 
