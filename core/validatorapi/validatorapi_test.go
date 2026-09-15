@@ -25,6 +25,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -2055,6 +2056,76 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 
 	require.NoError(t, vapi.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{msg}))
 	require.Equal(t, count, 1)
+}
+
+func TestComponent_SubmitProposerPreferences(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		ctx    = context.Background()
+		pref   = testutil.RandomProposerPreferences()
+		pubkey = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		count  = 0 // No of times the subscription function is called.
+	)
+
+	pref.Message.ValidatorIndex = vIdx
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	// Preferences are only accepted for future slots within the proposer lookahead.
+	currentSlot, err := validatorapi.SlotFromTimestamp(ctx, bmock, time.Now())
+	require.NoError(t, err)
+
+	pref.Message.ProposalSlot = currentSlot + 1
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewProposerPreferencesDuty(uint64(pref.Message.ProposalSlot)), duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedProposerPreferences(pref, 0), data)
+
+		count++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+	require.Equal(t, count, 1)
+
+	// Faulty entries are skipped with a warning, not forwarded and not failing the batch:
+	// already-started slots, far-future slots, unknown validators and nil entries.
+	pref.Message.ProposalSlot = currentSlot
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+
+	pref.Message.ProposalSlot = currentSlot + 100_000
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+
+	pref.Message.ProposalSlot = currentSlot + 1
+	pref.Message.ValidatorIndex = 99_999
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{nil}))
+
+	require.Equal(t, count, 1) // Subscriber not called for any skipped entry.
+
+	// Requests exceeding the spec list limit are rejected.
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	tooMany := make([]*gloas.SignedProposerPreferences, 2*slotsPerEpoch+1)
+	for i := range tooMany {
+		tooMany[i] = testutil.RandomProposerPreferences()
+	}
+
+	require.ErrorContains(t, vapi.SubmitProposerPreferences(ctx, tooMany), "too many proposer preferences")
 }
 
 func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {

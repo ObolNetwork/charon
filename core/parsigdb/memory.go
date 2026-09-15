@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -40,12 +43,14 @@ type MemDBMetadata struct {
 // NewMemDB returns a new in-memory partial signature database instance.
 func NewMemDB(threshold int, deadliner core.Deadliner, metadata MemDBMetadata) *MemDB {
 	return &MemDB{
-		entries:       make(map[key][]core.ParSignedData),
-		keysByDuty:    make(map[core.Duty][]key),
-		exemptEntries: make(map[exemptEntryKey][]key),
-		threshold:     threshold,
-		deadliner:     deadliner,
-		metadata:      metadata,
+		generalDuties:   newDutyStore[generalKey](),
+		subCommDuties:   newDutyStore[subCommKey](),
+		propPrefDuties:  newDutyStore[propPrefKey](),
+		persistedDuties: newDutyStore[generalKey](),
+		exemptEntries:   make(map[exemptEntryKey][]generalKey),
+		threshold:       threshold,
+		deadliner:       deadliner,
+		metadata:        metadata,
 	}
 }
 
@@ -55,14 +60,26 @@ type MemDB struct {
 	internalSubs []func(context.Context, core.Duty, core.ParSignedDataSet) error
 	threshSubs   []func(context.Context, core.Duty, map[core.PubKey][]core.ParSignedData) error
 
-	entries    map[key][]core.ParSignedData
-	keysByDuty map[core.Duty][]key
-	// exemptEntries indexes exempt-duty entries (which the deadliner never trims) by
-	// (share index, validator, duty type) in insertion order, so they can be capped and
-	// evicted oldest-first to bound memory.
-	exemptEntries map[exemptEntryKey][]key
-	threshold     int
-	deadliner     core.Deadliner
+	// Partial signatures are stored per duty family, each keyed by the family's
+	// aggregation identity and trimmed when the deadliner expires the duty.
+
+	// generalDuties holds duties with a single message per duty and validator.
+	generalDuties *dutyStore[generalKey]
+	// subCommDuties holds sync-committee aggregator duties, additionally keyed by
+	// sync subcommittee index.
+	subCommDuties *dutyStore[subCommKey]
+	// propPrefDuties holds proposer preferences, additionally keyed by the fields
+	// that may legitimately change on resubmission.
+	propPrefDuties *dutyStore[propPrefKey]
+	// persistedDuties holds exempt duties (exits, builder registrations) which the
+	// deadliner never trims; they are capped via exemptEntries instead.
+	persistedDuties *dutyStore[generalKey]
+	// exemptEntries indexes persisted-duty entries by (share index, validator, duty type)
+	// in insertion order, so they can be capped and evicted oldest-first to bound memory.
+	exemptEntries map[exemptEntryKey][]generalKey
+
+	threshold int
+	deadliner core.Deadliner
 
 	metadata MemDBMetadata
 }
@@ -134,12 +151,7 @@ func (db *MemDB) StoreExternal(ctx context.Context, duty core.Duty, signedSet co
 	output := make(map[core.PubKey][]core.ParSignedData)
 
 	for pubkey, sig := range signedSet {
-		subcommIdx, err := core.SyncSubcommitteeIndex(duty.Type, sig.SignedData)
-		if err != nil {
-			return err
-		}
-
-		sigs, ok, err := db.store(ctx, key{Duty: duty, PubKey: pubkey, SubcommIdx: subcommIdx}, sig, exempt)
+		sigs, ok, err := db.store(ctx, duty, pubkey, sig, exempt)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -183,29 +195,27 @@ func (db *MemDB) Trim(ctx context.Context) {
 			return
 		case duty := <-db.deadliner.C(): // This buffered channel is small, so we need dedicated goroutine to service it.
 			db.mu.Lock()
-
-			for _, key := range db.keysByDuty[duty] {
-				delete(db.entries, key)
-			}
-
-			delete(db.keysByDuty, duty)
+			// Persisted duties are never emitted on deadliner.C(), so they are not trimmed.
+			db.generalDuties.trim(duty)
+			db.subCommDuties.trim(duty)
+			db.propPrefDuties.trim(duty)
 			db.mu.Unlock()
 		}
 	}
 }
 
-// store returns true if the value was added to the list of signatures at the provided key
-// and returns a copy of the resulting list.
-func (db *MemDB) store(ctx context.Context, k key, value core.ParSignedData, exempt bool) ([]core.ParSignedData, bool, error) {
+// store routes the value to its duty family store and returns true and a copy of the
+// resulting signature list if it was added.
+func (db *MemDB) store(ctx context.Context, duty core.Duty, pubkey core.PubKey, value core.ParSignedData, exempt bool) ([]core.ParSignedData, bool, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	now := time.Now().UnixMilli()
 
-	slotStart := (uint64(db.metadata.genesisTime.Unix()) + k.Duty.Slot*db.metadata.slotDuration) * 1000 // in ms
-	timeSinceSlotStart := float64(now-int64(slotStart)) / 1000                                          // in seconds
+	slotStart := (uint64(db.metadata.genesisTime.Unix()) + duty.Slot*db.metadata.slotDuration) * 1000 // in ms
+	timeSinceSlotStart := float64(now-int64(slotStart)) / 1000                                        // in seconds
 
-	switch k.Duty.Type {
+	switch duty.Type {
 	case core.DutyAttester:
 		timeSinceSlotStart -= 4.0
 	case core.DutyAggregator, core.DutySyncContribution:
@@ -215,47 +225,61 @@ func (db *MemDB) store(ctx context.Context, k key, value core.ParSignedData, exe
 
 	// Observe time since slot start for received partial signatures, with share index as label for better visibility of late partial signatures.
 	// Subtracting 1 from share index to have 0-based index.
-	parsigStored.WithLabelValues(k.Duty.Type.String(), strconv.FormatInt(int64(value.ShareIdx-1), 10)).Observe(timeSinceSlotStart)
+	parsigStored.WithLabelValues(duty.Type.String(), strconv.FormatInt(int64(value.ShareIdx-1), 10)).Observe(timeSinceSlotStart)
 
-	for _, s := range db.entries[k] {
-		if s.ShareIdx == value.ShareIdx {
-			equal, err := parSignedDataEqual(s, value)
-			if err != nil {
-				return nil, false, err
-			} else if !equal {
-				return nil, false, errors.New("mismatching partial signed data",
-					z.Any("pubkey", k.PubKey), z.Int("share_idx", s.ShareIdx))
-			}
+	var (
+		sigs  []core.ParSignedData
+		added bool
+		err   error
+	)
 
-			return nil, false, nil
+	switch {
+	case exempt:
+		// Persisted duties are never emitted on deadliner.C(), so they are tracked and
+		// capped here (under the same lock) instead of being indexed for trimming.
+		k := generalKey{Duty: duty, PubKey: pubkey}
+
+		sigs, added, err = db.persistedDuties.store(duty, pubkey, k, value, false)
+		if err == nil && added {
+			db.trackExemptUnsafe(ctx, k, value.ShareIdx)
 		}
+	case duty.Type == core.DutyPrepareSyncContribution || duty.Type == core.DutySyncContribution:
+		var subcommIdx core.SubcommitteeIndex
+
+		subcommIdx, err = core.SyncSubcommitteeIndex(duty.Type, value.SignedData)
+		if err != nil {
+			return nil, false, err
+		}
+
+		sigs, added, err = db.subCommDuties.store(duty, pubkey, subCommKey{Duty: duty, PubKey: pubkey, SubcommIdx: subcommIdx}, value, true)
+	case duty.Type == core.DutyProposerPreferences:
+		pref, ok := value.SignedData.(core.SignedProposerPreferences)
+		if !ok || pref.Message == nil {
+			return nil, false, errors.New("invalid proposer preferences data")
+		}
+
+		k := propPrefKey{
+			Duty:           duty,
+			PubKey:         pubkey,
+			DependentRoot:  pref.Message.DependentRoot,
+			FeeRecipient:   pref.Message.FeeRecipient,
+			TargetGasLimit: pref.Message.TargetGasLimit,
+		}
+
+		sigs, added, err = db.propPrefDuties.store(duty, pubkey, k, value, true)
+	default:
+		sigs, added, err = db.generalDuties.store(duty, pubkey, generalKey{Duty: duty, PubKey: pubkey}, value, true)
 	}
 
-	// Clone before storing.
-	clone, err := value.Clone()
 	if err != nil {
 		return nil, false, err
 	}
 
-	isNewKey := len(db.entries[k]) == 0
-
-	db.entries[k] = append(db.entries[k], clone)
-
-	if exempt {
-		// Exempt duties are never emitted on deadliner.C(), so they are tracked and capped
-		// here (under the same lock) instead of being trimmed via keysByDuty.
-		db.trackExemptUnsafe(ctx, k, value.ShareIdx)
-	} else if isNewKey {
-		// Index each key once; Trim deletes by key, so appending per share signature would
-		// only add redundant duplicates (O(validators*shares) instead of O(validators)).
-		db.keysByDuty[k.Duty] = append(db.keysByDuty[k.Duty], k)
+	if added && duty.Type == core.DutyExit {
+		exitCounter.WithLabelValues(pubkey.String()).Inc()
 	}
 
-	if k.Duty.Type == core.DutyExit {
-		exitCounter.WithLabelValues(k.PubKey.String()).Inc()
-	}
-
-	return append([]core.ParSignedData(nil), db.entries[k]...), true, nil
+	return sigs, added, nil
 }
 
 // clone returns a deep copy of the provided map.
@@ -326,14 +350,96 @@ func parSignedDataEqual(x, y core.ParSignedData) (bool, error) {
 	return bytes.Equal(xjson, yjson), nil
 }
 
-type key struct {
+// generalKey identifies partial signatures for duties with a single message per duty
+// and validator.
+type generalKey struct {
 	Duty   core.Duty
 	PubKey core.PubKey
-	// SubcommIdx is the sync subcommittee index for sync-committee aggregator
-	// duties (DutyPrepareSyncContribution, DutySyncContribution), and 0 otherwise.
-	// A validator can occupy multiple sync subcommittees in the same slot, so it
-	// disambiguates their otherwise-colliding partial signatures.
+}
+
+// subCommKey additionally carries the sync subcommittee index for sync-committee aggregator
+// duties (DutyPrepareSyncContribution, DutySyncContribution). A validator can occupy multiple
+// sync subcommittees in the same slot, so it disambiguates their otherwise-colliding partial
+// signatures.
+type subCommKey struct {
+	Duty       core.Duty
+	PubKey     core.PubKey
 	SubcommIdx core.SubcommitteeIndex
+}
+
+// propPrefKey additionally carries the proposer preferences fields that may legitimately change
+// for the same duty and pubkey: a reorg changes the dependent root, or operators change the fee
+// recipient or gas limit in sync, and VCs resubmit. It disambiguates the resubmission from the
+// original partial signatures so each message aggregates independently, and unlike an opaque
+// message root it shows what differs between coexisting entries.
+type propPrefKey struct {
+	Duty           core.Duty
+	PubKey         core.PubKey
+	DependentRoot  eth2p0.Root
+	FeeRecipient   bellatrix.ExecutionAddress
+	TargetGasLimit uint64
+}
+
+// newDutyStore returns a new empty duty store.
+func newDutyStore[K comparable]() *dutyStore[K] {
+	return &dutyStore[K]{
+		entries:    make(map[K][]core.ParSignedData),
+		keysByDuty: make(map[core.Duty][]K),
+	}
+}
+
+// dutyStore holds partial signatures for one duty family, keyed by the family's
+// aggregation identity. It is not thread safe, callers must hold the MemDB lock.
+type dutyStore[K comparable] struct {
+	entries    map[K][]core.ParSignedData
+	keysByDuty map[core.Duty][]K
+}
+
+// store stores the value at the provided key and returns a copy of the resulting signature
+// list and true. It returns false if the share already stored an identical value (duplicate)
+// and an error if the share already stored a different value. If index is false, the key is
+// not indexed for trimming (persisted duties are capped by the caller instead).
+func (s *dutyStore[K]) store(duty core.Duty, pubkey core.PubKey, k K, value core.ParSignedData, index bool) ([]core.ParSignedData, bool, error) {
+	for _, existing := range s.entries[k] {
+		if existing.ShareIdx == value.ShareIdx {
+			equal, err := parSignedDataEqual(existing, value)
+			if err != nil {
+				return nil, false, err
+			} else if !equal {
+				return nil, false, errors.New("mismatching partial signed data",
+					z.Any("duty", duty), z.Any("pubkey", pubkey), z.Int("share_idx", value.ShareIdx))
+			}
+
+			return nil, false, nil
+		}
+	}
+
+	// Clone before storing.
+	clone, err := value.Clone()
+	if err != nil {
+		return nil, false, err
+	}
+
+	isNewKey := len(s.entries[k]) == 0
+
+	s.entries[k] = append(s.entries[k], clone)
+
+	if index && isNewKey {
+		// Index each key once; trim deletes by key, so appending per share signature would
+		// only add redundant duplicates (O(validators*shares) instead of O(validators)).
+		s.keysByDuty[duty] = append(s.keysByDuty[duty], k)
+	}
+
+	return append([]core.ParSignedData(nil), s.entries[k]...), true, nil
+}
+
+// trim deletes all entries for the provided duty.
+func (s *dutyStore[K]) trim(duty core.Duty) {
+	for _, k := range s.keysByDuty[duty] {
+		delete(s.entries, k)
+	}
+
+	delete(s.keysByDuty, duty)
 }
 
 // exemptEntryKey indexes exempt-duty entries by share index, validator and duty type.
@@ -346,7 +452,7 @@ type exemptEntryKey struct {
 
 // trackExemptUnsafe records a newly stored exempt-duty entry for capping. It assumes db.mu is held
 // and that k was just added as a new entry for shareIdx.
-func (db *MemDB) trackExemptUnsafe(ctx context.Context, k key, shareIdx int) {
+func (db *MemDB) trackExemptUnsafe(ctx context.Context, k generalKey, shareIdx int) {
 	ek := exemptEntryKey{ShareIdx: shareIdx, PubKey: k.PubKey, DutyType: k.Duty.Type}
 
 	stored := db.exemptEntries[ek]
@@ -375,7 +481,7 @@ func (db *MemDB) trackExemptUnsafe(ctx context.Context, k key, shareIdx int) {
 // evictExemptShareEntryUnsafe removes the given share's partial signature from the entry at k,
 // deleting the entry entirely if no other shares remain. It warns with the evicted data for
 // forensics, since eviction only happens when a share exceeds the per-share cap. It assumes db.mu is held.
-func (db *MemDB) evictExemptShareEntryUnsafe(ctx context.Context, k key, shareIdx int) {
+func (db *MemDB) evictExemptShareEntryUnsafe(ctx context.Context, k generalKey, shareIdx int) {
 	// Log the evicted key (not the data) for forensics; this is a hot path, so avoid marshaling.
 	log.Warn(ctx, "Evicting oldest exempt partial signature exceeding per-share cap", nil,
 		z.Any("duty", k.Duty),
@@ -384,7 +490,7 @@ func (db *MemDB) evictExemptShareEntryUnsafe(ctx context.Context, k key, shareId
 		z.Int("max_allowed_sigs_per_share", maxExemptEntriesPerShare),
 	)
 
-	sigs := db.entries[k]
+	sigs := db.persistedDuties.entries[k]
 
 	remaining := sigs[:0]
 	for _, sig := range sigs {
@@ -394,8 +500,8 @@ func (db *MemDB) evictExemptShareEntryUnsafe(ctx context.Context, k key, shareId
 	}
 
 	if len(remaining) == 0 {
-		delete(db.entries, k)
+		delete(db.persistedDuties.entries, k)
 	} else {
-		db.entries[k] = remaining
+		db.persistedDuties.entries[k] = remaining
 	}
 }
