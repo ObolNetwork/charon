@@ -498,6 +498,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartBuilderRegWatcher,
 		lifecycle.HookFuncCtx(builderRegSvc.Run))
 
+	wireProposerConfigFile(ctx, conf, lock, nodeIdx, builderRegSvc.FeeRecipient, builderRegSvc.GasLimit)
+
 	peers, err := lock.Peers()
 	if err != nil {
 		return err
