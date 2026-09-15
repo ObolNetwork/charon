@@ -9,6 +9,7 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -182,7 +183,8 @@ func TestMemDBStoreExternalExpired(t *testing.T) {
 			require.NoError(t, err)
 
 			db.mu.Lock()
-			gotEntries, gotKeys := len(db.entries), len(db.keysByDuty)
+			gotEntries := len(db.generalDuties.entries) + len(db.persistedDuties.entries)
+			gotKeys := len(db.generalDuties.keysByDuty)
 			db.mu.Unlock()
 
 			if tt.wantStored {
@@ -225,7 +227,7 @@ func TestMemDBExemptCap(t *testing.T) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	require.Len(t, db.entries, maxExemptEntriesPerShare, "entries must be capped at maxExemptEntriesPerShare")
+	require.Len(t, db.persistedDuties.entries, maxExemptEntriesPerShare, "entries must be capped at maxExemptEntriesPerShare")
 	require.Len(t, db.exemptEntries[exemptEntryKey{ShareIdx: shareIdx, PubKey: pubkey, DutyType: core.DutyAttester}], maxExemptEntriesPerShare)
 }
 
@@ -268,4 +270,66 @@ func (t *testDeadliner) Add(duty core.Duty) core.DeadlineStatus {
 
 func (t *testDeadliner) C() <-chan core.Duty {
 	return t.ch
+}
+
+// TestMemDBProposerPreferencesReorg verifies that a share resubmitting proposer preferences for the
+// same proposal slot with a different dependent root (after a reorg) does not collide with its
+// original partial signature, and that each message root aggregates to threshold independently.
+func TestMemDBProposerPreferencesReorg(t *testing.T) {
+	const th = 2
+
+	db := NewMemDB(th, newTestDeadliner(), NewMemDBMetadata(eth2util.Mainnet.SlotDuration, time.Unix(eth2util.Mainnet.GenesisTimestamp, 0)))
+
+	var thresholdSets []map[core.PubKey][]core.ParSignedData
+
+	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, set map[core.PubKey][]core.ParSignedData) error {
+		thresholdSets = append(thresholdSets, set)
+
+		return nil
+	})
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	prefA := testutil.RandomProposerPreferences()
+	duty := core.NewProposerPreferencesDuty(uint64(prefA.Message.ProposalSlot))
+
+	// Same slot and validator, different dependent root (reorg).
+	prefB := testutil.RandomProposerPreferences()
+	prefB.Message.ProposalSlot = prefA.Message.ProposalSlot
+	prefB.Message.ValidatorIndex = prefA.Message.ValidatorIndex
+
+	store := func(pref *gloas.SignedProposerPreferences, shareIdx int) error {
+		return db.StoreExternal(context.Background(), duty, core.ParSignedDataSet{
+			pubkey: core.NewPartialSignedProposerPreferences(pref, shareIdx),
+		})
+	}
+
+	// Share 1 submits preferences with dependent root A.
+	require.NoError(t, store(prefA, 1))
+	require.Empty(t, thresholdSets)
+
+	// Share 1 resubmits with dependent root B after a reorg: must not error as mismatching.
+	require.NoError(t, store(prefB, 1))
+	require.Empty(t, thresholdSets)
+
+	// Share 1 resubmits with the same dependent root but a changed gas limit (operators
+	// changing preferences in sync): must not error as mismatching either.
+	msgC := *prefB.Message
+	msgC.TargetGasLimit++
+	prefC := *prefB
+	prefC.Message = &msgC
+	require.NoError(t, store(&prefC, 1))
+	require.Empty(t, thresholdSets)
+
+	// Share 2 submits dependent root B: threshold reached for B only.
+	require.NoError(t, store(prefB, 2))
+	require.Len(t, thresholdSets, 1)
+	require.Len(t, thresholdSets[0][pubkey], th)
+
+	root, err := thresholdSets[0][pubkey][0].MessageRoot()
+	require.NoError(t, err)
+
+	rootB, err := core.NewSignedProposerPreferences(prefB).MessageRoot()
+	require.NoError(t, err)
+	require.Equal(t, rootB, root)
 }
