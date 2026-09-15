@@ -72,15 +72,18 @@ var (
 // In the future Kyber fork we will address this and fix all logging as well.
 func NewBoard(ctx context.Context, host host.Host, config *Config, bcastComp *bcast.Component) *Board {
 	board := &Board{
-		logCtx:             log.WithTopic(ctx, "pedersen"),
-		host:               host,
-		sender:             new(p2p.Sender),
-		config:             config,
-		bcastComp:          bcastComp,
-		dedup:              newBundleDedup(),
-		dealCh:             make(chan kdkg.DealBundle),
-		responseCh:         make(chan kdkg.ResponseBundle),
-		justificationCh:    make(chan kdkg.JustificationBundle),
+		logCtx:    log.WithTopic(ctx, "pedersen"),
+		host:      host,
+		sender:    new(p2p.Sender),
+		config:    config,
+		bcastComp: bcastComp,
+		dedup:     newBundleDedup(),
+		// Buffer bundle channels to cluster size: peers ahead in the ceremony send
+		// bundles before this node's kyber protocol reads them, and each node sends
+		// at most one bundle of each type per protocol run.
+		dealCh:             make(chan kdkg.DealBundle, config.Nodes()),
+		responseCh:         make(chan kdkg.ResponseBundle, config.Nodes()),
+		justificationCh:    make(chan kdkg.JustificationBundle, config.Nodes()),
 		dealOutCh:          make(chan kdkg.DealBundle),
 		responseOutCh:      make(chan kdkg.ResponseBundle),
 		justificationOutCh: make(chan kdkg.JustificationBundle),
@@ -334,6 +337,8 @@ func (b *Board) handleDealBundleMessage(ctx context.Context, peerID peer.ID, msg
 	select {
 	case b.dealCh <- bundle:
 	case <-ctx.Done():
+		// Forget the dropped bundle so a redelivery is not refused as a duplicate.
+		b.dedup.forget(dealBundleMsg, protoBundle.GetSignature())
 		log.Error(b.logCtx, "Dropping deal bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
@@ -362,6 +367,8 @@ func (b *Board) handleResponseBundleMessage(ctx context.Context, peerID peer.ID,
 	select {
 	case b.responseCh <- bundle:
 	case <-ctx.Done():
+		// Forget the dropped bundle so a redelivery is not refused as a duplicate.
+		b.dedup.forget(respBundleMsg, protoBundle.GetSignature())
 		log.Error(b.logCtx, "Dropping response bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
@@ -388,6 +395,8 @@ func (b *Board) handleJustificationBundleMessage(ctx context.Context, peerID pee
 	select {
 	case b.justificationCh <- bundle:
 	case <-ctx.Done():
+		// Forget the dropped bundle so a redelivery is not refused as a duplicate.
+		b.dedup.forget(justBundleMsg, protoBundle.GetSignature())
 		log.Error(b.logCtx, "Dropping justification bundle, context done", nil, z.Str("from", peerID.String()))
 	}
 
@@ -442,6 +451,16 @@ func (d *bundleDedup) isDuplicate(msgType string, signature []byte) bool {
 	d.seen[h] = struct{}{}
 
 	return false
+}
+
+// forget removes a bundle from the seen set, allowing it to be delivered again.
+func (d *bundleDedup) forget(msgType string, signature []byte) {
+	h := sha256.Sum256(append([]byte(msgType), signature...))
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	delete(d.seen, h)
 }
 
 // forwardBundles forwards bundles from in to out until ctx is canceled, then closes out.
