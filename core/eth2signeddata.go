@@ -27,6 +27,7 @@ var (
 	_ Eth2SignedData = SignedSyncContributionAndProof{}
 	_ Eth2SignedData = SyncCommitteeSelection{}
 	_ Eth2SignedData = VersionedPayloadAttestationMessage{}
+	_ Eth2SignedData = SignedProposerPreferences{}
 )
 
 // VerifyEth2SignedData verifies signature associated with the given Eth2SignedData.
@@ -185,4 +186,18 @@ func (m VersionedPayloadAttestationMessage) Epoch(ctx context.Context, eth2Cl et
 	}
 
 	return eth2util.EpochFromSlot(ctx, eth2Cl, data.Slot)
+}
+
+// Implement Eth2SignedData for SignedProposerPreferences.
+
+func (SignedProposerPreferences) DomainName() signing.DomainName {
+	return signing.DomainProposerPreferences
+}
+
+func (p SignedProposerPreferences) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	if p.Message == nil {
+		return 0, errors.New("nil proposer preferences message")
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, p.Message.ProposalSlot)
 }

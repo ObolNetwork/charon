@@ -135,6 +135,11 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 		case DutyPayloadAttestation:
 			// Payload attestation messages are only accepted on gossip within their own slot.
 			duration = slotDuration
+		case DutyProposerPreferences:
+			// Preferences are submitted from the start of the epoch before the proposal epoch
+			// (the earliest the assignment is derivable) and are keyed by the proposal slot,
+			// so entries live from submission (up to ~2 epochs early) until the slot passes.
+			duration = slotDuration
 		default:
 			duration = slotDuration
 		}
