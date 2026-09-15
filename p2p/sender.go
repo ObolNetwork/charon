@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/expbackoff"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
@@ -202,6 +203,7 @@ type sendRecvOpts struct {
 	rttCallback       func(time.Duration)
 	receiveTimeout    time.Duration
 	sendTimeout       time.Duration
+	retries           int    // Number of additional send attempts after a failure.
 	metricTopic       string // Optional sub-protocol label for the send_duration metric.
 }
 
@@ -213,9 +215,23 @@ func WithReceiveTimeout(timeout time.Duration) func(*sendRecvOpts) {
 }
 
 // WithSendTimeout returns an option for SendReceive that sets a timeout for sending messages.
+// The timeout applies per attempt, so with WithRetries the whole call can take up to
+// (retries+1) times this timeout plus the inter-attempt backoff.
 func WithSendTimeout(timeout time.Duration) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		opts.sendTimeout = timeout
+	}
+}
+
+// WithRetries returns an option that retries a failed send up to the given number of
+// additional attempts, each on a fresh stream with the full send timeout, backing off
+// briefly in between. Only use it for protocols whose handlers tolerate duplicate delivery,
+// since a send that failed on the sender side may still have been delivered (e.g. DKG
+// ceremony messages, which are deduplicated by all receivers). Negative values are clamped
+// to zero (no retries); left unclamped they would make the retry loop skip the send entirely.
+func WithRetries(retries int) func(*sendRecvOpts) {
+	return func(opts *sendRecvOpts) {
+		opts.retries = max(retries, 0)
 	}
 }
 
@@ -288,6 +304,32 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 	}
 }
 
+// withRetries calls fn and retries it up to the given number of additional times,
+// backing off briefly between attempts. Each attempt is independently timed by fn (via
+// the send timeout), so the whole call takes up to (retries+1) attempts plus the backoffs.
+// Cancellation of ctx stops retrying and surfaces as the context error (with the last
+// attempt error attached as a field), so callers can detect it with errors.Is.
+func withRetries(ctx context.Context, retries int, fn func() error) error {
+	var err error
+
+	for attempt := range retries + 1 {
+		err = fn()
+		if err == nil || attempt == retries {
+			return err
+		}
+
+		timer := time.NewTimer(expbackoff.Backoff(expbackoff.FastConfig, attempt))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return errors.Wrap(ctx.Err(), "aborting send retries", z.Err(err))
+		case <-timer.C:
+		}
+	}
+
+	return err // Unreachable: the final iteration (attempt == retries) always returns.
+}
+
 // SendReceive sends and receives a libp2p request and response message
 // pair synchronously and then closes the stream.
 // The provided response proto will be populated if err is nil.
@@ -295,8 +337,6 @@ func defaultSendRecvOpts(pID protocol.ID) sendRecvOpts {
 func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	req, resp proto.Message, pID protocol.ID, opts ...SendRecvOption,
 ) error {
-	tStart := time.Now()
-
 	if !isZeroProto(resp) {
 		return errors.New("bug: response proto must be zero value")
 	}
@@ -306,23 +346,44 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		opt(&o)
 	}
 
+	return withRetries(ctx, o.retries, func() error {
+		// A failed attempt may have partially populated the response.
+		proto.Reset(resp)
+
+		return sendReceive(ctx, p2pNode, peerID, req, resp, pID, o)
+	})
+}
+
+// sendReceive is a single SendReceive attempt, timed out after the send timeout.
+func sendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
+	req, resp proto.Message, pID protocol.ID, o sendRecvOpts,
+) error {
+	tStart := time.Now()
+
 	protoLabel := string(pID) // Updated to the negotiated protocol once NewStream succeeds.
 
 	defer func() {
 		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(tStart).Seconds())
 	}()
 
+	// The send timeout bounds this attempt: the context covers dialing and protocol
+	// negotiation, the stream deadline covers the write and response read.
+	deadline := time.Now().Add(o.sendTimeout)
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
-		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols))
+		return errors.Wrap(err, "new stream", z.Any("protocols", o.protocols), z.Str("peer", PeerName(peerID)))
 	}
 	defer s.Close()
 
 	protoLabel = string(s.Protocol())
 
-	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
-		return errors.Wrap(err, "set deadline")
+	if err := s.SetDeadline(deadline); err != nil {
+		return errors.Wrap(err, "set deadline", z.Str("peer", PeerName(peerID)))
 	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
@@ -341,7 +402,7 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 	t0 := time.Now()
 
 	if err = writer.WriteMsg(req); err != nil {
-		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()))
+		return errors.Wrap(err, "write request", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
 
 	if err := s.CloseWrite(); err != nil {
@@ -354,12 +415,12 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 		if isCanceledStreamErr(err) {
 			log.Debug(ctx, "Closing write of canceled stream", z.Err(err), z.Any("protocol", s.Protocol()))
 		} else {
-			return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()))
+			return errors.Wrap(err, "close write", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 		}
 	}
 
 	if err = reader.ReadMsg(resp); err != nil {
-		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()))
+		return errors.Wrap(err, "read response", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
 
 	o.rttCallback(time.Since(t0))
@@ -371,12 +432,21 @@ func SendReceive(ctx context.Context, p2pNode host.Host, peerID peer.ID,
 func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
 	opts ...SendRecvOption,
 ) error {
-	t0 := time.Now()
-
 	o := defaultSendRecvOpts(protoID)
 	for _, opt := range opts {
 		opt(&o)
 	}
+
+	return withRetries(ctx, o.retries, func() error {
+		return send(ctx, p2pNode, protoID, peerID, msg, o)
+	})
+}
+
+// send is a single Send attempt, timed out after the send timeout.
+func send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID peer.ID, msg proto.Message,
+	o sendRecvOpts,
+) error {
+	t0 := time.Now()
 
 	protoLabel := string(protoID)
 	if len(o.protocols) > 0 {
@@ -386,17 +456,25 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	defer func() {
 		sendDurations.WithLabelValues(PeerName(peerID), protoLabel, o.metricTopic).Observe(time.Since(t0).Seconds())
 	}()
+
+	// The send timeout bounds this attempt: the context covers dialing and protocol
+	// negotiation, the stream deadline covers the message write.
+	deadline := time.Now().Add(o.sendTimeout)
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+
 	// Circuit relay connections are transient
 	s, err := p2pNode.NewStream(network.WithAllowLimitedConn(ctx, ""), peerID, o.protocols...)
 	if err != nil {
-		return errors.Wrap(err, "p2pNode stream")
+		return errors.Wrap(err, "p2pNode stream", z.Str("peer", PeerName(peerID)))
 	}
 	defer s.Close()
 
 	protoLabel = string(s.Protocol())
 
-	if err := s.SetDeadline(time.Now().Add(o.sendTimeout)); err != nil {
-		return errors.Wrap(err, "set deadline")
+	if err := s.SetDeadline(deadline); err != nil {
+		return errors.Wrap(err, "set deadline", z.Str("peer", PeerName(peerID)))
 	}
 
 	writeFunc, ok := o.writersByProtocol[s.Protocol()]
@@ -405,7 +483,7 @@ func Send(ctx context.Context, p2pNode host.Host, protoID protocol.ID, peerID pe
 	}
 
 	if err = writeFunc(s).WriteMsg(msg); err != nil {
-		return errors.Wrap(err, "write message", z.Any("protocol", s.Protocol()))
+		return errors.Wrap(err, "write message", z.Any("protocol", s.Protocol()), z.Str("peer", PeerName(peerID)))
 	}
 
 	return nil

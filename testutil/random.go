@@ -4,13 +4,16 @@
 package testutil
 
 import (
+	"context"
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
 	"math"
 	"math/rand"
 	"net"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,11 +37,15 @@ import (
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -1525,6 +1532,56 @@ func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Hos
 	require.NoError(t, err)
 
 	return CreateHostWithIdentity(t, addr, pkey, opts...)
+}
+
+// NewFlakyHost wraps a host, failing the first `failures` outbound NewStream calls
+// with a transient error. If protocols are provided, only NewStream calls for those
+// protocols fail; other calls pass through. It is used to test p2p send retry behavior.
+func NewFlakyHost(h host.Host, failures int, protocols ...protocol.ID) *FlakyHost {
+	return &FlakyHost{Host: h, failures: failures, protocols: protocols}
+}
+
+// FlakyHost is a host whose first outbound NewStream calls fail with a transient error.
+type FlakyHost struct {
+	host.Host
+
+	protocols []protocol.ID
+
+	mu       sync.Mutex
+	failures int
+	calls    int
+}
+
+func (h *FlakyHost) NewStream(ctx context.Context, peerID peer.ID, pIDs ...protocol.ID) (network.Stream, error) {
+	match := len(h.protocols) == 0
+	for _, pID := range pIDs {
+		if slices.Contains(h.protocols, pID) {
+			match = true
+		}
+	}
+
+	h.mu.Lock()
+	h.calls++
+	fail := match && h.failures > 0
+
+	if fail {
+		h.failures--
+	}
+	h.mu.Unlock()
+
+	if fail {
+		return nil, errors.New("transient stream failure")
+	}
+
+	return h.Host.NewStream(ctx, peerID, pIDs...)
+}
+
+// Calls returns the number of NewStream calls made on the host.
+func (h *FlakyHost) Calls() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.calls
 }
 
 func CreateHostWithIdentity(t *testing.T, addr *net.TCPAddr, secret *k1.PrivateKey, opts ...libp2p.Option) host.Host {

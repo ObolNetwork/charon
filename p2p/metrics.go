@@ -36,7 +36,7 @@ var (
 	sendDurations = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "p2p",
 		Name:      "send_duration_seconds",
-		Help:      "Wall-clock duration of synchronous libp2p Send (one-way) and SendReceive (round-trip) calls, by peer, protocol, and topic. Topic is a sub-protocol label (e.g. qbft_pre_prepare, parsigex_proposer); empty when not set by the caller.",
+		Help:      "Wall-clock duration of synchronous libp2p Send (one-way) and SendReceive (round-trip) attempts, by peer, protocol, and topic. Sends with retries enabled observe each attempt separately, excluding backoff. Topic is a sub-protocol label (e.g. qbft_pre_prepare, parsigex_proposer); empty when not set by the caller.",
 		Buckets:   prometheus.ExponentialBuckets(0.0001, 2, 18), // 0.1ms .. ~13.1s, covers the ~7s default SendReceive timeout
 	}, []string{"peer", "protocol", "topic"})
 
