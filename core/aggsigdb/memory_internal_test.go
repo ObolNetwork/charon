@@ -47,8 +47,8 @@ func TestDutyExpiration(t *testing.T) {
 	cancel()
 	wg.Wait()
 
-	require.Empty(t, db.data)
-	require.Empty(t, db.keysByDuty)
+	require.Empty(t, db.generalDuties.data)
+	require.Empty(t, db.generalDuties.keysByDuty)
 }
 
 func TestCancelledQuery(t *testing.T) {
@@ -145,4 +145,40 @@ func (d *testDeadliner) Expire() {
 	d.ch <- core.Duty{} // Ensure all duty processed before returning.
 
 	d.added = nil
+}
+
+// TestProposerPreferencesReorg verifies that aggregates for the same proposer preferences duty
+// and pubkey but different message roots (a reorg changed the dependent root and a new aggregate
+// reached threshold) are stored independently instead of erroring as mismatching data.
+func TestProposerPreferencesReorg(t *testing.T) {
+	var wg sync.WaitGroup
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	db := NewMemDB(newTestDeadliner())
+
+	wg.Go(func() {
+		db.Run(ctx)
+	})
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	prefA := testutil.RandomProposerPreferences()
+	duty := core.NewProposerPreferencesDuty(uint64(prefA.Message.ProposalSlot))
+
+	// Same slot and validator, different dependent root (reorg).
+	prefB := testutil.RandomProposerPreferences()
+	prefB.Message.ProposalSlot = prefA.Message.ProposalSlot
+	prefB.Message.ValidatorIndex = prefA.Message.ValidatorIndex
+
+	err := db.Store(ctx, duty, core.SignedDataSet{pubkey: core.NewSignedProposerPreferences(prefA)})
+	require.NoError(t, err)
+
+	err = db.Store(ctx, duty, core.SignedDataSet{pubkey: core.NewSignedProposerPreferences(prefB)})
+	require.NoError(t, err)
+
+	cancel()
+	wg.Wait()
+
+	require.Len(t, db.propPrefDuties.data, 2)
 }

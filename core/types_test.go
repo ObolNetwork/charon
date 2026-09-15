@@ -33,9 +33,10 @@ func TestBackwardsCompatibility(t *testing.T) {
 	require.EqualValues(t, 12, core.DutySyncContribution)
 	require.EqualValues(t, 13, core.DutyInfoSync)
 	require.EqualValues(t, 14, core.DutyPayloadAttestation)
+	require.EqualValues(t, 15, core.DutyProposerPreferences)
 	// Add more types here.
 
-	const sentinel = core.DutyType(15)
+	const sentinel = core.DutyType(16)
 	for i := core.DutyUnknown; i <= sentinel; i++ {
 		switch i {
 		case core.DutyUnknown:
@@ -79,7 +80,7 @@ func TestWithDutySpanCtx(t *testing.T) {
 func TestAllDutyTypes(t *testing.T) {
 	adt := core.AllDutyTypes()
 
-	require.Len(t, adt, 14)
+	require.Len(t, adt, 15)
 
 	for i, dt := range adt {
 		require.Equal(t, i, slices.Index(adt, dt))

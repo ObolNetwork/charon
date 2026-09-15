@@ -91,6 +91,10 @@ func TestBroadcastOtherDuties(t *testing.T) {
 	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyPrepareSyncContribution}, nil)
 	require.NoError(t, err)
 
+	// TODO(gloas): replace with a real submission test once go-eth2-client supports it.
+	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyProposerPreferences}, nil)
+	require.NoError(t, err)
+
 	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyUnknown}, nil)
 	require.ErrorContains(t, err, "unsupported duty type")
 }

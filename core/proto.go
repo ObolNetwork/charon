@@ -156,6 +156,13 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		}
 
 		signedData = s
+	case DutyProposerPreferences:
+		var s SignedProposerPreferences
+		if err := unmarshal(data.GetData(), &s); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal signed proposer preferences")
+		}
+
+		signedData = s
 	default:
 		return ParSignedData{}, errors.New("unsupported duty type")
 	}

@@ -10,6 +10,8 @@ import (
 
 	context "context"
 
+	gloas "github.com/attestantio/go-eth2-client/spec/gloas"
+
 	http "net/http"
 
 	mock "github.com/stretchr/testify/mock"
@@ -447,6 +449,24 @@ func (_m *Handler) SubmitProposal(ctx context.Context, opts *api.SubmitProposalO
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitProposalOpts) error); ok {
 		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SubmitProposerPreferences provides a mock function with given fields: ctx, preferences
+func (_m *Handler) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	ret := _m.Called(ctx, preferences)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SubmitProposerPreferences")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*gloas.SignedProposerPreferences) error); ok {
+		r0 = rf(ctx, preferences)
 	} else {
 		r0 = ret.Error(0)
 	}

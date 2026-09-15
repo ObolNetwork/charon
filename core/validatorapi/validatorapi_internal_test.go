@@ -3,9 +3,14 @@
 package validatorapi
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
+	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
@@ -94,4 +99,39 @@ func TestWrapResponseWithMetadata(t *testing.T) {
 	require.NotNil(t, resp)
 	require.Equal(t, 123, resp.Data)
 	require.Equal(t, metadata, resp.Metadata)
+}
+
+func TestWarnProposerPreferencesMismatch(t *testing.T) {
+	ctx := context.Background()
+	pubkey := testutil.RandomCorePubKey(t)
+
+	addr := bellatrix.ExecutionAddress{0x01, 0x02, 0x03}
+	feeRecipient := fmt.Sprintf("%#x", addr)
+
+	const gasLimit = 30000000
+
+	c := Component{
+		feeRecipientFunc: func(core.PubKey) string { return feeRecipient },
+		targetGasLimit:   gasLimit,
+	}
+
+	feeCount := func() float64 { return promtestutil.ToFloat64(proposerPrefMismatch.WithLabelValues("fee_recipient")) }
+	gasCount := func() float64 { return promtestutil.ToFloat64(proposerPrefMismatch.WithLabelValues("gas_limit")) }
+
+	fee0, gas0 := feeCount(), gasCount()
+
+	// Matching fee recipient and gas limit: no increment.
+	c.warnProposerPreferencesMismatch(ctx, pubkey, &gloas.ProposerPreferences{FeeRecipient: addr, TargetGasLimit: gasLimit})
+	require.InDelta(t, fee0, feeCount(), 0)
+	require.InDelta(t, gas0, gasCount(), 0)
+
+	// Mismatching fee recipient and gas limit: both increment.
+	otherAddr := bellatrix.ExecutionAddress{0xff}
+	c.warnProposerPreferencesMismatch(ctx, pubkey, &gloas.ProposerPreferences{FeeRecipient: otherAddr, TargetGasLimit: gasLimit + 1})
+	require.InDelta(t, fee0+1, feeCount(), 0)
+	require.InDelta(t, gas0+1, gasCount(), 0)
+
+	// Nil feeRecipientFunc: no panic, no increment.
+	empty := Component{}
+	empty.warnProposerPreferencesMismatch(ctx, pubkey, &gloas.ProposerPreferences{FeeRecipient: otherAddr})
 }

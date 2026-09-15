@@ -82,6 +82,10 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			name: "verify sync contribution and proof",
 			data: testutil.RandomCoreSignedSyncContributionAndProof(),
 		},
+		{
+			name: "verify proposer preferences",
+			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
+		},
 	}
 
 	for _, test := range tests {

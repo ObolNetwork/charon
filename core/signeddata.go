@@ -50,6 +50,7 @@ var (
 	_ SignedData = SignedSyncContributionAndProof{}
 	_ SignedData = SyncCommitteeSelection{}
 	_ SignedData = VersionedPayloadAttestationMessage{}
+	_ SignedData = SignedProposerPreferences{}
 
 	// Some types support SSZ marshalling and unmarshalling.
 	_ sszMarshaler   = VersionedSignedProposal{}
@@ -60,6 +61,7 @@ var (
 	_ sszMarshaler   = SyncContributionAndProof{}
 	_ sszMarshaler   = SignedSyncContributionAndProof{}
 	_ sszMarshaler   = VersionedPayloadAttestationMessage{}
+	_ sszMarshaler   = SignedProposerPreferences{}
 	_ sszUnmarshaler = new(VersionedSignedProposal)
 	_ sszUnmarshaler = new(VersionedAttestation)
 	_ sszUnmarshaler = new(SignedAggregateAndProof)
@@ -68,6 +70,7 @@ var (
 	_ sszUnmarshaler = new(SyncContributionAndProof)
 	_ sszUnmarshaler = new(SignedSyncContributionAndProof)
 	_ sszUnmarshaler = new(VersionedPayloadAttestationMessage)
+	_ sszUnmarshaler = new(SignedProposerPreferences)
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -2292,4 +2295,90 @@ func (m *VersionedPayloadAttestationMessage) UnmarshalJSON(input []byte) error {
 type versionedRawPayloadAttMsgJSON struct {
 	Version eth2util.DataVersion `json:"version"`
 	Message json.RawMessage      `json:"message"`
+}
+
+// ProposerPreferences: https://github.com/ethereum/consensus-specs/blob/master/specs/gloas/validator.md#proposer-preferences.
+// From the gloas fork, signed proposer preferences supersede prepare_beacon_proposer and
+// register_validator as the source of a proposer's fee recipient and gas limit preferences.
+
+// NewSignedProposerPreferences is a convenience function which returns a new signed SignedProposerPreferences.
+func NewSignedProposerPreferences(data *gloas.SignedProposerPreferences) SignedProposerPreferences {
+	return SignedProposerPreferences{SignedProposerPreferences: *data}
+}
+
+// NewPartialSignedProposerPreferences is a convenience function which returns a new partially signed SignedProposerPreferences.
+func NewPartialSignedProposerPreferences(data *gloas.SignedProposerPreferences, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedProposerPreferences(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedProposerPreferences wraps gloas.SignedProposerPreferences and implements SignedData.
+type SignedProposerPreferences struct {
+	gloas.SignedProposerPreferences
+}
+
+// MessageRoot returns the hash tree root of the proposer preferences message, which is the object
+// signed over with DOMAIN_PROPOSER_PREFERENCES at the proposal epoch.
+func (p SignedProposerPreferences) MessageRoot() ([32]byte, error) {
+	if p.Message == nil {
+		return [32]byte{}, errors.New("nil proposer preferences message")
+	}
+
+	return p.Message.HashTreeRoot()
+}
+
+func (p SignedProposerPreferences) Signature() Signature {
+	return SigFromETH2(p.SignedProposerPreferences.Signature)
+}
+
+func (p SignedProposerPreferences) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := p.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedProposerPreferences.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (p SignedProposerPreferences) Clone() (SignedData, error) {
+	return p.clone()
+}
+
+func (p SignedProposerPreferences) clone() (SignedProposerPreferences, error) {
+	var resp SignedProposerPreferences
+
+	err := cloneSSZMarshaler(p, &resp)
+	if err != nil {
+		return SignedProposerPreferences{}, errors.Wrap(err, "clone signed proposer preferences")
+	}
+
+	return resp, nil
+}
+
+func (p SignedProposerPreferences) MarshalJSON() ([]byte, error) {
+	return p.SignedProposerPreferences.MarshalJSON()
+}
+
+func (p *SignedProposerPreferences) UnmarshalJSON(input []byte) error {
+	return p.SignedProposerPreferences.UnmarshalJSON(input)
+}
+
+func (p SignedProposerPreferences) MarshalSSZ() ([]byte, error) {
+	return p.SignedProposerPreferences.MarshalSSZ()
+}
+
+func (p SignedProposerPreferences) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return p.SignedProposerPreferences.MarshalSSZTo(dst)
+}
+
+func (p SignedProposerPreferences) SizeSSZ() int {
+	return p.SignedProposerPreferences.SizeSSZ()
+}
+
+func (p *SignedProposerPreferences) UnmarshalSSZ(b []byte) error {
+	return p.SignedProposerPreferences.UnmarshalSSZ(b)
 }

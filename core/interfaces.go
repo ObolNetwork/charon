@@ -209,6 +209,11 @@ type AggSigDB interface {
 	// (DutyPrepareSyncContribution, DutySyncContribution), where a validator can have
 	// a distinct aggregated signature per subcommittee in a slot; it is 0 for all
 	// other duties (see IsSyncSubcommitteeDuty).
+	//
+	// TODO(kalo): Refactor the query API so per-duty-family fields aren't forced on every
+	// caller: subcommIdx only applies to the sync-committee aggregator duties, all other
+	// callers pass a meaningless 0, and duty families whose identity exceeds these
+	// parameters (proposer preferences) cannot be addressed at all.
 	Await(context context.Context, duty Duty, pubKey PubKey, subcommIdx SubcommitteeIndex) (SignedData, error)
 
 	// Run runs AggSigDB lifecycle until context is cancelled.
