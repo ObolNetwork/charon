@@ -115,7 +115,6 @@ type client struct {
 // Run starts the eth1 client and reconnects if necessary.
 func (cl *client) Run(ctx context.Context) {
 	defer func() {
-		close(cl.reconnectCh)
 		cl.eth1client.Close()
 	}()
 
