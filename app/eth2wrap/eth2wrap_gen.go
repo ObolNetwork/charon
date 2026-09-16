@@ -14,6 +14,7 @@ import (
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
@@ -58,6 +59,7 @@ type Client interface {
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.NodeVersionV2Provider
+	eth2client.PendingDepositProvider
 	eth2client.ProposalPreparationsSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
@@ -872,6 +874,27 @@ func (m multi) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 	return err
 }
 
+// PendingDeposits provides the pending deposits for a given state.
+func (m multi) PendingDeposits(ctx context.Context, opts *api.PendingDepositsOpts) (*api.Response[[]*electra.PendingDeposit], error) {
+	const label = "pending_deposits"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*electra.PendingDeposit], error) {
+			return args.client.PendingDeposits(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // Domain provides a domain for a given domain type at a given epoch.
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) Domain(ctx context.Context, domainType phase0.DomainType, epoch phase0.Epoch) (phase0.Domain, error) {
@@ -1294,6 +1317,16 @@ func (l *lazy) SubmitVoluntaryExit(ctx context.Context, voluntaryExit *phase0.Si
 	}
 
 	return cl.SubmitVoluntaryExit(ctx, voluntaryExit)
+}
+
+// PendingDeposits provides the pending deposits for a given state.
+func (l *lazy) PendingDeposits(ctx context.Context, opts *api.PendingDepositsOpts) (res0 *api.Response[[]*electra.PendingDeposit], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.PendingDeposits(ctx, opts)
 }
 
 // Domain provides a domain for a given domain type at a given epoch.
