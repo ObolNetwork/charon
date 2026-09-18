@@ -59,6 +59,37 @@ type proposerSettingsJSON struct {
 	FeeRecipient string `json:"fee_recipient,omitempty"`
 	// GasLimit is the preferred target gas limit for the execution payload.
 	GasLimit string `json:"gas_limit,omitempty"`
+	// Builder holds the gloas builder configuration, only emitted on default_config
+	// and only when builder URLs are configured. Per-validator overrides may be
+	// emitted additively in the future.
+	Builder *builderSettingsJSON `json:"builder,omitempty"`
+}
+
+// builderSettingsJSON holds the builder configuration defaults; each entry in
+// Builders may override them (mirroring how proposer_config entries override
+// default_config), falling back to these values for absent fields.
+type builderSettingsJSON struct {
+	// MinBid is the minimum bid value in gwei, applying to p2p gossip bids as well.
+	MinBid string `json:"min_bid"`
+	// BuilderBoostFactor is the percentage multiplier applied to builder bid values.
+	BuilderBoostFactor string `json:"builder_boost_factor"`
+	// MaxExecutionPayment is the maximum execution layer payment in gwei counted
+	// when valuing a builder bid.
+	MaxExecutionPayment string `json:"max_execution_payment"`
+	// Builders lists the builders to request execution payload bids from directly.
+	Builders []builderEntryJSON `json:"builders"`
+}
+
+// builderEntryJSON is one builder to request bids from directly. The override
+// fields are part of the schema for consumers but charon does not emit them yet,
+// all builders currently share the enclosing defaults.
+type builderEntryJSON struct {
+	URL string `json:"url"`
+	// The fields below optionally override the enclosing builderSettingsJSON values
+	// for this builder; if missing, use the enclosing value.
+	MinBid              string `json:"min_bid,omitempty"`
+	BuilderBoostFactor  string `json:"builder_boost_factor,omitempty"`
+	MaxExecutionPayment string `json:"max_execution_payment,omitempty"`
 }
 
 // writeProposerConfigFile generates the validator client proposer configuration file
@@ -157,6 +188,20 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 			FeeRecipient: defaultFee,
 			GasLimit:     strconv.FormatUint(defaultGas, 10),
 		},
+	}
+
+	if builderConfigured(conf) {
+		builderEntries := make([]builderEntryJSON, 0, len(conf.BuilderURLs))
+		for _, u := range conf.BuilderURLs {
+			builderEntries = append(builderEntries, builderEntryJSON{URL: u})
+		}
+
+		config.DefaultConfig.Builder = &builderSettingsJSON{
+			MinBid:              strconv.FormatUint(conf.BuilderMinBid, 10),
+			BuilderBoostFactor:  strconv.FormatUint(conf.BuilderBoostFactor, 10),
+			MaxExecutionPayment: strconv.FormatUint(conf.BuilderMaxExecutionPayment, 10),
+			Builders:            builderEntries,
+		}
 	}
 
 	// Entries only carry the fields diverging from the default config.

@@ -99,6 +99,7 @@ func TestWriteProposerConfigFile(t *testing.T) {
 	// The default config holds the majority settings (validators 2 and 3).
 	require.Equal(t, majorityAddr, config.DefaultConfig.FeeRecipient)
 	require.Equal(t, defaultGasLimit, config.DefaultConfig.GasLimit)
+	require.Nil(t, config.DefaultConfig.Builder) // No builder URLs configured.
 
 	// The two diverging validators get entries carrying only the diverging fields:
 	// validator 0 diverges in both, validator 1 only in its fee recipient.
@@ -127,6 +128,75 @@ func TestWriteProposerConfigFile(t *testing.T) {
 
 	_, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
 	require.ErrorContains(t, err, "is a directory")
+}
+
+func TestWriteProposerConfigFileBuilder(t *testing.T) {
+	lock, _, _ := cluster.NewForT(t, 1, 4, 4, 0, rand.New(rand.NewSource(0)))
+
+	nodeIdx := cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1}
+	noOverrides := func(core.PubKey) string { return "" }
+	noGasOverrides := func(core.PubKey) uint64 { return 0 }
+
+	t.Run("builder urls", func(t *testing.T) {
+		dir := t.TempDir()
+		conf := Config{
+			LockFile:                   filepath.Join(dir, "cluster-lock.json"),
+			BuilderAPI:                 true,
+			BuilderURLs:                []string{"https://builder1.example.com", "https://builder2.example.com"},
+			BuilderMinBid:              1_000_000_000,
+			BuilderBoostFactor:         90,
+			BuilderMaxExecutionPayment: 2_000_000_000,
+		}
+
+		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+		require.NoError(t, err)
+		require.True(t, created)
+
+		b, err := os.ReadFile(filepath.Join(dir, proposerConfigDir, proposerConfigFilename))
+		require.NoError(t, err)
+
+		var config proposerConfigJSON
+
+		require.NoError(t, json.Unmarshal(b, &config))
+		require.EqualValues(t, 1, config.Version)
+
+		// A uniform cluster emits no per-validator entries, the default covers all.
+		require.Empty(t, config.ProposerConfig)
+		require.Equal(t, strconv.FormatUint(registration.DefaultGasLimit, 10), config.DefaultConfig.GasLimit)
+
+		// The builder configuration is only emitted on the default config, with the
+		// shared values at the builder level and entries carrying no overrides.
+		require.NotNil(t, config.DefaultConfig.Builder)
+		require.Equal(t, "1000000000", config.DefaultConfig.Builder.MinBid)
+		require.Equal(t, "90", config.DefaultConfig.Builder.BuilderBoostFactor)
+		require.Equal(t, "2000000000", config.DefaultConfig.Builder.MaxExecutionPayment)
+		require.Equal(t, []builderEntryJSON{
+			{URL: "https://builder1.example.com"},
+			{URL: "https://builder2.example.com"},
+		}, config.DefaultConfig.Builder.Builders)
+	})
+
+	t.Run("no builder urls", func(t *testing.T) {
+		dir := t.TempDir()
+		conf := Config{
+			LockFile:      filepath.Join(dir, "cluster-lock.json"),
+			BuilderMinBid: 1, // Inert without builder URLs (the flags reject this combination).
+		}
+
+		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+		require.NoError(t, err)
+		require.True(t, created)
+
+		b, err := os.ReadFile(filepath.Join(dir, proposerConfigDir, proposerConfigFilename))
+		require.NoError(t, err)
+
+		var config proposerConfigJSON
+
+		require.NoError(t, json.Unmarshal(b, &config))
+		require.EqualValues(t, 1, config.Version)
+		require.Nil(t, config.DefaultConfig.Builder)
+		require.NotContains(t, string(b), "min_bid")
+	})
 }
 
 func TestGasLimitsByPubkey(t *testing.T) {

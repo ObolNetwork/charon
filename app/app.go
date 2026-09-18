@@ -113,6 +113,10 @@ type Config struct {
 	PublishAddress              string
 	PublishTimeout              time.Duration
 	FetchFeerecipientUpdates    bool
+	BuilderURLs                 []string
+	BuilderMinBid               uint64
+	BuilderBoostFactor          uint64
+	BuilderMaxExecutionPayment  uint64
 
 	TestConfig TestConfig
 }
