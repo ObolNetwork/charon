@@ -102,6 +102,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `p2p_concurrent_requests` | Histogram | Number of concurrently handled inbound messages, observed at each message arrival, by protocol and sending peer. Unlike the sampled inflight_requests gauge, this captures bursts between scrapes. | `protocol, peer` |
 | `p2p_handler_duration_seconds` | Histogram | Duration of inbound libp2p message handling from stream accept to handler completion by protocol. Explains inflight_requests: inflight equals message rate times this duration. | `protocol` |
 | `p2p_inflight_requests` | Gauge | Current number of inbound libp2p messages being handled (stream accept to handler completion) by protocol and sending peer. | `protocol, peer` |
+| `p2p_message_handler_panics_total` | Counter | Total number of panics recovered while handling an inbound libp2p message by protocol and sending peer. A non-zero value indicates a handler bug or malformed peer message. | `protocol, peer` |
 | `p2p_message_read_errors_total` | Counter | Total number of failures reading a libp2p message by protocol and sending peer. Includes messages exceeding the protocol read limit. | `protocol, peer` |
 | `p2p_peer_connection_total` | Counter | Total number of libp2p connections per peer. | `peer` |
 | `p2p_peer_connection_types` | Gauge | Current number of libp2p connections by peer, type (`direct` or `relay`), and protocol (`tcp`, `quic`). Note that peers may have multiple connections. | `peer, type, protocol` |
