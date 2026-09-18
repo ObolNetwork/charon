@@ -115,7 +115,7 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[p
 	// sender: a peer may only contribute partial signatures under its own assigned share index,
 	// consistent with the sender check in nodesigs.go.
 	verifyShareIdx := func(_ context.Context, sender peer.ID, _ core.Duty, _ core.PubKey, data core.ParSignedData) error {
-		return verifyPeerShareIdx(peerMap, sender, data)
+		return parsigex.VerifyPeerShareIdx(peerMap, sender, data)
 	}
 
 	st := make(map[sigType]bool)
@@ -155,24 +155,6 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[p
 	ex.sigex.Subscribe(ex.sigdb.StoreExternal)
 
 	return ex, nil
-}
-
-// verifyPeerShareIdx checks that a received partial signature originates from a known peer and uses
-// that peer's assigned share index. peerMap maps each participating peer to its node index, so the
-// check remains correct when share indices are not contiguous with peer positions (for example when
-// operators have been removed and the remaining ones keep their original share indices).
-func verifyPeerShareIdx(peerMap map[peer.ID]cluster.NodeIdx, sender peer.ID, data core.ParSignedData) error {
-	nodeIdx, ok := peerMap[sender]
-	if !ok {
-		return errors.New("partial signature from unknown peer", z.Str("peer", sender.String()))
-	}
-
-	if data.ShareIdx <= 0 || data.ShareIdx != nodeIdx.ShareIdx {
-		return errors.New("partial signature share index does not match sender peer",
-			z.Str("peer", sender.String()), z.Int("share_idx", data.ShareIdx), z.Int("expected_share_idx", nodeIdx.ShareIdx))
-	}
-
-	return nil
 }
 
 // exchange exchanges partial signatures of lockhash/deposit-data among dkg participants and returns all the partial
