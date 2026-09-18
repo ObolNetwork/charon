@@ -18,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
@@ -164,11 +165,34 @@ func (m *ParSigEx) Subscribe(fn func(context.Context, core.Duty, core.ParSignedD
 	m.subs = append(m.subs, fn)
 }
 
+// VerifyPeerShareIdx checks that a partial signature comes from a known peer under that peer's own
+// assigned share index, preventing a peer from replaying another peer's partial signature. peerMap
+// maps each peer to its node index, so the check holds even when share indices are not contiguous
+// (for example after operators have been removed).
+func VerifyPeerShareIdx(peerMap map[peer.ID]cluster.NodeIdx, sender peer.ID, data core.ParSignedData) error {
+	nodeIdx, ok := peerMap[sender]
+	if !ok {
+		return errors.New("partial signature from unknown peer", z.Str("peer", sender.String()))
+	}
+
+	if data.ShareIdx <= 0 || data.ShareIdx != nodeIdx.ShareIdx {
+		return errors.New("partial signature share index does not match sender peer",
+			z.Str("peer", sender.String()), z.Int("share_idx", data.ShareIdx), z.Int("expected_share_idx", nodeIdx.ShareIdx))
+	}
+
+	return nil
+}
+
 // NewEth2Verifier returns a partial signature verification function for core workflow eth2 signatures.
-// Core workflow partial signatures are verified cryptographically against the pubshare for the
-// claimed share index, so the authenticated sender is not needed here.
-func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey) (func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error, error) {
-	return func(ctx context.Context, _ peer.ID, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
+// Each partial signature is first bound to its authenticated sender via peerShareIdx: a peer may only
+// contribute partial signatures under its own assigned share index. The signature is then verified
+// cryptographically against the pubshare for that share index.
+func NewEth2Verifier(eth2Cl eth2wrap.Client, pubSharesByKey map[core.PubKey]map[int]tbls.PublicKey, peerShareIdx map[peer.ID]cluster.NodeIdx) (func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error, error) {
+	return func(ctx context.Context, sender peer.ID, duty core.Duty, pubkey core.PubKey, data core.ParSignedData) error {
+		if err := VerifyPeerShareIdx(peerShareIdx, sender, data); err != nil {
+			return err
+		}
+
 		pubshares, ok := pubSharesByKey[pubkey]
 		if !ok {
 			return errors.New("unknown pubkey, not part of cluster lock")

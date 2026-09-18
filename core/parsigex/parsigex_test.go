@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/eth2util"
@@ -156,7 +157,13 @@ func TestParSigExVerifier(t *testing.T) {
 			shareIdx: pk,
 		},
 	}
-	verifyFunc, err := parsigex.NewEth2Verifier(bmock, mp)
+
+	const sender = peer.ID("sender")
+
+	peerShareIdx := map[peer.ID]cluster.NodeIdx{
+		sender: {ShareIdx: shareIdx},
+	}
+	verifyFunc, err := parsigex.NewEth2Verifier(bmock, mp, peerShareIdx)
 	require.NoError(t, err)
 
 	t.Run("Verify attestation", func(t *testing.T) {
@@ -171,7 +178,7 @@ func TestParSigExVerifier(t *testing.T) {
 		att.Deneb.Signature = sign(sigData[:])
 		data, err := core.NewPartialVersionedAttestation(att, shareIdx)
 		require.NoError(t, err)
-		require.NoError(t, verifyFunc(ctx, "", core.NewAttesterDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewAttesterDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify proposal", func(t *testing.T) {
@@ -186,7 +193,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedProposal(proposal, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewProposerDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewProposerDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify blinded proposal", func(t *testing.T) {
@@ -204,7 +211,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedBlindedProposal(&eth2apiBlinded, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewProposerDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewProposerDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify Randao", func(t *testing.T) {
@@ -216,7 +223,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		randao := core.NewPartialSignedRandao(epoch, sign(sigData[:]), shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewRandaoDuty(slot), pubkey, randao))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewRandaoDuty(slot), pubkey, randao))
 	})
 
 	t.Run("Verify Voluntary Exit", func(t *testing.T) {
@@ -232,7 +239,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewVoluntaryExit(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewVoluntaryExit(slot), pubkey, data))
 	})
 
 	t.Run("Verify validator registration", func(t *testing.T) {
@@ -249,7 +256,7 @@ func TestParSigExVerifier(t *testing.T) {
 		data, err := core.NewPartialVersionedSignedValidatorRegistration(&reg.VersionedSignedValidatorRegistration, shareIdx)
 		require.NoError(t, err)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewBuilderRegistrationDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewBuilderRegistrationDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify beacon committee selection", func(t *testing.T) {
@@ -263,7 +270,7 @@ func TestParSigExVerifier(t *testing.T) {
 		selection.SelectionProof = sign(sigData[:])
 		data := core.NewPartialSignedBeaconCommitteeSelection(selection, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewPrepareAggregatorDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewPrepareAggregatorDuty(slot), pubkey, data))
 	})
 
 	t.Run("Verify aggregate and proof", func(t *testing.T) {
@@ -286,7 +293,7 @@ func TestParSigExVerifier(t *testing.T) {
 		agg.Deneb.Signature = sign(sigData[:])
 		data := core.NewPartialVersionedSignedAggregateAndProof(agg, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewAggregatorDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewAggregatorDuty(slot), pubkey, data))
 	})
 
 	t.Run("verify sync committee message", func(t *testing.T) {
@@ -299,11 +306,11 @@ func TestParSigExVerifier(t *testing.T) {
 		msg.Signature = sign(sigData[:])
 
 		data := core.NewPartialSignedSyncMessage(msg, shareIdx)
-		require.NoError(t, verifyFunc(ctx, "", core.NewSyncMessageDuty(slot), pubkey, data))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewSyncMessageDuty(slot), pubkey, data))
 
 		// Invalid sync committee message.
 		data = core.NewPartialSignedRandao(epoch, testutil.RandomEth2Signature(), shareIdx)
-		err = verifyFunc(ctx, "", core.NewSyncMessageDuty(slot), pubkey, data)
+		err = verifyFunc(ctx, sender, core.NewSyncMessageDuty(slot), pubkey, data)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "invalid signature")
 	})
@@ -326,7 +333,7 @@ func TestParSigExVerifier(t *testing.T) {
 
 		parSigData := core.NewPartialSignedSyncCommitteeSelection(selection, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
 	})
 
 	t.Run("verify sync committee contribution and proof", func(t *testing.T) {
@@ -343,8 +350,66 @@ func TestParSigExVerifier(t *testing.T) {
 
 		parSigData := core.NewPartialSignedSyncContributionAndProof(proof, shareIdx)
 
-		require.NoError(t, verifyFunc(ctx, "", core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
+		require.NoError(t, verifyFunc(ctx, sender, core.NewPrepareSyncContributionDuty(slot), pubkey, parSigData))
 	})
+
+	t.Run("Reject valid signature from unauthenticated sender", func(t *testing.T) {
+		// A cryptographically valid Randao partial for shareIdx, but relayed by a peer not bound to it.
+		sigEpoch := eth2util.SignedEpoch{Epoch: epoch}
+		sigRoot, err := sigEpoch.HashTreeRoot()
+		require.NoError(t, err)
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainRandao, epoch, sigRoot)
+		require.NoError(t, err)
+
+		randao := core.NewPartialSignedRandao(epoch, sign(sigData[:]), shareIdx)
+
+		err = verifyFunc(ctx, peer.ID("eve"), core.NewRandaoDuty(slot), pubkey, randao)
+		require.ErrorContains(t, err, "unknown peer")
+	})
+}
+
+// TestVerifyPeerShareIdx covers the sender->shareIdx binding, including a non-contiguous layout where
+// a peer's assigned share index does not equal its position (as when earlier operators are removed).
+func TestVerifyPeerShareIdx(t *testing.T) {
+	const (
+		self    = peer.ID("self")
+		other   = peer.ID("other")
+		unknown = peer.ID("unknown")
+	)
+
+	// "other" is the second peer but keeps share index 4, e.g. after operators with lower indices
+	// have been removed.
+	peerMap := map[peer.ID]cluster.NodeIdx{
+		self:  {PeerIdx: 0, ShareIdx: 1},
+		other: {PeerIdx: 1, ShareIdx: 4},
+	}
+
+	tests := []struct {
+		name     string
+		sender   peer.ID
+		shareIdx int
+		wantErr  string
+	}{
+		{name: "own share index accepted", sender: self, shareIdx: 1},
+		{name: "assigned non-contiguous share index accepted", sender: other, shareIdx: 4},
+		{name: "mismatched share index rejected", sender: other, shareIdx: 2, wantErr: "share index does not match"},
+		{name: "another peer's share index rejected", sender: self, shareIdx: 4, wantErr: "share index does not match"},
+		{name: "non-positive share index rejected", sender: self, shareIdx: 0, wantErr: "share index does not match"},
+		{name: "unknown sender rejected", sender: unknown, shareIdx: 1, wantErr: "unknown peer"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data := core.NewPartialSignature(testutil.RandomCoreSignature(), tt.shareIdx)
+
+			err := parsigex.VerifyPeerShareIdx(peerMap, tt.sender, data)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+		})
+	}
 }
 
 func versionedSignedProposalRoot(t *testing.T, p *eth2api.VersionedSignedProposal) (eth2p0.Root, error) {
