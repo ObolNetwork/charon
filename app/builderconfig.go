@@ -2,11 +2,37 @@
 
 package app
 
-// builderConfigured returns true if builder URLs are configured, enabling the builder
-// section of the proposer configuration output. The other builder flags are rejected
-// without URLs, so they cannot be set (and silently dropped) on their own.
+import (
+	"crypto/sha256"
+	"fmt"
+	"slices"
+)
+
+// builderConfigured returns true if builder URLs are configured, enabling the v2
+// proposer configuration output. The other builder flags are rejected without URLs,
+// so they cannot be set (and silently dropped) on their own.
 func builderConfigured(conf Config) bool {
 	return len(conf.BuilderURLs) > 0
+}
+
+// builderConfigHash returns a digest of the canonicalised builder configuration.
+// It is exchanged via the peerinfo protocol so peers can detect divergent builder
+// configurations, which would produce divergent (non-aggregatable) builder duties.
+func builderConfigHash(conf Config) []byte {
+	urls := slices.Clone(conf.BuilderURLs)
+	slices.Sort(urls)
+
+	h := sha256.New()
+	_, _ = h.Write([]byte("charon/builder_config/v1\n"))
+
+	for _, u := range urls {
+		_, _ = fmt.Fprintf(h, "url:%s\n", u)
+	}
+
+	_, _ = fmt.Fprintf(h, "min_bid:%d\nbuilder_boost_factor:%d\nmax_execution_payment:%d\n",
+		conf.BuilderMinBid, conf.BuilderBoostFactor, conf.BuilderMaxExecutionPayment)
+
+	return h.Sum(nil)
 }
 
 // initBuilderConfigMetrics sets the builder config gauges to this node's builder
