@@ -24,26 +24,41 @@ import (
 const (
 	proposerConfigDir      = "vc-config"
 	proposerConfigFilename = "proposer-config.json"
+
+	// proposerConfigVersion is the charon proposer configuration schema version,
+	// bumped on backwards incompatible schema changes.
+	proposerConfigVersion = 1
 )
 
-// proposerConfigJSON is the proposer configuration file format understood by Prysm,
-// Teku and Lodestar; Nimbus and Lighthouse require adapters rendering their own formats.
+// proposerConfigJSON is charon's canonical proposer configuration schema, closely
+// modelled on the Prysm/Teku proposer settings format minus its pre-gloas legacy
+// fields. It is consumed by per validator client adapters (the CDVN wrapper scripts)
+// which render each client's native format from it.
+//
+// The consumer contract: a validator absent from proposer_config uses default_config;
+// entries are only emitted for validators diverging from it and only carry the
+// diverging fields. Any absent field falls back to the corresponding field one level
+// up, ultimately default_config. Since jq's // operator swallows false, the schema
+// must never make a boolean field optional.
 type proposerConfigJSON struct {
+	// Version is the charon proposer configuration schema version.
+	Version uint32 `json:"version"`
 	// ProposerConfig maps this node's validator public shares (the identities the
-	// validator client manages) to their proposer settings.
+	// validator client manages) to their proposer settings. Only validators whose
+	// settings diverge from default_config have an entry.
 	ProposerConfig map[string]proposerSettingsJSON `json:"proposer_config"`
-	// DefaultConfig applies to validators without an explicit entry.
+	// DefaultConfig applies to validators without an explicit entry, holding the
+	// majority settings across this node's validators.
 	DefaultConfig proposerSettingsJSON `json:"default_config"`
 }
 
+// proposerSettingsJSON holds one validator's proposer settings. All fields are set
+// on default_config; a proposer_config entry only carries the fields diverging from
+// it, the rest fall back to default_config.
 type proposerSettingsJSON struct {
-	FeeRecipient string              `json:"fee_recipient"`
-	Builder      builderSettingsJSON `json:"builder"`
-}
-
-type builderSettingsJSON struct {
-	Enabled  bool   `json:"enabled"`
-	GasLimit string `json:"gas_limit"`
+	FeeRecipient string `json:"fee_recipient,omitempty"`
+	// GasLimit is the preferred target gas limit for the execution payload.
+	GasLimit string `json:"gas_limit,omitempty"`
 }
 
 // writeProposerConfigFile generates the validator client proposer configuration file
@@ -72,15 +87,25 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 
 	feeRecipients := lock.FeeRecipientAddresses()
 
-	config := proposerConfigJSON{ProposerConfig: make(map[string]proposerSettingsJSON)}
+	// Resolve each validator's settings, counting identical ones to determine the
+	// majority default below.
+	type valSettings struct {
+		pubshareHex  string
+		feeRecipient string
+		gasLimit     uint64
+	}
+
+	var (
+		all       []valSettings
+		feeCounts = make(map[string]int)
+		gasCounts = make(map[uint64]int)
+	)
 
 	for vi, val := range lock.Validators {
 		pubshare, err := val.PublicShare(nodeIdx.PeerIdx)
 		if err != nil {
 			return false, errors.Wrap(err, "public share", z.Int("validator", vi))
 		}
-
-		pubshareHex := fmt.Sprintf("%#x", pubshare)
 
 		corePubkey, err := core.PubKeyFromBytes(val.PubKey)
 		if err != nil {
@@ -97,21 +122,60 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 			gasLimit = registration.DefaultGasLimit
 		}
 
-		settings := proposerSettingsJSON{
-			FeeRecipient: feeRecipient,
-			Builder: builderSettingsJSON{
-				Enabled:  conf.BuilderAPI,
-				GasLimit: strconv.FormatUint(gasLimit, 10),
-			},
+		vs := valSettings{
+			pubshareHex:  fmt.Sprintf("%#x", pubshare),
+			feeRecipient: feeRecipient,
+			gasLimit:     gasLimit,
 		}
 
-		config.ProposerConfig[pubshareHex] = settings
+		all = append(all, vs)
+		feeCounts[vs.feeRecipient]++
+		gasCounts[vs.gasLimit]++
+	}
 
-		if vi == 0 {
-			// Default to the first validator's settings for non-cluster validators
-			// of a shared validator client.
-			config.DefaultConfig = settings
+	// The default config holds the per-field majority values, ties broken by the
+	// first validator holding them, so the common uniform cluster emits no entries.
+	var (
+		defaultFee string
+		defaultGas uint64
+	)
+
+	for _, vs := range all {
+		if feeCounts[vs.feeRecipient] > feeCounts[defaultFee] {
+			defaultFee = vs.feeRecipient
 		}
+
+		if gasCounts[vs.gasLimit] > gasCounts[defaultGas] {
+			defaultGas = vs.gasLimit
+		}
+	}
+
+	config := proposerConfigJSON{
+		Version:        proposerConfigVersion,
+		ProposerConfig: make(map[string]proposerSettingsJSON),
+		DefaultConfig: proposerSettingsJSON{
+			FeeRecipient: defaultFee,
+			GasLimit:     strconv.FormatUint(defaultGas, 10),
+		},
+	}
+
+	// Entries only carry the fields diverging from the default config.
+	for _, vs := range all {
+		var entry proposerSettingsJSON
+
+		if vs.feeRecipient != defaultFee {
+			entry.FeeRecipient = vs.feeRecipient
+		}
+
+		if vs.gasLimit != defaultGas {
+			entry.GasLimit = strconv.FormatUint(vs.gasLimit, 10)
+		}
+
+		if entry == (proposerSettingsJSON{}) {
+			continue // Covered by the default config.
+		}
+
+		config.ProposerConfig[vs.pubshareHex] = entry
 	}
 
 	b, err := json.Marshal(config)

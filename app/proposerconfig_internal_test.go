@@ -23,7 +23,7 @@ import (
 
 func TestWriteProposerConfigFile(t *testing.T) {
 	const (
-		dv      = 3
+		dv      = 4
 		nodes   = 4
 		peerIdx = 2
 	)
@@ -39,18 +39,29 @@ func TestWriteProposerConfigFile(t *testing.T) {
 
 	path := filepath.Join(dir, proposerConfigDir, proposerConfigFilename)
 
-	// Override the first validator's fee recipient, mimicking builder registration overrides.
+	// Override the first validator's fee recipient and gas limit (mimicking builder
+	// registration overrides), let the second fall back to its lock address, and
+	// give the remaining two identical settings so they form the majority.
 	overridePubkey, err := core.PubKeyFromBytes(lock.Validators[0].PubKey)
 	require.NoError(t, err)
 
-	const overrideAddr = "0xcccccccccccccccccccccccccccccccccccccccc"
+	lockFallbackPubkey, err := core.PubKeyFromBytes(lock.Validators[1].PubKey)
+	require.NoError(t, err)
+
+	const (
+		overrideAddr = "0xcccccccccccccccccccccccccccccccccccccccc"
+		majorityAddr = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	)
 
 	feeRecipientFunc := func(pubkey core.PubKey) string {
-		if pubkey == overridePubkey {
+		switch pubkey {
+		case overridePubkey:
 			return overrideAddr
+		case lockFallbackPubkey:
+			return "" // Exercise the lock fallback.
+		default:
+			return majorityAddr
 		}
-
-		return "" // Exercise the lock fallback for the rest.
 	}
 
 	const overrideGasLimit = 42_000_000
@@ -73,32 +84,31 @@ func TestWriteProposerConfigFile(t *testing.T) {
 	var config proposerConfigJSON
 
 	require.NoError(t, json.Unmarshal(b, &config))
-	require.Len(t, config.ProposerConfig, dv)
+	require.EqualValues(t, 1, config.Version)
 
+	defaultGasLimit := strconv.FormatUint(registration.DefaultGasLimit, 10)
 	feeRecipients := lock.FeeRecipientAddresses()
 
-	for vi, val := range lock.Validators {
-		// Entries are keyed by this node's public shares, not the DV public keys.
-		pubshare, err := val.PublicShare(peerIdx)
+	pubshare := func(vi int) string {
+		share, err := lock.Validators[vi].PublicShare(peerIdx)
 		require.NoError(t, err)
 
-		settings, ok := config.ProposerConfig[fmt.Sprintf("%#x", pubshare)]
-		require.True(t, ok)
-
-		if vi == 0 {
-			// Overrides take priority over the lock.
-			require.Equal(t, overrideAddr, settings.FeeRecipient)
-			require.Equal(t, strconv.FormatUint(overrideGasLimit, 10), settings.Builder.GasLimit)
-		} else {
-			require.Equal(t, feeRecipients[vi], settings.FeeRecipient)
-			require.Equal(t, strconv.FormatUint(registration.DefaultGasLimit, 10), settings.Builder.GasLimit)
-		}
-
-		require.True(t, settings.Builder.Enabled)
+		return fmt.Sprintf("%#x", share)
 	}
 
-	// The default config matches the first validator, including its override.
-	require.Equal(t, overrideAddr, config.DefaultConfig.FeeRecipient)
+	// The default config holds the majority settings (validators 2 and 3).
+	require.Equal(t, majorityAddr, config.DefaultConfig.FeeRecipient)
+	require.Equal(t, defaultGasLimit, config.DefaultConfig.GasLimit)
+
+	// The two diverging validators get entries carrying only the diverging fields:
+	// validator 0 diverges in both, validator 1 only in its fee recipient.
+	require.Len(t, config.ProposerConfig, 2)
+	require.Equal(t, proposerSettingsJSON{FeeRecipient: overrideAddr, GasLimit: strconv.FormatUint(overrideGasLimit, 10)}, config.ProposerConfig[pubshare(0)])
+	require.Equal(t, proposerSettingsJSON{FeeRecipient: feeRecipients[1]}, config.ProposerConfig[pubshare(1)])
+
+	// No pre-gloas legacy fields in the charon schema.
+	require.NotContains(t, string(b), "enabled")
+	require.NotContains(t, string(b), "min_bid")
 
 	// An existing file is never modified.
 	require.NoError(t, os.WriteFile(path, []byte("operator managed"), 0o644))
