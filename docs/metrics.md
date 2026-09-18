@@ -21,6 +21,10 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with labels set to the version and beacon_id of the upstream beacon node | `version, beacon_id` |
+| `app_builder_config_boost_factor_percent` | Gauge | The configured percentage multiplier applied to builder bid values. Absent when no builder URLs are configured. |  |
+| `app_builder_config_max_execution_payment_gwei` | Gauge | The configured maximum execution layer payment in gwei counted when valuing a builder bid. Absent when no builder URLs are configured. |  |
+| `app_builder_config_min_bid_gwei` | Gauge | The configured minimum builder bid value in gwei. Absent when no builder URLs are configured. |  |
+| `app_builder_config_url` | Gauge | Constant gauge set to 1 for each configured builder URL. Absent when no builder URLs are configured. | `url` |
 | `app_cache_hits_total` | Counter | Total number of times the cache was used | `endpoint` |
 | `app_cache_invalidated_reorg_total` | Counter | Total number of times the cache was invalidated due to a chain reorg | `endpoint` |
 | `app_cache_misses_total` | Counter | Total number of times the cache was missed | `endpoint` |
