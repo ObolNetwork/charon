@@ -21,6 +21,10 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with labels set to the version and beacon_id of the upstream beacon node | `version, beacon_id` |
+| `app_builder_config_boost_factor_percent` | Gauge | The configured percentage multiplier applied to builder bid values. Absent when no builder URLs are configured. |  |
+| `app_builder_config_max_execution_payment_gwei` | Gauge | The configured maximum execution layer payment in gwei counted when valuing a builder bid. Absent when no builder URLs are configured. |  |
+| `app_builder_config_min_bid_gwei` | Gauge | The configured minimum builder bid value in gwei. Absent when no builder URLs are configured. |  |
+| `app_builder_config_url` | Gauge | Constant gauge set to 1 for each configured builder URL. Absent when no builder URLs are configured. | `url` |
 | `app_cache_hits_total` | Counter | Total number of times the cache was used | `endpoint` |
 | `app_cache_invalidated_reorg_total` | Counter | Total number of times the cache was invalidated due to a chain reorg | `endpoint` |
 | `app_cache_misses_total` | Counter | Total number of times the cache was missed | `endpoint` |
@@ -40,6 +44,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_monitoring_readyz` | Gauge | Set to 1 if the node is operational and monitoring api `/readyz` endpoint is returning 200s. Else `/readyz` is returning 500s and this metric is either set to 2 if the beacon node is down, or3 if the beacon node is syncing, or4 if quorum peers are not connected. |  |
 | `app_peer_name` | Gauge | Constant gauge with label set to the name of the cluster peer | `peer_name` |
 | `app_peerinfo_builder_api_enabled` | Gauge | Set to 1 if builder API is enabled on this peer, else 0 if disabled. | `peer` |
+| `app_peerinfo_builder_config_mismatch` | Gauge | Set to 1 if the peer`s builder configuration (builder URLs and related flags) differs from this node`s, else 0. Absent for peers not reporting a builder configuration hash. | `peer` |
 | `app_peerinfo_clock_offset_seconds` | Gauge | Peer clock offset in seconds | `peer` |
 | `app_peerinfo_dv_client` | Gauge | Constant gauge with dv_client label set to the peer`s distributed validator client type. | `peer, dv_client` |
 | `app_peerinfo_git_commit` | Gauge | Constant gauge with git_hash label set to peer`s git commit hash. | `peer, git_hash` |

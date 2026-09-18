@@ -113,6 +113,10 @@ type Config struct {
 	PublishAddress              string
 	PublishTimeout              time.Duration
 	FetchFeerecipientUpdates    bool
+	BuilderURLs                 []string
+	BuilderMinBid               uint64
+	BuilderBoostFactor          uint64
+	BuilderMaxExecutionPayment  uint64
 
 	TestConfig TestConfig
 }
@@ -284,6 +288,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peers", len(lock.Operators)))
 
 	initStartupMetrics(p2p.PeerName(p2pNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
+	initBuilderConfigMetrics(conf)
 
 	eth2Cl, subEth2Cl, err := newETH2Client(ctx, conf, life, lock, lock.ForkVersion, conf.BeaconNodeTimeout, conf.BeaconNodeSubmitTimeout)
 	if err != nil {
@@ -311,7 +316,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("nickname cannot exceed 32 characters")
 	}
 
-	wirePeerInfo(life, p2pNode, peerIDs, lock.LockHash, sender, conf.BuilderAPI, conf.Nickname)
+	wirePeerInfo(life, p2pNode, peerIDs, lock.LockHash, sender, conf.BuilderAPI, conf.Nickname, builderConfigHash(conf))
 
 	vapiCalls := make(chan struct{})
 	vapiCallsFunc := func() {
@@ -342,9 +347,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wirePeerInfo wires the peerinfo protocol.
-func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string) {
+func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string, builderConfigHash []byte) {
 	gitHash, _ := version.GitCommit()
-	peerInfo := peerinfo.New(p2pNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname)
+	peerInfo := peerinfo.New(p2pNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname, builderConfigHash)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
