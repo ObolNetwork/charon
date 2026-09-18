@@ -74,3 +74,42 @@ func TestSendReceive(t *testing.T) {
 		})
 	}
 }
+
+// TestHandlerPanicRecovered verifies that a panic inside a stream handler (e.g. from a
+// malformed peer message) is recovered so the process survives, and the node keeps serving
+// subsequent requests. Without the recover, libp2p propagates the panic and crashes the process.
+func TestHandlerPanicRecovered(t *testing.T) {
+	var (
+		pID    = protocol.ID("panicky")
+		ctx    = context.Background()
+		server = testutil.CreateHost(t, testutil.AvailableAddr(t))
+		client = testutil.CreateHost(t, testutil.AvailableAddr(t))
+	)
+
+	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+	// Handler panics on odd slots and echoes on even slots.
+	p2p.RegisterHandler("server", server, pID,
+		func() proto.Message { return new(pbv1.Duty) },
+		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
+			duty, ok := req.(*pbv1.Duty)
+			require.True(t, ok)
+
+			if duty.GetSlot()%2 != 0 {
+				panic("boom") // Simulates a handler panic reachable from a peer message.
+			}
+
+			return duty, true, nil
+		},
+	)
+
+	sendReceive := func(slot uint64) error {
+		return p2p.SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: slot}, new(pbv1.Duty), pID)
+	}
+
+	// The panicking request fails at the stream level but must not crash the process.
+	require.Error(t, sendReceive(1))
+
+	// The node stays alive and keeps serving: a subsequent request succeeds.
+	require.NoError(t, sendReceive(2))
+}
