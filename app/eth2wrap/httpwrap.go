@@ -192,8 +192,9 @@ func (h *httpAdapter) Domain(ctx context.Context, domainType eth2p0.DomainType, 
 }
 
 // ProposerDutiesV2 fetches the v2 proposer duties from the beacon node directly, since
-// go-eth2-client doesn't support the endpoint yet.
-// TODO(gloas): swap for the eth2client provider once attestantio/go-eth2-client#332 merges.
+// go-eth2-client doesn't support the endpoint yet, bypassing the duties cache.
+// TODO(gloas): swap for the eth2client provider and route it through the duties cache
+// once attestantio/go-eth2-client#332 merges.
 func (h *httpAdapter) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (ProposerDutiesV2, error) {
 	ctx, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()

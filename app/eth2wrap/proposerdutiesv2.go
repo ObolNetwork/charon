@@ -21,7 +21,8 @@ type ProposerDutiesV2 struct {
 
 // ProposerDutiesV2Provider is the interface for the v2 proposer duties endpoint,
 // GET /eth/v2/validator/duties/proposer/{epoch}, not yet present in go-eth2-client.
-// TODO(gloas): swap for the eth2client provider once attestantio/go-eth2-client#332 merges.
+// TODO(gloas): swap for the eth2client provider and route it through the duties cache
+// once attestantio/go-eth2-client#332 merges.
 type ProposerDutiesV2Provider interface {
 	ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (ProposerDutiesV2, error)
 }
