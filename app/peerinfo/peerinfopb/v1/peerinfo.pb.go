@@ -32,6 +32,7 @@ type PeerInfo struct {
 	BuilderApiEnabled bool                   `protobuf:"varint,6,opt,name=builder_api_enabled,json=builderApiEnabled,proto3" json:"builder_api_enabled,omitempty"`
 	Nickname          string                 `protobuf:"bytes,7,opt,name=nickname,proto3" json:"nickname,omitempty"`
 	DvClient          string                 `protobuf:"bytes,8,opt,name=dv_client,json=dvClient,proto3" json:"dv_client,omitempty"`
+	BuilderConfigHash []byte                 `protobuf:"bytes,9,opt,name=builder_config_hash,json=builderConfigHash,proto3" json:"builder_config_hash,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -122,11 +123,18 @@ func (x *PeerInfo) GetDvClient() string {
 	return ""
 }
 
+func (x *PeerInfo) GetBuilderConfigHash() []byte {
+	if x != nil {
+		return x.BuilderConfigHash
+	}
+	return nil
+}
+
 var File_app_peerinfo_peerinfopb_v1_peerinfo_proto protoreflect.FileDescriptor
 
 const file_app_peerinfo_peerinfopb_v1_peerinfo_proto_rawDesc = "" +
 	"\n" +
-	")app/peerinfo/peerinfopb/v1/peerinfo.proto\x12\x1aapp.peerinfo.peerinfopb.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe7\x02\n" +
+	")app/peerinfo/peerinfopb/v1/peerinfo.proto\x12\x1aapp.peerinfo.peerinfopb.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x97\x03\n" +
 	"\bPeerInfo\x12%\n" +
 	"\x0echaron_version\x18\x01 \x01(\tR\rcharonVersion\x12\x1b\n" +
 	"\tlock_hash\x18\x02 \x01(\fR\blockHash\x128\n" +
@@ -136,7 +144,8 @@ const file_app_peerinfo_peerinfopb_v1_peerinfo_proto_rawDesc = "" +
 	"started_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampH\x01R\tstartedAt\x88\x01\x01\x12.\n" +
 	"\x13builder_api_enabled\x18\x06 \x01(\bR\x11builderApiEnabled\x12\x1a\n" +
 	"\bnickname\x18\a \x01(\tR\bnickname\x12\x1b\n" +
-	"\tdv_client\x18\b \x01(\tR\bdvClientB\n" +
+	"\tdv_client\x18\b \x01(\tR\bdvClient\x12.\n" +
+	"\x13builder_config_hash\x18\t \x01(\fR\x11builderConfigHashB\n" +
 	"\n" +
 	"\b_sent_atB\r\n" +
 	"\v_started_atB:Z8github.com/obolnetwork/charon/app/peerinfo/peerinfopb/v1b\x06proto3"

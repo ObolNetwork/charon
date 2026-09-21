@@ -45,6 +45,9 @@ type BuilderRegistrationService interface {
 	Registrations() []*eth2api.VersionedSignedValidatorRegistration
 	// FeeRecipient returns the current fee recipient address for the given pubkey.
 	FeeRecipient(pubkey core.PubKey) string
+	// GasLimit returns the current builder registration gas limit for the given pubkey,
+	// zero if unknown.
+	GasLimit(pubkey core.PubKey) uint64
 	// Run watches the overrides file for changes, periodically fetches from the
 	// Obol API, and reloads when either source is updated. It blocks until ctx is cancelled.
 	Run(ctx context.Context)
@@ -155,6 +158,7 @@ type builderRegistrationService struct {
 	baseFeeRecipients map[core.PubKey]string
 	registrations     []*eth2api.VersionedSignedValidatorRegistration
 	feeRecipients     map[core.PubKey]string
+	gasLimits         map[core.PubKey]uint64
 
 	// Fields for background API fetching.
 	obolClient    *obolapi.Client
@@ -210,6 +214,14 @@ func (s *builderRegistrationService) FeeRecipient(pubkey core.PubKey) string {
 	defer s.mu.RUnlock()
 
 	return s.feeRecipients[pubkey]
+}
+
+// GasLimit returns the current builder registration gas limit for the given pubkey.
+func (s *builderRegistrationService) GasLimit(pubkey core.PubKey) uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.gasLimits[pubkey]
 }
 
 // Run watches the overrides file for changes, periodically fetches from the Obol API,
@@ -364,12 +376,13 @@ func (s *builderRegistrationService) fetchFromAPI(ctx context.Context) (bool, er
 // and updates the effective registrations and fee recipients.
 func (s *builderRegistrationService) recompute(ctx context.Context) {
 	feeRecipients := maps.Clone(s.baseFeeRecipients)
+	gasLimits := gasLimitsByPubkey(s.baseRegistrations)
 
 	overrides := mergeOverrides(s.fileOverrides, s.apiOverrides)
 
 	var regs []*eth2api.VersionedSignedValidatorRegistration
 	if len(overrides) > 0 {
-		regs = applyBuilderRegistrationOverrides(ctx, s.baseRegistrations, overrides, feeRecipients)
+		regs = applyBuilderRegistrationOverrides(ctx, s.baseRegistrations, overrides, feeRecipients, gasLimits)
 	} else {
 		regs = s.baseRegistrations
 	}
@@ -379,6 +392,27 @@ func (s *builderRegistrationService) recompute(ctx context.Context) {
 
 	s.registrations = regs
 	s.feeRecipients = feeRecipients
+	s.gasLimits = gasLimits
+}
+
+// gasLimitsByPubkey maps validator pubkeys to their builder registration gas limit.
+func gasLimitsByPubkey(registrations []*eth2api.VersionedSignedValidatorRegistration) map[core.PubKey]uint64 {
+	res := make(map[core.PubKey]uint64, len(registrations))
+
+	for _, reg := range registrations {
+		if reg == nil || reg.V1 == nil || reg.V1.Message == nil || reg.V1.Message.GasLimit == 0 {
+			continue
+		}
+
+		pubkey, err := core.PubKeyFromBytes(reg.V1.Message.Pubkey[:])
+		if err != nil {
+			continue
+		}
+
+		res[pubkey] = reg.V1.Message.GasLimit
+	}
+
+	return res
 }
 
 // mergeOverrides combines two override slices, keeping the entry with the highest
@@ -538,6 +572,11 @@ func verifyRegistrationSignature(reg *eth2api.VersionedSignedValidatorRegistrati
 		return errors.New("invalid builder registration override: nil message")
 	}
 
+	if reg.V1.Message.GasLimit == 0 {
+		return errors.New("invalid builder registration override: zero gas limit",
+			z.Str("pubkey", hex.EncodeToString(reg.V1.Message.Pubkey[:])))
+	}
+
 	sigRoot, err := registration.GetMessageSigningRoot(reg.V1.Message, forkVersion)
 	if err != nil {
 		return errors.Wrap(err, "get signing root for builder registration override")
@@ -570,6 +609,7 @@ func applyBuilderRegistrationOverrides(
 	builderRegs []*eth2api.VersionedSignedValidatorRegistration,
 	overrides []*eth2api.VersionedSignedValidatorRegistration,
 	feeRecipientByPubkey map[core.PubKey]string,
+	gasLimitByPubkey map[core.PubKey]uint64,
 ) []*eth2api.VersionedSignedValidatorRegistration {
 	// Build lookup from overrides keyed by lowercase pubkey hex.
 	overrideByPubkey := make(map[string]*eth2api.VersionedSignedValidatorRegistration, len(overrides))
@@ -609,6 +649,7 @@ func applyBuilderRegistrationOverrides(
 		}
 
 		feeRecipientByPubkey[corePubkey] = "0x" + hex.EncodeToString(override.V1.Message.FeeRecipient[:])
+		gasLimitByPubkey[corePubkey] = override.V1.Message.GasLimit
 
 		log.Info(ctx, "Applied builder registration override for 0x"+key, z.Str("fee_recipient", feeRecipientByPubkey[corePubkey]))
 	}

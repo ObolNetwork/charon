@@ -111,6 +111,10 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech/v1", "The URL of the remote API for background fee recipient fetching.")
 	cmd.Flags().DurationVar(&config.PublishTimeout, "publish-timeout", 5*time.Minute, "Timeout for accessing the remote API.")
 	cmd.Flags().BoolVar(&config.FetchFeerecipientUpdates, "fetch-feerecipient-updates", false, "Fetches updated fee recipients from a remote API.")
+	cmd.Flags().StringSliceVar(&config.BuilderURLs, "builder-urls", nil, "Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. Must be identical on all nodes in the cluster.")
+	cmd.Flags().Uint64Var(&config.BuilderMinBid, "builder-min-bid", 0, "Minimum builder bid value in gwei, bids below it lose to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
+	cmd.Flags().Uint64Var(&config.BuilderBoostFactor, "builder-boost-factor", 100, "Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
+	cmd.Flags().Uint64Var(&config.BuilderMaxExecutionPayment, "builder-max-execution-payment", 0, "Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -150,6 +154,22 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 
 		if config.VCTLSKeyFile != "" && !app.FileExists(config.VCTLSKeyFile) {
 			return errors.New("file vc-tls-key-file does not exist", z.Str("file", config.VCTLSKeyFile))
+		}
+
+		for _, u := range config.BuilderURLs {
+			parsed, err := url.Parse(u)
+			if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" {
+				return errors.New("builder-urls entry is not a valid http(s) URL", z.Str("url", u))
+			}
+		}
+
+		if config.BuilderBoostFactor == 0 {
+			return errors.New("builder-boost-factor must be greater than 0")
+		}
+
+		if len(config.BuilderURLs) == 0 &&
+			(config.BuilderMinBid != 0 || cc.Flags().Changed("builder-boost-factor") || config.BuilderMaxExecutionPayment != 0) {
+			return errors.New("builder-min-bid, builder-boost-factor and builder-max-execution-payment require builder-urls")
 		}
 
 		if config.FetchFeerecipientUpdates && config.PublishAddress == "" {
