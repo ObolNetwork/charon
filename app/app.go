@@ -667,7 +667,18 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if conf.TestConfig.ParSigExFunc != nil {
 		parSigEx = conf.TestConfig.ParSigExFunc()
 	} else {
-		verifyFunc, err := parsigex.NewEth2Verifier(eth2Cl, allPubSharesByKey)
+		peerShareIdx := make(map[peer.ID]cluster.NodeIdx)
+
+		for _, pID := range peerIDs {
+			peerNodeIdx, err := lock.NodeIdx(pID)
+			if err != nil {
+				return err
+			}
+
+			peerShareIdx[pID] = peerNodeIdx
+		}
+
+		verifyFunc, err := parsigex.NewEth2Verifier(eth2Cl, allPubSharesByKey, peerShareIdx)
 		if err != nil {
 			return err
 		}
