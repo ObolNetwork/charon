@@ -33,6 +33,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -230,6 +231,7 @@ type Mock struct {
 	NodeVersionFunc                        func(context.Context, *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
 	NodeVersionV2Func                      func(context.Context, *eth2api.NodeVersionV2Opts) (*eth2api.Response[*eth2v1.NodeVersionV2], error)
 	ProxyFunc                              func(context.Context, *http.Request) (*http.Response, error)
+	PendingDepositsFunc                    func(context.Context, *eth2api.PendingDepositsOpts) ([]*electra.PendingDeposit, error)
 }
 
 func (m Mock) UpdateCacheIndices(ctx context.Context, idxs []eth2p0.ValidatorIndex) {
@@ -353,6 +355,15 @@ func (m Mock) Validators(ctx context.Context, opts *eth2api.ValidatorsOpts) (*et
 	}
 
 	return wrapResponse(vals), nil
+}
+
+func (m Mock) PendingDeposits(ctx context.Context, opts *eth2api.PendingDepositsOpts) (*eth2api.Response[[]*electra.PendingDeposit], error) {
+	deposits, err := m.PendingDepositsFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(deposits), nil
 }
 
 func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error)) {

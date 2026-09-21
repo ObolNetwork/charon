@@ -798,6 +798,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return res, nil
 		},
+		PendingDepositsFunc: func(context.Context, *eth2api.PendingDepositsOpts) ([]*electra.PendingDeposit, error) {
+			return []*electra.PendingDeposit{}, nil
+		},
 	}
 }
 

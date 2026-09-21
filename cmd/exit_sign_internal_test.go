@@ -3,24 +3,30 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -489,4 +495,258 @@ func TestExitSignCLI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_pendingDepositsWithoutIndex(t *testing.T) {
+	pk := func(b byte) eth2p0.BLSPubKey {
+		var out eth2p0.BLSPubKey
+
+		out[0] = b
+
+		return out
+	}
+
+	clusterA, clusterB, clusterC := pk(1), pk(2), pk(3)
+	nonCluster := pk(9)
+
+	deposit := func(p eth2p0.BLSPubKey) *electra.PendingDeposit {
+		return &electra.PendingDeposit{Pubkey: p}
+	}
+
+	tests := []struct {
+		name            string
+		cluster         []eth2p0.BLSPubKey
+		indexed         []eth2p0.BLSPubKey
+		pendingDeposits []*electra.PendingDeposit
+		want            []eth2p0.BLSPubKey
+	}{
+		{
+			name:            "deposit registered but no index yet",
+			cluster:         []eth2p0.BLSPubKey{clusterA, clusterB},
+			indexed:         nil,
+			pendingDeposits: []*electra.PendingDeposit{deposit(clusterA)},
+			want:            []eth2p0.BLSPubKey{clusterA},
+		},
+		{
+			name:            "top-up deposit for indexed validator is ignored",
+			cluster:         []eth2p0.BLSPubKey{clusterA},
+			indexed:         []eth2p0.BLSPubKey{clusterA},
+			pendingDeposits: []*electra.PendingDeposit{deposit(clusterA)},
+			want:            nil,
+		},
+		{
+			name:            "deposit for non-cluster validator is ignored",
+			cluster:         []eth2p0.BLSPubKey{clusterA},
+			indexed:         nil,
+			pendingDeposits: []*electra.PendingDeposit{deposit(nonCluster)},
+			want:            nil,
+		},
+		{
+			name:            "empty queue yields nothing",
+			cluster:         []eth2p0.BLSPubKey{clusterA},
+			indexed:         nil,
+			pendingDeposits: nil,
+			want:            nil,
+		},
+		{
+			name:            "multiple deposits for same validator deduplicated",
+			cluster:         []eth2p0.BLSPubKey{clusterA},
+			indexed:         nil,
+			pendingDeposits: []*electra.PendingDeposit{deposit(clusterA), deposit(clusterA)},
+			want:            []eth2p0.BLSPubKey{clusterA},
+		},
+		{
+			name:            "results sorted deterministically",
+			cluster:         []eth2p0.BLSPubKey{clusterA, clusterB, clusterC},
+			indexed:         nil,
+			pendingDeposits: []*electra.PendingDeposit{deposit(clusterC), deposit(clusterA), deposit(clusterB)},
+			want:            []eth2p0.BLSPubKey{clusterA, clusterB, clusterC},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clusterSet := make(map[eth2p0.BLSPubKey]bool)
+			for _, p := range test.cluster {
+				clusterSet[p] = true
+			}
+
+			indexedSet := make(map[eth2p0.BLSPubKey]bool)
+			for _, p := range test.indexed {
+				indexedSet[p] = true
+			}
+
+			got := pendingDepositsWithoutIndex(clusterSet, indexedSet, test.pendingDeposits)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+// mixedValidatorSet builds a cluster and a beacon validator set where the validators
+// are split across states: active_ongoing, pending_initialized (has an index) and
+// entirely absent from the beacon (no index). The absent validators' public keys are
+// returned so callers can place them in the pending-deposits queue.
+func mixedValidatorSet(t *testing.T) (keystore.ValidatorShares, beaconmock.ValidatorSet, []eth2p0.BLSPubKey) {
+	t.Helper()
+
+	const (
+		valAmt      = 3
+		operatorAmt = 4
+	)
+
+	random := rand.New(rand.NewSource(int64(0)))
+
+	lock, _, keyShares := cluster.NewForT(t, valAmt, operatorAmt, operatorAmt, 0, random)
+
+	shares := make(keystore.ValidatorShares)
+
+	for i, v := range lock.Validators {
+		pk, err := core.PubKeyFromBytes(v.PubKey)
+		require.NoError(t, err)
+
+		shares[pk] = keystore.IndexedKeyShare{Share: keyShares[i][0], Index: i}
+	}
+
+	validatorSet := beaconmock.ValidatorSet{}
+	// index 0: active_ongoing, index 1: pending_initialized, index 2: absent (no index).
+	states := []eth2v1.ValidatorState{eth2v1.ValidatorStateActiveOngoing, eth2v1.ValidatorStatePendingInitialized}
+
+	var noIndex []eth2p0.BLSPubKey
+
+	for idx, v := range lock.Validators {
+		if idx >= len(states) {
+			noIndex = append(noIndex, eth2p0.BLSPubKey(v.PubKey))
+			continue
+		}
+
+		validatorSet[eth2p0.ValidatorIndex(idx)] = &eth2v1.Validator{
+			Index:   eth2p0.ValidatorIndex(idx),
+			Balance: 42,
+			Status:  states[idx],
+			Validator: &eth2p0.Validator{
+				PublicKey:             eth2p0.BLSPubKey(v.PubKey),
+				WithdrawalCredentials: testutil.RandomBytes32(),
+			},
+		}
+	}
+
+	return shares, validatorSet, noIndex
+}
+
+// stateFilteringValidators overrides a beacon mock's ValidatorsFunc to emulate a real beacon
+// node: it returns only validators whose status is among the requested states (and, when set,
+// whose public key is requested). This lets tests exercise the state filter that the plain
+// WithValidatorSet mock ignores.
+func stateFilteringValidators(set beaconmock.ValidatorSet) func(context.Context, *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+	return func(_ context.Context, opts *eth2api.ValidatorsOpts) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error) {
+		resp := make(map[eth2p0.ValidatorIndex]*eth2v1.Validator)
+
+		for idx, val := range set {
+			if len(opts.ValidatorStates) > 0 && !slices.Contains(opts.ValidatorStates, val.Status) {
+				continue
+			}
+
+			if len(opts.PubKeys) > 0 && !slices.Contains(opts.PubKeys, val.Validator.PublicKey) {
+				continue
+			}
+
+			resp[idx] = val
+		}
+
+		return resp, nil
+	}
+}
+
+func Test_signAllValidatorsExits_signsPendingInitialized(t *testing.T) {
+	ctx := t.Context()
+
+	shares, validatorSet, noIndex := mixedValidatorSet(t)
+
+	beaconMock, err := beaconmock.New(ctx, beaconmock.WithValidatorSet(validatorSet))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, beaconMock.Close()) })
+
+	beaconMock.ValidatorsFunc = stateFilteringValidators(validatorSet)
+
+	// The no-index validator sits in the pending-deposits queue: it triggers the warning but
+	// must not affect signing of the exitable validators.
+	beaconMock.PendingDepositsFunc = func(context.Context, *eth2api.PendingDepositsOpts) ([]*electra.PendingDeposit, error) {
+		return []*electra.PendingDeposit{{Pubkey: noIndex[0]}}, nil
+	}
+
+	config := exitConfig{ExitEpoch: 194048}
+
+	exitBlobs, err := signAllValidatorsExits(ctx, config, beaconMock, shares)
+	require.NoError(t, err)
+
+	// active_ongoing and pending_initialized are signed; the no-index validator is not.
+	require.Len(t, exitBlobs, 2)
+
+	signed := make(map[string]bool)
+	for _, b := range exitBlobs {
+		signed[b.PublicKey] = true
+	}
+
+	require.False(t, signed[noIndex[0].String()], "no-index validator must not be signed")
+}
+
+func Test_pendingDepositWarnings(t *testing.T) {
+	ctx := t.Context()
+
+	shares, validatorSet, noIndex := mixedValidatorSet(t)
+
+	beaconMock, err := beaconmock.New(ctx, beaconmock.WithValidatorSet(validatorSet))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, beaconMock.Close()) })
+
+	activePubkey := validatorSet[0].Validator.PublicKey
+
+	beaconMock.PendingDepositsFunc = func(context.Context, *eth2api.PendingDepositsOpts) ([]*electra.PendingDeposit, error) {
+		return []*electra.PendingDeposit{
+			{Pubkey: noIndex[0]},   // cluster validator with a registered deposit but no index -> warn.
+			{Pubkey: activePubkey}, // top-up for an already-indexed validator -> ignored.
+		}, nil
+	}
+
+	var clusterPubkeys []eth2p0.BLSPubKey
+
+	for pk := range shares {
+		eth2PK, err := pk.ToETH2()
+		require.NoError(t, err)
+
+		clusterPubkeys = append(clusterPubkeys, eth2PK)
+	}
+
+	// index 0 is active_ongoing: its top-up deposit must be excluded from the warning.
+	indexed := map[eth2p0.ValidatorIndex]*eth2v1.Validator{0: validatorSet[0]}
+
+	got := warnOnPendingDeposits(ctx, beaconMock, clusterPubkeys, indexed)
+	require.Equal(t, []eth2p0.BLSPubKey{noIndex[0]}, got)
+}
+
+func Test_signAllValidatorsExits_pendingDepositsCheckIsBestEffort(t *testing.T) {
+	ctx := t.Context()
+
+	shares, validatorSet, _ := mixedValidatorSet(t)
+
+	beaconMock, err := beaconmock.New(ctx, beaconmock.WithValidatorSet(validatorSet))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, beaconMock.Close()) })
+
+	beaconMock.ValidatorsFunc = stateFilteringValidators(validatorSet)
+
+	// A beacon node that does not support the pending-deposits queue (e.g. pre-Electra) must not
+	// block signing exits for the exitable validators.
+	beaconMock.PendingDepositsFunc = func(context.Context, *eth2api.PendingDepositsOpts) ([]*electra.PendingDeposit, error) {
+		return nil, errors.New("pending deposits not supported")
+	}
+
+	config := exitConfig{ExitEpoch: 194048}
+
+	exitBlobs, err := signAllValidatorsExits(ctx, config, beaconMock, shares)
+	require.NoError(t, err)
+	require.Len(t, exitBlobs, 2)
 }
