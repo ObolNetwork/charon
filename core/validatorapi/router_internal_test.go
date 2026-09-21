@@ -359,22 +359,21 @@ func TestRawRouter(t *testing.T) {
 
 		_, _ = rand.Read(dependentRoot[:])
 
-		metadata := map[string]any{
-			"execution_optimistic": true,
-			"dependent_root":       dependentRoot,
-		}
-
 		handler := testHandler{
-			ProposerDutiesFunc: func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+			ProposerDutiesV2Func: func(_ context.Context, dutiesEpoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
 				var res []*eth2v1.ProposerDuty
 				for i := range total {
 					res = append(res, &eth2v1.ProposerDuty{
 						ValidatorIndex: eth2p0.ValidatorIndex(i),
-						Slot:           eth2p0.Slot(int(opts.Epoch)*slotsPerEpoch + i),
+						Slot:           eth2p0.Slot(int(dutiesEpoch)*slotsPerEpoch + i),
 					})
 				}
 
-				return wrapResponseWithMetadata(res, metadata), nil
+				return eth2wrap.ProposerDutiesV2{
+					Duties:              res,
+					DependentRoot:       dependentRoot,
+					ExecutionOptimistic: true,
+				}, nil
 			},
 		}
 
@@ -2351,6 +2350,7 @@ type testHandler struct {
 	AttesterDutiesFunc               func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
 	SubmitAttestationsFunc           func(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error
 	ProposalFunc                     func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
+	ProposerDutiesV2Func             func(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error)
 	SubmitProposalFunc               func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
 	SubmitBlindedProposalFunc        func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
 	ProposerDutiesFunc               func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
@@ -2428,6 +2428,10 @@ func (h testHandler) ValidatorsByPubKey(ctx context.Context, stateID string, pub
 
 func (h testHandler) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 	return h.ProposerDutiesFunc(ctx, opts)
+}
+
+func (h testHandler) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
+	return h.ProposerDutiesV2Func(ctx, epoch)
 }
 
 func (h testHandler) NodeVersion(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
@@ -2842,6 +2846,7 @@ func TestSubmitProposerPreferencesRouter(t *testing.T) {
 		require.NoError(t, err)
 
 		req.Header.Set("Content-Type", contentType)
+
 		if version != "" {
 			req.Header.Set(versionHeader, version)
 		}
@@ -2870,6 +2875,7 @@ func TestSubmitProposerPreferencesRouter(t *testing.T) {
 		var submitted [][]*gloas.SignedProposerPreferences
 
 		var body []byte
+
 		for _, pref := range prefs {
 			b, err := pref.MarshalSSZ()
 			require.NoError(t, err)

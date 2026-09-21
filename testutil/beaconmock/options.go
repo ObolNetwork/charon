@@ -682,6 +682,9 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		CachedProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 			return eth2wrap.ProposerDutyWithMeta{Duties: []*eth2v1.ProposerDuty{}, Metadata: nil}, nil
 		},
+		ProposerDutiesV2Func: func(context.Context, eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
+			return eth2wrap.ProposerDutiesV2{Duties: []*eth2v1.ProposerDuty{}}, nil
+		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
 		},
