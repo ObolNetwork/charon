@@ -1812,6 +1812,36 @@ func TestComponent_Duties(t *testing.T) {
 		require.Equal(t, duties[0].PubKey, eth2Share)
 	})
 
+	t.Run("proposer_duties_v2", func(t *testing.T) {
+		depRoot := testutil.RandomRoot()
+
+		bmock.ProposerDutiesV2Func = func(_ context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+
+			return eth2wrap.ProposerDutiesV2{
+				Duties: []*eth2v1.ProposerDuty{{
+					PubKey:         eth2Pubkey,
+					ValidatorIndex: vIdx,
+				}},
+				DependentRoot:       depRoot,
+				ExecutionOptimistic: true,
+			}, nil
+		}
+
+		// Construct the validator api component
+		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+		require.NoError(t, err)
+
+		resp, err := vapi.ProposerDutiesV2(ctx, eth2p0.Epoch(epch))
+		require.NoError(t, err)
+
+		// The pubkey is swapped to the pubshare, the dependent root passes through untouched.
+		require.Len(t, resp.Duties, 1)
+		require.Equal(t, eth2Share, resp.Duties[0].PubKey)
+		require.Equal(t, depRoot, resp.DependentRoot)
+		require.True(t, resp.ExecutionOptimistic)
+	})
+
 	t.Run("attester_duties", func(t *testing.T) {
 		bmock.AttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))
