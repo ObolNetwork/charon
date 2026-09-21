@@ -121,6 +121,37 @@ var (
 		Help:      "Constant gauge with label set to the current network (chain)",
 	}, []string{"network"})
 
+	builderURLGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "builder_config",
+		Name:      "url",
+		Help:      "Constant gauge set to 1 for each configured builder URL. Absent when no builder URLs are configured.",
+	}, []string{"url"})
+
+	// The value gauges are zero-label vectors so they are absent (rather than zero)
+	// until set, since they are only meaningful when builder URLs are configured.
+
+	builderMinBidGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "builder_config",
+		Name:      "min_bid_gwei",
+		Help:      "The configured minimum builder bid value in gwei. Absent when no builder URLs are configured.",
+	}, nil)
+
+	builderBoostFactorGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "builder_config",
+		Name:      "boost_factor_percent",
+		Help:      "The configured percentage multiplier applied to builder bid values. Absent when no builder URLs are configured.",
+	}, nil)
+
+	builderMaxExecutionPaymentGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "builder_config",
+		Name:      "max_execution_payment_gwei",
+		Help:      "The configured maximum execution layer payment in gwei counted when valuing a builder bid. Absent when no builder URLs are configured.",
+	}, nil)
+
 	validatorStackParamsGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "validator_stack",

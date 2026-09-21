@@ -162,6 +162,10 @@ Flags:
       --beacon-node-submit-timeout duration      Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes. (default 2s)
       --beacon-node-timeout duration             Timeout for the HTTP requests Charon makes to the configured beacon nodes. (default 2s)
       --builder-api                              Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
+      --builder-boost-factor uint                Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster. (default 100)
+      --builder-max-execution-payment uint       Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.
+      --builder-min-bid uint                     Minimum builder bid value in gwei, bids below it lose to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.
+      --builder-urls strings                     Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. Must be identical on all nodes in the cluster.
       --consensus-protocol string                Preferred consensus protocol name for the node. Selected automatically when not specified.
       --debug-address string                     Listening address (ip and port) for the pprof and QBFT debug API. It is not enabled by default.
       --execution-client-rpc-endpoint string     The address of the execution engine JSON-RPC API.

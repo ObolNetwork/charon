@@ -28,7 +28,7 @@ func TestDoOnce(t *testing.T) {
 	nickname := "johndoe"
 
 	// Register the server handler that either
-	_ = peerinfo.New(server, []peer.ID{server.ID(), client.ID()}, vers, lockHash, gitHash, p2p.SendReceive, true, nickname)
+	_ = peerinfo.New(server, []peer.ID{server.ID(), client.ID()}, vers, lockHash, gitHash, p2p.SendReceive, true, nickname, nil)
 
 	info, _, ok, err := peerinfo.DoOnce(context.Background(), client, server.ID())
 	require.NoError(t, err)
