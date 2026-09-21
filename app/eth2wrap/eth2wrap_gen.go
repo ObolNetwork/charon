@@ -33,6 +33,8 @@ type Client interface {
 
 	SetForkVersion(forkVersion [4]byte)
 
+	ProposerDutiesV2Provider
+
 	ClientForAddress(addr string) Client
 	Address() string
 	Headers() map[string]string
