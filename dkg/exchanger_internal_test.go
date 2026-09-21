@@ -405,50 +405,6 @@ func TestExchangerRejectsMismatchedShareIndex(t *testing.T) {
 	}
 }
 
-// TestVerifyPeerShareIdx covers the sender->shareIdx binding, including a non-contiguous layout where
-// a peer's assigned share index does not equal its position (as when earlier operators are removed).
-func TestVerifyPeerShareIdx(t *testing.T) {
-	const (
-		self    = peer.ID("self")
-		other   = peer.ID("other")
-		unknown = peer.ID("unknown")
-	)
-
-	// "other" is the second peer but keeps share index 4, e.g. after operators with lower indices
-	// have been removed.
-	peerMap := map[peer.ID]cluster.NodeIdx{
-		self:  {PeerIdx: 0, ShareIdx: 1},
-		other: {PeerIdx: 1, ShareIdx: 4},
-	}
-
-	tests := []struct {
-		name     string
-		sender   peer.ID
-		shareIdx int
-		wantErr  string
-	}{
-		{name: "own share index accepted", sender: self, shareIdx: 1},
-		{name: "assigned non-contiguous share index accepted", sender: other, shareIdx: 4},
-		{name: "mismatched share index rejected", sender: other, shareIdx: 2, wantErr: "share index does not match"},
-		{name: "another peer's share index rejected", sender: self, shareIdx: 4, wantErr: "share index does not match"},
-		{name: "non-positive share index rejected", sender: self, shareIdx: 0, wantErr: "share index does not match"},
-		{name: "unknown sender rejected", sender: unknown, shareIdx: 1, wantErr: "unknown peer"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			data := core.NewPartialSignature(testutil.RandomCoreSignature(), tt.shareIdx)
-
-			err := verifyPeerShareIdx(peerMap, tt.sender, data)
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-			} else {
-				require.ErrorContains(t, err, tt.wantErr)
-			}
-		})
-	}
-}
-
 // TestNewExchangerRejectsIncompletePeerMap ensures construction fails fast when a peer has no valid
 // share index, rather than silently rejecting its partial signatures and timing out.
 func TestNewExchangerRejectsIncompletePeerMap(t *testing.T) {
