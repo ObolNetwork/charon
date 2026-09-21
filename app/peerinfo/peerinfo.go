@@ -48,7 +48,7 @@ type (
 
 // New returns a new peer info protocol instance.
 func New(p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
-	sendFunc p2p.SendReceiveFunc, builderEnabled bool, nickname string,
+	sendFunc p2p.SendReceiveFunc, builderEnabled bool, nickname string, builderConfigHash []byte,
 ) *PeerInfo {
 	// Set own version, git hash and nickname and start time and metrics.
 	name := p2p.PeerName(p2pNode.ID())
@@ -74,24 +74,24 @@ func New(p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []
 	}
 
 	return newInternal(p2pNode, peers, version, lockHash, gitHash, sendFunc, p2p.RegisterHandler,
-		tickerProvider, time.Now, newMetricsSubmitter(), builderEnabled, nickname)
+		tickerProvider, time.Now, newMetricsSubmitter(), builderEnabled, nickname, builderConfigHash)
 }
 
 // NewForT returns a new peer info protocol instance for testing only.
 func NewForT(_ *testing.T, p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
-	builderAPIEnabled bool, nickname string,
+	builderAPIEnabled bool, nickname string, builderConfigHash []byte,
 ) *PeerInfo {
 	return newInternal(p2pNode, peers, version, lockHash, gitHash, sendFunc, registerHandler,
-		tickerProvider, nowFunc, metricSubmitter, builderAPIEnabled, nickname)
+		tickerProvider, nowFunc, metricSubmitter, builderAPIEnabled, nickname, builderConfigHash)
 }
 
 // newInternal returns a new instance for New or NewForT.
 func newInternal(p2pNode host.Host, peers []peer.ID, version version.SemVer, lockHash []byte, gitHash string,
 	sendFunc p2p.SendReceiveFunc, registerHandler p2p.RegisterHandlerFunc,
 	tickerProvider tickerProvider, nowFunc nowFunc, metricSubmitter metricSubmitter,
-	builderAPIEnabled bool, nickname string,
+	builderAPIEnabled bool, nickname string, builderConfigHash []byte,
 ) *PeerInfo {
 	startTime := timestamppb.New(nowFunc())
 
@@ -108,6 +108,7 @@ func newInternal(p2pNode host.Host, peers []peer.ID, version version.SemVer, loc
 				BuilderApiEnabled: builderAPIEnabled,
 				Nickname:          nickname,
 				DvClient:          DVClientCharon,
+				BuilderConfigHash: builderConfigHash,
 			}, true, nil
 		},
 		p2p.WithReadLimit(maxPeerInfoMsgSize),
@@ -119,45 +120,51 @@ func newInternal(p2pNode host.Host, peers []peer.ID, version version.SemVer, loc
 	// Create log filters
 	lockHashFilters := make(map[peer.ID]z.Field)
 	versionFilters := make(map[peer.ID]z.Field)
+	builderConfigFilters := make(map[peer.ID]z.Field)
 
 	for _, peerID := range peers {
 		lockHashFilters[peerID] = log.Filter()
 		versionFilters[peerID] = log.Filter()
+		builderConfigFilters[peerID] = log.Filter()
 	}
 
 	return &PeerInfo{
-		sendFunc:          sendFunc,
-		p2pNode:           p2pNode,
-		peers:             peers,
-		version:           version,
-		lockHash:          lockHash,
-		startTime:         startTime,
-		builderAPIEnabled: builderAPIEnabled,
-		metricSubmitter:   metricSubmitter,
-		tickerProvider:    tickerProvider,
-		nowFunc:           nowFunc,
-		lockHashFilters:   lockHashFilters,
-		versionFilters:    versionFilters,
-		nicknames:         nicknames,
+		sendFunc:             sendFunc,
+		p2pNode:              p2pNode,
+		peers:                peers,
+		version:              version,
+		lockHash:             lockHash,
+		startTime:            startTime,
+		builderAPIEnabled:    builderAPIEnabled,
+		builderConfigHash:    builderConfigHash,
+		metricSubmitter:      metricSubmitter,
+		tickerProvider:       tickerProvider,
+		nowFunc:              nowFunc,
+		lockHashFilters:      lockHashFilters,
+		versionFilters:       versionFilters,
+		builderConfigFilters: builderConfigFilters,
+		nicknames:            nicknames,
 	}
 }
 
 type PeerInfo struct {
-	sendFunc          p2p.SendReceiveFunc
-	p2pNode           host.Host
-	peers             []peer.ID
-	version           version.SemVer
-	lockHash          []byte
-	gitHash           string
-	startTime         *timestamppb.Timestamp
-	builderAPIEnabled bool
-	tickerProvider    tickerProvider
-	metricSubmitter   metricSubmitter
-	nowFunc           func() time.Time
-	lockHashFilters   map[peer.ID]z.Field
-	versionFilters    map[peer.ID]z.Field
-	nicknames         map[string]string
-	nicknamesMu       sync.RWMutex
+	sendFunc             p2p.SendReceiveFunc
+	p2pNode              host.Host
+	peers                []peer.ID
+	version              version.SemVer
+	lockHash             []byte
+	gitHash              string
+	startTime            *timestamppb.Timestamp
+	builderAPIEnabled    bool
+	builderConfigHash    []byte
+	tickerProvider       tickerProvider
+	metricSubmitter      metricSubmitter
+	nowFunc              func() time.Time
+	lockHashFilters      map[peer.ID]z.Field
+	versionFilters       map[peer.ID]z.Field
+	builderConfigFilters map[peer.ID]z.Field
+	nicknames            map[string]string
+	nicknamesMu          sync.RWMutex
 }
 
 // Run runs the peer info protocol until the context is cancelled.
@@ -193,6 +200,7 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 			BuilderApiEnabled: p.builderAPIEnabled,
 			Nickname:          p.nicknames[p2p.PeerName(p.p2pNode.ID())],
 			DvClient:          DVClientCharon,
+			BuilderConfigHash: p.builderConfigHash,
 		}
 
 		go func(peerID peer.ID) {
@@ -277,6 +285,23 @@ func (p *PeerInfo) sendOnce(ctx context.Context, now time.Time) {
 					z.Bool("peer_builder_api_enabled", resp.GetBuilderApiEnabled()),
 					z.Bool("builder_api_enabled", p.builderAPIEnabled),
 				)
+			}
+
+			// The builder configuration (builder URLs and related flags) must be identical
+			// across the cluster since it feeds signed builder duties which only aggregate
+			// when all nodes sign identical data. An absent hash means the peer runs a
+			// version predating it, so nothing can be compared.
+			if peerHash := resp.GetBuilderConfigHash(); len(peerHash) > 0 {
+				if bytes.Equal(peerHash, p.builderConfigHash) {
+					peerBuilderConfigMismatchGauge.WithLabelValues(name).Set(0)
+				} else {
+					peerBuilderConfigMismatchGauge.WithLabelValues(name).Set(1)
+
+					log.Warn(ctx, "Mismatching peer builder configuration, ensure the builder flags are identical on all nodes in the cluster", nil,
+						z.Str("peer", name),
+						p.builderConfigFilters[peerID],
+					)
+				}
 			}
 		}(peerID)
 	}

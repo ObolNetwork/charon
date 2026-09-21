@@ -91,7 +91,7 @@ func TestPeerBuilderAPIEnabledGauge(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_ = New(server, []peer.ID{server.ID(), client.ID()}, version.Version, lockHash, gitHash, nil, test.builderEnabled, peerNickname)
+			_ = New(server, []peer.ID{server.ID(), client.ID()}, version.Version, lockHash, gitHash, nil, test.builderEnabled, peerNickname, nil)
 
 			expectedMetric := fmt.Sprintf(`
 			# HELP app_peerinfo_builder_api_enabled Set to 1 if builder API is enabled on this peer, else 0 if disabled.
@@ -200,7 +200,7 @@ func TestDVClientVersionCheck(t *testing.T) {
 
 			pi := newInternal(client, peers, version.Supported()[0], lockHash, gitCommit,
 				p2p.SendReceive, p2p.RegisterHandler,
-				tickProvider, func() time.Time { return now }, metricSubmitter, false, "test")
+				tickProvider, func() time.Time { return now }, metricSubmitter, false, "test", nil)
 
 			// Run until the single tick is processed.
 			go pi.Run(ctx)
@@ -222,6 +222,102 @@ func TestDVClientVersionCheck(t *testing.T) {
 			require.InDelta(t, 1, dvClientVal, 0)
 
 			require.Equal(t, test.expectSubmitted, submitted)
+		})
+	}
+}
+
+func TestBuilderConfigHashCheck(t *testing.T) {
+	now := time.Now()
+	lockHash := []byte("abcdef")
+	ownHash := []byte("own-builder-config-hash")
+
+	const gitCommit = "1234567"
+
+	tests := []struct {
+		name         string
+		peerHash     []byte
+		expectSeries bool
+		expectValue  float64
+	}{
+		{
+			name:         "matching hash",
+			peerHash:     ownHash,
+			expectSeries: true,
+			expectValue:  0,
+		},
+		{
+			name:         "mismatching hash",
+			peerHash:     []byte("other-builder-config-hash"),
+			expectSeries: true,
+			expectValue:  1,
+		},
+		{
+			name:         "absent hash skips comparison",
+			peerHash:     nil,
+			expectSeries: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			peerBuilderConfigMismatchGauge.Reset()
+
+			server := testutil.CreateHost(t, testutil.AvailableAddr(t))
+			client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+
+			server.Peerstore().AddAddrs(client.ID(), client.Addrs(), peerstore.PermanentAddrTTL)
+			client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
+
+			peers := []peer.ID{client.ID(), server.ID()}
+
+			p2p.RegisterHandler("peerinfo", server, protocolID2,
+				func() proto.Message { return new(pbv1.PeerInfo) },
+				func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+					return &pbv1.PeerInfo{
+						CharonVersion:     version.Supported()[0].String(),
+						LockHash:          lockHash,
+						GitHash:           gitCommit,
+						SentAt:            timestamppb.New(now),
+						StartedAt:         timestamppb.New(now),
+						DvClient:          DVClientCharon,
+						BuilderConfigHash: test.peerHash,
+					}, true, nil
+				},
+				p2p.WithReadLimit(maxPeerInfoMsgSize),
+			)
+
+			ctx := t.Context()
+
+			tickProvider := func() (<-chan time.Time, func()) {
+				ch := make(chan time.Time, 1)
+				ch <- now
+
+				return ch, func() {}
+			}
+
+			metricSubmitter := func(peer.ID, time.Duration, string, string, time.Time, bool, string) {}
+
+			pi := newInternal(client, peers, version.Supported()[0], lockHash, gitCommit,
+				p2p.SendReceive, p2p.RegisterHandler,
+				tickProvider, func() time.Time { return now }, metricSubmitter, false, "test", ownHash)
+
+			go pi.Run(ctx)
+
+			serverName := p2p.PeerName(server.ID())
+
+			if test.expectSeries {
+				require.Eventually(t, func() bool {
+					if promtestutil.CollectAndCount(peerBuilderConfigMismatchGauge) != 1 {
+						return false
+					}
+
+					return promtestutil.ToFloat64(peerBuilderConfigMismatchGauge.WithLabelValues(serverName)) == test.expectValue
+				}, 5*time.Second, 50*time.Millisecond)
+			} else {
+				// Give the goroutine time to process the tick, no series may appear.
+				time.Sleep(500 * time.Millisecond)
+				require.Zero(t, promtestutil.CollectAndCount(peerBuilderConfigMismatchGauge))
+			}
 		})
 	}
 }
