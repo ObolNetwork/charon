@@ -170,6 +170,12 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # golangci-lint's nolintlint falsely reports //nolint:revive directives as
+      # unused and (with fix: true) deletes them, even though revive would fire
+      # without them. Keep such directives; do not report or auto-remove them.
+      - linters:
+          - nolintlint
+        text: 'is unused for linter "revive"'
       - linters:
           - bodyclose
           - gosec
