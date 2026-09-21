@@ -3,11 +3,14 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"slices"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	"github.com/attestantio/go-eth2-client/spec/electra"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/spf13/cobra"
 
@@ -216,7 +219,7 @@ func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2w
 		valsEth2 = append(valsEth2, eth2PK)
 	}
 
-	rawValData, err := queryBeaconForValidator(ctx, eth2Cl, valsEth2, nil, []eth2v1.ValidatorState{eth2v1.ValidatorStatePendingQueued, eth2v1.ValidatorStateActiveOngoing})
+	rawValData, err := queryBeaconForValidator(ctx, eth2Cl, valsEth2, nil, []eth2v1.ValidatorState{eth2v1.ValidatorStatePendingInitialized, eth2v1.ValidatorStatePendingQueued, eth2v1.ValidatorStateActiveOngoing})
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch all validators indices from beacon")
 	}
@@ -232,6 +235,8 @@ func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2w
 		share.Index = int(val.Index)
 		activeShares[core.PubKeyFrom48Bytes(val.Validator.PublicKey)] = share
 	}
+
+	warnOnPendingDeposits(ctx, eth2Cl, valsEth2, rawValData.Data)
 
 	log.Info(ctx, "Signing partial exit message for all active validators", z.Int("active_validators", len(activeShares)), z.Int("inactive_validators", len(shares)-len(activeShares)))
 
@@ -258,6 +263,70 @@ func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2w
 	}
 
 	return exitBlobs, nil
+}
+
+// pendingDepositsWithoutIndex returns the cluster validator public keys that have a registered
+// deposit in the beacon pending-deposits queue but no validator index yet, so no exit can be
+// signed for them. Top-up deposits for already-indexed validators and deposits for validators
+// outside the cluster are ignored. The result is deduplicated and sorted deterministically.
+func pendingDepositsWithoutIndex(clusterPubkeys, indexedPubkeys map[eth2p0.BLSPubKey]bool, pendingDeposits []*electra.PendingDeposit) []eth2p0.BLSPubKey {
+	seen := make(map[eth2p0.BLSPubKey]bool)
+
+	var out []eth2p0.BLSPubKey
+
+	for _, pd := range pendingDeposits {
+		pk := pd.Pubkey
+		if !clusterPubkeys[pk] || indexedPubkeys[pk] || seen[pk] {
+			continue
+		}
+
+		seen[pk] = true
+		out = append(out, pk)
+	}
+
+	slices.SortFunc(out, func(a, b eth2p0.BLSPubKey) int {
+		return bytes.Compare(a[:], b[:])
+	})
+
+	return out
+}
+
+// warnOnPendingDeposits queries the beacon pending-deposits queue and warns about the cluster
+// validators that have a registered deposit but no validator index yet, so no exit could be
+// signed for them. It is best-effort: any error querying the queue is logged and swallowed so it
+// never blocks signing exits for the exitable validators. The affected public keys are returned.
+func warnOnPendingDeposits(ctx context.Context, eth2Cl eth2wrap.Client, clusterPubkeys []eth2p0.BLSPubKey, indexed map[eth2p0.ValidatorIndex]*eth2v1.Validator) []eth2p0.BLSPubKey {
+	resp, err := eth2Cl.PendingDeposits(ctx, &eth2api.PendingDepositsOpts{State: "head"})
+	if err != nil {
+		log.Warn(ctx, "Could not check beacon pending-deposits queue for validators without an index", err)
+		return nil
+	}
+
+	clusterSet := make(map[eth2p0.BLSPubKey]bool, len(clusterPubkeys))
+	for _, pk := range clusterPubkeys {
+		clusterSet[pk] = true
+	}
+
+	indexedSet := make(map[eth2p0.BLSPubKey]bool, len(indexed))
+	for _, val := range indexed {
+		indexedSet[val.Validator.PublicKey] = true
+	}
+
+	warnPubkeys := pendingDepositsWithoutIndex(clusterSet, indexedSet, resp.Data)
+	if len(warnPubkeys) == 0 {
+		return nil
+	}
+
+	pubkeyStrs := make([]string, 0, len(warnPubkeys))
+	for _, pk := range warnPubkeys {
+		pubkeyStrs = append(pubkeyStrs, pk.String())
+	}
+
+	log.Warn(ctx, "Some validators have a registered deposit but no validator index yet, so no exit was signed for them; "+
+		"they will activate later and cannot be exited now. Re-run 'charon exit sign --all' once they have a validator index.", nil,
+		z.Int("count", len(warnPubkeys)), z.Any("validators", pubkeyStrs))
+
+	return warnPubkeys
 }
 
 func fetchValidatorBLSPubKey(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client) (eth2p0.BLSPubKey, error) {
