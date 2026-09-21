@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -18,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 type feerecipientFetchConfig struct {
@@ -103,6 +105,14 @@ func runFeeRecipientFetch(ctx context.Context, config feerecipientFetchConfig) e
 	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
 	if err != nil {
 		return err
+	}
+
+	// From the gloas fork, builder registrations are superseded by signed proposer
+	// preferences and fetched overrides no longer reach the validator client; the
+	// generated proposer configuration file replaces this flow.
+	if eth2util.GloasActive(cl.ForkVersion, time.Now()) {
+		return errors.New("fetching fee recipients is not supported from the gloas fork onwards, " +
+			"the validator client proposer configuration file replaces builder registrations")
 	}
 
 	oAPI, err := obolapi.New(config.PublishAddress, obolapi.WithTimeout(config.PublishTimeout))

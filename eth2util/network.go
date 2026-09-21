@@ -29,6 +29,9 @@ type Network struct {
 	CapellaHardFork string
 	// SlotDuration represents slot duration in seconds
 	SlotDuration uint64
+	// GloasHardForkTimestamp represents the wall-clock time at which the gloas hard fork
+	// activates on the network, in unix seconds. Zero when the fork is not scheduled.
+	GloasHardForkTimestamp int64
 }
 
 // IsNonZero checks if each field in this struct is not equal to its zero value.
@@ -140,6 +143,17 @@ func ForkVersionToChainID(forkVersion []byte) (uint64, error) {
 	}
 
 	return network.ChainID, nil
+}
+
+// GloasActive returns true if the network of the provided fork version has the gloas
+// hard fork scheduled and active at the given time. It returns false for unknown networks.
+func GloasActive(forkVersion []byte, now time.Time) bool {
+	network, err := networkFromForkVersion(fmt.Sprintf("%#x", forkVersion))
+	if err != nil {
+		return false
+	}
+
+	return network.GloasHardForkTimestamp != 0 && now.Unix() >= network.GloasHardForkTimestamp
 }
 
 // ForkVersionToNetwork returns the network name corresponding to the provided fork version.
