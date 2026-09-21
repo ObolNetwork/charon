@@ -203,6 +203,7 @@ type Mock struct {
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	ProposerDutiesV2Func                   func(context.Context, eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error)
 	CachedProposerDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
 	SubmitAttestationsFunc                 func(context.Context, *eth2api.SubmitAttestationsOpts) error
 	SubmitProposalFunc                     func(context.Context, *eth2api.SubmitProposalOpts) error
@@ -316,6 +317,10 @@ func (m Mock) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDutiesOp
 
 func (m Mock) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 	return m.CachedProposerDutiesFunc(ctx, epoch, vidxs)
+}
+
+func (m Mock) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
+	return m.ProposerDutiesV2Func(ctx, epoch)
 }
 
 func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconBlockOpts) (*eth2api.Response[*eth2spec.VersionedSignedBeaconBlock], error) {
