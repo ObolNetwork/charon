@@ -42,6 +42,7 @@ import (
 	"github.com/pk910/dynamic-ssz/sszutils"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -96,6 +97,11 @@ type Handler interface {
 	// TODO(gloas): replace with eth2client.ProposerPreferencesSubmitter once attestantio/go-eth2-client#316 merges.
 	SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
 
+	// ProposerDutiesV2 provides v2 proposer duties (the E-2 shuffling dependent root that
+	// gloas proposer preferences sign over) with pubkeys swapped to this node's public shares.
+	// TODO(gloas): replace with the eth2client provider once attestantio/go-eth2-client#332 merges.
+	ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error)
+
 	// Address returns the address of the beacon node.
 	Address() string
 	// Headers returns custom headers to include in requests to the beacon node.
@@ -132,17 +138,17 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
+			Name:      "proposer_duties_v2",
+			Path:      "/eth/v2/validator/duties/proposer/{epoch}",
+			Handler:   proposerDutiesV2(h),
+			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
+		},
+		{
 			Name:      "ptc_duties",
 			Path:      "/eth/v1/validator/duties/ptc/{epoch}",
 			Handler:   ptcDuties(h),
 			Methods:   []string{http.MethodPost},
-			Encodings: []contentType{contentTypeJSON},
-		},
-		{
-			Name:      "proposer_duties_v2",
-			Path:      "/eth/v2/validator/duties/proposer/{epoch}",
-			Handler:   proposerDuties(h),
-			Methods:   []string{http.MethodGet},
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
@@ -827,6 +833,33 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 		return proposerDutiesResponse{
 			ExecutionOptimistic: executionOptimistic,
 			DependentRoot:       dependentRoot,
+			Data:                data,
+		}, nil, nil
+	}
+}
+
+// proposerDutiesV2 returns a handler function for the v2 proposer duty endpoint, which
+// only differs from v1 in the dependent root being the E-2 shuffling anchor.
+func proposerDutiesV2(p eth2wrap.ProposerDutiesV2Provider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		duties, err := p.ProposerDutiesV2(ctx, eth2p0.Epoch(epoch))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		data := duties.Duties
+		if len(data) == 0 { // Return empty json array instead of null
+			data = []*eth2v1.ProposerDuty{}
+		}
+
+		return proposerDutiesResponse{
+			ExecutionOptimistic: duties.ExecutionOptimistic,
+			DependentRoot:       root(duties.DependentRoot),
 			Data:                data,
 		}, nil, nil
 	}
