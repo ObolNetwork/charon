@@ -1039,6 +1039,7 @@ func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []
 		if slot <= currentSlot || slot >= maxSlot {
 			log.Warn(ctx, "Skipping proposer preferences with proposal slot outside lookahead window", nil,
 				z.U64("proposal_slot", uint64(slot)), z.U64("current_slot", uint64(currentSlot)), z.U64("max_slot", uint64(maxSlot)))
+
 			continue
 		}
 
@@ -1046,6 +1047,7 @@ func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []
 		if !ok || val.Validator == nil {
 			log.Warn(ctx, "Skipping proposer preferences for unknown validator", nil,
 				z.U64("validator_index", uint64(pref.Message.ValidatorIndex)))
+
 			continue
 		}
 
@@ -1060,6 +1062,7 @@ func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []
 		if err != nil {
 			log.Warn(ctx, "Skipping proposer preferences with invalid partial signature", err,
 				z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pk))
+
 			continue
 		}
 
@@ -1411,6 +1414,41 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 	}
 
 	return wrapResponseWithMetadata(duties, metadata), nil
+}
+
+// ProposerDutiesV2 provides v2 proposer duties with pubkeys swapped to this node's
+// public shares. The dependent root passes through from the beacon node untouched, it
+// is the E-2 shuffling anchor the VC signs into gloas proposer preferences.
+// TODO(gloas): replace with the eth2client provider once attestantio/go-eth2-client#332 merges.
+func (c Component) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
+	var span trace.Span
+
+	ctx, span = tracer.Start(ctx, "core/validatorapi.ProposerDutiesV2")
+
+	span.SetAttributes(attribute.Int64("epoch", int64(epoch)))
+	defer span.End()
+
+	duties, err := c.eth2Cl.ProposerDutiesV2(ctx, epoch)
+	if err != nil {
+		return eth2wrap.ProposerDutiesV2{}, err
+	}
+
+	// Replace root public keys with public shares.
+	for _, d := range duties.Duties {
+		if d == nil {
+			return eth2wrap.ProposerDutiesV2{}, errors.New("nil proposer duty")
+		}
+
+		pubshare, ok := c.getPubShareFunc(d.PubKey)
+		if !ok {
+			// Ignore unknown validators since proposer duties contain ALL proposers for the epoch.
+			continue
+		}
+
+		d.PubKey = pubshare
+	}
+
+	return duties, nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
