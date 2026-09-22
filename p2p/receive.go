@@ -5,6 +5,7 @@ package p2p
 import (
 	"context"
 	"net"
+	"runtime/debug"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
@@ -63,6 +64,16 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 
 		defer cancel()
 		defer s.Close()
+
+		// Recover any panic in this stream handler goroutine.
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error(ctx, "Recovered from panic handling p2p message; stream dropped and process kept alive", nil,
+					z.Any("recover", r),
+					z.Str("stacktrace", string(debug.Stack())),
+				)
+			}
+		}()
 
 		writeFunc, ok := o.writersByProtocol[s.Protocol()]
 		if !ok {
