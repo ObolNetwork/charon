@@ -60,8 +60,6 @@ type Client interface {
 
 		SetForkVersion(forkVersion [4]byte)
 
-		ProposerDutiesV2Provider
-
 		ClientForAddress(addr string) Client
 		Address() string
 		Headers() map[string]string
@@ -137,6 +135,8 @@ type Client interface {
 		"NodeVersionProvider":                   {Latency: false, Log: false},
 		"NodeVersionV2Provider":                 {Latency: false, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},
+		"ProposerDutiesV2Provider":              {Latency: true, Log: false},
+		"ProposerPreferencesSubmitter":          {Latency: true, Log: false},
 		"PTCDutiesProvider":                     {Latency: true, Log: false},
 		"PayloadAttestationDataProvider":        {Latency: true, Log: false},
 		"PayloadAttestationMessagesSubmitter":   {Latency: true, Log: false},

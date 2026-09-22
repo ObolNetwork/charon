@@ -214,15 +214,6 @@ func (l *lazy) SetDutiesCache(
 	}
 }
 
-func (l *lazy) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (ProposerDutiesV2, error) {
-	cl, err := l.getOrCreateClient(ctx)
-	if err != nil {
-		return ProposerDutiesV2{}, err
-	}
-
-	return cl.ProposerDutiesV2(ctx, epoch)
-}
-
 func (l *lazy) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {

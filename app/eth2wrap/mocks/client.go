@@ -12,6 +12,8 @@ import (
 
 	eth2wrap "github.com/obolnetwork/charon/app/eth2wrap"
 
+	gloas "github.com/attestantio/go-eth2-client/spec/gloas"
+
 	http "net/http"
 
 	mock "github.com/stretchr/testify/mock"
@@ -918,27 +920,29 @@ func (_m *Client) ProposerDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2
 	return r0, r1
 }
 
-// ProposerDutiesV2 provides a mock function with given fields: ctx, epoch
-func (_m *Client) ProposerDutiesV2(ctx context.Context, epoch phase0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
-	ret := _m.Called(ctx, epoch)
+// ProposerDutiesV2 provides a mock function with given fields: ctx, opts
+func (_m *Client) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*v1.ProposerDuty], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ProposerDutiesV2")
 	}
 
-	var r0 eth2wrap.ProposerDutiesV2
+	var r0 *api.Response[[]*v1.ProposerDuty]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) (eth2wrap.ProposerDutiesV2, error)); ok {
-		return rf(ctx, epoch)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ProposerDutiesOpts) (*api.Response[[]*v1.ProposerDuty], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) eth2wrap.ProposerDutiesV2); ok {
-		r0 = rf(ctx, epoch)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ProposerDutiesOpts) *api.Response[[]*v1.ProposerDuty]); ok {
+		r0 = rf(ctx, opts)
 	} else {
-		r0 = ret.Get(0).(eth2wrap.ProposerDutiesV2)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*v1.ProposerDuty])
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch) error); ok {
-		r1 = rf(ctx, epoch)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ProposerDutiesOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1226,6 +1230,24 @@ func (_m *Client) SubmitProposalPreparations(ctx context.Context, preparations [
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, []*v1.ProposalPreparation) error); ok {
 		r0 = rf(ctx, preparations)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SubmitProposerPreferences provides a mock function with given fields: ctx, preferences
+func (_m *Client) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	ret := _m.Called(ctx, preferences)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SubmitProposerPreferences")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*gloas.SignedProposerPreferences) error); ok {
+		r0 = rf(ctx, preferences)
 	} else {
 		r0 = ret.Error(0)
 	}

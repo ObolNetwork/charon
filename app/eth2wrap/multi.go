@@ -200,25 +200,6 @@ func (m multi) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 	return res0, err
 }
 
-func (m multi) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (ProposerDutiesV2, error) {
-	const label = "proposer_duties_v2"
-
-	defer latency(ctx, label, false)()
-
-	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (ProposerDutiesV2, error) {
-			return args.client.ProposerDutiesV2(ctx, epoch)
-		},
-		nil, m.selector,
-	)
-	if err != nil {
-		incError(label)
-		err = wrapError(ctx, err, label)
-	}
-
-	return res0, err
-}
-
 func (m multi) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error) {
 	const label = "attester_duties_cache"
 	// No latency since this is a cached endpoint.
