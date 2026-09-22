@@ -449,31 +449,38 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 	s.setResolvingEpoch(slot.Epoch())
 	defer s.setResolvingEpoch(math.MaxInt64)
 
-	vals, err := resolveActiveValidators(ctx, s.eth2Cl, s.metricSubmitter, slot.Epoch())
+	vals, syncVals, err := resolveValidators(ctx, s.eth2Cl, s.metricSubmitter, slot.Epoch())
 	if err != nil {
 		return err
 	}
 
 	activeValsGauge.Set(float64(len(vals)))
 
-	if len(vals) == 0 {
-		log.Info(ctx, "No active validators for slot", z.U64("slot", slot.Slot))
+	if len(syncVals) == 0 {
+		log.Info(ctx, "No validators for slot", z.U64("slot", slot.Slot))
 		s.setResolvedEpoch(slot.Epoch())
 
 		return nil
 	}
 
-	err = s.resolveAttDuties(ctx, slot, vals)
-	if err != nil {
-		return err
+	// Attestation and proposal duties only apply to active validators, so skip them when the
+	// cluster has no active validators this epoch (e.g. all have exited but still owe sync duties).
+	if len(vals) > 0 {
+		err = s.resolveAttDuties(ctx, slot, vals)
+		if err != nil {
+			return err
+		}
+
+		err = s.resolveProDuties(ctx, slot, vals)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = s.resolveProDuties(ctx, slot, vals)
-	if err != nil {
-		return err
-	}
-
-	err = s.resolveSyncCommDuties(ctx, slot, vals)
+	// Resolve sync committee duties for the sync set (active plus recently-exited validators that
+	// may still be committee members); the beacon node returns duties only for the current period's
+	// actual members.
+	err = s.resolveSyncCommDuties(ctx, slot, syncVals)
 	if err != nil {
 		return err
 	}
@@ -965,41 +972,59 @@ func newSlotTicker(ctx context.Context, eth2Cl eth2wrap.Client, clock clockwork.
 	return resp, nil
 }
 
-// resolveActiveValidators returns the active validators (including their validator index) for the slot.
-func resolveActiveValidators(ctx context.Context, eth2Cl eth2wrap.Client, submitter metricSubmitter, epoch uint64,
-) (validators, error) {
+// resolveValidators returns the epoch's active validators (for attestation and proposal duties)
+// and its sync committee validators: the active set plus validators that exited in the current or
+// previous sync committee period, which may still be members (the beacon node filters non-members).
+func resolveValidators(ctx context.Context, eth2Cl eth2wrap.Client, submitter metricSubmitter, epoch uint64,
+) (active, syncComm validators, err error) {
 	eth2Resp, err := eth2Cl.CompleteValidators(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var resp []validator
+	syncPeriod, err := eth2wrap.FetchSyncCommitteePeriod(ctx, eth2Cl)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	currentPeriod := epoch / syncPeriod
 
 	for index, val := range eth2Resp {
 		if val == nil || val.Validator == nil {
-			return nil, errors.New("validator data is nil")
+			return nil, nil, errors.New("validator data is nil")
 		}
 
 		pubkey, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		submitter(pubkey, val.Balance, val.Status.String())
 
-		// Check for active validators for the given epoch.
-		// The activation epoch needs to be checked in cases where this function is called before the epoch starts.
-		if !val.Status.IsActive() && val.Validator.ActivationEpoch != eth2p0.Epoch(epoch) {
+		v := validator{PubKey: pubkey, VIdx: index}
+
+		// Attestation and proposal duties apply only to active validators, which are also sync
+		// committee candidates. The activation epoch needs to be checked in cases where this
+		// function is called before the epoch starts.
+		if val.Status.IsActive() || val.Validator.ActivationEpoch == eth2p0.Epoch(epoch) {
+			active = append(active, v)
+			syncComm = append(syncComm, v)
+
 			continue
 		}
 
-		resp = append(resp, validator{
-			PubKey: pubkey,
-			VIdx:   index,
-		})
+		// An exited validator may still owe sync committee duties: membership is locked in one
+		// period ahead, so a validator that exited in the current or previous sync committee period
+		// can still be a member. Validators exited longer ago cannot be, so are dropped.
+		if val.Status.HasExited() {
+			exitPeriod := uint64(val.Validator.ExitEpoch) / syncPeriod
+			if currentPeriod >= exitPeriod && currentPeriod-exitPeriod <= 1 {
+				syncComm = append(syncComm, v)
+			}
+		}
 	}
 
-	return resp, nil
+	return active, syncComm, nil
 }
 
 // waitChainStart blocks until the beacon chain has started.
