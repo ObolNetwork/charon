@@ -194,6 +194,10 @@ func TestResolveValidators(t *testing.T) {
 		3: mkVal(3, eth2v1.ValidatorStateExitedSlashed, 300),      // exited previous period (1)
 		4: mkVal(4, eth2v1.ValidatorStateWithdrawalPossible, 100), // exited two periods ago (0)
 		5: mkVal(5, eth2v1.ValidatorStatePendingQueued, 1<<63),    // never activated
+		// Exited previous period (1) and already withdrawable: on mainnet the withdrawability
+		// delay equals one sync period, so a validator reliably reaches withdrawal_possible while
+		// still serving its final committee period. Must be included via HasExited, not IsExited.
+		6: mkVal(6, eth2v1.ValidatorStateWithdrawalPossible, 300),
 	}
 
 	eth2Cl, err := beaconmock.New(t.Context())
@@ -212,9 +216,9 @@ func TestResolveValidators(t *testing.T) {
 	require.Equal(t, []eth2p0.ValidatorIndex{1}, active.Indexes())
 
 	// Sync committee duties additionally cover validators that exited in the current or previous
-	// period (2 and 3), since membership can persist that long. A validator that exited two periods
-	// ago (4) and one that never activated (5) are excluded.
-	require.ElementsMatch(t, []eth2p0.ValidatorIndex{1, 2, 3}, syncComm.Indexes())
+	// period (2, 3 and 6, the latter already withdrawable), since membership can persist that long.
+	// A validator that exited two periods ago (4) and one that never activated (5) are excluded.
+	require.ElementsMatch(t, []eth2p0.ValidatorIndex{1, 2, 3, 6}, syncComm.Indexes())
 }
 
 func TestResolvingEpoch(t *testing.T) {
