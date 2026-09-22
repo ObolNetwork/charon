@@ -449,7 +449,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		return nil, err
 	}
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -469,6 +469,12 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		switch duty {
 		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation:
 			offset = slotOffsetFunc(core.Duty{Slot: slot, Type: duty})
+		case core.DutyProposerPreferences:
+			// Proposer preferences target a future proposal slot. They are computable from the
+			// start of epoch E-1 for a proposal slot in epoch E, when the E-2 dependent root they
+			// sign over is anchored, so report the delay since that earliest possible submission time.
+			slotsIntoEpoch := slot % slotsPerEpoch
+			offset = -time.Duration(slotsIntoEpoch+slotsPerEpoch) * slotDuration
 		default:
 		}
 
