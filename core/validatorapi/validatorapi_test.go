@@ -1813,33 +1813,28 @@ func TestComponent_Duties(t *testing.T) {
 	})
 
 	t.Run("proposer_duties_v2", func(t *testing.T) {
-		depRoot := testutil.RandomRoot()
-
-		bmock.ProposerDutiesV2Func = func(_ context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
+		bmock.ProposerDutiesV2Func = func(_ context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))
 
-			return eth2wrap.ProposerDutiesV2{
-				Duties: []*eth2v1.ProposerDuty{{
-					PubKey:         eth2Pubkey,
-					ValidatorIndex: vIdx,
-				}},
-				DependentRoot:       depRoot,
-				ExecutionOptimistic: true,
-			}, nil
+			return []*eth2v1.ProposerDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
 		}
 
 		// Construct the validator api component
 		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 		require.NoError(t, err)
 
-		resp, err := vapi.ProposerDutiesV2(ctx, eth2p0.Epoch(epch))
+		opts := &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(epch)}
+
+		resp, err := vapi.ProposerDutiesV2(ctx, opts)
 		require.NoError(t, err)
 
-		// The pubkey is swapped to the pubshare, the dependent root passes through untouched.
-		require.Len(t, resp.Duties, 1)
-		require.Equal(t, eth2Share, resp.Duties[0].PubKey)
-		require.Equal(t, depRoot, resp.DependentRoot)
-		require.True(t, resp.ExecutionOptimistic)
+		// The pubkey is swapped to the pubshare, the metadata passes through untouched.
+		require.Len(t, resp.Data, 1)
+		require.Equal(t, eth2Share, resp.Data[0].PubKey)
+		require.Contains(t, resp.Metadata, "dependent_root")
 	})
 
 	t.Run("attester_duties", func(t *testing.T) {

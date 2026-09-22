@@ -42,7 +42,6 @@ import (
 	"github.com/pk910/dynamic-ssz/sszutils"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -82,6 +81,8 @@ type Handler interface {
 	eth2client.PayloadAttestationDataProvider
 	eth2client.PayloadAttestationMessagesSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.ProposerDutiesV2Provider
+	eth2client.ProposerPreferencesSubmitter
 	eth2client.PTCDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
@@ -92,15 +93,6 @@ type Handler interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
-
-	// SubmitProposerPreferences receives partially signed proposer preferences from the validator client.
-	// TODO(gloas): replace with eth2client.ProposerPreferencesSubmitter once attestantio/go-eth2-client#316 merges.
-	SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
-
-	// ProposerDutiesV2 provides v2 proposer duties (the E-2 shuffling dependent root that
-	// gloas proposer preferences sign over) with pubkeys swapped to this node's public shares.
-	// TODO(gloas): replace with the eth2client provider once attestantio/go-eth2-client#332 merges.
-	ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error)
 
 	// Address returns the address of the beacon node.
 	Address() string
@@ -840,26 +832,41 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 
 // proposerDutiesV2 returns a handler function for the v2 proposer duty endpoint, which
 // only differs from v1 in the dependent root being the E-2 shuffling anchor.
-func proposerDutiesV2(p eth2wrap.ProposerDutiesV2Provider) handlerFunc {
+func proposerDutiesV2(p eth2client.ProposerDutiesV2Provider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
 		}
 
-		duties, err := p.ProposerDutiesV2(ctx, eth2p0.Epoch(epoch))
+		opts := &eth2api.ProposerDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: nil,
+		}
+
+		eth2Resp, err := p.ProposerDutiesV2(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		data := duties.Duties
+		data := eth2Resp.Data
 		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.ProposerDuty{}
 		}
 
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDutiesV2 response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDutiesV2 response metadata")
+		}
+
 		return proposerDutiesResponse{
-			ExecutionOptimistic: duties.ExecutionOptimistic,
-			DependentRoot:       root(duties.DependentRoot),
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
 			Data:                data,
 		}, nil, nil
 	}

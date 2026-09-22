@@ -989,9 +989,6 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 // proposal slot for threshold aggregation. Preferences are aggregated ungated (like sync committee
 // messages): the call never waits for other shares; the submission completing the threshold
 // synchronously triggers aggregation, like other VC-pushed duties.
-//
-// TODO(gloas): swap for eth2client.ProposerPreferencesSubmitter once attestantio/go-eth2-client#316
-// merges.
 func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
 	// Use complete validators since preferences are submitted ahead of time: a validator
 	// activating in the proposal epoch is a valid proposer but not yet active when submitting.
@@ -1417,26 +1414,26 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 }
 
 // ProposerDutiesV2 provides v2 proposer duties with pubkeys swapped to this node's
-// public shares. The dependent root passes through from the beacon node untouched, it
-// is the E-2 shuffling anchor the VC signs into gloas proposer preferences.
-// TODO(gloas): replace with the eth2client provider once attestantio/go-eth2-client#332 merges.
-func (c Component) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
+// public shares. The dependent root metadata passes through from the beacon node untouched,
+// it is the E-2 shuffling anchor the VC signs into gloas proposer preferences.
+// TODO(gloas): route through a v2-aware duties cache (the v1 cache holds the E-1 dependent root).
+func (c Component) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 	var span trace.Span
 
 	ctx, span = tracer.Start(ctx, "core/validatorapi.ProposerDutiesV2")
 
-	span.SetAttributes(attribute.Int64("epoch", int64(epoch)))
+	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	duties, err := c.eth2Cl.ProposerDutiesV2(ctx, epoch)
+	eth2Resp, err := c.eth2Cl.ProposerDutiesV2(ctx, opts)
 	if err != nil {
-		return eth2wrap.ProposerDutiesV2{}, err
+		return nil, err
 	}
 
 	// Replace root public keys with public shares.
-	for _, d := range duties.Duties {
+	for _, d := range eth2Resp.Data {
 		if d == nil {
-			return eth2wrap.ProposerDutiesV2{}, errors.New("nil proposer duty")
+			return nil, errors.New("nil proposer duty")
 		}
 
 		pubshare, ok := c.getPubShareFunc(d.PubKey)
@@ -1448,7 +1445,7 @@ func (c Component) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (et
 		d.PubKey = pubshare
 	}
 
-	return duties, nil
+	return wrapResponseWithMetadata(eth2Resp.Data, eth2Resp.Metadata), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
