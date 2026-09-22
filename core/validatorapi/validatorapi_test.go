@@ -1822,6 +1822,18 @@ func TestComponent_Duties(t *testing.T) {
 			}}, nil
 		}
 
+		bmock.CachedProposerDutiesV2Func = func(_ context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+
+			return eth2wrap.ProposerDutyWithMeta{
+				Duties: []*eth2v1.ProposerDuty{{
+					PubKey:         eth2Pubkey,
+					ValidatorIndex: vIdx,
+				}},
+				Metadata: map[string]any{"dependent_root": eth2p0.Root{}},
+			}, nil
+		}
+
 		// Construct the validator api component
 		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 		require.NoError(t, err)

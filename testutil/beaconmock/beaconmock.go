@@ -207,6 +207,7 @@ type Mock struct {
 	ProposerDutiesV2Func                   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitProposerPreferencesFunc          func(context.Context, []*gloas.SignedProposerPreferences) error
 	CachedProposerDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
+	CachedProposerDutiesV2Func             func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
 	SubmitAttestationsFunc                 func(context.Context, *eth2api.SubmitAttestationsOpts) error
 	SubmitProposalFunc                     func(context.Context, *eth2api.SubmitProposalOpts) error
 	SubmitBlindedProposalFunc              func(context.Context, *eth2api.SubmitBlindedProposalOpts) error
@@ -321,6 +322,10 @@ func (m Mock) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs
 	return m.CachedProposerDutiesFunc(ctx, epoch, vidxs)
 }
 
+func (m Mock) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+	return m.CachedProposerDutiesV2Func(ctx, epoch, vidxs)
+}
+
 func (m Mock) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 	duties, err := m.ProposerDutiesV2Func(ctx, opts.Epoch, opts.Indices)
 	if err != nil {
@@ -401,6 +406,7 @@ func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, 
 }
 
 func (Mock) SetDutiesCache(
+	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error),
 	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error),
 	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error),
 	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error),

@@ -540,7 +540,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	var dutiesCache *eth2wrap.DutiesCache
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
 		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
-		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 	}
 
@@ -692,7 +692,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
 
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
-		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}
 
 	broadcaster, err := bcast.New(ctx, submissionEth2Cl)

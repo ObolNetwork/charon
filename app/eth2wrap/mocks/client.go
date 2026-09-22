@@ -950,6 +950,34 @@ func (_m *Client) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDuties
 	return r0, r1
 }
 
+// ProposerDutiesV2Cache provides a mock function with given fields: _a0, _a1, _a2
+func (_m *Client) ProposerDutiesV2Cache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+	ret := _m.Called(_a0, _a1, _a2)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ProposerDutiesV2Cache")
+	}
+
+	var r0 eth2wrap.ProposerDutyWithMeta
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)); ok {
+		return rf(_a0, _a1, _a2)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) eth2wrap.ProposerDutyWithMeta); ok {
+		r0 = rf(_a0, _a1, _a2)
+	} else {
+		r0 = ret.Get(0).(eth2wrap.ProposerDutyWithMeta)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
+		r1 = rf(_a0, _a1, _a2)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Proxy provides a mock function with given fields: ctx, req
 func (_m *Client) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {
 	ret := _m.Called(ctx, req)
@@ -980,9 +1008,9 @@ func (_m *Client) Proxy(ctx context.Context, req *http.Request) (*http.Response,
 	return r0, r1
 }
 
-// SetDutiesCache provides a mock function with given fields: _a0, _a1, _a2
-func (_m *Client) SetDutiesCache(_a0 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error), _a1 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error), _a2 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error)) {
-	_m.Called(_a0, _a1, _a2)
+// SetDutiesCache provides a mock function with given fields: _a0, _a1, _a2, _a3
+func (_m *Client) SetDutiesCache(_a0 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error), _a1 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error), _a2 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error), _a3 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error)) {
+	_m.Called(_a0, _a1, _a2, _a3)
 }
 
 // SetForkVersion provides a mock function with given fields: forkVersion

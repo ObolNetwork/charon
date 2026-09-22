@@ -1415,8 +1415,8 @@ func (c Component) ProposerDuties(ctx context.Context, opts *eth2api.ProposerDut
 
 // ProposerDutiesV2 provides v2 proposer duties with pubkeys swapped to this node's
 // public shares. The dependent root metadata passes through from the beacon node untouched,
-// it is the E-2 shuffling anchor the VC signs into gloas proposer preferences.
-// TODO(gloas): route through a v2-aware duties cache (the v1 cache holds the E-1 dependent root).
+// it is the E-2 shuffling anchor the VC signs into gloas proposer preferences. It is cached
+// separately from v1 duties since the two endpoints return different dependent roots.
 func (c Component) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
 	var span trace.Span
 
@@ -1425,13 +1425,31 @@ func (c Component) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerD
 	span.SetAttributes(attribute.Int64("epoch", int64(opts.Epoch)))
 	defer span.End()
 
-	eth2Resp, err := c.eth2Cl.ProposerDutiesV2(ctx, opts)
-	if err != nil {
-		return nil, err
+	var (
+		duties   []*eth2v1.ProposerDuty
+		metadata map[string]any
+	)
+
+	if featureset.Enabled(featureset.DisableDutiesCache) {
+		eth2Resp, err := c.eth2Cl.ProposerDutiesV2(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		duties = eth2Resp.Data
+		metadata = eth2Resp.Metadata
+	} else {
+		dutiesMeta, err := c.eth2Cl.ProposerDutiesV2Cache(ctx, opts.Epoch, opts.Indices)
+		if err != nil {
+			return nil, err
+		}
+
+		duties = dutiesMeta.Duties
+		metadata = dutiesMeta.Metadata
 	}
 
 	// Replace root public keys with public shares.
-	for _, d := range eth2Resp.Data {
+	for _, d := range duties {
 		if d == nil {
 			return nil, errors.New("nil proposer duty")
 		}
@@ -1445,7 +1463,7 @@ func (c Component) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerD
 		d.PubKey = pubshare
 	}
 
-	return wrapResponseWithMetadata(eth2Resp.Data, eth2Resp.Metadata), nil
+	return wrapResponseWithMetadata(duties, metadata), nil
 }
 
 func (c Component) AttesterDuties(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {

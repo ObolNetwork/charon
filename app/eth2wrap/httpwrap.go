@@ -48,18 +48,20 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, headers map[string
 type httpAdapter struct {
 	*eth2http.Service
 
-	address               string
-	headers               map[string]string
-	timeout               time.Duration
-	valCacheMu            sync.RWMutex
-	valCache              func(context.Context) (ActiveValidators, CompleteValidators, error)
-	proposerDutiesCacheMu sync.RWMutex
-	proposerDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error)
-	attesterDutiesCacheMu sync.RWMutex
-	attesterDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error)
-	syncCommDutiesCacheMu sync.RWMutex
-	syncCommDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error)
-	forkVersion           [4]byte
+	address                 string
+	headers                 map[string]string
+	timeout                 time.Duration
+	valCacheMu              sync.RWMutex
+	valCache                func(context.Context) (ActiveValidators, CompleteValidators, error)
+	proposerDutiesCacheMu   sync.RWMutex
+	proposerDutiesCache     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error)
+	attesterDutiesCacheMu   sync.RWMutex
+	attesterDutiesCache     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error)
+	proposerDutiesV2CacheMu sync.RWMutex
+	proposerDutiesV2Cache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error)
+	syncCommDutiesCacheMu   sync.RWMutex
+	syncCommDutiesCache     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error)
+	forkVersion             [4]byte
 }
 
 func (h *httpAdapter) SetForkVersion(forkVersion [4]byte) {
@@ -100,12 +102,17 @@ func (h *httpAdapter) CompleteValidators(ctx context.Context) (CompleteValidator
 
 func (h *httpAdapter) SetDutiesCache(
 	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+	proposerDutiesV2Cache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
 	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
 	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
 ) {
 	h.proposerDutiesCacheMu.Lock()
 	h.proposerDutiesCache = proposerDutiesCache
 	h.proposerDutiesCacheMu.Unlock()
+
+	h.proposerDutiesV2CacheMu.Lock()
+	h.proposerDutiesV2Cache = proposerDutiesV2Cache
+	h.proposerDutiesV2CacheMu.Unlock()
 
 	h.attesterDutiesCacheMu.Lock()
 	h.attesterDutiesCache = attesterDutiesCache
@@ -125,6 +132,17 @@ func (h *httpAdapter) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 
 	return h.proposerDutiesCache(ctx, epoch, vidxs)
+}
+
+func (h *httpAdapter) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
+	h.proposerDutiesV2CacheMu.RLock()
+	defer h.proposerDutiesV2CacheMu.RUnlock()
+
+	if h.proposerDutiesV2Cache == nil {
+		return ProposerDutyWithMeta{}, errors.New("no active v2 proposer duties cache")
+	}
+
+	return h.proposerDutiesV2Cache(ctx, epoch, vidxs)
 }
 
 func (h *httpAdapter) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error) {

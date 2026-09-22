@@ -330,6 +330,35 @@ func proposerCacheAdapter() cacheAdapter {
 	}
 }
 
+func proposerV2CacheAdapter() cacheAdapter {
+	return cacheAdapter{
+		installBN: func(m *beaconmock.Mock, record func([]eth2p0.ValidatorIndex), valSet beaconmock.ValidatorSet) {
+			m.ProposerDutiesV2Func = func(_ context.Context, _ eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+				record(vidxs)
+
+				resp := make([]*eth2v1.ProposerDuty, 0, len(vidxs))
+				for _, vidx := range vidxs {
+					val, ok := valSet[vidx]
+					if !ok {
+						continue
+					}
+
+					resp = append(resp, &eth2v1.ProposerDuty{
+						PubKey:         val.Validator.PublicKey,
+						ValidatorIndex: vidx,
+					})
+				}
+
+				return resp, nil
+			}
+		},
+		callCache: func(c *eth2wrap.DutiesCache, ctx context.Context, vidxs []eth2p0.ValidatorIndex) (int, error) {
+			r, err := c.ProposerDutiesV2Cache(ctx, 0, vidxs)
+			return len(r.Duties), err
+		},
+	}
+}
+
 func attesterCacheAdapter() cacheAdapter {
 	return cacheAdapter{
 		installBN: func(m *beaconmock.Mock, record func([]eth2p0.ValidatorIndex), valSet beaconmock.ValidatorSet) {
@@ -567,6 +596,65 @@ func TestProposerDutiesCache_SingleThenSingleThenAll(t *testing.T) {
 	runSingleThenSingleThenAll(t, proposerCacheAdapter())
 }
 
+func TestProposerDutiesV2Cache_AllValidators(t *testing.T) {
+	runAllThenAllCached(t, proposerV2CacheAdapter())
+}
+
+func TestProposerDutiesV2Cache_SingleThenAllThenCached(t *testing.T) {
+	runSingleThenAllThenCached(t, proposerV2CacheAdapter())
+}
+
+func TestProposerDutiesV2Cache_SingleThenSingleThenAll(t *testing.T) {
+	runSingleThenSingleThenAll(t, proposerV2CacheAdapter())
+}
+
+// TestProposerDutiesV2Cache_IndependentOfV1 asserts that populating the v1 proposer duties
+// cache does not serve v2 requests (and vice versa): the two endpoints return different
+// dependent_root metadata, so sharing entries would poison the v2 response.
+func TestProposerDutiesV2Cache_IndependentOfV1(t *testing.T) {
+	v1 := proposerCacheAdapter()
+	v2 := proposerV2CacheAdapter()
+
+	valSet := testutil.RandomValidatorSet(t, cacheHarnessValidators)
+	allIdxs := slices.Collect(maps.Keys(valSet))
+	slices.Sort(allIdxs)
+
+	eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet))
+	require.NoError(t, err)
+
+	var v1Calls, v2Calls [][]eth2p0.ValidatorIndex
+
+	v1.installBN(&eth2Cl, func(vidxs []eth2p0.ValidatorIndex) {
+		v1Calls = append(v1Calls, slices.Clone(vidxs))
+	}, valSet)
+	v2.installBN(&eth2Cl, func(vidxs []eth2p0.ValidatorIndex) {
+		v2Calls = append(v2Calls, slices.Clone(vidxs))
+	}, valSet)
+
+	cache := eth2wrap.NewDutiesCache(eth2Cl, allIdxs)
+	ctx := t.Context()
+
+	// Populate the v1 cache with all validators.
+	count, err := v1.callCache(cache, ctx, slices.Clone(allIdxs))
+	require.NoError(t, err)
+	require.Equal(t, cacheHarnessValidators, count)
+	require.Len(t, v1Calls, 1)
+
+	// A v2 request must hit the v2 endpoint, not be served from the v1 cache.
+	count, err = v2.callCache(cache, ctx, slices.Clone(allIdxs))
+	require.NoError(t, err)
+	require.Equal(t, cacheHarnessValidators, count)
+	require.Len(t, v2Calls, 1, "v2 cache must fetch from the v2 endpoint, not reuse v1 entries")
+
+	// Both caches now serve without further BN calls.
+	_, err = v1.callCache(cache, ctx, slices.Clone(allIdxs))
+	require.NoError(t, err)
+	_, err = v2.callCache(cache, ctx, slices.Clone(allIdxs))
+	require.NoError(t, err)
+	require.Len(t, v1Calls, 1)
+	require.Len(t, v2Calls, 1)
+}
+
 func TestAttesterDutiesCache_AllValidators(t *testing.T) {
 	runAllThenAllCached(t, attesterCacheAdapter())
 }
@@ -593,6 +681,10 @@ func TestSyncCommDutiesCache_SingleThenSingleThenAll(t *testing.T) {
 
 func TestProposerDutiesCache_CallerSliceNotMutated(t *testing.T) {
 	runCallerSliceNotMutated(t, proposerCacheAdapter())
+}
+
+func TestProposerDutiesV2Cache_CallerSliceNotMutated(t *testing.T) {
+	runCallerSliceNotMutated(t, proposerV2CacheAdapter())
 }
 
 func TestAttesterDutiesCache_CallerSliceNotMutated(t *testing.T) {
