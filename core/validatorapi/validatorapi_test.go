@@ -2030,6 +2030,54 @@ func TestComponent_SubmitSyncCommitteeMessages(t *testing.T) {
 	require.Equal(t, count, 1)
 }
 
+// TestComponent_SubmitSyncCommitteeMessagesExitedValidator verifies that sync committee
+// messages are accepted for a validator that has exited but is still serving in the
+// current sync committee period. Such a validator is absent from ActiveValidators but
+// still present in CompleteValidators, and the beacon node keeps assigning it sync duties.
+func TestComponent_SubmitSyncCommitteeMessagesExitedValidator(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		ctx    = context.Background()
+		msg    = testutil.RandomSyncCommitteeMessage()
+		pubkey = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		count  = 0 // No of times the subscription function is called.
+	)
+
+	msg.ValidatorIndex = vIdx
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	// Model an exited-but-still-in-sync-committee validator: absent from the active set,
+	// present in the complete set.
+	exited := beaconmock.ValidatorSetA[vIdx]
+	bmock.CachedValidatorsFunc = func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+		return eth2wrap.ActiveValidators{}, eth2wrap.CompleteValidators{vIdx: exited}, nil
+	}
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewSyncMessageDuty(uint64(msg.Slot)), duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedSyncMessage(msg, 0), data)
+
+		count++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{msg}))
+	require.Equal(t, 1, count)
+}
+
 func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 	const vIdx = 1
 
@@ -2067,6 +2115,52 @@ func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
 
 	require.NoError(t, vapi.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{contrib}))
 	require.Equal(t, count, 1)
+}
+
+// TestComponent_SubmitSyncCommitteeContributionsExitedValidator verifies that sync committee
+// contributions are accepted for an aggregator that has exited but is still serving in the
+// current sync committee period (present in CompleteValidators, absent from ActiveValidators).
+func TestComponent_SubmitSyncCommitteeContributionsExitedValidator(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		count        = 0 // No of times the subscription function is called.
+		ctx          = context.Background()
+		contrib      = testutil.RandomSignedSyncContributionAndProof()
+		pubkey       = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		expectedDuty = core.NewSyncContributionDuty(uint64(contrib.Message.Contribution.Slot))
+	)
+
+	contrib.Message.AggregatorIndex = vIdx
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	exited := beaconmock.ValidatorSetA[vIdx]
+	bmock.CachedValidatorsFunc = func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+		return eth2wrap.ActiveValidators{}, eth2wrap.CompleteValidators{vIdx: exited}, nil
+	}
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, expectedDuty, duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedSyncContributionAndProof(contrib, 0), data)
+
+		count++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitSyncCommitteeContributions(ctx, []*altair.SignedContributionAndProof{contrib}))
+	require.Equal(t, 1, count)
 }
 
 func TestComponent_SubmitSyncCommitteeContributionsVerify(t *testing.T) {
@@ -2433,6 +2527,53 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 
 	// Response must preserve request order (prysm matches by index).
 	require.Equal(t, selections, eth2Resp.Data)
+}
+
+// TestComponent_SyncCommitteeSelectionsExitedValidator verifies that sync committee
+// selections are accepted for an aggregator that has exited but is still serving in the
+// current sync committee period (present in CompleteValidators, absent from ActiveValidators).
+func TestComponent_SyncCommitteeSelectionsExitedValidator(t *testing.T) {
+	const (
+		slot = 0
+		vIdx = 1
+	)
+
+	ctx := context.Background()
+
+	sel := testutil.RandomSyncCommitteeSelection()
+	sel.ValidatorIndex = vIdx
+	sel.Slot = slot
+	sel.SubcommitteeIndex = 0
+	selections := []*eth2v1.SyncCommitteeSelection{sel}
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	exited := beaconmock.ValidatorSetA[vIdx]
+	bmock.CachedValidatorsFunc = func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+		return eth2wrap.ActiveValidators{}, eth2wrap.CompleteValidators{vIdx: exited}, nil
+	}
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
+		return core.NewSyncCommitteeSelection(sel), nil
+	})
+
+	count := 0
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, _ core.ParSignedDataSet) error {
+		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
+
+		count++
+
+		return nil
+	})
+
+	_, err = vapi.SyncCommitteeSelections(ctx, &eth2api.SyncCommitteeSelectionsOpts{Selections: selections})
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 }
 
 // TestComponent_SyncCommitteeSelectionsMultiSubcommittee exercises the bug scenario:

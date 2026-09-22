@@ -916,7 +916,10 @@ func (c Component) SyncCommitteeContribution(ctx context.Context, opts *eth2api.
 
 // SubmitSyncCommitteeMessages receives the partially signed altair.SyncCommitteeMessage.
 func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*altair.SyncCommitteeMessage) error {
-	vals, err := c.eth2Cl.ActiveValidators(ctx)
+	// Use complete validators rather than active ones: a validator that has exited remains
+	// in its sync committee for the rest of the period and must keep producing sync messages,
+	// but is no longer active. See https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/validator.md#sync-committee.
+	vals, err := c.eth2Cl.CompleteValidators(ctx)
 	if err != nil {
 		return err
 	}
@@ -926,12 +929,12 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 	for _, msg := range messages {
 		slot := msg.Slot
 
-		eth2Pubkey, ok := vals[msg.ValidatorIndex]
-		if !ok {
+		val, ok := vals[msg.ValidatorIndex]
+		if !ok || val.Validator == nil {
 			return errors.New("validator not found")
 		}
 
-		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		pk, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
 		if err != nil {
 			return err
 		}
@@ -972,7 +975,9 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 // - It verifies partial signature on ContributionAndProof.
 // - It then calls all the subscribers for further steps on partially signed contribution and proof.
 func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contributionAndProofs []*altair.SignedContributionAndProof) error {
-	vals, err := c.eth2Cl.ActiveValidators(ctx)
+	// Use complete validators rather than active ones: a validator that has exited remains in
+	// its sync committee for the rest of the period and may still be a contribution aggregator.
+	vals, err := c.eth2Cl.CompleteValidators(ctx)
 	if err != nil {
 		return err
 	}
@@ -989,10 +994,12 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 			vIdx       = contrib.Message.AggregatorIndex
 		)
 
-		eth2Pubkey, ok := vals[vIdx]
-		if !ok {
+		val, ok := vals[vIdx]
+		if !ok || val.Validator == nil {
 			return errors.New("validator not found")
 		}
+
+		eth2Pubkey := val.Validator.PublicKey
 
 		pk, err := core.PubKeyFromBytes(eth2Pubkey[:])
 		if err != nil {
@@ -1040,7 +1047,9 @@ func (c Component) SubmitSyncCommitteeContributions(ctx context.Context, contrib
 
 // SyncCommitteeSelections returns aggregate sync committee selection proofs.
 func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error) {
-	vals, err := c.eth2Cl.ActiveValidators(ctx)
+	// Use complete validators rather than active ones: a validator that has exited remains in
+	// its sync committee for the rest of the period and may still be a contribution aggregator.
+	vals, err := c.eth2Cl.CompleteValidators(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -1054,12 +1063,12 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 	pubkeys := make([]core.PubKey, len(opts.Selections))
 
 	for i, selection := range opts.Selections {
-		eth2Pubkey, ok := vals[selection.ValidatorIndex]
-		if !ok {
+		val, ok := vals[selection.ValidatorIndex]
+		if !ok || val.Validator == nil {
 			return nil, errors.New("validator not found")
 		}
 
-		pubkey, err := core.PubKeyFromBytes(eth2Pubkey[:])
+		pubkey, err := core.PubKeyFromBytes(val.Validator.PublicKey[:])
 		if err != nil {
 			return nil, err
 		}
