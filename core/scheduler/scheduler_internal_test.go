@@ -169,6 +169,58 @@ func TestResolveSyncCommDuties(t *testing.T) {
 	}, schedVals), "invalid sync committee duty pubkey")
 }
 
+func TestResolveValidators(t *testing.T) {
+	ctx := context.Background()
+
+	// beaconmock's EPOCHS_PER_SYNC_COMMITTEE_PERIOD is 256, so epoch 600 is in period 2.
+	const epoch = 600
+
+	mkVal := func(index eth2p0.ValidatorIndex, status eth2v1.ValidatorState, exitEpoch eth2p0.Epoch) *eth2v1.Validator {
+		return &eth2v1.Validator{
+			Index:   index,
+			Balance: 1,
+			Status:  status,
+			Validator: &eth2p0.Validator{
+				PublicKey:       testutil.RandomEth2PubKey(t),
+				ActivationEpoch: 2, // != epoch
+				ExitEpoch:       exitEpoch,
+			},
+		}
+	}
+
+	complete := eth2wrap.CompleteValidators{
+		1: mkVal(1, eth2v1.ValidatorStateActiveOngoing, 1<<63),    // active (exit epoch far future)
+		2: mkVal(2, eth2v1.ValidatorStateExitedUnslashed, 520),    // exited this period (2)
+		3: mkVal(3, eth2v1.ValidatorStateExitedSlashed, 300),      // exited previous period (1)
+		4: mkVal(4, eth2v1.ValidatorStateWithdrawalPossible, 100), // exited two periods ago (0)
+		5: mkVal(5, eth2v1.ValidatorStatePendingQueued, 1<<63),    // never activated
+		// Exited previous period (1) and already withdrawable: on mainnet the withdrawability
+		// delay equals one sync period, so a validator reliably reaches withdrawal_possible while
+		// still serving its final committee period. Must be included via HasExited, not IsExited.
+		6: mkVal(6, eth2v1.ValidatorStateWithdrawalPossible, 300),
+	}
+
+	eth2Cl, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	eth2Cl.CachedValidatorsFunc = func(context.Context) (eth2wrap.ActiveValidators, eth2wrap.CompleteValidators, error) {
+		return nil, complete, nil
+	}
+
+	noop := func(core.PubKey, eth2p0.Gwei, string) {}
+
+	active, syncComm, err := resolveValidators(ctx, eth2Cl, noop, epoch)
+	require.NoError(t, err)
+
+	// Attestation/proposal duties only apply to active validators.
+	require.Equal(t, []eth2p0.ValidatorIndex{1}, active.Indexes())
+
+	// Sync committee duties additionally cover validators that exited in the current or previous
+	// period (2, 3 and 6, the latter already withdrawable), since membership can persist that long.
+	// A validator that exited two periods ago (4) and one that never activated (5) are excluded.
+	require.ElementsMatch(t, []eth2p0.ValidatorIndex{1, 2, 3, 6}, syncComm.Indexes())
+}
+
 func TestResolvingEpoch(t *testing.T) {
 	sched, _ := setupScheduler(t)
 

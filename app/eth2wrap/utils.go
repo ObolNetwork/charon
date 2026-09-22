@@ -91,6 +91,29 @@ func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slot
 	return slotDuration, slotsPerEpoch, nil
 }
 
+// FetchSyncCommitteePeriod returns the number of epochs per sync committee period from the network spec.
+func FetchSyncCommitteePeriod(ctx context.Context, client eth2client.SpecProvider) (uint64, error) {
+	spec, err := client.Spec(ctx, &api.SpecOpts{})
+	if err != nil {
+		return 0, errFetchNetworkSpec
+	}
+
+	if spec == nil {
+		return 0, errMissingNetworkSpec
+	}
+
+	period, ok := spec.Data["EPOCHS_PER_SYNC_COMMITTEE_PERIOD"].(uint64)
+	if !ok {
+		return 0, errors.New("missing EPOCHS_PER_SYNC_COMMITTEE_PERIOD in network spec")
+	}
+
+	if period == 0 {
+		return 0, errors.New("zero epochs per sync committee period in network spec")
+	}
+
+	return period, nil
+}
+
 func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork ForkForkSchedule, err error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
