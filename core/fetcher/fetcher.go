@@ -13,6 +13,7 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -25,13 +26,17 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder, electraSlot eth2p0.Slot, fetchOnlyCommIdx0 bool) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder,
+	electraSlot eth2p0.Slot, gloasSlot eth2p0.Slot, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
+) (*Fetcher, error) {
 	return &Fetcher{
 		eth2Cl:            eth2Cl,
 		feeRecipientFunc:  feeRecipientFunc,
 		builderEnabled:    builderEnabled,
 		graffitiBuilder:   graffitiBuilder,
 		electraSlot:       electraSlot,
+		gloasSlot:         gloasSlot,
+		builderConfig:     builderConfig,
 		fetchOnlyCommIdx0: fetchOnlyCommIdx0,
 	}, nil
 }
@@ -47,6 +52,8 @@ type Fetcher struct {
 	builderEnabled         bool
 	graffitiBuilder        *GraffitiBuilder
 	electraSlot            eth2p0.Slot
+	gloasSlot              eth2p0.Slot
+	builderConfig          *gloas.BuilderConfig
 	fetchOnlyCommIdx0      bool
 	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
 }
@@ -392,6 +399,28 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 		randao := randaoData.Signature().ToETH2()
 
+		// From the gloas fork blocks are produced by the v4 EPBS endpoint, which selects
+		// between the locally built payload and builder bids on the beacon node side.
+		if slot >= uint64(f.gloasSlot) {
+			coreProposal, err := f.fetchEPBSProposal(ctx, slot, pubkey, randao)
+			if err != nil {
+				return nil, err
+			}
+
+			// Track whether the fetched proposal carries its execution payload (built locally, 2)
+			// or is based on an external builder bid whose payload travels separately (1).
+			blinded := 2.0
+			if coreProposal.Blinded {
+				blinded = 1.0
+			}
+
+			proposalBlindedGauge.Set(blinded)
+
+			resp[pubkey] = coreProposal
+
+			continue
+		}
+
 		var bbf uint64
 		if f.builderEnabled {
 			// This gives maximum priority to builder blocks:
@@ -436,6 +465,36 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 	}
 
 	return resp, nil
+}
+
+// fetchEPBSProposal returns a fetched gloas EPBS proposal for the slot. It always requests
+// the payload-included (stateless) form so any beacon node in the cluster can publish the
+// block, but an external builder bid comes back payload-excluded regardless.
+func (f *Fetcher) fetchEPBSProposal(ctx context.Context, slot uint64, pubkey core.PubKey, randao eth2p0.BLSSignature) (core.VersionedProposal, error) {
+	includePayload := true
+
+	opts := &eth2api.EPBSProposalOpts{
+		Slot:           eth2p0.Slot(slot),
+		RandaoReveal:   randao,
+		Graffiti:       f.graffitiBuilder.GetGraffiti(pubkey),
+		BuilderConfig:  f.builderConfig,
+		IncludePayload: &includePayload,
+	}
+
+	eth2Resp, err := f.eth2Cl.EPBSProposal(ctx, opts)
+	if err != nil {
+		return core.VersionedProposal{}, err
+	}
+
+	// TODO(gloas): verify the fee recipient of self-built proposals against the cluster
+	// configuration, mirroring verifyFeeRecipient on the pre-gloas path.
+
+	coreProposal, err := core.NewVersionedEPBSProposal(eth2Resp.Data)
+	if err != nil {
+		return core.VersionedProposal{}, errors.Wrap(err, "new epbs proposal")
+	}
+
+	return coreProposal, nil
 }
 
 // fetchPayloadAttestationData returns the fetched payload attestation data for the slot.

@@ -15,6 +15,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -348,6 +349,103 @@ func TestFetchBlocks(t *testing.T) {
 
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
+	})
+}
+
+func TestFetchEPBSBlocks(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot  = 1
+		vIdxA = 2
+	)
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSet := core.DutyDefinitionSet{
+		pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{
+			Slot:           slot,
+			ValidatorIndex: vIdxA,
+		}),
+	}
+
+	randao := testutil.RandomCoreSignature()
+
+	newFetcher := func(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
+		t.Helper()
+
+		// Gloas active from slot zero, so the EPBS path is taken.
+		fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{}, 5, 0, &gloas.BuilderConfig{}, false)
+		require.NoError(t, err)
+
+		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
+			return randao, nil
+		})
+
+		return fetch
+	}
+
+	t.Run("payload included", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch := newFetcher(t, bmock)
+
+		fetch.Subscribe(func(_ context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, core.NewProposerDuty(slot), resDuty)
+			require.Len(t, resDataSet, 1)
+
+			proposal, ok := resDataSet[pubkey].(core.VersionedProposal)
+			require.True(t, ok)
+			require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
+			require.False(t, proposal.Blinded)
+			require.True(t, proposal.EPBS.ExecutionPayloadIncluded)
+
+			resSlot, err := proposal.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, resSlot)
+
+			require.Equal(t, randao.Signature().ToETH2(), proposal.EPBS.GloasContents.Block.Body.RANDAOReveal)
+
+			return nil
+		})
+
+		require.NoError(t, fetch.Fetch(ctx, core.NewProposerDuty(slot), defSet))
+	})
+
+	t.Run("payload excluded", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		// An external builder bid comes back payload-excluded regardless of what was asked.
+		bmock.EPBSProposalFunc = func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error) {
+			require.NotNil(t, opts.IncludePayload)
+			require.True(t, *opts.IncludePayload)
+			require.NotNil(t, opts.BuilderConfig)
+
+			block := testutil.RandomGloasBeaconBlock()
+			block.Slot = opts.Slot
+			block.Body.RANDAOReveal = opts.RandaoReveal
+
+			return &eth2api.VersionedEPBSProposal{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   block,
+			}, nil
+		}
+
+		fetch := newFetcher(t, bmock)
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+			proposal, ok := resDataSet[pubkey].(core.VersionedProposal)
+			require.True(t, ok)
+			require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
+			require.True(t, proposal.Blinded)
+			require.False(t, proposal.EPBS.ExecutionPayloadIncluded)
+			require.Equal(t, randao.Signature().ToETH2(), proposal.EPBS.Gloas.Body.RANDAOReveal)
+
+			return nil
+		})
+
+		require.NoError(t, fetch.Fetch(ctx, core.NewProposerDuty(slot), defSet))
 	})
 }
 
@@ -784,7 +882,7 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{}, 5, false)
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{}, 5, math.MaxUint64, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch
@@ -795,7 +893,7 @@ func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true, graffitiBuilder, 5, false)
+	}, true, graffitiBuilder, 5, math.MaxUint64, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch

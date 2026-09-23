@@ -6,6 +6,9 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"slices"
+
+	"github.com/attestantio/go-eth2-client/spec/gloas"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
 
 // builderConfigured returns true if builder URLs are configured, enabling the v2
@@ -13,6 +16,28 @@ import (
 // so they cannot be set (and silently dropped) on their own.
 func builderConfigured(conf Config) bool {
 	return len(conf.BuilderURLs) > 0
+}
+
+// builderConfig returns the gloas builder configuration built from this node's builder
+// flags, sent as the required body of every v4 EPBS proposal request. With no builder
+// URLs configured it is the empty config: the beacon node then only considers P2P bids
+// and the locally built payload. The global max execution payment applies per entry
+// since the wire type only carries it there. Entry auths are left unset until the
+// builder preferences duty lands.
+func builderConfig(conf Config) *gloas.BuilderConfig {
+	builders := make([]*gloas.BuilderEntry, 0, len(conf.BuilderURLs))
+	for _, url := range conf.BuilderURLs {
+		builders = append(builders, &gloas.BuilderEntry{
+			URL:                 []byte(url),
+			MaxExecutionPayment: eth2p0.Gwei(conf.BuilderMaxExecutionPayment),
+		})
+	}
+
+	return &gloas.BuilderConfig{
+		MinBid:             eth2p0.Gwei(conf.BuilderMinBid),
+		BuilderBoostFactor: conf.BuilderBoostFactor,
+		Builders:           builders,
+	}
 }
 
 // builderConfigHash returns a digest of the canonicalised builder configuration.
