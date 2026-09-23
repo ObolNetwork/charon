@@ -220,7 +220,7 @@ func TestMemDBProposer(t *testing.T) {
 	slots := [queries]uint64{123, 456, 789}
 
 	type response struct {
-		block *eth2api.VersionedProposal
+		block core.VersionedProposal
 	}
 
 	var awaitResponse [queries]chan response
@@ -269,7 +269,7 @@ func TestMemDBProposer(t *testing.T) {
 	// Get and assert the proQuery responses
 	for i := range queries {
 		actualData := <-awaitResponse[i]
-		require.Equal(t, proposals[i], actualData.block)
+		require.Equal(t, proposals[i], &actualData.block.VersionedProposal)
 	}
 }
 
