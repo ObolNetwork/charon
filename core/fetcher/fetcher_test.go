@@ -90,6 +90,75 @@ func TestFetchAttester(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFetchAttesterGloas(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot    = 1
+		vIdxA   = 2
+		vIdxB   = 3
+		notZero = 99 // Validation require non-zero values
+	)
+
+	pubkeyA := testutil.RandomCorePubKey(t)
+	pubkeyB := testutil.RandomCorePubKey(t)
+
+	defSet := core.DutyDefinitionSet{
+		pubkeyA: core.NewAttesterDefinition(&eth2v1.AttesterDuty{
+			Slot:             slot,
+			ValidatorIndex:   vIdxA,
+			CommitteeIndex:   vIdxA,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+		}),
+		pubkeyB: core.NewAttesterDefinition(&eth2v1.AttesterDuty{
+			Slot:             slot,
+			ValidatorIndex:   vIdxB,
+			CommitteeIndex:   vIdxB,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+		}),
+	}
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	// From gloas data.index carries the beacon node's payload availability bit, so the
+	// fetcher must fetch once per slot regardless of committee indices and feature flags.
+	var fetches int
+
+	bmock.AttestationDataFunc = func(_ context.Context, reqSlot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+		fetches++
+
+		require.EqualValues(t, 0, commIdx)
+
+		data := testutil.RandomAttestationDataPhase0()
+		data.Slot = reqSlot
+		data.Index = 1 // Payload availability vote set by the beacon node.
+
+		return data, nil
+	}
+
+	fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{},
+		eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
+	require.NoError(t, err)
+
+	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+		require.Len(t, resDataSet, 2)
+
+		for _, pubkey := range []core.PubKey{pubkeyA, pubkeyB} {
+			data := resDataSet[pubkey].(core.AttestationData)
+			require.EqualValues(t, slot, data.Data.Slot)
+			require.EqualValues(t, 1, data.Data.Index)
+		}
+
+		return nil
+	})
+
+	require.NoError(t, fetch.Fetch(ctx, core.NewAttesterDuty(slot), defSet))
+	require.Equal(t, 1, fetches)
+}
+
 func TestFetchAggregator(t *testing.T) {
 	ctx := context.Background()
 

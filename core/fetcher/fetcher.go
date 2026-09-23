@@ -258,13 +258,15 @@ func (f *Fetcher) fetchAttesterDataWithClient(ctx context.Context, slot uint64, 
 
 		commIdx := attDuty.CommitteeIndex
 
-		// Attestation data for Electra is not bound by committee index.
-		// Committee index is still persisted in the request but should be set to 0.
+		// Attestation data for Electra onwards is not bound by committee index, so a single
+		// fetch serves every committee. Some validator clients still ask per committee
+		// index though, so the electra-era collapse hides behind a feature flag:
 		// https://ethereum.github.io/beacon-APIs/#/Validator/produceAttestationData
-		// However, some validator clients are still sending attestation_data requests for each committee index.
-		// Because of that, we should continue asking for all + 0 committee indices for the ones that work correctly.
-		// After all VCs start asking for committee index 0, we should change the default scenario to that.
-		if f.fetchOnlyCommIdx0 && f.forkActive(eth2wrap.Electra, slot) {
+		// From gloas the collapse is unconditional: data.index is repurposed as the beacon
+		// node's one-bit payload availability vote, and fetching per committee could even
+		// return different payload bits as the node's view changes, splitting the
+		// cluster's agreed data.
+		if f.forkActive(eth2wrap.Gloas, slot) || (f.fetchOnlyCommIdx0 && f.forkActive(eth2wrap.Electra, slot)) {
 			commIdx = 0
 		}
 
