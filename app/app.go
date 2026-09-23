@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -620,16 +619,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	electraSlot := eth2p0.Slot(uint64(forkSchedule[eth2wrap.Electra].Epoch) * slotsPerEpoch)
-
-	// An unscheduled gloas fork publishes epoch math.MaxUint64, keep the slot there too.
-	gloasSlot := eth2p0.Slot(math.MaxUint64)
-	if gloasEpoch := forkSchedule[eth2wrap.Gloas].Epoch; uint64(gloasEpoch) != math.MaxUint64 {
-		gloasSlot = eth2p0.Slot(uint64(gloasEpoch) * slotsPerEpoch)
-	}
-
 	fetch, err := fetcher.New(eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder,
-		electraSlot, gloasSlot, builderConfig(conf), featureset.Enabled(featureset.FetchOnlyCommIdx0))
+		forkSchedule, slotsPerEpoch, builderConfig(conf), featureset.Enabled(featureset.FetchOnlyCommIdx0))
 	if err != nil {
 		return err
 	}

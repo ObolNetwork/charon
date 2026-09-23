@@ -27,15 +27,19 @@ import (
 
 // New returns a new fetcher instance.
 func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder,
-	electraSlot eth2p0.Slot, gloasSlot eth2p0.Slot, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
+	forkSchedule eth2wrap.ForkForkSchedule, slotsPerEpoch uint64, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
 ) (*Fetcher, error) {
+	if slotsPerEpoch == 0 {
+		return nil, errors.New("zero slots per epoch")
+	}
+
 	return &Fetcher{
 		eth2Cl:            eth2Cl,
 		feeRecipientFunc:  feeRecipientFunc,
 		builderEnabled:    builderEnabled,
 		graffitiBuilder:   graffitiBuilder,
-		electraSlot:       electraSlot,
-		gloasSlot:         gloasSlot,
+		forkSchedule:      forkSchedule,
+		slotsPerEpoch:     slotsPerEpoch,
 		builderConfig:     builderConfig,
 		fetchOnlyCommIdx0: fetchOnlyCommIdx0,
 	}, nil
@@ -51,8 +55,8 @@ type Fetcher struct {
 	syncContributionV2Func func(slot uint64) bool
 	builderEnabled         bool
 	graffitiBuilder        *GraffitiBuilder
-	electraSlot            eth2p0.Slot
-	gloasSlot              eth2p0.Slot
+	forkSchedule           eth2wrap.ForkForkSchedule
+	slotsPerEpoch          uint64
 	builderConfig          *gloas.BuilderConfig
 	fetchOnlyCommIdx0      bool
 	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
@@ -260,7 +264,7 @@ func (f *Fetcher) fetchAttesterDataWithClient(ctx context.Context, slot uint64, 
 		// However, some validator clients are still sending attestation_data requests for each committee index.
 		// Because of that, we should continue asking for all + 0 committee indices for the ones that work correctly.
 		// After all VCs start asking for committee index 0, we should change the default scenario to that.
-		if slot >= uint64(f.electraSlot) && f.fetchOnlyCommIdx0 {
+		if f.fetchOnlyCommIdx0 && f.forkActive(eth2wrap.Electra, slot) {
 			commIdx = 0
 		}
 
@@ -401,7 +405,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 		// From the gloas fork blocks are produced by the v4 EPBS endpoint, which selects
 		// between the locally built payload and builder bids on the beacon node side.
-		if slot >= uint64(f.gloasSlot) {
+		if f.forkActive(eth2wrap.Gloas, slot) {
 			coreProposal, err := f.fetchEPBSProposal(ctx, slot, pubkey, randao)
 			if err != nil {
 				return nil, err
@@ -465,6 +469,11 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 	}
 
 	return resp, nil
+}
+
+// forkActive returns true if the fork is scheduled and active at the provided slot.
+func (f *Fetcher) forkActive(fork eth2wrap.Fork, slot uint64) bool {
+	return f.forkSchedule.Active(fork, eth2p0.Epoch(slot/f.slotsPerEpoch))
 }
 
 // fetchEPBSProposal returns a fetched gloas EPBS proposal for the slot. It always requests

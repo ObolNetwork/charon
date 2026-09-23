@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
@@ -373,8 +374,9 @@ func TestFetchEPBSBlocks(t *testing.T) {
 	newFetcher := func(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 		t.Helper()
 
-		// Gloas active from slot zero, so the EPBS path is taken.
-		fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{}, 5, 0, &gloas.BuilderConfig{}, false)
+		// Gloas active from epoch zero, so the EPBS path is taken.
+		fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{},
+			eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
 		require.NoError(t, err)
 
 		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
@@ -883,7 +885,8 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{}, 5, math.MaxUint64, &gloas.BuilderConfig{}, false)
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{},
+		eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}}, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch
@@ -894,7 +897,7 @@ func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true, graffitiBuilder, 5, math.MaxUint64, &gloas.BuilderConfig{}, false)
+	}, true, graffitiBuilder, eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}}, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch
