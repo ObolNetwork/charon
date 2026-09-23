@@ -361,9 +361,9 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 // NewVersionedEPBSProposal validates and returns a new wrapped VersionedProposal
 // carrying a gloas EPBS proposal. The embedded eth2api.VersionedProposal has no gloas
 // arm since block production moved to the v4 EPBS endpoint from the gloas fork, so the
-// proposal travels in the EPBS field, discriminated by Version. The Blinded flag
-// mirrors !ExecutionPayloadIncluded: a payload-excluded proposal (external builder bid)
-// is a block without an execution payload, exactly what blinded meant pre-gloas.
+// proposal travels in the EPBS field, discriminated by Version. The pre-gloas Blinded
+// flag does not apply to gloas proposals and is never set: the blinded/full split
+// dissolves at the fork, EPBS.ExecutionPayloadIncluded discriminates the two arms.
 func NewVersionedEPBSProposal(proposal *eth2api.VersionedEPBSProposal) (VersionedProposal, error) {
 	if proposal.Version != eth2spec.DataVersionGloas {
 		return VersionedProposal{}, errors.New("non-gloas EPBS proposal")
@@ -379,7 +379,6 @@ func NewVersionedEPBSProposal(proposal *eth2api.VersionedEPBSProposal) (Versione
 
 	return VersionedProposal{
 		Version: eth2spec.DataVersionGloas,
-		Blinded: !proposal.ExecutionPayloadIncluded,
 		EPBS:    proposal,
 	}, nil
 }
@@ -389,8 +388,8 @@ type VersionedProposal struct {
 	eth2api.VersionedProposal
 
 	// EPBS carries the gloas proposal, which the embedded eth2api.VersionedProposal
-	// has no arm for. It is set iff Version is gloas, and the embedded Blinded flag
-	// mirrors !EPBS.ExecutionPayloadIncluded. See NewVersionedEPBSProposal.
+	// has no arm for. It is set iff Version is gloas. The embedded Blinded flag does
+	// not apply to gloas, EPBS.ExecutionPayloadIncluded discriminates the two arms.
 	EPBS *eth2api.VersionedEPBSProposal
 }
 
@@ -445,10 +444,10 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 			marshaller = p.Fulu
 		}
 	case eth2spec.DataVersionGloas:
-		if p.Blinded {
-			marshaller = p.EPBS.Gloas
-		} else {
+		if p.EPBS.ExecutionPayloadIncluded {
 			marshaller = p.EPBS.GloasContents
+		} else {
+			marshaller = p.EPBS.Gloas
 		}
 	default:
 		return nil, errors.New("unknown version")
@@ -464,10 +463,18 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "convert version")
 	}
 
+	// Gloas proposals are discriminated by execution payload inclusion, the pre-gloas
+	// blinded flag does not apply to them.
+	var included *bool
+	if p.Version == eth2spec.DataVersionGloas {
+		included = &p.EPBS.ExecutionPayloadIncluded
+	}
+
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: version,
-		Block:   block,
-		Blinded: p.Blinded,
+		Version:                  version,
+		Block:                    block,
+		Blinded:                  p.Blinded,
+		ExecutionPayloadIncluded: included,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -591,25 +598,29 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			resp.Fulu = block
 		}
 	case eth2spec.DataVersionGloas:
-		epbs := &eth2api.VersionedEPBSProposal{
-			Version:                  eth2spec.DataVersionGloas,
-			ExecutionPayloadIncluded: !raw.Blinded,
+		if raw.ExecutionPayloadIncluded == nil {
+			return errors.New("no execution_payload_included in gloas proposal")
 		}
 
-		if raw.Blinded {
-			block := new(gloas.BeaconBlock)
-			if err := json.Unmarshal(raw.Block, &block); err != nil {
-				return errors.Wrap(err, "unmarshal gloas")
-			}
+		epbs := &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: *raw.ExecutionPayloadIncluded,
+		}
 
-			epbs.Gloas = block
-		} else {
+		if epbs.ExecutionPayloadIncluded {
 			contents := new(eth2gloas.BlockContents)
 			if err := json.Unmarshal(raw.Block, &contents); err != nil {
 				return errors.Wrap(err, "unmarshal gloas contents")
 			}
 
 			epbs.GloasContents = contents
+		} else {
+			block := new(gloas.BeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal gloas")
+			}
+
+			epbs.Gloas = block
 		}
 
 		*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs}

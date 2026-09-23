@@ -661,7 +661,9 @@ func TestNewVersionedEPBSProposal(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
-		require.True(t, proposal.Blinded)
+		// The pre-gloas blinded flag does not apply to gloas proposals.
+		require.False(t, proposal.Blinded)
+		require.False(t, proposal.EPBS.ExecutionPayloadIncluded)
 	})
 
 	t.Run("payload included", func(t *testing.T) {
@@ -672,6 +674,7 @@ func TestNewVersionedEPBSProposal(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.False(t, proposal.Blinded)
+		require.True(t, proposal.EPBS.ExecutionPayloadIncluded)
 	})
 
 	t.Run("no block", func(t *testing.T) {
