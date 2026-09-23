@@ -418,7 +418,7 @@ func (p VersionedProposal) Graffiti() ([32]byte, error) {
 		return p.VersionedProposal.Graffiti()
 	}
 
-	if p.Blinded {
+	if !p.EPBS.ExecutionPayloadIncluded {
 		if p.EPBS.Gloas == nil || p.EPBS.Gloas.Body == nil {
 			return [32]byte{}, errors.New("no gloas block")
 		}

@@ -410,7 +410,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			// Track whether the fetched proposal carries its execution payload (built locally, 2)
 			// or is based on an external builder bid whose payload travels separately (1).
 			blinded := 2.0
-			if coreProposal.Blinded {
+			if !coreProposal.EPBS.ExecutionPayloadIncluded {
 				blinded = 1.0
 			}
 

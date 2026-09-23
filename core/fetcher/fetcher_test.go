@@ -438,7 +438,8 @@ func TestFetchEPBSBlocks(t *testing.T) {
 			proposal, ok := resDataSet[pubkey].(core.VersionedProposal)
 			require.True(t, ok)
 			require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
-			require.True(t, proposal.Blinded)
+			// The pre-gloas blinded flag does not apply to gloas proposals.
+			require.False(t, proposal.Blinded)
 			require.False(t, proposal.EPBS.ExecutionPayloadIncluded)
 			require.Equal(t, randao.Signature().ToETH2(), proposal.EPBS.Gloas.Body.RANDAOReveal)
 
