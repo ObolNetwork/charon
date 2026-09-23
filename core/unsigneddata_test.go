@@ -52,6 +52,14 @@ func TestUnsignedDataClone(t *testing.T) {
 			name: "sync contribution",
 			data: testutil.RandomCoreSyncContribution(),
 		},
+		{
+			name: "versioned epbs proposal gloas",
+			data: testutil.RandomGloasCoreVersionedEPBSProposal(),
+		},
+		{
+			name: "versioned epbs proposal gloas with payload",
+			data: testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		},
 	}
 
 	for _, test := range tests {
@@ -417,6 +425,13 @@ func TestVersionedProposal(t *testing.T) {
 			err: "phase0 blocks do not support blinding",
 		},
 		{
+			name: "gloas error",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionGloas,
+			},
+			err: "gloas proposals must be constructed from an EPBS proposal",
+		},
+		{
 			name: "altair",
 			proposal: eth2api.VersionedProposal{
 				Version: eth2spec.DataVersionAltair,
@@ -636,4 +651,63 @@ func TestSyncContributionMarshalSSZ(t *testing.T) {
 			require.Equal(t, tt.value, got)
 		})
 	}
+}
+
+func TestNewVersionedEPBSProposal(t *testing.T) {
+	t.Run("payload excluded", func(t *testing.T) {
+		proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionGloas,
+			Gloas:   testutil.RandomGloasBeaconBlock(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
+		require.True(t, proposal.Blinded)
+	})
+
+	t.Run("payload included", func(t *testing.T) {
+		proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            testutil.RandomGloasBlockContents(),
+		})
+		require.NoError(t, err)
+		require.False(t, proposal.Blinded)
+	})
+
+	t.Run("no block", func(t *testing.T) {
+		_, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionGloas,
+		})
+		require.ErrorContains(t, err, "no gloas block")
+	})
+
+	t.Run("no contents", func(t *testing.T) {
+		_, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+		})
+		require.ErrorContains(t, err, "no gloas block contents")
+	})
+
+	t.Run("non gloas", func(t *testing.T) {
+		_, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionFulu,
+		})
+		require.ErrorContains(t, err, "non-gloas EPBS proposal")
+	})
+
+	t.Run("json roundtrip", func(t *testing.T) {
+		for _, proposal := range []core.VersionedProposal{
+			testutil.RandomGloasCoreVersionedEPBSProposal(),
+			testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		} {
+			b, err := proposal.MarshalJSON()
+			require.NoError(t, err)
+
+			var decoded core.VersionedProposal
+
+			require.NoError(t, decoded.UnmarshalJSON(b))
+			require.Equal(t, proposal, decoded)
+		}
+	})
 }

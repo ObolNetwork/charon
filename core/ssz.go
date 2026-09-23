@@ -6,12 +6,15 @@ import (
 	"encoding/binary"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -217,6 +220,16 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		}
 
 		return p.Fulu, nil
+	case eth2util.DataVersionGloas:
+		if blinded {
+			return nil, errors.New("gloas proposals do not support blinding")
+		}
+
+		if p.Gloas == nil {
+			p.Gloas = new(gloas.SignedBeaconBlock)
+		}
+
+		return p.Gloas, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -359,6 +372,30 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		}
 
 		return p.Fulu, nil
+	case eth2util.DataVersionGloas:
+		// The container's blinded bit carries !ExecutionPayloadIncluded for gloas: a
+		// payload-excluded proposal (external builder bid) is a block without an
+		// execution payload, exactly what blinded meant pre-gloas.
+		if p.EPBS == nil {
+			p.EPBS = &eth2api.VersionedEPBSProposal{
+				Version:                  eth2spec.DataVersionGloas,
+				ExecutionPayloadIncluded: !blinded,
+			}
+		}
+
+		if blinded {
+			if p.EPBS.Gloas == nil {
+				p.EPBS.Gloas = new(gloas.BeaconBlock)
+			}
+
+			return p.EPBS.Gloas, nil
+		}
+
+		if p.EPBS.GloasContents == nil {
+			p.EPBS.GloasContents = new(eth2gloas.BlockContents)
+		}
+
+		return p.EPBS.GloasContents, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
