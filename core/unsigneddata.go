@@ -391,6 +391,48 @@ type VersionedProposal struct {
 	EPBS *eth2api.VersionedEPBSProposal
 }
 
+// Slot returns the proposal slot, handling the gloas EPBS arm which the embedded
+// client union has no knowledge of.
+func (p VersionedProposal) Slot() (eth2p0.Slot, error) {
+	if p.Version == eth2spec.DataVersionGloas {
+		return p.EPBS.Slot()
+	}
+
+	return p.VersionedProposal.Slot()
+}
+
+// ProposerIndex returns the proposal proposer index, handling the gloas EPBS arm which
+// the embedded client union has no knowledge of.
+func (p VersionedProposal) ProposerIndex() (eth2p0.ValidatorIndex, error) {
+	if p.Version == eth2spec.DataVersionGloas {
+		return p.EPBS.ProposerIndex()
+	}
+
+	return p.VersionedProposal.ProposerIndex()
+}
+
+// Graffiti returns the proposal graffiti, handling the gloas EPBS arm which the embedded
+// client union has no knowledge of.
+func (p VersionedProposal) Graffiti() ([32]byte, error) {
+	if p.Version != eth2spec.DataVersionGloas {
+		return p.VersionedProposal.Graffiti()
+	}
+
+	if p.Blinded {
+		if p.EPBS.Gloas == nil || p.EPBS.Gloas.Body == nil {
+			return [32]byte{}, errors.New("no gloas block")
+		}
+
+		return p.EPBS.Gloas.Body.Graffiti, nil
+	}
+
+	if p.EPBS.GloasContents == nil || p.EPBS.GloasContents.Block == nil || p.EPBS.GloasContents.Block.Body == nil {
+		return [32]byte{}, errors.New("no gloas block contents")
+	}
+
+	return p.EPBS.GloasContents.Block.Body.Graffiti, nil
+}
+
 func (p VersionedProposal) Clone() (UnsignedData, error) {
 	var resp VersionedProposal
 
