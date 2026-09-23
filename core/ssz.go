@@ -263,10 +263,10 @@ func (p VersionedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
 }
 
 // payloadless returns the container discriminator bit: the pre-gloas blinded flag, or
-// !ExecutionPayloadIncluded for gloas EPBS proposals, both meaning the block travels
-// without its execution payload.
+// !ExecutionPayloadIncluded for EPBS proposals from the gloas fork onwards, both meaning
+// the block travels without its execution payload.
 func (p VersionedProposal) payloadless() (bool, error) {
-	if p.Version != eth2spec.DataVersionGloas {
+	if p.Version < eth2spec.DataVersionGloas {
 		return p.Blinded, nil
 	}
 
@@ -286,9 +286,9 @@ func (p *VersionedProposal) UnmarshalSSZ(buf []byte) error {
 
 	p.Version = version.ToETH2()
 
-	// The pre-gloas blinded flag does not apply to gloas proposals: the container bit
-	// carries !ExecutionPayloadIncluded, already captured in the EPBS field.
-	if p.Version != eth2spec.DataVersionGloas {
+	// The pre-gloas blinded flag does not apply from the gloas fork onwards: the
+	// container bit carries !ExecutionPayloadIncluded, already captured in the EPBS field.
+	if p.Version < eth2spec.DataVersionGloas {
 		p.Blinded = payloadless
 	}
 

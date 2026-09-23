@@ -463,10 +463,10 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "convert version")
 	}
 
-	// Gloas proposals are discriminated by execution payload inclusion, the pre-gloas
-	// blinded flag does not apply to them.
+	// From the gloas fork onwards proposals are discriminated by execution payload
+	// inclusion, the pre-gloas blinded flag does not apply to them.
 	var included *bool
-	if p.Version == eth2spec.DataVersionGloas {
+	if p.Version >= eth2spec.DataVersionGloas {
 		included = &p.EPBS.ExecutionPayloadIncluded
 	}
 
