@@ -454,7 +454,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 // fetchEPBSProposerData returns proposal data fetched via the v4 EPBS endpoint, used from
 // the gloas fork onwards. The endpoint selects between the locally built payload and
-// builder bids on the beacon node side.
+// builder bids on the beacon node side, steered by this node's builder configuration.
 func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 
@@ -464,9 +464,30 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 			return nil, err
 		}
 
-		coreProposal, err := f.fetchEPBSProposal(ctx, slot, pubkey, randao)
+		// Always request the payload-included (stateless) form so any beacon node in the
+		// cluster can publish the block. An external builder bid comes back
+		// payload-excluded regardless.
+		includePayload := true
+
+		opts := &eth2api.EPBSProposalOpts{
+			Slot:           eth2p0.Slot(slot),
+			RandaoReveal:   randao,
+			Graffiti:       f.graffitiBuilder.GetGraffiti(pubkey),
+			BuilderConfig:  f.builderConfig,
+			IncludePayload: &includePayload,
+		}
+
+		eth2Resp, err := f.eth2Cl.EPBSProposal(ctx, opts)
 		if err != nil {
 			return nil, err
+		}
+
+		// TODO(gloas): verify the fee recipient of self-built proposals against the
+		// cluster configuration, mirroring verifyFeeRecipient on the pre-gloas path.
+
+		coreProposal, err := core.NewVersionedEPBSProposal(eth2Resp.Data)
+		if err != nil {
+			return nil, errors.Wrap(err, "new epbs proposal")
 		}
 
 		// Track whether the proposal carries its execution payload (built locally) or is
@@ -497,36 +518,6 @@ func (f *Fetcher) fetchRandao(ctx context.Context, slot uint64, pubkey core.PubK
 // forkActive returns true if the fork is scheduled and active at the provided slot.
 func (f *Fetcher) forkActive(fork eth2wrap.Fork, slot uint64) bool {
 	return f.forkSchedule.Active(fork, eth2p0.Epoch(slot/f.slotsPerEpoch))
-}
-
-// fetchEPBSProposal returns a fetched gloas EPBS proposal for the slot. It always requests
-// the payload-included (stateless) form so any beacon node in the cluster can publish the
-// block, but an external builder bid comes back payload-excluded regardless.
-func (f *Fetcher) fetchEPBSProposal(ctx context.Context, slot uint64, pubkey core.PubKey, randao eth2p0.BLSSignature) (core.VersionedProposal, error) {
-	includePayload := true
-
-	opts := &eth2api.EPBSProposalOpts{
-		Slot:           eth2p0.Slot(slot),
-		RandaoReveal:   randao,
-		Graffiti:       f.graffitiBuilder.GetGraffiti(pubkey),
-		BuilderConfig:  f.builderConfig,
-		IncludePayload: &includePayload,
-	}
-
-	eth2Resp, err := f.eth2Cl.EPBSProposal(ctx, opts)
-	if err != nil {
-		return core.VersionedProposal{}, err
-	}
-
-	// TODO(gloas): verify the fee recipient of self-built proposals against the cluster
-	// configuration, mirroring verifyFeeRecipient on the pre-gloas path.
-
-	coreProposal, err := core.NewVersionedEPBSProposal(eth2Resp.Data)
-	if err != nil {
-		return core.VersionedProposal{}, errors.Wrap(err, "new epbs proposal")
-	}
-
-	return coreProposal, nil
 }
 
 // fetchPayloadAttestationData returns the fetched payload attestation data for the slot.
