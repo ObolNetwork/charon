@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math/big"
 	"sort"
 	"sync"
 	"testing"
@@ -550,8 +551,8 @@ func TestComponent_Proposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-		return block1, nil
+	component.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+		return core.VersionedProposal{VersionedProposal: *block1}, nil
 	})
 
 	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
@@ -573,7 +574,12 @@ func TestComponent_Proposal(t *testing.T) {
 
 	block2 := eth2Resp2.Data
 
-	require.Equal(t, block1, block2)
+	// The component returns a copy carrying the unified consensus and execution values,
+	// leaving the stored proposal untouched.
+	expected := *block1
+	expected.ConsensusValue = big.NewInt(1)
+	expected.ExecutionValue = big.NewInt(1)
+	require.Equal(t, &expected, block2)
 }
 
 func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
@@ -617,13 +623,13 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 			return core.DutyDefinitionSet{corePubKey: nil}, nil
 		})
 
-		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
 			unsignedBlock := &eth2spec.VersionedBeaconBlock{
 				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBeaconBlock(),
 			}
 
-			return &eth2api.VersionedProposal{
+			return core.VersionedProposal{
 				Version: unsignedBlock.Version,
 				Capella: unsignedBlock.Capella,
 			}, nil
@@ -656,7 +662,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 			},
 		}
 
-		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
 			p := &eth2api.VersionedProposal{
 				Blinded:        true,
 				Version:        eth2spec.DataVersionCapella,
@@ -665,7 +671,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 
 			p.CapellaBlinded.ProposerIndex = signedBlindedBlock.Capella.Message.ProposerIndex
 
-			return p, nil
+			return core.VersionedProposal{VersionedProposal: *p}, nil
 		})
 
 		err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
@@ -889,8 +895,8 @@ func TestComponent_SubmitProposal(t *testing.T) {
 
 			signedBlock := test.signedBlockFunc(unsignedBlock, s)
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-				return test.awaitBlockFunc(unsignedBlock, signedBlock), nil
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+				return core.VersionedProposal{VersionedProposal: *test.awaitBlockFunc(unsignedBlock, signedBlock)}, nil
 			})
 
 			// Register subscriber
@@ -994,7 +1000,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 // 		return nil
 // 	})
 
-// 	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+// 	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
 // 		return &eth2api.VersionedProposal{
 // 			Version: signedBlock.Version,
 // 			Deneb: &eth2deneb.BlockContents{
@@ -1067,8 +1073,8 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 		},
 	}
 
-	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-		return &eth2api.VersionedProposal{
+	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+		return core.VersionedProposal{
 			Version: signedBlock.Version,
 			Capella: signedBlock.Capella.Message,
 		}, nil
@@ -1202,8 +1208,8 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 				proposal.DenebBlinded = b.DenebBlinded.Message
 			}
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-				return proposal, nil
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+				return core.VersionedProposal{VersionedProposal: *proposal}, nil
 			})
 
 			err = vapi.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
@@ -1400,8 +1406,8 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 
 			signedBlindedBlock := test.signedBlockFunc(unsignedBlindedBlock, s)
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-				return test.awaitBlockFunc(signedBlindedBlock), nil
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+				return core.VersionedProposal{VersionedProposal: *test.awaitBlockFunc(signedBlindedBlock)}, nil
 			})
 
 			// Register subscriber
@@ -1494,8 +1500,8 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 		return nil
 	})
 
-	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-		return &eth2api.VersionedProposal{
+	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+		return core.VersionedProposal{
 			Version:        signedBlindedBlock.Version,
 			Blinded:        true,
 			CapellaBlinded: signedBlindedBlock.Capella.Message,
@@ -1610,8 +1616,8 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 				proposal.DenebBlinded = b.Deneb.Message
 			}
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-				return proposal, nil
+			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+				return core.VersionedProposal{VersionedProposal: *proposal}, nil
 			})
 
 			err = vapi.SubmitBlindedProposal(ctx, &eth2api.SubmitBlindedProposalOpts{
@@ -2943,4 +2949,146 @@ func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
 		Messages: []*eth2spec.VersionedPayloadAttestationMessage{{Version: eth2spec.DataVersionGloas, Gloas: msg}},
 	}))
 	require.Equal(t, 1, count)
+}
+
+func TestComponent_EPBSProposal(t *testing.T) {
+	ctx := context.Background()
+	eth2Cl, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	const (
+		slot = 123
+		vIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
+	require.NoError(t, err)
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pk, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	sig, err := tbls.Sign(secret, []byte("randao reveal"))
+	require.NoError(t, err)
+
+	randao := eth2p0.BLSSignature(sig)
+	pubkey, err := core.PubKeyFromBytes(pk[:])
+	require.NoError(t, err)
+
+	component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	proposal := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	proposal.EPBS.GloasContents.Block.Slot = slot
+
+	component.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+		return proposal, nil
+	})
+
+	includePayload := true
+
+	resp, err := component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:           slot,
+		RandaoReveal:   randao,
+		IncludePayload: &includePayload,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.Data.ExecutionPayloadIncluded)
+	require.Equal(t, proposal.EPBS.GloasContents, resp.Data.GloasContents)
+
+	// The stateful (payload-excluded) form strips the payload from a self-built proposal.
+	includePayload = false
+
+	resp, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:           slot,
+		RandaoReveal:   randao,
+		IncludePayload: &includePayload,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Data.ExecutionPayloadIncluded)
+	require.Nil(t, resp.Data.GloasContents)
+	require.Equal(t, proposal.EPBS.GloasContents.Block, resp.Data.Gloas)
+}
+
+func TestComponent_SubmitProposalGloas(t *testing.T) {
+	ctx := context.Background()
+	eth2Cl, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	const (
+		slot = 123
+		vIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
+	require.NoError(t, err)
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pk, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	pubkey, err := core.PubKeyFromBytes(pk[:])
+	require.NoError(t, err)
+
+	block := testutil.RandomGloasBeaconBlock()
+	block.Slot = slot
+	block.ProposerIndex = vIdx
+
+	proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   block,
+	})
+	require.NoError(t, err)
+
+	signed := &eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas: &gloas.SignedBeaconBlock{
+			Message:   block,
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}
+
+	component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	component.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+		return proposal, nil
+	})
+
+	var subCalled bool
+
+	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewProposerDuty(slot), duty)
+
+		data, ok := set[pubkey].SignedData.(core.VersionedSignedProposal)
+		require.True(t, ok)
+		require.Equal(t, eth2spec.DataVersionGloas, data.Version)
+
+		subCalled = true
+
+		return nil
+	})
+
+	require.NoError(t, component.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{Proposal: signed}))
+	require.True(t, subCalled)
+
+	// A VC proposal not matching the dutydb one is rejected.
+	otherBlock := testutil.RandomGloasBeaconBlock()
+	otherBlock.Slot = slot
+	otherBlock.ProposerIndex = vIdx
+
+	err = component.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{Proposal: &eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas: &gloas.SignedBeaconBlock{
+			Message:   otherBlock,
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}})
+	require.ErrorContains(t, err, "different hash tree root")
 }

@@ -192,7 +192,7 @@ type Component struct {
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)
-	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
+	awaitProposalFunc         func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
@@ -202,7 +202,7 @@ type Component struct {
 
 // RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)) {
+func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (core.VersionedProposal, error)) {
 	c.awaitProposalFunc = fn
 }
 
@@ -412,25 +412,84 @@ func (c Component) SubmitAttestations(ctx context.Context, attestationOpts *eth2
 func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error) {
 	var span trace.Span
 
-	duty := core.NewRandaoDuty(uint64(opts.Slot))
-
-	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.Proposal")
+	ctx, span = core.StartDutyTrace(ctx, core.NewRandaoDuty(uint64(opts.Slot)), "core/validatorapi.Proposal")
 	defer span.End()
 
-	// Get proposer pubkey (this is a blocking query).
-	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(opts.Slot)))
+	proposal, err := c.submitRandaoAndAwaitProposal(ctx, opts.Slot, opts.RandaoReveal)
 	if err != nil {
 		return nil, err
 	}
 
-	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, opts.Slot)
+	if proposal.Version == eth2spec.DataVersionGloas {
+		return nil, errors.New("gloas proposals are served by the v4 epbs endpoint")
+	}
+
+	resp := proposal.VersionedProposal
+
+	// We do not persist this v3-specific data in the pipeline,
+	// but to comply with the API, we need to return non-nil values,
+	// and these should be unified across all nodes.
+	resp.ConsensusValue = big.NewInt(1)
+	resp.ExecutionValue = big.NewInt(1)
+
+	return wrapResponse(&resp), nil
+}
+
+// EPBSProposal returns the gloas EPBS proposal agreed by the cluster for the provided
+// options. The VC-supplied builder config is not used: the cluster proposal was fetched
+// with charon's own builder configuration, which the proposer config file distributes
+// to the VCs. When the VC asks for the stateful (payload-excluded) form of a self-built
+// proposal, the payload is stripped from the response.
+// TODO(gloas): serve the stripped envelope via the execution payload envelope endpoint.
+func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+	var span trace.Span
+
+	ctx, span = core.StartDutyTrace(ctx, core.NewRandaoDuty(uint64(opts.Slot)), "core/validatorapi.EPBSProposal")
+	defer span.End()
+
+	proposal, err := c.submitRandaoAndAwaitProposal(ctx, opts.Slot, opts.RandaoReveal)
 	if err != nil {
 		return nil, err
+	}
+
+	if proposal.Version != eth2spec.DataVersionGloas {
+		return nil, errors.New("pre-gloas proposals are served by the v3 endpoint",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	resp := *proposal.EPBS
+
+	if opts.IncludePayload != nil && !*opts.IncludePayload && resp.ExecutionPayloadIncluded {
+		resp = eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: false,
+			Gloas:                    resp.GloasContents.Block,
+		}
+	}
+
+	return wrapResponse(&resp), nil
+}
+
+// submitRandaoAndAwaitProposal receives a VC partial randao reveal for the slot, verifies
+// and forwards it to subscribers, and blocks until the resulting cluster proposal is
+// available in the dutydb.
+func (c Component) submitRandaoAndAwaitProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature) (core.VersionedProposal, error) {
+	duty := core.NewRandaoDuty(uint64(slot))
+
+	// Get proposer pubkey (this is a blocking query).
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
+	if err != nil {
+		return core.VersionedProposal{}, err
+	}
+
+	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
+	if err != nil {
+		return core.VersionedProposal{}, err
 	}
 
 	sigEpoch := eth2util.SignedEpoch{
 		Epoch:     epoch,
-		Signature: opts.RandaoReveal,
+		Signature: randaoReveal,
 	}
 
 	parSig := core.NewPartialSignedRandao(sigEpoch.Epoch, sigEpoch.Signature, c.shareIdx)
@@ -438,7 +497,7 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 	// Verify randao signature
 	err = c.verifyPartialSig(ctx, parSig, pubkey)
 	if err != nil {
-		return nil, err
+		return core.VersionedProposal{}, err
 	}
 
 	for _, sub := range c.subs {
@@ -449,7 +508,7 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 
 		err := sub(ctx, duty, parsigSet)
 		if err != nil {
-			return nil, err
+			return core.VersionedProposal{}, err
 		}
 	}
 
@@ -466,22 +525,11 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 	//  - Once inserted, the query below will return.
 
 	// Query unsigned proposal (this is blocking).
-	proposal, err := c.awaitProposalFunc(ctx, uint64(opts.Slot))
-	if err != nil {
-		return nil, err
-	}
-
-	// We do not persist this v3-specific data in the pipeline,
-	// but to comply with the API, we need to return non-nil values,
-	// and these should be unified across all nodes.
-	proposal.ConsensusValue = big.NewInt(1)
-	proposal.ExecutionValue = big.NewInt(1)
-
-	return wrapResponse(proposal), nil
+	return c.awaitProposalFunc(ctx, uint64(slot))
 }
 
 // propDataMatchesDuty checks that the VC-signed proposal data and prop are the same.
-func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.VersionedProposal) error {
+func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop core.VersionedProposal) error {
 	ourPropIdx, err := prop.ProposerIndex()
 	if err != nil {
 		return errors.Wrap(err, "fetch validator index from dutydb proposal")
@@ -500,7 +548,10 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 		)
 	}
 
-	if opts.Proposal.Blinded != prop.Blinded {
+	// The blinded flag comparison does not apply to gloas: the flag on a stored gloas
+	// proposal carries the payload-included discriminator, while VC-signed gloas
+	// proposals are always plain signed blocks.
+	if prop.Version != eth2spec.DataVersionGloas && opts.Proposal.Blinded != prop.Blinded {
 		return errors.New(
 			"dutydb and VC proposals have different blinded value",
 			z.Bool("vc", opts.Proposal.Blinded),
@@ -575,6 +626,21 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 		}
 
 		return checkHashes(prop.Fulu.Block, opts.Proposal.Fulu.SignedBlock.Message)
+	case eth2spec.DataVersionGloas:
+		block := prop.EPBS.Gloas
+		if prop.EPBS.ExecutionPayloadIncluded {
+			if prop.EPBS.GloasContents == nil {
+				return errors.New("no gloas block contents in dutydb proposal")
+			}
+
+			block = prop.EPBS.GloasContents.Block
+		}
+
+		if opts.Proposal.Gloas == nil {
+			return errors.New("validator client proposal data for the associated dutydb proposal is nil")
+		}
+
+		return checkHashes(block, opts.Proposal.Gloas.Message)
 	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
