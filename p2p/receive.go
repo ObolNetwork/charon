@@ -54,15 +54,16 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
 
-		handlerDone := observeHandlerStart(s.Protocol(), s.Conn().RemotePeer())
-		defer handlerDone()
+		// Read the negotiated protocol once and reuse it: it labels the handler metrics, so
+		// a value read again later (or too early in the stream's life) could mislabel them.
+		streamProtocol := s.Protocol()
 
 		_ = s.SetReadDeadline(time.Now().Add(o.receiveTimeout))
 		ctx, cancel := context.WithTimeout(context.Background(), o.receiveTimeout)
 		ctx = log.WithTopic(ctx, logTopic)
 		ctx = log.WithCtx(ctx,
 			z.Str("peer", name),
-			z.Any("protocol", s.Protocol()),
+			z.Any("protocol", streamProtocol),
 		)
 
 		defer cancel()
@@ -71,7 +72,7 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		// Recover any panic in this stream handler goroutine.
 		defer func() {
 			if r := recover(); r != nil {
-				incMessageHandlerPanic(s.Protocol(), s.Conn().RemotePeer())
+				incMessageHandlerPanic(streamProtocol, s.Conn().RemotePeer())
 				log.Error(ctx, "Recovered from panic handling p2p message; stream dropped and process kept alive", nil,
 					z.Any("recover", r),
 					z.Str("stacktrace", string(debug.Stack())),
@@ -79,17 +80,20 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 			}
 		}()
 
-		writeFunc, ok := o.writersByProtocol[s.Protocol()]
+		writeFunc, ok := o.writersByProtocol[streamProtocol]
 		if !ok {
-			log.Error(ctx, "No writer registered for protocol. This may indicate an unsupported or misconfigured p2p protocol", nil, z.Any("protocol", s.Protocol()))
+			log.Error(ctx, "No writer registered for protocol. This may indicate an unsupported or misconfigured p2p protocol", nil, z.Any("protocol", streamProtocol))
 			return
 		}
 
-		readFunc, ok := o.readersByProtocol[s.Protocol()]
+		readFunc, ok := o.readersByProtocol[streamProtocol]
 		if !ok {
-			log.Error(ctx, "No reader registered for protocol. This may indicate an unsupported or misconfigured p2p protocol", nil, z.Any("protocol", s.Protocol()))
+			log.Error(ctx, "No reader registered for protocol. This may indicate an unsupported or misconfigured p2p protocol", nil, z.Any("protocol", streamProtocol))
 			return
 		}
+
+		handlerDone := observeHandlerStart(streamProtocol, s.Conn().RemotePeer())
+		defer handlerDone()
 
 		req := zeroReq()
 
@@ -98,17 +102,17 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 			// Resets on relayed (limited) connections are benign circuit recycling,
 			// but a reset on a direct connection is a genuine read failure.
 			if !s.Conn().Stat().Limited {
-				incMessageReadError(s.Protocol(), s.Conn().RemotePeer())
+				incMessageReadError(streamProtocol, s.Conn().RemotePeer())
 			}
 
 			return // Ignore relay errors.
 		} else if netErr := net.Error(nil); errors.As(err, &netErr) && netErr.Timeout() {
-			incMessageReadError(s.Protocol(), s.Conn().RemotePeer())
+			incMessageReadError(streamProtocol, s.Conn().RemotePeer())
 			log.Error(ctx, "Timeout reading p2p message from peer. This may indicate network latency issues or unresponsive peer", err, z.Any("duration", time.Since(t0)))
 
 			return
 		} else if err != nil {
-			incMessageReadError(s.Protocol(), s.Conn().RemotePeer())
+			incMessageReadError(streamProtocol, s.Conn().RemotePeer())
 			log.Error(ctx, "Failed to read p2p request from peer. Check network connectivity and peer health", err, z.Any("duration", time.Since(t0)))
 
 			return
@@ -116,7 +120,7 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 
 		// Observe before application-level validation so malformed-but-readable messages
 		// are still visible in the size histogram.
-		observeReceivedMessage(s.Protocol(), s.Conn().RemotePeer(), req)
+		observeReceivedMessage(streamProtocol, s.Conn().RemotePeer(), req)
 
 		if err := protonil.Check(req); err != nil {
 			log.Warn(ctx, "LibP2P received invalid proto", err)
@@ -140,6 +144,6 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 			return
 		}
 
-		observeSentMessage(s.Protocol(), resp)
+		observeSentMessage(streamProtocol, resp)
 	})
 }
