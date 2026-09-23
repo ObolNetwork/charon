@@ -391,20 +391,21 @@ type VersionedProposal struct {
 	EPBS *eth2api.VersionedEPBSProposal
 }
 
-// Slot returns the proposal slot, handling the gloas EPBS arm which the embedded
-// client union has no knowledge of.
+// Slot returns the proposal slot, handling the EPBS arm carrying proposals from the
+// gloas fork onwards, which the embedded client union has no knowledge of.
 func (p VersionedProposal) Slot() (eth2p0.Slot, error) {
-	if p.Version == eth2spec.DataVersionGloas {
+	if p.Version >= eth2spec.DataVersionGloas {
 		return p.EPBS.Slot()
 	}
 
 	return p.VersionedProposal.Slot()
 }
 
-// ProposerIndex returns the proposal proposer index, handling the gloas EPBS arm which
-// the embedded client union has no knowledge of.
+// ProposerIndex returns the proposal proposer index, handling the EPBS arm carrying
+// proposals from the gloas fork onwards, which the embedded client union has no
+// knowledge of.
 func (p VersionedProposal) ProposerIndex() (eth2p0.ValidatorIndex, error) {
-	if p.Version == eth2spec.DataVersionGloas {
+	if p.Version >= eth2spec.DataVersionGloas {
 		return p.EPBS.ProposerIndex()
 	}
 
@@ -414,7 +415,7 @@ func (p VersionedProposal) ProposerIndex() (eth2p0.ValidatorIndex, error) {
 // Graffiti returns the proposal graffiti, handling the gloas EPBS arm which the embedded
 // client union has no knowledge of.
 func (p VersionedProposal) Graffiti() ([32]byte, error) {
-	if p.Version != eth2spec.DataVersionGloas {
+	if p.Version < eth2spec.DataVersionGloas {
 		return p.VersionedProposal.Graffiti()
 	}
 
