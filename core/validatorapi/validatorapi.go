@@ -420,8 +420,8 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 		return nil, err
 	}
 
-	if proposal.Version == eth2spec.DataVersionGloas {
-		return nil, errors.New("gloas proposals are served by the v4 epbs endpoint")
+	if proposal.Version >= eth2spec.DataVersionGloas {
+		return nil, errors.New("gloas onwards proposals are served by the v4 epbs endpoint")
 	}
 
 	resp := proposal.VersionedProposal
@@ -452,7 +452,7 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 		return nil, err
 	}
 
-	if proposal.Version != eth2spec.DataVersionGloas {
+	if proposal.Version < eth2spec.DataVersionGloas {
 		return nil, errors.New("pre-gloas proposals are served by the v3 endpoint",
 			z.Str("version", proposal.Version.String()))
 	}
