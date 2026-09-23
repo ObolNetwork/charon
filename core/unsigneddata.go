@@ -492,6 +492,9 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		Blinded: raw.Blinded,
 	}
 
+	// EPBS carries proposals from the gloas fork onwards, nil for earlier versions.
+	var epbs *eth2api.VersionedEPBSProposal
+
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
 		if raw.Blinded {
@@ -600,7 +603,7 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 			return errors.New("no execution_payload_included in gloas proposal")
 		}
 
-		epbs := &eth2api.VersionedEPBSProposal{
+		epbs = &eth2api.VersionedEPBSProposal{
 			Version:                  eth2spec.DataVersionGloas,
 			ExecutionPayloadIncluded: *raw.ExecutionPayloadIncluded,
 		}
@@ -620,15 +623,11 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 
 			epbs.Gloas = block
 		}
-
-		*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs}
-
-		return nil
 	default:
 		return errors.New("unknown version")
 	}
 
-	*p = VersionedProposal{VersionedProposal: resp}
+	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs}
 
 	return nil
 }
