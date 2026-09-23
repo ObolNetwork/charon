@@ -848,8 +848,11 @@ func TestSchedulerPTCDuties(t *testing.T) {
 
 	stop := func() { stopOnce.Do(sched.Stop) }
 
-	// Failsafe: stop the scheduler after a few slots so the test fails cleanly instead of hanging.
-	clock.CallbackAfter(t0.Add(4*slotDuration), func() {
+	// Failsafe: stop the scheduler after many slots so the test fails cleanly instead of
+	// hanging. The subscriber stops at the first duty, so the horizon only matters when
+	// async duty resolution races the instantly-ticking test clock under load: a wide
+	// window gives resolution enough re-triggers (one per single-slot epoch) to land.
+	clock.CallbackAfter(t0.Add(100*slotDuration), func() {
 		stop()
 	})
 
