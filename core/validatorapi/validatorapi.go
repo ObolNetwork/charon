@@ -548,10 +548,7 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop core.VersionedPr
 		)
 	}
 
-	// The blinded flag comparison does not apply to gloas: the flag on a stored gloas
-	// proposal carries the payload-included discriminator, while VC-signed gloas
-	// proposals are always plain signed blocks.
-	if prop.Version != eth2spec.DataVersionGloas && opts.Proposal.Blinded != prop.Blinded {
+	if opts.Proposal.Blinded != prop.Blinded {
 		return errors.New(
 			"dutydb and VC proposals have different blinded value",
 			z.Bool("vc", opts.Proposal.Blinded),
