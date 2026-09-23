@@ -359,26 +359,24 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 }
 
 // NewVersionedEPBSProposal validates and returns a new wrapped VersionedProposal
-// carrying a gloas EPBS proposal. The embedded eth2api.VersionedProposal has no gloas
-// arm since block production moved to the v4 EPBS endpoint from the gloas fork, so the
-// proposal travels in the EPBS field, discriminated by Version. The pre-gloas Blinded
-// flag does not apply to gloas proposals and is never set: the blinded/full split
-// dissolves at the fork, EPBS.ExecutionPayloadIncluded discriminates the two arms.
+// carrying an EPBS proposal, which supersedes the embedded client union from the gloas
+// fork onwards. The pre-gloas Blinded flag is never set for it.
 func NewVersionedEPBSProposal(proposal *eth2api.VersionedEPBSProposal) (VersionedProposal, error) {
-	if proposal.Version != eth2spec.DataVersionGloas {
-		return VersionedProposal{}, errors.New("non-gloas EPBS proposal")
-	}
-
-	if proposal.ExecutionPayloadIncluded {
-		if proposal.GloasContents == nil || proposal.GloasContents.Block == nil {
-			return VersionedProposal{}, errors.New("no gloas block contents")
+	switch proposal.Version {
+	case eth2spec.DataVersionGloas:
+		if proposal.ExecutionPayloadIncluded {
+			if proposal.GloasContents == nil || proposal.GloasContents.Block == nil {
+				return VersionedProposal{}, errors.New("no gloas block contents")
+			}
+		} else if proposal.Gloas == nil {
+			return VersionedProposal{}, errors.New("no gloas block")
 		}
-	} else if proposal.Gloas == nil {
-		return VersionedProposal{}, errors.New("no gloas block")
+	default:
+		return VersionedProposal{}, errors.New("unknown version")
 	}
 
 	return VersionedProposal{
-		Version: eth2spec.DataVersionGloas,
+		Version: proposal.Version,
 		EPBS:    proposal,
 	}, nil
 }

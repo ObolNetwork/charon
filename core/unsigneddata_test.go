@@ -696,7 +696,7 @@ func TestNewVersionedEPBSProposal(t *testing.T) {
 		_, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
 			Version: eth2spec.DataVersionFulu,
 		})
-		require.ErrorContains(t, err, "non-gloas EPBS proposal")
+		require.ErrorContains(t, err, "unknown version")
 	})
 
 	t.Run("json roundtrip", func(t *testing.T) {
