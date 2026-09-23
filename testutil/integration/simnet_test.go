@@ -74,6 +74,12 @@ func TestSimnetDuties(t *testing.T) {
 			duties:        []core.DutyType{core.DutyPayloadAttestation},
 			vcType:        vcVmock,
 		},
+		{
+			name:          "proposer preferences with mock VCs",
+			scheduledType: core.DutyProposerPreferences,
+			duties:        []core.DutyType{core.DutyProposerPreferences},
+			vcType:        vcVmock,
+		},
 		// TODO(andrei): Need a redesign due to how builder registration is handled now.
 		// {
 		// 	name:       "builder registration with mock VCs",
@@ -137,6 +143,16 @@ func TestSimnetDuties(t *testing.T) {
 					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
 					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
 					beaconmock.WithDeterministicPTCDuties(2, 2),
+				)
+			}
+
+			if test.scheduledType == core.DutyProposerPreferences {
+				// Proposer preferences only exist from gloas onwards, activate the fork and
+				// enable v2 proposer duties, the source of the slots the preferences target.
+				args.BMockOpts = append(args.BMockOpts,
+					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+					beaconmock.WithDeterministicProposerDutiesV2(2),
 				)
 			}
 
