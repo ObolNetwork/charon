@@ -640,6 +640,9 @@ type versionedRawBlockJSON struct {
 	Version eth2util.DataVersion `json:"version"`
 	Block   json.RawMessage      `json:"block"`
 	Blinded bool                 `json:"blinded,omitempty"`
+	// ExecutionPayloadIncluded discriminates the two arms of a gloas EPBS proposal,
+	// which the pre-gloas blinded flag does not apply to. Nil for other versions.
+	ExecutionPayloadIncluded *bool `json:"execution_payload_included,omitempty"`
 }
 
 // NewVersionedAttestation is a convenience function that returns a new wrapped attestation.

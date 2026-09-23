@@ -254,18 +254,43 @@ func (p VersionedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedBlindedTo(buf, version, p.Blinded, p.sszValFromVersion)
+	payloadless, err := p.payloadless()
+	if err != nil {
+		return nil, err
+	}
+
+	return marshalSSZVersionedBlindedTo(buf, version, payloadless, p.sszValFromVersion)
+}
+
+// payloadless returns the container discriminator bit: the pre-gloas blinded flag, or
+// !ExecutionPayloadIncluded for gloas EPBS proposals, both meaning the block travels
+// without its execution payload.
+func (p VersionedProposal) payloadless() (bool, error) {
+	if p.Version != eth2spec.DataVersionGloas {
+		return p.Blinded, nil
+	}
+
+	if p.EPBS == nil {
+		return false, errors.New("no epbs proposal")
+	}
+
+	return !p.EPBS.ExecutionPayloadIncluded, nil
 }
 
 // UnmarshalSSZ ssz unmarshalls the VersionedProposal object.
 func (p *VersionedProposal) UnmarshalSSZ(buf []byte) error {
-	version, blinded, err := unmarshalSSZVersionedBlinded(buf, p.sszValFromVersion)
+	version, payloadless, err := unmarshalSSZVersionedBlinded(buf, p.sszValFromVersion)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal VersionedProposal")
 	}
 
 	p.Version = version.ToETH2()
-	p.Blinded = blinded
+
+	// The pre-gloas blinded flag does not apply to gloas proposals: the container bit
+	// carries !ExecutionPayloadIncluded, already captured in the EPBS field.
+	if p.Version != eth2spec.DataVersionGloas {
+		p.Blinded = payloadless
+	}
 
 	return nil
 }
@@ -278,7 +303,13 @@ func (p VersionedProposal) SizeSSZ() int {
 		return 0
 	}
 
-	val, err := p.sszValFromVersion(version, p.Blinded)
+	payloadless, err := p.payloadless()
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := p.sszValFromVersion(version, payloadless)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -373,17 +404,17 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 
 		return p.Fulu, nil
 	case eth2util.DataVersionGloas:
-		// The container's blinded bit carries !ExecutionPayloadIncluded for gloas: a
-		// payload-excluded proposal (external builder bid) is a block without an
-		// execution payload, exactly what blinded meant pre-gloas.
+		// For gloas the container bit carries !ExecutionPayloadIncluded, see payloadless().
+		payloadExcluded := blinded
+
 		if p.EPBS == nil {
 			p.EPBS = &eth2api.VersionedEPBSProposal{
 				Version:                  eth2spec.DataVersionGloas,
-				ExecutionPayloadIncluded: !blinded,
+				ExecutionPayloadIncluded: !payloadExcluded,
 			}
 		}
 
-		if blinded {
+		if payloadExcluded {
 			if p.EPBS.Gloas == nil {
 				p.EPBS.Gloas = new(gloas.BeaconBlock)
 			}
