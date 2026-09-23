@@ -196,6 +196,16 @@ func NewVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal) (Vers
 		if proposal.FuluBlinded == nil && proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no fulu blinded proposal")
 		}
+	case eth2spec.DataVersionGloas:
+		// Gloas blocks carry a builder bid instead of an execution payload, the
+		// blinded/full split does not exist from the gloas fork onwards.
+		if proposal.Blinded {
+			return VersionedSignedProposal{}, errors.New("gloas proposals do not support blinding")
+		}
+
+		if proposal.Gloas == nil {
+			return VersionedSignedProposal{}, errors.New("no gloas proposal")
+		}
 	default:
 		return VersionedSignedProposal{}, errors.New("unknown version")
 	}
@@ -310,6 +320,8 @@ func (p VersionedSignedProposal) Signature() Signature {
 		}
 
 		return SigFromETH2(p.Fulu.SignedBlock.Signature)
+	case eth2spec.DataVersionGloas:
+		return SigFromETH2(p.Gloas.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -357,6 +369,8 @@ func (p VersionedSignedProposal) SetSignature(sig Signature) (SignedData, error)
 		} else {
 			resp.Fulu.SignedBlock.Signature = sig.ToETH2()
 		}
+	case eth2spec.DataVersionGloas:
+		resp.Gloas.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -406,6 +420,8 @@ func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 		}
 
 		return p.Fulu.SignedBlock.Message.HashTreeRoot()
+	case eth2spec.DataVersionGloas:
+		return p.Gloas.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -467,6 +483,8 @@ func (p VersionedSignedProposal) MarshalJSON() ([]byte, error) {
 		} else {
 			marshaller = p.Fulu
 		}
+	case eth2spec.DataVersionGloas:
+		marshaller = p.Gloas
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -595,6 +613,17 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 
 			resp.Fulu = block
 		}
+	case eth2spec.DataVersionGloas:
+		if raw.Blinded {
+			return errors.New("gloas proposals do not support blinding")
+		}
+
+		block := new(gloas.SignedBeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = block
 	default:
 		return errors.New("unknown version")
 	}

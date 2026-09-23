@@ -39,6 +39,15 @@ func TestSignedDataSetSignature(t *testing.T) {
 		data core.SignedData
 	}{
 		{
+			name: "versioned signed proposal gloas",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   testutil.RandomGloasSignedBeaconBlock(),
+				},
+			},
+		},
+		{
 			name: "versioned signed proposal phase0",
 			data: core.VersionedSignedProposal{
 				VersionedSignedProposal: eth2api.VersionedSignedProposal{
