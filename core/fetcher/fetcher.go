@@ -140,7 +140,13 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 
 	switch duty.Type {
 	case core.DutyProposer:
-		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
+		// From the gloas fork blocks are produced by the v4 EPBS endpoint.
+		if f.forkActive(eth2wrap.Gloas, duty.Slot) {
+			unsignedSet, err = f.fetchEPBSProposerData(ctx, duty.Slot, defSet)
+		} else {
+			unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
+		}
+
 		if err != nil {
 			return errors.Wrap(err, "fetch proposer data")
 		}
@@ -395,36 +401,9 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 	resp := make(core.UnsignedDataSet)
 
 	for pubkey := range defSet {
-		// Fetch previously aggregated randao reveal from AggSigDB
-		dutyRandao := core.NewRandaoDuty(slot)
-
-		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey, 0)
+		randao, err := f.fetchRandao(ctx, slot, pubkey)
 		if err != nil {
 			return nil, err
-		}
-
-		randao := randaoData.Signature().ToETH2()
-
-		// From the gloas fork blocks are produced by the v4 EPBS endpoint, which selects
-		// between the locally built payload and builder bids on the beacon node side.
-		if f.forkActive(eth2wrap.Gloas, slot) {
-			coreProposal, err := f.fetchEPBSProposal(ctx, slot, pubkey, randao)
-			if err != nil {
-				return nil, err
-			}
-
-			// Track whether the fetched proposal carries its execution payload (built locally, 2)
-			// or is based on an external builder bid whose payload travels separately (1).
-			blinded := 2.0
-			if !coreProposal.EPBS.ExecutionPayloadIncluded {
-				blinded = 1.0
-			}
-
-			proposalBlindedGauge.Set(blinded)
-
-			resp[pubkey] = coreProposal
-
-			continue
 		}
 
 		var bbf uint64
@@ -459,18 +438,60 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			return nil, errors.Wrap(err, "new proposal")
 		}
 
-		// Track whether the fetched proposal is blinded (built by MEV builder, 1) or local (built by beacon node, 2)
-		blinded := 2.0
+		// Track whether the fetched proposal was built by a MEV builder (blinded) or locally.
+		source := proposalSourceLocal
 		if proposal.Blinded {
-			blinded = 1.0
+			source = proposalSourceBuilder
 		}
 
-		proposalBlindedGauge.Set(blinded)
+		proposalBlindedGauge.Set(source)
 
 		resp[pubkey] = coreProposal
 	}
 
 	return resp, nil
+}
+
+// fetchEPBSProposerData returns proposal data fetched via the v4 EPBS endpoint, used from
+// the gloas fork onwards. The endpoint selects between the locally built payload and
+// builder bids on the beacon node side.
+func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	resp := make(core.UnsignedDataSet)
+
+	for pubkey := range defSet {
+		randao, err := f.fetchRandao(ctx, slot, pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		coreProposal, err := f.fetchEPBSProposal(ctx, slot, pubkey, randao)
+		if err != nil {
+			return nil, err
+		}
+
+		// Track whether the proposal carries its execution payload (built locally) or is
+		// based on an external builder bid whose payload travels separately.
+		source := proposalSourceLocal
+		if !coreProposal.EPBS.ExecutionPayloadIncluded {
+			source = proposalSourceBuilder
+		}
+
+		proposalBlindedGauge.Set(source)
+
+		resp[pubkey] = coreProposal
+	}
+
+	return resp, nil
+}
+
+// fetchRandao returns the previously aggregated randao reveal for the slot from the AggSigDB.
+func (f *Fetcher) fetchRandao(ctx context.Context, slot uint64, pubkey core.PubKey) (eth2p0.BLSSignature, error) {
+	randaoData, err := f.aggSigDBFunc(ctx, core.NewRandaoDuty(slot), pubkey, 0)
+	if err != nil {
+		return eth2p0.BLSSignature{}, err
+	}
+
+	return randaoData.Signature().ToETH2(), nil
 }
 
 // forkActive returns true if the fork is scheduled and active at the provided slot.
