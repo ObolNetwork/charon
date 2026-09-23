@@ -427,16 +427,13 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 		proposal := eth2Resp.Data
 
-		// Builders set fee recipient to themselves so it's always different from validator's.
-		if !proposal.Blinded {
-			// Ensure fee recipient is correctly populated in proposal.
-			verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
-		}
-
 		coreProposal, err := core.NewVersionedProposal(proposal)
 		if err != nil {
 			return nil, errors.Wrap(err, "new proposal")
 		}
+
+		// Ensure fee recipient is correctly populated in the proposal.
+		verifyFeeRecipient(ctx, coreProposal, f.feeRecipientFunc(pubkey))
 
 		// Track whether the fetched proposal was built by a MEV builder (blinded) or locally.
 		source := proposalSourceLocal
@@ -482,13 +479,13 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 			return nil, err
 		}
 
-		// TODO(gloas): verify the fee recipient of self-built proposals against the
-		// cluster configuration, mirroring verifyFeeRecipient on the pre-gloas path.
-
 		coreProposal, err := core.NewVersionedEPBSProposal(eth2Resp.Data)
 		if err != nil {
 			return nil, errors.Wrap(err, "new epbs proposal")
 		}
+
+		// Ensure fee recipient is correctly populated in the proposal.
+		verifyFeeRecipient(ctx, coreProposal, f.feeRecipientFunc(pubkey))
 
 		// Track whether the proposal carries its execution payload (built locally) or is
 		// based on an external builder bid whose payload travels separately.
@@ -758,8 +755,14 @@ func syncSubcommittees(def core.DutyDefinition, subcommSize uint64) ([]core.Subc
 	return subcommIdxs, nil
 }
 
-// verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
-func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal, feeRecipientAddress string) {
+// verifyFeeRecipient logs a warning when the fee recipient is not correctly populated in
+// a locally built proposal carrying its execution payload. Blinded proposals and EPBS
+// builder bids are skipped since builders commit to their own payments.
+func verifyFeeRecipient(ctx context.Context, proposal core.VersionedProposal, feeRecipientAddress string) {
+	if proposal.Blinded {
+		return
+	}
+
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
@@ -774,6 +777,14 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 		actualAddr = fmt.Sprintf("%#x", proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionFulu:
 		actualAddr = fmt.Sprintf("%#x", proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient)
+	case eth2spec.DataVersionGloas:
+		contents := proposal.EPBS.GloasContents
+		if !proposal.EPBS.ExecutionPayloadIncluded || contents == nil ||
+			contents.ExecutionPayloadEnvelope == nil || contents.ExecutionPayloadEnvelope.Payload == nil {
+			return
+		}
+
+		actualAddr = fmt.Sprintf("%#x", contents.ExecutionPayloadEnvelope.Payload.FeeRecipient)
 	default:
 		return
 	}

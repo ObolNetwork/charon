@@ -444,7 +444,9 @@ func TestFetchEPBSBlocks(t *testing.T) {
 		t.Helper()
 
 		// Gloas active from epoch zero, so the EPBS path is taken.
-		fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{},
+		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+			return "0x0000000000000000000000000000000000000000"
+		}, false, &fetcher.GraffitiBuilder{},
 			eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
 		require.NoError(t, err)
 
