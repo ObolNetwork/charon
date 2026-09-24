@@ -461,6 +461,14 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 	ctx, span = core.StartDutyTrace(ctx, core.NewRandaoDuty(uint64(opts.Slot)), "core/validatorapi.EPBSProposal")
 	defer span.End()
 
+	// A distributed validator only serves the stateless (payload-included) form, so a VC
+	// requesting the stateful one is misconfigured: it must enable its stateless block
+	// production flag (or point at multiple beacon nodes) to request payload inclusion.
+	if opts.IncludePayload != nil && !*opts.IncludePayload {
+		log.Warn(ctx, "Validator client requested stateful gloas block production, serving stateless instead; enable your validator client's stateless block production flag", nil,
+			z.U64("slot", uint64(opts.Slot)))
+	}
+
 	if err := c.submitRandao(ctx, opts.Slot, opts.RandaoReveal); err != nil {
 		return nil, err
 	}
