@@ -446,9 +446,15 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 // EPBSProposal returns the gloas EPBS proposal agreed by the cluster for the provided
 // options. The VC-supplied builder config is not used: the cluster proposal was fetched
 // with charon's own builder configuration, which the proposer config file distributes
-// to the VCs. When the VC asks for the stateful (payload-excluded) form of a self-built
-// proposal, the payload is stripped from the response.
-// TODO(gloas): serve the stripped envelope via the execution payload envelope endpoint.
+// to the VCs.
+//
+// The VC's IncludePayload is ignored: the cluster proposal is always fetched in the
+// stateless (payload-included) form so any beacon node can publish it, and it is served
+// as-is. A self-built proposal is therefore always returned payload-included, and an
+// external builder bid always payload-excluded (the beacon node does not hold the
+// builder's payload), independent of what the VC requested. The stateful (payload-excluded)
+// form of a self-built proposal is not served: there is no single producing node holding
+// its envelope for the VC to retrieve.
 func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
 	var span trace.Span
 
@@ -466,17 +472,7 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 		return nil, err
 	}
 
-	resp := *proposal
-
-	if opts.IncludePayload != nil && !*opts.IncludePayload && resp.ExecutionPayloadIncluded {
-		resp = eth2api.VersionedEPBSProposal{
-			Version:                  eth2spec.DataVersionGloas,
-			ExecutionPayloadIncluded: false,
-			Gloas:                    resp.GloasContents.Block,
-		}
-	}
-
-	return wrapResponse(&resp), nil
+	return wrapResponse(proposal), nil
 }
 
 // submitRandao receives a VC partial randao reveal for the slot, verifies it and forwards

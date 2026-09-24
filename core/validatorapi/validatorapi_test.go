@@ -2999,7 +2999,8 @@ func TestComponent_EPBSProposal(t *testing.T) {
 	require.True(t, resp.Data.ExecutionPayloadIncluded)
 	require.Equal(t, proposal.EPBS.GloasContents, resp.Data.GloasContents)
 
-	// The stateful (payload-excluded) form strips the payload from a self-built proposal.
+	// The VC's IncludePayload is ignored: a self-built proposal is always served in the
+	// stateless (payload-included) form, even when the VC asks for the stateful one.
 	includePayload = false
 
 	resp, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
@@ -3008,9 +3009,8 @@ func TestComponent_EPBSProposal(t *testing.T) {
 		IncludePayload: &includePayload,
 	})
 	require.NoError(t, err)
-	require.False(t, resp.Data.ExecutionPayloadIncluded)
-	require.Nil(t, resp.Data.GloasContents)
-	require.Equal(t, proposal.EPBS.GloasContents.Block, resp.Data.Gloas)
+	require.True(t, resp.Data.ExecutionPayloadIncluded)
+	require.Equal(t, proposal.EPBS.GloasContents, resp.Data.GloasContents)
 }
 
 func TestComponent_SubmitProposalGloas(t *testing.T) {
