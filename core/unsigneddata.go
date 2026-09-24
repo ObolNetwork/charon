@@ -442,6 +442,10 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 			marshaller = p.Fulu
 		}
 	case eth2spec.DataVersionGloas:
+		if p.EPBS == nil {
+			return nil, errors.New("no epbs proposal")
+		}
+
 		if p.EPBS.ExecutionPayloadIncluded {
 			marshaller = p.EPBS.GloasContents
 		} else {
