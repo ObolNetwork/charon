@@ -395,6 +395,10 @@ type VersionedProposal struct {
 // gloas fork onwards, which the embedded client union has no knowledge of.
 func (p VersionedProposal) Slot() (eth2p0.Slot, error) {
 	if p.Version >= eth2spec.DataVersionGloas {
+		if p.EPBS == nil {
+			return 0, errors.New("no epbs proposal")
+		}
+
 		return p.EPBS.Slot()
 	}
 
@@ -406,6 +410,10 @@ func (p VersionedProposal) Slot() (eth2p0.Slot, error) {
 // knowledge of.
 func (p VersionedProposal) ProposerIndex() (eth2p0.ValidatorIndex, error) {
 	if p.Version >= eth2spec.DataVersionGloas {
+		if p.EPBS == nil {
+			return 0, errors.New("no epbs proposal")
+		}
+
 		return p.EPBS.ProposerIndex()
 	}
 
@@ -418,6 +426,10 @@ func (p VersionedProposal) Graffiti() ([32]byte, error) {
 	// Pre-gloas proposals live in the embedded union, which reads their graffiti.
 	if p.Version < eth2spec.DataVersionGloas {
 		return p.VersionedProposal.Graffiti()
+	}
+
+	if p.EPBS == nil {
+		return [32]byte{}, errors.New("no epbs proposal")
 	}
 
 	// From gloas the proposal is an EPBS proposal in the EPBS field. Each fork resolves its
