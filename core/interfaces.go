@@ -5,6 +5,7 @@ package core
 import (
 	"context"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -57,8 +58,14 @@ type DutyDB interface {
 	Store(context.Context, Duty, UnsignedDataSet) error
 
 	// AwaitProposal blocks and returns the proposed beacon block
-	// for the slot when available.
-	AwaitProposal(ctx context.Context, slot uint64) (VersionedProposal, error)
+	// for the slot when available. It errors for gloas onwards proposals, which are
+	// served by AwaitEPBSProposal.
+	AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
+
+	// AwaitEPBSProposal blocks and returns the proposed ePBS beacon block for the slot
+	// when available, used from the gloas fork onwards. It errors for pre-gloas proposals,
+	// which are served by AwaitProposal.
+	AwaitEPBSProposal(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
 
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
@@ -131,7 +138,10 @@ type ConsensusController interface {
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
 	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
-	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (VersionedProposal, error))
+	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
+
+	// RegisterAwaitEPBSProposal registers a function to query unsigned ePBS beacon block proposals by providing the slot.
+	RegisterAwaitEPBSProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
@@ -280,7 +290,8 @@ type wireFuncs struct {
 	ConsensusPropose                  func(context.Context, Duty, UnsignedDataSet) error
 	ConsensusSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
 	DutyDBStore                       func(context.Context, Duty, UnsignedDataSet) error
-	DutyDBAwaitProposal               func(ctx context.Context, slot uint64) (VersionedProposal, error)
+	DutyDBAwaitProposal               func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
+	DutyDBAwaitEPBSProposal           func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
 	DutyDBAwaitAttestation            func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	DutyDBPubKeyByAttestation         func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
 	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
@@ -288,7 +299,8 @@ type wireFuncs struct {
 	DutyDBAwaitPayloadAttestation     func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)
 	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
 	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
-	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (VersionedProposal, error))
+	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
+	VAPIRegisterAwaitEPBSProposal     func(func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error))
 	VAPIRegisterGetDutyDefinition     func(func(context.Context, Duty) (DutyDefinitionSet, error))
 	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
 	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
@@ -340,11 +352,13 @@ func Wire(sched Scheduler,
 		DutyDBStore:                       dutyDB.Store,
 		DutyDBAwaitAttestation:            dutyDB.AwaitAttestation,
 		DutyDBAwaitProposal:               dutyDB.AwaitProposal,
+		DutyDBAwaitEPBSProposal:           dutyDB.AwaitEPBSProposal,
 		DutyDBPubKeyByAttestation:         dutyDB.PubKeyByAttestation,
 		DutyDBAwaitAggAttestation:         dutyDB.AwaitAggAttestation,
 		DutyDBAwaitSyncContribution:       dutyDB.AwaitSyncContribution,
 		DutyDBAwaitPayloadAttestation:     dutyDB.AwaitPayloadAttestationData,
 		VAPIRegisterAwaitProposal:         vapi.RegisterAwaitProposal,
+		VAPIRegisterAwaitEPBSProposal:     vapi.RegisterAwaitEPBSProposal,
 		VAPIRegisterAwaitAttestation:      vapi.RegisterAwaitAttestation,
 		VAPIRegisterAwaitSyncContribution: vapi.RegisterAwaitSyncContribution,
 		VAPIRegisterGetDutyDefinition:     vapi.RegisterGetDutyDefinition,
@@ -380,6 +394,7 @@ func Wire(sched Scheduler,
 	w.FetcherRegisterAwaitAttData(w.DutyDBAwaitAttestation)
 	w.ConsensusSubscribe(w.DutyDBStore)
 	w.VAPIRegisterAwaitProposal(w.DutyDBAwaitProposal)
+	w.VAPIRegisterAwaitEPBSProposal(w.DutyDBAwaitEPBSProposal)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterAwaitSyncContribution(w.DutyDBAwaitSyncContribution)
 	w.VAPIRegisterAwaitPayloadAttData(w.DutyDBAwaitPayloadAttestation)

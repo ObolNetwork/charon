@@ -192,7 +192,8 @@ type Component struct {
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)
-	awaitProposalFunc         func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
+	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
+	awaitEPBSProposalFunc     func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
 	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
@@ -202,8 +203,13 @@ type Component struct {
 
 // RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (core.VersionedProposal, error)) {
+func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)) {
 	c.awaitProposalFunc = fn
+}
+
+// RegisterAwaitEPBSProposal registers a function to query unsigned ePBS beacon block proposals by providing necessary options.
+func (c *Component) RegisterAwaitEPBSProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)) {
+	c.awaitEPBSProposalFunc = fn
 }
 
 // RegisterAwaitAttestation registers a function to query attestation data.
@@ -415,16 +421,18 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 	ctx, span = core.StartDutyTrace(ctx, core.NewRandaoDuty(uint64(opts.Slot)), "core/validatorapi.Proposal")
 	defer span.End()
 
-	proposal, err := c.submitRandaoAndAwaitProposal(ctx, opts.Slot, opts.RandaoReveal)
+	if err := c.submitRandao(ctx, opts.Slot, opts.RandaoReveal); err != nil {
+		return nil, err
+	}
+
+	// Query unsigned proposal (this is blocking). Errors for gloas onwards proposals,
+	// which are served by the v4 epbs endpoint.
+	proposal, err := c.awaitProposalFunc(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
 
-	if proposal.Version >= eth2spec.DataVersionGloas {
-		return nil, errors.New("gloas onwards proposals are served by the v4 epbs endpoint")
-	}
-
-	resp := proposal.VersionedProposal
+	resp := *proposal
 
 	// We do not persist this v3-specific data in the pipeline,
 	// but to comply with the API, we need to return non-nil values,
@@ -447,17 +455,18 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 	ctx, span = core.StartDutyTrace(ctx, core.NewRandaoDuty(uint64(opts.Slot)), "core/validatorapi.EPBSProposal")
 	defer span.End()
 
-	proposal, err := c.submitRandaoAndAwaitProposal(ctx, opts.Slot, opts.RandaoReveal)
+	if err := c.submitRandao(ctx, opts.Slot, opts.RandaoReveal); err != nil {
+		return nil, err
+	}
+
+	// Query unsigned proposal (this is blocking). Errors for pre-gloas proposals, which
+	// are served by the v3 endpoint.
+	proposal, err := c.awaitEPBSProposalFunc(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
 
-	if proposal.Version < eth2spec.DataVersionGloas {
-		return nil, errors.New("pre-gloas proposals are served by the v3 endpoint",
-			z.Str("version", proposal.Version.String()))
-	}
-
-	resp := *proposal.EPBS
+	resp := *proposal
 
 	if opts.IncludePayload != nil && !*opts.IncludePayload && resp.ExecutionPayloadIncluded {
 		resp = eth2api.VersionedEPBSProposal{
@@ -470,21 +479,30 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 	return wrapResponse(&resp), nil
 }
 
-// submitRandaoAndAwaitProposal receives a VC partial randao reveal for the slot, verifies
-// and forwards it to subscribers, and blocks until the resulting cluster proposal is
-// available in the dutydb.
-func (c Component) submitRandaoAndAwaitProposal(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature) (core.VersionedProposal, error) {
+// submitRandao receives a VC partial randao reveal for the slot, verifies it and forwards
+// it to subscribers. Once a threshold of VCs submit their reveals, they are aggregated and
+// consensus produces the unsigned proposal that the await queries block on:
+//   - Threshold number of VCs need to submit their partial randao reveals.
+//   - These signatures will be exchanged and aggregated.
+//   - The aggregated signature will be stored in AggSigDB.
+//   - Scheduler (in the meantime) will schedule a DutyProposer (to create a unsigned block).
+//   - Fetcher will then block waiting for an aggregated randao reveal.
+//   - Once it is found, Fetcher will fetch an unsigned block from the beacon
+//     node including the aggregated randao in the request.
+//   - Consensus will agree upon the unsigned block and insert the resulting block in the DutyDB.
+//   - Once inserted, an await query for the slot returns.
+func (c Component) submitRandao(ctx context.Context, slot eth2p0.Slot, randaoReveal eth2p0.BLSSignature) error {
 	duty := core.NewRandaoDuty(uint64(slot))
 
 	// Get proposer pubkey (this is a blocking query).
 	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
 	if err != nil {
-		return core.VersionedProposal{}, err
+		return err
 	}
 
 	epoch, err := eth2util.EpochFromSlot(ctx, c.eth2Cl, slot)
 	if err != nil {
-		return core.VersionedProposal{}, err
+		return err
 	}
 
 	sigEpoch := eth2util.SignedEpoch{
@@ -497,7 +515,7 @@ func (c Component) submitRandaoAndAwaitProposal(ctx context.Context, slot eth2p0
 	// Verify randao signature
 	err = c.verifyPartialSig(ctx, parSig, pubkey)
 	if err != nil {
-		return core.VersionedProposal{}, err
+		return err
 	}
 
 	for _, sub := range c.subs {
@@ -508,28 +526,15 @@ func (c Component) submitRandaoAndAwaitProposal(ctx context.Context, slot eth2p0
 
 		err := sub(ctx, duty, parsigSet)
 		if err != nil {
-			return core.VersionedProposal{}, err
+			return err
 		}
 	}
 
-	// In the background, the following needs to happen before the
-	// unsigned beacon block will be returned below:
-	//  - Threshold number of VCs need to submit their partial randao reveals.
-	//  - These signatures will be exchanged and aggregated.
-	//  - The aggregated signature will be stored in AggSigDB.
-	//  - Scheduler (in the meantime) will schedule a DutyProposer (to create a unsigned block).
-	//  - Fetcher will then block waiting for an aggregated randao reveal.
-	//  - Once it is found, Fetcher will fetch an unsigned block from the beacon
-	//    node including the aggregated randao in the request.
-	//  - Consensus will agree upon the unsigned block and insert the resulting block in the DutyDB.
-	//  - Once inserted, the query below will return.
-
-	// Query unsigned proposal (this is blocking).
-	return c.awaitProposalFunc(ctx, uint64(slot))
+	return nil
 }
 
 // propDataMatchesDuty checks that the VC-signed proposal data and prop are the same.
-func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop core.VersionedProposal) error {
+func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.VersionedProposal) error {
 	ourPropIdx, err := prop.ProposerIndex()
 	if err != nil {
 		return errors.Wrap(err, "fetch validator index from dutydb proposal")
@@ -623,24 +628,46 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop core.VersionedPr
 		}
 
 		return checkHashes(prop.Fulu.Block, opts.Proposal.Fulu.SignedBlock.Message)
-	case eth2spec.DataVersionGloas:
-		block := prop.EPBS.Gloas
-		if prop.EPBS.ExecutionPayloadIncluded {
-			if prop.EPBS.GloasContents == nil {
-				return errors.New("no gloas block contents in dutydb proposal")
-			}
-
-			block = prop.EPBS.GloasContents.Block
-		}
-
-		if opts.Proposal.Gloas == nil {
-			return errors.New("validator client proposal data for the associated dutydb proposal is nil")
-		}
-
-		return checkHashes(block, opts.Proposal.Gloas.Message)
 	default:
 		return errors.New("unexpected block version", z.Str("version", prop.Version.String()))
 	}
+}
+
+// epbsPropDataMatchesDuty checks that the VC-signed gloas proposal and the dutydb ePBS
+// proposal are the same.
+func epbsPropDataMatchesDuty(signed *eth2api.VersionedSignedProposal, prop *eth2api.VersionedEPBSProposal) error {
+	block := prop.Gloas
+	if prop.ExecutionPayloadIncluded {
+		if prop.GloasContents == nil {
+			return errors.New("no gloas block contents in dutydb proposal")
+		}
+
+		block = prop.GloasContents.Block
+	}
+
+	if block == nil {
+		return errors.New("no gloas block in dutydb proposal")
+	}
+
+	if signed.Gloas == nil {
+		return errors.New("validator client proposal data for the associated dutydb proposal is nil")
+	}
+
+	ourRoot, err := block.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash tree root dutydb")
+	}
+
+	vcRoot, err := signed.Gloas.Message.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash tree root vc")
+	}
+
+	if ourRoot != vcRoot {
+		return errors.New("dutydb and VC proposal data have different hash tree root")
+	}
+
+	return nil
 }
 
 func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
@@ -661,13 +688,24 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 		return err
 	}
 
-	prop, err := c.awaitProposalFunc(ctx, uint64(slot))
-	if err != nil {
-		return errors.Wrap(err, "could not fetch block definition from dutydb")
-	}
+	if opts.Proposal.Version >= eth2spec.DataVersionGloas {
+		prop, err := c.awaitEPBSProposalFunc(ctx, uint64(slot))
+		if err != nil {
+			return errors.Wrap(err, "could not fetch block definition from dutydb")
+		}
 
-	if err := propDataMatchesDuty(opts, prop); err != nil {
-		return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
+		if err := epbsPropDataMatchesDuty(opts.Proposal, prop); err != nil {
+			return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
+		}
+	} else {
+		prop, err := c.awaitProposalFunc(ctx, uint64(slot))
+		if err != nil {
+			return errors.Wrap(err, "could not fetch block definition from dutydb")
+		}
+
+		if err := propDataMatchesDuty(opts, prop); err != nil {
+			return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
+		}
 	}
 
 	// Save Partially Signed Block to ParSigDB
