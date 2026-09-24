@@ -29,7 +29,7 @@ func builderConfigured(conf Config) bool {
 // authorizations; the beacon node meanwhile considers P2P and local bids. The builder
 // URLs are still distributed to validator clients via the proposer config file and
 // surfaced in metrics and peer info.
-// TODO(gloas): populate Builders with authorized entries once the builder preferences duty lands.
+// TODO(gloas): populate Builders with authorized entries once the builder preferences duty lands (#4724).
 func builderConfig(conf Config) *gloas.BuilderConfig {
 	return &gloas.BuilderConfig{
 		MinBid:             eth2p0.Gwei(conf.BuilderMinBid),

@@ -620,8 +620,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	if len(conf.BuilderURLs) > 0 {
-		// TODO(gloas): drop this warning once the builder preferences duty authorizes builder entries.
-		log.Warn(ctx, "Configured builder URLs are inert for direct gloas builder bids until the builder preferences duty lands; only P2P and local bids are used", nil,
+		// TODO(gloas): drop this warning once the builder preferences duty authorizes builder entries (#4724).
+		log.Warn(ctx, "Configured builder URLs are inert for direct gloas builder bids until the builder preferences duty lands (#4724); only P2P and local bids are used", nil,
 			z.Int("builder_urls", len(conf.BuilderURLs)))
 	}
 
