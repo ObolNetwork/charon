@@ -29,9 +29,11 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
@@ -2953,6 +2955,10 @@ func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
 
 func TestComponent_EPBSProposal(t *testing.T) {
 	ctx := context.Background()
+
+	var logBuf zaptest.Buffer
+	log.InitLogfmtForT(t, &logBuf)
+
 	eth2Cl, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
@@ -2999,8 +3005,12 @@ func TestComponent_EPBSProposal(t *testing.T) {
 	require.True(t, resp.Data.ExecutionPayloadIncluded)
 	require.Equal(t, proposal.EPBS.GloasContents, resp.Data.GloasContents)
 
+	// A stateless request does not warn.
+	require.NotContains(t, logBuf.String(), "requested stateful gloas block production")
+
 	// The VC's IncludePayload is ignored: a self-built proposal is always served in the
-	// stateless (payload-included) form, even when the VC asks for the stateful one.
+	// stateless (payload-included) form, even when the VC asks for the stateful one. A
+	// stateful request warns since a distributed validator cannot serve it.
 	includePayload = false
 
 	resp, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
@@ -3011,6 +3021,7 @@ func TestComponent_EPBSProposal(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, resp.Data.ExecutionPayloadIncluded)
 	require.Equal(t, proposal.EPBS.GloasContents, resp.Data.GloasContents)
+	require.Contains(t, logBuf.String(), "requested stateful gloas block production")
 }
 
 func TestComponent_SubmitProposalGloas(t *testing.T) {
