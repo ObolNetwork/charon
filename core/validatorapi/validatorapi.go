@@ -640,38 +640,62 @@ func propDataMatchesDuty(opts *eth2api.SubmitProposalOpts, prop *eth2api.Version
 // epbsPropDataMatchesDuty checks that the VC-signed gloas proposal and the dutydb ePBS
 // proposal are the same.
 func epbsPropDataMatchesDuty(signed *eth2api.VersionedSignedProposal, prop *eth2api.VersionedEPBSProposal) error {
-	block := prop.Gloas
-	if prop.ExecutionPayloadIncluded {
-		if prop.GloasContents == nil {
-			return errors.New("no gloas block contents in dutydb proposal")
+	if signed.Version != prop.Version {
+		return errors.New(
+			"dutydb and VC proposals have different version",
+			z.Str("vc", signed.Version.String()),
+			z.Str("dutydb", prop.Version.String()),
+		)
+	}
+
+	type hashRoot interface{ HashTreeRoot() ([32]byte, error) }
+
+	// checkHashes compares the hash tree roots of the dutydb block and the VC-signed block
+	// message, both computed with the generated hasher the VC signs over.
+	checkHashes := func(dutydbBlock, vcBlock hashRoot) error {
+		ddb, err := dutydbBlock.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "hash tree root dutydb")
 		}
 
-		block = prop.GloasContents.Block
+		vc, err := vcBlock.HashTreeRoot()
+		if err != nil {
+			return errors.Wrap(err, "hash tree root vc")
+		}
+
+		if ddb != vc {
+			return errors.New("dutydb and VC proposal data have different hash tree root")
+		}
+
+		return nil
 	}
 
-	if block == nil {
-		return errors.New("no gloas block in dutydb proposal")
-	}
+	// Each fork from gloas onwards resolves the dutydb ePBS block (payload-included or
+	// -excluded) and the VC-signed block for its version, then compares roots. New forks
+	// add a case here.
+	switch prop.Version {
+	case eth2spec.DataVersionGloas:
+		block := prop.Gloas
+		if prop.ExecutionPayloadIncluded {
+			if prop.GloasContents == nil {
+				return errors.New("no gloas block contents in dutydb proposal")
+			}
 
-	if signed.Gloas == nil {
-		return errors.New("validator client proposal data for the associated dutydb proposal is nil")
-	}
+			block = prop.GloasContents.Block
+		}
 
-	ourRoot, err := block.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash tree root dutydb")
-	}
+		if block == nil {
+			return errors.New("no gloas block in dutydb proposal")
+		}
 
-	vcRoot, err := signed.Gloas.Message.HashTreeRoot()
-	if err != nil {
-		return errors.Wrap(err, "hash tree root vc")
-	}
+		if signed.Gloas == nil {
+			return errors.New("validator client proposal data for the associated dutydb proposal is nil")
+		}
 
-	if ourRoot != vcRoot {
-		return errors.New("dutydb and VC proposal data have different hash tree root")
+		return checkHashes(block, signed.Gloas.Message)
+	default:
+		return errors.New("unexpected epbs block version", z.Str("version", prop.Version.String()))
 	}
-
-	return nil
 }
 
 func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitProposalOpts) error {
