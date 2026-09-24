@@ -401,6 +401,10 @@ func (p VersionedProposal) Root() ([32]byte, error) {
 		return p.VersionedProposal.Root()
 	}
 
+	if p.EPBS == nil {
+		return [32]byte{}, errors.New("no epbs proposal")
+	}
+
 	// From gloas the proposal is an EPBS proposal in the EPBS field. Each fork resolves its
 	// block (payload-included or -excluded) and hashes it; new forks add a case here.
 	switch p.Version {
