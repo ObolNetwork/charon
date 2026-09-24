@@ -314,7 +314,7 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 		},
 		{
 			Name:      "payload_attestation_data",
-			Path:      "/eth/v1/validator/payload_attestation_data",
+			Path:      "/eth/v1/validator/payload_attestation_data/{slot}",
 			Handler:   payloadAttestationData(h),
 			Methods:   []string{http.MethodGet},
 			Encodings: []contentType{contentTypeJSON},
@@ -1782,8 +1782,8 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 
 // payloadAttestationData returns a handler function for the payload attestation data endpoint.
 func payloadAttestationData(p eth2client.PayloadAttestationDataProvider) handlerFunc {
-	return func(ctx context.Context, _ map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
-		slot, err := uintQuery(query, "slot")
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintParam(params, "slot")
 		if err != nil {
 			return nil, nil, err
 		}

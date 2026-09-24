@@ -2708,7 +2708,7 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 		}
 
 		callback := func(ctx context.Context, baseURL string) {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data?slot=42", nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data/42", nil)
 			require.NoError(t, err)
 
 			resp, err := new(http.Client).Do(req)
