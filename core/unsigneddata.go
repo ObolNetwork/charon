@@ -415,23 +415,32 @@ func (p VersionedProposal) ProposerIndex() (eth2p0.ValidatorIndex, error) {
 // Graffiti returns the proposal graffiti, handling the gloas EPBS arm which the embedded
 // client union has no knowledge of.
 func (p VersionedProposal) Graffiti() ([32]byte, error) {
+	// Pre-gloas proposals live in the embedded union, which reads their graffiti.
 	if p.Version < eth2spec.DataVersionGloas {
 		return p.VersionedProposal.Graffiti()
 	}
 
-	if !p.EPBS.ExecutionPayloadIncluded {
-		if p.EPBS.Gloas == nil || p.EPBS.Gloas.Body == nil {
+	// From gloas the proposal is an EPBS proposal in the EPBS field. Each fork resolves its
+	// block (payload-included or -excluded) and reads its graffiti; new forks add a case here.
+	switch p.Version {
+	case eth2spec.DataVersionGloas:
+		block := p.EPBS.Gloas
+		if p.EPBS.ExecutionPayloadIncluded {
+			if p.EPBS.GloasContents == nil || p.EPBS.GloasContents.Block == nil {
+				return [32]byte{}, errors.New("no gloas block contents")
+			}
+
+			block = p.EPBS.GloasContents.Block
+		}
+
+		if block == nil || block.Body == nil {
 			return [32]byte{}, errors.New("no gloas block")
 		}
 
-		return p.EPBS.Gloas.Body.Graffiti, nil
+		return block.Body.Graffiti, nil
+	default:
+		return [32]byte{}, errors.New("unknown epbs proposal version")
 	}
-
-	if p.EPBS.GloasContents == nil || p.EPBS.GloasContents.Block == nil || p.EPBS.GloasContents.Block.Body == nil {
-		return [32]byte{}, errors.New("no gloas block contents")
-	}
-
-	return p.EPBS.GloasContents.Block.Body.Graffiti, nil
 }
 
 func (p VersionedProposal) Clone() (UnsignedData, error) {
