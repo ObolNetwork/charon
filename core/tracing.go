@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"sync"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -96,11 +97,19 @@ func WithTracing() WireOption {
 
 			return withSpanStatus(span, clone.DutyDBStore(ctx, duty, set))
 		}
-		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (VersionedProposal, error) {
+		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitProposal")
 			defer span.End()
 
 			vp, err := clone.DutyDBAwaitProposal(ctx, slot)
+
+			return vp, withSpanStatus(span, err)
+		}
+		w.DutyDBAwaitEPBSProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitEPBSProposal")
+			defer span.End()
+
+			vp, err := clone.DutyDBAwaitEPBSProposal(ctx, slot)
 
 			return vp, withSpanStatus(span, err)
 		}

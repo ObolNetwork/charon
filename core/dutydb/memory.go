@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -164,7 +165,38 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 }
 
 // AwaitProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+// AwaitProposal implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+	proposal, err := db.awaitProposal(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version >= eth2spec.DataVersionGloas {
+		return nil, errors.New("gloas onwards proposals are served by AwaitEPBSProposal",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return &proposal.VersionedProposal, nil
+}
+
+// AwaitEPBSProposal implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitEPBSProposal(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+	proposal, err := db.awaitProposal(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version < eth2spec.DataVersionGloas {
+		return nil, errors.New("pre-gloas proposals are served by AwaitProposal",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return proposal.EPBS, nil
+}
+
+// awaitProposal blocks and returns the stored core proposal for the slot when available.
+func (db *MemDB) awaitProposal(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 
