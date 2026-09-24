@@ -165,7 +165,6 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 }
 
 // AwaitProposal implements core.DutyDB, see its godoc.
-// AwaitProposal implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 	proposal, err := db.awaitProposal(ctx, slot)
 	if err != nil {
