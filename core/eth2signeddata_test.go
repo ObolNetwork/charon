@@ -86,6 +86,10 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			name: "verify proposer preferences",
 			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
 		},
+		{
+			name: "verify execution payload envelope",
+			data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
+		},
 	}
 
 	for _, test := range tests {

@@ -136,6 +136,25 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 					e.Deposits[idx].WithdrawalCredentials = bits
 				}
 			},
+			// gloas.ExecutionRequests reuses electra.DepositRequest and adds
+			// gloas.BuilderDepositRequest, both of which require fixed-length withdrawal
+			// credentials for JSON round-tripping.
+			func(e *gloas.ExecutionRequests, c fuzz.Continue) {
+				c.FuzzNoCustom(e)
+
+				bits := bitfield.NewBitvector256()
+				for i := range 32 {
+					bits.SetBitAt(uint64(i), true)
+				}
+
+				for idx := range e.Deposits {
+					e.Deposits[idx].WithdrawalCredentials = bits
+				}
+
+				for idx := range e.BuilderDeposits {
+					e.BuilderDeposits[idx].WithdrawalCredentials = make([]byte, 32)
+				}
+			},
 			// Populate one of the versions of these VersionedSignedProposal types.
 			func(e *core.VersionedSignedProposal, c fuzz.Continue) {
 				e.Version = allVersions[c.Intn(len(allVersions))]

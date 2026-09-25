@@ -34,6 +34,7 @@ const (
 	DomainBlobSidecar                 DomainName = "DOMAIN_BLOB_SIDECAR"
 	DomainPTCAttester                 DomainName = "DOMAIN_PTC_ATTESTER"
 	DomainProposerPreferences         DomainName = "DOMAIN_PROPOSER_PREFERENCES"
+	DomainBeaconBuilder               DomainName = "DOMAIN_BEACON_BUILDER"
 )
 
 // GetDomain returns the beacon domain for the provided type.
