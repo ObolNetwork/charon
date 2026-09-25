@@ -172,11 +172,12 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 
 func (m multi) SetDutiesCache(
 	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+	proposerDutiesV2Cache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
 	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
 	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
 ) {
 	for _, cl := range m.clients {
-		cl.SetDutiesCache(proposerDutiesCache, attesterDutiesCache, syncCommDutiesCache)
+		cl.SetDutiesCache(proposerDutiesCache, proposerDutiesV2Cache, attesterDutiesCache, syncCommDutiesCache)
 	}
 }
 
@@ -200,16 +201,17 @@ func (m multi) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 	return res0, err
 }
 
-func (m multi) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (ProposerDutiesV2, error) {
-	const label = "proposer_duties_v2"
+func (m multi) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
+	const label = "proposer_duties_v2_cache"
+	// No latency since this is a cached endpoint.
 
-	defer latency(ctx, label, false)()
+	defer incRequest(label)
 
 	res0, err := provide(ctx, m.clients, m.fallbacks,
-		func(ctx context.Context, args provideArgs) (ProposerDutiesV2, error) {
-			return args.client.ProposerDutiesV2(ctx, epoch)
+		func(ctx context.Context, args provideArgs) (ProposerDutyWithMeta, error) {
+			return args.client.ProposerDutiesV2Cache(ctx, epoch, vidxs)
 		},
-		nil, m.selector,
+		nil, nil,
 	)
 	if err != nil {
 		incError(label)

@@ -13,6 +13,7 @@ import (
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -25,13 +26,21 @@ import (
 )
 
 // New returns a new fetcher instance.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder, electraSlot eth2p0.Slot, fetchOnlyCommIdx0 bool) (*Fetcher, error) {
+func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder,
+	forkSchedule eth2wrap.ForkForkSchedule, slotsPerEpoch uint64, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
+) (*Fetcher, error) {
+	if slotsPerEpoch == 0 {
+		return nil, errors.New("zero slots per epoch")
+	}
+
 	return &Fetcher{
 		eth2Cl:            eth2Cl,
 		feeRecipientFunc:  feeRecipientFunc,
 		builderEnabled:    builderEnabled,
 		graffitiBuilder:   graffitiBuilder,
-		electraSlot:       electraSlot,
+		forkSchedule:      forkSchedule,
+		slotsPerEpoch:     slotsPerEpoch,
+		builderConfig:     builderConfig,
 		fetchOnlyCommIdx0: fetchOnlyCommIdx0,
 	}, nil
 }
@@ -46,7 +55,9 @@ type Fetcher struct {
 	syncContributionV2Func func(slot uint64) bool
 	builderEnabled         bool
 	graffitiBuilder        *GraffitiBuilder
-	electraSlot            eth2p0.Slot
+	forkSchedule           eth2wrap.ForkForkSchedule
+	slotsPerEpoch          uint64
+	builderConfig          *gloas.BuilderConfig
 	fetchOnlyCommIdx0      bool
 	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
 }
@@ -129,7 +140,13 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 
 	switch duty.Type {
 	case core.DutyProposer:
-		unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
+		// From the gloas fork blocks are produced by the v4 EPBS endpoint.
+		if f.forkActive(eth2wrap.Gloas, duty.Slot) {
+			unsignedSet, err = f.fetchEPBSProposerData(ctx, duty.Slot, defSet)
+		} else {
+			unsignedSet, err = f.fetchProposerData(ctx, duty.Slot, defSet)
+		}
+
 		if err != nil {
 			return errors.Wrap(err, "fetch proposer data")
 		}
@@ -247,13 +264,15 @@ func (f *Fetcher) fetchAttesterDataWithClient(ctx context.Context, slot uint64, 
 
 		commIdx := attDuty.CommitteeIndex
 
-		// Attestation data for Electra is not bound by committee index.
-		// Committee index is still persisted in the request but should be set to 0.
+		// Attestation data for Electra onwards is not bound by committee index, so a single
+		// fetch serves every committee. Some validator clients still ask per committee
+		// index though, so the electra-era collapse hides behind a feature flag:
 		// https://ethereum.github.io/beacon-APIs/#/Validator/produceAttestationData
-		// However, some validator clients are still sending attestation_data requests for each committee index.
-		// Because of that, we should continue asking for all + 0 committee indices for the ones that work correctly.
-		// After all VCs start asking for committee index 0, we should change the default scenario to that.
-		if slot >= uint64(f.electraSlot) && f.fetchOnlyCommIdx0 {
+		// From gloas the collapse is unconditional: data.index is repurposed as the beacon
+		// node's one-bit payload availability vote, and fetching per committee could even
+		// return different payload bits as the node's view changes, splitting the
+		// cluster's agreed data.
+		if f.forkActive(eth2wrap.Gloas, slot) || (f.fetchOnlyCommIdx0 && f.forkActive(eth2wrap.Electra, slot)) {
 			commIdx = 0
 		}
 
@@ -382,15 +401,10 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 	resp := make(core.UnsignedDataSet)
 
 	for pubkey := range defSet {
-		// Fetch previously aggregated randao reveal from AggSigDB
-		dutyRandao := core.NewRandaoDuty(slot)
-
-		randaoData, err := f.aggSigDBFunc(ctx, dutyRandao, pubkey, 0)
+		randao, err := f.fetchRandao(ctx, slot, pubkey)
 		if err != nil {
 			return nil, err
 		}
-
-		randao := randaoData.Signature().ToETH2()
 
 		var bbf uint64
 		if f.builderEnabled {
@@ -413,29 +427,94 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 
 		proposal := eth2Resp.Data
 
-		// Builders set fee recipient to themselves so it's always different from validator's.
-		if !proposal.Blinded {
-			// Ensure fee recipient is correctly populated in proposal.
-			verifyFeeRecipient(ctx, proposal, f.feeRecipientFunc(pubkey))
-		}
-
 		coreProposal, err := core.NewVersionedProposal(proposal)
 		if err != nil {
 			return nil, errors.Wrap(err, "new proposal")
 		}
 
-		// Track whether the fetched proposal is blinded (built by MEV builder, 1) or local (built by beacon node, 2)
-		blinded := 2.0
+		// Ensure fee recipient is correctly populated in the proposal.
+		verifyFeeRecipient(ctx, coreProposal, f.feeRecipientFunc(pubkey))
+
+		// Track whether the fetched proposal was built by a MEV builder (blinded) or locally.
+		source := proposalSourceLocal
 		if proposal.Blinded {
-			blinded = 1.0
+			source = proposalSourceBuilder
 		}
 
-		proposalBlindedGauge.Set(blinded)
+		proposalBlindedGauge.Set(source)
 
 		resp[pubkey] = coreProposal
 	}
 
 	return resp, nil
+}
+
+// fetchEPBSProposerData returns proposal data fetched via the v4 EPBS endpoint, used from
+// the gloas fork onwards. The endpoint selects between the locally built payload and
+// builder bids on the beacon node side, steered by this node's builder configuration.
+func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	resp := make(core.UnsignedDataSet)
+
+	for pubkey := range defSet {
+		randao, err := f.fetchRandao(ctx, slot, pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		// Always request the payload-included (stateless) form so any beacon node in the
+		// cluster can publish the block. An external builder bid comes back
+		// payload-excluded regardless.
+		includePayload := true
+
+		opts := &eth2api.EPBSProposalOpts{
+			Slot:           eth2p0.Slot(slot),
+			RandaoReveal:   randao,
+			Graffiti:       f.graffitiBuilder.GetGraffiti(pubkey),
+			BuilderConfig:  f.builderConfig,
+			IncludePayload: &includePayload,
+		}
+
+		eth2Resp, err := f.eth2Cl.EPBSProposal(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+
+		coreProposal, err := core.NewVersionedEPBSProposal(eth2Resp.Data)
+		if err != nil {
+			return nil, errors.Wrap(err, "new epbs proposal")
+		}
+
+		// Ensure fee recipient is correctly populated in the proposal.
+		verifyFeeRecipient(ctx, coreProposal, f.feeRecipientFunc(pubkey))
+
+		// Track whether the proposal carries its execution payload (built locally) or is
+		// based on an external builder bid whose payload travels separately.
+		source := proposalSourceLocal
+		if !coreProposal.EPBS.ExecutionPayloadIncluded {
+			source = proposalSourceBuilder
+		}
+
+		proposalBlindedGauge.Set(source)
+
+		resp[pubkey] = coreProposal
+	}
+
+	return resp, nil
+}
+
+// fetchRandao returns the previously aggregated randao reveal for the slot from the AggSigDB.
+func (f *Fetcher) fetchRandao(ctx context.Context, slot uint64, pubkey core.PubKey) (eth2p0.BLSSignature, error) {
+	randaoData, err := f.aggSigDBFunc(ctx, core.NewRandaoDuty(slot), pubkey, 0)
+	if err != nil {
+		return eth2p0.BLSSignature{}, err
+	}
+
+	return randaoData.Signature().ToETH2(), nil
+}
+
+// forkActive returns true if the fork is scheduled and active at the provided slot.
+func (f *Fetcher) forkActive(fork eth2wrap.Fork, slot uint64) bool {
+	return f.forkSchedule.Active(fork, eth2p0.Epoch(slot/f.slotsPerEpoch))
 }
 
 // fetchPayloadAttestationData returns the fetched payload attestation data for the slot.
@@ -676,8 +755,14 @@ func syncSubcommittees(def core.DutyDefinition, subcommSize uint64) ([]core.Subc
 	return subcommIdxs, nil
 }
 
-// verifyFeeRecipient logs a warning when fee recipient is not correctly populated in the block.
-func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal, feeRecipientAddress string) {
+// verifyFeeRecipient logs a warning when the fee recipient is not correctly populated in
+// a locally built proposal carrying its execution payload. Blinded proposals and EPBS
+// builder bids are skipped since builders commit to their own payments.
+func verifyFeeRecipient(ctx context.Context, proposal core.VersionedProposal, feeRecipientAddress string) {
+	if proposal.Blinded {
+		return
+	}
+
 	// Note that fee-recipient is not available in forks earlier than bellatrix.
 	var actualAddr string
 
@@ -692,6 +777,14 @@ func verifyFeeRecipient(ctx context.Context, proposal *eth2api.VersionedProposal
 		actualAddr = fmt.Sprintf("%#x", proposal.Electra.Block.Body.ExecutionPayload.FeeRecipient)
 	case eth2spec.DataVersionFulu:
 		actualAddr = fmt.Sprintf("%#x", proposal.Fulu.Block.Body.ExecutionPayload.FeeRecipient)
+	case eth2spec.DataVersionGloas:
+		contents := proposal.EPBS.GloasContents
+		if !proposal.EPBS.ExecutionPayloadIncluded || contents == nil ||
+			contents.ExecutionPayloadEnvelope == nil || contents.ExecutionPayloadEnvelope.Payload == nil {
+			return
+		}
+
+		actualAddr = fmt.Sprintf("%#x", contents.ExecutionPayloadEnvelope.Payload.FeeRecipient)
 	default:
 		return
 	}

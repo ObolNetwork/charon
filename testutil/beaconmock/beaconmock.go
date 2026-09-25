@@ -33,6 +33,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -201,10 +202,13 @@ type Mock struct {
 	BeaconCommitteesFunc                   func(ctx context.Context, opts *eth2api.BeaconCommitteesOpts) ([]*eth2v1.BeaconCommittee, error)
 	NodePeerCountFunc                      func(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
+	EPBSProposalFunc                       func(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	ProposerDutiesV2Func                   func(context.Context, eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error)
+	ProposerDutiesV2Func                   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
+	SubmitProposerPreferencesFunc          func(context.Context, []*gloas.SignedProposerPreferences) error
 	CachedProposerDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
+	CachedProposerDutiesV2Func             func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
 	SubmitAttestationsFunc                 func(context.Context, *eth2api.SubmitAttestationsOpts) error
 	SubmitProposalFunc                     func(context.Context, *eth2api.SubmitProposalOpts) error
 	SubmitBlindedProposalFunc              func(context.Context, *eth2api.SubmitBlindedProposalOpts) error
@@ -280,6 +284,15 @@ func (m Mock) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2ap
 	return wrapResponse(block), nil
 }
 
+func (m Mock) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+	proposal, err := m.EPBSProposalFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(proposal), nil
+}
+
 func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {
 	return m.SubmitBlindedProposalFunc(ctx, block)
 }
@@ -319,8 +332,21 @@ func (m Mock) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs
 	return m.CachedProposerDutiesFunc(ctx, epoch, vidxs)
 }
 
-func (m Mock) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
-	return m.ProposerDutiesV2Func(ctx, epoch)
+func (m Mock) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+	return m.CachedProposerDutiesV2Func(ctx, epoch, vidxs)
+}
+
+func (m Mock) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+	duties, err := m.ProposerDutiesV2Func(ctx, opts.Epoch, opts.Indices)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponseWithMetadata(duties), nil
+}
+
+func (m Mock) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	return m.SubmitProposerPreferencesFunc(ctx, preferences)
 }
 
 func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconBlockOpts) (*eth2api.Response[*eth2spec.VersionedSignedBeaconBlock], error) {
@@ -390,6 +416,7 @@ func (Mock) SetValidatorCache(func(context.Context) (eth2wrap.ActiveValidators, 
 }
 
 func (Mock) SetDutiesCache(
+	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error),
 	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error),
 	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error),
 	func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error),

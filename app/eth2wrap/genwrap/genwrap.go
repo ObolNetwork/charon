@@ -54,13 +54,12 @@ type Client interface {
 		CachedDutiesProvider
 		SetDutiesCache(
 			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
 			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
 			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
 		)
 
 		SetForkVersion(forkVersion [4]byte)
-
-		ProposerDutiesV2Provider
 
 		ClientForAddress(addr string) Client
 		Address() string
@@ -118,6 +117,7 @@ type Client interface {
 		"AttestationsSubmitter":                 {Latency: true, Log: false},
 		"AttesterDutiesProvider":                {Latency: true, Log: false},
 		"ProposalProvider":                      {Latency: true, Log: true},
+		"EPBSProposalProvider":                  {Latency: true, Log: true},
 		"BeaconBlockRootProvider":               {Latency: false, Log: false},
 		"ProposalSubmitter":                     {Latency: true, Log: false},
 		"BeaconCommitteeSubscriptionsSubmitter": {Latency: true, Log: false},
@@ -137,6 +137,8 @@ type Client interface {
 		"NodeVersionProvider":                   {Latency: false, Log: false},
 		"NodeVersionV2Provider":                 {Latency: false, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},
+		"ProposerDutiesV2Provider":              {Latency: true, Log: false},
+		"ProposerPreferencesSubmitter":          {Latency: true, Log: false},
 		"PTCDutiesProvider":                     {Latency: true, Log: false},
 		"PayloadAttestationDataProvider":        {Latency: true, Log: false},
 		"PayloadAttestationMessagesSubmitter":   {Latency: true, Log: false},

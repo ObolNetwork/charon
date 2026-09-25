@@ -14,6 +14,7 @@ import (
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
@@ -27,13 +28,12 @@ type Client interface {
 	CachedDutiesProvider
 	SetDutiesCache(
 		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
 		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
 		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
 	)
 
 	SetForkVersion(forkVersion [4]byte)
-
-	ProposerDutiesV2Provider
 
 	ClientForAddress(addr string) Client
 	Address() string
@@ -52,6 +52,7 @@ type Client interface {
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
+	eth2client.EPBSProposalProvider
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
@@ -67,6 +68,8 @@ type Client interface {
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.ProposerDutiesV2Provider
+	eth2client.ProposerPreferencesSubmitter
 	eth2client.ProxyProvider
 	eth2client.SignedBeaconBlockProvider
 	eth2client.SlotDurationProvider
@@ -448,6 +451,27 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 	return res0, err
 }
 
+// EPBSProposal fetches an ePBS proposal for signing.
+func (m multi) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error) {
+	const label = "epbs_proposal"
+	defer latency(ctx, label, true)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedEPBSProposal], error) {
+			return args.client.EPBSProposal(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // BeaconBlockRoot fetches a block's root given a set of options.
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (*api.Response[*phase0.Root], error) {
@@ -813,6 +837,27 @@ func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 	return res0, err
 }
 
+// ProposerDutiesV2 obtains proposer duties for the given options.
+func (m multi) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*apiv1.ProposerDuty], error) {
+	const label = "proposer_duties_v2"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.ProposerDuty], error) {
+			return args.client.ProposerDutiesV2(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // Spec provides the spec information of the chain.
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[string]any], error) {
@@ -972,6 +1017,26 @@ func (m multi) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.S
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
 			return args.client.SubmitPayloadAttestationMessages(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
+func (m multi) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	const label = "submit_proposer_preferences"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitProposerPreferences(ctx, preferences)
 		},
 		m.selector,
 	)
@@ -1159,6 +1224,16 @@ func (l *lazy) Proposal(ctx context.Context, opts *api.ProposalOpts) (res0 *api.
 	return cl.Proposal(ctx, opts)
 }
 
+// EPBSProposal fetches an ePBS proposal for signing.
+func (l *lazy) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (res0 *api.Response[*api.VersionedEPBSProposal], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.EPBSProposal(ctx, opts)
+}
+
 // BeaconBlockRoot fetches a block's root given a set of options.
 func (l *lazy) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (res0 *api.Response[*phase0.Root], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -1331,6 +1406,16 @@ func (l *lazy) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 	return cl.ProposerDuties(ctx, opts)
 }
 
+// ProposerDutiesV2 obtains proposer duties for the given options.
+func (l *lazy) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDutiesOpts) (res0 *api.Response[[]*apiv1.ProposerDuty], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.ProposerDutiesV2(ctx, opts)
+}
+
 // Spec provides the spec information of the chain.
 func (l *lazy) Spec(ctx context.Context, opts *api.SpecOpts) (res0 *api.Response[map[string]any], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -1409,6 +1494,15 @@ func (l *lazy) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.S
 	}
 
 	return cl.SubmitPayloadAttestationMessages(ctx, opts)
+}
+
+func (l *lazy) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitProposerPreferences(ctx, preferences)
 }
 
 // Proxy performs an HTTP proxy request and returns the response.

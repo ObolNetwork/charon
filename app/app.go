@@ -540,7 +540,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	var dutiesCache *eth2wrap.DutiesCache
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
 		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
-		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 	}
 
@@ -619,9 +619,14 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	electraSlot := eth2p0.Slot(uint64(forkSchedule[eth2wrap.Electra].Epoch) * slotsPerEpoch)
+	if len(conf.BuilderURLs) > 0 {
+		// TODO(gloas): drop this warning once the builder preferences duty authorizes builder entries (#4724).
+		log.Warn(ctx, "Configured builder URLs are inert for direct gloas builder bids until the builder preferences duty lands (#4724); only P2P and local bids are used", nil,
+			z.Int("builder_urls", len(conf.BuilderURLs)))
+	}
 
-	fetch, err := fetcher.New(eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder, electraSlot, featureset.Enabled(featureset.FetchOnlyCommIdx0))
+	fetch, err := fetcher.New(eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder,
+		forkSchedule, slotsPerEpoch, builderConfig(conf), featureset.Enabled(featureset.FetchOnlyCommIdx0))
 	if err != nil {
 		return err
 	}
@@ -692,7 +697,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
 
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
-		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}
 
 	broadcaster, err := bcast.New(ctx, submissionEth2Cl)

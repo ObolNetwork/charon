@@ -6,12 +6,15 @@ import (
 	"encoding/binary"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
@@ -217,6 +220,16 @@ func (p *VersionedSignedProposal) sszValFromVersion(version eth2util.DataVersion
 		}
 
 		return p.Fulu, nil
+	case eth2util.DataVersionGloas:
+		if blinded {
+			return nil, errors.New("gloas proposals do not support blinding")
+		}
+
+		if p.Gloas == nil {
+			p.Gloas = new(gloas.SignedBeaconBlock)
+		}
+
+		return p.Gloas, nil
 	default:
 		return nil, errors.New("invalid version")
 	}
@@ -241,18 +254,43 @@ func (p VersionedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
 		return nil, errors.Wrap(err, "invalid version")
 	}
 
-	return marshalSSZVersionedBlindedTo(buf, version, p.Blinded, p.sszValFromVersion)
+	payloadless, err := p.payloadless()
+	if err != nil {
+		return nil, err
+	}
+
+	return marshalSSZVersionedBlindedTo(buf, version, payloadless, p.sszValFromVersion)
+}
+
+// payloadless returns the container discriminator bit: the pre-gloas blinded flag, or
+// !ExecutionPayloadIncluded for EPBS proposals from the gloas fork onwards, both meaning
+// the block travels without its execution payload.
+func (p VersionedProposal) payloadless() (bool, error) {
+	if p.Version < eth2spec.DataVersionGloas {
+		return p.Blinded, nil
+	}
+
+	if p.EPBS == nil {
+		return false, errors.New("no epbs proposal")
+	}
+
+	return !p.EPBS.ExecutionPayloadIncluded, nil
 }
 
 // UnmarshalSSZ ssz unmarshalls the VersionedProposal object.
 func (p *VersionedProposal) UnmarshalSSZ(buf []byte) error {
-	version, blinded, err := unmarshalSSZVersionedBlinded(buf, p.sszValFromVersion)
+	version, payloadless, err := unmarshalSSZVersionedBlinded(buf, p.sszValFromVersion)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal VersionedProposal")
 	}
 
 	p.Version = version.ToETH2()
-	p.Blinded = blinded
+
+	// The pre-gloas blinded flag does not apply from the gloas fork onwards: the
+	// container bit carries !ExecutionPayloadIncluded, already captured in the EPBS field.
+	if p.Version < eth2spec.DataVersionGloas {
+		p.Blinded = payloadless
+	}
 
 	return nil
 }
@@ -265,7 +303,13 @@ func (p VersionedProposal) SizeSSZ() int {
 		return 0
 	}
 
-	val, err := p.sszValFromVersion(version, p.Blinded)
+	payloadless, err := p.payloadless()
+	if err != nil {
+		// SSZMarshaller interface doesn't return an error, so we can't either.
+		return 0
+	}
+
+	val, err := p.sszValFromVersion(version, payloadless)
 	if err != nil {
 		// SSZMarshaller interface doesn't return an error, so we can't either.
 		return 0
@@ -359,6 +403,30 @@ func (p *VersionedProposal) sszValFromVersion(version eth2util.DataVersion, blin
 		}
 
 		return p.Fulu, nil
+	case eth2util.DataVersionGloas:
+		// For gloas the container bit carries !ExecutionPayloadIncluded, see payloadless().
+		payloadExcluded := blinded
+
+		if p.EPBS == nil {
+			p.EPBS = &eth2api.VersionedEPBSProposal{
+				Version:                  eth2spec.DataVersionGloas,
+				ExecutionPayloadIncluded: !payloadExcluded,
+			}
+		}
+
+		if payloadExcluded {
+			if p.EPBS.Gloas == nil {
+				p.EPBS.Gloas = new(gloas.BeaconBlock)
+			}
+
+			return p.EPBS.Gloas, nil
+		}
+
+		if p.EPBS.GloasContents == nil {
+			p.EPBS.GloasContents = new(eth2gloas.BlockContents)
+		}
+
+		return p.EPBS.GloasContents, nil
 	default:
 		return nil, errors.New("invalid version")
 	}

@@ -12,6 +12,8 @@ import (
 
 	eth2wrap "github.com/obolnetwork/charon/app/eth2wrap"
 
+	gloas "github.com/attestantio/go-eth2-client/spec/gloas"
+
 	http "net/http"
 
 	mock "github.com/stretchr/testify/mock"
@@ -419,6 +421,36 @@ func (_m *Client) Domain(ctx context.Context, domainType phase0.DomainType, epoc
 
 	if rf, ok := ret.Get(1).(func(context.Context, phase0.DomainType, phase0.Epoch) error); ok {
 		r1 = rf(ctx, domainType, epoch)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// EPBSProposal provides a mock function with given fields: ctx, opts
+func (_m *Client) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EPBSProposal")
+	}
+
+	var r0 *api.Response[*api.VersionedEPBSProposal]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.EPBSProposalOpts) *api.Response[*api.VersionedEPBSProposal]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*api.VersionedEPBSProposal])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.EPBSProposalOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -918,27 +950,57 @@ func (_m *Client) ProposerDutiesCache(_a0 context.Context, _a1 phase0.Epoch, _a2
 	return r0, r1
 }
 
-// ProposerDutiesV2 provides a mock function with given fields: ctx, epoch
-func (_m *Client) ProposerDutiesV2(ctx context.Context, epoch phase0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
-	ret := _m.Called(ctx, epoch)
+// ProposerDutiesV2 provides a mock function with given fields: ctx, opts
+func (_m *Client) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*v1.ProposerDuty], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ProposerDutiesV2")
 	}
 
-	var r0 eth2wrap.ProposerDutiesV2
+	var r0 *api.Response[[]*v1.ProposerDuty]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) (eth2wrap.ProposerDutiesV2, error)); ok {
-		return rf(ctx, epoch)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ProposerDutiesOpts) (*api.Response[[]*v1.ProposerDuty], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) eth2wrap.ProposerDutiesV2); ok {
-		r0 = rf(ctx, epoch)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ProposerDutiesOpts) *api.Response[[]*v1.ProposerDuty]); ok {
+		r0 = rf(ctx, opts)
 	} else {
-		r0 = ret.Get(0).(eth2wrap.ProposerDutiesV2)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*v1.ProposerDuty])
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch) error); ok {
-		r1 = rf(ctx, epoch)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ProposerDutiesOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ProposerDutiesV2Cache provides a mock function with given fields: _a0, _a1, _a2
+func (_m *Client) ProposerDutiesV2Cache(_a0 context.Context, _a1 phase0.Epoch, _a2 []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+	ret := _m.Called(_a0, _a1, _a2)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ProposerDutiesV2Cache")
+	}
+
+	var r0 eth2wrap.ProposerDutyWithMeta
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)); ok {
+		return rf(_a0, _a1, _a2)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) eth2wrap.ProposerDutyWithMeta); ok {
+		r0 = rf(_a0, _a1, _a2)
+	} else {
+		r0 = ret.Get(0).(eth2wrap.ProposerDutyWithMeta)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) error); ok {
+		r1 = rf(_a0, _a1, _a2)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -976,9 +1038,9 @@ func (_m *Client) Proxy(ctx context.Context, req *http.Request) (*http.Response,
 	return r0, r1
 }
 
-// SetDutiesCache provides a mock function with given fields: _a0, _a1, _a2
-func (_m *Client) SetDutiesCache(_a0 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error), _a1 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error), _a2 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error)) {
-	_m.Called(_a0, _a1, _a2)
+// SetDutiesCache provides a mock function with given fields: _a0, _a1, _a2, _a3
+func (_m *Client) SetDutiesCache(_a0 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error), _a1 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error), _a2 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error), _a3 func(context.Context, phase0.Epoch, []phase0.ValidatorIndex) (eth2wrap.SyncDutyWithMeta, error)) {
+	_m.Called(_a0, _a1, _a2, _a3)
 }
 
 // SetForkVersion provides a mock function with given fields: forkVersion
@@ -1226,6 +1288,24 @@ func (_m *Client) SubmitProposalPreparations(ctx context.Context, preparations [
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, []*v1.ProposalPreparation) error); ok {
 		r0 = rf(ctx, preparations)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SubmitProposerPreferences provides a mock function with given fields: ctx, preferences
+func (_m *Client) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	ret := _m.Called(ctx, preferences)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SubmitProposerPreferences")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*gloas.SignedProposerPreferences) error); ok {
+		r0 = rf(ctx, preferences)
 	} else {
 		r0 = ret.Error(0)
 	}
