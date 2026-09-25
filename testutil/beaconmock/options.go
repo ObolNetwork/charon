@@ -673,6 +673,21 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return block, nil
 		},
+		EPBSProposalFunc: func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error) {
+			// Payload-included self-built proposal, the stateless form DV setups request.
+			contents := testutil.RandomGloasBlockContents()
+			contents.Block.Slot = opts.Slot
+			contents.Block.Body.RANDAOReveal = opts.RandaoReveal
+			contents.Block.Body.Graffiti = opts.Graffiti
+
+			return &eth2api.VersionedEPBSProposal{
+				Version:                  eth2spec.DataVersionGloas,
+				ExecutionPayloadIncluded: true,
+				GloasContents:            contents,
+				ConsensusValue:           big.NewInt(1),
+				ExecutionValue:           big.NewInt(1),
+			}, nil
+		},
 		SignedBeaconBlockFunc: func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return testutil.RandomDenebVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
 		},

@@ -202,6 +202,7 @@ type Mock struct {
 	BeaconCommitteesFunc                   func(ctx context.Context, opts *eth2api.BeaconCommitteesOpts) ([]*eth2v1.BeaconCommittee, error)
 	NodePeerCountFunc                      func(ctx context.Context, opts *eth2api.NodePeerCountOpts) (*eth2v1.PeerCount, error)
 	ProposalFunc                           func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.VersionedProposal, error)
+	EPBSProposalFunc                       func(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error)
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	ProposerDutiesV2Func                   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
@@ -281,6 +282,15 @@ func (m Mock) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2ap
 	}
 
 	return wrapResponse(block), nil
+}
+
+func (m Mock) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+	proposal, err := m.EPBSProposalFunc(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(proposal), nil
 }
 
 func (m Mock) SubmitBlindedProposal(ctx context.Context, block *eth2api.SubmitBlindedProposalOpts) error {

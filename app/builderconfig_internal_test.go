@@ -8,6 +8,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBuilderConfig(t *testing.T) {
+	// No direct builder entries are emitted even with builder URLs configured: the eth2
+	// client rejects an entry with a nil auth, which would fail every proposal. MinBid and
+	// BuilderBoostFactor still apply, gating P2P bids.
+	conf := Config{
+		BuilderURLs:                []string{"https://a.example.com", "https://b.example.com"},
+		BuilderMinBid:              7,
+		BuilderBoostFactor:         120,
+		BuilderMaxExecutionPayment: 3,
+	}
+
+	cfg := builderConfig(conf)
+	require.Empty(t, cfg.Builders)
+	require.EqualValues(t, 7, cfg.MinBid)
+	require.EqualValues(t, 120, cfg.BuilderBoostFactor)
+}
+
 func TestBuilderConfigured(t *testing.T) {
 	require.False(t, builderConfigured(Config{}))
 	// The other builder values only apply alongside builder URLs, the flags reject them without.
