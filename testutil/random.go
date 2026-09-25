@@ -1085,15 +1085,37 @@ func RandomGloasExecutionPayload() *gloas.ExecutionPayload {
 	}
 }
 
+// RandomGloasBlockContents returns random gloas block contents whose envelope is
+// consistent with the block's execution payload bid, satisfying client-side guards.
+// Note the envelope beacon block root goes stale if the block is mutated afterwards.
 func RandomGloasBlockContents() *eth2gloas.BlockContents {
+	block := RandomGloasBeaconBlock()
+	requests := randomGloasExecutionRequests()
+
+	requestsRoot, err := requests.HashTreeRoot()
+	if err != nil {
+		panic(err) // Should never happen, and this is test code sugar.
+	}
+
+	bid := block.Body.SignedExecutionPayloadBid.Message
+	bid.ExecutionRequestsRoot = requestsRoot
+
+	blockRoot, err := block.HashTreeRoot()
+	if err != nil {
+		panic(err) // Should never happen, and this is test code sugar.
+	}
+
+	payload := RandomGloasExecutionPayload()
+	payload.BlockHash = bid.BlockHash
+
 	return &eth2gloas.BlockContents{
-		Block: RandomGloasBeaconBlock(),
+		Block: block,
 		ExecutionPayloadEnvelope: &gloas.ExecutionPayloadEnvelope{
-			Payload:               RandomGloasExecutionPayload(),
-			ExecutionRequests:     randomGloasExecutionRequests(),
-			BuilderIndex:          gloas.BuilderIndex(rand.Uint64()),
-			BeaconBlockRoot:       RandomRoot(),
-			ParentBeaconBlockRoot: RandomRoot(),
+			Payload:               payload,
+			ExecutionRequests:     requests,
+			BuilderIndex:          bid.BuilderIndex,
+			BeaconBlockRoot:       blockRoot,
+			ParentBeaconBlockRoot: bid.ParentBlockRoot,
 		},
 		KZGProofs: []deneb.KZGProof{},
 		Blobs:     []deneb.Blob{},
