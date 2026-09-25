@@ -201,19 +201,20 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			})
 		}
 
+		logFields := []z.Field{
+			z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
+			z.Any("pubkey", pubkey),
+		}
+		// The blinded flag does not apply from the gloas fork onwards, where proposals are
+		// discriminated by execution payload inclusion instead.
+		if block.Version < eth2spec.DataVersionGloas {
+			logFields = append(logFields, z.Bool("blinded", block.Blinded))
+		}
+
 		if err == nil {
-			log.Info(ctx, "Successfully submitted block proposal to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
-				z.Any("pubkey", pubkey),
-				z.Bool("blinded", block.Blinded),
-			)
+			log.Info(ctx, "Successfully submitted block proposal to beacon node", logFields...)
 		} else {
-			log.Error(ctx, "Failed to submit block proposal to beacon node",
-				err,
-				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
-				z.Any("pubkey", pubkey),
-				z.Bool("blinded", block.Blinded),
-			)
+			log.Error(ctx, "Failed to submit block proposal to beacon node", err, logFields...)
 		}
 
 		return err
