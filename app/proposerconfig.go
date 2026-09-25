@@ -241,6 +241,11 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 func wireProposerConfigFile(ctx context.Context, conf Config, lock *cluster.Lock, nodeIdx cluster.NodeIdx,
 	feeRecipientFunc func(core.PubKey) string, gasLimitFunc func(core.PubKey) uint64,
 ) {
+	if conf.TestConfig.Lock != nil {
+		// In-memory test lock, there is no cluster directory to write the file into.
+		return
+	}
+
 	created, err := writeProposerConfigFile(conf, lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
 	if err != nil {
 		log.Error(ctx, "Failed generating proposer config file, VC proposer settings must be configured manually", err)

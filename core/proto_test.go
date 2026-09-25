@@ -147,6 +147,14 @@ func TestUnsignedDataToProto(t *testing.T) {
 			Data: testutil.RandomBellatrixCoreVersionedProposal(),
 		},
 		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomGloasCoreVersionedEPBSProposal(),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		},
+		{
 			Type: core.DutyAggregator,
 			Data: testutil.RandomDenebCoreVersionedAggregateAttestation(),
 		},

@@ -308,6 +308,10 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		if err = PayloadAttest(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
 			return err
 		}
+	case core.DutyProposerPreferences:
+		if err = ProposerPreferences(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
+			return err
+		}
 	case core.DutyBuilderRegistration:
 		// Expected duty, but no action needed in validatormock.
 	default:
@@ -446,6 +450,9 @@ var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	core.DutySyncMessage:             {dutyOffset(core.DutySyncMessage)},
 	core.DutySyncContribution:        {dutyOffset(core.DutySyncContribution)},
 	core.DutyPayloadAttestation:      {dutyOffset(core.DutyPayloadAttestation)},
+	// Proposer preferences for a proposal slot in epoch E are submitted at the start of
+	// epoch E-1, the earliest time the E-2 dependent root they sign over is anchored.
+	core.DutyProposerPreferences: {startOfPrevEpoch},
 }
 
 // startOfPrevEpoch returns the start time of the previous epoch.

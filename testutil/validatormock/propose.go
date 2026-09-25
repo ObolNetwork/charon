@@ -19,6 +19,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -33,6 +34,65 @@ import (
 type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
 
 // ProposeBlock proposes block for the given slot.
+// proposeEPBSBlock proposes a gloas EPBS block for the provided slot: it fetches the v4
+// proposal, signs the beacon block and submits it. The signed execution payload envelope
+// of a payload-included proposal is not published by the mock.
+func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+	slot eth2p0.Slot, epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, randao eth2p0.BLSSignature,
+) error {
+	includePayload := true
+
+	eth2Resp, err := eth2Cl.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:           slot,
+		RandaoReveal:   randao,
+		BuilderConfig:  &gloas.BuilderConfig{},
+		IncludePayload: &includePayload,
+	})
+	if err != nil {
+		return errors.Wrap(err, "vmock epbs proposal")
+	}
+
+	proposal := eth2Resp.Data
+
+	block := proposal.Gloas
+	if proposal.ExecutionPayloadIncluded {
+		if proposal.GloasContents == nil {
+			return errors.New("no gloas block contents")
+		}
+
+		block = proposal.GloasContents.Block
+	}
+
+	if block == nil {
+		return errors.New("no gloas block")
+	}
+
+	blockSigRoot, err := block.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash gloas block")
+	}
+
+	blockSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, blockSigRoot)
+	if err != nil {
+		return err
+	}
+
+	sig, err := signFunc(pubkey, blockSigData[:])
+	if err != nil {
+		return err
+	}
+
+	return eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+		Proposal: &eth2api.VersionedSignedProposal{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedBeaconBlock{
+				Message:   block,
+				Signature: sig,
+			},
+		},
+	})
+}
+
 func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot,
 ) error {
@@ -99,6 +159,16 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	randao, err := signFunc(slotProposer.PubKey, randaoSigData[:])
 	if err != nil {
 		return err
+	}
+
+	// From the gloas fork blocks are produced by the v4 EPBS endpoint.
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	if epoch >= forkSchedule[eth2wrap.Gloas].Epoch {
+		return proposeEPBSBlock(ctx, eth2Cl, signFunc, slot, epoch, pubkey, randao)
 	}
 
 	// Get Unsigned beacon block with given randao and slot

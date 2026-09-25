@@ -104,6 +104,9 @@ func TestLazy_SetDutiesCache(t *testing.T) {
 	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 		return eth2wrap.ProposerDutyWithMeta{}, nil
 	}
+	proposerDutiesV2Cache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		return eth2wrap.ProposerDutyWithMeta{}, nil
+	}
 	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 		return eth2wrap.AttesterDutyWithMeta{}, nil
 	}
@@ -112,10 +115,10 @@ func TestLazy_SetDutiesCache(t *testing.T) {
 	}
 
 	client := mocks.NewClient(t)
-	client.On("SetDutiesCache", mock.Anything, mock.Anything, mock.Anything).Once()
+	client.On("SetDutiesCache", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Once()
 
 	l := eth2wrap.NewLazyForT(client)
-	l.SetDutiesCache(proposerDutiesCache, attesterDutiesCache, syncDutiesCache)
+	l.SetDutiesCache(proposerDutiesCache, proposerDutiesV2Cache, attesterDutiesCache, syncDutiesCache)
 }
 
 func TestLazy_ProposerDutiesCache(t *testing.T) {
@@ -128,6 +131,20 @@ func TestLazy_ProposerDutiesCache(t *testing.T) {
 	l := eth2wrap.NewLazyForT(client)
 
 	proposerDuties2, err := l.ProposerDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
+	require.NoError(t, err)
+	require.Equal(t, proposerDuties, proposerDuties2)
+}
+
+func TestLazy_ProposerDutiesV2Cache(t *testing.T) {
+	ctx := context.Background()
+	proposerDuties := eth2wrap.ProposerDutyWithMeta{}
+
+	client := mocks.NewClient(t)
+	client.On("ProposerDutiesV2Cache", ctx, eth2p0.Epoch(0), []eth2p0.ValidatorIndex{}).Return(proposerDuties, nil).Once()
+
+	l := eth2wrap.NewLazyForT(client)
+
+	proposerDuties2, err := l.ProposerDutiesV2Cache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
 	require.Equal(t, proposerDuties, proposerDuties2)
 }

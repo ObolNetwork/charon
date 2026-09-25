@@ -96,6 +96,9 @@ func TestMulti_SetDutiesCache(t *testing.T) {
 	proposerDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 		return eth2wrap.ProposerDutyWithMeta{}, nil
 	}
+	proposerDutiesV2Cache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		return eth2wrap.ProposerDutyWithMeta{}, nil
+	}
 	attesterDutiesCache := func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.AttesterDutyWithMeta, error) {
 		return eth2wrap.AttesterDutyWithMeta{}, nil
 	}
@@ -104,10 +107,10 @@ func TestMulti_SetDutiesCache(t *testing.T) {
 	}
 
 	client := mocks.NewClient(t)
-	client.On("SetDutiesCache", mock.Anything, mock.Anything, mock.Anything).Once()
+	client.On("SetDutiesCache", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Once()
 
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
-	m.SetDutiesCache(proposerDutiesCache, attesterDutiesCache, syncDutiesCache)
+	m.SetDutiesCache(proposerDutiesCache, proposerDutiesV2Cache, attesterDutiesCache, syncDutiesCache)
 }
 
 func TestMulti_ProposerDutiesCache(t *testing.T) {
@@ -120,6 +123,20 @@ func TestMulti_ProposerDutiesCache(t *testing.T) {
 	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
 
 	proposerDuties2, err := m.ProposerDutiesCache(ctx, 0, []eth2p0.ValidatorIndex{})
+	require.NoError(t, err)
+	require.Equal(t, proposerDuties, proposerDuties2)
+}
+
+func TestMulti_ProposerDutiesV2Cache(t *testing.T) {
+	ctx := context.Background()
+	proposerDuties := eth2wrap.ProposerDutyWithMeta{Duties: []*eth2v1.ProposerDuty{}, Metadata: nil}
+
+	client := mocks.NewClient(t)
+	client.On("ProposerDutiesV2Cache", mock.Anything, mock.Anything, mock.Anything).Return(proposerDuties, nil).Once()
+
+	m := eth2wrap.NewMultiForT([]eth2wrap.Client{client}, nil)
+
+	proposerDuties2, err := m.ProposerDutiesV2Cache(ctx, 0, []eth2p0.ValidatorIndex{})
 	require.NoError(t, err)
 	require.Equal(t, proposerDuties, proposerDuties2)
 }

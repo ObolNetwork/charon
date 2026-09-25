@@ -25,7 +25,7 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]*core.PubKey),
 		attKeysBySlot:     make(map[uint64][]pkKey),
-		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
+		proDuties:         make(map[uint64]core.VersionedProposal),
 		aggDuties:         make(map[aggKey]core.VersionedAggregatedAttestation),
 		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
@@ -47,7 +47,7 @@ type MemDB struct {
 	attQueries    []attQuery
 
 	// DutyProposer
-	proDuties  map[uint64]*eth2api.VersionedProposal
+	proDuties  map[uint64]core.VersionedProposal
 	proQueries []proQuery
 
 	// DutyAggregator
@@ -166,10 +166,40 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 
 // AwaitProposal implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+	proposal, err := db.awaitProposal(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version >= eth2spec.DataVersionGloas {
+		return nil, errors.New("gloas onwards proposals are served by AwaitEPBSProposal",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return &proposal.VersionedProposal, nil
+}
+
+// AwaitEPBSProposal implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitEPBSProposal(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+	proposal, err := db.awaitProposal(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version < eth2spec.DataVersionGloas {
+		return nil, errors.New("pre-gloas proposals are served by AwaitProposal",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return proposal.EPBS, nil
+}
+
+// awaitProposal blocks and returns the stored core proposal for the slot when available.
+func (db *MemDB) awaitProposal(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 
-	response := make(chan *eth2api.VersionedProposal, 1)
+	response := make(chan core.VersionedProposal, 1)
 
 	db.mu.Lock()
 	db.proQueries = append(db.proQueries, proQuery{
@@ -182,9 +212,9 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 
 	select {
 	case <-db.shutdown:
-		return nil, errors.New("dutydb shutdown")
+		return core.VersionedProposal{}, errors.New("dutydb shutdown")
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return core.VersionedProposal{}, ctx.Err()
 	case block := <-response:
 		return block, nil
 	}
@@ -621,7 +651,7 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 			return errors.New("clashing blocks")
 		}
 	} else {
-		db.proDuties[uint64(slot)] = &proposal.VersionedProposal
+		db.proDuties[uint64(slot)] = proposal
 	}
 
 	return nil
@@ -849,7 +879,7 @@ type attQuery struct {
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
 	Key      uint64
-	Response chan<- *eth2api.VersionedProposal
+	Response chan<- core.VersionedProposal
 	Cancel   <-chan struct{}
 }
 
