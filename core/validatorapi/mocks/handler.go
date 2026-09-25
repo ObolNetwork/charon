@@ -10,8 +10,6 @@ import (
 
 	context "context"
 
-	eth2wrap "github.com/obolnetwork/charon/app/eth2wrap"
-
 	gloas "github.com/attestantio/go-eth2-client/spec/gloas"
 
 	http "net/http"
@@ -160,6 +158,36 @@ func (_m *Handler) BeaconCommitteeSelections(ctx context.Context, opts *api.Beac
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.BeaconCommitteeSelectionsOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// EPBSProposal provides a mock function with given fields: ctx, opts
+func (_m *Handler) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EPBSProposal")
+	}
+
+	var r0 *api.Response[*api.VersionedEPBSProposal]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.EPBSProposalOpts) *api.Response[*api.VersionedEPBSProposal]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*api.VersionedEPBSProposal])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.EPBSProposalOpts) error); ok {
 		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
@@ -338,27 +366,29 @@ func (_m *Handler) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesO
 	return r0, r1
 }
 
-// ProposerDutiesV2 provides a mock function with given fields: ctx, epoch
-func (_m *Handler) ProposerDutiesV2(ctx context.Context, epoch phase0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
-	ret := _m.Called(ctx, epoch)
+// ProposerDutiesV2 provides a mock function with given fields: ctx, opts
+func (_m *Handler) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*v1.ProposerDuty], error) {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ProposerDutiesV2")
 	}
 
-	var r0 eth2wrap.ProposerDutiesV2
+	var r0 *api.Response[[]*v1.ProposerDuty]
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) (eth2wrap.ProposerDutiesV2, error)); ok {
-		return rf(ctx, epoch)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ProposerDutiesOpts) (*api.Response[[]*v1.ProposerDuty], error)); ok {
+		return rf(ctx, opts)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, phase0.Epoch) eth2wrap.ProposerDutiesV2); ok {
-		r0 = rf(ctx, epoch)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ProposerDutiesOpts) *api.Response[[]*v1.ProposerDuty]); ok {
+		r0 = rf(ctx, opts)
 	} else {
-		r0 = ret.Get(0).(eth2wrap.ProposerDutiesV2)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*v1.ProposerDuty])
+		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, phase0.Epoch) error); ok {
-		r1 = rf(ctx, epoch)
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ProposerDutiesOpts) error); ok {
+		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
 	}

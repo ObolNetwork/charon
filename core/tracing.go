@@ -105,6 +105,14 @@ func WithTracing() WireOption {
 
 			return vp, withSpanStatus(span, err)
 		}
+		w.DutyDBAwaitEPBSProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitEPBSProposal")
+			defer span.End()
+
+			vp, err := clone.DutyDBAwaitEPBSProposal(ctx, slot)
+
+			return vp, withSpanStatus(span, err)
+		}
 		w.DutyDBAwaitPayloadAttestation = func(parent context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitPayloadAttestationData")
 			defer span.End()
