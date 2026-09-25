@@ -699,6 +699,24 @@ func TestNewVersionedEPBSProposal(t *testing.T) {
 		require.ErrorContains(t, err, "unknown version")
 	})
 
+	t.Run("accessors", func(t *testing.T) {
+		for _, proposal := range []core.VersionedProposal{
+			testutil.RandomGloasCoreVersionedEPBSProposal(),
+			testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		} {
+			slot, err := proposal.Slot()
+			require.NoError(t, err)
+			require.NotZero(t, slot)
+
+			_, err = proposal.ProposerIndex()
+			require.NoError(t, err)
+
+			graffiti, err := proposal.Graffiti()
+			require.NoError(t, err)
+			require.NotZero(t, graffiti)
+		}
+	})
+
 	t.Run("json roundtrip", func(t *testing.T) {
 		for _, proposal := range []core.VersionedProposal{
 			testutil.RandomGloasCoreVersionedEPBSProposal(),

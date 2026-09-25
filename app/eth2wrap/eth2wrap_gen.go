@@ -52,6 +52,7 @@ type Client interface {
 	eth2client.BlindedProposalSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
+	eth2client.EPBSProposalProvider
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
@@ -438,6 +439,27 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedProposal], error) {
 			return args.client.Proposal(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// EPBSProposal fetches an ePBS proposal for signing.
+func (m multi) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error) {
+	const label = "epbs_proposal"
+	defer latency(ctx, label, true)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedEPBSProposal], error) {
+			return args.client.EPBSProposal(ctx, opts)
 		},
 		nil, m.selector,
 	)
@@ -1200,6 +1222,16 @@ func (l *lazy) Proposal(ctx context.Context, opts *api.ProposalOpts) (res0 *api.
 	}
 
 	return cl.Proposal(ctx, opts)
+}
+
+// EPBSProposal fetches an ePBS proposal for signing.
+func (l *lazy) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (res0 *api.Response[*api.VersionedEPBSProposal], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.EPBSProposal(ctx, opts)
 }
 
 // BeaconBlockRoot fetches a block's root given a set of options.

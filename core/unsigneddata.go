@@ -391,6 +391,70 @@ type VersionedProposal struct {
 	EPBS *eth2api.VersionedEPBSProposal
 }
 
+// Slot returns the proposal slot, handling the EPBS arm carrying proposals from the
+// gloas fork onwards, which the embedded client union has no knowledge of.
+func (p VersionedProposal) Slot() (eth2p0.Slot, error) {
+	if p.Version >= eth2spec.DataVersionGloas {
+		if p.EPBS == nil {
+			return 0, errors.New("no epbs proposal")
+		}
+
+		return p.EPBS.Slot()
+	}
+
+	return p.VersionedProposal.Slot()
+}
+
+// ProposerIndex returns the proposal proposer index, handling the EPBS arm carrying
+// proposals from the gloas fork onwards, which the embedded client union has no
+// knowledge of.
+func (p VersionedProposal) ProposerIndex() (eth2p0.ValidatorIndex, error) {
+	if p.Version >= eth2spec.DataVersionGloas {
+		if p.EPBS == nil {
+			return 0, errors.New("no epbs proposal")
+		}
+
+		return p.EPBS.ProposerIndex()
+	}
+
+	return p.VersionedProposal.ProposerIndex()
+}
+
+// Graffiti returns the proposal graffiti, handling the gloas EPBS arm which the embedded
+// client union has no knowledge of.
+func (p VersionedProposal) Graffiti() ([32]byte, error) {
+	// Pre-gloas proposals live in the embedded union, which reads their graffiti.
+	if p.Version < eth2spec.DataVersionGloas {
+		return p.VersionedProposal.Graffiti()
+	}
+
+	if p.EPBS == nil {
+		return [32]byte{}, errors.New("no epbs proposal")
+	}
+
+	// From gloas the proposal is an EPBS proposal in the EPBS field. Each fork resolves its
+	// block (payload-included or -excluded) and reads its graffiti; new forks add a case here.
+	switch p.Version {
+	case eth2spec.DataVersionGloas:
+		block := p.EPBS.Gloas
+		if p.EPBS.ExecutionPayloadIncluded {
+			if p.EPBS.GloasContents == nil || p.EPBS.GloasContents.Block == nil {
+				return [32]byte{}, errors.New("no gloas block contents")
+			}
+
+			block = p.EPBS.GloasContents.Block
+		}
+
+		if block == nil || block.Body == nil {
+			return [32]byte{}, errors.New("no gloas block")
+		}
+
+		return block.Body.Graffiti, nil
+	default:
+		return [32]byte{}, errors.New("unknown epbs proposal version")
+	}
+}
+
 func (p VersionedProposal) Clone() (UnsignedData, error) {
 	var resp VersionedProposal
 
