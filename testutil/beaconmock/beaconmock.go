@@ -207,6 +207,8 @@ type Mock struct {
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	ProposerDutiesV2Func                   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	SubmitProposerPreferencesFunc          func(context.Context, []*gloas.SignedProposerPreferences) error
+	SubmitExecutionPayloadEnvelopeFunc     func(context.Context, *eth2api.SubmitExecutionPayloadEnvelopeOpts) error
+	SignedExecutionPayloadEnvelopeFunc     func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error)
 	CachedProposerDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
 	CachedProposerDutiesV2Func             func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
 	SubmitAttestationsFunc                 func(context.Context, *eth2api.SubmitAttestationsOpts) error
@@ -347,6 +349,19 @@ func (m Mock) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDuties
 
 func (m Mock) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
 	return m.SubmitProposerPreferencesFunc(ctx, preferences)
+}
+
+func (m Mock) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
+	return m.SubmitExecutionPayloadEnvelopeFunc(ctx, opts)
+}
+
+func (m Mock) SignedExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.SignedExecutionPayloadEnvelopeOpts) (*eth2api.Response[*eth2spec.VersionedSignedExecutionPayloadEnvelope], error) {
+	envelope, err := m.SignedExecutionPayloadEnvelopeFunc(ctx, opts.Block)
+	if err != nil {
+		return nil, err
+	}
+
+	return wrapResponse(envelope), nil
 }
 
 func (m Mock) SignedBeaconBlock(ctx context.Context, opts *eth2api.SignedBeaconBlockOpts) (*eth2api.Response[*eth2spec.VersionedSignedBeaconBlock], error) {

@@ -470,6 +470,10 @@ func TestSignedDataSetSignature(t *testing.T) {
 			name: "signed proposer preferences",
 			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
 		},
+		{
+			name: "signed execution payload envelope",
+			data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
+		},
 	}
 
 	for _, test := range tests {

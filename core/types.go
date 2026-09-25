@@ -30,25 +30,26 @@ type DutyType int
 const (
 	// DutyType enums MUST not change, it will break backwards compatibility.
 
-	DutyUnknown                 DutyType = 0
-	DutyProposer                DutyType = 1
-	DutyAttester                DutyType = 2
-	DutySignature               DutyType = 3
-	DutyExit                    DutyType = 4
-	DutyBuilderProposer         DutyType = 5 // Deprecated due to v3 block proposal
-	DutyBuilderRegistration     DutyType = 6
-	DutyRandao                  DutyType = 7
-	DutyPrepareAggregator       DutyType = 8
-	DutyAggregator              DutyType = 9
-	DutySyncMessage             DutyType = 10
-	DutyPrepareSyncContribution DutyType = 11
-	DutySyncContribution        DutyType = 12
-	DutyInfoSync                DutyType = 13
-	DutyPayloadAttestation      DutyType = 14
-	DutyProposerPreferences     DutyType = 15
+	DutyUnknown                  DutyType = 0
+	DutyProposer                 DutyType = 1
+	DutyAttester                 DutyType = 2
+	DutySignature                DutyType = 3
+	DutyExit                     DutyType = 4
+	DutyBuilderProposer          DutyType = 5 // Deprecated due to v3 block proposal
+	DutyBuilderRegistration      DutyType = 6
+	DutyRandao                   DutyType = 7
+	DutyPrepareAggregator        DutyType = 8
+	DutyAggregator               DutyType = 9
+	DutySyncMessage              DutyType = 10
+	DutyPrepareSyncContribution  DutyType = 11
+	DutySyncContribution         DutyType = 12
+	DutyInfoSync                 DutyType = 13
+	DutyPayloadAttestation       DutyType = 14
+	DutyProposerPreferences      DutyType = 15
+	DutyExecutionPayloadEnvelope DutyType = 16
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 16 // Must always be last
+	dutySentinel DutyType = 17 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -57,22 +58,23 @@ func (d DutyType) Valid() bool {
 
 func (d DutyType) String() string {
 	return map[DutyType]string{
-		DutyUnknown:                 "unknown",
-		DutyProposer:                "proposer",
-		DutyAttester:                "attester",
-		DutySignature:               "signature",
-		DutyExit:                    "exit",
-		DutyBuilderProposer:         "builder_proposer",
-		DutyBuilderRegistration:     "builder_registration",
-		DutyRandao:                  "randao",
-		DutyPrepareAggregator:       "prepare_aggregator",
-		DutyAggregator:              "aggregator",
-		DutySyncMessage:             "sync_message",
-		DutyPrepareSyncContribution: "prepare_sync_contribution",
-		DutySyncContribution:        "sync_contribution",
-		DutyInfoSync:                "info_sync",
-		DutyPayloadAttestation:      "payload_attestation",
-		DutyProposerPreferences:     "proposer_preferences",
+		DutyUnknown:                  "unknown",
+		DutyProposer:                 "proposer",
+		DutyAttester:                 "attester",
+		DutySignature:                "signature",
+		DutyExit:                     "exit",
+		DutyBuilderProposer:          "builder_proposer",
+		DutyBuilderRegistration:      "builder_registration",
+		DutyRandao:                   "randao",
+		DutyPrepareAggregator:        "prepare_aggregator",
+		DutyAggregator:               "aggregator",
+		DutySyncMessage:              "sync_message",
+		DutyPrepareSyncContribution:  "prepare_sync_contribution",
+		DutySyncContribution:         "sync_contribution",
+		DutyInfoSync:                 "info_sync",
+		DutyPayloadAttestation:       "payload_attestation",
+		DutyProposerPreferences:      "proposer_preferences",
+		DutyExecutionPayloadEnvelope: "execution_payload_envelope",
 	}[d]
 }
 
@@ -280,6 +282,16 @@ func NewProposerPreferencesDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyProposerPreferences,
+	}
+}
+
+// NewExecutionPayloadEnvelopeDuty returns a new execution payload envelope duty, keyed by the
+// proposal slot. It is a convenience function that is slightly more readable and concise than the
+// struct literal equivalent.
+func NewExecutionPayloadEnvelopeDuty(slot uint64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyExecutionPayloadEnvelope,
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -35,8 +36,8 @@ type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature,
 
 // ProposeBlock proposes block for the given slot.
 // proposeEPBSBlock proposes a gloas EPBS block for the provided slot: it fetches the v4
-// proposal, signs the beacon block and submits it. The signed execution payload envelope
-// of a payload-included proposal is not published by the mock.
+// proposal, signs the beacon block and submits it. For a payload-included (self-built) proposal it
+// then signs and publishes the execution payload envelope that reveals the committed payload.
 func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, randao eth2p0.BLSSignature,
 ) error {
@@ -82,7 +83,7 @@ func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 		return err
 	}
 
-	return eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+	err = eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
 		Proposal: &eth2api.VersionedSignedProposal{
 			Version: eth2spec.DataVersionGloas,
 			Gloas: &gloas.SignedBeaconBlock{
@@ -90,6 +91,53 @@ func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 				Signature: sig,
 			},
 		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// A payload-excluded (external builder) proposal is revealed by the builder, not the proposer.
+	if !proposal.ExecutionPayloadIncluded {
+		return nil
+	}
+
+	return proposeExecutionPayloadEnvelope(ctx, eth2Cl, signFunc, epoch, pubkey, proposal.GloasContents)
+}
+
+// proposeExecutionPayloadEnvelope signs and publishes the execution payload envelope for a
+// self-built gloas proposal, revealing the payload the beacon block committed to.
+func proposeExecutionPayloadEnvelope(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+	epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, contents *eth2gloas.BlockContents,
+) error {
+	if contents.ExecutionPayloadEnvelope == nil {
+		return errors.New("no gloas execution payload envelope")
+	}
+
+	envelopeSigRoot, err := contents.ExecutionPayloadEnvelope.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash gloas execution payload envelope")
+	}
+
+	envelopeSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconBuilder, epoch, envelopeSigRoot)
+	if err != nil {
+		return err
+	}
+
+	envelopeSig, err := signFunc(pubkey, envelopeSigData[:])
+	if err != nil {
+		return err
+	}
+
+	return eth2Cl.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedExecutionPayloadEnvelope{
+				Message:   contents.ExecutionPayloadEnvelope,
+				Signature: envelopeSig,
+			},
+		},
+		KZGProofs: contents.KZGProofs,
+		Blobs:     contents.Blobs,
 	})
 }
 

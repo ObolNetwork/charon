@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -87,7 +88,8 @@ type inclusionCore struct {
 // inclSupported defines duty types for which inclusion checks are supported.
 func inclSupported() map[core.DutyType]bool {
 	inclSupported := map[core.DutyType]bool{
-		core.DutyProposer: true,
+		core.DutyProposer:                 true,
+		core.DutyExecutionPayloadEnvelope: true,
 	}
 	if featureset.Enabled(featureset.AttestationInclusion) {
 		inclSupported[core.DutyAttester] = true
@@ -279,9 +281,57 @@ func (i *inclusionCore) CheckBlock(ctx context.Context, slot uint64, found bool)
 			// Just report block inclusions to tracker and trim
 			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
 			delete(i.submissions, key)
+		case core.DutyExecutionPayloadEnvelope:
+			// Envelope inclusion is resolved by CheckExecutionPayloadEnvelope, which queries the
+			// revealed payload rather than the block, so skip it here.
+			continue
 		default:
 			panic("bug: unexpected type") // Sanity check, this should never happen
 		}
+	}
+}
+
+// hasEnvelopeSubmission returns true if there is a pending execution payload envelope submission
+// for the slot. It gates the (gloas-only) revealed-payload query so it is never issued for a slot
+// this node did not reveal a payload for, nor before the gloas fork.
+func (i *inclusionCore) hasEnvelopeSubmission(slot uint64) bool {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	for _, sub := range i.submissions {
+		if sub.Duty.Type == core.DutyExecutionPayloadEnvelope && sub.Duty.Slot == slot {
+			return true
+		}
+	}
+
+	return false
+}
+
+// CheckExecutionPayloadEnvelope resolves execution payload envelope submissions for the slot: found
+// reflects whether the revealed payload is retrievable from the chain. It mirrors CheckBlock: the
+// tracker always sees the chainInclusion step reached, while a withheld payload is surfaced via
+// missedFunc.
+func (i *inclusionCore) CheckExecutionPayloadEnvelope(ctx context.Context, slot uint64, found bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	for key, sub := range i.submissions {
+		if sub.Duty.Type != core.DutyExecutionPayloadEnvelope || sub.Duty.Slot != slot {
+			continue
+		}
+
+		if found {
+			log.Info(ctx, "Broadcasted execution payload envelope included on-chain",
+				z.U64("block_slot", slot),
+				z.Any("pubkey", sub.Pubkey),
+				z.Any("broadcast_delay", sub.Delay),
+			)
+		} else {
+			i.missedFunc(ctx, sub)
+		}
+
+		i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
+		delete(i.submissions, key)
 	}
 }
 
@@ -340,6 +390,10 @@ func (i *inclusionCore) CheckBlockAndAtts(ctx context.Context, block block) {
 			// Just report block inclusions to tracker and trim
 			i.trackerInclFunc(sub.Duty, sub.Pubkey, sub.Data, nil)
 			delete(i.submissions, key)
+		case core.DutyExecutionPayloadEnvelope:
+			// Envelope inclusion is resolved by CheckExecutionPayloadEnvelope, which queries the
+			// revealed payload rather than the block, so skip it here.
+			continue
 		default:
 			panic("bug: unexpected type") // Sanity check, this should never happen
 		}
@@ -487,6 +541,12 @@ func reportMissed(ctx context.Context, sub submission) {
 				z.Any("broadcast_delay", sub.Delay),
 			)
 		}
+	case core.DutyExecutionPayloadEnvelope:
+		log.Warn(ctx, "Broadcasted execution payload envelope never revealed on-chain", nil,
+			z.Any("pubkey", sub.Pubkey),
+			z.U64("block_slot", sub.Duty.Slot),
+			z.Any("broadcast_delay", sub.Delay),
+		)
 	default:
 		panic("bug: unexpected type") // Sanity check, this should never happen
 	}
@@ -551,6 +611,7 @@ func NewInclusion(ctx context.Context, eth2Cl eth2wrap.Client, trackerInclFunc t
 		slotDuration:          slotDuration,
 		checkBlockFunc:        inclCore.CheckBlock,
 		checkBlockAndAttsFunc: inclCore.CheckBlockAndAtts, // used when feature flag attestation_inclusion is enabled
+		checkEnvelopeFunc:     inclCore.CheckExecutionPayloadEnvelope,
 	}, nil
 }
 
@@ -562,6 +623,7 @@ type InclusionChecker struct {
 	core                  *inclusionCore
 	checkBlockFunc        func(ctx context.Context, slot uint64, found bool)
 	checkBlockAndAttsFunc func(ctx context.Context, block block) // used when feature flag attestation_inclusion is enabled
+	checkEnvelopeFunc     func(ctx context.Context, slot uint64, found bool)
 }
 
 // Submitted is called when a duty has been submitted.
@@ -666,6 +728,11 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 				continue
 			}
 
+			if err := a.checkExecutionPayloadEnvelope(ctx, slot); err != nil {
+				log.Warn(ctx, "Failed to check execution payload envelope inclusion", err, z.U64("slot", slot))
+				continue
+			}
+
 			checkedSlot = slot
 
 			// Only trim once a slot is old enough to be declared missed:
@@ -699,6 +766,32 @@ func (a *InclusionChecker) checkBlock(ctx context.Context, slot uint64, attDutie
 	found := block != nil
 
 	a.checkBlockFunc(ctx, slot, found)
+
+	return nil
+}
+
+// checkExecutionPayloadEnvelope resolves a self-built execution payload envelope submission for the
+// slot by querying the revealed payload off-chain. It is gated on there being a pending envelope
+// submission for the slot, so the (gloas-only) query is only issued for slots this node revealed a
+// payload for, and never before the gloas fork.
+func (a *InclusionChecker) checkExecutionPayloadEnvelope(ctx context.Context, slot uint64) error {
+	if !a.core.hasEnvelopeSubmission(slot) {
+		return nil
+	}
+
+	_, err := a.eth2Cl.SignedExecutionPayloadEnvelope(ctx, &eth2api.SignedExecutionPayloadEnvelopeOpts{Block: strconv.FormatUint(slot, 10)})
+	if err != nil {
+		// A missing envelope means the payload was withheld (or its block is not canonical),
+		// which is a missed reveal, not an error condition.
+		if is404Error(err) || errors.Is(err, eth2client.ErrNoExecutionPayloadEnvelope) {
+			a.checkEnvelopeFunc(ctx, slot, false)
+			return nil
+		}
+
+		return err
+	}
+
+	a.checkEnvelopeFunc(ctx, slot, true)
 
 	return nil
 }

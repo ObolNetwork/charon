@@ -104,6 +104,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Type: core.DutyProposerPreferences,
 			Data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
 		},
+		{
+			Type: core.DutyExecutionPayloadEnvelope,
+			Data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Type.String(), func(t *testing.T) {
