@@ -297,6 +297,11 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 			if duty.Type == core.DutySyncMessage || duty.Type == core.DutySyncContribution {
 				reason = reasonParSigDBInconsistentSync
 			}
+			// Proposer preferences also skip consensus and legitimately diverge on a reorg
+			// (changed dependent root) or a staggered fee recipient or gas limit change.
+			if duty.Type == core.DutyProposerPreferences {
+				reason = reasonParSigDBInconsistentPreferences
+			}
 		}
 	case sigAgg:
 		if failedErr != nil {
@@ -633,7 +638,7 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (resp
 // It basically checks if the duty (or an associated duty) was scheduled.
 func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[core.Duty][]event) bool {
 	// Cannot validate validatorAPI triggered duties that are not linked to locally scheduled duties.
-	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration {
+	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration || duty.Type == core.DutyProposerPreferences {
 		return true
 	}
 

@@ -256,6 +256,14 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, reason, reasonParSigDBInconsistentSync)
+
+		propPrefDuty := core.NewProposerPreferencesDuty(uint64(slot))
+		events[propPrefDuty] = events[attDuty]
+		failed, step, reason, err = analyseDutyFailed(propPrefDuty, events, false)
+		require.NoError(t, err)
+		require.True(t, failed)
+		require.Equal(t, step, parSigDBExternal)
+		require.Equal(t, reason, reasonParSigDBInconsistentPreferences)
 	})
 
 	t.Run("Failed at bcast", func(t *testing.T) {
@@ -1098,6 +1106,11 @@ func TestIsParSigEventExpected(t *testing.T) {
 		{
 			name: "DutyBuilderRegistration",
 			duty: core.NewBuilderRegistrationDuty(slot),
+			out:  true,
+		},
+		{
+			name: "DutyProposerPreferences",
+			duty: core.NewProposerPreferencesDuty(slot),
 			out:  true,
 		},
 		{
