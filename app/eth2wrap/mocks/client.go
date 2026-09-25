@@ -428,6 +428,36 @@ func (_m *Client) Domain(ctx context.Context, domainType phase0.DomainType, epoc
 	return r0, r1
 }
 
+// EPBSProposal provides a mock function with given fields: ctx, opts
+func (_m *Client) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for EPBSProposal")
+	}
+
+	var r0 *api.Response[*api.VersionedEPBSProposal]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.EPBSProposalOpts) *api.Response[*api.VersionedEPBSProposal]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*api.VersionedEPBSProposal])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.EPBSProposalOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Fork provides a mock function with given fields: ctx, opts
 func (_m *Client) Fork(ctx context.Context, opts *api.ForkOpts) (*api.Response[*phase0.Fork], error) {
 	ret := _m.Called(ctx, opts)

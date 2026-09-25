@@ -15,11 +15,13 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap/mocks"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/fetcher"
@@ -86,6 +88,75 @@ func TestFetchAttester(t *testing.T) {
 
 	err = fetch.Fetch(ctx, duty, defSet)
 	require.NoError(t, err)
+}
+
+func TestFetchAttesterGloas(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot    = 1
+		vIdxA   = 2
+		vIdxB   = 3
+		notZero = 99 // Validation require non-zero values
+	)
+
+	pubkeyA := testutil.RandomCorePubKey(t)
+	pubkeyB := testutil.RandomCorePubKey(t)
+
+	defSet := core.DutyDefinitionSet{
+		pubkeyA: core.NewAttesterDefinition(&eth2v1.AttesterDuty{
+			Slot:             slot,
+			ValidatorIndex:   vIdxA,
+			CommitteeIndex:   vIdxA,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+		}),
+		pubkeyB: core.NewAttesterDefinition(&eth2v1.AttesterDuty{
+			Slot:             slot,
+			ValidatorIndex:   vIdxB,
+			CommitteeIndex:   vIdxB,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+		}),
+	}
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	// From gloas data.index carries the beacon node's payload availability bit, so the
+	// fetcher must fetch once per slot regardless of committee indices and feature flags.
+	var fetches int
+
+	bmock.AttestationDataFunc = func(_ context.Context, reqSlot eth2p0.Slot, commIdx eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
+		fetches++
+
+		require.EqualValues(t, 0, commIdx)
+
+		data := testutil.RandomAttestationDataPhase0()
+		data.Slot = reqSlot
+		data.Index = 1 // Payload availability vote set by the beacon node.
+
+		return data, nil
+	}
+
+	fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{},
+		eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
+	require.NoError(t, err)
+
+	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+		require.Len(t, resDataSet, 2)
+
+		for _, pubkey := range []core.PubKey{pubkeyA, pubkeyB} {
+			data := resDataSet[pubkey].(core.AttestationData)
+			require.EqualValues(t, slot, data.Data.Slot)
+			require.EqualValues(t, 1, data.Data.Index)
+		}
+
+		return nil
+	})
+
+	require.NoError(t, fetch.Fetch(ctx, core.NewAttesterDuty(slot), defSet))
+	require.Equal(t, 1, fetches)
 }
 
 func TestFetchAggregator(t *testing.T) {
@@ -348,6 +419,107 @@ func TestFetchBlocks(t *testing.T) {
 
 		err = fetch.Fetch(ctx, duty, defSet)
 		require.NoError(t, err)
+	})
+}
+
+func TestFetchEPBSBlocks(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		slot  = 1
+		vIdxA = 2
+	)
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSet := core.DutyDefinitionSet{
+		pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{
+			Slot:           slot,
+			ValidatorIndex: vIdxA,
+		}),
+	}
+
+	randao := testutil.RandomCoreSignature()
+
+	newFetcher := func(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
+		t.Helper()
+
+		// Gloas active from epoch zero, so the EPBS path is taken.
+		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+			return "0x0000000000000000000000000000000000000000"
+		}, false, &fetcher.GraffitiBuilder{},
+			eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
+		require.NoError(t, err)
+
+		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
+			return randao, nil
+		})
+
+		return fetch
+	}
+
+	t.Run("payload included", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch := newFetcher(t, bmock)
+
+		fetch.Subscribe(func(_ context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
+			require.Equal(t, core.NewProposerDuty(slot), resDuty)
+			require.Len(t, resDataSet, 1)
+
+			proposal, ok := resDataSet[pubkey].(core.VersionedProposal)
+			require.True(t, ok)
+			require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
+			require.False(t, proposal.Blinded)
+			require.True(t, proposal.EPBS.ExecutionPayloadIncluded)
+
+			resSlot, err := proposal.Slot()
+			require.NoError(t, err)
+			require.EqualValues(t, slot, resSlot)
+
+			require.Equal(t, randao.Signature().ToETH2(), proposal.EPBS.GloasContents.Block.Body.RANDAOReveal)
+
+			return nil
+		})
+
+		require.NoError(t, fetch.Fetch(ctx, core.NewProposerDuty(slot), defSet))
+	})
+
+	t.Run("payload excluded", func(t *testing.T) {
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		// An external builder bid comes back payload-excluded regardless of what was asked.
+		bmock.EPBSProposalFunc = func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error) {
+			require.NotNil(t, opts.IncludePayload)
+			require.True(t, *opts.IncludePayload)
+			require.NotNil(t, opts.BuilderConfig)
+
+			block := testutil.RandomGloasBeaconBlock()
+			block.Slot = opts.Slot
+			block.Body.RANDAOReveal = opts.RandaoReveal
+
+			return &eth2api.VersionedEPBSProposal{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   block,
+			}, nil
+		}
+
+		fetch := newFetcher(t, bmock)
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
+			proposal, ok := resDataSet[pubkey].(core.VersionedProposal)
+			require.True(t, ok)
+			require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
+			// The pre-gloas blinded flag does not apply to gloas proposals.
+			require.False(t, proposal.Blinded)
+			require.False(t, proposal.EPBS.ExecutionPayloadIncluded)
+			require.Equal(t, randao.Signature().ToETH2(), proposal.EPBS.Gloas.Body.RANDAOReveal)
+
+			return nil
+		})
+
+		require.NoError(t, fetch.Fetch(ctx, core.NewProposerDuty(slot), defSet))
 	})
 }
 
@@ -784,7 +956,8 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{}, 5, false)
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{},
+		eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}}, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch
@@ -795,7 +968,7 @@ func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true, graffitiBuilder, 5, false)
+	}, true, graffitiBuilder, eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}}, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch
