@@ -139,6 +139,12 @@ var (
 		Long:  "Reason `par_sig_db_inconsistent_sync` indicates that partial signed data for the sync committee duty were inconsistent. This is known limitation in this version of charon.",
 	}
 
+	reasonParSigDBInconsistentPreferences = reason{
+		Code:  "par_sig_db_inconsistent_preferences",
+		Short: "expected: inconsistent proposer preferences received",
+		Long:  "Reason `par_sig_db_inconsistent_preferences` indicates that partial signed proposer preferences were inconsistent across the cluster nodes. This is expected during a reorg (changed dependent root) or a staggered fee recipient or gas limit change, and self-heals once a threshold of nodes signs identical values.",
+	}
+
 	reasonBroadcastBNError = reason{
 		Code:  "broadcast_bn_error",
 		Short: "failed to broadcast duty to beacon node",
