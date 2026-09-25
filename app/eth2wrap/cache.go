@@ -894,8 +894,6 @@ func (c *DutiesCache) storeOrAmendProposerDuties(epoch eth2p0.Epoch, dutiesForEp
 }
 
 // storeOrAmendProposerDutiesV2 stores v2 proposer duties in the cache for the given epoch if they don't exist and false if they already exists.
-//
-
 func (c *DutiesCache) storeOrAmendProposerDutiesV2(epoch eth2p0.Epoch, dutiesForEpoch ProposerDutiesForEpoch) ([]eth2v1.ProposerDuty, bool) {
 	c.proposerDutiesV2.Lock()
 	defer c.proposerDutiesV2.Unlock()
