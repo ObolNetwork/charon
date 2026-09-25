@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -48,4 +49,26 @@ func TestDelayFuncSpecOffsets(t *testing.T) {
 			require.InDelta(t, test.expect, gloasDelay-preGloasDelay, float64(50*time.Millisecond))
 		})
 	}
+}
+
+func TestDelayFuncProposerPreferences(t *testing.T) {
+	// Proposer preferences for a proposal slot in epoch E are anchored to the start of epoch
+	// E-1, the earliest time they can be computed. So relative to the proposal slot start
+	// (the proposer duty anchor), the reported delay is larger by a full epoch plus the
+	// slots into the proposal epoch.
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"))
+	require.NoError(t, err)
+
+	delayFunc, err := newDelayFunc(t.Context(), bmock)
+	require.NoError(t, err)
+
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	const slot = 100
+
+	expect := time.Duration(slot%slotsPerEpoch+slotsPerEpoch) * slotDuration
+
+	diff := delayFunc(slot, core.DutyProposerPreferences) - delayFunc(slot, core.DutyProposer)
+	require.InDelta(t, expect, diff, float64(50*time.Millisecond))
 }

@@ -10,6 +10,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -39,6 +40,7 @@ func TestBroadcast(t *testing.T) {
 		syncCommitteeMessage,      // SyncCommitteeMessage
 		syncCommitteeContribution, // SyncCommitteeContribution
 		payloadAttestationMessage, // PayloadAttestationMessage
+		proposerPreferences,       // ProposerPreferences
 	}
 
 	for _, testFunc := range testFuncs {
@@ -89,10 +91,6 @@ func TestBroadcastOtherDuties(t *testing.T) {
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyPrepareSyncContribution}, nil)
-	require.NoError(t, err)
-
-	// TODO(gloas): replace with a real submission test once go-eth2-client supports it.
-	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyProposerPreferences}, nil)
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyUnknown}, nil)
@@ -296,6 +294,29 @@ func payloadAttestationMessage(t *testing.T, mock *beaconmock.Mock) test {
 		name:     "Broadcast Payload Attestation Message",
 		aggData:  msg,
 		duty:     core.DutyPayloadAttestation,
+		bcastCnt: 1,
+		asserted: asserted,
+	}
+}
+
+func proposerPreferences(t *testing.T, mock *beaconmock.Mock) test {
+	t.Helper()
+
+	asserted := make(chan struct{})
+	prefs := core.NewSignedProposerPreferences(testutil.RandomProposerPreferences())
+
+	mock.SubmitProposerPreferencesFunc = func(_ context.Context, preferences []*gloas.SignedProposerPreferences) error {
+		require.Len(t, preferences, 1)
+		require.Equal(t, prefs.SignedProposerPreferences, *preferences[0])
+		close(asserted)
+
+		return nil
+	}
+
+	return test{
+		name:     "Broadcast Proposer Preferences",
+		aggData:  prefs,
+		duty:     core.DutyProposerPreferences,
 		bcastCnt: 1,
 		asserted: asserted,
 	}

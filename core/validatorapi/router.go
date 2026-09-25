@@ -42,7 +42,6 @@ import (
 	"github.com/pk910/dynamic-ssz/sszutils"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -54,13 +53,14 @@ import (
 type contentType string
 
 const (
-	contentTypeJSON               contentType = "application/json"
-	contentTypeSSZ                contentType = "application/octet-stream"
-	versionHeader                             = "Eth-Consensus-Version"
-	executionPayloadBlindedHeader             = "Eth-Execution-Payload-Blinded"
-	executionPayloadValueHeader               = "Eth-Execution-Payload-Value"
-	consensusBlockValueHeader                 = "Eth-Consensus-Block-Value"
-	defaultRequestTimeout                     = 10 * time.Second
+	contentTypeJSON                contentType = "application/json"
+	contentTypeSSZ                 contentType = "application/octet-stream"
+	versionHeader                              = "Eth-Consensus-Version"
+	executionPayloadBlindedHeader              = "Eth-Execution-Payload-Blinded"
+	executionPayloadIncludedHeader             = "Eth-Execution-Payload-Included"
+	executionPayloadValueHeader                = "Eth-Execution-Payload-Value"
+	consensusBlockValueHeader                  = "Eth-Consensus-Block-Value"
+	defaultRequestTimeout                      = 10 * time.Second
 	// maxUserAgentLen bounds the untrusted User-Agent header used as a metric label value.
 	maxUserAgentLen = 128
 )
@@ -73,6 +73,7 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
+	eth2client.EPBSProposalProvider
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2client.ProxyProvider
@@ -82,6 +83,8 @@ type Handler interface {
 	eth2client.PayloadAttestationDataProvider
 	eth2client.PayloadAttestationMessagesSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.ProposerDutiesV2Provider
+	eth2client.ProposerPreferencesSubmitter
 	eth2client.PTCDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
@@ -92,15 +95,6 @@ type Handler interface {
 	eth2client.ValidatorRegistrationsSubmitter
 	eth2client.VoluntaryExitSubmitter
 	// Above sorted alphabetically.
-
-	// SubmitProposerPreferences receives partially signed proposer preferences from the validator client.
-	// TODO(gloas): replace with eth2client.ProposerPreferencesSubmitter once attestantio/go-eth2-client#316 merges.
-	SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
-
-	// ProposerDutiesV2 provides v2 proposer duties (the E-2 shuffling dependent root that
-	// gloas proposer preferences sign over) with pubkeys swapped to this node's public shares.
-	// TODO(gloas): replace with the eth2client provider once attestantio/go-eth2-client#332 merges.
-	ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error)
 
 	// Address returns the address of the beacon node.
 	Address() string
@@ -213,6 +207,15 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Handler:   proposeBlockV3(h, builderEnabled),
 			Methods:   []string{http.MethodGet},
 			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+		},
+		{
+			Name:      "propose_block_v4",
+			Path:      "/eth/v4/validator/blocks/{slot}",
+			Handler:   proposeBlockV4(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			// The request body carries the VC builder config, see maxBuilderConfigBody.
+			MaxBody: maxBuilderConfigBody,
 		},
 		{
 			Name:      "submit_proposal_v1",
@@ -840,26 +843,41 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 
 // proposerDutiesV2 returns a handler function for the v2 proposer duty endpoint, which
 // only differs from v1 in the dependent root being the E-2 shuffling anchor.
-func proposerDutiesV2(p eth2wrap.ProposerDutiesV2Provider) handlerFunc {
+func proposerDutiesV2(p eth2client.ProposerDutiesV2Provider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
 		epoch, err := uintParam(params, "epoch")
 		if err != nil {
 			return nil, nil, err
 		}
 
-		duties, err := p.ProposerDutiesV2(ctx, eth2p0.Epoch(epoch))
+		opts := &eth2api.ProposerDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: nil,
+		}
+
+		eth2Resp, err := p.ProposerDutiesV2(ctx, opts)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		data := duties.Duties
+		data := eth2Resp.Data
 		if len(data) == 0 { // Return empty json array instead of null
 			data = []*eth2v1.ProposerDuty{}
 		}
 
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDutiesV2 response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDutiesV2 response metadata")
+		}
+
 		return proposerDutiesResponse{
-			ExecutionOptimistic: duties.ExecutionOptimistic,
-			DependentRoot:       root(duties.DependentRoot),
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
 			Data:                data,
 		}, nil, nil
 	}
@@ -1094,6 +1112,71 @@ func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled bool) handlerF
 
 		return proposedBlock, resHeaders, nil
 	}
+}
+
+// maxBuilderConfigBody is a sanity cap on the v4 propose block request body, which
+// carries the VC builder config. The config is bounded by the spec list limits (64
+// builder entries with 2048-byte URLs), far below this cap.
+const maxBuilderConfigBody = 1 << 20 // 1MB
+
+// proposeBlockV4 returns a handler function returning an unsigned gloas EPBS proposal.
+// The VC-supplied builder config body is not forwarded: the cluster proposal was already
+// fetched with charon's own builder configuration.
+// TODO(gloas): substitute threshold-aggregated builder request auths into the forwarded
+// builder config once the builder preferences duty lands.
+func proposeBlockV4(p eth2client.EPBSProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, randao, graffiti, err := getProposeBlockParams(params, query)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		includePayload := true
+		if query.Has("include_payload") {
+			includePayload, err = strconv.ParseBool(query.Get("include_payload"))
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "invalid include_payload query parameter")
+			}
+		}
+
+		opts := &eth2api.EPBSProposalOpts{
+			Slot:           eth2p0.Slot(slot),
+			RandaoReveal:   randao,
+			Graffiti:       graffiti,
+			IncludePayload: &includePayload,
+		}
+
+		eth2Resp, err := p.EPBSProposal(ctx, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		proposal := eth2Resp.Data
+
+		var blockData any
+		if proposal.ExecutionPayloadIncluded {
+			blockData = proposal.GloasContents
+		} else {
+			blockData = proposal.Gloas
+		}
+
+		resHeaders := make(http.Header)
+		resHeaders.Add(versionHeader, proposal.Version.String())
+		resHeaders.Add(executionPayloadIncludedHeader, strconv.FormatBool(proposal.ExecutionPayloadIncluded))
+
+		return proposeBlockV4Response{
+			Version:                  proposal.Version.String(),
+			ExecutionPayloadIncluded: proposal.ExecutionPayloadIncluded,
+			Data:                     blockData,
+		}, resHeaders, nil
+	}
+}
+
+// proposeBlockV4Response is the response body of the v4 propose block endpoint.
+type proposeBlockV4Response struct {
+	Version                  string `json:"version"`
+	ExecutionPayloadIncluded bool   `json:"execution_payload_included"`
+	Data                     any    `json:"data"`
 }
 
 // getProposeBlockParams returns slot, randao and graffiti from propose block request params.
@@ -1369,6 +1452,23 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 			block := &eth2api.VersionedSignedProposal{
 				Version: eth2spec.DataVersionFulu,
 				Fulu:    fuluBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+
+		case eth2spec.DataVersionGloas:
+			gloasBlock := new(gloas.SignedBeaconBlock)
+
+			err = unmarshal(typ, body, gloasBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted gloas block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   gloasBlock,
 			}
 
 			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{

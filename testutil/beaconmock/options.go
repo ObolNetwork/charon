@@ -417,55 +417,75 @@ func WithDeterministicAttesterDuties(factor int) Option {
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicProposerDuties(factor int) Option {
 	return func(mock *Mock) {
-		mock.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
-			vals, err := mock.ActiveValidators(ctx)
-			if err != nil {
-				return nil, err
-			}
+		mock.ProposerDutiesFunc = deterministicProposerDuties(mock, factor)
+		mock.CachedProposerDutiesFunc = wrapDutiesWithMeta(mock.ProposerDutiesFunc)
+	}
+}
 
-			valIdxs := vals.Indices()
+// WithDeterministicProposerDutiesV2 configures the mock to provide deterministic v2 duties based on provided arguments and config.
+// Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
+func WithDeterministicProposerDutiesV2(factor int) Option {
+	return func(mock *Mock) {
+		mock.ProposerDutiesV2Func = deterministicProposerDuties(mock, factor)
+		mock.CachedProposerDutiesV2Func = wrapDutiesWithMeta(mock.ProposerDutiesV2Func)
+	}
+}
 
-			slices.Sort(valIdxs)
-
-			slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			slotsAssigned := make(map[int]bool)
-
-			var resp []*eth2v1.ProposerDuty
-
-			for i, valIdx := range valIdxs {
-				offset := (i * factor) % int(slotsPerEpoch)
-				if slotsAssigned[offset] {
-					break
-				}
-
-				slotsAssigned[offset] = true
-
-				resp = append(resp, &eth2v1.ProposerDuty{
-					PubKey:         vals[valIdx],
-					Slot:           eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
-					ValidatorIndex: valIdx,
-				})
-
-				// there can be only one proposer per slot, in this case it would be the first validator who will propose
-				if factor == 0 {
-					break
-				}
-			}
-
-			return resp, nil
+// deterministicProposerDuties returns a proposer duties function assigning deterministic
+// duties based on the provided factor and the mock's validator set.
+func deterministicProposerDuties(mock *Mock, factor int) func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	return func(ctx context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		vals, err := mock.ActiveValidators(ctx)
+		if err != nil {
+			return nil, err
 		}
-		mock.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
-			d, err := mock.ProposerDutiesFunc(ctx, epoch, vidxs)
-			if err != nil {
-				return eth2wrap.ProposerDutyWithMeta{}, err
+
+		valIdxs := vals.Indices()
+
+		slices.Sort(valIdxs)
+
+		slotsPerEpoch, err := mock.SlotsPerEpoch(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		slotsAssigned := make(map[int]bool)
+
+		var resp []*eth2v1.ProposerDuty
+
+		for i, valIdx := range valIdxs {
+			offset := (i * factor) % int(slotsPerEpoch)
+			if slotsAssigned[offset] {
+				break
 			}
 
-			return eth2wrap.ProposerDutyWithMeta{Duties: d, Metadata: nil}, nil
+			slotsAssigned[offset] = true
+
+			resp = append(resp, &eth2v1.ProposerDuty{
+				PubKey:         vals[valIdx],
+				Slot:           eth2p0.Slot(slotsPerEpoch*uint64(epoch) + uint64(offset)),
+				ValidatorIndex: valIdx,
+			})
+
+			// there can be only one proposer per slot, in this case it would be the first validator who will propose
+			if factor == 0 {
+				break
+			}
 		}
+
+		return resp, nil
+	}
+}
+
+// wrapDutiesWithMeta wraps a proposer duties function into the cached duties-with-metadata shape.
+func wrapDutiesWithMeta(fn func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)) func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+	return func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		d, err := fn(ctx, epoch, vidxs)
+		if err != nil {
+			return eth2wrap.ProposerDutyWithMeta{}, err
+		}
+
+		return eth2wrap.ProposerDutyWithMeta{Duties: d, Metadata: nil}, nil
 	}
 }
 
@@ -673,6 +693,29 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 
 			return block, nil
 		},
+		EPBSProposalFunc: func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error) {
+			// Payload-included self-built proposal, the stateless form DV setups request.
+			contents := testutil.RandomGloasBlockContents()
+			contents.Block.Slot = opts.Slot
+			contents.Block.Body.RANDAOReveal = opts.RandaoReveal
+			contents.Block.Body.Graffiti = opts.Graffiti
+
+			// Anchor the envelope to the block so client-side consistency guards pass.
+			blockRoot, err := contents.Block.HashTreeRoot()
+			if err != nil {
+				return nil, err
+			}
+
+			contents.ExecutionPayloadEnvelope.BeaconBlockRoot = blockRoot
+
+			return &eth2api.VersionedEPBSProposal{
+				Version:                  eth2spec.DataVersionGloas,
+				ExecutionPayloadIncluded: true,
+				GloasContents:            contents,
+				ConsensusValue:           big.NewInt(1),
+				ExecutionValue:           big.NewInt(1),
+			}, nil
+		},
 		SignedBeaconBlockFunc: func(context.Context, string) (*eth2spec.VersionedSignedBeaconBlock, error) {
 			return testutil.RandomDenebVersionedSignedBeaconBlock(), nil // Note the slot is probably wrong.
 		},
@@ -682,8 +725,14 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		CachedProposerDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 			return eth2wrap.ProposerDutyWithMeta{Duties: []*eth2v1.ProposerDuty{}, Metadata: nil}, nil
 		},
-		ProposerDutiesV2Func: func(context.Context, eth2p0.Epoch) (eth2wrap.ProposerDutiesV2, error) {
-			return eth2wrap.ProposerDutiesV2{Duties: []*eth2v1.ProposerDuty{}}, nil
+		CachedProposerDutiesV2Func: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+			return eth2wrap.ProposerDutyWithMeta{Duties: []*eth2v1.ProposerDuty{}, Metadata: nil}, nil
+		},
+		ProposerDutiesV2Func: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			return []*eth2v1.ProposerDuty{}, nil
+		},
+		SubmitProposerPreferencesFunc: func(context.Context, []*gloas.SignedProposerPreferences) error {
+			return nil
 		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil

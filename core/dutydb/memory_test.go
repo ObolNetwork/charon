@@ -273,6 +273,55 @@ func TestMemDBProposer(t *testing.T) {
 	}
 }
 
+func TestMemDBEPBSProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	pubkey := testutil.RandomCorePubKey(t)
+	proposal := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	proposal.EPBS.GloasContents.Block.Slot = slot
+
+	require.NoError(t, db.Store(ctx, core.Duty{Slot: slot, Type: core.DutyProposer}, core.UnsignedDataSet{
+		pubkey: proposal,
+	}))
+
+	got, err := db.AwaitEPBSProposal(ctx, slot)
+	require.NoError(t, err)
+	require.Equal(t, proposal.EPBS, got)
+
+	// The pre-gloas getter rejects a gloas proposal.
+	_, err = db.AwaitProposal(ctx, slot)
+	require.ErrorContains(t, err, "gloas onwards proposals are served by AwaitEPBSProposal")
+}
+
+func TestMemDBEPBSProposerWrongEra(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	proposal := &eth2api.VersionedProposal{
+		Version:   eth2spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+	}
+	proposal.Bellatrix.Slot = slot
+
+	unsigned, err := core.NewVersionedProposal(proposal)
+	require.NoError(t, err)
+
+	require.NoError(t, db.Store(ctx, core.Duty{Slot: slot, Type: core.DutyProposer}, core.UnsignedDataSet{
+		pubkey: unsigned,
+	}))
+
+	// The gloas getter rejects a pre-gloas proposal.
+	_, err = db.AwaitEPBSProposal(ctx, slot)
+	require.ErrorContains(t, err, "pre-gloas proposals are served by AwaitProposal")
+}
+
 func TestMemDBAggregator(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))

@@ -12,6 +12,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -200,19 +201,20 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			})
 		}
 
+		logFields := []z.Field{
+			z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
+			z.Any("pubkey", pubkey),
+		}
+		// The blinded flag does not apply from the gloas fork onwards, where proposals are
+		// discriminated by execution payload inclusion instead.
+		if block.Version < eth2spec.DataVersionGloas {
+			logFields = append(logFields, z.Bool("blinded", block.Blinded))
+		}
+
 		if err == nil {
-			log.Info(ctx, "Successfully submitted block proposal to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
-				z.Any("pubkey", pubkey),
-				z.Bool("blinded", block.Blinded),
-			)
+			log.Info(ctx, "Successfully submitted block proposal to beacon node", logFields...)
 		} else {
-			log.Error(ctx, "Failed to submit block proposal to beacon node",
-				err,
-				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
-				z.Any("pubkey", pubkey),
-				z.Bool("blinded", block.Blinded),
-			)
+			log.Error(ctx, "Failed to submit block proposal to beacon node", err, logFields...)
 		}
 
 		return err
@@ -250,12 +252,20 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
 	case core.DutyProposerPreferences:
-		// TODO(gloas): submit the aggregated SignedProposerPreferences to the beacon node once
-		// go-eth2-client supports it (attestantio/go-eth2-client#316). No-op meanwhile so
-		// reaching threshold doesn't fail the intake path.
-		log.Debug(ctx, "Proposer preferences submission not yet supported, skipping broadcast")
+		prefs, err := setToProposerPreferences(set)
+		if err != nil {
+			return err
+		}
 
-		return nil
+		err = b.eth2Cl.SubmitProposerPreferences(ctx, prefs)
+		if err == nil {
+			log.Info(ctx, "Successfully submitted proposer preferences to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposerPreferences)),
+				z.Int("amount", len(prefs)),
+			)
+		}
+
+		return err
 	case core.DutyAggregator:
 		aggAndProofs, err := setToAggAndProof(set)
 		if err != nil {
@@ -388,6 +398,22 @@ func setToPayloadAttestationMessages(set core.SignedDataSet) (*eth2api.SubmitPay
 	return &eth2api.SubmitPayloadAttestationMessagesOpts{Messages: resp}, nil
 }
 
+// setToProposerPreferences converts a set of signed data into a list of signed proposer preferences.
+func setToProposerPreferences(set core.SignedDataSet) ([]*gloas.SignedProposerPreferences, error) {
+	var resp []*gloas.SignedProposerPreferences
+
+	for _, prefs := range set {
+		prefs, ok := prefs.(core.SignedProposerPreferences)
+		if !ok {
+			return nil, errors.New("invalid proposer preferences")
+		}
+
+		resp = append(resp, &prefs.SignedProposerPreferences)
+	}
+
+	return resp, nil
+}
+
 // setToOne converts a set of signed data into a single signed data.
 func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
 	if len(set) != 1 {
@@ -424,7 +450,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		return nil, err
 	}
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
@@ -444,6 +470,12 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		switch duty {
 		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation:
 			offset = slotOffsetFunc(core.Duty{Slot: slot, Type: duty})
+		case core.DutyProposerPreferences:
+			// Proposer preferences target a future proposal slot. They are computable from the
+			// start of epoch E-1 for a proposal slot in epoch E, when the E-2 dependent root they
+			// sign over is anchored, so report the delay since that earliest possible submission time.
+			slotsIntoEpoch := slot % slotsPerEpoch
+			offset = -time.Duration(slotsIntoEpoch+slotsPerEpoch) * slotDuration
 		default:
 		}
 

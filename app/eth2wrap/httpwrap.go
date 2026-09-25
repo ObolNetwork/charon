@@ -5,10 +5,7 @@ package eth2wrap
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -51,18 +48,20 @@ func newHTTPAdapter(ethSvc *eth2http.Service, address string, headers map[string
 type httpAdapter struct {
 	*eth2http.Service
 
-	address               string
-	headers               map[string]string
-	timeout               time.Duration
-	valCacheMu            sync.RWMutex
-	valCache              func(context.Context) (ActiveValidators, CompleteValidators, error)
-	proposerDutiesCacheMu sync.RWMutex
-	proposerDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error)
-	attesterDutiesCacheMu sync.RWMutex
-	attesterDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error)
-	syncCommDutiesCacheMu sync.RWMutex
-	syncCommDutiesCache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error)
-	forkVersion           [4]byte
+	address                 string
+	headers                 map[string]string
+	timeout                 time.Duration
+	valCacheMu              sync.RWMutex
+	valCache                func(context.Context) (ActiveValidators, CompleteValidators, error)
+	proposerDutiesCacheMu   sync.RWMutex
+	proposerDutiesCache     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error)
+	attesterDutiesCacheMu   sync.RWMutex
+	attesterDutiesCache     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error)
+	proposerDutiesV2CacheMu sync.RWMutex
+	proposerDutiesV2Cache   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error)
+	syncCommDutiesCacheMu   sync.RWMutex
+	syncCommDutiesCache     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error)
+	forkVersion             [4]byte
 }
 
 func (h *httpAdapter) SetForkVersion(forkVersion [4]byte) {
@@ -103,12 +102,17 @@ func (h *httpAdapter) CompleteValidators(ctx context.Context) (CompleteValidator
 
 func (h *httpAdapter) SetDutiesCache(
 	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+	proposerDutiesV2Cache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
 	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
 	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
 ) {
 	h.proposerDutiesCacheMu.Lock()
 	h.proposerDutiesCache = proposerDutiesCache
 	h.proposerDutiesCacheMu.Unlock()
+
+	h.proposerDutiesV2CacheMu.Lock()
+	h.proposerDutiesV2Cache = proposerDutiesV2Cache
+	h.proposerDutiesV2CacheMu.Unlock()
 
 	h.attesterDutiesCacheMu.Lock()
 	h.attesterDutiesCache = attesterDutiesCache
@@ -128,6 +132,17 @@ func (h *httpAdapter) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 	}
 
 	return h.proposerDutiesCache(ctx, epoch, vidxs)
+}
+
+func (h *httpAdapter) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
+	h.proposerDutiesV2CacheMu.RLock()
+	defer h.proposerDutiesV2CacheMu.RUnlock()
+
+	if h.proposerDutiesV2Cache == nil {
+		return ProposerDutyWithMeta{}, errors.New("no active v2 proposer duties cache")
+	}
+
+	return h.proposerDutiesV2Cache(ctx, epoch, vidxs)
 }
 
 func (h *httpAdapter) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error) {
@@ -189,74 +204,6 @@ func (h *httpAdapter) Domain(ctx context.Context, domainType eth2p0.DomainType, 
 	}
 
 	return h.Service.Domain(ctx, domainType, epoch)
-}
-
-// ProposerDutiesV2 fetches the v2 proposer duties from the beacon node directly, since
-// go-eth2-client doesn't support the endpoint yet, bypassing the duties cache.
-// TODO(gloas): swap for the eth2client provider and route it through the duties cache
-// once attestantio/go-eth2-client#332 merges.
-func (h *httpAdapter) ProposerDutiesV2(ctx context.Context, epoch eth2p0.Epoch) (ProposerDutiesV2, error) {
-	ctx, cancel := context.WithTimeout(ctx, h.timeout)
-	defer cancel()
-
-	url := fmt.Sprintf("%s/eth/v2/validator/duties/proposer/%d", h.address, epoch)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return ProposerDutiesV2{}, errors.Wrap(err, "new proposer duties v2 request")
-	}
-
-	for header, value := range h.headers {
-		req.Header.Set(header, value)
-	}
-
-	resp, err := new(http.Client).Do(req)
-	if err != nil {
-		return ProposerDutiesV2{}, errors.Wrap(err, "get proposer duties v2")
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return ProposerDutiesV2{}, errors.New("get proposer duties v2 failed", z.Int("status", resp.StatusCode))
-	}
-
-	var body struct {
-		DependentRoot       root0x                `json:"dependent_root"`
-		ExecutionOptimistic bool                  `json:"execution_optimistic"`
-		Data                []*apiv1.ProposerDuty `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return ProposerDutiesV2{}, errors.Wrap(err, "decode proposer duties v2 response")
-	}
-
-	return ProposerDutiesV2{
-		Duties:              body.Data,
-		DependentRoot:       eth2p0.Root(body.DependentRoot),
-		ExecutionOptimistic: body.ExecutionOptimistic,
-	}, nil
-}
-
-// root0x is a 0x-prefixed hex encoded 32 byte root.
-type root0x [32]byte
-
-func (r *root0x) UnmarshalJSON(input []byte) error {
-	var hexStr string
-	if err := json.Unmarshal(input, &hexStr); err != nil {
-		return errors.Wrap(err, "unmarshal root string")
-	}
-
-	b, err := hex.DecodeString(strings.TrimPrefix(hexStr, "0x"))
-	if err != nil {
-		return errors.Wrap(err, "decode root hex")
-	}
-
-	if len(b) != 32 {
-		return errors.New("invalid root length", z.Int("length", len(b)))
-	}
-
-	copy(r[:], b)
-
-	return nil
 }
 
 func (h *httpAdapter) Proxy(ctx context.Context, req *http.Request) (*http.Response, error) {

@@ -43,6 +43,7 @@ func TestSimnetDuties(t *testing.T) {
 
 	tests := []struct {
 		name               string
+		gloasProposer      bool
 		scheduledType      core.DutyType
 		duties             []core.DutyType
 		builderAPI         bool
@@ -73,6 +74,19 @@ func TestSimnetDuties(t *testing.T) {
 			scheduledType: core.DutyPayloadAttestation,
 			duties:        []core.DutyType{core.DutyPayloadAttestation},
 			vcType:        vcVmock,
+		},
+		{
+			name:          "proposer preferences with mock VCs",
+			scheduledType: core.DutyProposerPreferences,
+			duties:        []core.DutyType{core.DutyProposerPreferences},
+			vcType:        vcVmock,
+		},
+		{
+			name:          "gloas epbs proposer with mock VCs",
+			scheduledType: core.DutyProposer,
+			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao},
+			vcType:        vcVmock,
+			gloasProposer: true,
 		},
 		// TODO(andrei): Need a redesign due to how builder registration is handled now.
 		// {
@@ -118,6 +132,12 @@ func TestSimnetDuties(t *testing.T) {
 			if test.scheduledType != core.DutyProposer {
 				// Beaconmock enables proposer duties by default.
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoProposerDuties())
+			} else if test.gloasProposer {
+				// Produce real gloas EPBS proposals with the fork active from genesis.
+				args.BMockOpts = append(args.BMockOpts,
+					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+				)
 			} else {
 				// Use synthetic duties instead of deterministic beaconmock duties.
 				args.SyntheticProposals = true
@@ -137,6 +157,16 @@ func TestSimnetDuties(t *testing.T) {
 					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
 					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
 					beaconmock.WithDeterministicPTCDuties(2, 2),
+				)
+			}
+
+			if test.scheduledType == core.DutyProposerPreferences {
+				// Proposer preferences only exist from gloas onwards, activate the fork and
+				// enable v2 proposer duties, the source of the slots the preferences target.
+				args.BMockOpts = append(args.BMockOpts,
+					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+					beaconmock.WithDeterministicProposerDutiesV2(2),
 				)
 			}
 
