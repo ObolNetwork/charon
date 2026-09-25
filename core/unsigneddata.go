@@ -391,6 +391,43 @@ type VersionedProposal struct {
 	EPBS *eth2api.VersionedEPBSProposal
 }
 
+// Root returns the proposal block root, handling the EPBS arm carrying proposals from
+// the gloas fork onwards, which the embedded client union has no knowledge of. Note the
+// EPBS root uses the generated (mainnet preset) hasher, consistent with every other
+// root computed in charon.
+func (p VersionedProposal) Root() ([32]byte, error) {
+	// Pre-gloas proposals live in the embedded union, which computes their root.
+	if p.Version < eth2spec.DataVersionGloas {
+		return p.VersionedProposal.Root()
+	}
+
+	if p.EPBS == nil {
+		return [32]byte{}, errors.New("no epbs proposal")
+	}
+
+	// From gloas the proposal is an EPBS proposal in the EPBS field. Each fork resolves its
+	// block (payload-included or -excluded) and hashes it; new forks add a case here.
+	switch p.Version {
+	case eth2spec.DataVersionGloas:
+		block := p.EPBS.Gloas
+		if p.EPBS.ExecutionPayloadIncluded {
+			if p.EPBS.GloasContents == nil || p.EPBS.GloasContents.Block == nil {
+				return [32]byte{}, errors.New("no gloas block contents")
+			}
+
+			block = p.EPBS.GloasContents.Block
+		}
+
+		if block == nil {
+			return [32]byte{}, errors.New("no gloas block")
+		}
+
+		return block.HashTreeRoot()
+	default:
+		return [32]byte{}, errors.New("unknown epbs proposal version")
+	}
+}
+
 // Slot returns the proposal slot, handling the EPBS arm carrying proposals from the
 // gloas fork onwards, which the embedded client union has no knowledge of.
 func (p VersionedProposal) Slot() (eth2p0.Slot, error) {

@@ -700,6 +700,14 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			contents.Block.Body.RANDAOReveal = opts.RandaoReveal
 			contents.Block.Body.Graffiti = opts.Graffiti
 
+			// Anchor the envelope to the block so client-side consistency guards pass.
+			blockRoot, err := contents.Block.HashTreeRoot()
+			if err != nil {
+				return nil, err
+			}
+
+			contents.ExecutionPayloadEnvelope.BeaconBlockRoot = blockRoot
+
 			return &eth2api.VersionedEPBSProposal{
 				Version:                  eth2spec.DataVersionGloas,
 				ExecutionPayloadIncluded: true,
