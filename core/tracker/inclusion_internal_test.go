@@ -449,6 +449,68 @@ func TestBlockInclusion(t *testing.T) {
 	})
 }
 
+func TestExecutionPayloadEnvelopeInclusion(t *testing.T) {
+	newCore := func(missed *[]core.Duty) *inclusionCore {
+		return &inclusionCore{
+			missedFunc: func(_ context.Context, sub submission) {
+				*missed = append(*missed, sub.Duty)
+			},
+			trackerInclFunc: func(core.Duty, core.PubKey, core.SignedData, error) {},
+			submissions:     make(map[subkey]submission),
+		}
+	}
+
+	submitEnvelope := func(t *testing.T, incl *inclusionCore) core.Duty {
+		t.Helper()
+
+		envelope := core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope())
+		slot := envelope.SignedExecutionPayloadEnvelope.Message.Payload.SlotNumber
+		duty := core.NewExecutionPayloadEnvelopeDuty(slot)
+		require.NoError(t, incl.Submitted(duty, "", envelope, 0))
+
+		return duty
+	}
+
+	t.Run("payload revealed", func(t *testing.T) {
+		var missed []core.Duty
+
+		incl := newCore(&missed)
+		duty := submitEnvelope(t, incl)
+
+		require.True(t, incl.hasEnvelopeSubmission(duty.Slot))
+
+		incl.CheckExecutionPayloadEnvelope(context.Background(), duty.Slot, true)
+		require.Empty(t, missed)
+		// Submission is resolved and no longer pending.
+		require.False(t, incl.hasEnvelopeSubmission(duty.Slot))
+	})
+
+	t.Run("payload withheld", func(t *testing.T) {
+		var missed []core.Duty
+
+		incl := newCore(&missed)
+		duty := submitEnvelope(t, incl)
+
+		incl.CheckExecutionPayloadEnvelope(context.Background(), duty.Slot, false)
+		require.Equal(t, []core.Duty{duty}, missed)
+		require.False(t, incl.hasEnvelopeSubmission(duty.Slot))
+	})
+
+	t.Run("no submission for slot", func(t *testing.T) {
+		var missed []core.Duty
+
+		incl := newCore(&missed)
+		duty := submitEnvelope(t, incl)
+
+		require.False(t, incl.hasEnvelopeSubmission(duty.Slot+1))
+
+		incl.CheckExecutionPayloadEnvelope(context.Background(), duty.Slot+1, false)
+		require.Empty(t, missed)
+		// The unrelated slot check leaves the pending submission untouched.
+		require.True(t, incl.hasEnvelopeSubmission(duty.Slot))
+	})
+}
+
 func TestInclusion404Handling(t *testing.T) {
 	ctx := context.Background()
 
