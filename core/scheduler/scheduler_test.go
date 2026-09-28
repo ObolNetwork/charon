@@ -727,6 +727,13 @@ func (c *testClock) After(d time.Duration) <-chan time.Time {
 }
 
 func (c *testClock) Sleep(d time.Duration) {
+	// A non-positive duration fires immediately on a real clock and must never move time
+	// backwards. The slot ticker legitimately calls After with a non-positive duration for the
+	// current slot, which would otherwise rewind the fake clock and race with the test.
+	if d <= 0 {
+		return
+	}
+
 	for c.paused.Load() {
 		runtime.Gosched()
 	}
