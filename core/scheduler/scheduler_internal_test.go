@@ -9,6 +9,7 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -227,4 +228,50 @@ func TestResolvingEpoch(t *testing.T) {
 	sched.setResolvingEpoch(11)
 	require.False(t, sched.isResolvingEpoch(10))
 	require.True(t, sched.isResolvingEpoch(11))
+}
+
+func TestReachedGloasFork(t *testing.T) {
+	var t0 time.Time
+
+	tests := []struct {
+		name string
+		opts []beaconmock.Option
+		want bool
+	}{
+		{
+			name: "gloas not scheduled",
+			want: false,
+		},
+		{
+			name: "gloas fork in the future",
+			opts: []beaconmock.Option{
+				beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+				beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "100"),
+			},
+			want: false,
+		},
+		{
+			name: "gloas fork active from genesis",
+			opts: []beaconmock.Option{
+				beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+				beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+			},
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := append([]beaconmock.Option{beaconmock.WithGenesisTime(t0)}, test.opts...)
+
+			eth2Cl, err := beaconmock.New(t.Context(), opts...)
+			require.NoError(t, err)
+
+			sched := &Scheduler{eth2Cl: eth2Cl, clock: clockwork.NewFakeClockAt(t0)}
+
+			got, err := sched.reachedGloasFork(t.Context())
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
 }
