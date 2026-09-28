@@ -14,6 +14,7 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2v1gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -51,6 +52,7 @@ var (
 	_ SignedData = SyncCommitteeSelection{}
 	_ SignedData = VersionedPayloadAttestationMessage{}
 	_ SignedData = SignedProposerPreferences{}
+	_ SignedData = SignedExecutionPayloadEnvelope{}
 
 	// Some types support SSZ marshalling and unmarshalling.
 	_ sszMarshaler   = VersionedSignedProposal{}
@@ -62,6 +64,7 @@ var (
 	_ sszMarshaler   = SignedSyncContributionAndProof{}
 	_ sszMarshaler   = VersionedPayloadAttestationMessage{}
 	_ sszMarshaler   = SignedProposerPreferences{}
+	_ sszMarshaler   = SignedExecutionPayloadEnvelope{}
 	_ sszUnmarshaler = new(VersionedSignedProposal)
 	_ sszUnmarshaler = new(VersionedAttestation)
 	_ sszUnmarshaler = new(SignedAggregateAndProof)
@@ -2413,4 +2416,99 @@ func (p SignedProposerPreferences) SizeSSZ() int {
 
 func (p *SignedProposerPreferences) UnmarshalSSZ(b []byte) error {
 	return p.SignedProposerPreferences.UnmarshalSSZ(b)
+}
+
+// From the gloas fork, a self-building proposer reveals its execution payload via a
+// SignedExecutionPayloadEnvelope. The wrapped type is the stateless submission contents (envelope
+// plus blobs and proofs) so blobs ride through aggregation; aggregation only touches the message.
+
+// NewSignedExecutionPayloadEnvelope is a convenience function which returns a new signed SignedExecutionPayloadEnvelope.
+func NewSignedExecutionPayloadEnvelope(data *eth2v1gloas.SignedExecutionPayloadEnvelopeContents) SignedExecutionPayloadEnvelope {
+	return SignedExecutionPayloadEnvelope{SignedExecutionPayloadEnvelopeContents: *data}
+}
+
+// NewPartialSignedExecutionPayloadEnvelope is a convenience function which returns a new partially signed SignedExecutionPayloadEnvelope.
+func NewPartialSignedExecutionPayloadEnvelope(data *eth2v1gloas.SignedExecutionPayloadEnvelopeContents, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedExecutionPayloadEnvelope(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedExecutionPayloadEnvelope wraps the stateless execution payload envelope submission contents
+// (signed envelope plus blobs and KZG proofs) and implements SignedData.
+type SignedExecutionPayloadEnvelope struct {
+	eth2v1gloas.SignedExecutionPayloadEnvelopeContents
+}
+
+// MessageRoot returns the hash tree root of the execution payload envelope message, which is the
+// object signed over with DOMAIN_BEACON_BUILDER at the proposal epoch.
+func (p SignedExecutionPayloadEnvelope) MessageRoot() ([32]byte, error) {
+	if p.SignedExecutionPayloadEnvelope == nil || p.SignedExecutionPayloadEnvelope.Message == nil {
+		return [32]byte{}, errors.New("nil execution payload envelope message")
+	}
+
+	return p.SignedExecutionPayloadEnvelope.Message.HashTreeRoot()
+}
+
+func (p SignedExecutionPayloadEnvelope) Signature() Signature {
+	if p.SignedExecutionPayloadEnvelope == nil {
+		return Signature{}
+	}
+
+	return SigFromETH2(p.SignedExecutionPayloadEnvelope.Signature)
+}
+
+func (p SignedExecutionPayloadEnvelope) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := p.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.SignedExecutionPayloadEnvelope == nil {
+		return nil, errors.New("nil execution payload envelope")
+	}
+
+	resp.SignedExecutionPayloadEnvelope.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (p SignedExecutionPayloadEnvelope) Clone() (SignedData, error) {
+	return p.clone()
+}
+
+func (p SignedExecutionPayloadEnvelope) clone() (SignedExecutionPayloadEnvelope, error) {
+	var resp SignedExecutionPayloadEnvelope
+
+	err := cloneSSZMarshaler(p, &resp)
+	if err != nil {
+		return SignedExecutionPayloadEnvelope{}, errors.Wrap(err, "clone signed execution payload envelope")
+	}
+
+	return resp, nil
+}
+
+func (p SignedExecutionPayloadEnvelope) MarshalJSON() ([]byte, error) {
+	return p.SignedExecutionPayloadEnvelopeContents.MarshalJSON()
+}
+
+func (p *SignedExecutionPayloadEnvelope) UnmarshalJSON(input []byte) error {
+	return p.SignedExecutionPayloadEnvelopeContents.UnmarshalJSON(input)
+}
+
+func (p SignedExecutionPayloadEnvelope) MarshalSSZ() ([]byte, error) {
+	return p.SignedExecutionPayloadEnvelopeContents.MarshalSSZ()
+}
+
+func (p SignedExecutionPayloadEnvelope) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return p.SignedExecutionPayloadEnvelopeContents.MarshalSSZTo(dst)
+}
+
+func (p SignedExecutionPayloadEnvelope) SizeSSZ() int {
+	return p.SignedExecutionPayloadEnvelopeContents.SizeSSZ()
+}
+
+func (p *SignedExecutionPayloadEnvelope) UnmarshalSSZ(b []byte) error {
+	return p.SignedExecutionPayloadEnvelopeContents.UnmarshalSSZ(b)
 }

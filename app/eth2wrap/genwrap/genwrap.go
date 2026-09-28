@@ -118,6 +118,8 @@ type Client interface {
 		"AttesterDutiesProvider":                {Latency: true, Log: false},
 		"ProposalProvider":                      {Latency: true, Log: true},
 		"EPBSProposalProvider":                  {Latency: true, Log: true},
+		"ExecutionPayloadEnvelopeSubmitter":     {Latency: true, Log: false},
+		"ExecutionPayloadProvider":              {Latency: true, Log: false},
 		"BeaconBlockRootProvider":               {Latency: false, Log: false},
 		"ProposalSubmitter":                     {Latency: true, Log: false},
 		"BeaconCommitteeSubscriptionsSubmitter": {Latency: true, Log: false},

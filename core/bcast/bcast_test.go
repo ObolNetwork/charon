@@ -41,6 +41,7 @@ func TestBroadcast(t *testing.T) {
 		syncCommitteeContribution, // SyncCommitteeContribution
 		payloadAttestationMessage, // PayloadAttestationMessage
 		proposerPreferences,       // ProposerPreferences
+		executionPayloadEnvelope,  // ExecutionPayloadEnvelope
 	}
 
 	for _, testFunc := range testFuncs {
@@ -317,6 +318,31 @@ func proposerPreferences(t *testing.T, mock *beaconmock.Mock) test {
 		name:     "Broadcast Proposer Preferences",
 		aggData:  prefs,
 		duty:     core.DutyProposerPreferences,
+		bcastCnt: 1,
+		asserted: asserted,
+	}
+}
+
+func executionPayloadEnvelope(t *testing.T, mock *beaconmock.Mock) test {
+	t.Helper()
+
+	asserted := make(chan struct{})
+	envelope := core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope())
+
+	mock.SubmitExecutionPayloadEnvelopeFunc = func(_ context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
+		require.Equal(t, eth2spec.DataVersionGloas, opts.SignedExecutionPayloadEnvelope.Version)
+		require.Equal(t, envelope.SignedExecutionPayloadEnvelope, opts.SignedExecutionPayloadEnvelope.Gloas)
+		require.Equal(t, envelope.Blobs, opts.Blobs)
+		require.Equal(t, envelope.KZGProofs, opts.KZGProofs)
+		close(asserted)
+
+		return nil
+	}
+
+	return test{
+		name:     "Broadcast Execution Payload Envelope",
+		aggData:  envelope,
+		duty:     core.DutyExecutionPayloadEnvelope,
 		bcastCnt: 1,
 		asserted: asserted,
 	}

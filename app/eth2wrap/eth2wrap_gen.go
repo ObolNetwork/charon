@@ -54,6 +54,8 @@ type Client interface {
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
 	eth2client.EPBSProposalProvider
+	eth2client.ExecutionPayloadEnvelopeSubmitter
+	eth2client.ExecutionPayloadProvider
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
@@ -992,6 +994,51 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	return res0, err
 }
 
+// SignedExecutionPayloadEnvelope fetches a signed execution payload
+// envelope given a block ID. Returns a versioned wrapper so callers can
+// branch on Version regardless of which fork's envelope is populated.
+func (m multi) SignedExecutionPayloadEnvelope(ctx context.Context, opts *api.SignedExecutionPayloadEnvelopeOpts) (*api.Response[*spec.VersionedSignedExecutionPayloadEnvelope], error) {
+	const label = "signed_execution_payload_envelope"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedSignedExecutionPayloadEnvelope], error) {
+			return args.client.SignedExecutionPayloadEnvelope(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// SubmitExecutionPayloadEnvelope submits a signed execution payload
+// envelope (with its blobs and KZG proofs) for broadcast.
+func (m multi) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *api.SubmitExecutionPayloadEnvelopeOpts) error {
+	const label = "submit_execution_payload_envelope"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitExecutionPayloadEnvelope(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
 func (m multi) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (*api.Response[[]*apiv1.PTCDuty], error) {
 	const label = "ptc_duties"
 	defer latency(ctx, label, false)()
@@ -1500,6 +1547,29 @@ func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	}
 
 	return cl.GenesisDomain(ctx, domainType)
+}
+
+// SignedExecutionPayloadEnvelope fetches a signed execution payload
+// envelope given a block ID. Returns a versioned wrapper so callers can
+// branch on Version regardless of which fork's envelope is populated.
+func (l *lazy) SignedExecutionPayloadEnvelope(ctx context.Context, opts *api.SignedExecutionPayloadEnvelopeOpts) (res0 *api.Response[*spec.VersionedSignedExecutionPayloadEnvelope], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.SignedExecutionPayloadEnvelope(ctx, opts)
+}
+
+// SubmitExecutionPayloadEnvelope submits a signed execution payload
+// envelope (with its blobs and KZG proofs) for broadcast.
+func (l *lazy) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *api.SubmitExecutionPayloadEnvelopeOpts) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitExecutionPayloadEnvelope(ctx, opts)
 }
 
 func (l *lazy) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (res0 *api.Response[[]*apiv1.PTCDuty], err error) {

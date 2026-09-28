@@ -31,6 +31,7 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2v1gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -56,6 +57,7 @@ const (
 	contentTypeJSON                contentType = "application/json"
 	contentTypeSSZ                 contentType = "application/octet-stream"
 	versionHeader                              = "Eth-Consensus-Version"
+	blobDataIncludedHeader                     = "Eth-Blob-Data-Included"
 	executionPayloadBlindedHeader              = "Eth-Execution-Payload-Blinded"
 	executionPayloadIncludedHeader             = "Eth-Execution-Payload-Included"
 	executionPayloadValueHeader                = "Eth-Execution-Payload-Value"
@@ -74,6 +76,7 @@ type Handler interface {
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
 	eth2client.EPBSProposalProvider
+	eth2client.ExecutionPayloadEnvelopeSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2client.ProxyProvider
@@ -328,6 +331,13 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Handler:   submitPayloadAttestationMessages(h),
 			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON},
+		},
+		{
+			Name:      "submit_execution_payload_envelope",
+			Path:      "/eth/v1/beacon/execution_payload_envelopes",
+			Handler:   submitExecutionPayloadEnvelope(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
 			Name:      "sync_committee_contribution",
@@ -2057,6 +2067,88 @@ func unmarshalProposerPreferencesSSZ(body []byte) ([]*gloas.SignedProposerPrefer
 	}
 
 	return prefs, nil
+}
+
+// submitExecutionPayloadEnvelope receives a partially signed execution payload envelope (with its
+// blobs and KZG proofs) from the validator client and forwards it for threshold aggregation. From
+// the gloas fork, a self-building proposer reveals its execution payload with this submission.
+func submitExecutionPayloadEnvelope(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version < eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas or later",
+			}
+		}
+
+		// Eth-Blob-Data-Included selects the request body schema: "true" is the stateless
+		// SignedExecutionPayloadEnvelopeContents (envelope with blobs and proofs), "false" is the
+		// bare SignedExecutionPayloadEnvelope. Both carry the same signed envelope; charon sources
+		// the broadcast blobs from the agreed proposal either way.
+		blobDataIncluded, err := strconv.ParseBool(header.Get(blobDataIncludedHeader))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + blobDataIncludedHeader + " header",
+				Err:        err,
+			}
+		}
+
+		opts := &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+			SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{Version: version},
+		}
+
+		if blobDataIncluded {
+			contents := new(eth2v1gloas.SignedExecutionPayloadEnvelopeContents)
+			if typ == contentTypeSSZ {
+				err = contents.UnmarshalSSZ(body)
+			} else {
+				err = unmarshal(typ, body, contents)
+			}
+
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal execution payload envelope contents")
+			}
+
+			opts.SignedExecutionPayloadEnvelope.Gloas = contents.SignedExecutionPayloadEnvelope
+			opts.KZGProofs = contents.KZGProofs
+			opts.Blobs = contents.Blobs
+		} else {
+			envelope := new(gloas.SignedExecutionPayloadEnvelope)
+			if typ == contentTypeSSZ {
+				err = envelope.UnmarshalSSZ(body)
+			} else {
+				err = unmarshal(typ, body, envelope)
+			}
+
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal execution payload envelope")
+			}
+
+			opts.SignedExecutionPayloadEnvelope.Gloas = envelope
+		}
+
+		if opts.SignedExecutionPayloadEnvelope.Gloas == nil {
+			return nil, nil, badRequestError("nil execution payload envelope", nil)
+		}
+
+		if err := h.SubmitExecutionPayloadEnvelope(ctx, opts); err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
 }
 
 // submitProposalPreparations swallows fee-recipient-address from validator client as it should be

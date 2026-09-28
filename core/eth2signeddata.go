@@ -28,6 +28,7 @@ var (
 	_ Eth2SignedData = SyncCommitteeSelection{}
 	_ Eth2SignedData = VersionedPayloadAttestationMessage{}
 	_ Eth2SignedData = SignedProposerPreferences{}
+	_ Eth2SignedData = SignedExecutionPayloadEnvelope{}
 )
 
 // VerifyEth2SignedData verifies signature associated with the given Eth2SignedData.
@@ -200,4 +201,18 @@ func (p SignedProposerPreferences) Epoch(ctx context.Context, eth2Cl eth2wrap.Cl
 	}
 
 	return eth2util.EpochFromSlot(ctx, eth2Cl, p.Message.ProposalSlot)
+}
+
+// Implement Eth2SignedData for SignedExecutionPayloadEnvelope.
+
+func (SignedExecutionPayloadEnvelope) DomainName() signing.DomainName {
+	return signing.DomainBeaconBuilder
+}
+
+func (p SignedExecutionPayloadEnvelope) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	if p.SignedExecutionPayloadEnvelope == nil || p.SignedExecutionPayloadEnvelope.Message == nil || p.SignedExecutionPayloadEnvelope.Message.Payload == nil {
+		return 0, errors.New("nil execution payload envelope message")
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, eth2p0.Slot(p.SignedExecutionPayloadEnvelope.Message.Payload.SlotNumber))
 }

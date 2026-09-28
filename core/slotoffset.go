@@ -42,6 +42,8 @@ func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing 
 		DutySyncMessage:        timing.SyncMessage,
 		DutySyncContribution:   timing.Contribution,
 		DutyPayloadAttestation: timing.Payload,
+		// A self-built payload envelope is due at the same payload deadline the PTC attests against.
+		DutyExecutionPayloadEnvelope: timing.Payload,
 	}
 
 	gloasSlot, gloasScheduled := forkSlot(timing.GloasEpoch, slotsPerEpoch)

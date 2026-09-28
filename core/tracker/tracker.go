@@ -658,6 +658,12 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 		return scheduled(core.DutyProposer) || scheduled(core.DutyBuilderProposer)
 	}
 
+	// For DutyExecutionPayloadEnvelope, check that DutyProposer was scheduled: the proposer reveals
+	// the execution payload its block committed to, so the envelope rides on the proposer duty.
+	if duty.Type == core.DutyExecutionPayloadEnvelope {
+		return scheduled(core.DutyProposer)
+	}
+
 	// For DutyPrepareAggregator, check that if DutyAttester was scheduled.
 	if duty.Type == core.DutyPrepareAggregator {
 		return scheduled(core.DutyAttester)
