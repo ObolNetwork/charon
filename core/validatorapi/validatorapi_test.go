@@ -918,6 +918,93 @@ func TestComponent_SubmitProposal(t *testing.T) {
 	}
 }
 
+func TestComponent_SubmitExecutionPayloadEnvelope(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		shareIdx = 1
+		slot     = 123
+		epoch    = eth2p0.Epoch(3)
+	)
+
+	// Use normal keys (not split tbls); map the share to itself.
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}}
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+	require.NoError(t, err)
+
+	// Agreed self-built gloas proposal with a consistent envelope keyed to the proposal slot.
+	contents := testutil.RandomGloasBlockContents()
+	contents.ExecutionPayloadEnvelope.Payload.SlotNumber = slot
+
+	vapi.RegisterGetDutyDefinition(func(context.Context, core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
+	})
+	vapi.RegisterAwaitEPBSProposal(func(context.Context, uint64) (*eth2api.VersionedEPBSProposal, error) {
+		return &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            contents,
+		}, nil
+	})
+
+	// Sign the agreed envelope message under DOMAIN_BEACON_BUILDER.
+	sigRoot, err := contents.ExecutionPayloadEnvelope.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconBuilder, epoch)
+	require.NoError(t, err)
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	s, err := tbls.Sign(secret, sigData[:])
+	require.NoError(t, err)
+
+	var submitted bool
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.DutyExecutionPayloadEnvelope, duty.Type)
+		require.EqualValues(t, slot, duty.Slot)
+
+		envelope, ok := set[corePubKey].SignedData.(core.SignedExecutionPayloadEnvelope)
+		require.True(t, ok)
+		require.Equal(t, contents.ExecutionPayloadEnvelope, envelope.SignedExecutionPayloadEnvelope.Message)
+		require.Equal(t, contents.Blobs, envelope.Blobs)
+		require.Equal(t, contents.KZGProofs, envelope.KZGProofs)
+
+		submitted = true
+
+		return nil
+	})
+
+	err = vapi.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedExecutionPayloadEnvelope{
+				Message:   contents.ExecutionPayloadEnvelope,
+				Signature: eth2p0.BLSSignature(s),
+			},
+		},
+		KZGProofs: contents.KZGProofs,
+		Blobs:     contents.Blobs,
+	})
+	require.NoError(t, err)
+	require.True(t, submitted)
+}
+
 // func TestComponent_SubmitProposal_Gnosis(t *testing.T) {
 // 	ctx := context.Background()
 

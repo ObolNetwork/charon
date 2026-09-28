@@ -39,6 +39,19 @@ func TestSlotOffsetPayloadAttestation(t *testing.T) {
 	require.Zero(t, offsetFunc(Duty{Slot: gloasSlot - 1, Type: DutyPayloadAttestation}))
 }
 
+func TestSlotOffsetExecutionPayloadEnvelope(t *testing.T) {
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+
+	const gloasSlot = 64 * 16
+
+	// The self-built payload envelope is due at the payload deadline (1/2 into the slot), the same
+	// offset the payload attestation anchors to, so the bcast delay reads as margin-to-deadline.
+	require.Equal(t, 6*time.Second, offsetFunc(Duty{Slot: gloasSlot, Type: DutyExecutionPayloadEnvelope}))
+
+	// The duty doesn't exist before the gloas fork.
+	require.Zero(t, offsetFunc(Duty{Slot: gloasSlot - 1, Type: DutyExecutionPayloadEnvelope}))
+}
+
 func TestSlotOffsetPreGloasMatchesFractions(t *testing.T) {
 	// A 12 second slot duration must resolve to the exact fractions used before the gloas fork,
 	// since 3333 and 6667 basis points are the consensus spec's approximations of 1/3 and 2/3.

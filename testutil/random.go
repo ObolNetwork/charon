@@ -192,11 +192,9 @@ func RandomGloasCoreVersionedAttestation() core.VersionedAttestation {
 	vIdx := RandomVIdx()
 
 	return core.VersionedAttestation{
-		VersionedAttestation: eth2spec.VersionedAttestation{
-			Version:        eth2spec.DataVersionGloas,
-			ValidatorIndex: &vIdx,
-			Gloas:          RandomGloasAttestation(),
-		},
+		Version:        eth2spec.DataVersionGloas,
+		ValidatorIndex: &vIdx,
+		Gloas:          RandomGloasAttestation(),
 	}
 }
 
@@ -1119,6 +1117,22 @@ func RandomGloasBlockContents() *eth2gloas.BlockContents {
 		},
 		KZGProofs: []deneb.KZGProof{},
 		Blobs:     []deneb.Blob{},
+	}
+}
+
+// RandomExecutionPayloadEnvelope returns random signed execution payload envelope submission
+// contents (signed envelope plus blobs and proofs), taken from consistent gloas block contents so
+// the envelope satisfies hash-tree-root and client-side guards.
+func RandomExecutionPayloadEnvelope() *eth2gloas.SignedExecutionPayloadEnvelopeContents {
+	bc := RandomGloasBlockContents()
+
+	return &eth2gloas.SignedExecutionPayloadEnvelopeContents{
+		SignedExecutionPayloadEnvelope: &gloas.SignedExecutionPayloadEnvelope{
+			Message:   bc.ExecutionPayloadEnvelope,
+			Signature: RandomEth2Signature(),
+		},
+		KZGProofs: bc.KZGProofs,
+		Blobs:     bc.Blobs,
 	}
 }
 

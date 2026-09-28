@@ -15,6 +15,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2v1gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
@@ -824,6 +825,85 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		// No need to clone since sub auto clones.
 		err = sub(ctx, duty, set)
 		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// SubmitExecutionPayloadEnvelope receives a partially signed execution payload envelope from the
+// validator client, verifies the partial signature against the consensus-agreed envelope and
+// forwards it for threshold aggregation and broadcast. From the gloas fork, a self-building proposer
+// reveals its execution payload by publishing this envelope separately from the beacon block that
+// commits to it.
+func (c Component) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
+	if opts == nil || opts.SignedExecutionPayloadEnvelope == nil {
+		return errors.New("nil execution payload envelope")
+	}
+
+	versioned := opts.SignedExecutionPayloadEnvelope
+	if versioned.Version < eth2spec.DataVersionGloas {
+		return badRequestError("unsupported execution payload envelope version",
+			errors.New("unsupported version", z.Str("version", versioned.Version.String())))
+	}
+
+	signedEnvelope := versioned.Gloas
+	if signedEnvelope == nil || signedEnvelope.Message == nil || signedEnvelope.Message.Payload == nil {
+		return badRequestError("nil execution payload envelope message", nil)
+	}
+
+	slot := signedEnvelope.Message.Payload.SlotNumber
+
+	duty := core.NewExecutionPayloadEnvelopeDuty(slot)
+
+	var span trace.Span
+
+	ctx, span = core.StartDutyTrace(ctx, duty, "core/validatorapi.SubmitExecutionPayloadEnvelope")
+	defer span.End()
+
+	ctx = log.WithCtx(ctx, z.Any("duty", duty))
+
+	// The envelope is self-built, so it is signed by the block proposer for the slot.
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(slot))
+	if err != nil {
+		return err
+	}
+
+	// Use the consensus-agreed envelope, blobs and proofs so every node aggregates and broadcasts
+	// byte-identical data; only the signature comes from the validator client.
+	prop, err := c.awaitEPBSProposalFunc(ctx, slot)
+	if err != nil {
+		return errors.Wrap(err, "could not fetch block definition from dutydb")
+	}
+
+	if !prop.ExecutionPayloadIncluded || prop.GloasContents == nil || prop.GloasContents.ExecutionPayloadEnvelope == nil {
+		return errors.New("consensus proposal has no execution payload envelope to reveal")
+	}
+
+	contents := &eth2v1gloas.SignedExecutionPayloadEnvelopeContents{
+		SignedExecutionPayloadEnvelope: &gloas.SignedExecutionPayloadEnvelope{
+			Message:   prop.GloasContents.ExecutionPayloadEnvelope,
+			Signature: signedEnvelope.Signature,
+		},
+		KZGProofs: prop.GloasContents.KZGProofs,
+		Blobs:     prop.GloasContents.Blobs,
+	}
+
+	parSigData := core.NewPartialSignedExecutionPayloadEnvelope(contents, c.shareIdx)
+
+	// Verifying the partial signature against the agreed envelope message inherently rejects a
+	// validator client that signed a different envelope than the cluster agreed on.
+	if err := c.verifyPartialSig(ctx, parSigData, pubkey); err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Execution payload envelope received from validator client", z.U64("slot", slot))
+
+	set := core.ParSignedDataSet{pubkey: parSigData}
+	for _, sub := range c.subs {
+		// No need to clone since sub auto clones.
+		if err := sub(ctx, duty, set); err != nil {
 			return err
 		}
 	}

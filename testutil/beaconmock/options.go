@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -700,6 +701,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 			contents.Block.Body.RANDAOReveal = opts.RandaoReveal
 			contents.Block.Body.Graffiti = opts.Graffiti
 
+			// The execution payload slot equals the beacon block slot in gloas; charon keys the
+			// envelope duty off it, so keep the mock spec-consistent.
+			contents.ExecutionPayloadEnvelope.Payload.SlotNumber = uint64(opts.Slot)
+
 			// Anchor the envelope to the block so client-side consistency guards pass.
 			blockRoot, err := contents.Block.HashTreeRoot()
 			if err != nil {
@@ -733,6 +738,13 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		},
 		SubmitProposerPreferencesFunc: func(context.Context, []*gloas.SignedProposerPreferences) error {
 			return nil
+		},
+		SubmitExecutionPayloadEnvelopeFunc: func(context.Context, *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
+			return nil
+		},
+		SignedExecutionPayloadEnvelopeFunc: func(context.Context, string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error) {
+			// Default to no revealed payload; inclusion tests override this per-scenario.
+			return nil, eth2client.ErrNoExecutionPayloadEnvelope
 		},
 		AttesterDutiesFunc: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			return []*eth2v1.AttesterDuty{}, nil
