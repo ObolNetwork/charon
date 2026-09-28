@@ -2390,34 +2390,35 @@ type testHandler struct {
 	Handler
 	eth2client.BeaconStateProvider
 
-	SyncCommitteeSelectionsFunc      func(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error)
-	AttestationDataFunc              func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
-	AttesterDutiesFunc               func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
-	SubmitAttestationsFunc           func(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error
-	ProposalFunc                     func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
-	ProposerDutiesV2Func             func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
-	EPBSProposalFunc                 func(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error)
-	SubmitProposalFunc               func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
-	SubmitBlindedProposalFunc        func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
-	ProposerDutiesFunc               func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
-	NodeVersionFunc                  func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
-	ValidatorsFunc                   func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
-	BeaconStateFunc                  func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error)
-	ValidatorsByPubKeyFunc           func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
-	SubmitVoluntaryExitFunc          func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
-	SubmitValidatorRegistrationsFunc func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
-	BeaconCommitteeSelectionsFunc    func(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error)
-	SubmitAggregateAttestationsFunc  func(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error
-	SubmitSyncCommitteeMessagesFunc  func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
-	SyncCommitteeDutiesFunc          func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
-	SyncCommitteeContributionFunc    func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
-	PayloadAttestationDataFunc       func(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error)
-	PTCDutiesFunc                    func(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error)
-	SubmitPayloadAttMsgsFunc         func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
-	SubmitProposerPreferencesFunc    func(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
-	ProxyFunc                        func(ctx context.Context, req *http.Request) (*http.Response, error)
-	AddressFunc                      func() string
-	HeadersFunc                      func() map[string]string
+	SyncCommitteeSelectionsFunc        func(ctx context.Context, opts *eth2api.SyncCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeSelection], error)
+	AttestationDataFunc                func(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error)
+	AttesterDutiesFunc                 func(ctx context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error)
+	SubmitAttestationsFunc             func(ctx context.Context, opts *eth2api.SubmitAttestationsOpts) error
+	ProposalFunc                       func(ctx context.Context, opts *eth2api.ProposalOpts) (*eth2api.Response[*eth2api.VersionedProposal], error)
+	ProposerDutiesV2Func               func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
+	EPBSProposalFunc                   func(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error)
+	SubmitProposalFunc                 func(ctx context.Context, proposal *eth2api.SubmitProposalOpts) error
+	SubmitBlindedProposalFunc          func(ctx context.Context, proposal *eth2api.SubmitBlindedProposalOpts) error
+	ProposerDutiesFunc                 func(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error)
+	NodeVersionFunc                    func(ctx context.Context, opts *eth2api.NodeVersionOpts) (*eth2api.Response[string], error)
+	ValidatorsFunc                     func(ctx context.Context, opts *eth2api.ValidatorsOpts) (*eth2api.Response[map[eth2p0.ValidatorIndex]*eth2v1.Validator], error)
+	BeaconStateFunc                    func(ctx context.Context, stateId string) (*eth2spec.VersionedBeaconState, error)
+	ValidatorsByPubKeyFunc             func(ctx context.Context, stateID string, pubkeys []eth2p0.BLSPubKey) (map[eth2p0.ValidatorIndex]*eth2v1.Validator, error)
+	SubmitVoluntaryExitFunc            func(ctx context.Context, exit *eth2p0.SignedVoluntaryExit) error
+	SubmitValidatorRegistrationsFunc   func(ctx context.Context, registrations []*eth2api.VersionedSignedValidatorRegistration) error
+	BeaconCommitteeSelectionsFunc      func(ctx context.Context, opts *eth2api.BeaconCommitteeSelectionsOpts) (*eth2api.Response[[]*eth2v1.BeaconCommitteeSelection], error)
+	SubmitAggregateAttestationsFunc    func(ctx context.Context, opts *eth2api.SubmitAggregateAttestationsOpts) error
+	SubmitSyncCommitteeMessagesFunc    func(ctx context.Context, messages []*altair.SyncCommitteeMessage) error
+	SyncCommitteeDutiesFunc            func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
+	SyncCommitteeContributionFunc      func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
+	PayloadAttestationDataFunc         func(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error)
+	PTCDutiesFunc                      func(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error)
+	SubmitPayloadAttMsgsFunc           func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
+	SubmitProposerPreferencesFunc      func(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
+	SubmitExecutionPayloadEnvelopeFunc func(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error
+	ProxyFunc                          func(ctx context.Context, req *http.Request) (*http.Response, error)
+	AddressFunc                        func() string
+	HeadersFunc                        func() map[string]string
 }
 
 func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
@@ -2434,6 +2435,10 @@ func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, opts 
 
 func (h testHandler) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
 	return h.SubmitProposerPreferencesFunc(ctx, preferences)
+}
+
+func (h testHandler) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
+	return h.SubmitExecutionPayloadEnvelopeFunc(ctx, opts)
 }
 
 func (h testHandler) PTCDuties(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error) {
@@ -2978,6 +2983,155 @@ func TestSubmitProposerPreferencesRouter(t *testing.T) {
 			res := post(ctx, t, baseURL, "application/octet-stream", "gloas", make([]byte, maxProposerPreferencesBody+1))
 			require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
 			require.Empty(t, submitted)
+		})
+	})
+}
+
+func TestSubmitExecutionPayloadEnvelopeRouter(t *testing.T) {
+	contents := testutil.RandomExecutionPayloadEnvelope()
+
+	wantRoot, err := contents.SignedExecutionPayloadEnvelope.Message.HashTreeRoot()
+	require.NoError(t, err)
+
+	newHandler := func(received *[]*eth2api.SubmitExecutionPayloadEnvelopeOpts) testHandler {
+		return testHandler{
+			SubmitExecutionPayloadEnvelopeFunc: func(_ context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
+				*received = append(*received, opts)
+
+				return nil
+			},
+		}
+	}
+
+	post := func(ctx context.Context, t *testing.T, baseURL, contentType, version, blobDataIncluded string, body []byte) *http.Response {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/beacon/execution_payload_envelopes", bytes.NewReader(body))
+		require.NoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		if version != "" {
+			req.Header.Set(versionHeader, version)
+		}
+
+		if blobDataIncluded != "" {
+			req.Header.Set(blobDataIncludedHeader, blobDataIncluded)
+		}
+
+		res, err := new(http.Client).Do(req)
+		require.NoError(t, err)
+
+		return res
+	}
+
+	assertEnvelope := func(t *testing.T, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) {
+		t.Helper()
+
+		require.Equal(t, eth2spec.DataVersionGloas, opts.SignedExecutionPayloadEnvelope.Version)
+		require.NotNil(t, opts.SignedExecutionPayloadEnvelope.Gloas)
+
+		gotRoot, err := opts.SignedExecutionPayloadEnvelope.Gloas.Message.HashTreeRoot()
+		require.NoError(t, err)
+		require.Equal(t, wantRoot, gotRoot)
+	}
+
+	t.Run("stateless json", func(t *testing.T) {
+		var received []*eth2api.SubmitExecutionPayloadEnvelopeOpts
+
+		body, err := json.Marshal(contents)
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&received), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "gloas", "true", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, received, 1)
+			assertEnvelope(t, received[0])
+			require.Len(t, received[0].Blobs, len(contents.Blobs))
+			require.Len(t, received[0].KZGProofs, len(contents.KZGProofs))
+		})
+	})
+
+	t.Run("stateless ssz", func(t *testing.T) {
+		var received []*eth2api.SubmitExecutionPayloadEnvelopeOpts
+
+		body, err := contents.MarshalSSZ()
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&received), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/octet-stream", "gloas", "true", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, received, 1)
+			assertEnvelope(t, received[0])
+		})
+	})
+
+	t.Run("stateful json (blob data not included)", func(t *testing.T) {
+		var received []*eth2api.SubmitExecutionPayloadEnvelopeOpts
+
+		body, err := json.Marshal(contents.SignedExecutionPayloadEnvelope)
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&received), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "gloas", "false", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, received, 1)
+			assertEnvelope(t, received[0])
+			require.Empty(t, received[0].Blobs)
+			require.Empty(t, received[0].KZGProofs)
+		})
+	})
+
+	t.Run("stateful ssz (blob data not included)", func(t *testing.T) {
+		var received []*eth2api.SubmitExecutionPayloadEnvelopeOpts
+
+		body, err := contents.SignedExecutionPayloadEnvelope.MarshalSSZ()
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&received), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/octet-stream", "gloas", "false", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, received, 1)
+			assertEnvelope(t, received[0])
+		})
+	})
+
+	t.Run("missing blob-data-included header", func(t *testing.T) {
+		var received []*eth2api.SubmitExecutionPayloadEnvelopeOpts
+
+		body, err := json.Marshal(contents)
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&received), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "gloas", "", body)
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, received)
+		})
+	})
+
+	t.Run("missing version header", func(t *testing.T) {
+		var received []*eth2api.SubmitExecutionPayloadEnvelopeOpts
+
+		body, err := json.Marshal(contents)
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&received), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "", "true", body)
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, received)
+		})
+	})
+
+	t.Run("pre-gloas version header", func(t *testing.T) {
+		var received []*eth2api.SubmitExecutionPayloadEnvelopeOpts
+
+		body, err := json.Marshal(contents)
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&received), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "electra", "true", body)
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, received)
 		})
 	})
 }
