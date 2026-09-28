@@ -269,9 +269,7 @@ func TestReachedGloasFork(t *testing.T) {
 
 			sched := &Scheduler{eth2Cl: eth2Cl, clock: clockwork.NewFakeClockAt(t0)}
 
-			got, err := sched.reachedGloasFork(t.Context())
-			require.NoError(t, err)
-			require.Equal(t, test.want, got)
+			require.Equal(t, test.want, sched.reachedGloasFork(t.Context()))
 		})
 	}
 }

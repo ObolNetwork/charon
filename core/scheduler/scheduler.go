@@ -165,9 +165,10 @@ func (s *Scheduler) Run() error {
 	waitChainStart(ctx, s.eth2Cl, s.clock)
 	waitBeaconSync(ctx, s.eth2Cl, s.clock)
 
-	// Submit validator registrations on startup if builder is enabled.
-	// This ensures registrations are sent before the first proposal opportunity.
-	if s.builderEnabled {
+	// Submit validator registrations on startup if builder is enabled and the gloas fork, which
+	// deprecates them, has not been reached. This ensures registrations are sent before the first
+	// proposal opportunity.
+	if s.builderEnabled && !s.reachedGloasFork(ctx) {
 		go s.submitValidatorRegistrations(ctx, 0)
 	}
 
@@ -333,9 +334,11 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	}
 
 	// Submit validator registrations asynchronously to avoid blocking duty triggering.
-	// Only submit at slot 0 of each epoch, delayed to end of slot to reduce BN load.
+	// Only submit at slot 0 of each epoch, delayed to end of slot to reduce BN load. Registrations
+	// are deprecated from the gloas fork, so stop submitting once it is reached (checked here, once
+	// per epoch, rather than in the submit path which would otherwise skip-log every epoch).
 	if s.builderEnabled && s.getSubmittedRegistrationEpoch() != slot.Epoch() {
-		if slot.Slot%slot.SlotsPerEpoch == 0 {
+		if slot.Slot%slot.SlotsPerEpoch == 0 && !s.reachedGloasFork(ctx) {
 			go s.submitValidatorRegistrationsDelayed(ctx, slot)
 		}
 	}
@@ -950,16 +953,6 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context, epoch uint
 		return
 	}
 
-	// Validator registrations are deprecated from the gloas fork onwards, superseded by the
-	// proposer preferences duty; nothing consumes them post-fork, so stop submitting. Gate on the
-	// current epoch rather than the dedup epoch, which is a sentinel (0) for the startup submission.
-	if reached, err := s.reachedGloasFork(ctx); err != nil {
-		log.Warn(ctx, "Failed to resolve gloas fork for validator registrations", err)
-	} else if reached {
-		log.Debug(ctx, "Skipping deprecated validator registrations from the gloas fork")
-		return
-	}
-
 	submitRegistrationCounter.Add(1)
 
 	regs := s.builderRegProvider.Registrations()
@@ -974,35 +967,29 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context, epoch uint
 	}
 }
 
-// reachedGloasFork returns true if the current epoch is at or after the gloas fork epoch.
-// It returns false when the gloas fork is not scheduled (epoch math.MaxUint64).
-func (s *Scheduler) reachedGloasFork(ctx context.Context) (bool, error) {
+// reachedGloasFork reports whether the current epoch is at or after the gloas fork epoch, at which
+// point validator registrations are deprecated. It is best-effort: an unscheduled fork (epoch
+// math.MaxUint64) or any resolution error resolves to false, so registrations keep flowing on
+// pre-gloas and non-gloas chains rather than being dropped on a transient error.
+func (s *Scheduler) reachedGloasFork(ctx context.Context) bool {
 	timing, err := eth2wrap.FetchSlotTimingConfig(ctx, s.eth2Cl)
-	if err != nil {
-		return false, err
-	}
-
-	if timing.GloasEpoch == math.MaxUint64 {
-		return false, nil
+	if err != nil || timing.GloasEpoch == math.MaxUint64 {
+		return false
 	}
 
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, s.eth2Cl)
 	if err != nil {
-		return false, err
+		return false
 	}
 
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
-	if err != nil {
-		return false, err
-	}
-
-	if slotDuration == 0 || slotsPerEpoch == 0 {
-		return false, errors.New("invalid slot config")
+	if err != nil || slotDuration == 0 || slotsPerEpoch == 0 {
+		return false
 	}
 
 	currentEpoch := uint64(s.clock.Since(genesisTime)/slotDuration) / slotsPerEpoch
 
-	return eth2p0.Epoch(currentEpoch) >= timing.GloasEpoch, nil
+	return eth2p0.Epoch(currentEpoch) >= timing.GloasEpoch
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
