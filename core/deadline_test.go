@@ -186,6 +186,10 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 			duty:             core.NewPrepareSyncContributionDuty(currentSlot),
 			expectedDuration: twoEpochs + margin,
 		},
+		{
+			duty:             core.NewExecutionPayloadEnvelopeDuty(currentSlot),
+			expectedDuration: slotDuration + margin,
+		},
 	}
 
 	for _, tt := range tests {

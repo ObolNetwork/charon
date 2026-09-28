@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -508,6 +509,139 @@ func TestExecutionPayloadEnvelopeInclusion(t *testing.T) {
 		require.Empty(t, missed)
 		// The unrelated slot check leaves the pending submission untouched.
 		require.True(t, incl.hasEnvelopeSubmission(duty.Slot))
+	})
+}
+
+func TestExecutionPayloadEnvelopeInclusionChecker(t *testing.T) {
+	ctx := context.Background()
+
+	build := func(t *testing.T, envFunc func(context.Context, string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error)) *InclusionChecker {
+		t.Helper()
+
+		bmock, err := beaconmock.New(ctx)
+		require.NoError(t, err)
+
+		bmock.SignedExecutionPayloadEnvelopeFunc = envFunc
+
+		eth2Cl, err := eth2wrap.Instrument([]eth2wrap.Client{bmock}, nil)
+		require.NoError(t, err)
+
+		incl, err := NewInclusion(ctx, eth2Cl, func(core.Duty, core.PubKey, core.SignedData, error) {})
+		require.NoError(t, err)
+
+		return incl
+	}
+
+	submit := func(t *testing.T, incl *InclusionChecker) uint64 {
+		t.Helper()
+
+		envelope := core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope())
+		slot := envelope.SignedExecutionPayloadEnvelope.Message.Payload.SlotNumber
+		require.NoError(t, incl.core.Submitted(core.NewExecutionPayloadEnvelopeDuty(slot), "", envelope, 0))
+
+		return slot
+	}
+
+	t.Run("payload revealed", func(t *testing.T) {
+		incl := build(t, func(context.Context, string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error) {
+			return &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   testutil.RandomExecutionPayloadEnvelope().SignedExecutionPayloadEnvelope,
+			}, nil
+		})
+		slot := submit(t, incl)
+
+		var (
+			gotSlot  uint64
+			gotFound bool
+			called   bool
+		)
+
+		incl.checkEnvelopeFunc = func(_ context.Context, s uint64, f bool) {
+			gotSlot, gotFound, called = s, f, true
+		}
+
+		require.NoError(t, incl.checkExecutionPayloadEnvelope(ctx, slot))
+		require.True(t, called)
+		require.Equal(t, slot, gotSlot)
+		require.True(t, gotFound)
+	})
+
+	t.Run("payload withheld (ErrNoExecutionPayloadEnvelope)", func(t *testing.T) {
+		incl := build(t, func(context.Context, string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error) {
+			return nil, eth2client.ErrNoExecutionPayloadEnvelope
+		})
+		slot := submit(t, incl)
+
+		var gotFound, called bool
+
+		incl.checkEnvelopeFunc = func(_ context.Context, _ uint64, f bool) {
+			gotFound, called = f, true
+		}
+
+		require.NoError(t, incl.checkExecutionPayloadEnvelope(ctx, slot))
+		require.True(t, called)
+		require.False(t, gotFound)
+	})
+
+	t.Run("payload withheld (404)", func(t *testing.T) {
+		incl := build(t, func(_ context.Context, blockID string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error) {
+			return nil, &eth2api.Error{
+				StatusCode: 404,
+				Method:     "GET",
+				Endpoint:   "/eth/v1/beacon/execution_payload_envelopes/" + blockID,
+				Data:       []byte(`{"code":404,"message":"NOT_FOUND"}`),
+			}
+		})
+		slot := submit(t, incl)
+
+		var gotFound, called bool
+
+		incl.checkEnvelopeFunc = func(_ context.Context, _ uint64, f bool) {
+			gotFound, called = f, true
+		}
+
+		require.NoError(t, incl.checkExecutionPayloadEnvelope(ctx, slot))
+		require.True(t, called)
+		require.False(t, gotFound)
+	})
+
+	t.Run("non-404 error propagates", func(t *testing.T) {
+		incl := build(t, func(_ context.Context, blockID string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error) {
+			return nil, &eth2api.Error{
+				StatusCode: 500,
+				Method:     "GET",
+				Endpoint:   "/eth/v1/beacon/execution_payload_envelopes/" + blockID,
+				Data:       []byte(`{"code":500,"message":"Internal server error"}`),
+			}
+		})
+		slot := submit(t, incl)
+
+		var called bool
+
+		incl.checkEnvelopeFunc = func(context.Context, uint64, bool) { called = true }
+
+		require.Error(t, incl.checkExecutionPayloadEnvelope(ctx, slot))
+		require.False(t, called)
+	})
+
+	t.Run("no submission skips query", func(t *testing.T) {
+		var queried bool
+
+		incl := build(t, func(context.Context, string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error) {
+			queried = true
+
+			return nil, eth2client.ErrNoExecutionPayloadEnvelope
+		})
+		slot := submit(t, incl)
+
+		var called bool
+
+		incl.checkEnvelopeFunc = func(context.Context, uint64, bool) { called = true }
+
+		require.NoError(t, incl.checkExecutionPayloadEnvelope(ctx, slot+1))
+		require.False(t, called)
+		require.False(t, queried)
 	})
 }
 

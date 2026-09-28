@@ -4,6 +4,7 @@ package core_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -1397,4 +1398,32 @@ func TestSyncSubcommitteeIndex(t *testing.T) {
 	idx, err = core.SyncSubcommitteeIndex(core.DutyAttester, testutil.RandomCoreBeaconCommitteeSelection())
 	require.NoError(t, err)
 	require.Zero(t, idx)
+}
+
+func TestSignedExecutionPayloadEnvelopeMethods(t *testing.T) {
+	// NewPartial carries the share index.
+	par := core.NewPartialSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope(), 3)
+	require.Equal(t, 3, par.ShareIdx)
+
+	// Clone of a valid envelope succeeds and round-trips.
+	valid := core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope())
+
+	cloned, err := valid.Clone()
+	require.NoError(t, err)
+	require.Equal(t, valid, cloned)
+
+	root, err := valid.MessageRoot()
+	require.NoError(t, err)
+	require.NotEqual(t, [32]byte{}, root)
+
+	// Nil-inner guards return errors/empties rather than panicking.
+	var nilEnv core.SignedExecutionPayloadEnvelope
+
+	_, err = nilEnv.MessageRoot()
+	require.Error(t, err)
+
+	require.Empty(t, nilEnv.Signature())
+
+	_, err = nilEnv.Epoch(context.Background(), nil)
+	require.Error(t, err)
 }
