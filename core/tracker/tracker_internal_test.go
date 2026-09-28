@@ -264,6 +264,16 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, reason, reasonParSigDBInconsistentPreferences)
+
+		// Execution payload envelopes are consensus-gated, so inconsistent partial signatures are a
+		// bug (like a block proposal), not the expected divergence of proposer preferences.
+		envelopeDuty := core.NewExecutionPayloadEnvelopeDuty(uint64(slot))
+		events[envelopeDuty] = events[attDuty]
+		failed, step, reason, err = analyseDutyFailed(envelopeDuty, events, false)
+		require.NoError(t, err)
+		require.True(t, failed)
+		require.Equal(t, step, parSigDBExternal)
+		require.Equal(t, reason, reasonBugParSigDBInconsistent)
 	})
 
 	t.Run("Failed at bcast", func(t *testing.T) {
@@ -1124,6 +1134,19 @@ func TestIsParSigEventExpected(t *testing.T) {
 		{
 			name: "DutyRandao unexpected",
 			duty: core.NewRandaoDuty(slot),
+			out:  false,
+		},
+		{
+			name: "DutyExecutionPayloadEnvelope expected",
+			duty: core.NewExecutionPayloadEnvelopeDuty(slot),
+			events: map[core.Duty][]event{
+				core.NewProposerDuty(slot): {event{step: fetcher, pubkey: pubkey}},
+			},
+			out: true,
+		},
+		{
+			name: "DutyExecutionPayloadEnvelope unexpected",
+			duty: core.NewExecutionPayloadEnvelopeDuty(slot),
 			out:  false,
 		},
 		{

@@ -219,6 +219,34 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 
 		return err
 
+	case core.DutyExecutionPayloadEnvelope:
+		pubkey, aggData, err := setToOne(set)
+		if err != nil {
+			return err
+		}
+
+		envelope, ok := aggData.(core.SignedExecutionPayloadEnvelope)
+		if !ok {
+			return errors.New("invalid execution payload envelope")
+		}
+
+		err = b.eth2Cl.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+			SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   envelope.SignedExecutionPayloadEnvelope,
+			},
+			KZGProofs: envelope.KZGProofs,
+			Blobs:     envelope.Blobs,
+		})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted execution payload envelope to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyExecutionPayloadEnvelope)),
+				z.Any("pubkey", pubkey),
+			)
+		}
+
+		return err
+
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
 
@@ -468,7 +496,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		var offset time.Duration
 
 		switch duty {
-		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation:
+		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation, core.DutyExecutionPayloadEnvelope:
 			offset = slotOffsetFunc(core.Duty{Slot: slot, Type: duty})
 		case core.DutyProposerPreferences:
 			// Proposer preferences target a future proposal slot. They are computable from the

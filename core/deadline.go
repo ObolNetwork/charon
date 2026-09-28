@@ -140,6 +140,10 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 			// (the earliest the assignment is derivable) and are keyed by the proposal slot,
 			// so entries live from submission (up to ~2 epochs early) until the slot passes.
 			duration = slotDuration
+		case DutyExecutionPayloadEnvelope:
+			// The payload envelope is revealed within the proposal slot itself, after the block
+			// it commits to and before the payload timeliness committee deadline.
+			duration = slotDuration
 		default:
 			duration = slotDuration
 		}
