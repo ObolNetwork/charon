@@ -542,6 +542,9 @@ func reportMissed(ctx context.Context, sub submission) {
 			)
 		}
 	case core.DutyExecutionPayloadEnvelope:
+		// TODO(gloas): this conflates a withheld payload with a non-canonical block (both surface as
+		// no retrievable envelope). Distinguish them once PTC data is consumable so operators can
+		// tell a reveal failure from a lost block.
 		log.Warn(ctx, "Broadcasted execution payload envelope never revealed on-chain", nil,
 			z.Any("pubkey", sub.Pubkey),
 			z.U64("block_slot", sub.Duty.Slot),

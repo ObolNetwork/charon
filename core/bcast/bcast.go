@@ -496,7 +496,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		var offset time.Duration
 
 		switch duty {
-		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation:
+		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation, core.DutyExecutionPayloadEnvelope:
 			offset = slotOffsetFunc(core.Duty{Slot: slot, Type: duty})
 		case core.DutyProposerPreferences:
 			// Proposer preferences target a future proposal slot. They are computable from the
