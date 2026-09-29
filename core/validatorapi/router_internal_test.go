@@ -359,6 +359,8 @@ func TestRawRouter(t *testing.T) {
 		_, _ = rand.Read(graffiti[:])
 
 		proposal := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+		proposal.EPBS.ExecutionValue = big.NewInt(5678)
+		proposal.EPBS.ConsensusValue = big.NewInt(1234)
 
 		handler := testHandler{
 			EPBSProposalFunc: func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
@@ -380,16 +382,64 @@ func TestRawRouter(t *testing.T) {
 			require.Equal(t, http.StatusOK, res.StatusCode)
 			require.Equal(t, "gloas", res.Header.Get("Eth-Consensus-Version"))
 			require.Equal(t, "true", res.Header.Get("Eth-Execution-Payload-Included"))
+			require.Equal(t, "5678", res.Header.Get("Eth-Execution-Payload-Value"))
+			require.Equal(t, "1234", res.Header.Get("Eth-Consensus-Block-Value"))
 
 			var resp struct {
 				Version                  string          `json:"version"`
 				ExecutionPayloadIncluded bool            `json:"execution_payload_included"`
+				ExecutionPayloadValue    string          `json:"execution_payload_value"`
+				ConsensusBlockValue      string          `json:"consensus_block_value"`
 				Data                     json.RawMessage `json:"data"`
 			}
 			require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
 			require.Equal(t, "gloas", resp.Version)
 			require.True(t, resp.ExecutionPayloadIncluded)
+			require.Equal(t, "5678", resp.ExecutionPayloadValue)
+			require.Equal(t, "1234", resp.ConsensusBlockValue)
 			require.NotEmpty(t, resp.Data)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("propose block v4 nil values", func(t *testing.T) {
+		var (
+			randao   eth2p0.BLSSignature
+			graffiti [32]byte
+		)
+
+		_, _ = rand.Read(randao[:])
+		_, _ = rand.Read(graffiti[:])
+
+		// The eth2 client leaves the values nil when the bid cannot be attributed; the
+		// required value headers must still be served, as zero.
+		proposal := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+		proposal.EPBS.ExecutionValue = nil
+		proposal.EPBS.ConsensusValue = nil
+
+		handler := testHandler{
+			EPBSProposalFunc: func(context.Context, *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+				return wrapResponse(proposal.EPBS), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			url := fmt.Sprintf("%s/eth/v4/validator/blocks/456?randao_reveal=%#x&graffiti=%#x&include_payload=true", baseURL, randao, graffiti)
+
+			res, err := http.Post(url, "application/json", bytes.NewReader([]byte("{}")))
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, "0", res.Header.Get("Eth-Execution-Payload-Value"))
+			require.Equal(t, "0", res.Header.Get("Eth-Consensus-Block-Value"))
+
+			var resp struct {
+				ExecutionPayloadValue string `json:"execution_payload_value"`
+				ConsensusBlockValue   string `json:"consensus_block_value"`
+			}
+			require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+			require.Equal(t, "0", resp.ExecutionPayloadValue)
+			require.Equal(t, "0", resp.ConsensusBlockValue)
 		}
 
 		testRawRouter(t, handler, callback)
