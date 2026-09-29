@@ -10,7 +10,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/drand/kyber v1.3.2
 	github.com/drand/kyber-bls12381 v0.3.4
-	github.com/ethereum/go-ethereum v1.17.5
+	github.com/ethereum/go-ethereum v1.17.6
 	github.com/ferranbt/fastssz v1.0.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/golang/snappy v1.0.1-0.20260716114414-9ae09f520e93
