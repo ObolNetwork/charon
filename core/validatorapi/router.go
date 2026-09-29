@@ -14,6 +14,7 @@ import (
 	stdlog "log"
 	"maps"
 	"math"
+	"math/big"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -1173,10 +1174,14 @@ func proposeBlockV4(p eth2client.EPBSProposalProvider) handlerFunc {
 		resHeaders := make(http.Header)
 		resHeaders.Add(versionHeader, proposal.Version.String())
 		resHeaders.Add(executionPayloadIncludedHeader, strconv.FormatBool(proposal.ExecutionPayloadIncluded))
+		resHeaders.Add(executionPayloadValueHeader, weiString(proposal.ExecutionValue))
+		resHeaders.Add(consensusBlockValueHeader, weiString(proposal.ConsensusValue))
 
 		return proposeBlockV4Response{
 			Version:                  proposal.Version.String(),
 			ExecutionPayloadIncluded: proposal.ExecutionPayloadIncluded,
+			ExecutionPayloadValue:    weiString(proposal.ExecutionValue),
+			ConsensusBlockValue:      weiString(proposal.ConsensusValue),
 			Data:                     blockData,
 		}, resHeaders, nil
 	}
@@ -1186,7 +1191,20 @@ func proposeBlockV4(p eth2client.EPBSProposalProvider) handlerFunc {
 type proposeBlockV4Response struct {
 	Version                  string `json:"version"`
 	ExecutionPayloadIncluded bool   `json:"execution_payload_included"`
+	ExecutionPayloadValue    string `json:"execution_payload_value"`
+	ConsensusBlockValue      string `json:"consensus_block_value"`
 	Data                     any    `json:"data"`
+}
+
+// weiString returns the value as a decimal Wei string, or "0" when unset. The value
+// headers are required in the response, but the eth2 client leaves a proposal value
+// nil when the bid it commits to cannot be attributed.
+func weiString(value *big.Int) string {
+	if value == nil {
+		return "0"
+	}
+
+	return value.String()
 }
 
 // getProposeBlockParams returns slot, randao and graffiti from propose block request params.
