@@ -117,6 +117,9 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 		Handler   handlerFunc
 		Methods   []string
 		Encodings []contentType
+		// ResponseEncodings are the supported response content types, negotiated via the
+		// request Accept header; json only if empty.
+		ResponseEncodings []contentType
 		// MaxBody limits the request body size in bytes, enforced at the read boundary
 		// before the body is buffered; zero means unlimited.
 		MaxBody int64
@@ -213,11 +216,12 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
-			Name:      "propose_block_v4",
-			Path:      "/eth/v4/validator/blocks/{slot}",
-			Handler:   proposeBlockV4(h),
-			Methods:   []string{http.MethodPost},
-			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			Name:              "propose_block_v4",
+			Path:              "/eth/v4/validator/blocks/{slot}",
+			Handler:           proposeBlockV4(h),
+			Methods:           []string{http.MethodPost},
+			Encodings:         []contentType{contentTypeJSON, contentTypeSSZ},
+			ResponseEncodings: []contentType{contentTypeJSON, contentTypeSSZ},
 			// The request body carries the VC builder config, see maxBuilderConfigBody.
 			MaxBody: maxBuilderConfigBody,
 		},
@@ -387,7 +391,7 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 
 	r := mux.NewRouter()
 	for _, e := range endpoints {
-		handler := r.Handle(e.Path, wrap(e.Name, e.Handler, e.Encodings, e.MaxBody))
+		handler := r.Handle(e.Path, wrap(e.Name, e.Handler, e.Encodings, e.ResponseEncodings, e.MaxBody))
 		if len(e.Methods) != 0 {
 			handler.Methods(e.Methods...)
 		}
@@ -430,12 +434,13 @@ func badRequestError(msg string, err error) error {
 }
 
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
-// the request body, and returning the response struct or an error.
+// the request body, and returning the response struct or an error. The response is encoded
+// as json, or as ssz if negotiated (see writeResponse).
 type handlerFunc func(ctx context.Context, params map[string]string, header http.Header, query url.Values, typ contentType, body []byte) (res any, headers http.Header, err error)
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
-func wrap(endpoint string, handler handlerFunc, encodings []contentType, maxBody int64) http.Handler {
+func wrap(endpoint string, handler handlerFunc, encodings []contentType, responseEncodings []contentType, maxBody int64) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
@@ -517,7 +522,7 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType, maxBody
 			return
 		}
 
-		writeResponse(ctx, w, endpoint, res, headers)
+		writeResponse(ctx, w, endpoint, res, negotiateResponseType(r.Header, responseEncodings), headers)
 	}
 
 	return http.HandlerFunc(wrap)
@@ -526,24 +531,64 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType, maxBody
 // noContentResponse is a handler response resulting in 204 No Content without a body.
 type noContentResponse struct{}
 
-// writeResponse writes the 200 OK response and json response body.
-func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response any, headers http.Header) {
+// negotiateResponseType returns the response content type for the request: ssz if the Accept
+// header asks for it and the endpoint supports it, json otherwise. Quality weights (q=) in the
+// Accept header are deliberately ignored: validator clients send a single media type or list
+// ssz first, so any mention of ssz is treated as a preference for it.
+func negotiateResponseType(header http.Header, supported []contentType) contentType {
+	if strings.Contains(header.Get("Accept"), string(contentTypeSSZ)) && slices.Contains(supported, contentTypeSSZ) {
+		return contentTypeSSZ
+	}
+
+	return contentTypeJSON
+}
+
+// sszMarshaler is a response that can be encoded as ssz.
+type sszMarshaler interface {
+	MarshalSSZ() ([]byte, error)
+}
+
+// writeResponse writes the 200 OK response with the response struct encoded as the provided content type.
+func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response any, typ contentType, headers http.Header) {
 	if response == nil {
 		return
 	}
 
+	// A no-content response has no body to encode, regardless of the negotiated type.
 	if _, ok := response.(noContentResponse); ok {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	b, err := json.Marshal(response)
-	if err != nil {
-		writeError(ctx, w, endpoint, errors.Wrap(err, "marshal response body"))
+	var b []byte
+
+	switch typ {
+	case contentTypeJSON:
+		var err error
+
+		b, err = json.Marshal(response)
+		if err != nil {
+			writeError(ctx, w, endpoint, errors.Wrap(err, "marshal json response body"))
+			return
+		}
+	case contentTypeSSZ:
+		marshaller, ok := response.(sszMarshaler)
+		if !ok {
+			writeError(ctx, w, endpoint, errors.New("response type doesn't support ssz marshalling"))
+			return
+		}
+
+		var err error
+
+		b, err = marshaller.MarshalSSZ()
+		if err != nil {
+			writeError(ctx, w, endpoint, errors.Wrap(err, "marshal ssz response body"))
+			return
+		}
+	default:
+		writeError(ctx, w, endpoint, errors.New("unsupported response content type", z.Str("type", string(typ))))
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 
 	for name, values := range headers {
 		for _, val := range values {
@@ -551,7 +596,9 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 		}
 	}
 
-	if _, err = w.Write(b); err != nil {
+	w.Header().Set("Content-Type", string(typ))
+
+	if _, err := w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
 		log.Error(ctx, "Failed to write API response to client. Connection may have been closed", err)
 	}
@@ -1195,13 +1242,25 @@ func proposeBlockV4(p eth2client.EPBSProposalProvider) handlerFunc {
 	}
 }
 
-// proposeBlockV4Response is the response body of the v4 propose block endpoint.
+// proposeBlockV4Response is the response body of the v4 propose block endpoint. The json body
+// wraps the block data in this envelope, while the ssz body is the block data alone with the
+// envelope fields provided as response headers.
 type proposeBlockV4Response struct {
 	Version                  string `json:"version"`
 	ExecutionPayloadIncluded bool   `json:"execution_payload_included"`
 	ExecutionPayloadValue    string `json:"execution_payload_value"`
 	ConsensusBlockValue      string `json:"consensus_block_value"`
 	Data                     any    `json:"data"`
+}
+
+// MarshalSSZ encodes the block data as ssz, see proposeBlockV4Response.
+func (r proposeBlockV4Response) MarshalSSZ() ([]byte, error) {
+	data, ok := r.Data.(sszMarshaler)
+	if !ok {
+		return nil, errors.New("block data doesn't support ssz marshalling")
+	}
+
+	return data.MarshalSSZ()
 }
 
 // weiString returns the value as a decimal Wei string, or "0" when unset. The value
