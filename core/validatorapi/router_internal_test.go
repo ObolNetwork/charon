@@ -2965,6 +2965,31 @@ func TestProposeBlockV4ResponseMarshalSSZ(t *testing.T) {
 	})
 }
 
+// TestUnmarshalSSZLists asserts that ssz request bodies decode into the api list types and that
+// malformed bodies are rejected as bad requests.
+func TestUnmarshalSSZLists(t *testing.T) {
+	msgs := apiv1gloas.PayloadAttestationMessages{
+		testutil.RandomPayloadAttestationMessage(),
+		testutil.RandomPayloadAttestationMessage(),
+	}
+
+	body, err := msgs.MarshalSSZ()
+	require.NoError(t, err)
+
+	var decoded apiv1gloas.PayloadAttestationMessages
+
+	require.NoError(t, unmarshal(contentTypeSSZ, body, &decoded))
+	require.Equal(t, msgs, decoded)
+
+	// A body that isn't a whole number of elements is a bad request, not an unsupported media type.
+	err = unmarshal(contentTypeSSZ, body[:len(body)-1], &decoded)
+
+	var aerr apiError
+
+	require.ErrorAs(t, err, &aerr)
+	require.Equal(t, http.StatusBadRequest, aerr.StatusCode)
+}
+
 func TestWriteResponse(t *testing.T) {
 	ctx := context.Background()
 
@@ -3008,6 +3033,18 @@ func TestWriteResponse(t *testing.T) {
 		require.Equal(t, http.StatusOK, w.Code)
 		require.Empty(t, w.Body.Bytes())
 	})
+}
+
+// TestPayloadAttestationDataResponseMarshalSSZ asserts that the ssz encoding of the response
+// is the bare payload attestation data, without the json envelope.
+func TestPayloadAttestationDataResponseMarshalSSZ(t *testing.T) {
+	data := testutil.RandomPayloadAttestationData()
+	expected, err := data.MarshalSSZ()
+	require.NoError(t, err)
+
+	actual, err := payloadAttestationDataResponse{Version: "gloas", Data: data}.MarshalSSZ()
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }
 
 func TestPayloadAttestationRoutes(t *testing.T) {
@@ -3072,6 +3109,152 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Empty(t, body)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("payload_attestation_data_ssz_no_block", func(t *testing.T) {
+		handler := testHandler{
+			PayloadAttestationDataFunc: func(context.Context, *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+				return nil, eth2client.ErrNoPayloadAttestationData
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data?slot=42", nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			// No block is 204 No Content whichever encoding was requested.
+			require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Empty(t, body)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("payload_attestation_data_ssz", func(t *testing.T) {
+		expected := testutil.RandomPayloadAttestationData()
+		expected.Slot = 42
+
+		handler := testHandler{
+			PayloadAttestationDataFunc: func(context.Context, *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+				return wrapResponse(&eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   expected,
+				}), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data?slot=42", nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "application/octet-stream", resp.Header.Get("Content-Type"))
+			require.Equal(t, "gloas", resp.Header.Get(versionHeader))
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var actual gloas.PayloadAttestationData
+			require.NoError(t, actual.UnmarshalSSZ(body))
+			require.Equal(t, expected, &actual)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("submit_payload_attestations_oversized_body", func(t *testing.T) {
+		var submitted bool
+
+		handler := testHandler{
+			SubmitPayloadAttMsgsFunc: func(context.Context, *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+				submitted = true
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			body := make([]byte, maxPayloadAttestationsBody+1)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/beacon/pool/payload_attestations", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, "gloas")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
+			require.False(t, submitted)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("submit_payload_attestations_ssz", func(t *testing.T) {
+		msgs := []*gloas.PayloadAttestationMessage{
+			testutil.RandomPayloadAttestationMessage(),
+			testutil.RandomPayloadAttestationMessage(),
+		}
+
+		var received []*eth2spec.VersionedPayloadAttestationMessage
+
+		handler := testHandler{
+			SubmitPayloadAttMsgsFunc: func(_ context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+				received = opts.Messages
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			// An SSZ list of fixed size containers is the concatenation of the elements.
+			var body []byte
+
+			for _, msg := range msgs {
+				b, err := msg.MarshalSSZ()
+				require.NoError(t, err)
+
+				body = append(body, b...)
+			}
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/beacon/pool/payload_attestations", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, "gloas")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Len(t, received, len(msgs))
+
+			for i, msg := range msgs {
+				require.Equal(t, eth2spec.DataVersionGloas, received[i].Version)
+				require.Equal(t, msg, received[i].Gloas)
+			}
 		}
 
 		testRawRouter(t, handler, callback)
@@ -3156,19 +3339,20 @@ func TestUnmarshalProposerPreferencesSSZ(t *testing.T) {
 	b2, err := pref2.MarshalSSZ()
 	require.NoError(t, err)
 
-	prefs, err := unmarshalProposerPreferencesSSZ(append(b1, b2...))
+	var prefs apiv1gloas.SignedProposerPreferencesList
+
+	err = unmarshal(contentTypeSSZ, append(b1, b2...), &prefs)
 	require.NoError(t, err)
 	require.Len(t, prefs, 2)
 	require.Equal(t, pref1, prefs[0])
 	require.Equal(t, pref2, prefs[1])
 
-	// An empty body is a valid empty list.
-	prefs, err = unmarshalProposerPreferencesSSZ(nil)
-	require.NoError(t, err)
-	require.Empty(t, prefs)
+	// An empty body is rejected like for json.
+	err = unmarshal(contentTypeSSZ, nil, &prefs)
+	require.ErrorContains(t, err, "empty request body")
 
-	// Invalid lengths are rejected.
-	_, err = unmarshalProposerPreferencesSSZ(b1[:len(b1)-1])
+	// A truncated element is rejected.
+	err = unmarshal(contentTypeSSZ, b1[:len(b1)-1], &prefs)
 	require.Error(t, err)
 }
 

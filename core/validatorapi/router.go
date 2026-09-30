@@ -324,18 +324,20 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
-			Name:      "payload_attestation_data",
-			Path:      "/eth/v1/validator/payload_attestation_data",
-			Handler:   payloadAttestationData(h),
-			Methods:   []string{http.MethodGet},
-			Encodings: []contentType{contentTypeJSON},
+			Name:              "payload_attestation_data",
+			Path:              "/eth/v1/validator/payload_attestation_data",
+			Handler:           payloadAttestationData(h),
+			Methods:           []string{http.MethodGet},
+			Encodings:         []contentType{contentTypeJSON},
+			ResponseEncodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
 			Name:      "submit_payload_attestations",
 			Path:      "/eth/v1/beacon/pool/payload_attestations",
 			Handler:   submitPayloadAttestationMessages(h),
 			Methods:   []string{http.MethodPost},
-			Encodings: []contentType{contentTypeJSON},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			MaxBody:   maxPayloadAttestationsBody,
 		},
 		{
 			Name:      "submit_execution_payload_envelope",
@@ -2002,15 +2004,30 @@ func payloadAttestationData(p eth2client.PayloadAttestationDataProvider) handler
 
 		version := data.Version.String()
 
-		return struct {
-			Version string                        `json:"version"`
-			Data    *gloas.PayloadAttestationData `json:"data"`
-		}{
+		return payloadAttestationDataResponse{
 			Version: version,
 			Data:    data.Gloas,
 		}, http.Header{versionHeader: []string{version}}, nil
 	}
 }
+
+// payloadAttestationDataResponse is the response body of the payload attestation data endpoint.
+// The json body wraps the data in this envelope, while the ssz body is the data alone with the
+// version provided as response header.
+type payloadAttestationDataResponse struct {
+	Version string                        `json:"version"`
+	Data    *gloas.PayloadAttestationData `json:"data"`
+}
+
+// MarshalSSZ encodes the payload attestation data as ssz, see payloadAttestationDataResponse.
+func (r payloadAttestationDataResponse) MarshalSSZ() ([]byte, error) {
+	return r.Data.MarshalSSZ()
+}
+
+// maxPayloadAttestationsBody is a sanity cap on the payload attestation messages request body,
+// enforced by the route's MaxBody at the read boundary. It is far above the encoded size of the
+// spec list limit (PTC_SIZE items), which the api list type enforces when decoding.
+const maxPayloadAttestationsBody = 1 << 20 // 1MB
 
 // submitPayloadAttestationMessages returns a handler function for the payload attestation pool submission endpoint.
 func submitPayloadAttestationMessages(s eth2client.PayloadAttestationMessagesSubmitter) handlerFunc {
@@ -2033,7 +2050,7 @@ func submitPayloadAttestationMessages(s eth2client.PayloadAttestationMessagesSub
 			}
 		}
 
-		var msgs []*gloas.PayloadAttestationMessage
+		var msgs eth2v1gloas.PayloadAttestationMessages
 
 		err = unmarshal(typ, body, &msgs)
 		if err != nil {
@@ -2104,14 +2121,9 @@ func submitProposerPreferences(h Handler) handlerFunc {
 			}
 		}
 
-		var prefs []*gloas.SignedProposerPreferences
+		var prefs eth2v1gloas.SignedProposerPreferencesList
 
-		if typ == contentTypeSSZ {
-			prefs, err = unmarshalProposerPreferencesSSZ(body)
-		} else {
-			err = unmarshal(typ, body, &prefs)
-		}
-
+		err = unmarshal(typ, body, &prefs)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "unmarshal proposer preferences")
 		}
@@ -2123,38 +2135,6 @@ func submitProposerPreferences(h Handler) handlerFunc {
 
 		return nil, nil, nil
 	}
-}
-
-// unmarshalProposerPreferencesSSZ decodes an SSZ List[SignedProposerPreferences]. The element
-// type is fixed-size, so the list is encoded as plain concatenation without an offset table.
-// An empty body is a valid empty list, matching the JSON `[]` behavior.
-func unmarshalProposerPreferencesSSZ(body []byte) ([]*gloas.SignedProposerPreferences, error) {
-	itemSize := (&gloas.SignedProposerPreferences{Message: &gloas.ProposerPreferences{}}).SizeSSZ()
-
-	if len(body)%itemSize != 0 {
-		return nil, apiError{
-			StatusCode: http.StatusBadRequest,
-			Message:    "invalid ssz proposer preferences list length",
-			Err:        errors.New("invalid ssz list length", z.Int("length", len(body)), z.Int("item_size", itemSize)),
-		}
-	}
-
-	prefs := make([]*gloas.SignedProposerPreferences, 0, len(body)/itemSize)
-
-	for i := 0; i < len(body); i += itemSize {
-		pref := new(gloas.SignedProposerPreferences)
-		if err := pref.UnmarshalSSZ(body[i : i+itemSize]); err != nil {
-			return nil, apiError{
-				StatusCode: http.StatusBadRequest,
-				Message:    "failed parsing ssz proposer preferences",
-				Err:        err,
-			}
-		}
-
-		prefs = append(prefs, pref)
-	}
-
-	return prefs, nil
 }
 
 // submitExecutionPayloadEnvelope receives a partially signed execution payload envelope (with its
@@ -2475,7 +2455,7 @@ func unmarshal(typ contentType, body []byte, v any) error {
 		err := unmarshaller.UnmarshalSSZ(body)
 		if err != nil {
 			return apiError{
-				StatusCode: http.StatusUnsupportedMediaType,
+				StatusCode: http.StatusBadRequest,
 				Message:    "failed parsing ssz request body",
 				Err:        err,
 			}
