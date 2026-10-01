@@ -61,6 +61,8 @@ type MemDB struct {
 	contribQueries    []contribQuery
 
 	// DutyPayloadAttestation
+	// payloadAttDuties holds the agreed data per slot; the zero value marks a slot the
+	// cluster agreed has no block to attest, see noPayloadAttestationData.
 	payloadAttDuties  map[uint64]core.VersionedPayloadAttestationData
 	payloadAttQueries []payloadAttQuery
 
@@ -129,6 +131,12 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 
 		db.resolveContribQueriesUnsafe()
 	case core.DutyPayloadAttestation:
+		// An empty set is the agreed no-block outcome for the slot: there is nothing to attest,
+		// so queries for the slot resolve without data. Data already stored takes precedence.
+		if _, ok := db.payloadAttDuties[duty.Slot]; len(unsignedSet) == 0 && !ok {
+			db.payloadAttDuties[duty.Slot] = core.VersionedPayloadAttestationData{}
+		}
+
 		for _, unsignedData := range unsignedSet {
 			err := db.storePayloadAttestationUnsafe(unsignedData)
 			if err != nil {
@@ -221,7 +229,7 @@ func (db *MemDB) awaitProposal(ctx context.Context, slot uint64) (core.Versioned
 }
 
 // AwaitPayloadAttestationData implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error) {
+func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 
@@ -238,22 +246,27 @@ func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (
 
 	select {
 	case <-db.shutdown:
-		return nil, errors.New("dutydb shutdown")
+		return nil, false, errors.New("dutydb shutdown")
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, false, ctx.Err()
 	case value := <-response:
+		// The zero value is the agreed no-block outcome: no data to attest.
+		if noPayloadAttestationData(value) {
+			return nil, false, nil
+		}
+
 		// Clone before returning.
 		clone, err := value.Clone()
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 
 		data, ok := clone.(core.VersionedPayloadAttestationData)
 		if !ok {
-			return nil, errors.New("invalid payload attestation data")
+			return nil, false, errors.New("invalid payload attestation data")
 		}
 
-		return &data.VersionedPayloadAttestationData, nil
+		return &data.VersionedPayloadAttestationData, true, nil
 	}
 }
 
@@ -676,7 +689,7 @@ func (db *MemDB) storePayloadAttestationUnsafe(unsignedData core.UnsignedData) e
 
 	slot := uint64(dataSlot)
 
-	if existing, ok := db.payloadAttDuties[slot]; ok {
+	if existing, ok := db.payloadAttDuties[slot]; ok && !noPayloadAttestationData(existing) {
 		existingRoot, err := existing.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "existing payload attestation data root")
@@ -888,6 +901,15 @@ type payloadAttQuery struct {
 	Key      uint64
 	Response chan<- core.VersionedPayloadAttestationData
 	Cancel   <-chan struct{}
+}
+
+// noPayloadAttestationData returns true for the zero value, which marks a slot the cluster
+// agreed has no block to attest (an empty unsigned data set was stored for it). Comparing
+// with the zero value keeps the check independent of the fork specific data fields.
+func noPayloadAttestationData(data core.VersionedPayloadAttestationData) bool {
+	var zero core.VersionedPayloadAttestationData
+
+	return data == zero
 }
 
 // aggQuery is a waiting aggQuery with a response channel.

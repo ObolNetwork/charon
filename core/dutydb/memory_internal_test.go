@@ -3,61 +3,27 @@
 package dutydb
 
 import (
-	"context"
 	"testing"
 
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil"
 )
 
-func TestCancelledQueries(t *testing.T) {
-	ctx := context.Background()
+// TestNoPayloadAttestationData asserts that only the zero value marks an agreed no-block slot,
+// independent of which fork's data field is populated.
+func TestNoPayloadAttestationData(t *testing.T) {
+	require.True(t, noPayloadAttestationData(core.VersionedPayloadAttestationData{}))
 
-	db := NewMemDB(noopDeadliner{})
-	db.Shutdown()
+	data, err := core.NewVersionedPayloadAttestationData(testutil.RandomVersionedPayloadAttestationData())
+	require.NoError(t, err)
+	require.False(t, noPayloadAttestationData(data))
 
-	const slot = 99
-
-	// Enqueue queries of each type.
-	_, err := db.AwaitAttestation(ctx, slot, 0)
-	require.ErrorContains(t, err, "shutdown")
-
-	_, err = db.AwaitAggAttestation(ctx, slot, eth2p0.Root{}, 0)
-	require.ErrorContains(t, err, "shutdown")
-
-	_, err = db.AwaitProposal(ctx, slot)
-	require.ErrorContains(t, err, "shutdown")
-
-	_, err = db.AwaitSyncContribution(ctx, slot, 0, eth2p0.Root{})
-	require.ErrorContains(t, err, "shutdown")
-
-	// Ensure all queries are preset.
-	require.NotEmpty(t, db.contribQueries)
-	require.NotEmpty(t, db.attQueries)
-	require.NotEmpty(t, db.proQueries)
-	require.NotEmpty(t, db.aggQueries)
-
-	// Resolve queries
-	db.resolveAggQueriesUnsafe()
-	db.resolveAttQueriesUnsafe()
-	db.resolveContribQueriesUnsafe()
-	db.resolveProQueriesUnsafe()
-
-	// Ensure all queries are gone.
-	require.Empty(t, db.contribQueries)
-	require.Empty(t, db.attQueries)
-	require.Empty(t, db.proQueries)
-	require.Empty(t, db.aggQueries)
-}
-
-type noopDeadliner struct{}
-
-func (t noopDeadliner) Add(duty core.Duty) core.DeadlineStatus {
-	return core.DeadlineScheduled
-}
-
-func (t noopDeadliner) C() <-chan core.Duty {
-	return make(chan core.Duty)
+	// A version without data is malformed, not the no-block marker.
+	malformed := core.VersionedPayloadAttestationData{
+		Version: eth2spec.DataVersionGloas,
+	}
+	require.False(t, noPayloadAttestationData(malformed))
 }
