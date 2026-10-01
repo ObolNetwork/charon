@@ -660,6 +660,69 @@ func TestSubmitValidatorRegistrations(t *testing.T) {
 	}
 }
 
+// TestNoRegistrationsFromGloas asserts that no validator registrations are submitted once the
+// gloas fork is active, neither on startup nor at the start of each epoch.
+func TestNoRegistrationsFromGloas(t *testing.T) {
+	var (
+		t0     time.Time
+		valSet = beaconmock.ValidatorSetA
+	)
+
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithDeterministicAttesterDuties(1),
+		beaconmock.WithSlotsPerEpoch(4),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+	)
+	require.NoError(t, err)
+
+	eth2Cl.PTCDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+		return nil, nil
+	}
+
+	var callCount atomic.Int64
+
+	eth2Cl.SubmitValidatorRegistrationsFunc = func(context.Context, []*eth2api.VersionedSignedValidatorRegistration) error {
+		callCount.Add(1)
+
+		return nil
+	}
+
+	schedSlotCh := make(chan core.Slot)
+	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
+		select {
+		case <-ctx.Done():
+			return
+		case schedSlotCh <- slot:
+		}
+	}
+	clock := newTestClock(t0)
+	dd := new(delayer)
+	sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: beaconmock.BuilderRegistrationSetA}, eth2Cl, schedSlotFunc, true)
+
+	doneCh := make(chan error, 1)
+
+	go func() {
+		doneCh <- sched.Run()
+
+		close(schedSlotCh)
+	}()
+
+	// With 4 slots per epoch, 9 slots cover the start of 3 epochs.
+	slotCount := 0
+	for range schedSlotCh {
+		slotCount++
+		if slotCount == 9 {
+			sched.Stop()
+		}
+	}
+
+	require.NoError(t, <-doneCh)
+	require.Zero(t, callCount.Load(), "registrations must not be submitted from the gloas fork")
+}
+
 // delayer implements scheduler.delayFunc and records the deadline and returns it immediately.
 type delayer struct {
 	mu        sync.Mutex

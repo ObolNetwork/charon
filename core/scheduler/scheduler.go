@@ -165,9 +165,10 @@ func (s *Scheduler) Run() error {
 	waitChainStart(ctx, s.eth2Cl, s.clock)
 	waitBeaconSync(ctx, s.eth2Cl, s.clock)
 
-	// Submit validator registrations on startup if builder is enabled.
-	// This ensures registrations are sent before the first proposal opportunity.
-	if s.builderEnabled {
+	// Submit validator registrations on startup if builder is enabled and the gloas fork, which
+	// deprecates them, is not active yet. This ensures registrations are sent before the first
+	// proposal opportunity.
+	if s.builderEnabled && !s.reachedGloasFork(ctx) {
 		go s.submitValidatorRegistrations(ctx, 0)
 	}
 
@@ -333,9 +334,11 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	}
 
 	// Submit validator registrations asynchronously to avoid blocking duty triggering.
-	// Only submit at slot 0 of each epoch, delayed to end of slot to reduce BN load.
+	// Only submit at slot 0 of each epoch, delayed to end of slot to reduce BN load. Registrations
+	// are deprecated from the gloas fork, so stop submitting once it is reached (checked here, once
+	// per epoch, rather than in the submit path which would otherwise skip-log every epoch).
 	if s.builderEnabled && s.getSubmittedRegistrationEpoch() != slot.Epoch() {
-		if slot.Slot%slot.SlotsPerEpoch == 0 {
+		if slot.Slot%slot.SlotsPerEpoch == 0 && !s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
 			go s.submitValidatorRegistrationsDelayed(ctx, slot)
 		}
 	}
@@ -962,6 +965,24 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context, epoch uint
 		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(regs)), z.U64("epoch", epoch))
 		s.setSubmittedRegistrationEpoch(epoch)
 	}
+}
+
+// reachedGloasFork reports whether the gloas fork is active at the current clock epoch, for use on
+// startup before the first slot ticks. Errors resolve to false so registrations keep flowing.
+func (s *Scheduler) reachedGloasFork(ctx context.Context) bool {
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, s.eth2Cl)
+	if err != nil {
+		return false
+	}
+
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil || slotDuration == 0 || slotsPerEpoch == 0 {
+		return false
+	}
+
+	epoch := uint64(s.clock.Since(genesisTime)/slotDuration) / slotsPerEpoch
+
+	return s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(epoch))
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
