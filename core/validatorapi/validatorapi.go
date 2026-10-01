@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2v1gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
@@ -192,7 +193,7 @@ type Component struct {
 	// Registered input functions
 	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
 	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)
+	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)
 	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
 	awaitEPBSProposalFunc     func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
 	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
@@ -221,7 +222,7 @@ func (c *Component) RegisterAwaitAttestation(fn func(ctx context.Context, slot, 
 
 // RegisterAwaitPayloadAttestationData registers a function to query payload attestation data.
 // It only supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitPayloadAttestationData(fn func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error)) {
+func (c *Component) RegisterAwaitPayloadAttestationData(fn func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)) {
 	c.awaitPayloadAttDataFunc = fn
 }
 
@@ -1341,9 +1342,13 @@ func (c Component) PayloadAttestationData(ctx context.Context, opts *eth2api.Pay
 
 	defer span.End()
 
-	data, err := c.awaitPayloadAttDataFunc(ctx, uint64(opts.Slot))
+	data, ok, err := c.awaitPayloadAttDataFunc(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
+	} else if !ok {
+		// The cluster agreed there is no block to attest. The provider interface only has an
+		// error to signal it, using the eth2 client's sentinel which the router maps to 204.
+		return nil, eth2client.ErrNoPayloadAttestationData
 	}
 
 	return wrapResponse(data), nil

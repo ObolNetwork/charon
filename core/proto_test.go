@@ -137,6 +137,28 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}
 }
 
+// TestUnsignedDataSetToProtoEmpty asserts that an empty unsigned data set (the agreed no-block
+// outcome of a payload attestation duty) round trips through proto as an empty, non-nil set.
+func TestUnsignedDataSetToProtoEmpty(t *testing.T) {
+	pb, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{})
+	require.NoError(t, err)
+	require.NotNil(t, pb)
+
+	set, err := core.UnsignedDataSetFromProto(core.DutyPayloadAttestation, pb)
+	require.NoError(t, err)
+	require.NotNil(t, set)
+	require.Empty(t, set)
+
+	// A nil set encodes the same way.
+	pbNil, err := core.UnsignedDataSetToProto(nil)
+	require.NoError(t, err)
+	require.Equal(t, pb.String(), pbNil.String())
+
+	// Other duties keep rejecting empty sets.
+	_, err = core.UnsignedDataSetFromProto(core.DutyAttester, pb)
+	require.ErrorContains(t, err, "invalid unsigned data set")
+}
+
 func TestUnsignedDataToProto(t *testing.T) {
 	tests := []struct {
 		Type core.DutyType

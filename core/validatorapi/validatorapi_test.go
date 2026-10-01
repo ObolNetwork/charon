@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
@@ -3126,16 +3127,33 @@ func TestComponent_PayloadAttestationData(t *testing.T) {
 	expected := testutil.RandomVersionedPayloadAttestationData()
 	expected.Gloas.Slot = 42
 
-	vapi.RegisterAwaitPayloadAttestationData(func(_ context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error) {
+	vapi.RegisterAwaitPayloadAttestationData(func(_ context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
 		require.Equal(t, uint64(42), slot)
 
-		return expected, nil
+		return expected, true, nil
 	})
 
 	resp, err := vapi.PayloadAttestationData(ctx, &eth2api.PayloadAttestationDataOpts{Slot: 42})
 	require.NoError(t, err)
 	require.Equal(t, eth2spec.DataVersionGloas, resp.Data.Version)
 	require.Equal(t, expected, resp.Data)
+}
+
+// TestComponent_PayloadAttestationDataNoBlock asserts that an agreed no-block outcome is
+// reported with the eth2 client sentinel error, which the router maps to 204 No Content.
+func TestComponent_PayloadAttestationDataNoBlock(t *testing.T) {
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitPayloadAttestationData(func(context.Context, uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
+		return nil, false, nil
+	})
+
+	_, err = vapi.PayloadAttestationData(t.Context(), &eth2api.PayloadAttestationDataOpts{Slot: 42})
+	require.ErrorIs(t, err, eth2client.ErrNoPayloadAttestationData)
 }
 
 func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {

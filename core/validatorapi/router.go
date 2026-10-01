@@ -523,9 +523,17 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType, maxBody
 	return http.HandlerFunc(wrap)
 }
 
+// noContentResponse is a handler response resulting in 204 No Content without a body.
+type noContentResponse struct{}
+
 // writeResponse writes the 200 OK response and json response body.
 func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response any, headers http.Header) {
 	if response == nil {
+		return
+	}
+
+	if _, ok := response.(noContentResponse); ok {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
@@ -1921,7 +1929,10 @@ func payloadAttestationData(p eth2client.PayloadAttestationDataProvider) handler
 		}
 
 		eth2Resp, err := p.PayloadAttestationData(ctx, opts)
-		if err != nil {
+		if errors.Is(err, eth2client.ErrNoPayloadAttestationData) {
+			// No block seen for the slot, so nothing to attest: mirror the beacon api's 204 No Content.
+			return noContentResponse{}, nil, nil
+		} else if err != nil {
 			return nil, nil, err
 		}
 
