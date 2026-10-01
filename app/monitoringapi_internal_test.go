@@ -411,6 +411,87 @@ func TestConsensusAndExecutionVersionMetric(t *testing.T) {
 	}
 }
 
+// TestConsensusAndExecutionVersionMetric_EEAppearsLater covers the BN-only → BN+EE transition:
+// after EL becomes visible on V2, the next monitoring refresh must set app_execution_layer_version
+// without requiring --execution-client-rpc-endpoint or a Charon restart.
+func TestConsensusAndExecutionVersionMetric_EEAppearsLater(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	const (
+		bnAddr  = "http://beacon1:5052"
+		eeLabel = "ethrex/v27.0.0/136666a0"
+	)
+
+	var (
+		mu      sync.Mutex
+		withEE  bool
+		v2Calls int
+	)
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	bmock.NodeVersionV2Func = func(_ context.Context, _ *eth2api.NodeVersionV2Opts) (*eth2api.Response[*eth2v1.NodeVersionV2], error) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		v2Calls++
+
+		resp := &eth2api.Response[*eth2v1.NodeVersionV2]{
+			Data: &eth2v1.NodeVersionV2{
+				BeaconNode: &eth2v1.ClientVersion{
+					Code: "GR", Name: "Grandine", Version: "2.0.5", Commit: "70a5c7ea",
+				},
+			},
+		}
+		if withEE {
+			resp.Data.ExecutionClient = &eth2v1.ClientVersion{
+				Code: "EX", Name: "ethrex", Version: "v27.0.0", Commit: "136666a0",
+			}
+		}
+
+		return resp, nil
+	}
+
+	eth1Cl := eth1wrapmocks.NewEthClientRunner(t)
+	eth1Cl.On("ClientVersion", mock.Anything).Return("", eth1wrap.ErrNoExecutionEngineAddr).Maybe()
+
+	clock := clockwork.NewFakeClock()
+	consensusAndExecutionVersionMetric(ctx, bmock, []string{bnAddr}, eth1Cl, clock)
+
+	// First refresh: BN present, EE absent (no eth1 fallback configured).
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		calls := v2Calls
+		mu.Unlock()
+
+		return calls >= 1
+	}, time.Second, 5*time.Millisecond)
+
+	require.InDelta(t, 0.0,
+		promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(eeLabel)),
+		0.0, "EL gauge should be unset before EE appears on V2")
+
+	mu.Lock()
+	withEE = true
+	firstCalls := v2Calls
+	mu.Unlock()
+
+	err = clock.BlockUntilContext(ctx, 1)
+	require.NoError(t, err)
+	clock.Advance(10 * time.Minute)
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		calls := v2Calls
+		mu.Unlock()
+
+		return calls > firstCalls &&
+			promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(eeLabel)) == 1.0
+	}, time.Second, 5*time.Millisecond, "EL gauge should populate after V2 starts reporting execution_client")
+}
+
 func advanceClock(t *testing.T, ctx context.Context, clock *clockwork.FakeClock, duration time.Duration) {
 	t.Helper()
 

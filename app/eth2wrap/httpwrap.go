@@ -5,11 +5,16 @@ package eth2wrap
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
 	apiv1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2http "github.com/attestantio/go-eth2-client/http"
@@ -201,4 +206,63 @@ func (h *httpAdapter) ClientForAddress(_ string) Client {
 
 func (h *httpAdapter) Headers() map[string]string {
 	return h.headers
+}
+
+// NodeVersionV2 fetches structured BN/EE version info without using go-eth2-client's permanent
+// in-process cache. That cache freezes a missing execution_client for the process lifetime, which
+// leaves app_execution_layer_version blank until restart if the EL was unavailable on first fetch.
+func (h *httpAdapter) NodeVersionV2(ctx context.Context, opts *api.NodeVersionV2Opts) (*api.Response[*apiv1.NodeVersionV2], error) {
+	if opts == nil {
+		return nil, eth2client.ErrNoOptions
+	}
+
+	endpoint, err := url.JoinPath(strings.TrimRight(h.address, "/"), "/eth/v2/node/version")
+	if err != nil {
+		return nil, errors.Wrap(err, "join node version v2 url")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "create node version v2 request")
+	}
+
+	for k, v := range h.headers {
+		req.Header.Set(k, v)
+	}
+
+	httpCl := &http.Client{Timeout: h.timeout}
+
+	httpResp, err := httpCl.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch node version v2")
+	}
+	defer httpResp.Body.Close()
+
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, errors.Wrap(err, "read node version v2 response")
+	}
+
+	if httpResp.StatusCode != http.StatusOK {
+		return nil, errors.New("node version v2 http error",
+			z.Int("status_code", httpResp.StatusCode),
+			z.Str("body", string(body)),
+		)
+	}
+
+	var envelope struct {
+		Data *apiv1.NodeVersionV2 `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, errors.Wrap(err, "decode node version v2 response")
+	}
+
+	if envelope.Data == nil || envelope.Data.BeaconNode == nil {
+		return nil, errors.New("node version v2 missing beacon_node")
+	}
+
+	return &api.Response[*apiv1.NodeVersionV2]{
+		Data:     envelope.Data,
+		Metadata: make(map[string]any),
+	}, nil
 }
