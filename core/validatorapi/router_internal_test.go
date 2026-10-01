@@ -2836,6 +2836,33 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 		testRawRouter(t, handler, callback)
 	})
 
+	t.Run("payload_attestation_data_no_block", func(t *testing.T) {
+		handler := testHandler{
+			PayloadAttestationDataFunc: func(context.Context, *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+				return nil, eth2client.ErrNoPayloadAttestationData
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data?slot=42", nil)
+			require.NoError(t, err)
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			// Mirrors the beacon api: no block seen for the slot is 204 No Content, not an error.
+			require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Empty(t, body)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
 	t.Run("submit_payload_attestations", func(t *testing.T) {
 		msg := testutil.RandomPayloadAttestationMessage()
 

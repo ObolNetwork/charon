@@ -83,6 +83,10 @@ type event struct {
 
 	// parSig is an optional field only set by validatorAPI, parSigDBInternal and parSigExReceive events.
 	parSig *core.ParSignedData
+
+	// emptySet is set by consensus and dutyDB events for an empty unsigned data set, i.e. the
+	// cluster agreed there is nothing to perform for the duty (e.g. no block to attest).
+	emptySet bool
 }
 
 // Tracker represents the step that listens to events from core workflow steps.
@@ -262,6 +266,12 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 		return false, failedStep, reason{}, nil
 	}
 
+	// The cluster agreed on an empty unsigned data set, so there is nothing to perform:
+	// a no-op duty reported like other no-op duties (step fetcher, not expected to be performed).
+	if failedStep == dutyDB && failedErr == nil && storedEmptySet(allEvents[duty]) {
+		return false, fetcher, reason{}, nil
+	}
+
 	reason := reasonUnknown
 
 	switch failedStep {
@@ -330,16 +340,27 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 	return true, failedStep, reason, failedErr
 }
 
+// storedEmptySet returns true if the dutyDB stored an empty unsigned data set for the duty.
+func storedEmptySet(events []event) bool {
+	for _, e := range events {
+		if e.step == dutyDB && e.emptySet && e.stepErr == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
 // analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
 // and the reason which might actually be due a pre-requisite duty that failed.
 func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
-	reason := reasonBugFetchError
+	failedReason := reasonBugFetchError
 	// Check for beacon api errors.
 	var eth2Error eth2api.Error
 	if errors.As(fetchErr, &eth2Error) {
-		reason = reasonFetchBNError
+		failedReason = reasonFetchBNError
 	} else if !errors.Is(fetchErr, context.Canceled) && !errors.Is(fetchErr, context.DeadlineExceeded) {
-		reason = reasonBugFetchError
+		failedReason = reasonBugFetchError
 	}
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
@@ -357,7 +378,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 		return analyseFetcherFailedSyncContribution(duty, allEvents, fetchErr)
 	}
 
-	return true, fetcher, reason, fetchErr
+	return true, fetcher, failedReason, fetchErr
 }
 
 // analyseFetcherFailedProposer returns the reason behind why proposer duty failed which might actually
@@ -752,6 +773,16 @@ func (t *Tracker) FetcherFetched(duty core.Duty, set core.DutyDefinitionSet, ste
 
 // ConsensusProposed implements core.Tracker interface.
 func (t *Tracker) ConsensusProposed(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
+	// An empty set carries no pubkeys, so record a single duty level event for it.
+	if len(set) == 0 {
+		select {
+		case <-t.quit:
+		case t.input <- event{duty: duty, step: consensus, stepErr: stepErr, emptySet: true}:
+		}
+
+		return
+	}
+
 	for pubkey := range set {
 		select {
 		case <-t.quit:
@@ -768,6 +799,16 @@ func (t *Tracker) ConsensusProposed(duty core.Duty, set core.UnsignedDataSet, st
 
 // DutyDBStored implements core.Tracker interface.
 func (t *Tracker) DutyDBStored(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
+	// An empty set carries no pubkeys, so record a single duty level event for it.
+	if len(set) == 0 {
+		select {
+		case <-t.quit:
+		case t.input <- event{duty: duty, step: dutyDB, stepErr: stepErr, emptySet: true}:
+		}
+
+		return
+	}
+
 	for pubkey := range set {
 		select {
 		case <-t.quit:

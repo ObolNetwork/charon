@@ -133,6 +133,60 @@ func TestTrackerFailedDuty(t *testing.T) {
 	})
 }
 
+// TestAnalyseDutyFailedPayloadAttestationNoBlock asserts the outcomes of a payload attestation
+// duty where the cluster proposes an empty unsigned data set (no block seen for the slot).
+func TestAnalyseDutyFailedPayloadAttestationNoBlock(t *testing.T) {
+	duty := core.NewPayloadAttestationDuty(123)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	t.Run("agreed no block is a no-op", func(t *testing.T) {
+		events := map[core.Duty][]event{duty: {
+			{duty: duty, step: fetcher, pubkey: pubkey},
+			{duty: duty, step: consensus, emptySet: true},
+			{duty: duty, step: dutyDB, emptySet: true},
+		}}
+
+		failed, step, r, err := analyseDutyFailed(duty, events, true)
+		require.NoError(t, err)
+		require.False(t, failed)
+		// Reported like other no-op duties (nothing expected to be performed).
+		require.Equal(t, fetcher, step)
+		require.Equal(t, reason{}, r)
+	})
+
+	t.Run("empty proposal without decision fails at consensus", func(t *testing.T) {
+		events := map[core.Duty][]event{duty: {
+			{duty: duty, step: fetcher, pubkey: pubkey},
+			{duty: duty, step: consensus, emptySet: true},
+		}}
+
+		failed, step, _, _ := analyseDutyFailed(duty, events, true)
+		require.True(t, failed)
+		require.Equal(t, consensus, step)
+	})
+}
+
+// TestTrackerEmptySetEvents asserts that an empty unsigned data set still produces consensus and
+// dutydb events, so an agreed no-block outcome is visible to the duty analysis.
+func TestTrackerEmptySetEvents(t *testing.T) {
+	duty := core.NewPayloadAttestationDuty(123)
+
+	tr := &Tracker{input: make(chan event, 4), quit: make(chan struct{})}
+
+	tr.ConsensusProposed(duty, core.UnsignedDataSet{}, nil)
+	tr.DutyDBStored(duty, core.UnsignedDataSet{}, nil)
+
+	require.Len(t, tr.input, 2)
+
+	e1 := <-tr.input
+	require.Equal(t, consensus, e1.step)
+	require.True(t, e1.emptySet)
+
+	e2 := <-tr.input
+	require.Equal(t, dutyDB, e2.step)
+	require.True(t, e2.emptySet)
+}
+
 func TestAnalyseDutyFailed(t *testing.T) {
 	slot := 1
 	attDuty := core.NewAttesterDuty(uint64(slot))

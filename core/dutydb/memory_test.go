@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -666,7 +667,7 @@ func TestMemDBPayloadAttestation(t *testing.T) {
 	for i := range queries {
 		awaitResponse[i] = make(chan response)
 		go func(i int) {
-			data, err := db.AwaitPayloadAttestationData(ctx, slots[i])
+			data, _, err := db.AwaitPayloadAttestationData(ctx, slots[i])
 			errCh <- err
 
 			awaitResponse[i] <- response{data: data}
@@ -705,8 +706,9 @@ func TestMemDBPayloadAttestation(t *testing.T) {
 	}
 
 	// Await after store resolves immediately.
-	data, err := db.AwaitPayloadAttestationData(ctx, slots[0])
+	data, ok, err := db.AwaitPayloadAttestationData(ctx, slots[0])
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.Equal(t, datas[0], data)
 
 	// Storing identical data for the same slot is idempotent.
@@ -730,4 +732,81 @@ func TestMemDBPayloadAttestation(t *testing.T) {
 		testutil.RandomCorePubKey(t): clashingUnsigned,
 	})
 	require.ErrorContains(t, err, "clashing payload attestation data")
+}
+
+func TestMemDBPayloadAttestationNoBlock(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	duty := core.NewPayloadAttestationDuty(slot)
+
+	// A pending query resolves once the cluster agreed there is no block for the slot,
+	// which is stored as an empty unsigned data set: no data, no error.
+	type result struct {
+		ok  bool
+		err error
+	}
+
+	resCh := make(chan result, 1)
+
+	go func() {
+		_, ok, err := db.AwaitPayloadAttestationData(ctx, slot)
+		resCh <- result{ok: ok, err: err}
+	}()
+
+	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{}))
+
+	res := <-resCh
+	require.NoError(t, res.err)
+	require.False(t, res.ok)
+
+	// Querying after the empty store resolves immediately.
+	_, ok, err := db.AwaitPayloadAttestationData(ctx, slot)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// Other slots are unaffected.
+	timeoutCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+
+	_, _, err = db.AwaitPayloadAttestationData(timeoutCtx, slot+1)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// The slot is decided: data stored afterwards clashes with the no-block outcome.
+	data := testutil.RandomVersionedPayloadAttestationData()
+	data.Gloas.Slot = slot
+
+	unsigned, err := core.NewVersionedPayloadAttestationData(data)
+	require.NoError(t, err)
+
+	err = db.Store(ctx, duty, core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): unsigned,
+	})
+	require.ErrorContains(t, err, "clashing payload attestation data")
+
+	_, ok, err = db.AwaitPayloadAttestationData(ctx, slot)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// Likewise an empty set clashes with data already stored for a slot.
+	dataDuty := core.NewPayloadAttestationDuty(slot + 2)
+	data.Gloas.Slot = slot + 2
+
+	unsigned, err = core.NewVersionedPayloadAttestationData(data)
+	require.NoError(t, err)
+
+	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): unsigned,
+	})
+	require.NoError(t, err)
+
+	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{})
+	require.ErrorContains(t, err, "clashing payload attestation data")
+
+	actual, ok, err := db.AwaitPayloadAttestationData(ctx, slot+2)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, data, actual)
 }

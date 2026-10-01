@@ -113,13 +113,13 @@ func WithTracing() WireOption {
 
 			return vp, withSpanStatus(span, err)
 		}
-		w.DutyDBAwaitPayloadAttestation = func(parent context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, error) {
+		w.DutyDBAwaitPayloadAttestation = func(parent context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitPayloadAttestationData")
 			defer span.End()
 
-			data, err := clone.DutyDBAwaitPayloadAttestation(ctx, slot)
+			data, ok, err := clone.DutyDBAwaitPayloadAttestation(ctx, slot)
 
-			return data, withSpanStatus(span, err)
+			return data, ok, withSpanStatus(span, err)
 		}
 		w.ParSigDBStoreInternal = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigdb.StoreInternal")

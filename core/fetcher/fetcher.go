@@ -190,6 +190,8 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return nil
 		}
 	case core.DutyPayloadAttestation:
+		// An empty set (no block seen for the slot) is proposed as well, so the cluster
+		// agrees on the no-block outcome rather than each node acting on its own view.
 		unsignedSet, err = f.fetchPayloadAttestationData(ctx, duty.Slot, defSet)
 		if err != nil {
 			return errors.Wrap(err, "fetch payload attestation data")
@@ -528,7 +530,9 @@ func (f *Fetcher) fetchPayloadAttestationData(ctx context.Context, slot uint64, 
 	eth2Resp, err := f.eth2Cl.PayloadAttestationData(ctx, opts)
 	if errors.Is(err, eth2client.ErrNoPayloadAttestationData) {
 		// The beacon node has not seen a block for the slot, so there is nothing to attest.
-		return nil, errors.New("no block seen for payload attestation slot", z.U64("slot", slot))
+		log.Debug(ctx, "No block seen for payload attestation slot", z.U64("slot", slot))
+
+		return core.UnsignedDataSet{}, nil
 	} else if err != nil {
 		return nil, err
 	}
