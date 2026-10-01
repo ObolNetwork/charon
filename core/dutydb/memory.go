@@ -132,8 +132,14 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		db.resolveContribQueriesUnsafe()
 	case core.DutyPayloadAttestation:
 		// An empty set is the agreed no-block outcome for the slot: there is nothing to attest,
-		// so queries for the slot resolve without data. Data already stored takes precedence.
-		if _, ok := db.payloadAttDuties[duty.Slot]; len(unsignedSet) == 0 && !ok {
+		// so queries for the slot resolve without data. A slot is decided once, so an empty
+		// set clashes with data already stored for it.
+		if len(unsignedSet) == 0 {
+			existing, ok := db.payloadAttDuties[duty.Slot]
+			if ok && !noPayloadAttestationData(existing) {
+				return errors.New("clashing payload attestation data", z.U64("slot", duty.Slot))
+			}
+
 			db.payloadAttDuties[duty.Slot] = core.VersionedPayloadAttestationData{}
 		}
 
@@ -689,7 +695,11 @@ func (db *MemDB) storePayloadAttestationUnsafe(unsignedData core.UnsignedData) e
 
 	slot := uint64(dataSlot)
 
-	if existing, ok := db.payloadAttDuties[slot]; ok && !noPayloadAttestationData(existing) {
+	existing, ok := db.payloadAttDuties[slot]
+	if ok && noPayloadAttestationData(existing) {
+		// The slot was decided as having no block.
+		return errors.New("clashing payload attestation data", z.U64("slot", slot))
+	} else if ok {
 		existingRoot, err := existing.HashTreeRoot()
 		if err != nil {
 			return errors.Wrap(err, "existing payload attestation data root")

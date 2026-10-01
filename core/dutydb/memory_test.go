@@ -774,7 +774,7 @@ func TestMemDBPayloadAttestationNoBlock(t *testing.T) {
 	_, _, err = db.AwaitPayloadAttestationData(timeoutCtx, slot+1)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
-	// Data stored afterwards takes precedence over the no-block outcome.
+	// The slot is decided: data stored afterwards clashes with the no-block outcome.
 	data := testutil.RandomVersionedPayloadAttestationData()
 	data.Gloas.Slot = slot
 
@@ -784,17 +784,28 @@ func TestMemDBPayloadAttestationNoBlock(t *testing.T) {
 	err = db.Store(ctx, duty, core.UnsignedDataSet{
 		testutil.RandomCorePubKey(t): unsigned,
 	})
+	require.ErrorContains(t, err, "clashing payload attestation data")
+
+	_, ok, err = db.AwaitPayloadAttestationData(ctx, slot)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// Likewise an empty set clashes with data already stored for a slot.
+	dataDuty := core.NewPayloadAttestationDuty(slot + 2)
+	data.Gloas.Slot = slot + 2
+
+	unsigned, err = core.NewVersionedPayloadAttestationData(data)
 	require.NoError(t, err)
 
-	actual, ok, err := db.AwaitPayloadAttestationData(ctx, slot)
+	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): unsigned,
+	})
 	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, data, actual)
 
-	// An empty set stored after data doesn't discard the data.
-	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{}))
+	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{})
+	require.ErrorContains(t, err, "clashing payload attestation data")
 
-	actual, ok, err = db.AwaitPayloadAttestationData(ctx, slot)
+	actual, ok, err := db.AwaitPayloadAttestationData(ctx, slot+2)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, data, actual)
