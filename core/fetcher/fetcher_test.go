@@ -1067,6 +1067,47 @@ func TestFetchPayloadAttestation(t *testing.T) {
 	require.True(t, subCalled)
 }
 
+// TestFetchPayloadAttestationNoBlock asserts that a beacon node reporting no block for the
+// slot (204 No Content) results in an empty unsigned data set being proposed, so the cluster
+// agrees on the no-block outcome instead of each node deciding on its own view.
+func TestFetchPayloadAttestationNoBlock(t *testing.T) {
+	const slot = 1
+
+	defSet := core.DutyDefinitionSet{
+		testutil.RandomCorePubKey(t): core.NewPTCDefinition(&eth2v1.PTCDuty{Slot: slot, ValidatorIndex: 2}),
+	}
+	duty := core.NewPayloadAttestationDuty(slot)
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	bmock.PayloadAttestationDataFunc = func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+		return nil, eth2client.ErrNoPayloadAttestationData
+	}
+
+	fetch := mustCreateFetcher(t, bmock)
+
+	var (
+		proposed    bool
+		proposedSet core.UnsignedDataSet
+	)
+
+	fetch.Subscribe(func(_ context.Context, subDuty core.Duty, set core.UnsignedDataSet) error {
+		require.Equal(t, duty, subDuty)
+
+		proposed = true
+		proposedSet = set
+
+		return nil
+	})
+
+	err = fetch.Fetch(t.Context(), duty, defSet)
+	require.NoError(t, err)
+	require.True(t, proposed, "empty set must be proposed")
+	require.NotNil(t, proposedSet)
+	require.Empty(t, proposedSet)
+}
+
 func TestFetchPayloadAttestationError(t *testing.T) {
 	const slot = 1
 
@@ -1080,13 +1121,6 @@ func TestFetchPayloadAttestationError(t *testing.T) {
 		dataFunc    func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error)
 		errContains string
 	}{
-		{
-			name: "no block seen for slot",
-			dataFunc: func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
-				return nil, eth2client.ErrNoPayloadAttestationData
-			},
-			errContains: "no block seen for payload attestation slot",
-		},
 		{
 			name: "nil data",
 			dataFunc: func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
