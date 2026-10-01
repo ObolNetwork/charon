@@ -28,6 +28,7 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
+	apiv1gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2mock "github.com/attestantio/go-eth2-client/mock"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -440,6 +441,115 @@ func TestRawRouter(t *testing.T) {
 			require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
 			require.Equal(t, "0", resp.ExecutionPayloadValue)
 			require.Equal(t, "0", resp.ConsensusBlockValue)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("ssz unsupported route answers json", func(t *testing.T) {
+		handler := testHandler{
+			NodeVersionFunc: func(context.Context, *eth2api.NodeVersionOpts) (*eth2api.Response[string], error) {
+				return wrapResponse("charon/test"), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/node/version", nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept", "application/octet-stream")
+
+			res, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer res.Body.Close()
+
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, "application/json", res.Header.Get("Content-Type"))
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("propose block v4 ssz with payload", func(t *testing.T) {
+		proposal := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+
+		handler := testHandler{
+			EPBSProposalFunc: func(context.Context, *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+				return wrapResponse(proposal.EPBS), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			url := fmt.Sprintf("%s/eth/v4/validator/blocks/456?randao_reveal=%#x&graffiti=%#x&include_payload=true", baseURL, testutil.RandomEth2Signature(), testutil.RandomBytes32())
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader([]byte("{}")))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/octet-stream")
+
+			res, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer res.Body.Close()
+
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, "application/octet-stream", res.Header.Get("Content-Type"))
+			require.Equal(t, "gloas", res.Header.Get("Eth-Consensus-Version"))
+			require.Equal(t, "true", res.Header.Get("Eth-Execution-Payload-Included"))
+
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			var contents apiv1gloas.BlockContents
+			require.NoError(t, contents.UnmarshalSSZ(body))
+
+			expectedRoot, err := proposal.EPBS.GloasContents.HashTreeRoot()
+			require.NoError(t, err)
+			actualRoot, err := contents.HashTreeRoot()
+			require.NoError(t, err)
+			require.Equal(t, expectedRoot, actualRoot)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("propose block v4 ssz without payload", func(t *testing.T) {
+		proposal := testutil.RandomGloasCoreVersionedEPBSProposal()
+
+		handler := testHandler{
+			EPBSProposalFunc: func(context.Context, *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+				return wrapResponse(proposal.EPBS), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			url := fmt.Sprintf("%s/eth/v4/validator/blocks/456?randao_reveal=%#x&graffiti=%#x&include_payload=false", baseURL, testutil.RandomEth2Signature(), testutil.RandomBytes32())
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader([]byte("{}")))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Accept", "application/octet-stream")
+
+			res, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer res.Body.Close()
+
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, "application/octet-stream", res.Header.Get("Content-Type"))
+			require.Equal(t, "false", res.Header.Get("Eth-Execution-Payload-Included"))
+
+			body, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+
+			var block gloas.BeaconBlock
+			require.NoError(t, block.UnmarshalSSZ(body))
+
+			expectedRoot, err := proposal.EPBS.Gloas.HashTreeRoot()
+			require.NoError(t, err)
+			actualRoot, err := block.HashTreeRoot()
+			require.NoError(t, err)
+			require.Equal(t, expectedRoot, actualRoot)
 		}
 
 		testRawRouter(t, handler, callback)
@@ -2620,33 +2730,33 @@ func (h testHandler) newBeaconHandler(t *testing.T) http.Handler {
 	mux.HandleFunc("/eth/v1/beacon/genesis", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.Genesis(ctx, &eth2api.GenesisOpts{})
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", res.Data, nil)
+		writeResponse(ctx, w, "", res.Data, contentTypeJSON, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/spec", func(w http.ResponseWriter, r *http.Request) {
 		res := map[string]any{
 			"SLOTS_PER_EPOCH":    strconv.Itoa(slotsPerEpoch),
 			"ELECTRA_FORK_EPOCH": strconv.Itoa(electraForkEpoch),
 		}
-		writeResponse(ctx, w, "", nest(res, "data"), nil)
+		writeResponse(ctx, w, "", nest(res, "data"), contentTypeJSON, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/deposit_contract", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.DepositContract(ctx, &eth2api.DepositContractOpts{})
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", res.Data, nil)
+		writeResponse(ctx, w, "", res.Data, contentTypeJSON, nil)
 	})
 	mux.HandleFunc("/eth/v1/config/fork_schedule", func(w http.ResponseWriter, r *http.Request) {
 		res, err := mock.ForkSchedule(ctx, &eth2api.ForkScheduleOpts{})
 		require.NoError(t, err)
-		writeResponse(ctx, w, "", nest(res.Data, "data"), nil)
+		writeResponse(ctx, w, "", nest(res.Data, "data"), contentTypeJSON, nil)
 	})
 	mux.HandleFunc("/eth/v2/debug/beacon/states/head", func(w http.ResponseWriter, r *http.Request) {
 		res := testutil.RandomBeaconState(t)
 		w.Header().Add(versionHeader, res.Version.String())
 
-		writeResponse(ctx, w, "", nest(res.Capella, "data"), nil)
+		writeResponse(ctx, w, "", nest(res.Capella, "data"), contentTypeJSON, nil)
 	})
 	mux.HandleFunc("/eth/v1/node/syncing", func(w http.ResponseWriter, r *http.Request) {
-		writeResponse(ctx, w, "", nest(map[string]any{"is_syncing": false, "head_slot": "1", "sync_distance": "1"}, "data"), nil)
+		writeResponse(ctx, w, "", nest(map[string]any{"is_syncing": false, "head_slot": "1", "sync_distance": "1"}, "data"), contentTypeJSON, nil)
 	})
 
 	if h.ProxyFunc != nil {
@@ -2796,6 +2906,147 @@ func TestAttestationDataRoutes(t *testing.T) {
 	testRawRouter(t, handler, callback)
 }
 
+func TestNegotiateResponseType(t *testing.T) {
+	both := []contentType{contentTypeJSON, contentTypeSSZ}
+	jsonOnly := []contentType{contentTypeJSON}
+
+	tests := []struct {
+		name      string
+		accept    string
+		supported []contentType
+		want      contentType
+	}{
+		{name: "ssz requested and supported", accept: "application/octet-stream", supported: both, want: contentTypeSSZ},
+		{name: "ssz preferred over json", accept: "application/octet-stream;q=1.0,application/json;q=0.9", supported: both, want: contentTypeSSZ},
+		{name: "ssz requested but unsupported", accept: "application/octet-stream", supported: jsonOnly, want: contentTypeJSON},
+		{name: "ssz requested, no encodings declared", accept: "application/octet-stream", supported: nil, want: contentTypeJSON},
+		{name: "json requested", accept: "application/json", supported: both, want: contentTypeJSON},
+		{name: "no accept header", accept: "", supported: both, want: contentTypeJSON},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			header := http.Header{}
+			if test.accept != "" {
+				header.Set("Accept", test.accept)
+			}
+
+			require.Equal(t, test.want, negotiateResponseType(header, test.supported))
+		})
+	}
+}
+
+// TestProposeBlockV4ResponseMarshalSSZ asserts that the ssz encoding of the response is the
+// bare block data, without the json envelope fields (which travel in the response headers).
+func TestProposeBlockV4ResponseMarshalSSZ(t *testing.T) {
+	t.Run("propose block v4 with payload", func(t *testing.T) {
+		contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload().EPBS.GloasContents
+		expected, err := contents.MarshalSSZ()
+		require.NoError(t, err)
+
+		actual, err := proposeBlockV4Response{Version: "gloas", ExecutionPayloadIncluded: true, Data: contents}.MarshalSSZ()
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("propose block v4 without payload", func(t *testing.T) {
+		block := testutil.RandomGloasCoreVersionedEPBSProposal().EPBS.Gloas
+		expected, err := block.MarshalSSZ()
+		require.NoError(t, err)
+
+		actual, err := proposeBlockV4Response{Version: "gloas", Data: block}.MarshalSSZ()
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("propose block v4 unsupported data", func(t *testing.T) {
+		_, err := proposeBlockV4Response{Data: "not a block"}.MarshalSSZ()
+		require.Error(t, err)
+	})
+}
+
+// TestUnmarshalSSZLists asserts that ssz request bodies decode into the api list types and that
+// malformed bodies are rejected as bad requests.
+func TestUnmarshalSSZLists(t *testing.T) {
+	msgs := apiv1gloas.PayloadAttestationMessages{
+		testutil.RandomPayloadAttestationMessage(),
+		testutil.RandomPayloadAttestationMessage(),
+	}
+
+	body, err := msgs.MarshalSSZ()
+	require.NoError(t, err)
+
+	var decoded apiv1gloas.PayloadAttestationMessages
+
+	require.NoError(t, unmarshal(contentTypeSSZ, body, &decoded))
+	require.Equal(t, msgs, decoded)
+
+	// A body that isn't a whole number of elements is a bad request, not an unsupported media type.
+	err = unmarshal(contentTypeSSZ, body[:len(body)-1], &decoded)
+
+	var aerr apiError
+
+	require.ErrorAs(t, err, &aerr)
+	require.Equal(t, http.StatusBadRequest, aerr.StatusCode)
+}
+
+func TestWriteResponse(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("json", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		writeResponse(ctx, w, "test", struct {
+			A string `json:"a"`
+		}{A: "b"}, contentTypeJSON, http.Header{"X-Test": []string{"1"}})
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, "application/json", w.Header().Get("Content-Type"))
+		require.Equal(t, "1", w.Header().Get("X-Test"))
+		require.JSONEq(t, `{"a":"b"}`, w.Body.String())
+	})
+
+	t.Run("ssz", func(t *testing.T) {
+		data := testutil.RandomPayloadAttestationData()
+		expected, err := data.MarshalSSZ()
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		writeResponse(ctx, w, "test", data, contentTypeSSZ, http.Header{"X-Test": []string{"1"}})
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, []string{"application/octet-stream"}, w.Header().Values("Content-Type"), "content type set exactly once")
+		require.Equal(t, "1", w.Header().Get("X-Test"))
+		require.Equal(t, expected, w.Body.Bytes())
+	})
+
+	t.Run("ssz response not marshallable", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		writeResponse(ctx, w, "test", struct{}{}, contentTypeSSZ, nil)
+
+		require.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("no body", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		writeResponse(ctx, w, "test", nil, contentTypeJSON, nil)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		require.Empty(t, w.Body.Bytes())
+	})
+}
+
+// TestPayloadAttestationDataResponseMarshalSSZ asserts that the ssz encoding of the response
+// is the bare payload attestation data, without the json envelope.
+func TestPayloadAttestationDataResponseMarshalSSZ(t *testing.T) {
+	data := testutil.RandomPayloadAttestationData()
+	expected, err := data.MarshalSSZ()
+	require.NoError(t, err)
+
+	actual, err := payloadAttestationDataResponse{Version: "gloas", Data: data}.MarshalSSZ()
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
 func TestPayloadAttestationRoutes(t *testing.T) {
 	t.Run("payload_attestation_data", func(t *testing.T) {
 		expected := testutil.RandomPayloadAttestationData()
@@ -2858,6 +3109,152 @@ func TestPayloadAttestationRoutes(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Empty(t, body)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("payload_attestation_data_ssz_no_block", func(t *testing.T) {
+		handler := testHandler{
+			PayloadAttestationDataFunc: func(context.Context, *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+				return nil, eth2client.ErrNoPayloadAttestationData
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data?slot=42", nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			// No block is 204 No Content whichever encoding was requested.
+			require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Empty(t, body)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("payload_attestation_data_ssz", func(t *testing.T) {
+		expected := testutil.RandomPayloadAttestationData()
+		expected.Slot = 42
+
+		handler := testHandler{
+			PayloadAttestationDataFunc: func(context.Context, *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
+				return wrapResponse(&eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   expected,
+				}), nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/eth/v1/validator/payload_attestation_data?slot=42", nil)
+			require.NoError(t, err)
+			req.Header.Set("Accept", "application/octet-stream")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "application/octet-stream", resp.Header.Get("Content-Type"))
+			require.Equal(t, "gloas", resp.Header.Get(versionHeader))
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			var actual gloas.PayloadAttestationData
+			require.NoError(t, actual.UnmarshalSSZ(body))
+			require.Equal(t, expected, &actual)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("submit_payload_attestations_oversized_body", func(t *testing.T) {
+		var submitted bool
+
+		handler := testHandler{
+			SubmitPayloadAttMsgsFunc: func(context.Context, *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+				submitted = true
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			body := make([]byte, maxPayloadAttestationsBody+1)
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/beacon/pool/payload_attestations", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, "gloas")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
+			require.False(t, submitted)
+		}
+
+		testRawRouter(t, handler, callback)
+	})
+
+	t.Run("submit_payload_attestations_ssz", func(t *testing.T) {
+		msgs := []*gloas.PayloadAttestationMessage{
+			testutil.RandomPayloadAttestationMessage(),
+			testutil.RandomPayloadAttestationMessage(),
+		}
+
+		var received []*eth2spec.VersionedPayloadAttestationMessage
+
+		handler := testHandler{
+			SubmitPayloadAttMsgsFunc: func(_ context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error {
+				received = opts.Messages
+
+				return nil
+			},
+		}
+
+		callback := func(ctx context.Context, baseURL string) {
+			// An SSZ list of fixed size containers is the concatenation of the elements.
+			var body []byte
+
+			for _, msg := range msgs {
+				b, err := msg.MarshalSSZ()
+				require.NoError(t, err)
+
+				body = append(body, b...)
+			}
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/beacon/pool/payload_attestations", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/octet-stream")
+			req.Header.Set(versionHeader, "gloas")
+
+			resp, err := new(http.Client).Do(req)
+			require.NoError(t, err)
+
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Len(t, received, len(msgs))
+
+			for i, msg := range msgs {
+				require.Equal(t, eth2spec.DataVersionGloas, received[i].Version)
+				require.Equal(t, msg, received[i].Gloas)
+			}
 		}
 
 		testRawRouter(t, handler, callback)
@@ -2942,19 +3339,20 @@ func TestUnmarshalProposerPreferencesSSZ(t *testing.T) {
 	b2, err := pref2.MarshalSSZ()
 	require.NoError(t, err)
 
-	prefs, err := unmarshalProposerPreferencesSSZ(append(b1, b2...))
+	var prefs apiv1gloas.SignedProposerPreferencesList
+
+	err = unmarshal(contentTypeSSZ, append(b1, b2...), &prefs)
 	require.NoError(t, err)
 	require.Len(t, prefs, 2)
 	require.Equal(t, pref1, prefs[0])
 	require.Equal(t, pref2, prefs[1])
 
-	// An empty body is a valid empty list.
-	prefs, err = unmarshalProposerPreferencesSSZ(nil)
-	require.NoError(t, err)
-	require.Empty(t, prefs)
+	// An empty body is rejected like for json.
+	err = unmarshal(contentTypeSSZ, nil, &prefs)
+	require.ErrorContains(t, err, "empty request body")
 
-	// Invalid lengths are rejected.
-	_, err = unmarshalProposerPreferencesSSZ(b1[:len(b1)-1])
+	// A truncated element is rejected.
+	err = unmarshal(contentTypeSSZ, b1[:len(b1)-1], &prefs)
 	require.Error(t, err)
 }
 
