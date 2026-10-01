@@ -166,7 +166,7 @@ func (s *Scheduler) Run() error {
 	waitBeaconSync(ctx, s.eth2Cl, s.clock)
 
 	// Submit validator registrations on startup if builder is enabled and the gloas fork, which
-	// deprecates them, has not been reached. This ensures registrations are sent before the first
+	// deprecates them, is not active yet. This ensures registrations are sent before the first
 	// proposal opportunity.
 	if s.builderEnabled && !s.reachedGloasFork(ctx) {
 		go s.submitValidatorRegistrations(ctx, 0)
@@ -338,7 +338,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	// are deprecated from the gloas fork, so stop submitting once it is reached (checked here, once
 	// per epoch, rather than in the submit path which would otherwise skip-log every epoch).
 	if s.builderEnabled && s.getSubmittedRegistrationEpoch() != slot.Epoch() {
-		if slot.Slot%slot.SlotsPerEpoch == 0 && !s.reachedGloasFork(ctx) {
+		if slot.Slot%slot.SlotsPerEpoch == 0 && !s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
 			go s.submitValidatorRegistrationsDelayed(ctx, slot)
 		}
 	}
@@ -967,16 +967,9 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context, epoch uint
 	}
 }
 
-// reachedGloasFork reports whether the current epoch is at or after the gloas fork epoch, at which
-// point validator registrations are deprecated. It is best-effort: an unscheduled fork (epoch
-// math.MaxUint64) or any resolution error resolves to false, so registrations keep flowing on
-// pre-gloas and non-gloas chains rather than being dropped on a transient error.
+// reachedGloasFork reports whether the gloas fork is active at the current clock epoch, for use on
+// startup before the first slot ticks. Errors resolve to false so registrations keep flowing.
 func (s *Scheduler) reachedGloasFork(ctx context.Context) bool {
-	timing, err := eth2wrap.FetchSlotTimingConfig(ctx, s.eth2Cl)
-	if err != nil || timing.GloasEpoch == math.MaxUint64 {
-		return false
-	}
-
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, s.eth2Cl)
 	if err != nil {
 		return false
@@ -987,9 +980,9 @@ func (s *Scheduler) reachedGloasFork(ctx context.Context) bool {
 		return false
 	}
 
-	currentEpoch := uint64(s.clock.Since(genesisTime)/slotDuration) / slotsPerEpoch
+	epoch := uint64(s.clock.Since(genesisTime)/slotDuration) / slotsPerEpoch
 
-	return eth2p0.Epoch(currentEpoch) >= timing.GloasEpoch
+	return s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(epoch))
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.
