@@ -133,17 +133,17 @@ func TestTrackerFailedDuty(t *testing.T) {
 	})
 }
 
-// TestAnalyseDutyFailedPayloadAttestationNoBlock asserts the outcomes of a payload attestation
-// duty where the cluster proposes an empty unsigned data set (no block seen for the slot).
-func TestAnalyseDutyFailedPayloadAttestationNoBlock(t *testing.T) {
+// TestAnalyseDutyFailedPayloadAttestationNoPayload asserts the outcomes of a payload attestation
+// duty where the cluster proposes the no payload data (no block seen for the slot).
+func TestAnalyseDutyFailedPayloadAttestationNoPayload(t *testing.T) {
 	duty := core.NewPayloadAttestationDuty(123)
 	pubkey := testutil.RandomCorePubKey(t)
 
-	t.Run("agreed no block is a no-op", func(t *testing.T) {
+	t.Run("agreed no payload is a no-op", func(t *testing.T) {
 		events := map[core.Duty][]event{duty: {
 			{duty: duty, step: fetcher, pubkey: pubkey},
-			{duty: duty, step: consensus, emptySet: true},
-			{duty: duty, step: dutyDB, emptySet: true},
+			{duty: duty, step: consensus, pubkey: pubkey, noPayload: true},
+			{duty: duty, step: dutyDB, pubkey: pubkey, noPayload: true},
 		}}
 
 		failed, step, r, err := analyseDutyFailed(duty, events, true)
@@ -154,37 +154,65 @@ func TestAnalyseDutyFailedPayloadAttestationNoBlock(t *testing.T) {
 		require.Equal(t, reason{}, r)
 	})
 
-	t.Run("empty proposal without decision fails at consensus", func(t *testing.T) {
+	t.Run("no payload proposal without decision fails at consensus", func(t *testing.T) {
 		events := map[core.Duty][]event{duty: {
 			{duty: duty, step: fetcher, pubkey: pubkey},
-			{duty: duty, step: consensus, emptySet: true},
+			{duty: duty, step: consensus, pubkey: pubkey, noPayload: true},
 		}}
 
 		failed, step, _, _ := analyseDutyFailed(duty, events, true)
 		require.True(t, failed)
 		require.Equal(t, consensus, step)
 	})
+
+	t.Run("agreed data without signatures fails at validator api", func(t *testing.T) {
+		events := map[core.Duty][]event{duty: {
+			{duty: duty, step: fetcher, pubkey: pubkey},
+			{duty: duty, step: consensus, pubkey: pubkey},
+			{duty: duty, step: dutyDB, pubkey: pubkey},
+		}}
+
+		failed, step, r, _ := analyseDutyFailed(duty, events, true)
+		require.True(t, failed)
+		require.Equal(t, validatorAPI, step)
+		require.Equal(t, reasonNoLocalVCSignature, r)
+	})
 }
 
-// TestTrackerEmptySetEvents asserts that an empty unsigned data set still produces consensus and
-// dutydb events, so an agreed no-block outcome is visible to the duty analysis.
-func TestTrackerEmptySetEvents(t *testing.T) {
+// TestTrackerNoPayloadEvents asserts that consensus and dutydb events flag the no payload data,
+// so an agreed no-block outcome is visible to the duty analysis.
+func TestTrackerNoPayloadEvents(t *testing.T) {
 	duty := core.NewPayloadAttestationDuty(123)
 
-	tr := &Tracker{input: make(chan event, 4), quit: make(chan struct{})}
+	noPayload, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 123)
+	require.NoError(t, err)
 
-	tr.ConsensusProposed(duty, core.UnsignedDataSet{}, nil)
-	tr.DutyDBStored(duty, core.UnsignedDataSet{}, nil)
+	withPayload, err := core.NewVersionedPayloadAttestationData(testutil.RandomVersionedPayloadAttestationData())
+	require.NoError(t, err)
 
-	require.Len(t, tr.input, 2)
+	for _, test := range []struct {
+		data core.UnsignedData
+		want bool
+	}{
+		{data: noPayload, want: true},
+		{data: withPayload, want: false},
+	} {
+		tr := &Tracker{input: make(chan event, 4), quit: make(chan struct{})}
+		set := core.UnsignedDataSet{testutil.RandomCorePubKey(t): test.data}
 
-	e1 := <-tr.input
-	require.Equal(t, consensus, e1.step)
-	require.True(t, e1.emptySet)
+		tr.ConsensusProposed(duty, set, nil)
+		tr.DutyDBStored(duty, set, nil)
 
-	e2 := <-tr.input
-	require.Equal(t, dutyDB, e2.step)
-	require.True(t, e2.emptySet)
+		require.Len(t, tr.input, 2)
+
+		e1 := <-tr.input
+		require.Equal(t, consensus, e1.step)
+		require.Equal(t, test.want, e1.noPayload)
+
+		e2 := <-tr.input
+		require.Equal(t, dutyDB, e2.step)
+		require.Equal(t, test.want, e2.noPayload)
+	}
 }
 
 func TestAnalyseDutyFailed(t *testing.T) {
