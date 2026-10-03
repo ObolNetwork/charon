@@ -296,6 +296,10 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 				eth1wrap.CheckExecutionEngineVersion(ctx, eeVersion)
 
 				eeSetFromV2 = true
+			} else {
+				log.Warn(ctx, "Beacon node version V2 omitted execution client", nil,
+					z.Str("beacon_node_address", addr),
+					z.Str("beacon_node_version", bnVersion))
 			}
 		}
 
@@ -334,6 +338,9 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 // execution client version reported by the beacon node. It tries the V2 endpoint first and
 // falls back to V1 if the beacon node doesn't support V2 yet. The returned bool is false
 // when both endpoints fail.
+//
+// V2 is fetched via eth2wrap's httpAdapter override, which bypasses go-eth2-client's permanent
+// NodeVersionV2 cache so a later-available execution_client can populate metrics on refresh.
 func fetchBeaconAndExecutionVersion(ctx context.Context, scopedClient eth2wrap.Client, addr string) (bnVersion string, eeVersion string, ok bool) {
 	v2Resp, err := scopedClient.NodeVersionV2(ctx, &eth2api.NodeVersionV2Opts{})
 	if err == nil && v2Resp != nil && v2Resp.Data != nil && v2Resp.Data.BeaconNode != nil {
