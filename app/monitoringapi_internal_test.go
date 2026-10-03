@@ -492,6 +492,98 @@ func TestConsensusAndExecutionVersionMetric_EEAppearsLater(t *testing.T) {
 	}, time.Second, 5*time.Millisecond, "EL gauge should populate after V2 starts reporting execution_client")
 }
 
+// TestConsensusAndExecutionVersionMetric_UpdatesOnClientUpgrade covers the BN+EE → BN'+EE'
+// transition: after both clients are upgraded, the next monitoring refresh must report the new
+// versions (and drop the old ones) without a Charon restart.
+func TestConsensusAndExecutionVersionMetric_UpdatesOnClientUpgrade(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	const (
+		bnAddr   = "http://beacon1:5052"
+		beaconID = "16Uiu2HAm1234567890abcdefghijklmnopqrstuvwxyz"
+		bnV1     = "Grandine/2.0.5/70a5c7ea"
+		eeV1     = "ethrex/v27.0.0/136666a0"
+		bnV2     = "Grandine/2.0.6/abcdef01"
+		eeV2     = "ethrex/v27.1.0/12345678"
+	)
+
+	var (
+		mu       sync.Mutex
+		upgraded bool
+		v2Calls  int
+	)
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	bmock.NodeVersionV2Func = func(_ context.Context, _ *eth2api.NodeVersionV2Opts) (*eth2api.Response[*eth2v1.NodeVersionV2], error) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		v2Calls++
+
+		resp := &eth2api.Response[*eth2v1.NodeVersionV2]{
+			Data: &eth2v1.NodeVersionV2{
+				BeaconNode: &eth2v1.ClientVersion{
+					Code: "GR", Name: "Grandine", Version: "2.0.5", Commit: "70a5c7ea",
+				},
+				ExecutionClient: &eth2v1.ClientVersion{
+					Code: "EX", Name: "ethrex", Version: "v27.0.0", Commit: "136666a0",
+				},
+			},
+		}
+		if upgraded {
+			resp.Data.BeaconNode.Version = "2.0.6"
+			resp.Data.BeaconNode.Commit = "abcdef01"
+			resp.Data.ExecutionClient.Version = "v27.1.0"
+			resp.Data.ExecutionClient.Commit = "12345678"
+		}
+
+		return resp, nil
+	}
+
+	eth1Cl := eth1wrapmocks.NewEthClientRunner(t)
+	eth1Cl.On("ClientVersion", mock.Anything).Return("", eth1wrap.ErrNoExecutionEngineAddr).Maybe()
+
+	clock := clockwork.NewFakeClock()
+	consensusAndExecutionVersionMetric(ctx, bmock, []string{bnAddr}, eth1Cl, clock)
+
+	// First refresh reports the pre-upgrade versions.
+	require.Eventually(t, func() bool {
+		return promtestutil.ToFloat64(beaconNodeVersionGauge.WithLabelValues(bnV1, beaconID)) == 1.0 &&
+			promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(eeV1)) == 1.0
+	}, time.Second, 5*time.Millisecond, "gauges should report pre-upgrade versions")
+
+	mu.Lock()
+	upgraded = true
+	firstCalls := v2Calls
+	mu.Unlock()
+
+	err = clock.BlockUntilContext(ctx, 1)
+	require.NoError(t, err)
+	clock.Advance(10 * time.Minute)
+
+	// After the upgrade, the next refresh must report the new versions and drop the old ones
+	// (each refresh resets the gauges before setting them).
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		calls := v2Calls
+		mu.Unlock()
+
+		return calls > firstCalls &&
+			promtestutil.ToFloat64(beaconNodeVersionGauge.WithLabelValues(bnV2, beaconID)) == 1.0 &&
+			promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(eeV2)) == 1.0
+	}, time.Second, 5*time.Millisecond, "gauges should report post-upgrade versions")
+
+	require.InDelta(t, 0.0,
+		promtestutil.ToFloat64(beaconNodeVersionGauge.WithLabelValues(bnV1, beaconID)),
+		0.0, "stale BN version should be dropped after upgrade")
+	require.InDelta(t, 0.0,
+		promtestutil.ToFloat64(executionEngineVersionGauge.WithLabelValues(eeV1)),
+		0.0, "stale EE version should be dropped after upgrade")
+}
+
 func advanceClock(t *testing.T, ctx context.Context, clock *clockwork.FakeClock, duration time.Duration) {
 	t.Helper()
 
