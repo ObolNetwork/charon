@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -16,7 +17,10 @@ func TestNewSlotOffsetFunc(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
-	offsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock)
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	offsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return forkSchedule })
 	require.NoError(t, err)
 
 	// Matching beaconmock's 12s slot duration, without the gloas fork scheduled.
@@ -29,7 +33,10 @@ func TestNewSlotOffsetFuncGloasScheduled(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context(), beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "10"))
 	require.NoError(t, err)
 
-	offsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock)
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	offsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return forkSchedule })
 	require.NoError(t, err)
 
 	// Matching beaconmock's 16 slots per epoch, so the fork starts at slot 160.

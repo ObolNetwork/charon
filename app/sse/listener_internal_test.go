@@ -139,7 +139,7 @@ func TestStartListener(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
-	_, err = StartListener(t.Context(), bmock, []string{bmock.Address()}, []string{})
+	_, err = StartListener(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return nil }, []string{bmock.Address()}, []string{})
 	require.NoError(t, err)
 }
 
@@ -196,7 +196,10 @@ func TestAttestationOffset(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	slotOffsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock)
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return forkSchedule })
 	require.NoError(t, err)
 
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)

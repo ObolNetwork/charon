@@ -6,12 +6,16 @@ package forkschedule
 
 import (
 	"context"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/time/rate"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -19,9 +23,14 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
-// refreshPeriod is the period at which the fork schedule is refreshed. The beacon node clients
-// cache the spec, so a refresh rarely leads to a request.
-const refreshPeriod = time.Minute
+const (
+	// refreshPeriod is the period at which the fork schedule is refreshed. The beacon node clients
+	// cache the spec, so a refresh rarely leads to a request.
+	refreshPeriod = time.Minute
+
+	// conflictLogPeriod rate limits the warning about beacon nodes scheduling a fork at different epochs.
+	conflictLogPeriod = 10 * time.Minute
+)
 
 // Start fetches the fork schedule and refreshes it periodically until the context is cancelled,
 // returning a function providing the schedule to apply.
@@ -29,17 +38,18 @@ const refreshPeriod = time.Minute
 // The schedule is the freshest of the active primary beacon nodes at the addresses: per fork the
 // earliest scheduled epoch, since a beacon node that hasn't scheduled a fork yet publishes it
 // with epoch math.MaxUint64. An inactive node is skipped, and read afresh once active again since
-// its client drops the cached spec when the node becomes inactive, e.g. while restarting.
+// its client drops the cached spec when the node becomes inactive, e.g. while restarting. Nodes
+// scheduling a fork at different epochs, e.g. after it was postponed, are reported.
 //
 // TODO(post-gloas): replace with a generic "best" response strategy across beacon nodes.
 func Start(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string) (func() eth2wrap.ForkForkSchedule, error) {
-	schedule, _, err := start(ctx, eth2Cl, addrs, refreshPeriod)
+	schedule, _, err := start(ctx, eth2Cl, addrs, refreshPeriod, clockwork.NewRealClock())
 
 	return schedule, err
 }
 
-// start is Start with the refresh period, also returning a channel closed once refreshing stopped.
-func start(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string, period time.Duration,
+// start is Start with the refresh period and clock, also returning a channel closed once refreshing stopped.
+func start(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string, period time.Duration, clock clockwork.Clock,
 ) (func() eth2wrap.ForkForkSchedule, <-chan struct{}, error) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
@@ -52,10 +62,12 @@ func start(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string, period t
 	}
 
 	currentEpoch := func() eth2p0.Epoch {
-		return epochAt(genesisTime, slotDuration, slotsPerEpoch, time.Now())
+		return epochAt(genesisTime, slotDuration, slotsPerEpoch, clock.Now())
 	}
 
-	applied, err := fetchFreshest(ctx, eth2Cl, addrs)
+	conflictFilter := log.Filter(log.WithFilterRateLimit(rate.Every(conflictLogPeriod)))
+
+	applied, err := fetchFreshest(ctx, eth2Cl, addrs, conflictFilter)
 	if err != nil {
 		// E.g. on startup with only a fallback beacon node up.
 		applied, err = eth2wrap.FetchForkConfig(ctx, eth2Cl)
@@ -73,17 +85,17 @@ func start(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string, period t
 	go func() {
 		defer close(done)
 
-		ticker := time.NewTicker(period)
+		ticker := clock.NewTicker(period)
 		defer ticker.Stop()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case <-ticker.Chan():
 			}
 
-			schedule, err := fetchFreshest(ctx, eth2Cl, addrs)
+			schedule, err := fetchFreshest(ctx, eth2Cl, addrs, conflictFilter)
 			if err != nil {
 				log.Debug(ctx, "Keeping fork schedule", z.Err(err))
 			} else {
@@ -106,8 +118,9 @@ func start(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string, period t
 	}, done, nil
 }
 
-// fetchFreshest returns the freshest fork schedule of the active beacon nodes at the addresses.
-func fetchFreshest(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string) (eth2wrap.ForkForkSchedule, error) {
+// fetchFreshest returns the freshest fork schedule of the active beacon nodes at the addresses,
+// reporting forks they schedule at different epochs with the conflict log filter.
+func fetchFreshest(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string, conflictFilter z.Field) (eth2wrap.ForkForkSchedule, error) {
 	var schedules []eth2wrap.ForkForkSchedule
 
 	for i, addr := range addrs {
@@ -131,7 +144,56 @@ func fetchFreshest(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string) 
 		return nil, errors.New("no active beacon node")
 	}
 
+	reportConflicts(ctx, conflicts(schedules), conflictFilter)
+
 	return freshest(schedules), nil
+}
+
+// conflicts returns the forks the schedules set at different epochs, with the sorted distinct
+// epochs. An unscheduled fork doesn't conflict, since a node not yet upgraded publishes it so.
+func conflicts(schedules []eth2wrap.ForkForkSchedule) map[eth2wrap.Fork][]eth2p0.Epoch {
+	epochs := make(map[eth2wrap.Fork]map[eth2p0.Epoch]bool)
+
+	for _, schedule := range schedules {
+		for fork, fs := range schedule {
+			if fs.Epoch == math.MaxUint64 {
+				continue
+			}
+
+			if epochs[fork] == nil {
+				epochs[fork] = make(map[eth2p0.Epoch]bool)
+			}
+
+			epochs[fork][fs.Epoch] = true
+		}
+	}
+
+	resp := make(map[eth2wrap.Fork][]eth2p0.Epoch)
+
+	for fork, set := range epochs {
+		if len(set) > 1 {
+			resp[fork] = slices.Sorted(maps.Keys(set))
+		}
+	}
+
+	return resp
+}
+
+// reportConflicts sets the schedule conflict metric and warns about each conflicting fork. The
+// earliest epoch still applies, as with a fork scheduled by only some nodes, which also matches
+// a postponed fork's beacon nodes that aren't upgraded yet, so operators must check them.
+func reportConflicts(ctx context.Context, conflicts map[eth2wrap.Fork][]eth2p0.Epoch, filter z.Field) {
+	scheduleConflictGauge.Reset()
+
+	for fork, epochs := range conflicts {
+		label := strings.ToLower(fork.String())
+
+		scheduleConflictGauge.WithLabelValues(label).Set(1)
+
+		log.Warn(ctx, "Beacon nodes schedule a fork at different epochs, applying the earliest. "+
+			"Check the beacon nodes run the same network configuration, e.g. after a fork was postponed", nil,
+			z.Str("fork", label), z.Any("epochs", epochs), filter)
+	}
 }
 
 // epochAt returns the epoch at the time, the genesis epoch before genesis.

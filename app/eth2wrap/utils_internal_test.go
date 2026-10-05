@@ -4,7 +4,6 @@ package eth2wrap
 
 import (
 	"context"
-	"math"
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/api"
@@ -69,7 +68,6 @@ func TestParseSlotTimingConfig(t *testing.T) {
 		Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
 		Payload:            ForkBPS{Gloas: 5000},
 		PayloadAttestation: ForkBPS{Gloas: 7500},
-		GloasEpoch:         math.MaxUint64,
 	}
 
 	tests := []struct {
@@ -94,7 +92,6 @@ func TestParseSlotTimingConfig(t *testing.T) {
 				"SYNC_MESSAGE_DUE_BPS_GLOAS":  uint64(2500),
 				"CONTRIBUTION_DUE_BPS":        uint64(6667),
 				"CONTRIBUTION_DUE_BPS_GLOAS":  uint64(5000),
-				"GLOAS_FORK_EPOCH":            uint64(1024),
 				"PAYLOAD_DUE_BPS":             uint64(5000),
 				"PAYLOAD_ATTESTATION_DUE_BPS": uint64(7500),
 				"INCLUSION_LIST_DUE_BPS":      uint64(6667), // Heze only, must be ignored.
@@ -106,7 +103,6 @@ func TestParseSlotTimingConfig(t *testing.T) {
 				Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
 				Payload:            ForkBPS{Gloas: 5000},
 				PayloadAttestation: ForkBPS{Gloas: 7500},
-				GloasEpoch:         1024,
 			},
 		},
 		{
@@ -122,7 +118,6 @@ func TestParseSlotTimingConfig(t *testing.T) {
 				Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
 				Payload:            ForkBPS{Gloas: 4000},
 				PayloadAttestation: ForkBPS{Gloas: 8000},
-				GloasEpoch:         math.MaxUint64,
 			},
 		},
 		{
@@ -135,7 +130,6 @@ func TestParseSlotTimingConfig(t *testing.T) {
 			data: map[string]any{
 				"ATTESTATION_DUE_BPS":       uint64(2000),
 				"ATTESTATION_DUE_BPS_GLOAS": uint64(1500),
-				"GLOAS_FORK_EPOCH":          uint64(0),
 			},
 			expect: SlotTimingConfig{
 				Attestation:        ForkBPS{PreGloas: 2000, Gloas: 1500},
@@ -144,7 +138,6 @@ func TestParseSlotTimingConfig(t *testing.T) {
 				Contribution:       ForkBPS{PreGloas: 6667, Gloas: 5000},
 				Payload:            ForkBPS{Gloas: 5000},
 				PayloadAttestation: ForkBPS{Gloas: 7500},
-				GloasEpoch:         0,
 			},
 		},
 		{

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
@@ -142,7 +143,7 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
 		require.NoError(t, err)
 
-		c, err := qbft.NewConsensus(t.Context(), bmock, hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer, false)
+		c, err := qbft.NewConsensus(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return nil }, hosts[i], new(p2p.Sender), peers, p2pkeys[i], deadliner, gaterFunc, sniffer, false)
 		require.NoError(t, err)
 		c.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
 			results <- set

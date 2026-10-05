@@ -105,7 +105,10 @@ func PrimaryOnly(cl Client) Client {
 		m.fallbacks = nil
 		return m
 	case *multi:
-		return multi{clients: m.clients, selector: m.selector}
+		c := *m
+		c.fallbacks = nil
+
+		return c
 	default:
 		return cl
 	}

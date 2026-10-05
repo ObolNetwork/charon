@@ -22,10 +22,10 @@ func TestDelayFuncSpecOffsets(t *testing.T) {
 	gloas, err := beaconmock.New(t.Context(), beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"))
 	require.NoError(t, err)
 
-	preGloasFunc, err := newDelayFunc(t.Context(), preGloas)
+	preGloasFunc, err := newDelayFunc(t.Context(), preGloas, forkScheduleFunc(t, preGloas))
 	require.NoError(t, err)
 
-	gloasFunc, err := newDelayFunc(t.Context(), gloas)
+	gloasFunc, err := newDelayFunc(t.Context(), gloas, forkScheduleFunc(t, gloas))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -59,7 +59,7 @@ func TestDelayFuncProposerPreferences(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context(), beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"))
 	require.NoError(t, err)
 
-	delayFunc, err := newDelayFunc(t.Context(), bmock)
+	delayFunc, err := newDelayFunc(t.Context(), bmock, forkScheduleFunc(t, bmock))
 	require.NoError(t, err)
 
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
@@ -71,4 +71,14 @@ func TestDelayFuncProposerPreferences(t *testing.T) {
 
 	diff := delayFunc(slot, core.DutyProposerPreferences) - delayFunc(slot, core.DutyProposer)
 	require.InDelta(t, expect, diff, float64(50*time.Millisecond))
+}
+
+// forkScheduleFunc returns a function providing the fork schedule of the beacon node.
+func forkScheduleFunc(t *testing.T, eth2Cl eth2wrap.Client) func() eth2wrap.ForkForkSchedule {
+	t.Helper()
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	return func() eth2wrap.ForkForkSchedule { return forkSchedule }
 }

@@ -13,10 +13,12 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
@@ -120,7 +122,7 @@ func TestFetchFreshest(t *testing.T) {
 				addrs = append(addrs, node.Address())
 			}
 
-			schedule, err := fetchFreshest(t.Context(), eth2wrap.NewMultiForT(clients, nil), addrs)
+			schedule, err := fetchFreshest(t.Context(), eth2wrap.NewMultiForT(clients, nil), addrs, log.Filter())
 			if test.err {
 				require.Error(t, err)
 				return
@@ -139,7 +141,7 @@ func startForT(t *testing.T, eth2Cl eth2wrap.Client, addrs []string, period time
 
 	ctx, cancel := context.WithCancel(t.Context())
 
-	schedule, done, err := start(ctx, eth2Cl, addrs, period)
+	schedule, done, err := start(ctx, eth2Cl, addrs, period, clockwork.NewRealClock())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -169,7 +171,7 @@ func TestFetchFreshestIgnoresFallbacks(t *testing.T) {
 
 	eth2Cl := eth2wrap.NewMultiForT([]eth2wrap.Client{behind, timingOut}, []eth2wrap.Client{fallback})
 
-	schedule, err := fetchFreshest(t.Context(), eth2Cl, []string{behind.Address(), timingOut.Address()})
+	schedule, err := fetchFreshest(t.Context(), eth2Cl, []string{behind.Address(), timingOut.Address()}, log.Filter())
 	require.NoError(t, err)
 	require.Equal(t, unscheduled, schedule[eth2wrap.Gloas].Epoch)
 }
@@ -419,4 +421,111 @@ func gloasEpochOf(t *testing.T, node eth2wrap.Client) eth2p0.Epoch {
 	require.NoError(t, err)
 
 	return schedule[eth2wrap.Gloas].Epoch
+}
+
+func TestConflicts(t *testing.T) {
+	schedule := func(gloas eth2p0.Epoch) eth2wrap.ForkForkSchedule {
+		return eth2wrap.ForkForkSchedule{
+			eth2wrap.Fulu:  {Epoch: 10},
+			eth2wrap.Gloas: {Epoch: gloas},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		schedules []eth2wrap.ForkForkSchedule
+		want      map[eth2wrap.Fork][]eth2p0.Epoch
+	}{
+		{
+			name:      "agree",
+			schedules: []eth2wrap.ForkForkSchedule{schedule(100), schedule(100)},
+			want:      map[eth2wrap.Fork][]eth2p0.Epoch{},
+		},
+		{
+			name:      "unscheduled doesn't conflict",
+			schedules: []eth2wrap.ForkForkSchedule{schedule(unscheduled), schedule(100)},
+			want:      map[eth2wrap.Fork][]eth2p0.Epoch{},
+		},
+		{
+			name:      "postponed fork",
+			schedules: []eth2wrap.ForkForkSchedule{schedule(200), schedule(unscheduled), schedule(100)},
+			want:      map[eth2wrap.Fork][]eth2p0.Epoch{eth2wrap.Gloas: {100, 200}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.want, conflicts(test.schedules))
+		})
+	}
+}
+
+func TestFetchFreshestReportsConflicts(t *testing.T) {
+	fetch := func(nodes ...beaconmock.Mock) eth2wrap.ForkForkSchedule {
+		var (
+			clients []eth2wrap.Client
+			addrs   []string
+		)
+
+		for _, node := range nodes {
+			clients = append(clients, node)
+			addrs = append(addrs, node.Address())
+		}
+
+		schedule, err := fetchFreshest(t.Context(), eth2wrap.NewMultiForT(clients, nil), addrs, log.Filter())
+		require.NoError(t, err)
+
+		return schedule
+	}
+
+	// The earliest epoch still applies, reporting the conflict.
+	schedule := fetch(newNode(t, 200, true), newNode(t, 100, true))
+	require.Equal(t, eth2p0.Epoch(100), schedule[eth2wrap.Gloas].Epoch)
+	require.Equal(t, map[string]float64{"gloas": 1}, gaugeValues(t, "app_fork_schedule_conflict"))
+
+	// Once the nodes agree, the conflict is cleared.
+	fetch(newNode(t, 100, true), newNode(t, 100, true))
+	require.Empty(t, gaugeValues(t, "app_fork_schedule_conflict"))
+}
+
+// TestStartEpochRollover asserts the fork metrics follow the clock across the fork epoch.
+func TestStartEpochRollover(t *testing.T) {
+	const gloasEpoch = 100
+
+	genesis := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	node, err := beaconmock.New(t.Context(),
+		beaconmock.WithGenesisTime(genesis),
+		beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", strconv.Itoa(gloasEpoch)),
+	)
+	require.NoError(t, err)
+
+	node.IsActiveFunc = func() bool { return true }
+
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(t.Context(), node)
+	require.NoError(t, err)
+
+	forkStart := genesis.Add(time.Duration(gloasEpoch*slotsPerEpoch) * slotDuration)
+	clock := clockwork.NewFakeClockAt(forkStart.Add(-time.Second))
+
+	ctx, cancel := context.WithCancel(t.Context())
+
+	_, done, err := start(ctx, eth2wrap.NewMultiForT([]eth2wrap.Client{node}, nil), []string{node.Address()}, time.Minute, clock)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	require.Equal(t, map[string]float64{"gloas": gloasEpoch}, gaugeValues(t, "app_fork_next_activation_epoch"))
+
+	require.NoError(t, clock.BlockUntilContext(ctx, 1)) // The refresh ticker.
+	clock.Advance(time.Minute)
+
+	require.Eventually(t, func() bool {
+		return gaugeValues(t, "app_fork_current_activation_epoch")["gloas"] == gloasEpoch
+	}, 5*time.Second, 10*time.Millisecond)
+	require.NotContains(t, gaugeValues(t, "app_fork_next_activation_epoch"), "gloas")
 }

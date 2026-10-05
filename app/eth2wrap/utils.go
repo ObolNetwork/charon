@@ -89,9 +89,6 @@ type SlotTimingConfig struct {
 	// PayloadAttestation is the deadline for payload timeliness committee members to broadcast
 	// payload attestations.
 	PayloadAttestation ForkBPS
-	// GloasEpoch is the epoch at which the gloas deadlines take effect. It is math.MaxUint64
-	// if the beacon node doesn't publish GLOAS_FORK_EPOCH or hasn't scheduled the fork.
-	GloasEpoch eth2p0.Epoch
 }
 
 // Intra-slot duty deadlines as basis points of the slot duration as defined by the consensus spec.
@@ -122,11 +119,7 @@ func FetchSlotTimingConfig(ctx context.Context, client eth2client.SpecProvider) 
 // parseSlotTimingConfig returns the intra-slot duty deadlines in the network spec data,
 // defaulting to the consensus spec values for keys the beacon node doesn't publish.
 func parseSlotTimingConfig(data map[string]any) (SlotTimingConfig, error) {
-	resp := SlotTimingConfig{GloasEpoch: math.MaxUint64}
-
-	if epoch, ok := data["GLOAS_FORK_EPOCH"].(uint64); ok {
-		resp.GloasEpoch = eth2p0.Epoch(epoch)
-	}
+	var resp SlotTimingConfig
 
 	// Note that the deadlines introduced by the gloas fork have no pre-gloas key, since the
 	// unsuffixed key is itself the gloas value.

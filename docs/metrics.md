@@ -37,6 +37,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_fork_current_activation_epoch` | Gauge | Constant gauge with the epoch at which the current fork activated, labelled by the fork name, e.g. gloas | `fork` |
 | `app_fork_next_activation_epoch` | Gauge | Constant gauge with the epoch at which the next scheduled fork activates, labelled by the fork name, e.g. heze. Absent if no fork is scheduled | `fork` |
 | `app_fork_readiness` | Gauge | Constant gauge set to 1 per fork and component with the fork readiness status: ready, upgrade_required or unknown. The address label is set for per-beacon-node rows | `fork, component, status, address` |
+| `app_fork_schedule_conflict` | Gauge | Constant gauge set to 1 for a fork the beacon nodes schedule at different epochs, of which the earliest is applied, labelled by the fork name. Absent if they agree | `fork` |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
 | `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name, description` |
 | `app_health_checks_failed_total` | Counter | Total number of times each health check has been observed failing. Allows querying historical failures via increase(). | `severity, name, description` |

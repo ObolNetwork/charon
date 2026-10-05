@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/retry"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -111,7 +112,7 @@ func TestShutdown(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock)
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock, func() eth2wrap.ForkForkSchedule { return nil })
 	require.NoError(t, err)
 
 	retryer := retry.New[core.Duty](deadlineFunc)

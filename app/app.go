@@ -301,7 +301,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	sseListener, err := sse.StartListener(ctx, eth2Cl, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
+	sseListener, err := sse.StartListener(ctx, eth2Cl, forkSchedule, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
 	if err != nil {
 		return err
 	}
@@ -517,7 +517,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return err
 	}
@@ -702,7 +702,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}
 
-	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
+	broadcaster, err := bcast.New(ctx, submissionEth2Cl, forkSchedule)
 	if err != nil {
 		return err
 	}
@@ -711,7 +711,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Consensus
 	consensusController, err := consensus.NewConsensusController(
-		ctx, eth2Cl, p2pNode, sender, peers, p2pKey,
+		ctx, eth2Cl, forkSchedule, p2pNode, sender, peers, p2pKey,
 		deadlineFunc, gaterFunc, consensusDebugger, featureset.Enabled(featureset.ChainSplitHalt))
 	if err != nil {
 		return err
@@ -756,7 +756,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 	core.Wire(sched, fetch, coreConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
-	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
+	err = wireValidatorMock(ctx, conf, eth2Cl, forkSchedule, pubshares, sched)
 	if err != nil {
 		return err
 	}
