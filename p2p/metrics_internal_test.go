@@ -42,6 +42,11 @@ func TestMessageSizeMetrics(t *testing.T) {
 		server = testutil.CreateHost(t, testutil.AvailableAddr(t))
 	)
 
+	// Received sizes are labelled by peer name, so both directions must not share one.
+	for PeerName(client.ID()) == PeerName(server.ID()) {
+		client = testutil.CreateHost(t, testutil.AvailableAddr(t))
+	}
+
 	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
 
 	RegisterHandler("server", server, pID,
@@ -63,8 +68,13 @@ func TestMessageSizeMetrics(t *testing.T) {
 	require.NoError(t, SendReceive(ctx, client, server.ID(), req, resp, pID))
 
 	// Client sent the request and server sent the identical echoed response.
-	sentCount, sentSum := histSample(t, sentMsgSizeHist, string(pID))
-	require.Equal(t, sentCount0+2, sentCount)
+	// The server observes its send after writing the response, so wait for it.
+	require.Eventually(t, func() bool {
+		sentCount, _ := histSample(t, sentMsgSizeHist, string(pID))
+		return sentCount == sentCount0+2
+	}, time.Second*5, time.Millisecond*10)
+
+	_, sentSum := histSample(t, sentMsgSizeHist, string(pID))
 	require.InDelta(t, sentSum0+2*msgSize, sentSum, 0.1)
 
 	// Server received the request from the client.
@@ -138,12 +148,17 @@ func TestInflightRequestMetrics(t *testing.T) {
 	require.Equal(t, uint64(1), concCount)
 	require.InDelta(t, 1, concSum, 0.1)
 
-	// Handler duration observed once.
-	durCount, durSum := histSample(t, handlerDuration, string(pID))
-	require.Equal(t, uint64(1), durCount)
+	// Handler duration observed once. It is observed when the handler returns, after
+	// writing the response, so wait for it.
+	require.Eventually(t, func() bool {
+		durCount, _ := histSample(t, handlerDuration, string(pID))
+		return durCount == 1
+	}, time.Second*5, time.Millisecond*10)
+
+	_, durSum := histSample(t, handlerDuration, string(pID))
 	require.Positive(t, durSum)
 
-	// In-flight gauge back to zero after completion.
+	// In-flight gauge back to zero after completion (set before the duration is observed).
 	gauge, err := inflightGauge.GetMetricWithLabelValues(string(pID), clientName)
 	require.NoError(t, err)
 	require.Zero(t, promtestutil.ToFloat64(gauge))
