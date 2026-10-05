@@ -930,7 +930,8 @@ type VersionedPayloadAttestationData struct {
 
 	// NoPayload is set when the beacon node has no block for the slot, so there is no payload to
 	// attest. Only the version and slot of the data are then meaningful. It is charon specific
-	// and excluded from the hash tree root.
+	// and excluded from the hash tree root, so a no payload value has the same root as zero data
+	// for the slot: anything deduplicating or indexing by root must compare the flag too.
 	NoPayload bool
 }
 

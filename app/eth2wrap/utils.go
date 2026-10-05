@@ -33,7 +33,7 @@ func (s ForkForkSchedule) Active(fork Fork, epoch eth2p0.Epoch) bool {
 // DataVersion returns the data version of the latest fork active at the provided epoch,
 // phase0 if none is.
 func (s ForkForkSchedule) DataVersion(epoch eth2p0.Epoch) eth2spec.DataVersion {
-	for fork := Gloas; ; fork-- {
+	for fork := latestFork(); ; fork-- {
 		if s.Active(fork, epoch) {
 			return forkDataVersions[fork]
 		}
@@ -65,6 +65,16 @@ var forkDataVersions = map[Fork]eth2spec.DataVersion{
 	Electra:   eth2spec.DataVersionElectra,
 	Fulu:      eth2spec.DataVersionFulu,
 	Gloas:     eth2spec.DataVersionGloas,
+}
+
+// latestFork returns the most recent fork with a data version.
+func latestFork() Fork {
+	var latest Fork
+	for fork := range forkDataVersions {
+		latest = max(latest, fork)
+	}
+
+	return latest
 }
 
 func (f Fork) String() string {
