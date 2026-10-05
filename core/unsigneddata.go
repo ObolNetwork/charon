@@ -902,9 +902,37 @@ func NewVersionedPayloadAttestationData(data *eth2spec.VersionedPayloadAttestati
 	return VersionedPayloadAttestationData{VersionedPayloadAttestationData: *data}, nil
 }
 
+// NewNoPayloadAttestationData returns the payload attestation data of a slot the beacon node has
+// no block for, so there is no payload to attest. Only the version and slot are set.
+func NewNoPayloadAttestationData(version eth2spec.DataVersion, slot eth2p0.Slot) (VersionedPayloadAttestationData, error) {
+	data := eth2spec.VersionedPayloadAttestationData{Version: version}
+
+	switch version {
+	case eth2spec.DataVersionGloas:
+		data.Gloas = &gloas.PayloadAttestationData{Slot: slot}
+	default:
+		return VersionedPayloadAttestationData{}, errors.New("unknown version")
+	}
+
+	resp, err := NewVersionedPayloadAttestationData(&data)
+	if err != nil {
+		return VersionedPayloadAttestationData{}, err
+	}
+
+	resp.NoPayload = true
+
+	return resp, nil
+}
+
 // VersionedPayloadAttestationData wraps a versioned payload attestation data and implements UnsignedData.
 type VersionedPayloadAttestationData struct {
 	eth2spec.VersionedPayloadAttestationData
+
+	// NoPayload is set when the beacon node has no block for the slot, so there is no payload to
+	// attest. Only the version and slot of the data are then meaningful. It is charon specific
+	// and excluded from the hash tree root, so a no payload value has the same root as zero data
+	// for the slot: anything deduplicating or indexing by root must compare the flag too.
+	NoPayload bool
 }
 
 func (p VersionedPayloadAttestationData) Clone() (UnsignedData, error) {
@@ -940,8 +968,9 @@ func (p VersionedPayloadAttestationData) MarshalJSON() ([]byte, error) {
 	}
 
 	resp, err := json.Marshal(versionedRawPayloadAttDataJSON{
-		Version: version,
-		Data:    data,
+		Version:   version,
+		Data:      data,
+		NoPayload: p.NoPayload,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -973,6 +1002,7 @@ func (p *VersionedPayloadAttestationData) UnmarshalJSON(input []byte) error {
 	}
 
 	p.VersionedPayloadAttestationData = resp
+	p.NoPayload = raw.NoPayload
 
 	return nil
 }
@@ -989,6 +1019,7 @@ func (p VersionedPayloadAttestationData) HashTreeRoot() ([32]byte, error) {
 
 // versionedRawPayloadAttDataJSON is a custom VersionedPayloadAttestationData serialiser.
 type versionedRawPayloadAttDataJSON struct {
-	Version eth2util.DataVersion `json:"version"`
-	Data    json.RawMessage      `json:"data"`
+	Version   eth2util.DataVersion `json:"version"`
+	Data      json.RawMessage      `json:"data"`
+	NoPayload bool                 `json:"no_payload,omitempty"`
 }

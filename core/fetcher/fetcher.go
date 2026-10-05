@@ -190,7 +190,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return nil
 		}
 	case core.DutyPayloadAttestation:
-		// An empty set (no block seen for the slot) is proposed as well, so the cluster
+		// The no payload data (no block seen for the slot) is proposed as well, so the cluster
 		// agrees on the no-block outcome rather than each node acting on its own view.
 		unsignedSet, err = f.fetchPayloadAttestationData(ctx, duty.Slot, defSet)
 		if err != nil {
@@ -527,23 +527,29 @@ func (f *Fetcher) fetchPayloadAttestationData(ctx context.Context, slot uint64, 
 		Slot: eth2p0.Slot(slot),
 	}
 
+	var data core.VersionedPayloadAttestationData
+
 	eth2Resp, err := f.eth2Cl.PayloadAttestationData(ctx, opts)
 	if errors.Is(err, eth2client.ErrNoPayloadAttestationData) {
-		// The beacon node has not seen a block for the slot, so there is nothing to attest.
-		log.Debug(ctx, "No block seen for payload attestation slot", z.U64("slot", slot))
+		// The beacon node has not seen a block for the slot. Propose the no payload data for it,
+		// so the cluster agrees on the no-block outcome like on any other value.
+		log.Debug(ctx, "No payload seen for slot's block", z.U64("slot", slot))
 
-		return core.UnsignedDataSet{}, nil
+		version := f.forkSchedule.DataVersion(eth2p0.Epoch(slot / f.slotsPerEpoch))
+
+		data, err = core.NewNoPayloadAttestationData(version, eth2p0.Slot(slot))
+		if err != nil {
+			return nil, err
+		}
 	} else if err != nil {
 		return nil, err
-	}
-
-	if eth2Resp.Data == nil {
+	} else if eth2Resp.Data == nil {
 		return nil, errors.New("payload attestation data is nil")
-	}
-
-	data, err := core.NewVersionedPayloadAttestationData(eth2Resp.Data)
-	if err != nil {
-		return nil, err
+	} else {
+		data, err = core.NewVersionedPayloadAttestationData(eth2Resp.Data)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	resp := make(core.UnsignedDataSet)

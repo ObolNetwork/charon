@@ -1335,9 +1335,10 @@ func TestPayloadAttestationDataSSZ(t *testing.T) {
 		root[i] = 0xab
 	}
 
-	// Versioned envelope: version(uint64) + offset(uint32) prefixing the payload.
+	// Versioned envelope: version(uint64) + no_payload(bool) + offset(uint32) prefixing the payload.
 	versionedPrefix := "0700000000000000" + // Version=7 (gloas, LE)
-		"0c000000" // Offset=12 (LE)
+		"00" + // NoPayload=false
+		"0d000000" // Offset=13 (LE)
 
 	tests := []struct {
 		name     string
@@ -1378,6 +1379,23 @@ func TestPayloadAttestationDataSSZ(t *testing.T) {
 				"01" + // PayloadPresent=true
 				"00", // BlobDataAvailable=false
 		},
+		{
+			name: "no payload",
+			value: core.VersionedPayloadAttestationData{
+				VersionedPayloadAttestationData: eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   &gloas.PayloadAttestationData{Slot: 42},
+				},
+				NoPayload: true,
+			},
+			expected: "0x" + "0700000000000000" + // Version=7 (gloas, LE)
+				"01" + // NoPayload=true
+				"0d000000" + // Offset=13 (LE)
+				strings.Repeat("00", 32) + // BeaconBlockRoot
+				"2a00000000000000" + // Slot=42 (LE)
+				"00" + // PayloadPresent
+				"00", // BlobDataAvailable
+		},
 	}
 
 	for _, tt := range tests {
@@ -1385,6 +1403,7 @@ func TestPayloadAttestationDataSSZ(t *testing.T) {
 			b, err := tt.value.MarshalSSZ()
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
+			require.Len(t, b, tt.value.SizeSSZ())
 
 			var got core.VersionedPayloadAttestationData
 			require.NoError(t, got.UnmarshalSSZ(b))

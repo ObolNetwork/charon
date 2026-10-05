@@ -102,11 +102,11 @@ func TestMarshal(t *testing.T) {
 // TestUnsignedDataSetFromProtoMalformedSSZOffset verifies that malformed SSZ bytes with an
 // out-of-bounds offset field return an error instead of panicking.
 func TestUnsignedDataSetFromProtoMalformedSSZOffset(t *testing.T) {
-	// versionedBlindedOffset = 13: 8 (version uint64) + 1 (blinded uint8) + 4 (offset uint32).
+	// versionedWithFlagOffset = 13: 8 (version uint64) + 1 (flag uint8) + 4 (offset uint32).
 	// A 13-byte buffer with the offset field encoding 14 caused slice bounds [14:13] before the fix.
 	proposerBuf := []byte{
 		0, 0, 0, 0, 0, 0, 0, 0, // version = Phase0 (0)
-		0,           // blinded = false
+		0,           // flag = false
 		14, 0, 0, 0, // offset = 14, but len(buf) = 13
 	}
 
@@ -117,8 +117,8 @@ func TestUnsignedDataSetFromProtoMalformedSSZOffset(t *testing.T) {
 		13, 0, 0, 0, // offset = 13, but len(buf) = 12
 	}
 
-	t.Run("versioned_blinded_helper_returns_offset_error", func(t *testing.T) {
-		_, _, err := unmarshalSSZVersionedBlinded(proposerBuf, func(eth2util.DataVersion, bool) (sszType, error) {
+	t.Run("versioned_with_flag_helper_returns_offset_error", func(t *testing.T) {
+		_, _, err := unmarshalSSZVersionedWithFlag(proposerBuf, func(eth2util.DataVersion, bool) (sszType, error) {
 			t.Fatal("valFunc must not be called for an out-of-bounds offset")
 
 			return nil, stderrors.New("unexpected valFunc call")

@@ -72,8 +72,8 @@ type DutyDB interface {
 	AwaitAttestation(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 
 	// AwaitPayloadAttestationData blocks until the payload attestation data for the slot is
-	// available and returns it with ok true, or ok false once an empty set was stored for the
-	// slot, i.e. the cluster agreed there is no block to attest.
+	// available and returns it with ok true, or ok false once no payload data was stored for
+	// the slot, i.e. the cluster agreed there is no block to attest.
 	AwaitPayloadAttestationData(ctx context.Context, slot uint64) (data *eth2spec.VersionedPayloadAttestationData, ok bool, err error)
 
 	// PubKeyByAttestation returns the validator PubKey for the provided attestation data

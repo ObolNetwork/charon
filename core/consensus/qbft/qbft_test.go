@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/libp2p/go-libp2p"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -60,14 +61,34 @@ func TestQBFTConsensus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testQBFTConsensus(t, tt.threshold, tt.nodes)
+			testQBFTConsensus(t, tt.threshold, tt.nodes, core.Duty{Type: core.DutyAttester, Slot: 1},
+				func(t *testing.T, pubkey core.PubKey) core.UnsignedDataSet {
+					t.Helper()
+
+					return core.UnsignedDataSet{pubkey: testutil.RandomCoreAttestationData(t)}
+				})
 		})
 	}
 }
 
-// testQBFTConsensus tests a consensus instance with size of threshold-of-nodes.
-// Note it only instantiates the minimum amount of peers, ie threshold.
-func testQBFTConsensus(t *testing.T, threshold, nodes int) {
+// TestQBFTConsensusNoPayload asserts the cluster agrees on the no payload attestation data,
+// the no-block outcome of the duty, like on any other value.
+func TestQBFTConsensusNoPayload(t *testing.T) {
+	testQBFTConsensus(t, 3, 4, core.Duty{Type: core.DutyPayloadAttestation, Slot: 1},
+		func(t *testing.T, pubkey core.PubKey) core.UnsignedDataSet {
+			t.Helper()
+
+			data, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 1)
+			require.NoError(t, err)
+
+			return core.UnsignedDataSet{pubkey: data}
+		})
+}
+
+// testQBFTConsensus tests a consensus instance with size of threshold-of-nodes proposing the
+// value returned by newValue for the duty. Note it only instantiates the minimum amount of
+// peers, ie threshold.
+func testQBFTConsensus(t *testing.T, threshold, nodes int, duty core.Duty, newValue func(*testing.T, core.PubKey) core.UnsignedDataSet) {
 	t.Helper()
 
 	seed := 0
@@ -160,8 +181,8 @@ func testQBFTConsensus(t *testing.T, threshold, nodes int) {
 		go func(ctx context.Context, i int, c *qbft.Consensus) {
 			runErrs <- c.Propose(
 				log.WithCtx(ctx, z.Int("node", i), z.Str("peer", p2p.PeerName(hosts[i].ID()))),
-				core.Duty{Type: core.DutyAttester, Slot: 1},
-				core.UnsignedDataSet{pubkey: testutil.RandomCoreAttestationData(t)},
+				duty,
+				newValue(t, pubkey),
 			)
 		}(ctx, i, c)
 	}

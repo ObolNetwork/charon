@@ -1067,10 +1067,10 @@ func TestFetchPayloadAttestation(t *testing.T) {
 	require.True(t, subCalled)
 }
 
-// TestFetchPayloadAttestationNoBlock asserts that a beacon node reporting no block for the
-// slot (204 No Content) results in an empty unsigned data set being proposed, so the cluster
-// agrees on the no-block outcome instead of each node deciding on its own view.
-func TestFetchPayloadAttestationNoBlock(t *testing.T) {
+// TestFetchPayloadAttestationNoPayload asserts that a beacon node reporting no block for the
+// slot (204 No Content) results in the no payload data being proposed, so the cluster agrees
+// on the no-block outcome instead of each node deciding on its own view.
+func TestFetchPayloadAttestationNoPayload(t *testing.T) {
 	const slot = 1
 
 	defSet := core.DutyDefinitionSet{
@@ -1085,7 +1085,10 @@ func TestFetchPayloadAttestationNoBlock(t *testing.T) {
 		return nil, eth2client.ErrNoPayloadAttestationData
 	}
 
-	fetch := mustCreateFetcher(t, bmock)
+	// The no-block data is versioned as the fork active at the slot, gloas here.
+	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{},
+		eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
+	require.NoError(t, err)
 
 	var (
 		proposed    bool
@@ -1103,9 +1106,16 @@ func TestFetchPayloadAttestationNoBlock(t *testing.T) {
 
 	err = fetch.Fetch(t.Context(), duty, defSet)
 	require.NoError(t, err)
-	require.True(t, proposed, "empty set must be proposed")
-	require.NotNil(t, proposedSet)
-	require.Empty(t, proposedSet)
+	require.True(t, proposed, "no payload data must be proposed")
+	require.Len(t, proposedSet, len(defSet))
+
+	// Each validator of the duty gets the no payload data of the slot.
+	expected, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, slot)
+	require.NoError(t, err)
+
+	for pubkey := range defSet {
+		require.Equal(t, expected, proposedSet[pubkey])
+	}
 }
 
 func TestFetchPayloadAttestationError(t *testing.T) {

@@ -84,9 +84,9 @@ type event struct {
 	// parSig is an optional field only set by validatorAPI, parSigDBInternal and parSigExReceive events.
 	parSig *core.ParSignedData
 
-	// emptySet is set by consensus and dutyDB events for an empty unsigned data set, i.e. the
-	// cluster agreed there is nothing to perform for the duty (e.g. no block to attest).
-	emptySet bool
+	// noPayload is set by consensus and dutyDB events for payload attestation data without a
+	// payload to attest, i.e. the cluster agreed there is nothing to perform for the duty.
+	noPayload bool
 }
 
 // Tracker represents the step that listens to events from core workflow steps.
@@ -266,9 +266,9 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 		return false, failedStep, reason{}, nil
 	}
 
-	// The cluster agreed on an empty unsigned data set, so there is nothing to perform:
+	// The cluster agreed there is no payload to attest, so there is nothing to perform:
 	// a no-op duty reported like other no-op duties (step fetcher, not expected to be performed).
-	if failedStep == dutyDB && failedErr == nil && storedEmptySet(allEvents[duty]) {
+	if failedStep == dutyDB && failedErr == nil && storedNoPayload(allEvents[duty]) {
 		return false, fetcher, reason{}, nil
 	}
 
@@ -340,15 +340,23 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 	return true, failedStep, reason, failedErr
 }
 
-// storedEmptySet returns true if the dutyDB stored an empty unsigned data set for the duty.
-func storedEmptySet(events []event) bool {
+// storedNoPayload returns true if the dutyDB stored payload attestation data without a payload
+// to attest for the duty.
+func storedNoPayload(events []event) bool {
 	for _, e := range events {
-		if e.step == dutyDB && e.emptySet && e.stepErr == nil {
+		if e.step == dutyDB && e.noPayload && e.stepErr == nil {
 			return true
 		}
 	}
 
 	return false
+}
+
+// noPayload returns true if the unsigned data is payload attestation data without a payload to attest.
+func noPayload(data core.UnsignedData) bool {
+	ptc, ok := data.(core.VersionedPayloadAttestationData)
+
+	return ok && ptc.NoPayload
 }
 
 // analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
@@ -773,25 +781,16 @@ func (t *Tracker) FetcherFetched(duty core.Duty, set core.DutyDefinitionSet, ste
 
 // ConsensusProposed implements core.Tracker interface.
 func (t *Tracker) ConsensusProposed(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
-	// An empty set carries no pubkeys, so record a single duty level event for it.
-	if len(set) == 0 {
-		select {
-		case <-t.quit:
-		case t.input <- event{duty: duty, step: consensus, stepErr: stepErr, emptySet: true}:
-		}
-
-		return
-	}
-
-	for pubkey := range set {
+	for pubkey, data := range set {
 		select {
 		case <-t.quit:
 			return
 		case t.input <- event{
-			duty:    duty,
-			step:    consensus,
-			pubkey:  pubkey,
-			stepErr: stepErr,
+			duty:      duty,
+			step:      consensus,
+			pubkey:    pubkey,
+			stepErr:   stepErr,
+			noPayload: noPayload(data),
 		}:
 		}
 	}
@@ -799,25 +798,16 @@ func (t *Tracker) ConsensusProposed(duty core.Duty, set core.UnsignedDataSet, st
 
 // DutyDBStored implements core.Tracker interface.
 func (t *Tracker) DutyDBStored(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
-	// An empty set carries no pubkeys, so record a single duty level event for it.
-	if len(set) == 0 {
-		select {
-		case <-t.quit:
-		case t.input <- event{duty: duty, step: dutyDB, stepErr: stepErr, emptySet: true}:
-		}
-
-		return
-	}
-
-	for pubkey := range set {
+	for pubkey, data := range set {
 		select {
 		case <-t.quit:
 			return
 		case t.input <- event{
-			duty:    duty,
-			step:    dutyDB,
-			pubkey:  pubkey,
-			stepErr: stepErr,
+			duty:      duty,
+			step:      dutyDB,
+			pubkey:    pubkey,
+			stepErr:   stepErr,
+			noPayload: noPayload(data),
 		}:
 		}
 	}

@@ -137,26 +137,34 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}
 }
 
-// TestUnsignedDataSetToProtoEmpty asserts that an empty unsigned data set (the agreed no-block
-// outcome of a payload attestation duty) round trips through proto as an empty, non-nil set.
-func TestUnsignedDataSetToProtoEmpty(t *testing.T) {
-	pb, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{})
+// TestUnsignedDataSetToProtoNoPayload asserts that the no payload attestation data, the agreed
+// no-block outcome of the duty, round trips through proto as a regular non-empty set, while
+// empty sets are rejected for every duty.
+func TestUnsignedDataSetToProtoNoPayload(t *testing.T) {
+	data, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 42)
 	require.NoError(t, err)
-	require.NotNil(t, pb)
 
-	set, err := core.UnsignedDataSetFromProto(core.DutyPayloadAttestation, pb)
+	set := core.UnsignedDataSet{testutil.RandomCorePubKey(t): data}
+
+	pb, err := core.UnsignedDataSetToProto(set)
 	require.NoError(t, err)
-	require.NotNil(t, set)
-	require.Empty(t, set)
 
-	// A nil set encodes the same way.
-	pbNil, err := core.UnsignedDataSetToProto(nil)
+	// The proto never marshals to zero bytes, which consensus would treat as no value.
+	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(pb)
 	require.NoError(t, err)
-	require.Equal(t, pb.String(), pbNil.String())
+	require.NotEmpty(t, b)
 
-	// Other duties keep rejecting empty sets.
-	_, err = core.UnsignedDataSetFromProto(core.DutyAttester, pb)
-	require.ErrorContains(t, err, "invalid unsigned data set")
+	got, err := core.UnsignedDataSetFromProto(core.DutyPayloadAttestation, pb)
+	require.NoError(t, err)
+	require.Equal(t, set, got)
+
+	empty, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{})
+	require.NoError(t, err)
+
+	for _, typ := range []core.DutyType{core.DutyPayloadAttestation, core.DutyAttester} {
+		_, err = core.UnsignedDataSetFromProto(typ, empty)
+		require.ErrorContains(t, err, "invalid unsigned data set")
+	}
 }
 
 func TestUnsignedDataToProto(t *testing.T) {
