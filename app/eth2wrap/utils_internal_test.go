@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -172,4 +173,16 @@ func TestParseSlotTimingConfig(t *testing.T) {
 			require.Equal(t, test.expect, timing)
 		})
 	}
+}
+
+// TestForkDataVersions ensures every fork has a data version, so a new fork isn't silently
+// resolved to the previous fork's data version.
+func TestForkDataVersions(t *testing.T) {
+	for fork := range forkLabels {
+		_, ok := forkDataVersions[fork]
+		require.True(t, ok, "fork %s has no data version", fork)
+	}
+
+	require.Equal(t, Gloas, latestFork())
+	require.Equal(t, eth2spec.DataVersionGloas, ForkForkSchedule{Gloas: {Epoch: 0}}.DataVersion(0))
 }

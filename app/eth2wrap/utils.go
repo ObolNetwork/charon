@@ -9,6 +9,7 @@ import (
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -29,6 +30,20 @@ func (s ForkForkSchedule) Active(fork Fork, epoch eth2p0.Epoch) bool {
 	return ok && fs.Epoch != math.MaxUint64 && epoch >= fs.Epoch
 }
 
+// DataVersion returns the data version of the latest fork active at the provided epoch,
+// phase0 if none is.
+func (s ForkForkSchedule) DataVersion(epoch eth2p0.Epoch) eth2spec.DataVersion {
+	for fork := latestFork(); ; fork-- {
+		if s.Active(fork, epoch) {
+			return forkDataVersions[fork]
+		}
+
+		if fork == Altair {
+			return eth2spec.DataVersionPhase0
+		}
+	}
+}
+
 type Fork uint64
 
 const (
@@ -40,6 +55,27 @@ const (
 	Fulu
 	Gloas
 )
+
+// forkDataVersions maps each fork to the data version of the objects it introduces.
+var forkDataVersions = map[Fork]eth2spec.DataVersion{
+	Altair:    eth2spec.DataVersionAltair,
+	Bellatrix: eth2spec.DataVersionBellatrix,
+	Capella:   eth2spec.DataVersionCapella,
+	Deneb:     eth2spec.DataVersionDeneb,
+	Electra:   eth2spec.DataVersionElectra,
+	Fulu:      eth2spec.DataVersionFulu,
+	Gloas:     eth2spec.DataVersionGloas,
+}
+
+// latestFork returns the most recent fork with a data version.
+func latestFork() Fork {
+	var latest Fork
+	for fork := range forkDataVersions {
+		latest = max(latest, fork)
+	}
+
+	return latest
+}
 
 func (f Fork) String() string {
 	return forkLabels[f]

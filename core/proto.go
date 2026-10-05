@@ -258,14 +258,8 @@ func UnsignedDataSetFromProto(typ DutyType, set *pbv1.UnsignedDataSet) (_ Unsign
 		}
 	}()
 
-	if set == nil {
+	if set == nil || len(set.GetSet()) == 0 {
 		return nil, errors.New("invalid unsigned data set fields", z.Any("set", set))
-	}
-
-	// An empty set is only a valid value for duties where the cluster can agree there is
-	// nothing to perform, e.g. no block to attest for a payload attestation duty.
-	if len(set.GetSet()) == 0 && typ != DutyPayloadAttestation {
-		return nil, errors.New("invalid unsigned data set fields", z.Any("set", set), z.Str("duty", typ.String()))
 	}
 
 	resp := make(UnsignedDataSet)
