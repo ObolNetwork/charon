@@ -88,7 +88,7 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	s, err := scheduler.New(t.Context(), &stubRegProvider{regs: valRegs}, eth2Cl, false)
+	s, err := scheduler.New(t.Context(), &stubRegProvider{regs: valRegs}, eth2Cl, func() eth2wrap.ForkForkSchedule { return nil }, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -116,7 +116,7 @@ func TestNewSchedulerSpecError(t *testing.T) {
 	client := mocks.NewClient(t)
 	client.On("Spec", mock.Anything, mock.Anything).Return(nil, errors.New("beacon node down"))
 
-	_, err := scheduler.New(t.Context(), &stubRegProvider{}, client, false)
+	_, err := scheduler.New(t.Context(), &stubRegProvider{}, client, func() eth2wrap.ForkForkSchedule { return nil }, false)
 	require.ErrorContains(t, err, "new slot offset func")
 }
 
