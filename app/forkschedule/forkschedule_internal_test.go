@@ -6,6 +6,7 @@ import (
 	"context"
 	"math"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -306,4 +307,116 @@ func gaugeValues(t *testing.T, name string) map[string]float64 {
 	}
 
 	return resp
+}
+
+// restartableNode is a beacon node that can be restarted with a different spec. Its address is
+// kept across restarts, like a restarted beacon node behind the same endpoint.
+type restartableNode struct {
+	eth2wrap.Client
+
+	mu     sync.RWMutex
+	spec   eth2wrap.Client
+	active bool
+}
+
+func newRestartableNode(t *testing.T, gloasEpoch eth2p0.Epoch) *restartableNode {
+	t.Helper()
+
+	node := newNode(t, gloasEpoch, true)
+
+	return &restartableNode{Client: node, spec: node, active: true}
+}
+
+func (n *restartableNode) Spec(ctx context.Context, opts *eth2api.SpecOpts) (*eth2api.Response[map[string]any], error) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	return n.spec.Spec(ctx, opts)
+}
+
+func (n *restartableNode) IsActive() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	return n.active
+}
+
+// stop makes the node inactive, as when it is shut down.
+func (n *restartableNode) stop() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.active = false
+}
+
+// start makes the node active again, scheduling gloas at the epoch.
+func (n *restartableNode) start(t *testing.T, gloasEpoch eth2p0.Epoch) {
+	t.Helper()
+
+	spec := newNode(t, gloasEpoch, true)
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	n.spec = spec
+	n.active = true
+}
+
+// TestBeaconNodeRestart asserts that of two beacon nodes, the one restarted with gloas scheduled
+// sooner has its schedule applied, while the other keeps running with its previous schedule.
+func TestBeaconNodeRestart(t *testing.T) {
+	const (
+		farEpoch   = eth2p0.Epoch(1_000_000_000)
+		soonEpoch  = eth2p0.Epoch(100)
+		waitPeriod = 5 * time.Second
+		refresh    = 10 * time.Millisecond
+	)
+
+	tests := []struct {
+		name    string
+		initial eth2p0.Epoch // Gloas epoch of both nodes before the restart.
+	}{
+		{name: "gloas unscheduled", initial: unscheduled},
+		{name: "gloas scheduled far away", initial: farEpoch},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			nodeA := newRestartableNode(t, test.initial)
+			nodeB := newRestartableNode(t, test.initial)
+
+			schedule := startForT(t,
+				eth2wrap.NewMultiForT([]eth2wrap.Client{nodeA, nodeB}, nil),
+				[]string{nodeA.Address(), nodeB.Address()},
+				refresh)
+			require.Equal(t, test.initial, schedule()[eth2wrap.Gloas].Epoch)
+
+			// While node B restarts, node A's schedule is applied.
+			nodeB.stop()
+			time.Sleep(10 * refresh)
+			require.Equal(t, test.initial, schedule()[eth2wrap.Gloas].Epoch)
+
+			// Node B is back with gloas scheduled sooner, which is applied.
+			nodeB.start(t, soonEpoch)
+			require.Eventually(t, func() bool {
+				return schedule()[eth2wrap.Gloas].Epoch == soonEpoch
+			}, waitPeriod, refresh)
+
+			// Node A still publishes its previous schedule, the sooner epoch stays applied.
+			require.Equal(t, test.initial, gloasEpochOf(t, nodeA))
+
+			time.Sleep(10 * refresh)
+			require.Equal(t, soonEpoch, schedule()[eth2wrap.Gloas].Epoch)
+		})
+	}
+}
+
+// gloasEpochOf returns the gloas epoch published by the beacon node.
+func gloasEpochOf(t *testing.T, node eth2wrap.Client) eth2p0.Epoch {
+	t.Helper()
+
+	schedule, err := eth2wrap.FetchForkConfig(t.Context(), node)
+	require.NoError(t, err)
+
+	return schedule[eth2wrap.Gloas].Epoch
 }
