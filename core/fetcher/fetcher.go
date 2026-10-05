@@ -536,7 +536,7 @@ func (f *Fetcher) fetchPayloadAttestationData(ctx context.Context, slot uint64, 
 		// so the cluster agrees on the no-block outcome like on any other value.
 		log.Debug(ctx, "No payload seen for slot's block", z.U64("slot", slot))
 
-		version := f.forkSchedule.DataVersion(eth2p0.Epoch(slot / f.slotsPerEpoch))
+		version := f.forkSchedule().DataVersion(eth2p0.Epoch(slot / f.slotsPerEpoch))
 
 		data, err = core.NewNoPayloadAttestationData(version, eth2p0.Slot(slot))
 		if err != nil {

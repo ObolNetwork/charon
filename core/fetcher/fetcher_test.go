@@ -1087,7 +1087,7 @@ func TestFetchPayloadAttestationNoPayload(t *testing.T) {
 
 	// The no-block data is versioned as the fork active at the slot, gloas here.
 	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{},
-		eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	var (

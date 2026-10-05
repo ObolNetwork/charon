@@ -238,9 +238,10 @@ func setForkMetrics(schedule eth2wrap.ForkForkSchedule, epoch eth2p0.Epoch) {
 		currentEpoch, nextEpoch eth2p0.Epoch
 	)
 
-	for fork := eth2wrap.Altair; fork <= eth2wrap.Gloas; fork++ {
-		fs, ok := schedule[fork]
-		if !ok || fs.Epoch == math.MaxUint64 {
+	// In fork order, so that of forks activating at the same epoch the latest one wins.
+	for _, fork := range slices.Sorted(maps.Keys(schedule)) {
+		fs := schedule[fork]
+		if fs.Epoch == math.MaxUint64 {
 			continue // Not scheduled.
 		}
 
