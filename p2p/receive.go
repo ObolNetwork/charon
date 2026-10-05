@@ -54,8 +54,6 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		t0 := time.Now()
 		name := PeerName(s.Conn().RemotePeer())
 
-		// Read the negotiated protocol once and reuse it: it labels the handler metrics, so
-		// a value read again later (or too early in the stream's life) could mislabel them.
 		streamProtocol := s.Protocol()
 
 		_ = s.SetReadDeadline(time.Now().Add(o.receiveTimeout))
