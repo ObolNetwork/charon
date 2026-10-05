@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
 )
 
-// mainnetTiming returns the intra-slot deadlines of a network that schedules the gloas fork at epoch 64.
+// mainnetTiming returns the intra-slot deadlines of the consensus spec.
 func mainnetTiming() eth2wrap.SlotTimingConfig {
 	return eth2wrap.SlotTimingConfig{
 		Attestation:        eth2wrap.ForkBPS{PreGloas: 3333, Gloas: 2500},
@@ -21,12 +22,18 @@ func mainnetTiming() eth2wrap.SlotTimingConfig {
 		Contribution:       eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
 		Payload:            eth2wrap.ForkBPS{Gloas: 5000},
 		PayloadAttestation: eth2wrap.ForkBPS{Gloas: 7500},
-		GloasEpoch:         64,
+	}
+}
+
+// gloasAt returns a fork schedule function scheduling the gloas fork at the epoch.
+func gloasAt(epoch eth2p0.Epoch) func() eth2wrap.ForkForkSchedule {
+	return func() eth2wrap.ForkForkSchedule {
+		return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: epoch}}
 	}
 }
 
 func TestSlotOffsetPayloadAttestation(t *testing.T) {
-	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), gloasAt(64))
 
 	const gloasSlot = 64 * 16
 
@@ -40,7 +47,7 @@ func TestSlotOffsetPayloadAttestation(t *testing.T) {
 }
 
 func TestSlotOffsetExecutionPayloadEnvelope(t *testing.T) {
-	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), gloasAt(64))
 
 	const gloasSlot = 64 * 16
 
@@ -55,7 +62,7 @@ func TestSlotOffsetExecutionPayloadEnvelope(t *testing.T) {
 func TestSlotOffsetPreGloasMatchesFractions(t *testing.T) {
 	// A 12 second slot duration must resolve to the exact fractions used before the gloas fork,
 	// since 3333 and 6667 basis points are the consensus spec's approximations of 1/3 and 2/3.
-	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), gloasAt(64))
 
 	tests := []struct {
 		dutyType DutyType
@@ -75,7 +82,7 @@ func TestSlotOffsetPreGloasMatchesFractions(t *testing.T) {
 }
 
 func TestSlotOffsetGloas(t *testing.T) {
-	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), gloasAt(64))
 
 	const gloasSlot = 64 * 16
 
@@ -97,7 +104,7 @@ func TestSlotOffsetGloas(t *testing.T) {
 }
 
 func TestSlotOffsetForkBoundary(t *testing.T) {
-	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), gloasAt(64))
 
 	const gloasSlot = 64 * 16
 
@@ -107,10 +114,7 @@ func TestSlotOffsetForkBoundary(t *testing.T) {
 }
 
 func TestSlotOffsetGloasNotScheduled(t *testing.T) {
-	timing := mainnetTiming()
-	timing.GloasEpoch = math.MaxUint64
-
-	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, timing)
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), gloasAt(math.MaxUint64))
 
 	// The gloas slot must not overflow, so even the last possible slot uses the pre-gloas deadline.
 	require.Equal(t, 4*time.Second, offsetFunc(Duty{Slot: 0, Type: DutyAttester}))
@@ -118,7 +122,7 @@ func TestSlotOffsetGloasNotScheduled(t *testing.T) {
 }
 
 func TestSlotOffsetDutiesWithoutDeadline(t *testing.T) {
-	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming())
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), gloasAt(64))
 
 	// Duties without a spec deadline are triggered at the start of the slot.
 	for _, dutyType := range []DutyType{
@@ -154,10 +158,26 @@ func TestSlotOffsetShorterSlots(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			offsetFunc := newSlotOffsetFunc(test.slotDuration, 16, mainnetTiming())
+			offsetFunc := newSlotOffsetFunc(test.slotDuration, 16, mainnetTiming(), gloasAt(64))
 
 			require.Equal(t, test.preGloas, offsetFunc(Duty{Slot: 0, Type: DutyAttester}))
 			require.Equal(t, test.gloas, offsetFunc(Duty{Slot: 64 * 16, Type: DutyAttester}))
 		})
 	}
+}
+
+func TestSlotOffsetGloasScheduledAtRuntime(t *testing.T) {
+	var schedule eth2wrap.ForkForkSchedule // Gloas not scheduled yet.
+
+	offsetFunc := newSlotOffsetFunc(12*time.Second, 16, mainnetTiming(), func() eth2wrap.ForkForkSchedule { return schedule })
+
+	const gloasSlot = 64 * 16
+
+	require.Equal(t, 4*time.Second, offsetFunc(Duty{Slot: gloasSlot, Type: DutyAttester}))
+
+	// Scheduling the fork after the function is created applies the gloas deadlines from the fork.
+	schedule = eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 64}}
+
+	require.Equal(t, 4*time.Second, offsetFunc(Duty{Slot: gloasSlot - 1, Type: DutyAttester}))
+	require.Equal(t, 3*time.Second, offsetFunc(Duty{Slot: gloasSlot, Type: DutyAttester}))
 }

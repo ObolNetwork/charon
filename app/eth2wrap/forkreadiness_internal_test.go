@@ -38,8 +38,8 @@ func specProvider(spec map[string]any) stubSpecProvider {
 func TestEvaluateForkReadiness(t *testing.T) {
 	tests := []struct {
 		name    string
-		applied map[string]any // Spec at charon startup.
-		current map[string]any // Spec published by the beacon node now.
+		applied map[string]any // Spec of the fork schedule charon applies.
+		current map[string]any // Spec published by the beacon node.
 		fork    string
 		status  string
 	}{
@@ -51,11 +51,11 @@ func TestEvaluateForkReadiness(t *testing.T) {
 			status:  forkStatusReady,
 		},
 		{
-			name:    "restart required",
-			applied: testSpec(map[string]any{"GLOAS_FORK_EPOCH": uint64(math.MaxUint64)}),
-			current: testSpec(map[string]any{"GLOAS_FORK_EPOCH": uint64(4096)}),
+			name:    "ready for a fork scheduled at runtime",
+			applied: testSpec(map[string]any{"GLOAS_FORK_EPOCH": uint64(4096)}),
+			current: testSpec(map[string]any{"GLOAS_FORK_EPOCH": uint64(math.MaxUint64)}),
 			fork:    "gloas",
-			status:  forkStatusRestartRequired,
+			status:  forkStatusReady,
 		},
 		{
 			name:    "upgrade required",

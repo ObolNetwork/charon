@@ -49,3 +49,25 @@ func TestClientForAddressConfigured(t *testing.T) {
 	scoped = mf.ClientForAddress("http://user:secret@bn-c.example.com:5052")
 	require.Same(t, clientC, scoped.(multi).clients[0])
 }
+
+func TestPrimaryOnly(t *testing.T) {
+	primary := newLazy(nil)
+	primary.confAddress = "http://primary:5052"
+
+	fallback := newLazy(nil)
+	fallback.confAddress = "http://fallback:5052"
+
+	m := multi{clients: []Client{primary}, fallbacks: []Client{fallback}}
+
+	// A scoped client keeps the fallbacks, the primary only client doesn't.
+	scoped := m.ClientForAddress("http://primary:5052")
+	require.Len(t, scoped.(multi).fallbacks, 1)
+
+	only := PrimaryOnly(scoped)
+	require.Same(t, primary, only.(multi).clients[0])
+	require.Empty(t, only.(multi).fallbacks)
+
+	// The pointer form is supported too, other clients are returned as is.
+	require.Empty(t, PrimaryOnly(&m).(multi).fallbacks)
+	require.Same(t, primary, PrimaryOnly(primary))
+}

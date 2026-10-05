@@ -25,9 +25,10 @@ import (
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
-// New returns a new fetcher instance.
+// New returns a new fetcher instance. The fork schedule function returns the schedule charon
+// currently applies, which may change at runtime.
 func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder,
-	forkSchedule eth2wrap.ForkForkSchedule, slotsPerEpoch uint64, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
+	forkSchedule func() eth2wrap.ForkForkSchedule, slotsPerEpoch uint64, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
 ) (*Fetcher, error) {
 	if slotsPerEpoch == 0 {
 		return nil, errors.New("zero slots per epoch")
@@ -55,7 +56,7 @@ type Fetcher struct {
 	syncContributionV2Func func(slot uint64) bool
 	builderEnabled         bool
 	graffitiBuilder        *GraffitiBuilder
-	forkSchedule           eth2wrap.ForkForkSchedule
+	forkSchedule           func() eth2wrap.ForkForkSchedule
 	slotsPerEpoch          uint64
 	builderConfig          *gloas.BuilderConfig
 	fetchOnlyCommIdx0      bool
@@ -516,7 +517,7 @@ func (f *Fetcher) fetchRandao(ctx context.Context, slot uint64, pubkey core.PubK
 
 // forkActive returns true if the fork is scheduled and active at the provided slot.
 func (f *Fetcher) forkActive(fork eth2wrap.Fork, slot uint64) bool {
-	return f.forkSchedule.Active(fork, eth2p0.Epoch(slot/f.slotsPerEpoch))
+	return f.forkSchedule().Active(fork, eth2p0.Epoch(slot/f.slotsPerEpoch))
 }
 
 // fetchPayloadAttestationData returns the fetched payload attestation data for the slot.

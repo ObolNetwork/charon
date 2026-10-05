@@ -53,7 +53,7 @@ type listener struct {
 
 var _ Listener = (*listener)(nil)
 
-func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, headers []string) (Listener, error) {
+func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule, addresses, headers []string) (Listener, error) {
 	// It is fine to use response from eth2cl (and respectively response from one of the nodes),
 	// as configurations are per network and not per node.
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
@@ -66,7 +66,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 		return nil, err
 	}
 
-	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return nil, err
 	}

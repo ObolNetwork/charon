@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/bcast"
 	"github.com/obolnetwork/charon/testutil"
@@ -52,7 +53,7 @@ func TestBroadcast(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			bcaster, err := bcast.New(ctx, mock)
+			bcaster, err := bcast.New(ctx, mock, func() eth2wrap.ForkForkSchedule { return nil })
 			require.NoError(t, err)
 
 			for range test.bcastCnt {
@@ -79,7 +80,7 @@ func TestBroadcastOtherDuties(t *testing.T) {
 	mock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
-	bcaster, err := bcast.New(context.Background(), mock)
+	bcaster, err := bcast.New(context.Background(), mock, func() eth2wrap.ForkForkSchedule { return nil })
 	require.NoError(t, err)
 
 	err = bcaster.Broadcast(context.Background(), core.Duty{Type: core.DutyBuilderProposer}, nil)

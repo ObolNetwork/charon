@@ -140,7 +140,7 @@ func TestFetchAttesterGloas(t *testing.T) {
 	}
 
 	fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{},
-		eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
@@ -447,7 +447,7 @@ func TestFetchEPBSBlocks(t *testing.T) {
 		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 			return "0x0000000000000000000000000000000000000000"
 		}, false, &fetcher.GraffitiBuilder{},
-			eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}, 1, &gloas.BuilderConfig{}, false)
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
 		require.NoError(t, err)
 
 		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
@@ -957,7 +957,7 @@ func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
 	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{},
-		eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}}, 1, &gloas.BuilderConfig{}, false)
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch
@@ -968,7 +968,7 @@ func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock
 
 	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
 		return addr
-	}, true, graffitiBuilder, eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}}, 1, &gloas.BuilderConfig{}, false)
+	}, true, graffitiBuilder, func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
 	return fetch

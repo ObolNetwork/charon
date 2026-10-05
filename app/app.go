@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/forkschedule"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
@@ -295,7 +296,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
-	sseListener, err := sse.StartListener(ctx, eth2Cl, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
+	forkSchedule, err := forkschedule.Start(ctx, eth2Cl, conf.BeaconNodeAddrs)
+	if err != nil {
+		return err
+	}
+
+	sseListener, err := sse.StartListener(ctx, eth2Cl, forkSchedule, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
 	if err != nil {
 		return err
 	}
@@ -334,10 +340,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	consensusDebugger := consensus.NewDebugger()
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, p2pNode, eth2Cl, conf.BeaconNodeAddrs, eth1Cl,
-		peerIDs, promRegistry, consensusDebugger, pubkeys, vapiCalls, len(lock.Validators), validatorapi.SeenVCUserAgents)
+		peerIDs, promRegistry, consensusDebugger, pubkeys, vapiCalls, len(lock.Validators), validatorapi.SeenVCUserAgents,
+		forkSchedule)
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, p2pNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, consensusDebugger, pubkeys, sseListener, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, pubkeys, sseListener, vapiCallsFunc, forkSchedule)
 	if err != nil {
 		return err
 	}
@@ -424,7 +431,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock *cluster.Lock, nodeIdx cluster.NodeIdx, p2pNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	consensusDebugger consensus.Debugger, pubkeys []core.PubKey,
-	sseListener sse.Listener, vapiCalls func(),
+	sseListener sse.Listener, vapiCalls func(), forkSchedule func() eth2wrap.ForkForkSchedule,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -510,7 +517,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return err
 	}
@@ -519,7 +526,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	sched, err := scheduler.New(ctx, builderRegSvc, eth2Cl, conf.BuilderAPI)
+	sched, err := scheduler.New(ctx, builderRegSvc, eth2Cl, forkSchedule, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -605,11 +612,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	graffitiBuilder, err := fetcher.NewGraffitiBuilder(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -711,7 +713,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}
 
-	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
+	broadcaster, err := bcast.New(ctx, submissionEth2Cl, forkSchedule)
 	if err != nil {
 		return err
 	}
@@ -720,7 +722,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Consensus
 	consensusController, err := consensus.NewConsensusController(
-		ctx, eth2Cl, p2pNode, sender, peers, p2pKey,
+		ctx, eth2Cl, forkSchedule, p2pNode, sender, peers, p2pKey,
 		deadlineFunc, gaterFunc, consensusDebugger, featureset.Enabled(featureset.ChainSplitHalt))
 	if err != nil {
 		return err
@@ -765,7 +767,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 	core.Wire(sched, fetch, coreConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
-	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
+	err = wireValidatorMock(ctx, conf, eth2Cl, forkSchedule, pubshares, sched)
 	if err != nil {
 		return err
 	}
