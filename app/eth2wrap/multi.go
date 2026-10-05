@@ -96,6 +96,21 @@ func (m multi) ClientForAddress(addr string) Client {
 	return m
 }
 
+// PrimaryOnly returns the multi client without its fallback beacon nodes, so that responses come
+// from the configured clients only, e.g. to attribute a response to the node a client is scoped
+// to. Other clients are returned as is.
+func PrimaryOnly(cl Client) Client {
+	switch m := cl.(type) {
+	case multi:
+		m.fallbacks = nil
+		return m
+	case *multi:
+		return multi{clients: m.clients, selector: m.selector}
+	default:
+		return cl
+	}
+}
+
 func (m multi) Headers() map[string]string {
 	if len(m.clients) == 0 {
 		return nil

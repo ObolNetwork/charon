@@ -10,9 +10,11 @@ import (
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -145,6 +147,39 @@ func startForT(t *testing.T, eth2Cl eth2wrap.Client, addrs []string, period time
 	})
 
 	return schedule
+}
+
+// timingOutNode is an active beacon node timing out on its spec, which makes a scoped client
+// fall back to the fallback beacon nodes.
+type timingOutNode struct {
+	eth2wrap.Client
+}
+
+func (timingOutNode) Spec(context.Context, *eth2api.SpecOpts) (*eth2api.Response[map[string]any], error) {
+	return nil, errors.New("http request timeout")
+}
+
+// TestFetchFreshestIgnoresFallbacks asserts a primary failing to provide its schedule doesn't
+// have a fallback's schedule applied in its place.
+func TestFetchFreshestIgnoresFallbacks(t *testing.T) {
+	behind := newNode(t, unscheduled, true)
+	timingOut := timingOutNode{Client: newNode(t, 100, true)}
+	fallback := newNode(t, 200, true)
+
+	eth2Cl := eth2wrap.NewMultiForT([]eth2wrap.Client{behind, timingOut}, []eth2wrap.Client{fallback})
+
+	schedule, err := fetchFreshest(t.Context(), eth2Cl, []string{behind.Address(), timingOut.Address()})
+	require.NoError(t, err)
+	require.Equal(t, unscheduled, schedule[eth2wrap.Gloas].Epoch)
+}
+
+func TestEpochAt(t *testing.T) {
+	genesis := time.Unix(1_000_000, 0)
+
+	require.Equal(t, eth2p0.Epoch(0), epochAt(genesis, 12*time.Second, 32, genesis.Add(-time.Hour)), "pre-genesis")
+	require.Equal(t, eth2p0.Epoch(0), epochAt(genesis, 12*time.Second, 32, genesis))
+	require.Equal(t, eth2p0.Epoch(1), epochAt(genesis, 12*time.Second, 32, genesis.Add(32*12*time.Second)))
+	require.Equal(t, eth2p0.Epoch(2), epochAt(genesis, 12*time.Second, 32, genesis.Add(65*12*time.Second)))
 }
 
 func TestStart(t *testing.T) {

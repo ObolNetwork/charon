@@ -52,7 +52,7 @@ func start(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string, period t
 	}
 
 	currentEpoch := func() eth2p0.Epoch {
-		return eth2p0.Epoch(uint64(time.Since(genesisTime)/slotDuration) / slotsPerEpoch)
+		return epochAt(genesisTime, slotDuration, slotsPerEpoch, time.Now())
 	}
 
 	applied, err := fetchFreshest(ctx, eth2Cl, addrs)
@@ -111,7 +111,8 @@ func fetchFreshest(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string) 
 	var schedules []eth2wrap.ForkForkSchedule
 
 	for i, addr := range addrs {
-		cl := eth2Cl.ClientForAddress(addr)
+		// Without fallbacks, which a scoped client otherwise queries when the node fails.
+		cl := eth2wrap.PrimaryOnly(eth2Cl.ClientForAddress(addr))
 		if !cl.IsActive() {
 			continue
 		}
@@ -131,6 +132,15 @@ func fetchFreshest(ctx context.Context, eth2Cl eth2wrap.Client, addrs []string) 
 	}
 
 	return freshest(schedules), nil
+}
+
+// epochAt returns the epoch at the time, the genesis epoch before genesis.
+func epochAt(genesisTime time.Time, slotDuration time.Duration, slotsPerEpoch uint64, now time.Time) eth2p0.Epoch {
+	if now.Before(genesisTime) {
+		return 0
+	}
+
+	return eth2p0.Epoch(uint64(now.Sub(genesisTime)/slotDuration) / slotsPerEpoch)
 }
 
 // freshest returns the freshest of the schedules: per fork the earliest scheduled epoch.
