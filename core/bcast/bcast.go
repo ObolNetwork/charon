@@ -25,8 +25,8 @@ import (
 )
 
 // New returns a new broadcaster instance.
-func New(ctx context.Context, eth2Cl eth2wrap.Client) (Broadcaster, error) {
-	delayFunc, err := newDelayFunc(ctx, eth2Cl)
+func New(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule) (Broadcaster, error) {
+	delayFunc, err := newDelayFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return Broadcaster{}, err
 	}
@@ -472,7 +472,7 @@ func setToAttestations(set core.SignedDataSet) ([]*eth2spec.VersionedAttestation
 }
 
 // newDelayFunc returns a function that calculates the delay since the expected duty submission.
-func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64, duty core.DutyType) time.Duration, error) {
+func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule) (func(slot uint64, duty core.DutyType) time.Duration, error) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -483,7 +483,7 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 		return nil, err
 	}
 
-	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return nil, err
 	}

@@ -43,7 +43,6 @@ func TestFetchSlotTimingConfig(t *testing.T) {
 	eth2Cl, err := beaconmock.New(t.Context(),
 		beaconmock.WithSpecOverride("ATTESTATION_DUE_BPS", "2000"),
 		beaconmock.WithSpecOverride("ATTESTATION_DUE_BPS_GLOAS", "1500"),
-		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "1024"),
 	)
 	require.NoError(t, err)
 
@@ -58,7 +57,6 @@ func TestFetchSlotTimingConfig(t *testing.T) {
 		Contribution:       eth2wrap.ForkBPS{PreGloas: 6667, Gloas: 5000},
 		Payload:            eth2wrap.ForkBPS{Gloas: 5000},
 		PayloadAttestation: eth2wrap.ForkBPS{Gloas: 7500},
-		GloasEpoch:         1024,
 	}, timing)
 }
 

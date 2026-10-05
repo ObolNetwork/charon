@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
@@ -983,7 +984,7 @@ func testDecidedMessageScenarios(t *testing.T, compareAttestations bool) {
 	bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
 	require.NoError(t, err)
 
-	c, err := NewConsensus(t.Context(), bmock, h, new(p2p.Sender), peers, p2pkeys[0],
+	c, err := NewConsensus(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return nil }, h, new(p2p.Sender), peers, p2pkeys[0],
 		deadliner, func(core.Duty) bool { return true }, func(*pbv1.SniffedConsensusInstance) {}, compareAttestations)
 	require.NoError(t, err)
 

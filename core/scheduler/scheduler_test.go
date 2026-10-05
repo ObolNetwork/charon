@@ -88,7 +88,7 @@ func TestIntegration(t *testing.T) {
 		},
 	}
 
-	s, err := scheduler.New(t.Context(), &stubRegProvider{regs: valRegs}, eth2Cl, false)
+	s, err := scheduler.New(t.Context(), &stubRegProvider{regs: valRegs}, eth2Cl, func() eth2wrap.ForkForkSchedule { return nil }, false)
 	require.NoError(t, err)
 
 	count := 10
@@ -116,7 +116,7 @@ func TestNewSchedulerSpecError(t *testing.T) {
 	client := mocks.NewClient(t)
 	client.On("Spec", mock.Anything, mock.Anything).Return(nil, errors.New("beacon node down"))
 
-	_, err := scheduler.New(t.Context(), &stubRegProvider{}, client, false)
+	_, err := scheduler.New(t.Context(), &stubRegProvider{}, client, func() eth2wrap.ForkForkSchedule { return nil }, false)
 	require.ErrorContains(t, err, "new slot offset func")
 }
 
@@ -502,13 +502,23 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Construct scheduler.
-	schedSlotCh := make(chan core.Slot)
+	// Construct scheduler. Scheduling a slot waits for the test to check it, so that resolving
+	// duties for the slot can't race the reorg and its checks.
+	var (
+		schedSlotCh = make(chan core.Slot)
+		checkedCh   = make(chan struct{})
+	)
+
 	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
 		select {
 		case <-ctx.Done():
 			return
 		case schedSlotCh <- slot:
+		}
+
+		select {
+		case <-ctx.Done():
+		case <-checkedCh:
 		}
 	}
 	clock := newTestClock(t0)
@@ -544,6 +554,8 @@ func TestHandleChainReorgEvent(t *testing.T) {
 		}
 
 		clock.Resume()
+
+		checkedCh <- struct{}{}
 	}
 
 	require.NoError(t, <-doneCh)

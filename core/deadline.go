@@ -87,7 +87,8 @@ func NewDeadliner(ctx context.Context, label string, deadlineFunc DeadlineFunc) 
 }
 
 // NewDutyDeadlineFunc returns the function that provides duty deadlines or false if the duty never deadlines.
-func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineFunc, error) {
+// Deadlines derived from gloas slot offsets follow the fork schedule at runtime.
+func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule) (DeadlineFunc, error) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -103,7 +104,7 @@ func NewDutyDeadlineFunc(ctx context.Context, eth2Cl eth2wrap.Client) (DeadlineF
 		return nil, err
 	}
 
-	slotOffset := newSlotOffsetFunc(slotDuration, slotsPerEpoch, timing)
+	slotOffset := newSlotOffsetFunc(slotDuration, slotsPerEpoch, timing, forkSchedule)
 
 	return func(duty Duty) (time.Time, bool) {
 		switch duty.Type {

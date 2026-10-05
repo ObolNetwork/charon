@@ -322,7 +322,7 @@ func TestReachedGloasFork(t *testing.T) {
 			forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
 			require.NoError(t, err)
 
-			sched := &Scheduler{eth2Cl: eth2Cl, clock: clockwork.NewFakeClockAt(t0), forkSchedule: forkSchedule}
+			sched := &Scheduler{eth2Cl: eth2Cl, clock: clockwork.NewFakeClockAt(t0), forkSchedule: func() eth2wrap.ForkForkSchedule { return forkSchedule }}
 
 			require.Equal(t, test.want, sched.reachedGloasFork(t.Context()))
 		})

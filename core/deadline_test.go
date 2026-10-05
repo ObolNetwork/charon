@@ -129,7 +129,10 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 	currentSlot := uint64(time.Since(genesisTime) / slotDuration)
 	now := genesisTime.Add(time.Duration(currentSlot) * slotDuration)
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), bmock)
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	deadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return forkSchedule })
 	require.NoError(t, err)
 
 	t.Run("never expire", func(t *testing.T) {
@@ -209,7 +212,10 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		gloasDeadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), gloasBmock)
+		gloasSchedule, err := eth2wrap.FetchForkConfig(t.Context(), gloasBmock)
+		require.NoError(t, err)
+
+		gloasDeadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), gloasBmock, func() eth2wrap.ForkForkSchedule { return gloasSchedule })
 		require.NoError(t, err)
 
 		// The proposal deadline follows the attestation due offset, a quarter of the slot post-gloas.

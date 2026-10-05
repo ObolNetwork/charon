@@ -24,7 +24,6 @@ const (
 	forkComponentExecutionLayer  = "execution_layer"
 
 	forkStatusReady           = "ready"
-	forkStatusRestartRequired = "restart_required"
 	forkStatusUpgradeRequired = "upgrade_required"
 	forkStatusUnknown         = "unknown"
 )
@@ -41,46 +40,21 @@ type NodeClientVersions struct {
 	ExecutionClient string
 }
 
-// StartForkReadinessMetric starts a goroutine that periodically compares the beacon node's
-// current fork schedule against the schedule charon applied at startup, populating the fork
-// readiness metrics and warning when charon requires a restart or an upgrade.
-//
-// go-eth2-client refreshes its cached network spec every 5 minutes, so each tick observes a
-// recent spec even though charon's components only apply the spec at startup.
+// StartForkReadinessMetric starts a goroutine that periodically populates the fork readiness
+// metrics from the fork schedule charon applies, warning when a client or charon itself requires
+// an upgrade for a scheduled fork.
 func StartForkReadinessMetric(ctx context.Context, client eth2client.SpecProvider,
+	forkSchedule func() ForkForkSchedule,
 	nodeVersions func(context.Context) []NodeClientVersions,
 	vcUserAgents func() []string,
 	clk clockwork.Clock,
 ) {
 	go func() {
-		var applied ForkForkSchedule
-
 		ticker := clk.NewTicker(10 * time.Minute)
 		defer ticker.Stop()
 
 		for {
-			// Capture the startup fork schedule on the first successful fetch, retrying on
-			// later ticks so a transient error does not disable the metric permanently.
-			// The spec is cached at startup, so this observes the same schedule the other
-			// components applied.
-			if applied == nil {
-				var err error
-
-				applied, err = FetchForkConfig(ctx, client)
-				if err != nil {
-					log.Warn(ctx, "Failed to fetch startup fork schedule for fork readiness metrics", err)
-				} else {
-					for fork, fs := range applied {
-						if fs.Epoch != math.MaxUint64 {
-							appliedForkEpochGauge.WithLabelValues(forkMetricLabel(fork.String())).Set(float64(fs.Epoch))
-						}
-					}
-				}
-			}
-
-			if applied != nil {
-				evaluateForkReadiness(ctx, client, nodeVersions, vcUserAgents, applied)
-			}
+			evaluateForkReadiness(ctx, client, nodeVersions, vcUserAgents, forkSchedule())
 
 			select {
 			case <-ctx.Done():
@@ -91,60 +65,33 @@ func StartForkReadinessMetric(ctx context.Context, client eth2client.SpecProvide
 	}()
 }
 
-// evaluateForkReadiness populates the fork readiness metrics from the beacon node's current
-// fork schedule and warns about forks that require a charon restart or upgrade.
+// evaluateForkReadiness populates the fork readiness metrics from the applied fork schedule and
+// warns about forks that require an upgrade. Charon applies the schedule at runtime, so it is
+// ready for every scheduled fork it knows about.
 func evaluateForkReadiness(ctx context.Context, client eth2client.SpecProvider,
 	nodeVersions func(context.Context) []NodeClientVersions,
 	vcUserAgents func() []string,
 	applied ForkForkSchedule,
 ) {
-	current, err := FetchForkConfig(ctx, client)
-	if err != nil {
-		log.Warn(ctx, "Failed to fetch current fork schedule for fork readiness metrics", err)
-		return
-	}
-
 	specResp, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
 		log.Warn(ctx, "Failed to fetch network spec for fork readiness metrics", err)
 		return
 	}
 
-	networkForkEpochGauge.Reset()
 	forkReadinessGauge.Reset()
 
 	versions := nodeVersions(ctx)
 	vcAgents := vcUserAgents()
 
-	for fork, cur := range current {
-		var (
-			label        = forkMetricLabel(fork.String())
-			app          = applied[fork]
-			curScheduled = cur.Epoch != math.MaxUint64
-			appScheduled = app.Epoch != math.MaxUint64
-		)
-
-		if curScheduled {
-			networkForkEpochGauge.WithLabelValues(label).Set(float64(cur.Epoch))
-		}
-
-		if !curScheduled && !appScheduled {
+	for fork, fs := range applied {
+		if fs.Epoch == math.MaxUint64 {
 			continue // Fork not scheduled on the network, nothing to be ready for.
 		}
 
-		if cur == app {
-			forkReadinessGauge.WithLabelValues(label, forkComponentCharon, forkStatusReady, "").Set(1)
-		} else {
-			forkReadinessGauge.WithLabelValues(label, forkComponentCharon, forkStatusRestartRequired, "").Set(1)
-			log.Warn(ctx, "Beacon node fork schedule differs from the schedule charon applied at startup. Restart charon to apply the current fork schedule", nil,
-				z.Str("fork", label),
-				z.U64("network_epoch", uint64(cur.Epoch)),
-				z.U64("applied_epoch", uint64(app.Epoch)))
-		}
+		label := forkMetricLabel(fork.String())
 
-		if !curScheduled {
-			continue // Client support only applies to forks scheduled on the network.
-		}
+		forkReadinessGauge.WithLabelValues(label, forkComponentCharon, forkStatusReady, "").Set(1)
 
 		for _, nv := range versions {
 			setClientForkReadiness(ctx, label, forkComponentBeaconNode, nv.Address, nv.BeaconNode,
@@ -164,7 +111,6 @@ func evaluateForkReadiness(ctx context.Context, client eth2client.SpecProvider,
 	}
 
 	for name, epoch := range unknownScheduledForks(specResp.Data) {
-		networkForkEpochGauge.WithLabelValues(name).Set(float64(epoch))
 		forkReadinessGauge.WithLabelValues(name, forkComponentCharon, forkStatusUpgradeRequired, "").Set(1)
 		log.Warn(ctx, "Beacon node scheduled a fork that this charon version does not support. Upgrade charon before the fork activates", nil,
 			z.Str("fork", name),

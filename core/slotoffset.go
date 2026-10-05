@@ -19,8 +19,9 @@ import (
 type SlotOffsetFunc func(Duty) time.Duration
 
 // NewSlotOffsetFunc returns a function that provides the spec-defined offsets into the slot at
-// which duty data is due.
-func NewSlotOffsetFunc(ctx context.Context, eth2Cl eth2wrap.Client) (SlotOffsetFunc, error) {
+// which duty data is due. The gloas deadlines apply from the gloas epoch of the fork schedule,
+// read on each call so that a fork scheduled after startup applies.
+func NewSlotOffsetFunc(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule) (SlotOffsetFunc, error) {
 	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
@@ -31,11 +32,13 @@ func NewSlotOffsetFunc(ctx context.Context, eth2Cl eth2wrap.Client) (SlotOffsetF
 		return nil, err
 	}
 
-	return newSlotOffsetFunc(slotDuration, slotsPerEpoch, timing), nil
+	return newSlotOffsetFunc(slotDuration, slotsPerEpoch, timing, forkSchedule), nil
 }
 
 // newSlotOffsetFunc returns a slot offset function for the provided spec values.
-func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing eth2wrap.SlotTimingConfig) SlotOffsetFunc {
+func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing eth2wrap.SlotTimingConfig,
+	forkSchedule func() eth2wrap.ForkForkSchedule,
+) SlotOffsetFunc {
 	bpsByDuty := map[DutyType]eth2wrap.ForkBPS{
 		DutyAttester:           timing.Attestation,
 		DutyAggregator:         timing.Aggregate,
@@ -46,8 +49,6 @@ func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing 
 		DutyExecutionPayloadEnvelope: timing.Payload,
 	}
 
-	gloasSlot, gloasScheduled := forkSlot(timing.GloasEpoch, slotsPerEpoch)
-
 	return func(duty Duty) time.Duration {
 		bps, ok := bpsByDuty[duty.Type]
 		if !ok {
@@ -55,6 +56,8 @@ func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing 
 		}
 
 		deadline := bps.PreGloas
+
+		gloasSlot, gloasScheduled := forkSlot(gloasEpoch(forkSchedule()), slotsPerEpoch)
 		if gloasScheduled && duty.Slot >= gloasSlot {
 			deadline = bps.Gloas
 		}
@@ -63,6 +66,16 @@ func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing 
 		// 1/3 and 2/3 resolve to whole milliseconds, ie. 4s and 8s for a 12s slot duration.
 		return (slotDuration * time.Duration(deadline) / eth2wrap.BasisPoints).Round(time.Millisecond)
 	}
+}
+
+// gloasEpoch returns the gloas epoch of the schedule, math.MaxUint64 if absent.
+func gloasEpoch(schedule eth2wrap.ForkForkSchedule) eth2p0.Epoch {
+	fs, ok := schedule[eth2wrap.Gloas]
+	if !ok {
+		return math.MaxUint64
+	}
+
+	return fs.Epoch
 }
 
 // forkSlot returns the first slot of the fork epoch and true, or false if the fork isn't scheduled.
