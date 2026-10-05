@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/promauto"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -183,4 +184,91 @@ func TestStartRefresh(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return schedule()[eth2wrap.Gloas].Epoch == 100
 	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func TestSetForkMetrics(t *testing.T) {
+	schedule := eth2wrap.ForkForkSchedule{
+		eth2wrap.Altair:  {Epoch: 0},
+		eth2wrap.Electra: {Epoch: 0},
+		eth2wrap.Fulu:    {Epoch: 0},
+		eth2wrap.Gloas:   {Epoch: 100},
+	}
+
+	tests := []struct {
+		name     string
+		schedule eth2wrap.ForkForkSchedule
+		epoch    eth2p0.Epoch
+		current  map[string]float64
+		next     map[string]float64
+	}{
+		{
+			name:     "next fork scheduled",
+			schedule: schedule,
+			epoch:    50,
+			current:  map[string]float64{"fulu": 0},
+			next:     map[string]float64{"gloas": 100},
+		},
+		{
+			name:     "at the fork epoch",
+			schedule: schedule,
+			epoch:    100,
+			current:  map[string]float64{"gloas": 100},
+			next:     map[string]float64{},
+		},
+		{
+			name: "next fork unscheduled",
+			schedule: eth2wrap.ForkForkSchedule{
+				eth2wrap.Fulu:  {Epoch: 10},
+				eth2wrap.Gloas: {Epoch: unscheduled},
+			},
+			epoch:   50,
+			current: map[string]float64{"fulu": 10},
+			next:    map[string]float64{},
+		},
+		{
+			name:     "no fork active",
+			schedule: eth2wrap.ForkForkSchedule{eth2wrap.Altair: {Epoch: 10}},
+			epoch:    5,
+			current:  map[string]float64{"phase0": 0},
+			next:     map[string]float64{"altair": 10},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setForkMetrics(test.schedule, test.epoch)
+
+			require.Equal(t, test.current, gaugeValues(t, "app_fork_current_activation_epoch"))
+			require.Equal(t, test.next, gaugeValues(t, "app_fork_next_activation_epoch"))
+		})
+	}
+}
+
+// gaugeValues returns the values of the named gauge by fork label.
+func gaugeValues(t *testing.T, name string) map[string]float64 {
+	t.Helper()
+
+	registry, err := promauto.NewRegistry(nil)
+	require.NoError(t, err)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+
+	resp := make(map[string]float64)
+
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "fork" {
+					resp[label.GetValue()] = metric.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+
+	return resp
 }
