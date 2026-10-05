@@ -502,13 +502,23 @@ func TestHandleChainReorgEvent(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Construct scheduler.
-	schedSlotCh := make(chan core.Slot)
+	// Construct scheduler. Scheduling a slot waits for the test to check it, so that resolving
+	// duties for the slot can't race the reorg and its checks.
+	var (
+		schedSlotCh = make(chan core.Slot)
+		checkedCh   = make(chan struct{})
+	)
+
 	schedSlotFunc := func(ctx context.Context, slot core.Slot) {
 		select {
 		case <-ctx.Done():
 			return
 		case schedSlotCh <- slot:
+		}
+
+		select {
+		case <-ctx.Done():
+		case <-checkedCh:
 		}
 	}
 	clock := newTestClock(t0)
@@ -544,6 +554,8 @@ func TestHandleChainReorgEvent(t *testing.T) {
 		}
 
 		clock.Resume()
+
+		checkedCh <- struct{}{}
 	}
 
 	require.NoError(t, <-doneCh)
