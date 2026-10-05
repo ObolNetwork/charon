@@ -12,6 +12,7 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -731,4 +732,45 @@ func TestNewVersionedEPBSProposal(t *testing.T) {
 			require.Equal(t, proposal, decoded)
 		}
 	})
+}
+
+func TestNewNoPayloadAttestationData(t *testing.T) {
+	data, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 42)
+	require.NoError(t, err)
+	require.True(t, data.NoPayload)
+	require.Equal(t, eth2spec.DataVersionGloas, data.Version)
+	require.Equal(t, &gloas.PayloadAttestationData{Slot: 42}, data.Gloas)
+
+	_, err = core.NewNoPayloadAttestationData(eth2spec.DataVersionFulu, 42)
+	require.ErrorContains(t, err, "unknown version")
+}
+
+// TestPayloadAttestationDataNoPayloadEncoding asserts the no payload flag survives every
+// encoding the wrapper goes through: clone, json and ssz.
+func TestPayloadAttestationDataNoPayloadEncoding(t *testing.T) {
+	noPayload, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 42)
+	require.NoError(t, err)
+
+	withPayload, err := core.NewVersionedPayloadAttestationData(testutil.RandomVersionedPayloadAttestationData())
+	require.NoError(t, err)
+
+	for _, data := range []core.VersionedPayloadAttestationData{noPayload, withPayload} {
+		clone, err := data.Clone()
+		require.NoError(t, err)
+		require.Equal(t, data, clone)
+
+		b, err := data.MarshalJSON()
+		require.NoError(t, err)
+
+		var fromJSON core.VersionedPayloadAttestationData
+		require.NoError(t, fromJSON.UnmarshalJSON(b))
+		require.Equal(t, data, fromJSON)
+
+		b, err = data.MarshalSSZ()
+		require.NoError(t, err)
+
+		var fromSSZ core.VersionedPayloadAttestationData
+		require.NoError(t, fromSSZ.UnmarshalSSZ(b))
+		require.Equal(t, data, fromSSZ)
+	}
 }

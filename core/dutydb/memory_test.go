@@ -14,6 +14,7 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -734,7 +735,7 @@ func TestMemDBPayloadAttestation(t *testing.T) {
 	require.ErrorContains(t, err, "clashing payload attestation data")
 }
 
-func TestMemDBPayloadAttestationNoBlock(t *testing.T) {
+func TestMemDBPayloadAttestationNoPayload(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
 
@@ -742,8 +743,11 @@ func TestMemDBPayloadAttestationNoBlock(t *testing.T) {
 
 	duty := core.NewPayloadAttestationDuty(slot)
 
-	// A pending query resolves once the cluster agreed there is no block for the slot,
-	// which is stored as an empty unsigned data set: no data, no error.
+	noPayload, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, slot)
+	require.NoError(t, err)
+
+	// A pending query resolves once the cluster agreed there is no payload to attest for the
+	// slot: no data, no error.
 	type result struct {
 		ok  bool
 		err error
@@ -756,13 +760,16 @@ func TestMemDBPayloadAttestationNoBlock(t *testing.T) {
 		resCh <- result{ok: ok, err: err}
 	}()
 
-	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{}))
+	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): noPayload,
+		testutil.RandomCorePubKey(t): noPayload,
+	}))
 
 	res := <-resCh
 	require.NoError(t, res.err)
 	require.False(t, res.ok)
 
-	// Querying after the empty store resolves immediately.
+	// Querying after the store resolves immediately.
 	_, ok, err := db.AwaitPayloadAttestationData(ctx, slot)
 	require.NoError(t, err)
 	require.False(t, ok)
@@ -774,39 +781,42 @@ func TestMemDBPayloadAttestationNoBlock(t *testing.T) {
 	_, _, err = db.AwaitPayloadAttestationData(timeoutCtx, slot+1)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 
-	// The slot is decided: data stored afterwards clashes with the no-block outcome.
+	// The slot is decided: data stored afterwards clashes with the no payload outcome.
 	data := testutil.RandomVersionedPayloadAttestationData()
 	data.Gloas.Slot = slot
 
 	unsigned, err := core.NewVersionedPayloadAttestationData(data)
 	require.NoError(t, err)
 
-	err = db.Store(ctx, duty, core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): unsigned,
-	})
+	err = db.Store(ctx, duty, core.UnsignedDataSet{testutil.RandomCorePubKey(t): unsigned})
 	require.ErrorContains(t, err, "clashing payload attestation data")
 
 	_, ok, err = db.AwaitPayloadAttestationData(ctx, slot)
 	require.NoError(t, err)
 	require.False(t, ok)
 
-	// Likewise an empty set clashes with data already stored for a slot.
-	dataDuty := core.NewPayloadAttestationDuty(slot + 2)
-	data.Gloas.Slot = slot + 2
+	// Likewise no payload clashes with data already stored for a slot, even with the same
+	// spec fields, since the flag differs.
+	const dataSlot = slot + 2
 
-	unsigned, err = core.NewVersionedPayloadAttestationData(data)
-	require.NoError(t, err)
+	dataDuty := core.NewPayloadAttestationDuty(dataSlot)
 
-	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{
-		testutil.RandomCorePubKey(t): unsigned,
+	stored, err := core.NewVersionedPayloadAttestationData(&eth2spec.VersionedPayloadAttestationData{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   &gloas.PayloadAttestationData{Slot: dataSlot},
 	})
 	require.NoError(t, err)
 
-	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{})
+	require.NoError(t, db.Store(ctx, dataDuty, core.UnsignedDataSet{testutil.RandomCorePubKey(t): stored}))
+
+	noPayload, err = core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, dataSlot)
+	require.NoError(t, err)
+
+	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{testutil.RandomCorePubKey(t): noPayload})
 	require.ErrorContains(t, err, "clashing payload attestation data")
 
-	actual, ok, err := db.AwaitPayloadAttestationData(ctx, slot+2)
+	actual, ok, err := db.AwaitPayloadAttestationData(ctx, dataSlot)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, data, actual)
+	require.Equal(t, &stored.VersionedPayloadAttestationData, actual)
 }
