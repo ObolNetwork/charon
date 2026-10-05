@@ -20,7 +20,9 @@ import (
 )
 
 // wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.
-func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
+func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule,
+	pubshares []eth2p0.BLSPubKey, sched core.Scheduler,
+) error {
 	if !conf.SimnetVMock {
 		return nil
 	}
@@ -40,7 +42,7 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 		return err
 	}
 
-	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return err
 	}

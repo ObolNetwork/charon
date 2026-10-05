@@ -15,6 +15,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus"
@@ -66,7 +67,7 @@ func TestConsensusController(t *testing.T) {
 	bmock, err := beaconmock.New(ctx)
 	require.NoError(t, err)
 
-	controller, err := consensus.NewConsensusController(ctx, bmock, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger, false)
+	controller, err := consensus.NewConsensusController(ctx, bmock, func() eth2wrap.ForkForkSchedule { return nil }, hosts[0], new(p2p.Sender), peers, p2pkeys[0], deadlineFunc, gaterFunc, debugger, false)
 	require.NoError(t, err)
 	require.NotNil(t, controller)
 

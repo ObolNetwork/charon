@@ -48,7 +48,10 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(t.Context(), builderRegProvider, eth2Cl, builderEnabled)
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	s, err := New(t.Context(), builderRegProvider, eth2Cl, func() eth2wrap.ForkForkSchedule { return forkSchedule }, builderEnabled)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -58,16 +61,14 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 	return s
 }
 
-// New returns a new scheduler.
-func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
-	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+// New returns a new scheduler. The fork schedule function returns the schedule charon currently
+// applies, which may change at runtime.
+func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client,
+	forkSchedule func() eth2wrap.ForkForkSchedule, builderEnabled bool,
+) (*Scheduler, error) {
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return nil, errors.Wrap(err, "new slot offset func")
-	}
-
-	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
-	if err != nil {
-		return nil, errors.Wrap(err, "fetch fork config")
 	}
 
 	return &Scheduler{
@@ -94,7 +95,7 @@ func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, et
 type Scheduler struct {
 	eth2Cl                     eth2wrap.Client
 	slotOffsetFunc             core.SlotOffsetFunc
-	forkSchedule               eth2wrap.ForkForkSchedule
+	forkSchedule               func() eth2wrap.ForkForkSchedule
 	builderRegProvider         BuilderRegistrationProvider
 	submittedRegistrationEpoch uint64
 	registrationMutex          sync.Mutex
@@ -338,7 +339,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	// are deprecated from the gloas fork, so stop submitting once it is reached (checked here, once
 	// per epoch, rather than in the submit path which would otherwise skip-log every epoch).
 	if s.builderEnabled && s.getSubmittedRegistrationEpoch() != slot.Epoch() {
-		if slot.Slot%slot.SlotsPerEpoch == 0 && !s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
+		if slot.Slot%slot.SlotsPerEpoch == 0 && !s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
 			go s.submitValidatorRegistrationsDelayed(ctx, slot)
 		}
 	}
@@ -729,7 +730,7 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 // resolvePTCDuties resolves payload timeliness committee duties for the epoch of the slot.
 // PTC duties only exist from the gloas fork onwards.
 func (s *Scheduler) resolvePTCDuties(ctx context.Context, slot core.Slot, vals validators) error {
-	if !s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
+	if !s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
 		return nil
 	}
 
@@ -989,7 +990,7 @@ func (s *Scheduler) reachedGloasFork(ctx context.Context) bool {
 
 	epoch := uint64(s.clock.Since(genesisTime)/slotDuration) / slotsPerEpoch
 
-	return s.forkSchedule.Active(eth2wrap.Gloas, eth2p0.Epoch(epoch))
+	return s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(epoch))
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.

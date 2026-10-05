@@ -253,8 +253,9 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 }
 
 // NewConsensus returns a new consensus QBFT component.
-func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance), compareAttestations bool,
+func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule, p2pNode host.Host,
+	sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
+	snifferFunc func(*pbv1.SniffedConsensusInstance), compareAttestations bool,
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -281,7 +282,7 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host
 		return nil, errors.Wrap(err, "fetch slot duration")
 	}
 
-	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl)
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return nil, errors.Wrap(err, "new slot offset func")
 	}
