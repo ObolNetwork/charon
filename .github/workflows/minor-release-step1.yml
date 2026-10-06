@@ -39,7 +39,7 @@ jobs:
 
       - name: 4. Get and Increment Version
         id: bump
-        uses: mathieudutour/github-tag-action@a22cf08638b34d5badda920f9daf6e72c477b07b # v6.2
+        uses: mathieudutour/github-tag-action@af99e60ce8132224b8e6ebab5023449fe256ed46 # v7.0.0
         with:
           github_token: ${{ secrets.OBOL_PLATFORM_PAT }}
           # NOTE: This workflow ignores conventional commit messages and always bumps the minor version.
