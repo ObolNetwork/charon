@@ -175,6 +175,7 @@ func TestConcurrentRequestDepths(t *testing.T) {
 	client.Peerstore().AddAddrs(server.ID(), server.Addrs(), peerstore.PermanentAddrTTL)
 
 	release := make(chan struct{})
+
 	RegisterHandler("server", server, pID,
 		func() proto.Message { return new(pbv1.Duty) },
 		func(_ context.Context, _ peer.ID, req proto.Message) (proto.Message, bool, error) {
@@ -190,14 +191,10 @@ func TestConcurrentRequestDepths(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range n {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			resp := new(pbv1.Duty)
 			_ = SendReceive(ctx, client, server.ID(), &pbv1.Duty{Slot: 1}, resp, pID)
-		}()
+		})
 	}
 
 	gauge, err := inflightGauge.GetMetricWithLabelValues(string(pID), clientName)
