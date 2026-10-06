@@ -66,6 +66,8 @@ const (
 	defaultRequestTimeout                      = 10 * time.Second
 	// maxUserAgentLen bounds the untrusted User-Agent header used as a metric label value.
 	maxUserAgentLen = 128
+	// unknownUserAgent is recorded for validator client requests without a User-Agent header.
+	unknownUserAgent = "unknown"
 )
 
 // Handler defines the request handler providing the business logic
@@ -486,7 +488,10 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType, respons
 		}
 
 		userAgent := r.Header.Get("User-Agent")
-		if userAgent != "" {
+		if userAgent == "" {
+			// Record validator clients not sending a user agent, so their fork readiness is unknown instead of missing.
+			recordVCUserAgent(unknownUserAgent)
+		} else {
 			if len(userAgent) > maxUserAgentLen {
 				userAgent = userAgent[:maxUserAgentLen]
 			}

@@ -25,6 +25,7 @@ const (
 
 	forkStatusReady           = "ready"
 	forkStatusUpgradeRequired = "upgrade_required"
+	forkStatusKnownIssues     = "known_issues"
 	forkStatusUnknown         = "unknown"
 )
 
@@ -95,17 +96,17 @@ func evaluateForkReadiness(ctx context.Context, client eth2client.SpecProvider,
 
 		for _, nv := range versions {
 			setClientForkReadiness(ctx, label, forkComponentBeaconNode, nv.Address, nv.BeaconNode,
-				minimumBeaconNodeVersionByFork[fork],
+				minimumBeaconNodeVersionByFork[fork], knownBeaconNodeIssuesByFork[fork],
 				"Beacon node version does not support a scheduled fork. Upgrade the beacon node before the fork activates")
 
 			setClientForkReadiness(ctx, label, forkComponentExecutionLayer, nv.Address, nv.ExecutionClient,
-				minimumExecutionEngineVersionByFork[fork],
+				minimumExecutionEngineVersionByFork[fork], knownExecutionEngineIssuesByFork[fork],
 				"Execution engine version does not support a scheduled fork. Upgrade the execution engine before the fork activates")
 		}
 
 		for _, agent := range vcAgents {
 			setClientForkReadiness(ctx, label, forkComponentValidatorClient, agent, agent,
-				minimumValidatorClientVersionByFork[fork],
+				minimumValidatorClientVersionByFork[fork], knownValidatorClientIssuesByFork[fork],
 				"Validator client version does not support a scheduled fork. Upgrade the validator client before the fork activates")
 		}
 	}
@@ -158,23 +159,33 @@ func forkMetricLabel(name string) string {
 }
 
 // setClientForkReadiness sets the fork readiness gauge for a single client of the provided
-// component and warns if the client requires an upgrade for the fork. Empty client versions
-// resolve to an unknown status.
+// component and warns if the client requires an upgrade or has known issues for the fork.
+// Empty client versions resolve to an unknown status.
 func setClientForkReadiness(ctx context.Context, fork string, component string, instance string,
-	clientVersion string, minVersions map[string]version.SemVer, upgradeMsg string,
+	clientVersion string, minVersions map[string]version.SemVer, issues map[string]knownIssue, upgradeMsg string,
 ) {
-	status, clVer, minVer := forkStatusUnknown, "", ""
+	status, clVer, minVer, issue := forkStatusUnknown, "", "", ""
 	if clientVersion != "" {
-		status, clVer, minVer = checkClientForkSupport(minVersions, clientVersion)
+		status, clVer, minVer, issue = checkClientForkSupport(minVersions, issues, clientVersion)
 	}
 
 	forkReadinessGauge.WithLabelValues(fork, component, status, instance).Set(1)
 
-	if status == forkStatusUpgradeRequired {
+	switch status {
+	case forkStatusUpgradeRequired:
 		log.Warn(ctx, upgradeMsg, nil,
 			z.Str("fork", fork),
 			z.Str("instance", instance),
 			z.Str("client_version", clVer),
 			z.Str("minimum_required", minVer))
+	case forkStatusKnownIssues:
+		log.Warn(ctx, "Client version has known issues for a scheduled fork. Upgrade the client once a fixed version is released", nil,
+			z.Str("fork", fork),
+			z.Str("component", component),
+			z.Str("instance", instance),
+			z.Str("client_version", clVer),
+			z.Str("issue", issue))
+	default:
+		// Ready and unknown statuses need no warning.
 	}
 }

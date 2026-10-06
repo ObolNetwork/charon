@@ -27,7 +27,7 @@ var (
 		Namespace: "app",
 		Subsystem: "fork",
 		Name:      "readiness",
-		Help:      "Constant gauge set to 1 per fork and component with the fork readiness status: ready, upgrade_required or unknown. The address label is set for per-beacon-node rows",
+		Help:      "Constant gauge set to 1 per fork and component with the fork readiness status: ready, upgrade_required, known_issues or unknown. The address label is set for per-beacon-node rows",
 	}, []string{"fork", "component", "status", "address"})
 
 	invalidatedCacheDueReorgCount = promauto.NewCounterVec(prometheus.CounterOpts{

@@ -104,13 +104,24 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 	minGeth, err := version.Parse("v1.16.7")
 	require.NoError(t, err)
 
+	minTeku, err := version.Parse("v25.9.3")
+	require.NoError(t, err)
+
+	fixedTeku, err := version.Parse("v25.10.0")
+	require.NoError(t, err)
+
 	oldBN, oldVC, oldEL := minimumBeaconNodeVersionByFork, minimumValidatorClientVersionByFork, minimumExecutionEngineVersionByFork
+	oldBNIssues, oldVCIssues, oldELIssues := knownBeaconNodeIssuesByFork, knownValidatorClientIssuesByFork, knownExecutionEngineIssuesByFork
 	minimumBeaconNodeVersionByFork = map[Fork]map[string]version.SemVer{Electra: {"Lighthouse": minVersion}}
-	minimumValidatorClientVersionByFork = map[Fork]map[string]version.SemVer{Electra: {"Lighthouse": minVersion}}
+	minimumValidatorClientVersionByFork = map[Fork]map[string]version.SemVer{Electra: {"Lighthouse": minVersion, "teku": minTeku}}
 	minimumExecutionEngineVersionByFork = map[Fork]map[string]version.SemVer{Electra: {"Geth": minGeth}}
+	knownBeaconNodeIssuesByFork = map[Fork]map[string]knownIssue{}
+	knownValidatorClientIssuesByFork = map[Fork]map[string]knownIssue{Electra: {"teku": {Description: "bug", FixedIn: fixedTeku}}}
+	knownExecutionEngineIssuesByFork = map[Fork]map[string]knownIssue{Electra: {"Geth": {Description: "unfixed bug"}}}
 
 	t.Cleanup(func() {
 		minimumBeaconNodeVersionByFork, minimumValidatorClientVersionByFork, minimumExecutionEngineVersionByFork = oldBN, oldVC, oldEL
+		knownBeaconNodeIssuesByFork, knownValidatorClientIssuesByFork, knownExecutionEngineIssuesByFork = oldBNIssues, oldVCIssues, oldELIssues
 	})
 
 	spec := testSpec(nil)
@@ -120,10 +131,10 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 
 	versions := func(context.Context) []NodeClientVersions {
 		return []NodeClientVersions{
-			{Address: "bn1", BeaconNode: "Lighthouse/v9.0.1-abcdef", ExecutionClient: "Geth/v1.16.7/abcdef"}, // Meets the minimum.
-			{Address: "bn2", BeaconNode: "Lighthouse/v9.0.0-abcdef"},                                         // Below the minimum, no EL version.
-			{Address: "bn3", BeaconNode: "teku/v25.9.3", ExecutionClient: "Geth/v1.15.0/abcdef"},             // No BN expectation, EL below minimum.
-			{Address: "bn4", BeaconNode: "custom-build"},                                                     // Unparsable version.
+			{Address: "bn1", BeaconNode: "Lighthouse/v9.0.1-abcdef", ExecutionClient: "Reth/2.7.0/abcdef"}, // Meets the minimum, no EL expectation.
+			{Address: "bn2", BeaconNode: "Lighthouse/v9.0.0-abcdef"},                                       // Below the minimum, no EL version.
+			{Address: "bn3", BeaconNode: "teku/v25.9.3", ExecutionClient: "Geth/v1.15.0/abcdef"},           // No BN expectation, EL below minimum.
+			{Address: "bn4", BeaconNode: "custom-build", ExecutionClient: "Geth/1.16.7-stable/abcdef"},     // Unparsable version, EL with unfixed issue.
 		}
 	}
 
@@ -131,6 +142,9 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 		return []string{
 			"Lighthouse/v9.0.1-abcdef", // Meets the minimum.
 			"Vouch/v1.12.0",            // No expectation set.
+			"teku/v25.9.3",             // Issue fixed in a later version.
+			"teku/v25.10.0",            // Issue fixed.
+			"none",                     // No user agent.
 		}
 	}
 
@@ -138,15 +152,50 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentBeaconNode, forkStatusReady, "bn1")), 0)
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentBeaconNode, forkStatusUpgradeRequired, "bn2")), 0)
-	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentBeaconNode, forkStatusReady, "bn3")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentBeaconNode, forkStatusUnknown, "bn3")), 0)
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentBeaconNode, forkStatusUnknown, "bn4")), 0)
 
 	// Execution layer rows.
-	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentExecutionLayer, forkStatusReady, "bn1")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentExecutionLayer, forkStatusUnknown, "bn1")), 0)
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentExecutionLayer, forkStatusUnknown, "bn2")), 0)
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentExecutionLayer, forkStatusUpgradeRequired, "bn3")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentExecutionLayer, forkStatusKnownIssues, "bn4")), 0)
 
 	// Validator client rows.
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusReady, "Lighthouse/v9.0.1-abcdef")), 0)
-	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusReady, "Vouch/v1.12.0")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusUnknown, "Vouch/v1.12.0")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusKnownIssues, "teku/v25.9.3")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusReady, "teku/v25.10.0")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusUnknown, "none")), 0)
+}
+
+func TestGloasClientVersions(t *testing.T) {
+	tests := []struct {
+		minVersions map[string]version.SemVer
+		issues      map[string]knownIssue
+		version     string
+		status      string
+	}{
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.3.0-rc.0-4920af7/x86_64-linux", forkStatusReady},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.2.1-abcdef/x86_64-linux", forkStatusUpgradeRequired},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Grandine/3.0.0/e3ce4d43", forkStatusUnknown},
+		{minimumValidatorClientVersionByFork[Gloas], knownValidatorClientIssuesByFork[Gloas], "Lodestar/v1.49.0/0e1dc85", forkStatusReady},
+		{minimumValidatorClientVersionByFork[Gloas], knownValidatorClientIssuesByFork[Gloas], "Nimbus/v26.10.0-657beb-stateofus", forkStatusReady},
+		{minimumValidatorClientVersionByFork[Gloas], knownValidatorClientIssuesByFork[Gloas], "Prysm/v7.2.1/fea24b41265542905352ab45fe2291d8eea010cc", forkStatusReady},
+		{minimumValidatorClientVersionByFork[Gloas], knownValidatorClientIssuesByFork[Gloas], "teku/v26.9.1", forkStatusKnownIssues},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "go-ethereum/1.17.7-stable/3d858f85", forkStatusReady},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "Reth/2.7.0/3d592ece", forkStatusReady},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "Nethermind/2.1.0+abcdef1/abcdef12", forkStatusReady},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "erigon/3.7.0-abcdef12/abcdef12", forkStatusReady},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "ethrex/v28.0.0/abcdef12", forkStatusReady},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "Besu/26.8.0/abcdef12", forkStatusUpgradeRequired},
+		{minimumBeaconNodeVersionByFork[Fulu], knownBeaconNodeIssuesByFork[Fulu], "Grandine/3.0.0/e3ce4d43", forkStatusReady}, // No expectations for the fork.
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			status, _, _, _ := checkClientForkSupport(tt.minVersions, tt.issues, tt.version)
+			require.Equal(t, tt.status, status)
+		})
+	}
 }
