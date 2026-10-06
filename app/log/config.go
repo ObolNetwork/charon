@@ -501,13 +501,13 @@ func formatZapStack(zapStack string) string {
 		if strings.HasPrefix(line, "\t") {
 			const sep = "charon/" // Note that this only works if source built in a folder named 'charon'.
 
-			i := strings.LastIndex(line, sep)
-			if i < 0 {
+			_, after, ok := strings.CutLast(line, sep)
+			if !ok {
 				// Skip non-charon lines
 				continue
 			}
 
-			resp = append(resp, "\t"+line[i+len(sep):]+" "+prevFunc)
+			resp = append(resp, "\t"+after+" "+prevFunc)
 			prevFunc = ""
 
 			continue
