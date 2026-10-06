@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -141,6 +142,88 @@ func TestMulti(t *testing.T) {
 			require.Equal(t, test.expRes, resp)
 		})
 	}
+}
+
+// TestPayloadAttestationDataNoContent asserts that a beacon node's 204 no content answer is a valid
+// outcome: it beats other failures regardless of arrival order, but not another node's data.
+func TestPayloadAttestationDataNoContent(t *testing.T) {
+	const slot = eth2p0.Slot(100)
+
+	var (
+		data        = &eth2spec.VersionedPayloadAttestationData{Version: eth2spec.DataVersionGloas, Gloas: testutil.RandomPayloadAttestationData()}
+		unavailable = &eth2api.Error{StatusCode: http.StatusServiceUnavailable, Method: http.MethodGet, Endpoint: "/eth/v1/validator/payload_attestation_data"}
+	)
+
+	// node returns a beacon node answering after the delay.
+	node := func(delay time.Duration, resp *eth2spec.VersionedPayloadAttestationData, err error) eth2wrap.Client {
+		bmock, err2 := beaconmock.New(t.Context())
+		require.NoError(t, err2)
+
+		bmock.PayloadAttestationDataFunc = func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+			time.Sleep(delay)
+			return resp, err
+		}
+
+		return bmock
+	}
+
+	tests := []struct {
+		name    string
+		clients []eth2wrap.Client
+		want    *eth2spec.VersionedPayloadAttestationData
+		wantErr error
+	}{
+		{
+			name:    "no content beats a later failure",
+			clients: []eth2wrap.Client{node(0, nil, eth2client.ErrNoPayloadAttestationData), node(50*time.Millisecond, nil, unavailable)},
+			wantErr: eth2client.ErrNoPayloadAttestationData,
+		},
+		{
+			name:    "no content beats an earlier failure",
+			clients: []eth2wrap.Client{node(0, nil, unavailable), node(50*time.Millisecond, nil, eth2client.ErrNoPayloadAttestationData)},
+			wantErr: eth2client.ErrNoPayloadAttestationData,
+		},
+		{
+			name:    "data beats an earlier no content",
+			clients: []eth2wrap.Client{node(0, nil, eth2client.ErrNoPayloadAttestationData), node(50*time.Millisecond, data, nil)},
+			want:    data,
+		},
+		{
+			name:    "failures only",
+			clients: []eth2wrap.Client{node(0, nil, unavailable), node(50*time.Millisecond, nil, unavailable)},
+			wantErr: unavailable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp, err := eth2wrap.NewMultiForT(test.clients, nil).PayloadAttestationData(t.Context(), &eth2api.PayloadAttestationDataOpts{Slot: slot})
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.want, resp.Data)
+		})
+	}
+
+	// A primary's no content answer is final, so the fallback beacon nodes aren't called.
+	var fallbackCalled atomic.Bool
+
+	fallback, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	fallback.PayloadAttestationDataFunc = func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+		fallbackCalled.Store(true)
+		return data, nil
+	}
+
+	cl := eth2wrap.NewMultiForT([]eth2wrap.Client{node(0, nil, eth2client.ErrNoPayloadAttestationData), node(0, nil, unavailable)}, []eth2wrap.Client{fallback})
+
+	_, err = cl.PayloadAttestationData(t.Context(), &eth2api.PayloadAttestationDataOpts{Slot: slot})
+	require.ErrorIs(t, err, eth2client.ErrNoPayloadAttestationData)
+	require.False(t, fallbackCalled.Load())
 }
 
 func TestFallback(t *testing.T) {
