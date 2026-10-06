@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2http "github.com/attestantio/go-eth2-client/http"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -156,7 +157,8 @@ type provideArgs struct {
 }
 
 // provide calls the work function with each client in parallel, returning the
-// first successful result or first error.
+// first successful result. Without one, it returns a no content answer if a client
+// gave one, otherwise the last error.
 // The bestIdxFunc is called with the index of the client returning a successful response.
 func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	work forkjoin.Work[provideArgs, O], isSuccessFunc func(O) bool, bestSelector *bestSelector,
@@ -179,8 +181,9 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 		}
 
 		var (
-			nokResp    forkjoin.Result[provideArgs, O]
-			hasNokResp bool
+			nokResp       forkjoin.Result[provideArgs, O]
+			hasNokResp    bool
+			noContentResp *forkjoin.Result[provideArgs, O]
 		)
 
 		for res := range join() {
@@ -194,12 +197,20 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 				return res.Output, nil
 			}
 
+			if isNoContent(res.Err) {
+				// A valid answer, so it beats other failures, but keep waiting for a successful one.
+				noContentResp = &res
+				continue
+			}
+
 			nokResp = res
 			hasNokResp = true
 		}
 
 		if ctx.Err() != nil {
 			return zero, ctx.Err()
+		} else if noContentResp != nil {
+			return noContentResp.Output, noContentResp.Err
 		} else if !hasNokResp {
 			return zero, errors.New("bug: no forkjoin results")
 		}
@@ -217,6 +228,12 @@ func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	usingFallbackGauge.Set(0)
 
 	return output, err
+}
+
+// isNoContent returns true if the error is a beacon node's 204 no content answer, which the client
+// surfaces as an error although it is a valid outcome: no block seen for the payload attestation data.
+func isNoContent(err error) bool {
+	return errors.Is(err, eth2client.ErrNoPayloadAttestationData)
 }
 
 // isTimeoutError returns true if error message contains known strings for timeout related issues.
