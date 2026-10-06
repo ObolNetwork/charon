@@ -13,7 +13,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/obolnetwork/charon/app/log"
-	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -162,7 +161,7 @@ func forkMetricLabel(name string) string {
 // component and warns if the client requires an upgrade or has known issues for the fork.
 // Empty client versions resolve to an unknown status.
 func setClientForkReadiness(ctx context.Context, fork string, component string, instance string,
-	clientVersion string, minVersions map[string]version.SemVer, issues map[string]knownIssue, upgradeMsg string,
+	clientVersion string, minVersions map[string]forkVersion, issues map[string]knownIssue, upgradeMsg string,
 ) {
 	status, clVer, minVer, issue := forkStatusUnknown, "", "", ""
 	if clientVersion != "" {

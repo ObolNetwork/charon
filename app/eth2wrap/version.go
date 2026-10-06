@@ -3,8 +3,12 @@
 package eth2wrap
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/version"
@@ -34,38 +38,38 @@ var (
 	// fork. Clients absent from a fork's map have an unknown fork readiness, unless the fork has no map.
 
 	// minimumBeaconNodeVersionByFork defines the minimum beacon node versions per fork.
-	minimumBeaconNodeVersionByFork = map[Fork]map[string]version.SemVer{
+	minimumBeaconNodeVersionByFork = map[Fork]map[string]forkVersion{
 		Gloas: {
-			"Lighthouse": mustParseVersion("v8.3.0-rc.0"),
-			"teku":       mustParseVersion("v26.9.1"),
-			"Lodestar":   mustParseVersion("v1.49.0"),
-			"Nimbus":     mustParseVersion("v26.10.0"),
-			"Prysm":      mustParseVersion("v7.2.1"),
+			"Lighthouse": mustParseForkVersion("v8.3.0-rc.0"),
+			"teku":       mustParseForkVersion("v26.9.1"),
+			"Lodestar":   mustParseForkVersion("v1.49.0"),
+			"Nimbus":     mustParseForkVersion("v26.10.0"),
+			"Prysm":      mustParseForkVersion("v7.2.1"),
 		},
 	}
 
 	// minimumValidatorClientVersionByFork defines the minimum validator client versions per fork.
-	minimumValidatorClientVersionByFork = map[Fork]map[string]version.SemVer{
+	minimumValidatorClientVersionByFork = map[Fork]map[string]forkVersion{
 		Gloas: {
-			"Lighthouse": mustParseVersion("v8.3.0-rc.0"),
-			"teku":       mustParseVersion("v26.9.1"),
-			"Lodestar":   mustParseVersion("v1.49.0"),
-			"Nimbus":     mustParseVersion("v26.10.0"),
-			"Prysm":      mustParseVersion("v7.2.1"),
+			"Lighthouse": mustParseForkVersion("v8.3.0-rc.0"),
+			"teku":       mustParseForkVersion("v26.9.1"),
+			"Lodestar":   mustParseForkVersion("v1.49.0"),
+			"Nimbus":     mustParseForkVersion("v26.10.0"),
+			"Prysm":      mustParseForkVersion("v7.2.1"),
 		},
 	}
 
 	// minimumExecutionEngineVersionByFork defines the minimum execution engine versions per fork,
 	// keyed by the engine_getClientVersionV1 client name.
-	minimumExecutionEngineVersionByFork = map[Fork]map[string]version.SemVer{
+	minimumExecutionEngineVersionByFork = map[Fork]map[string]forkVersion{
 		Gloas: {
-			"Besu":        mustParseVersion("v26.9.0"),
-			"go-ethereum": mustParseVersion("v1.17.7"),
-			"erigon":      mustParseVersion("v3.7.0"),
-			"Nethermind":  mustParseVersion("v2.1.0"),
-			"Reth":        mustParseVersion("v2.7.0"),
-			"Nimbus":      mustParseVersion("v0.4.2"),
-			"ethrex":      mustParseVersion("v28.0.0"),
+			"Besu":        mustParseForkVersion("v26.9.0"),
+			"go-ethereum": mustParseForkVersion("v1.17.7"),
+			"erigon":      mustParseForkVersion("v3.7.0"),
+			"Nethermind":  mustParseForkVersion("v2.1.0"),
+			"Reth":        mustParseForkVersion("v2.7.0"),
+			"Nimbus":      mustParseForkVersion("v0.4.2"),
+			"ethrex":      mustParseForkVersion("v28.0.0"),
 		},
 	}
 
@@ -90,17 +94,101 @@ type knownIssue struct {
 	// Description of the issue.
 	Description string
 	// FixedIn is the first client version fixing the issue, zero if not fixed yet.
-	FixedIn version.SemVer
+	FixedIn forkVersion
 }
 
-// mustParseVersion parses a static version string, panicking if it is invalid.
-func mustParseVersion(v string) version.SemVer {
-	resp, err := version.Parse(v)
-	if err != nil {
-		panic(err)
+// Pre-release ranks of a fork version, ordered by precedence. Zero denotes an unset version.
+const (
+	preReleaseAlpha = iota + 1
+	preReleaseBeta
+	preReleaseRC
+	preReleaseNone
+)
+
+// forkVersionRegex extracts the client name, version and optional alpha, beta or rc pre-release
+// label with number (e.g. "-rc.1", "-rc1", "-rc-1", ".rc1") from a client version string. Other
+// suffixes, like commit hashes, are ignored.
+var forkVersionRegex = regexp.MustCompile(`^(?:([^/]+)/)?v?(\d+)\.(\d+)\.(\d+)(?:[-.]?((?i:alpha|beta|rc))[-.]?(\d+)?)?`)
+
+// forkVersion is a client version compared with patch and pre-release precedence.
+type forkVersion struct {
+	major, minor, patch int
+	// preRelease is the pre-release rank, preReleaseNone for releases.
+	preRelease int
+	// preReleaseNum is the pre-release number, zero if absent.
+	preReleaseNum int
+}
+
+// String returns the version, formatted as "vX.Y.Z[-label.N]".
+func (v forkVersion) String() string {
+	resp := fmt.Sprintf("v%d.%d.%d", v.major, v.minor, v.patch)
+
+	switch v.preRelease {
+	case preReleaseAlpha:
+		resp += fmt.Sprintf("-alpha.%d", v.preReleaseNum)
+	case preReleaseBeta:
+		resp += fmt.Sprintf("-beta.%d", v.preReleaseNum)
+	case preReleaseRC:
+		resp += fmt.Sprintf("-rc.%d", v.preReleaseNum)
+	default:
 	}
 
 	return resp
+}
+
+// parseClientForkVersion parses a client version string, formatted "[Name/]vX.Y.Z...", returning
+// the client name and version.
+func parseClientForkVersion(clientVersion string) (string, forkVersion, bool) {
+	matches := forkVersionRegex.FindStringSubmatch(clientVersion)
+	if len(matches) != 7 {
+		return "", forkVersion{}, false
+	}
+
+	atoi := func(s string) int {
+		resp, _ := strconv.Atoi(s)
+		return resp
+	}
+
+	resp := forkVersion{
+		major:         atoi(matches[2]),
+		minor:         atoi(matches[3]),
+		patch:         atoi(matches[4]),
+		preRelease:    preReleaseNone,
+		preReleaseNum: atoi(matches[6]),
+	}
+
+	switch strings.ToLower(matches[5]) {
+	case "alpha":
+		resp.preRelease = preReleaseAlpha
+	case "beta":
+		resp.preRelease = preReleaseBeta
+	case "rc":
+		resp.preRelease = preReleaseRC
+	default:
+	}
+
+	return matches[1], resp, true
+}
+
+// mustParseForkVersion parses a static version string, panicking if it is invalid.
+func mustParseForkVersion(v string) forkVersion {
+	_, resp, ok := parseClientForkVersion(v)
+	if !ok {
+		panic("invalid fork version: " + v)
+	}
+
+	return resp
+}
+
+// compareForkVersions returns -1, 0 or 1 if a is lower than, equal to or greater than b.
+func compareForkVersions(a, b forkVersion) int {
+	return cmp.Or(
+		cmp.Compare(a.major, b.major),
+		cmp.Compare(a.minor, b.minor),
+		cmp.Compare(a.patch, b.patch),
+		cmp.Compare(a.preRelease, b.preRelease),
+		cmp.Compare(a.preReleaseNum, b.preReleaseNum),
+	)
 }
 
 type BeaconNodeVersionStatus int
@@ -176,19 +264,12 @@ func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 // published by beacon nodes, execution engines and validator client user agents) against the
 // provided per-client fork minimums and known issues. It returns the fork readiness status, the
 // current version, the minimum required version and the known issue description, if any.
-func checkClientForkSupport(minVersions map[string]version.SemVer, issues map[string]knownIssue, clientVersion string,
+func checkClientForkSupport(minVersions map[string]forkVersion, issues map[string]knownIssue, clientVersion string,
 ) (status string, clVer string, minVer string, issue string) {
-	matches := versionExtractRegex.FindStringSubmatch(clientVersion)
-	if len(matches) != 3 {
+	client, parsed, ok := parseClientForkVersion(clientVersion)
+	if !ok || client == "" {
 		return forkStatusUnknown, "", "", ""
 	}
-
-	parsed, err := version.Parse("v" + matches[2])
-	if err != nil {
-		return forkStatusUnknown, "", "", ""
-	}
-
-	client := matches[1]
 
 	if len(minVersions) == 0 {
 		// No expectations set for this fork, e.g. a past fork.
@@ -201,12 +282,12 @@ func checkClientForkSupport(minVersions map[string]version.SemVer, issues map[st
 		return forkStatusUnknown, parsed.String(), "", ""
 	}
 
-	if version.Compare(parsed, minVersion) == -1 {
+	if compareForkVersions(parsed, minVersion) < 0 {
 		return forkStatusUpgradeRequired, parsed.String(), minVersion.String(), ""
 	}
 
 	known, ok := issues[client]
-	if ok && (known.FixedIn == version.SemVer{} || version.Compare(parsed, known.FixedIn) == -1) {
+	if ok && (known.FixedIn == forkVersion{} || compareForkVersions(parsed, known.FixedIn) < 0) {
 		return forkStatusKnownIssues, parsed.String(), minVersion.String(), known.Description
 	}
 

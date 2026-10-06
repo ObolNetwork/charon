@@ -12,8 +12,6 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/app/version"
 )
 
 // testSpec returns a minimal network spec with all known forks scheduled at epoch 0 except
@@ -98,23 +96,16 @@ func TestUnknownScheduledForks(t *testing.T) {
 
 func TestEvaluateBNForkReadiness(t *testing.T) {
 	// Set a minimum Lighthouse version for the electra fork.
-	minVersion, err := version.Parse("v9.0.1")
-	require.NoError(t, err)
-
-	minGeth, err := version.Parse("v1.16.7")
-	require.NoError(t, err)
-
-	minTeku, err := version.Parse("v25.9.3")
-	require.NoError(t, err)
-
-	fixedTeku, err := version.Parse("v25.10.0")
-	require.NoError(t, err)
+	minVersion := mustParseForkVersion("v9.0.1")
+	minGeth := mustParseForkVersion("v1.16.7")
+	minTeku := mustParseForkVersion("v25.9.3")
+	fixedTeku := mustParseForkVersion("v25.10.0")
 
 	oldBN, oldVC, oldEL := minimumBeaconNodeVersionByFork, minimumValidatorClientVersionByFork, minimumExecutionEngineVersionByFork
 	oldBNIssues, oldVCIssues, oldELIssues := knownBeaconNodeIssuesByFork, knownValidatorClientIssuesByFork, knownExecutionEngineIssuesByFork
-	minimumBeaconNodeVersionByFork = map[Fork]map[string]version.SemVer{Electra: {"Lighthouse": minVersion}}
-	minimumValidatorClientVersionByFork = map[Fork]map[string]version.SemVer{Electra: {"Lighthouse": minVersion, "teku": minTeku}}
-	minimumExecutionEngineVersionByFork = map[Fork]map[string]version.SemVer{Electra: {"Geth": minGeth}}
+	minimumBeaconNodeVersionByFork = map[Fork]map[string]forkVersion{Electra: {"Lighthouse": minVersion}}
+	minimumValidatorClientVersionByFork = map[Fork]map[string]forkVersion{Electra: {"Lighthouse": minVersion, "teku": minTeku}}
+	minimumExecutionEngineVersionByFork = map[Fork]map[string]forkVersion{Electra: {"Geth": minGeth}}
 	knownBeaconNodeIssuesByFork = map[Fork]map[string]knownIssue{}
 	knownValidatorClientIssuesByFork = map[Fork]map[string]knownIssue{Electra: {"teku": {Description: "bug", FixedIn: fixedTeku}}}
 	knownExecutionEngineIssuesByFork = map[Fork]map[string]knownIssue{Electra: {"Geth": {Description: "unfixed bug"}}}
@@ -171,13 +162,20 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 
 func TestGloasClientVersions(t *testing.T) {
 	tests := []struct {
-		minVersions map[string]version.SemVer
+		minVersions map[string]forkVersion
 		issues      map[string]knownIssue
 		version     string
 		status      string
 	}{
 		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.3.0-rc.0-4920af7/x86_64-linux", forkStatusReady},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.3.0-rc.1-4920af7/x86_64-linux", forkStatusReady},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.3.0-4920af7/x86_64-linux", forkStatusReady},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.3.1-beta.0/x86_64-linux", forkStatusReady},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.3.0-beta.1-4920af7/x86_64-linux", forkStatusUpgradeRequired},
 		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lighthouse/v8.2.1-abcdef/x86_64-linux", forkStatusUpgradeRequired},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Lodestar/v1.49.0-rc.1/0e1dc85", forkStatusUpgradeRequired},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Prysm/v7.2.1-RC0/fea24b4", forkStatusUpgradeRequired},
+		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Prysm/v7.2.0/fea24b4", forkStatusUpgradeRequired},
 		{minimumBeaconNodeVersionByFork[Gloas], knownBeaconNodeIssuesByFork[Gloas], "Grandine/3.0.0/e3ce4d43", forkStatusUnknown},
 		{minimumValidatorClientVersionByFork[Gloas], knownValidatorClientIssuesByFork[Gloas], "Lodestar/v1.49.0/0e1dc85", forkStatusReady},
 		{minimumValidatorClientVersionByFork[Gloas], knownValidatorClientIssuesByFork[Gloas], "Nimbus/v26.10.0-657beb-stateofus", forkStatusReady},
@@ -198,4 +196,37 @@ func TestGloasClientVersions(t *testing.T) {
 			require.Equal(t, tt.status, status)
 		})
 	}
+}
+
+func TestParseClientForkVersion(t *testing.T) {
+	tests := []struct {
+		input  string
+		client string
+		want   string
+	}{
+		{"Lighthouse/v8.3.0-rc.0-4920af7/x86_64-linux", "Lighthouse", "v8.3.0-rc.0"},
+		{"Nimbus/v26.10.0-657beb-stateofus", "Nimbus", "v26.10.0"},
+		{"Lodestar/v1.49.0/0e1dc85", "Lodestar", "v1.49.0"},
+		{"Nethermind/2.1.0+abcdef1/abcdef12", "Nethermind", "v2.1.0"},
+		{"Grandine/v2.0.0.rc0", "Grandine", "v2.0.0-rc.0"},
+		{"teku/v26.9.1-rc1", "teku", "v26.9.1-rc.1"},
+		{"teku/v26.9.1-rc-2", "teku", "v26.9.1-rc.2"},
+		{"teku/v26.9.1-RC", "teku", "v26.9.1-rc.0"},
+		{"teku/v26.9.1-alpha3", "teku", "v26.9.1-alpha.3"},
+		{"teku/v26.9.1-beta.4", "teku", "v26.9.1-beta.4"},
+		{"teku/v26.9.1-dev", "teku", "v26.9.1"},
+		{"v8.3.0-rc.0", "", "v8.3.0-rc.0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			client, v, ok := parseClientForkVersion(tt.input)
+			require.True(t, ok)
+			require.Equal(t, tt.client, client)
+			require.Equal(t, tt.want, v.String())
+		})
+	}
+
+	_, _, ok := parseClientForkVersion("custom-build")
+	require.False(t, ok)
 }
