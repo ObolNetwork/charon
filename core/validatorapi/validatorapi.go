@@ -644,7 +644,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		return errors.Wrap(err, "could not fetch block definition from dutydb")
 	}
 
-	if err := propDataMatchesDuty(&eth2api.SubmitProposalOpts{
+	blindedOpts := &eth2api.SubmitProposalOpts{
 		Common: opts.Common,
 		Proposal: &eth2api.VersionedSignedProposal{
 			Version:          opts.Proposal.Version,
@@ -656,7 +656,10 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 			FuluBlinded:      opts.Proposal.Fulu,
 		},
 		BroadcastValidation: opts.BroadcastValidation,
-	}, prop); err != nil {
+	}
+
+	err = propDataMatchesDuty(blindedOpts, prop)
+	if err != nil {
 		return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
 	}
 

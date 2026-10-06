@@ -19,6 +19,7 @@ linters:
     - godot
     - godox
     - gomoddirectives
+    - gomodguard
     - inamedparam
     - interfacebloat
     - intrange
