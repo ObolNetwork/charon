@@ -80,6 +80,7 @@ type Handler interface {
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
 	eth2client.EPBSProposalProvider
+	eth2client.ExecutionPayloadEnvelopeProvider
 	eth2client.ExecutionPayloadEnvelopeSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
@@ -341,6 +342,14 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 			MaxBody:   maxPayloadAttestationsBody,
+		},
+		{
+			Name:              "execution_payload_envelope",
+			Path:              "/eth/v1/validator/execution_payload_envelopes/{slot}/{beacon_block_root}",
+			Handler:           executionPayloadEnvelope(h),
+			Methods:           []string{http.MethodGet},
+			Encodings:         []contentType{contentTypeJSON},
+			ResponseEncodings: []contentType{contentTypeJSON, contentTypeSSZ},
 		},
 		{
 			Name:      "submit_execution_payload_envelope",
@@ -2147,6 +2156,67 @@ func submitProposerPreferences(h Handler) handlerFunc {
 	}
 }
 
+// executionPayloadEnvelope returns a handler function for the execution payload envelope endpoint,
+// serving the envelope of the cluster agreed proposal to validator clients that produce gloas
+// blocks in the stateful form.
+func executionPayloadEnvelope(p eth2client.ExecutionPayloadEnvelopeProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var root eth2p0.Root
+		if err := hexParamFixed(params, "beacon_block_root", root[:]); err != nil {
+			return nil, nil, err
+		}
+
+		eth2Resp, err := p.ExecutionPayloadEnvelope(ctx, &eth2api.ExecutionPayloadEnvelopeOpts{
+			Slot:            eth2p0.Slot(slot),
+			BeaconBlockRoot: root,
+		})
+		if errors.Is(err, eth2client.ErrNoExecutionPayloadEnvelope) {
+			return nil, nil, apiError{
+				StatusCode: http.StatusNotFound,
+				Message:    "Execution payload envelope not available for slot",
+				Err:        err,
+			}
+		} else if err != nil {
+			return nil, nil, err
+		}
+
+		// Each fork serves its envelope type; new forks add a case here.
+		var data sszMarshaler
+
+		switch eth2Resp.Data.Version {
+		case eth2spec.DataVersionGloas:
+			data = eth2Resp.Data.Gloas
+		default:
+			return nil, nil, errors.New("unsupported execution payload envelope version", z.Str("version", eth2Resp.Data.Version.String()))
+		}
+
+		version := eth2Resp.Data.Version.String()
+
+		return executionPayloadEnvelopeResponse{
+			Version: version,
+			Data:    data,
+		}, http.Header{versionHeader: []string{version}}, nil
+	}
+}
+
+// executionPayloadEnvelopeResponse is the response body of the execution payload envelope endpoint.
+// The json body wraps the fork's envelope in this envelope, while the ssz body is the envelope alone
+// with the version provided as response header.
+type executionPayloadEnvelopeResponse struct {
+	Version string       `json:"version"`
+	Data    sszMarshaler `json:"data"`
+}
+
+// MarshalSSZ encodes the execution payload envelope as ssz, see executionPayloadEnvelopeResponse.
+func (r executionPayloadEnvelopeResponse) MarshalSSZ() ([]byte, error) {
+	return r.Data.MarshalSSZ()
+}
+
 // submitExecutionPayloadEnvelope receives a partially signed execution payload envelope (with its
 // blobs and KZG proofs) from the validator client and forwards it for threshold aggregation. From
 // the gloas fork, a self-building proposer reveals its execution payload with this submission.
@@ -2497,6 +2567,35 @@ func uintParam(params map[string]string, name string) (uint64, error) {
 	}
 
 	return res, nil
+}
+
+// hexParamFixed parses a fixed length 0x-hex path parameter into target.
+func hexParamFixed(params map[string]string, name string, target []byte) error {
+	param, ok := params[name]
+	if !ok {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "missing path parameter " + name,
+		}
+	}
+
+	resp, err := hex.DecodeString(strings.TrimPrefix(param, "0x"))
+	if err != nil {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid 0x-hex path parameter %s [%s]", name, param),
+			Err:        err,
+		}
+	} else if len(resp) != len(target) {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid length for 0x-hex path parameter %s, expect %d bytes", name, len(target)),
+		}
+	}
+
+	copy(target, resp)
+
+	return nil
 }
 
 // uintQuery returns a uint query parameter.
