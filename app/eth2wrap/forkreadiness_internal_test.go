@@ -103,12 +103,12 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 
 	oldBN, oldVC, oldEL := minimumBeaconNodeVersionByFork, minimumValidatorClientVersionByFork, minimumExecutionEngineVersionByFork
 	oldBNIssues, oldVCIssues, oldELIssues := knownBeaconNodeIssuesByFork, knownValidatorClientIssuesByFork, knownExecutionEngineIssuesByFork
-	minimumBeaconNodeVersionByFork = map[Fork]map[string]forkVersion{Electra: {"Lighthouse": minVersion}}
-	minimumValidatorClientVersionByFork = map[Fork]map[string]forkVersion{Electra: {"Lighthouse": minVersion, "teku": minTeku}}
-	minimumExecutionEngineVersionByFork = map[Fork]map[string]forkVersion{Electra: {"Geth": minGeth}}
+	minimumBeaconNodeVersionByFork = map[Fork]map[string]forkVersion{Electra: {"lighthouse": minVersion}}
+	minimumValidatorClientVersionByFork = map[Fork]map[string]forkVersion{Electra: {"lighthouse": minVersion, "teku": minTeku}}
+	minimumExecutionEngineVersionByFork = map[Fork]map[string]forkVersion{Electra: {"go-ethereum": minGeth}}
 	knownBeaconNodeIssuesByFork = map[Fork]map[string]knownIssue{}
 	knownValidatorClientIssuesByFork = map[Fork]map[string]knownIssue{Electra: {"teku": {Description: "bug", FixedIn: fixedTeku}}}
-	knownExecutionEngineIssuesByFork = map[Fork]map[string]knownIssue{Electra: {"Geth": {Description: "unfixed bug"}}}
+	knownExecutionEngineIssuesByFork = map[Fork]map[string]knownIssue{Electra: {"go-ethereum": {Description: "unfixed bug"}}}
 
 	t.Cleanup(func() {
 		minimumBeaconNodeVersionByFork, minimumValidatorClientVersionByFork, minimumExecutionEngineVersionByFork = oldBN, oldVC, oldEL
@@ -135,7 +135,7 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 			"Vouch/v1.12.0",            // No expectation set.
 			"teku/v25.9.3",             // Issue fixed in a later version.
 			"teku/v25.10.0",            // Issue fixed.
-			"none",                     // No user agent.
+			"unknown",                  // No user agent.
 		}
 	}
 
@@ -157,7 +157,7 @@ func TestEvaluateBNForkReadiness(t *testing.T) {
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusUnknown, "Vouch/v1.12.0")), 0)
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusKnownIssues, "teku/v25.9.3")), 0)
 	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusReady, "teku/v25.10.0")), 0)
-	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusUnknown, "none")), 0)
+	require.InDelta(t, 1, testutil.ToFloat64(forkReadinessGauge.WithLabelValues("electra", forkComponentValidatorClient, forkStatusUnknown, "unknown")), 0)
 }
 
 func TestGloasClientVersions(t *testing.T) {
@@ -183,6 +183,9 @@ func TestGloasClientVersions(t *testing.T) {
 		{minimumValidatorClientVersionByFork[Gloas], knownValidatorClientIssuesByFork[Gloas], "teku/v26.9.1", forkStatusKnownIssues},
 		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "go-ethereum/1.17.7-stable/3d858f85", forkStatusReady},
 		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "Reth/2.7.0/3d592ece", forkStatusReady},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "reth/v2.5.2/3d592ece", forkStatusUpgradeRequired},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "Geth/v1.16.8-stable/abcdef12", forkStatusUpgradeRequired},
+		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "Geth/v1.17.7-stable/abcdef12", forkStatusReady},
 		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "Nethermind/2.1.0+abcdef1/abcdef12", forkStatusReady},
 		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "erigon/3.7.0-abcdef12/abcdef12", forkStatusReady},
 		{minimumExecutionEngineVersionByFork[Gloas], knownExecutionEngineIssuesByFork[Gloas], "ethrex/v28.0.0/abcdef12", forkStatusReady},
@@ -229,4 +232,14 @@ func TestParseClientForkVersion(t *testing.T) {
 
 	_, _, ok := parseClientForkVersion("custom-build")
 	require.False(t, ok)
+}
+
+func TestIsValidatorClientUserAgent(t *testing.T) {
+	for _, ua := range []string{"Lighthouse/v8.3.0", "teku/v26.9.1", "Lodestar/v1.49.0/0e1dc85", "Nimbus/v26.10.0-657beb-stateofus", "Prysm/v7.2.1/fea24b4", "Vouch/1.12.0"} {
+		require.True(t, IsValidatorClientUserAgent(ua), ua)
+	}
+
+	for _, ua := range []string{"Grafana/10.4.0", "axios/1.7.2", "curl/8.5.0", "Go-http-client/1.1", "nim-presto/0.0.3", "teku", ""} {
+		require.False(t, IsValidatorClientUserAgent(ua), ua)
+	}
 }

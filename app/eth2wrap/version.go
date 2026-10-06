@@ -15,6 +15,17 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 )
 
+// Lowercase consensus and validator client names, as used in the version tables.
+const (
+	clientLighthouse = "lighthouse"
+	clientTeku       = "teku"
+	clientLodestar   = "lodestar"
+	clientNimbus     = "nimbus"
+	clientPrysm      = "prysm"
+	clientGrandine   = "grandine"
+	clientVouch      = "vouch"
+)
+
 var (
 	minLighthouseVersion, _ = version.Parse("v8.0.0-rc.0")
 	minTekuVersion, _       = version.Parse("v25.9.3")
@@ -24,38 +35,39 @@ var (
 	minGrandineVersion, _   = version.Parse("v2.0.0.rc0")
 
 	minimumBeaconNodeVersion = map[string]version.SemVer{
-		"Lighthouse": minLighthouseVersion,
-		"teku":       minTekuVersion,
-		"Lodestar":   minLodestarVersion,
-		"Nimbus":     minNimbusVersion,
-		"Prysm":      minPrysmVersion,
-		"Grandine":   minGrandineVersion,
+		clientLighthouse: minLighthouseVersion,
+		clientTeku:       minTekuVersion,
+		clientLodestar:   minLodestarVersion,
+		clientNimbus:     minNimbusVersion,
+		clientPrysm:      minPrysmVersion,
+		clientGrandine:   minGrandineVersion,
 	}
 
 	incompatibleBeaconNodeVersion = map[string][]version.SemVer{}
 
 	// The following tables define the minimum client versions required to support a scheduled
-	// fork. Clients absent from a fork's map have an unknown fork readiness, unless the fork has no map.
+	// fork, keyed by lowercase client name. Clients absent from a fork's map have an unknown fork
+	// readiness, unless the fork has no map.
 
 	// minimumBeaconNodeVersionByFork defines the minimum beacon node versions per fork.
 	minimumBeaconNodeVersionByFork = map[Fork]map[string]forkVersion{
 		Gloas: {
-			"Lighthouse": mustParseForkVersion("v8.3.0-rc.0"),
-			"teku":       mustParseForkVersion("v26.9.1"),
-			"Lodestar":   mustParseForkVersion("v1.49.0"),
-			"Nimbus":     mustParseForkVersion("v26.10.0"),
-			"Prysm":      mustParseForkVersion("v7.2.1"),
+			clientLighthouse: mustParseForkVersion("v8.3.0-rc.0"),
+			clientTeku:       mustParseForkVersion("v26.9.1"),
+			clientLodestar:   mustParseForkVersion("v1.49.0"),
+			clientNimbus:     mustParseForkVersion("v26.10.0"),
+			clientPrysm:      mustParseForkVersion("v7.2.1"),
 		},
 	}
 
 	// minimumValidatorClientVersionByFork defines the minimum validator client versions per fork.
 	minimumValidatorClientVersionByFork = map[Fork]map[string]forkVersion{
 		Gloas: {
-			"Lighthouse": mustParseForkVersion("v8.3.0-rc.0"),
-			"teku":       mustParseForkVersion("v26.9.1"),
-			"Lodestar":   mustParseForkVersion("v1.49.0"),
-			"Nimbus":     mustParseForkVersion("v26.10.0"),
-			"Prysm":      mustParseForkVersion("v7.2.1"),
+			clientLighthouse: mustParseForkVersion("v8.3.0-rc.0"),
+			clientTeku:       mustParseForkVersion("v26.9.1"),
+			clientLodestar:   mustParseForkVersion("v1.49.0"),
+			clientNimbus:     mustParseForkVersion("v26.10.0"),
+			clientPrysm:      mustParseForkVersion("v7.2.1"),
 		},
 	}
 
@@ -63,12 +75,12 @@ var (
 	// keyed by the engine_getClientVersionV1 client name.
 	minimumExecutionEngineVersionByFork = map[Fork]map[string]forkVersion{
 		Gloas: {
-			"Besu":        mustParseForkVersion("v26.9.0"),
+			"besu":        mustParseForkVersion("v26.9.0"),
 			"go-ethereum": mustParseForkVersion("v1.17.7"),
 			"erigon":      mustParseForkVersion("v3.7.0"),
-			"Nethermind":  mustParseForkVersion("v2.1.0"),
-			"Reth":        mustParseForkVersion("v2.7.0"),
-			"Nimbus":      mustParseForkVersion("v0.4.2"),
+			"nethermind":  mustParseForkVersion("v2.1.0"),
+			"reth":        mustParseForkVersion("v2.7.0"),
+			"nimbus":      mustParseForkVersion("v0.4.2"),
 			"ethrex":      mustParseForkVersion("v28.0.0"),
 		},
 	}
@@ -81,12 +93,28 @@ var (
 	// knownValidatorClientIssuesByFork defines known validator client issues per fork.
 	knownValidatorClientIssuesByFork = map[Fork]map[string]knownIssue{
 		Gloas: {
-			"teku": {Description: "missing Eth-Consensus-Version header on proposer preferences (teku#11373) and payload attestations (teku#11406)"},
+			clientTeku: {Description: "missing Eth-Consensus-Version header on proposer preferences (teku#11373) and payload attestations (teku#11406)"},
 		},
 	}
 
 	// knownExecutionEngineIssuesByFork defines known execution engine issues per fork.
 	knownExecutionEngineIssuesByFork = map[Fork]map[string]knownIssue{}
+
+	// validatorClients are the lowercase names of known validator clients, used to tell validator
+	// client user agents apart from other API users, e.g. monitoring tools and scripts.
+	validatorClients = map[string]bool{
+		clientLighthouse: true,
+		clientTeku:       true,
+		clientLodestar:   true,
+		clientNimbus:     true,
+		clientPrysm:      true,
+		clientVouch:      true,
+	}
+
+	// clientNameAliases maps lowercase client name variants to the fork table keys.
+	clientNameAliases = map[string]string{
+		"geth": "go-ethereum",
+	}
 )
 
 // knownIssue is a known issue of a client affecting a fork.
@@ -170,6 +198,14 @@ func parseClientForkVersion(clientVersion string) (string, forkVersion, bool) {
 	return matches[1], resp, true
 }
 
+// IsValidatorClientUserAgent returns true if the user agent, formatted "Name/vX.Y.Z...", belongs to a
+// known validator client.
+func IsValidatorClientUserAgent(userAgent string) bool {
+	name, _, ok := strings.Cut(userAgent, "/")
+
+	return ok && validatorClients[strings.ToLower(name)]
+}
+
 // mustParseForkVersion parses a static version string, panicking if it is invalid.
 func mustParseForkVersion(v string) forkVersion {
 	_, resp, ok := parseClientForkVersion(v)
@@ -211,7 +247,7 @@ func checkBeaconNodeVersionStatus(bnVersion string) (beaconNodeVersionStatus Bea
 		return VersionFormatError, "", ""
 	}
 
-	client := matches[1]
+	client := strings.ToLower(matches[1])
 
 	clientVersion, err := version.Parse("v" + matches[2])
 	if err != nil {
@@ -266,9 +302,14 @@ func CheckBeaconNodeVersion(ctx context.Context, bnVersion string) {
 // current version, the minimum required version and the known issue description, if any.
 func checkClientForkSupport(minVersions map[string]forkVersion, issues map[string]knownIssue, clientVersion string,
 ) (status string, clVer string, minVer string, issue string) {
-	client, parsed, ok := parseClientForkVersion(clientVersion)
-	if !ok || client == "" {
+	name, parsed, ok := parseClientForkVersion(clientVersion)
+	if !ok || name == "" {
 		return forkStatusUnknown, "", "", ""
+	}
+
+	client := strings.ToLower(name)
+	if alias, ok := clientNameAliases[client]; ok {
+		client = alias
 	}
 
 	if len(minVersions) == 0 {
