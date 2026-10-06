@@ -2572,6 +2572,7 @@ type testHandler struct {
 	SyncCommitteeDutiesFunc            func(ctx context.Context, opts *eth2api.SyncCommitteeDutiesOpts) (*eth2api.Response[[]*eth2v1.SyncCommitteeDuty], error)
 	SyncCommitteeContributionFunc      func(ctx context.Context, opts *eth2api.SyncCommitteeContributionOpts) (*eth2api.Response[*altair.SyncCommitteeContribution], error)
 	PayloadAttestationDataFunc         func(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error)
+	ExecutionPayloadEnvelopeFunc       func(ctx context.Context, opts *eth2api.ExecutionPayloadEnvelopeOpts) (*eth2api.Response[*eth2spec.VersionedExecutionPayloadEnvelope], error)
 	PTCDutiesFunc                      func(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error)
 	SubmitPayloadAttMsgsFunc           func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
 	SubmitProposerPreferencesFunc      func(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
@@ -2583,6 +2584,10 @@ type testHandler struct {
 
 func (h testHandler) AttestationData(ctx context.Context, opts *eth2api.AttestationDataOpts) (*eth2api.Response[*eth2p0.AttestationData], error) {
 	return h.AttestationDataFunc(ctx, opts)
+}
+
+func (h testHandler) ExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.ExecutionPayloadEnvelopeOpts) (*eth2api.Response[*eth2spec.VersionedExecutionPayloadEnvelope], error) {
+	return h.ExecutionPayloadEnvelopeFunc(ctx, opts)
 }
 
 func (h testHandler) PayloadAttestationData(ctx context.Context, opts *eth2api.PayloadAttestationDataOpts) (*eth2api.Response[*eth2spec.VersionedPayloadAttestationData], error) {
@@ -3459,6 +3464,96 @@ func TestSubmitProposerPreferencesRouter(t *testing.T) {
 			require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
 			require.Empty(t, submitted)
 		})
+	})
+}
+
+func TestExecutionPayloadEnvelopeRouter(t *testing.T) {
+	expected := testutil.RandomGloasBlockContents().ExecutionPayloadEnvelope
+	root := expected.BeaconBlockRoot
+
+	handler := testHandler{
+		ExecutionPayloadEnvelopeFunc: func(_ context.Context, opts *eth2api.ExecutionPayloadEnvelopeOpts) (*eth2api.Response[*eth2spec.VersionedExecutionPayloadEnvelope], error) {
+			require.Equal(t, eth2p0.Slot(42), opts.Slot)
+
+			if opts.BeaconBlockRoot != root {
+				return nil, eth2client.ErrNoExecutionPayloadEnvelope
+			}
+
+			return wrapResponse(&eth2spec.VersionedExecutionPayloadEnvelope{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   expected,
+			}), nil
+		},
+	}
+
+	get := func(ctx context.Context, t *testing.T, url, accept string) *http.Response {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		require.NoError(t, err)
+
+		if accept != "" {
+			req.Header.Set("Accept", accept)
+		}
+
+		resp, err := new(http.Client).Do(req)
+		require.NoError(t, err)
+
+		return resp
+	}
+
+	callback := func(ctx context.Context, baseURL string) {
+		path := fmt.Sprintf("%s/eth/v1/validator/execution_payload_envelopes/42/%#x", baseURL, root)
+
+		// JSON wraps the envelope with its version.
+		resp := get(ctx, t, path, "")
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "gloas", resp.Header.Get(versionHeader))
+
+		var res struct {
+			Version string                          `json:"version"`
+			Data    *gloas.ExecutionPayloadEnvelope `json:"data"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&res))
+		require.NoError(t, resp.Body.Close())
+		require.Equal(t, "gloas", res.Version)
+		require.Equal(t, expected, res.Data)
+
+		// SSZ is the envelope alone.
+		resp = get(ctx, t, path, "application/octet-stream")
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "application/octet-stream", resp.Header.Get("Content-Type"))
+		require.Equal(t, "gloas", resp.Header.Get(versionHeader))
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		wantSSZ, err := expected.MarshalSSZ()
+		require.NoError(t, err)
+		require.Equal(t, wantSSZ, body)
+
+		// Another block root has no envelope.
+		resp = get(ctx, t, fmt.Sprintf("%s/eth/v1/validator/execution_payload_envelopes/42/%#x", baseURL, testutil.RandomRoot()), "")
+		require.Equal(t, http.StatusNotFound, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+
+		// An invalid block root is a bad request.
+		resp = get(ctx, t, baseURL+"/eth/v1/validator/execution_payload_envelopes/42/0x1234", "")
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	testRawRouter(t, handler, callback)
+
+	// The go-eth2-client http client, which requests ssz like validator clients do, decodes it.
+	testRouter(t, handler, func(ctx context.Context, cl *eth2http.Service) {
+		resp, err := cl.ExecutionPayloadEnvelope(ctx, &eth2api.ExecutionPayloadEnvelopeOpts{
+			Slot:            42,
+			BeaconBlockRoot: root,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expected, resp.Data.Gloas)
 	})
 }
 

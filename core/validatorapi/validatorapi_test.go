@@ -1006,6 +1006,69 @@ func TestComponent_SubmitExecutionPayloadEnvelope(t *testing.T) {
 	require.True(t, submitted)
 }
 
+func TestComponent_ExecutionPayloadEnvelope(t *testing.T) {
+	const slot = 123
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponent(bmock, nil, 1, nil, false, 30000000)
+	require.NoError(t, err)
+
+	contents := testutil.RandomGloasBlockContents()
+	agreed := &eth2api.VersionedEPBSProposal{
+		Version:                  eth2spec.DataVersionGloas,
+		ExecutionPayloadIncluded: true,
+		GloasContents:            contents,
+	}
+
+	vapi.RegisterAwaitEPBSProposal(func(_ context.Context, s uint64) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		return agreed, nil
+	})
+
+	// The agreed envelope is served for its block root.
+	resp, err := vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
+	})
+	require.NoError(t, err)
+	require.Equal(t, eth2spec.DataVersionGloas, resp.Data.Version)
+	require.Equal(t, contents.ExecutionPayloadEnvelope, resp.Data.Gloas)
+
+	// A different block root has no envelope.
+	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: testutil.RandomRoot(),
+	})
+	require.ErrorIs(t, err, eth2client.ErrNoExecutionPayloadEnvelope)
+
+	// A fork without an envelope case is not served.
+	agreed = &eth2api.VersionedEPBSProposal{
+		Version:                  eth2spec.DataVersionGloas + 1,
+		ExecutionPayloadIncluded: true,
+		GloasContents:            contents,
+	}
+
+	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
+	})
+	require.ErrorContains(t, err, "unsupported execution payload envelope version")
+
+	// An external builder bid has no envelope.
+	agreed = &eth2api.VersionedEPBSProposal{
+		Version:       eth2spec.DataVersionGloas,
+		GloasContents: contents,
+	}
+
+	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
+	})
+	require.ErrorIs(t, err, eth2client.ErrNoExecutionPayloadEnvelope)
+}
+
 // func TestComponent_SubmitProposal_Gnosis(t *testing.T) {
 // 	ctx := context.Background()
 

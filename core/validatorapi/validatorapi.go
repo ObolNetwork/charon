@@ -456,7 +456,8 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 // external builder bid always payload-excluded (the beacon node does not hold the
 // builder's payload), independent of what the VC requested. The stateful (payload-excluded)
 // form of a self-built proposal is not served: there is no single producing node holding
-// its envelope for the VC to retrieve.
+// its envelope, so a VC retrieving the envelope separately is served the agreed one by
+// ExecutionPayloadEnvelope.
 func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
 	var span trace.Span
 
@@ -913,6 +914,48 @@ func (c Component) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth
 	}
 
 	return nil
+}
+
+// ExecutionPayloadEnvelope returns the execution payload envelope of the consensus-agreed
+// proposal for the slot, which validator clients producing gloas blocks in the stateful form
+// retrieve to sign. It is served from the cluster proposal rather than proxied to the beacon
+// node, since only the beacon node that built the proposal caches its envelope, and every
+// validator client must sign the same agreed envelope.
+func (c Component) ExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.ExecutionPayloadEnvelopeOpts) (*eth2api.Response[*eth2spec.VersionedExecutionPayloadEnvelope], error) {
+	// Only validator clients producing blocks in the stateful form retrieve the envelope separately.
+	log.Warn(ctx, "Validator client retrieved the execution payload envelope separately, validator clients in a distributed validator should request stateless gloas blocks", nil,
+		z.U64("slot", uint64(opts.Slot)))
+
+	prop, err := c.awaitEPBSProposalFunc(ctx, uint64(opts.Slot))
+	if err != nil {
+		return nil, errors.Wrap(err, "could not fetch block definition from dutydb")
+	}
+
+	// An external builder bid carries no envelope, the builder reveals its own payload.
+	if !prop.ExecutionPayloadIncluded {
+		return nil, eth2client.ErrNoExecutionPayloadEnvelope
+	}
+
+	// Each fork reads its envelope from the agreed contents; new forks add a case here. The envelope
+	// commits to the agreed block, so a different root is a request for another block.
+	resp := &eth2spec.VersionedExecutionPayloadEnvelope{Version: prop.Version}
+
+	switch prop.Version {
+	case eth2spec.DataVersionGloas:
+		if prop.GloasContents == nil || prop.GloasContents.ExecutionPayloadEnvelope == nil {
+			return nil, eth2client.ErrNoExecutionPayloadEnvelope
+		}
+
+		if prop.GloasContents.ExecutionPayloadEnvelope.BeaconBlockRoot != opts.BeaconBlockRoot {
+			return nil, eth2client.ErrNoExecutionPayloadEnvelope
+		}
+
+		resp.Gloas = prop.GloasContents.ExecutionPayloadEnvelope
+	default:
+		return nil, errors.New("unsupported execution payload envelope version", z.Str("version", prop.Version.String()))
+	}
+
+	return wrapResponse(resp), nil
 }
 
 func (Component) SubmitValidatorRegistrations(ctx context.Context, _ []*eth2api.VersionedSignedValidatorRegistration) error {

@@ -196,6 +196,36 @@ func (_m *Handler) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts)
 	return r0, r1
 }
 
+// ExecutionPayloadEnvelope provides a mock function with given fields: ctx, opts
+func (_m *Handler) ExecutionPayloadEnvelope(ctx context.Context, opts *api.ExecutionPayloadEnvelopeOpts) (*api.Response[*spec.VersionedExecutionPayloadEnvelope], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ExecutionPayloadEnvelope")
+	}
+
+	var r0 *api.Response[*spec.VersionedExecutionPayloadEnvelope]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ExecutionPayloadEnvelopeOpts) (*api.Response[*spec.VersionedExecutionPayloadEnvelope], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.ExecutionPayloadEnvelopeOpts) *api.Response[*spec.VersionedExecutionPayloadEnvelope]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[*spec.VersionedExecutionPayloadEnvelope])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.ExecutionPayloadEnvelopeOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Headers provides a mock function with no fields
 func (_m *Handler) Headers() map[string]string {
 	ret := _m.Called()
