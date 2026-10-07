@@ -17,6 +17,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
+	eth2http "github.com/attestantio/go-eth2-client/http"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/assert"
@@ -611,4 +612,88 @@ func TestLazyDomain(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNodeVersionV2RefreshesExecutionClient demos go-eth2-client's permanent V2 cache bug and
+// verifies eth2wrap's bypass: first response is BN-only, later responses add/update EE (and BN).
+func TestNodeVersionV2RefreshesExecutionClient(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu     sync.Mutex
+		withEE bool
+		v2Hits int
+	)
+
+	const (
+		bnOnlyJSON  = `{"data":{"beacon_node":{"code":"GR","name":"Grandine","version":"2.0.5","commit":"70a5c7ea"}}}`
+		bnAndEEJSON = `{"data":{"beacon_node":{"code":"GR","name":"Grandine","version":"2.0.6","commit":"abcdef01"},"execution_client":{"code":"EX","name":"ethrex","version":"v27.0.0","commit":"136666a0"}}}`
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/eth/v2/node/version" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		mu.Lock()
+		v2Hits++
+		body := bnOnlyJSON
+		if withEE {
+			body = bnAndEEJSON
+		}
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(body))
+		require.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	ctx := t.Context()
+
+	eth2Svc, err := eth2http.New(ctx,
+		eth2http.WithAddress(srv.URL),
+		eth2http.WithTimeout(time.Second),
+		eth2http.WithAllowDelayedStart(true),
+		eth2http.WithLogLevel(1),
+	)
+	require.NoError(t, err)
+
+	svc, ok := eth2Svc.(*eth2http.Service)
+	require.True(t, ok)
+
+	// --- Bug demo: upstream client freezes the first successful V2 snapshot. ---
+	cached1, err := svc.NodeVersionV2(ctx, &eth2api.NodeVersionV2Opts{})
+	require.NoError(t, err)
+	require.Nil(t, cached1.Data.ExecutionClient)
+	require.Equal(t, "2.0.5", cached1.Data.BeaconNode.Version)
+
+	mu.Lock()
+	withEE = true
+	hitsAfterFirst := v2Hits
+	mu.Unlock()
+
+	cached2, err := svc.NodeVersionV2(ctx, &eth2api.NodeVersionV2Opts{})
+	require.NoError(t, err)
+	require.Nil(t, cached2.Data.ExecutionClient, "go-eth2-client must still omit EE from cache")
+	require.Equal(t, "2.0.5", cached2.Data.BeaconNode.Version, "go-eth2-client must still serve first BN version")
+
+	mu.Lock()
+	require.Equal(t, hitsAfterFirst, v2Hits, "cached NodeVersionV2 must not re-hit the BN")
+	mu.Unlock()
+
+	// --- Fix: eth2wrap re-fetches V2 on every call. ---
+	cl := eth2wrap.AdaptEth2HTTP(svc, nil, time.Second)
+
+	fresh, err := cl.NodeVersionV2(ctx, &eth2api.NodeVersionV2Opts{})
+	require.NoError(t, err)
+	require.NotNil(t, fresh.Data.ExecutionClient)
+	require.Equal(t, "ethrex", fresh.Data.ExecutionClient.Name)
+	require.Equal(t, "v27.0.0", fresh.Data.ExecutionClient.Version)
+	require.Equal(t, "2.0.6", fresh.Data.BeaconNode.Version, "BN version bumps must also be visible")
+
+	mu.Lock()
+	require.Greater(t, v2Hits, hitsAfterFirst)
+	mu.Unlock()
 }
