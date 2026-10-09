@@ -22,7 +22,8 @@ type extension interface {
 	name() string
 	// appliesForDuty returns true if the extension applies to the duty.
 	appliesForDuty(duty core.Duty) bool
-	// onArm returns the time the extension adds to the round's duration when the round is armed.
+	// onArm returns the total time the extension adds to the durations of the rounds up to and
+	// including the round, when armed. Being cumulative keeps computing a round's end constant time.
 	onArm(round int64) time.Duration
 	// onRearm returns the new deadline of the round armed again, given
 	// the round's duration and end including extras and its deadline when armed, or false if the
@@ -76,7 +77,7 @@ func (proposalTimeout) appliesForDuty(duty core.Duty) bool {
 }
 
 func (proposalTimeout) onArm(round int64) time.Duration {
-	if round != 1 {
+	if round < 1 {
 		return 0
 	}
 

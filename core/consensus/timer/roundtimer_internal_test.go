@@ -203,8 +203,10 @@ func TestProposalTimeout(t *testing.T) {
 	require.True(t, proposalTimeout{}.appliesForDuty(core.NewProposerDuty(1)))
 	require.False(t, proposalTimeout{}.appliesForDuty(core.NewAttesterDuty(1)))
 
+	// The proposal timeout adds 500ms to the first round, so 500ms in total to the rounds up to any round.
+	require.Zero(t, proposalTimeout{}.onArm(0))
 	require.Equal(t, 500*time.Millisecond, proposalTimeout{}.onArm(1))
-	require.Zero(t, proposalTimeout{}.onArm(2))
+	require.Equal(t, 500*time.Millisecond, proposalTimeout{}.onArm(2))
 
 	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(), proposalTimeout{})
 	require.Equal(t, []extension{doubleOnRearm{}, proposalTimeout{}}, def.extensions)
