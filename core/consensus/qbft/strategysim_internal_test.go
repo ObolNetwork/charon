@@ -69,7 +69,7 @@ func TestSimulatorOnce(t *testing.T) {
 			2: ms100,
 			3: ms100,
 		},
-		roundTimerFunc: newInc,
+		roundTimerFunc: newInc(t),
 		timeout:        simTimeout,
 	}, syncer)
 
@@ -84,7 +84,7 @@ func TestMatrix(t *testing.T) {
 
 	testRoundTimers(t,
 		[]roundTimerFunc{
-			newInc,
+			newInc(t),
 
 			newExp(time.Millisecond * 1000),
 
@@ -407,7 +407,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 		if delay == disabled { // If peer disabled, return immediately
 			log.Debug(ctx, "Peer disabled")
 			return res, nil
-		} else if conf.roundTimerFunc(nil).Type().Eager() { // If timer is eager, delay value asynchronously
+		} else if isEager(conf.roundTimerFunc(nil)) { // If timer is eager, delay value asynchronously
 			go after(ctx, clock, delay, enqueueValue)
 
 			log.Debug(ctx, "Delaying peer value", z.Any("value_delayed", delay))
@@ -650,6 +650,20 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 	duty core.Duty, source int64, round int64, value [32]byte,
 	pr int64, pv [32]byte, justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
 ) error {
+	msg, err := newSimMsg(typ, duty, source, round, value, pr, pv, justification)
+	if err != nil {
+		return err
+	}
+
+	i.enqueue(msg)
+
+	return nil
+}
+
+// newSimMsg returns a simulated QBFT message with dummy values.
+func newSimMsg(typ qbft.MsgType, duty core.Duty, source int64, round int64, value [32]byte,
+	pr int64, pv [32]byte, justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
+) (qbft.Msg[core.Duty, [32]byte, proto.Message], error) {
 	dummy, _ := anypb.New(timestamppb.Now())
 	values := map[[32]byte]*anypb.Any{
 		value: dummy,
@@ -672,7 +686,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 	for _, j := range justification {
 		impl, ok := j.(Msg)
 		if !ok {
-			return errors.New("invalid justification")
+			return nil, errors.New("invalid justification")
 		}
 
 		justMsgs = append(justMsgs, impl.Msg()) // Note nested justifications are ignored.
@@ -680,14 +694,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 		values[impl.PreparedValue()] = dummy
 	}
 
-	msg, err := newMsg(pbMsg, justMsgs, values)
-	if err != nil {
-		return err
-	}
-
-	i.enqueue(msg)
-
-	return nil
+	return newMsg(pbMsg, justMsgs, values)
 }
 
 func (i *transportInstance) Receive() <-chan qbft.Msg[core.Duty, [32]byte, proto.Message] {
@@ -781,10 +788,16 @@ func (t incRoundTimer2) Type() timer.Type {
 	return "inc2"
 }
 
+func (incRoundTimer2) Extensions() []string {
+	return nil
+}
+
 func (t incRoundTimer2) Timer(round int64) (<-chan time.Time, func()) {
-	duration := timer.IncRoundStart
+	const roundStart = 750 * time.Millisecond
+
+	duration := roundStart
 	for i := 1; i < int(round); i++ {
-		duration += timer.IncRoundStart
+		duration += roundStart
 	}
 
 	timer := t.clock.NewTimer(duration)
@@ -960,6 +973,16 @@ func (t *testTimer) Type() timer.Type {
 	return timer.Type(name)
 }
 
+func (*testTimer) Extensions() []string {
+	return nil
+}
+
+// isEager returns true if the timer starts consensus before the peer's value is present.
+func isEager(roundTimer timer.RoundTimer) bool {
+	t, ok := roundTimer.(*testTimer)
+	return ok && t.eager
+}
+
 func newLinear(d time.Duration) roundTimerFunc {
 	return func(clock clockwork.Clock) timer.RoundTimer {
 		return &testTimer{
@@ -1004,8 +1027,12 @@ func newLinearDouble(d time.Duration) roundTimerFunc {
 	}
 }
 
-func newInc(clock clockwork.Clock) timer.RoundTimer {
-	return timer.NewIncreasingRoundTimerWithClock(clock)
+func newInc(t *testing.T) roundTimerFunc {
+	t.Helper()
+
+	return func(clock clockwork.Clock) timer.RoundTimer {
+		return timer.NewIncreasingForT(t, clock)
+	}
 }
 
 func newExp(d time.Duration) roundTimerFunc {

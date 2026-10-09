@@ -3,21 +3,14 @@
 package timer
 
 import (
-	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
-)
-
-const (
-	IncRoundStart      = time.Millisecond * 750
-	IncRoundIncrease   = time.Millisecond * 250
-	LinearRoundInc     = time.Second
-	ProposalRoundExtra = time.Millisecond * 500
 )
 
 // RoundTimerFunc is a function that returns a round timer.
@@ -27,36 +20,46 @@ type RoundTimerFunc func(core.Duty) RoundTimer
 // Genesis time and slot duration are required to calculate deterministic slot start times, while
 // the slot offset function provides the duty's offset into the slot at which consensus starts.
 func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotOffsetFunc core.SlotOffsetFunc) RoundTimerFunc {
-	if featureset.Enabled(featureset.Linear) {
-		return func(duty core.Duty) RoundTimer {
-			// Linear timer only affects Proposer duty
-			if duty.Type == core.DutyProposer {
-				return NewLinearRoundTimerWithDuty(duty)
-			} else if featureset.Enabled(featureset.EagerDoubleLinear) {
-				return NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty, genesisTime, slotDuration, slotOffsetFunc(duty))
-			}
-
-			return NewIncreasingRoundTimerWithDuty(duty)
-		}
+	timing := slotTiming{
+		genesisTime:  genesisTime,
+		slotDuration: slotDuration,
+		slotOffset:   slotOffsetFunc,
 	}
 
-	if featureset.Enabled(featureset.EagerDoubleLinear) {
-		return func(duty core.Duty) RoundTimer {
-			return NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty, genesisTime, slotDuration, slotOffsetFunc(duty))
-		}
+	return func(duty core.Duty) RoundTimer {
+		return newRoundTimer(duty, selectTimer(duty), timing, clockwork.NewRealClock())
+	}
+}
+
+// selectTimer returns the timer for the duty, as selected by the feature set, with its extensions.
+func selectTimer(duty core.Duty) timerDef {
+	var def timerDef
+
+	switch {
+	case duty.Type == core.DutyProposer && featureset.Enabled(featureset.Linear):
+		// The linear timer has precedence over the eager double linear timer, but only for proposer duties.
+		def = linearTimer()
+	case featureset.Enabled(featureset.EagerDoubleLinear):
+		def = eagerDLinearTimer()
+	default:
+		def = incTimer()
 	}
 
-	// Default to increasing round timer.
-	return NewIncreasingRoundTimerWithDuty
+	return withExtensions(duty, def, featureExtensions()...)
+}
+
+// featureExtensions returns the extensions added to every duty's timer, as enabled by the feature set.
+func featureExtensions() []extension {
+	var extensions []extension
+	if featureset.Enabled(featureset.ProposalTimeout) {
+		extensions = append(extensions, proposalTimeout{})
+	}
+
+	return extensions
 }
 
 // Type is the type of round timer.
 type Type string
-
-// Eager returns true if the timer type requires an eager start (before proposal values are present).
-func (t Type) Eager() bool {
-	return strings.Contains(string(t), "eager")
-}
 
 const (
 	TimerIncreasing        Type = "inc"
@@ -64,246 +67,206 @@ const (
 	TimerLinear            Type = "linear"
 )
 
-// increasingRoundTimeout returns the duration for a round that starts at incRoundStart in round 1
-// and increases by incRoundIncrease for each subsequent round.
-func increasingRoundTimeout(round int64) time.Duration {
-	return IncRoundStart + (time.Duration(round) * IncRoundIncrease)
-}
-
-// linearRoundTimeout returns linearRoundInc*round duration for a round.
-func linearRoundTimeout(round int64) time.Duration {
-	return time.Duration(round) * LinearRoundInc
-}
-
-// proposalRoundTimeout returns the round timeout for proposer duties, adding ProposalRoundExtra
-// to the linear timeout to give extra time for block proposal fetching.
-func proposalRoundTimeout(round int64) time.Duration {
-	return linearRoundTimeout(round) + ProposalRoundExtra
-}
-
 // RoundTimer provides the duration for each consensus round.
 type RoundTimer interface {
 	// Timer returns a channel that will be closed when the round expires and a stop function.
 	Timer(round int64) (<-chan time.Time, func())
 	// Type returns the type of the round timerType.
 	Type() Type
+	// Extensions returns the names of the extensions in effect, in the order they act.
+	Extensions() []string
 }
 
-// NewIncreasingRoundTimer returns a new increasing round timer type.
-func NewIncreasingRoundTimer() RoundTimer {
-	return NewIncreasingRoundTimerWithClock(clockwork.NewRealClock())
+// NewIncreasingForT returns a new increasing round timer with a custom clock, for testing.
+func NewIncreasingForT(_ *testing.T, clock clockwork.Clock) RoundTimer {
+	return newRoundTimer(core.Duty{}, withExtensions(core.Duty{}, incTimer()), slotTiming{}, clock)
 }
 
-// NewIncreasingRoundTimerWithClock returns a new increasing round timer type with a custom clock.
-func NewIncreasingRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
-	return &increasingRoundTimer{
-		clock: clock,
-	}
+// roundDurations defines the durations of a timer's rounds: the first round, then steps rounds of
+// step each, then rounds growing by growth each, for liveness. Rounds start at 1.
+type roundDurations struct {
+	first  time.Duration
+	step   time.Duration
+	steps  int64
+	growth time.Duration
 }
 
-// NewIncreasingRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty.
-func NewIncreasingRoundTimerWithDuty(duty core.Duty) RoundTimer {
-	return &increasingRoundTimer{
-		clock: clockwork.NewRealClock(),
-		duty:  duty,
-	}
-}
-
-// NewIncreasingRoundTimerWithDutyAndClock returns a new eager double linear round timer type for a specific duty and custom clock.
-func NewIncreasingRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
-	return &increasingRoundTimer{
-		clock: clock,
-		duty:  duty,
-	}
-}
-
-// increasingRoundTimer implements a linear increasing round timerType.
-type increasingRoundTimer struct {
-	clock clockwork.Clock
-	duty  core.Duty
-}
-
-func (increasingRoundTimer) Type() Type {
-	return TimerIncreasing
-}
-
-func (t increasingRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
-	timeout := increasingRoundTimeout(round)
-	if featureset.Enabled(featureset.ProposalTimeout) && t.duty.Type == core.DutyProposer && round == 1 {
-		timeout = proposalRoundTimeout(round)
+// duration returns the duration of the round.
+func (d roundDurations) duration(round int64) time.Duration {
+	if round <= 1 {
+		return d.first
 	}
 
-	timer := t.clock.NewTimer(timeout)
-
-	return timer.Chan(), func() { timer.Stop() }
-}
-
-// NewDoubleEagerLinearRoundTimer returns a new eager double linear round timer type.
-func NewDoubleEagerLinearRoundTimer() RoundTimer {
-	return NewDoubleEagerLinearRoundTimerWithClock(clockwork.NewRealClock())
-}
-
-// NewDoubleEagerLinearRoundTimerWithClock returns a new eager double linear round timer type with a custom clock.
-func NewDoubleEagerLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
-	return &doubleEagerLinearRoundTimer{
-		clock:          clock,
-		firstDeadlines: make(map[int64]time.Time),
+	tail := round - d.steps - 1
+	if tail <= 0 {
+		return d.step
 	}
+
+	return d.step + time.Duration(tail)*d.growth
 }
 
-// NewDoubleEagerLinearRoundTimerWithDuty returns a new eager double linear round timer type for a specific duty.
-func NewDoubleEagerLinearRoundTimerWithDuty(duty core.Duty) RoundTimer {
-	return &doubleEagerLinearRoundTimer{
-		clock:          clockwork.NewRealClock(),
-		duty:           duty,
-		firstDeadlines: make(map[int64]time.Time),
+// end returns the end of the round relative to the start of the first round, i.e. the sum of the
+// durations of the rounds up to and including it.
+func (d roundDurations) end(round int64) time.Duration {
+	if round < 1 {
+		return 0
 	}
-}
 
-// NewDoubleEagerLinearRoundTimerWithDutyAndClock returns a new eager double linear round timer type for a specific duty and custom clock.
-func NewDoubleEagerLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
-	return &doubleEagerLinearRoundTimer{
-		clock:          clock,
-		duty:           duty,
-		firstDeadlines: make(map[int64]time.Time),
+	end := d.first + time.Duration(round-1)*d.step
+
+	tail := round - d.steps - 1
+	if tail > 0 {
+		end += time.Duration(tail*(tail+1)/2) * d.growth
 	}
+
+	return end
 }
 
-// NewDoubleEagerLinearRoundTimerWithDutyAndTiming returns a new eager double linear round timer type for a specific
-// duty with genesis time, slot duration and the duty's offset into the slot at which consensus starts.
-// This ensures deterministic behavior across all nodes by using slot start time as the reference.
-func NewDoubleEagerLinearRoundTimerWithDutyAndTiming(duty core.Duty, genesisTime time.Time, slotDuration time.Duration, dutyOffset time.Duration) RoundTimer {
-	return NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock(duty, genesisTime, slotDuration, dutyOffset, clockwork.NewRealClock())
+// anchor defines when a timer's rounds start.
+type anchor interface {
+	// start returns the start of the duty's round armed at now, given the total duration of the rounds
+	// before it.
+	start(duty core.Duty, timing slotTiming, now time.Time, priorRoundsDuration time.Duration) time.Time
 }
 
-// NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock returns a new eager double linear round timer type for a specific
-// duty, genesis time, slot duration, duty offset into the slot, and custom clock.
-func NewDoubleEagerLinearRoundTimerWithDutyTimingAndClock(duty core.Duty, genesisTime time.Time, slotDuration time.Duration, dutyOffset time.Duration, clock clockwork.Clock) RoundTimer {
-	return &doubleEagerLinearRoundTimer{
-		clock:          clock,
-		duty:           duty,
-		genesisTime:    genesisTime,
-		slotDuration:   slotDuration,
-		dutyOffset:     dutyOffset,
-		firstDeadlines: make(map[int64]time.Time),
+// anchorLocalDutyStart starts the first round when the duty starts on this node, and each later round
+// when this node enters it, upon its own timeout, round changes or a reset. Rounds thus drift apart
+// across peers, further with each round. Only the legacy timers use it.
+type anchorLocalDutyStart struct{}
+
+func (anchorLocalDutyStart) start(_ core.Duty, _ slotTiming, now time.Time, _ time.Duration) time.Time {
+	return now
+}
+
+// anchorDutyStart starts the first round at the duty's start, its offset into the slot, with later
+// rounds following on at absolute times, aligned across peers.
+type anchorDutyStart struct{}
+
+func (anchorDutyStart) start(duty core.Duty, timing slotTiming, now time.Time, priorRoundsDuration time.Duration) time.Time {
+	start := timing.dutyStart(duty)
+	if start.IsZero() {
+		// Without slot timing (only in tests), the first round starts when armed.
+		start = now
 	}
+
+	return start.Add(priorRoundsDuration)
 }
 
-// doubleEagerLinearRoundTimer implements a round timerType with the following properties:
-//
-// It doubles the round duration when a leader is active.
-// Instead of resetting the round timerType on justified pre-prepare, rather double the timeout.
-// This ensures all peers round end-times remain aligned with round start times.
-// The original solution is to reset the round time on justified pre-prepare, but this causes
-// the leader to reset at the start of the round, which has no effect, while others reset when
-// they receive the justified pre-prepare, which has a large effect. Leaders have a tendency to
-// get out of sync with the rest, since they effectively don't extend their rounds.
-//
-// It is eager, meaning it starts at an absolute time before the proposal values are present.
-// This aligns the round start times of all peers, which is important for the leader election.
-//
-// It is linear, meaning the round duration increases linearly with the round number: 1s, 2s, 3s, etc.
-type doubleEagerLinearRoundTimer struct {
-	clock        clockwork.Clock
-	duty         core.Duty
+// slotTiming provides the slot start times anchored timers start at.
+type slotTiming struct {
 	genesisTime  time.Time
 	slotDuration time.Duration
-	dutyOffset   time.Duration
-
-	mu             sync.Mutex
-	firstDeadlines map[int64]time.Time
+	slotOffset   core.SlotOffsetFunc
 }
 
-func (*doubleEagerLinearRoundTimer) Type() Type {
-	return TimerEagerDoubleLinear
+// dutyStart returns the start of the duty's slot plus the duty's offset into the slot, or the zero
+// time without slot timing (only in tests).
+func (s slotTiming) dutyStart(duty core.Duty) time.Time {
+	if s.genesisTime.IsZero() || s.slotDuration <= 0 {
+		return time.Time{}
+	}
+
+	slotStart := s.genesisTime.Add(s.slotDuration * time.Duration(duty.Slot))
+
+	return slotStart.Add(s.slotOffset(duty))
 }
 
-func (t *doubleEagerLinearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
+// newRoundTimer returns a round timer running the timer for the duty.
+func newRoundTimer(duty core.Duty, def timerDef, timing slotTiming, clock clockwork.Clock) RoundTimer {
+	return &roundTimer{
+		clock:     clock,
+		duty:      duty,
+		def:       def,
+		timing:    timing,
+		deadlines: make(map[int64]time.Time),
+	}
+}
+
+// roundTimer runs a timer's rounds.
+type roundTimer struct {
+	clock  clockwork.Clock
+	duty   core.Duty
+	def    timerDef
+	timing slotTiming
+
+	mu        sync.Mutex
+	deadlines map[int64]time.Time // The deadline of each round when armed.
+}
+
+func (t *roundTimer) Type() Type {
+	return t.def.typ
+}
+
+func (t *roundTimer) Extensions() []string {
+	var names []string
+	for _, ext := range t.def.extensions {
+		names = append(names, ext.name())
+	}
+
+	return names
+}
+
+func (t *roundTimer) Timer(round int64) (<-chan time.Time, func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	timeout := linearRoundTimeout(round)
-	if featureset.Enabled(featureset.ProposalTimeout) && t.duty.Type == core.DutyProposer {
-		timeout = proposalRoundTimeout(round)
-	}
+	now := t.clock.Now()
 
-	var deadline time.Time
-	if first, ok := t.firstDeadlines[round]; ok {
-		deadline = first.Add(timeout)
+	deadline, armed := t.deadlines[round]
+	if armed {
+		deadline = t.rearmDeadline(round, deadline, now)
 	} else {
-		if !t.genesisTime.IsZero() && t.slotDuration > 0 {
-			slotStart := t.genesisTime.Add(t.slotDuration * time.Duration(t.duty.Slot))
-			dutyStart := slotStart.Add(t.dutyOffset)
+		deadline = t.deadline(round, now)
+		t.deadlines[round] = deadline
+	}
 
-			deadline = dutyStart.Add(timeout)
-		} else {
-			deadline = t.clock.Now().Add(timeout)
+	timer := t.clock.NewTimer(deadline.Sub(now))
+
+	return timer.Chan(), func() { timer.Stop() }
+}
+
+// rearmDeadline returns the deadline of the round armed again, as defined by the first extension
+// acting upon it, or its deadline if none does. In practice, QBFT rearms the current round
+// upon a justified pre-prepare for it. Two extensions currently act upon this rearming, declared
+// by the timers: resetOnRearm by inc and linear, and doubleOnRearm by eager_dlinear.
+func (t *roundTimer) rearmDeadline(round int64, currentDeadline, now time.Time) time.Time {
+	for _, ext := range t.def.extensions {
+		adjustedDeadline, ok := ext.onRearm(t.duration(round), t.end(round), currentDeadline, now)
+		if ok {
+			return adjustedDeadline
 		}
-
-		t.firstDeadlines[round] = deadline
 	}
 
-	timer := t.clock.NewTimer(deadline.Sub(t.clock.Now()))
-
-	return timer.Chan(), func() { timer.Stop() }
+	return currentDeadline
 }
 
-// linearRoundTimer implements a round timerType with the following properties:
-//
-// The first round has one second to complete consensus
-// If this round fails then other peers already had time to fetch proposal and therefore
-// won't need as much time to reach a consensus. Therefore start timeout with lower value
-// which will increase linearly
-type linearRoundTimer struct {
-	clock clockwork.Clock
-	duty  core.Duty
+// deadline returns the deadline of the round when armed.
+func (t *roundTimer) deadline(round int64, now time.Time) time.Time {
+	start := t.def.anchor.start(t.duty, t.timing, now, t.end(round-1))
+
+	return start.Add(t.duration(round))
 }
 
-func (*linearRoundTimer) Type() Type {
-	return TimerLinear
-}
-
-func (t *linearRoundTimer) Timer(round int64) (<-chan time.Time, func()) {
-	var timeout time.Duration
-
-	switch {
-	case featureset.Enabled(featureset.ProposalTimeout) && t.duty.Type == core.DutyProposer && round == 1:
-		timeout = proposalRoundTimeout(round)
-	case round == 1:
-		timeout = time.Second
-	default:
-		timeout = time.Duration(200*(round-1)+200) * time.Millisecond
+// duration returns the duration of the round, including the extras of the extensions, unlike
+// roundDurations.duration, which only covers the timer's own round durations.
+func (t *roundTimer) duration(round int64) time.Duration {
+	duration := t.def.durations.duration(round)
+	for _, ext := range t.def.extensions {
+		duration += ext.onArm(round)
 	}
 
-	timer := t.clock.NewTimer(timeout)
-
-	return timer.Chan(), func() { timer.Stop() }
+	return duration
 }
 
-// NewLinearRoundTimer returns a new linear round timer type.
-func NewLinearRoundTimer() RoundTimer {
-	return NewLinearRoundTimerWithClock(clockwork.NewRealClock())
-}
-
-// NewLinearRoundTimerWithClock returns a new linear round timer type with a custom clock.
-func NewLinearRoundTimerWithClock(clock clockwork.Clock) RoundTimer {
-	return &linearRoundTimer{
-		clock: clock,
+// end returns the end of the round relative to the start of the first round, including the extras
+// of the extensions for the rounds up to and including it, unlike roundDurations.end.
+func (t *roundTimer) end(round int64) time.Duration {
+	end := t.def.durations.end(round)
+	for _, ext := range t.def.extensions {
+		for r := int64(1); r <= round; r++ {
+			end += ext.onArm(r)
+		}
 	}
-}
 
-// NewLinearRoundTimerWithDuty returns a new linear round timer type for a specific duty.
-func NewLinearRoundTimerWithDuty(duty core.Duty) RoundTimer {
-	return &linearRoundTimer{
-		clock: clockwork.NewRealClock(),
-		duty:  duty,
-	}
-}
-
-// NewLinearRoundTimerWithDutyAndClock returns a new linear round timer type for a specific duty and custom clock.
-func NewLinearRoundTimerWithDutyAndClock(duty core.Duty, clock clockwork.Clock) RoundTimer {
-	return &linearRoundTimer{
-		clock: clock,
-		duty:  duty,
-	}
+	return end
 }
