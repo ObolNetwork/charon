@@ -20,20 +20,6 @@ type RoundTimerFunc func(core.Duty) RoundTimer
 // Genesis time and slot duration are required to calculate deterministic slot start times, while
 // the slot offset function provides the duty's offset into the slot at which consensus starts.
 func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotOffsetFunc core.SlotOffsetFunc) RoundTimerFunc {
-	return getRoundTimerFunc(genesisTime, slotDuration, slotOffsetFunc, clockwork.NewRealClock())
-}
-
-// GetRoundTimerFuncForT returns the timer function of GetRoundTimerFunc with a custom clock, for testing.
-func GetRoundTimerFuncForT(_ *testing.T, genesisTime time.Time, slotDuration time.Duration,
-	slotOffsetFunc core.SlotOffsetFunc, clock clockwork.Clock,
-) RoundTimerFunc {
-	return getRoundTimerFunc(genesisTime, slotDuration, slotOffsetFunc, clock)
-}
-
-// getRoundTimerFunc returns a timer function selecting the duty's timer, running on the clock.
-func getRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotOffsetFunc core.SlotOffsetFunc,
-	clock clockwork.Clock,
-) RoundTimerFunc {
 	timing := slotTiming{
 		genesisTime:  genesisTime,
 		slotDuration: slotDuration,
@@ -41,7 +27,7 @@ func getRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotOf
 	}
 
 	return func(duty core.Duty) RoundTimer {
-		return newRoundTimer(duty, selectTimer(duty), timing, clock)
+		return newRoundTimer(duty, selectTimer(duty), timing, clockwork.NewRealClock())
 	}
 }
 

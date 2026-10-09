@@ -344,23 +344,13 @@ type ssConfig struct {
 	startByPeer    map[int64]time.Duration
 	roundTimerFunc func(clockwork.Clock) timer.RoundTimer
 	timeout        time.Duration
-	// startTime is when the simulation starts, defaulting to the current hour.
-	startTime time.Time
-	// dutyType is the type of the simulated duty.
-	dutyType core.DutyType
 }
 
 func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSyncer) []result {
 	t.Helper()
 
 	random := rand.New(rand.NewSource(int64(conf.seed)))
-
-	startTime := conf.startTime
-	if startTime.IsZero() {
-		startTime = time.Now().Truncate(time.Hour)
-	}
-
-	clock := clockwork.NewFakeClockAt(startTime)
+	clock := clockwork.NewFakeClockAt(time.Now().Truncate(time.Hour))
 
 	logger := log.NewConsoleForT(t, syncer, log.WithClock(clock))
 	ctx := log.WithLogger(context.Background(), logger)
@@ -431,7 +421,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 		log.Debug(ctx, "Starting peer")
 
-		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed), Type: conf.dutyType}, p.Idx, valCh, valSrcCh)
+		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed)}, p.Idx, valCh, valSrcCh)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return res, err
 		}
@@ -660,6 +650,20 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 	duty core.Duty, source int64, round int64, value [32]byte,
 	pr int64, pv [32]byte, justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
 ) error {
+	msg, err := newSimMsg(typ, duty, source, round, value, pr, pv, justification)
+	if err != nil {
+		return err
+	}
+
+	i.enqueue(msg)
+
+	return nil
+}
+
+// newSimMsg returns a simulated QBFT message with dummy values.
+func newSimMsg(typ qbft.MsgType, duty core.Duty, source int64, round int64, value [32]byte,
+	pr int64, pv [32]byte, justification []qbft.Msg[core.Duty, [32]byte, proto.Message],
+) (qbft.Msg[core.Duty, [32]byte, proto.Message], error) {
 	dummy, _ := anypb.New(timestamppb.Now())
 	values := map[[32]byte]*anypb.Any{
 		value: dummy,
@@ -682,7 +686,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 	for _, j := range justification {
 		impl, ok := j.(Msg)
 		if !ok {
-			return errors.New("invalid justification")
+			return nil, errors.New("invalid justification")
 		}
 
 		justMsgs = append(justMsgs, impl.Msg()) // Note nested justifications are ignored.
@@ -690,14 +694,7 @@ func (i *transportInstance) Broadcast(_ context.Context, typ qbft.MsgType,
 		values[impl.PreparedValue()] = dummy
 	}
 
-	msg, err := newMsg(pbMsg, justMsgs, values)
-	if err != nil {
-		return err
-	}
-
-	i.enqueue(msg)
-
-	return nil
+	return newMsg(pbMsg, justMsgs, values)
 }
 
 func (i *transportInstance) Receive() <-chan qbft.Msg[core.Duty, [32]byte, proto.Message] {
