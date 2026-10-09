@@ -69,7 +69,7 @@ func TestSimulatorOnce(t *testing.T) {
 			2: ms100,
 			3: ms100,
 		},
-		roundTimerFunc: newInc,
+		roundTimerFunc: newInc(t),
 		timeout:        simTimeout,
 	}, syncer)
 
@@ -84,7 +84,7 @@ func TestMatrix(t *testing.T) {
 
 	testRoundTimers(t,
 		[]roundTimerFunc{
-			newInc,
+			newInc(t),
 
 			newExp(time.Millisecond * 1000),
 
@@ -344,13 +344,23 @@ type ssConfig struct {
 	startByPeer    map[int64]time.Duration
 	roundTimerFunc func(clockwork.Clock) timer.RoundTimer
 	timeout        time.Duration
+	// startTime is when the simulation starts, defaulting to the current hour.
+	startTime time.Time
+	// dutyType is the type of the simulated duty.
+	dutyType core.DutyType
 }
 
 func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSyncer) []result {
 	t.Helper()
 
 	random := rand.New(rand.NewSource(int64(conf.seed)))
-	clock := clockwork.NewFakeClockAt(time.Now().Truncate(time.Hour))
+
+	startTime := conf.startTime
+	if startTime.IsZero() {
+		startTime = time.Now().Truncate(time.Hour)
+	}
+
+	clock := clockwork.NewFakeClockAt(startTime)
 
 	logger := log.NewConsoleForT(t, syncer, log.WithClock(clock))
 	ctx := log.WithLogger(context.Background(), logger)
@@ -407,7 +417,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 		if delay == disabled { // If peer disabled, return immediately
 			log.Debug(ctx, "Peer disabled")
 			return res, nil
-		} else if conf.roundTimerFunc(nil).Type().Eager() { // If timer is eager, delay value asynchronously
+		} else if isEager(conf.roundTimerFunc(nil)) { // If timer is eager, delay value asynchronously
 			go after(ctx, clock, delay, enqueueValue)
 
 			log.Debug(ctx, "Delaying peer value", z.Any("value_delayed", delay))
@@ -421,7 +431,7 @@ func testStrategySimulator(t *testing.T, conf ssConfig, syncer zapcore.WriteSync
 
 		log.Debug(ctx, "Starting peer")
 
-		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed)}, p.Idx, valCh, valSrcCh)
+		err := qbft.Run(ctx, def, transports[p.Idx], core.Duty{Slot: uint64(conf.seed), Type: conf.dutyType}, p.Idx, valCh, valSrcCh)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			return res, err
 		}
@@ -781,10 +791,16 @@ func (t incRoundTimer2) Type() timer.Type {
 	return "inc2"
 }
 
+func (incRoundTimer2) Extensions() []string {
+	return nil
+}
+
 func (t incRoundTimer2) Timer(round int64) (<-chan time.Time, func()) {
-	duration := timer.IncRoundStart
+	const roundStart = 750 * time.Millisecond
+
+	duration := roundStart
 	for i := 1; i < int(round); i++ {
-		duration += timer.IncRoundStart
+		duration += roundStart
 	}
 
 	timer := t.clock.NewTimer(duration)
@@ -960,6 +976,16 @@ func (t *testTimer) Type() timer.Type {
 	return timer.Type(name)
 }
 
+func (*testTimer) Extensions() []string {
+	return nil
+}
+
+// isEager returns true if the timer starts consensus before the peer's value is present.
+func isEager(roundTimer timer.RoundTimer) bool {
+	t, ok := roundTimer.(*testTimer)
+	return ok && t.eager
+}
+
 func newLinear(d time.Duration) roundTimerFunc {
 	return func(clock clockwork.Clock) timer.RoundTimer {
 		return &testTimer{
@@ -1004,8 +1030,12 @@ func newLinearDouble(d time.Duration) roundTimerFunc {
 	}
 }
 
-func newInc(clock clockwork.Clock) timer.RoundTimer {
-	return timer.NewIncreasingRoundTimerWithClock(clock)
+func newInc(t *testing.T) roundTimerFunc {
+	t.Helper()
+
+	return func(clock clockwork.Clock) timer.RoundTimer {
+		return timer.NewIncreasingForT(t, clock)
+	}
 }
 
 func newExp(d time.Duration) roundTimerFunc {
