@@ -252,7 +252,7 @@ func (t *roundTimer) deadline(round int64, now time.Time) time.Time {
 func (t *roundTimer) duration(round int64) time.Duration {
 	duration := t.def.durations.duration(round)
 	for _, ext := range t.def.extensions {
-		duration += ext.onArm(round) - ext.onArm(round-1)
+		duration += ext.onArm(round)
 	}
 
 	return duration
@@ -263,7 +263,9 @@ func (t *roundTimer) duration(round int64) time.Duration {
 func (t *roundTimer) end(round int64) time.Duration {
 	end := t.def.durations.end(round)
 	for _, ext := range t.def.extensions {
-		end += ext.onArm(round)
+		for r := int64(1); r <= round; r++ {
+			end += ext.onArm(r)
+		}
 	}
 
 	return end
