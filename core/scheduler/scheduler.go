@@ -227,6 +227,17 @@ func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, block
 		return
 	}
 
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil {
+		log.Warn(ctx, "Early attestation data fetch skipped, failed to fetch slots config", err, z.U64("slot", uint64(slot)))
+		return
+	}
+
+	// From gloas the fetcher handles head events itself, see fetcher.HandleHeadEvent.
+	if s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(uint64(slot)/slotsPerEpoch)) {
+		return
+	}
+
 	duty := core.Duty{
 		Slot: uint64(slot),
 		Type: core.DutyAttester,
@@ -367,14 +378,19 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			defer span.End()
 
+			// From gloas the fetcher waits for the block itself, so attester duties are triggered at
+			// the start of the block proposal interval, the start of the slot, for consensus to start
+			// one interval ahead of the attestation due time.
+			gloasAttester := duty.Type == core.DutyAttester && s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch()))
+
 			// Special handling for attester duties when FetchAttOnBlock features are enabled
-			if duty.Type == core.DutyAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
+			if duty.Type == core.DutyAttester && !gloasAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
 				if !s.waitForEarlyFetchOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
 
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
+			} else if !gloasAttester && !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
 				return // context cancelled
 			}
 

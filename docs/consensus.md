@@ -74,7 +74,7 @@ A timer is a named configuration of round timing, defined by:
 
 Timers are selected per duty by the fork and feature set flags:
 
-- `eager_ahead_split` is used for attester duties from the gloas fork, regardless of feature set flags, since round end times must be identical across the cluster.
+- `eager_ahead_split` is used for attester duties from the gloas fork, regardless of feature set flags, since round end times must be identical across the cluster (see [Gloas attester timer](#gloas-attester-timer)).
 - `eager_dlinear` is the default, enabled by the stable `eager_double_linear` feature.
 - `inc` is used when `eager_double_linear` is disabled (`--feature-set-disable "eager_double_linear"`).
 - `linear` is used for proposer duties when the alpha `linear` feature is enabled (`--feature-set-enable "linear"`), taking precedence over the other timers. Its first round includes fetching the proposal. Peers already have their proposal in later rounds, which start shorter, skipping underperforming leaders quicker.
@@ -97,6 +97,25 @@ Each extension states when it acts, under what condition and what it changes:
 `double_total_on_rearm` keeps round end times aligned across peers. Resetting the round's timer instead has no effect on the leader, who resets at the start of the round, while it has a large effect on the other peers, who reset when they receive the justified pre-prepare.
 
 The timer and extensions of each consensus instance are logged when it starts, e.g. `timer=eager_dlinear timer_extensions=[double_total_on_rearm proposal_timeout]`.
+
+### Gloas attester timer
+
+An Ethereum slot is split into consecutive intervals, each the timeframe of one kind of duty, starting at the duty's due time, its offset into the slot. From the gloas fork a 12s slot has four 3s intervals: the block proposal interval (0-3s), the attestation interval (3-6s), the aggregation interval (6-9s) and the payload attestation interval (9-12s).
+
+The `eager_ahead_split` timer starts its rounds one interval ahead of the duty's own interval, at the start of the previous interval, and splits the duty's own interval into a number of equal attempts:
+
+- Round 1 spans the previous interval plus the first attempt.
+- Each following round spans one attempt, until all attempts are used.
+- Rounds past the attempts last one attempt plus a further second per round, for liveness under sustained network delays.
+
+For gloas attester duties the previous interval is the block proposal interval, and the attestation interval is split into 3 attempts, so rounds last 4s, 1s, 1s, 2s, 3s, etc. The block proposal interval is not a mere warmup: the block the attestation votes for arrives within it, so consensus usually decides within it too, before validator clients request the attestation data at the attestation due time. The components act at the boundaries of these intervals:
+
+| When | Scheduler | Fetcher | Round timer |
+|------|-----------|---------|-------------|
+| Start of the block proposal interval (0s) | Triggers the duty | Waits for a new head of the slot | Starts round 1 |
+| A beacon node reports a new head of the slot (SSE head event) | | Fetches the attestation data from that beacon node, as the consensus input | |
+| Attestation due time (3s), if no block arrived | | Fetches the attestation data from all beacon nodes | |
+| End of each attempt (4s, 5s, 6s, then 8s, 11s, ...) | | | Round deadlines |
 
 ## Observability
 
