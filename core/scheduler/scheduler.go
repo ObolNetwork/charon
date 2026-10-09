@@ -441,7 +441,7 @@ func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Sl
 	select {
 	case <-ctx.Done():
 		return false
-	case <-s.clock.After(time.Until(fallbackDeadline)):
+	case <-s.delayFunc(core.NewAttesterDuty(slot.Slot), fallbackDeadline):
 		// Check if head event triggered early fetch
 		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
 			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
