@@ -180,6 +180,16 @@ func TestRoundDurations(t *testing.T) {
 			durations: roundDurations{first: 4 * time.Second, step: time.Second, steps: 2, growth: time.Second},
 			want:      []time.Duration{4 * time.Second, time.Second, time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second},
 		},
+		{
+			name:      "ahead split, 3s interval, 3 attempts",
+			durations: aheadSplit(3*time.Second, 3),
+			want:      []time.Duration{4 * time.Second, time.Second, time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second},
+		},
+		{
+			name:      "ahead split, 4s interval, 2 attempts",
+			durations: aheadSplit(4*time.Second, 2),
+			want:      []time.Duration{6 * time.Second, 2 * time.Second, 3 * time.Second, 4 * time.Second},
+		},
 	}
 
 	for _, test := range tests {
@@ -207,10 +217,10 @@ func TestProposalTimeout(t *testing.T) {
 	require.Zero(t, proposalTimeout{}.onArm(2))
 
 	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(), proposalTimeout{})
-	require.Equal(t, []extension{doubleOnRearm{}, proposalTimeout{}}, def.extensions)
+	require.Equal(t, []extension{doubleTotalOnRearm{}, proposalTimeout{}}, def.extensions)
 
 	def = withExtensions(core.NewAttesterDuty(1), eagerDLinearTimer(), proposalTimeout{})
-	require.Equal(t, []extension{doubleOnRearm{}}, def.extensions)
+	require.Equal(t, []extension{doubleTotalOnRearm{}}, def.extensions)
 
 	// Extensions leave the timer's round durations unchanged.
 	require.Equal(t, eagerDLinearTimer().durations, def.durations)
@@ -219,8 +229,68 @@ func TestProposalTimeout(t *testing.T) {
 func TestWithExtensionsDeduplicates(t *testing.T) {
 	// Extensions declared by the timer and added again, or added twice, are only kept once, in the
 	// order of their first occurrence.
-	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(), doubleOnRearm{}, proposalTimeout{}, proposalTimeout{})
-	require.Equal(t, []extension{doubleOnRearm{}, proposalTimeout{}}, def.extensions)
+	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(), doubleTotalOnRearm{}, proposalTimeout{}, proposalTimeout{})
+	require.Equal(t, []extension{doubleTotalOnRearm{}, proposalTimeout{}}, def.extensions)
+}
+
+func TestDoubleRoundOnRearm(t *testing.T) {
+	ext := doubleRoundOnRearm{minimum: time.Second}
+	require.Equal(t, "double_round_on_rearm_min_1s", ext.name())
+
+	var (
+		deadline = time.Unix(1_000_000, 0)
+		now      = deadline.Add(-time.Second)
+		ms       = func(ms int64) time.Duration { return time.Duration(ms) * time.Millisecond }
+	)
+
+	tests := []struct {
+		name     string
+		duration time.Duration
+		end      time.Duration
+		lead     time.Duration
+		want     time.Duration // Extension from the deadline.
+	}{
+		{name: "round shorter than minimum", duration: ms(400), end: ms(1400), want: ms(1000)},
+		{name: "round longer than minimum", duration: ms(1200), end: ms(4000), want: ms(1200)},
+		{name: "first round spanning the lead", duration: ms(4000), end: ms(4000), lead: ms(3000), want: ms(1000)},
+		{name: "later round after the lead", duration: ms(2000), end: ms(8000), lead: ms(3000), want: ms(2000)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			extended, ok := ext.onRearm(test.duration, test.end, test.lead, deadline, now)
+			require.True(t, ok)
+			require.Equal(t, deadline.Add(test.want), extended)
+		})
+	}
+}
+
+func TestAnchorPreviousInterval(t *testing.T) {
+	const slotDuration = 12 * time.Second
+
+	var (
+		genesisTime = time.Unix(1_000_000, 0)
+		duty        = core.NewAttesterDuty(2)
+		slotStart   = genesisTime.Add(2 * slotDuration)
+		now         = slotStart.Add(time.Hour)
+		anchor      = anchorPreviousInterval{leadTime: 3 * time.Second}
+		timing      = slotTiming{
+			genesisTime:  genesisTime,
+			slotDuration: slotDuration,
+			slotOffset:   func(core.Duty) time.Duration { return 5 * time.Second },
+		}
+	)
+
+	// Rounds start one interval before the duty start, regardless of when they are armed.
+	require.Equal(t, slotStart.Add(2*time.Second), anchor.start(duty, timing, now, 0))
+	require.Equal(t, slotStart.Add(6*time.Second), anchor.start(duty, timing, now, 4*time.Second))
+
+	// Without slot timing, the first round starts when armed.
+	require.Equal(t, now.Add(4*time.Second), anchor.start(duty, slotTiming{}, now, 4*time.Second))
+
+	require.Equal(t, 3*time.Second, anchor.lead())
+	require.Zero(t, anchorDutyStart{}.lead())
+	require.Zero(t, anchorLocalDutyStart{}.lead())
 }
 
 func TestFeatureExtensions(t *testing.T) {
@@ -240,17 +310,20 @@ func TestTimerSelection(t *testing.T) {
 	var (
 		genesisTime = time.Unix(1_000_000, 0)
 		slotStart   = genesisTime.Add(slot * slotDuration)
-		timing      = slotTiming{
-			genesisTime:  genesisTime,
-			slotDuration: slotDuration,
-			// Attestations are due a third into the slot pre-gloas, proposals at its start.
-			slotOffset: func(duty core.Duty) time.Duration {
-				if duty.Type == core.DutyAttester {
-					return 4 * time.Second
-				}
+		// timingFor returns the slot timing with attestations due at the offset into the slot, and
+		// proposals at its start.
+		timingFor = func(attestationDue time.Duration) slotTiming {
+			return slotTiming{
+				genesisTime:  genesisTime,
+				slotDuration: slotDuration,
+				slotOffset: func(duty core.Duty) time.Duration {
+					if duty.Type == core.DutyAttester {
+						return attestationDue
+					}
 
-				return 0
-			},
+					return 0
+				},
+			}
 		}
 		ms = func(ms int64) time.Duration { return time.Duration(ms) * time.Millisecond }
 	)
@@ -262,6 +335,7 @@ func TestTimerSelection(t *testing.T) {
 		enable         []featureset.Feature
 		disable        []featureset.Feature
 		duty           core.Duty
+		gloas          bool // Whether gloas is active at the duty's slot.
 		wantType       Type
 		wantExtensions []string
 		want           []roundArming // Rounds 1 onwards, relative to the start of the slot.
@@ -270,7 +344,7 @@ func TestTimerSelection(t *testing.T) {
 			name:           "attester, defaults",
 			duty:           core.NewAttesterDuty(slot),
 			wantType:       TimerEagerDoubleLinear,
-			wantExtensions: []string{"double_on_rearm"},
+			wantExtensions: []string{"double_total_on_rearm"},
 			want:           []roundArming{{ms(5000), ms(6000)}, {ms(6000), ms(8000)}, {ms(7000), ms(10000)}},
 		},
 		{
@@ -278,7 +352,7 @@ func TestTimerSelection(t *testing.T) {
 			enable:         []featureset.Feature{featureset.Linear},
 			duty:           core.NewAttesterDuty(slot),
 			wantType:       TimerEagerDoubleLinear,
-			wantExtensions: []string{"double_on_rearm"},
+			wantExtensions: []string{"double_total_on_rearm"},
 			want:           []roundArming{{ms(5000), ms(6000)}, {ms(6000), ms(8000)}, {ms(7000), ms(10000)}},
 		},
 		{
@@ -290,10 +364,36 @@ func TestTimerSelection(t *testing.T) {
 			want:           []roundArming{{ms(1000), ms(1100)}, {ms(2250), ms(2350)}, {ms(3750), ms(3850)}},
 		},
 		{
+			name:           "gloas attester, defaults",
+			duty:           core.NewAttesterDuty(slot),
+			gloas:          true,
+			wantType:       TimerEagerAheadSplit,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(4000), ms(5000)}, {ms(5000), ms(6000)}, {ms(6000), ms(7000)}, {ms(8000), ms(10000)}, {ms(11000), ms(14000)}},
+		},
+		{
+			name:           "gloas attester, eager double linear disabled and linear enabled",
+			enable:         []featureset.Feature{featureset.Linear},
+			disable:        []featureset.Feature{featureset.EagerDoubleLinear},
+			duty:           core.NewAttesterDuty(slot),
+			gloas:          true,
+			wantType:       TimerEagerAheadSplit,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(4000), ms(5000)}, {ms(5000), ms(6000)}, {ms(6000), ms(7000)}, {ms(8000), ms(10000)}, {ms(11000), ms(14000)}},
+		},
+		{
+			name:           "gloas proposer, defaults",
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			wantType:       TimerEagerDoubleLinear,
+			wantExtensions: []string{"double_total_on_rearm", "proposal_timeout"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2500), ms(5000)}, {ms(3500), ms(7000)}},
+		},
+		{
 			name:           "proposer, defaults",
 			duty:           core.NewProposerDuty(slot),
 			wantType:       TimerEagerDoubleLinear,
-			wantExtensions: []string{"double_on_rearm", "proposal_timeout"},
+			wantExtensions: []string{"double_total_on_rearm", "proposal_timeout"},
 			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2500), ms(5000)}, {ms(3500), ms(7000)}},
 		},
 		{
@@ -301,7 +401,7 @@ func TestTimerSelection(t *testing.T) {
 			disable:        []featureset.Feature{featureset.ProposalTimeout},
 			duty:           core.NewProposerDuty(slot),
 			wantType:       TimerEagerDoubleLinear,
-			wantExtensions: []string{"double_on_rearm"},
+			wantExtensions: []string{"double_total_on_rearm"},
 			want:           []roundArming{{ms(1000), ms(2000)}, {ms(2000), ms(4000)}, {ms(3000), ms(6000)}},
 		},
 		{
@@ -358,8 +458,14 @@ func TestTimerSelection(t *testing.T) {
 				featureset.DisableForT(t, feature)
 			}
 
+			// Attestations are due a third into the slot pre-gloas, a quarter from gloas.
+			timing := timingFor(4 * time.Second)
+			if test.gloas {
+				timing = timingFor(3 * time.Second)
+			}
+
 			clock := &recordingClock{FakeClock: clockwork.NewFakeClockAt(slotStart)}
-			roundTimer := newRoundTimer(test.duty, selectTimer(test.duty), timing, clock)
+			roundTimer := newRoundTimer(test.duty, selectTimer(test.duty, test.gloas), timing, clock)
 
 			require.Equal(t, test.wantType, roundTimer.Type())
 			require.Equal(t, test.wantExtensions, roundTimer.Extensions())

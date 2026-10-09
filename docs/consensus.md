@@ -62,17 +62,19 @@ Round timing is defined by timers and extensions. All nodes in a cluster must us
 A timer is a named configuration of round timing, defined by:
 
 - its **round durations**: the first round lasts `first`, the next `steps` rounds last `step` each, and every later round grows by a further `growth`;
-- its **anchor**, when its rounds start: either the **duty start**, the duty's offset into the slot, where the first round starts at that absolute time and later rounds follow on, aligning round start times across peers; or the legacy **local duty start**, where the first round starts when the duty starts on this node and each later round when this node enters it, so rounds drift apart across peers;
+- its **anchor**, when its rounds start: either the **duty start**, the duty's offset into the slot, or the **previous interval**, one interval before the duty start, where the first round starts at that absolute time and later rounds follow on, aligning round start times across peers; or the legacy **local duty start**, where the first round starts when the duty starts on this node and each later round when this node enters it, so rounds drift apart across peers;
 - its **extensions**, such as how a round is extended when it is armed again. QBFT arms a round again upon a justified pre-prepare for it.
 
 | Timer | first | step | steps | growth | Round durations | Anchor | Extensions |
 |---|---|---|---|---|---|---|---|
 | `inc` | 1s | 1s | 0 | 250ms | 1s, 1.25s, 1.5s, ... | local duty start | `reset_on_rearm` |
 | `linear` | 1s | 200ms | 0 | 200ms | 1s, 400ms, 600ms, ... | local duty start | `reset_on_rearm` |
-| `eager_dlinear` | 1s | 1s | 0 | 0 | 1s, 1s, 1s, ... | duty start | `double_on_rearm` |
+| `eager_dlinear` | 1s | 1s | 0 | 0 | 1s, 1s, 1s, ... | duty start | `double_total_on_rearm` |
+| `eager_ahead_split` | 4s | 1s | 2 | 1s | 4s, 1s, 1s, 2s, 3s, ... | previous interval | `double_round_on_rearm_min_1s` |
 
-Timers are selected per duty by feature set flags:
+Timers are selected per duty by the fork and feature set flags:
 
+- `eager_ahead_split` is used for attester duties from the gloas fork, regardless of feature set flags, since round end times must be identical across the cluster.
 - `eager_dlinear` is the default, enabled by the stable `eager_double_linear` feature.
 - `inc` is used when `eager_double_linear` is disabled (`--feature-set-disable "eager_double_linear"`).
 - `linear` is used for proposer duties when the alpha `linear` feature is enabled (`--feature-set-enable "linear"`), taking precedence over the other timers. Its first round includes fetching the proposal. Peers already have their proposal in later rounds, which start shorter, skipping underperforming leaders quicker.
@@ -87,13 +89,14 @@ Each extension states when it acts, under what condition and what it changes:
 |---|---|---|---|---|
 | `proposal_timeout` | When the first round is armed | Proposer duties, enabled by default as the `proposal_timeout` feature is stable | Adds 500ms to the first round's duration | Applicable to every timer by default |
 | `reset_on_rearm` | When a round is re-armed | Always on for the `inc` and `linear` timers | The round's timer resets | Only clusters that disabled `eager_double_linear` or enabled the alpha `linear` timer (proposer duties only). Only used whenever a node receives the round leader's justified pre-prepare |
-| `double_on_rearm` | When a round is re-armed | Always on for the `eager_dlinear` timer | Extends the round by the time from the first round's start to its deadline | Every duty by default, as `eager_dlinear` is the default timer. Only used whenever a node receives the round leader's justified pre-prepare |
+| `double_total_on_rearm` | When a round is re-armed | Always on for the `eager_dlinear` timer | Extends the round by the time from the first round's start to its deadline, doubling the total | Every duty by default, as `eager_dlinear` is the default timer. Only used whenever a node receives the round leader's justified pre-prepare |
+| `double_round_on_rearm_min_1s` | When a round is re-armed | Always on for the `eager_ahead_split` timer | Extends the round from its deadline by its duration after the duty start, at least 1s, doubling the round. The first round's span of the previous interval doesn't count | Every attester duty from the gloas fork. Only used whenever a node receives the round leader's justified pre-prepare |
 
 `proposal_timeout` applies to whichever timer is selected for a proposer duty. On `eager_dlinear`, since its rounds follow on, the longer first round moves every round end 500ms later (1.5s, 2.5s, 3.5s, ...).
 
-`double_on_rearm` keeps round end times aligned across peers. Resetting the round's timer instead has no effect on the leader, who resets at the start of the round, while it has a large effect on the other peers, who reset when they receive the justified pre-prepare.
+`double_total_on_rearm` keeps round end times aligned across peers. Resetting the round's timer instead has no effect on the leader, who resets at the start of the round, while it has a large effect on the other peers, who reset when they receive the justified pre-prepare.
 
-The timer and extensions of each consensus instance are logged when it starts, e.g. `timer=eager_dlinear timer_extensions=[double_on_rearm proposal_timeout]`.
+The timer and extensions of each consensus instance are logged when it starts, e.g. `timer=eager_dlinear timer_extensions=[double_total_on_rearm proposal_timeout]`.
 
 ## Observability
 
