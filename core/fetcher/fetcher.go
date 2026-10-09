@@ -82,7 +82,7 @@ type Fetcher struct {
 	slotsPerEpoch          uint64
 	builderConfig          *gloas.BuilderConfig
 	fetchOnlyCommIdx0      bool
-	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
+	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet). TODO(post-gloas): remove.
 	clock                  clockwork.Clock
 	genesisTime            time.Time
 	slotDuration           time.Duration
@@ -112,6 +112,7 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 // This allows early fetching on head events while deferring consensus to the scheduled time.
 // The data is only cached if it votes for headBlockRoot (the head from the SSE head event);
 // otherwise it is dropped so consensus re-fetches fresh data at the scheduled deadline.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet, bnAddr string, headBlockRoot eth2p0.Root) error {
 	if duty.Type != core.DutyAttester {
 		return errors.New("unsupported duty", z.Str("type", duty.Type.String()))
@@ -162,6 +163,7 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 // HandleChainReorg invalidates the early-fetch cache upon a chain reorg, since cached
 // attestation data was verified against a head that may no longer be canonical.
 // Consensus then re-fetches fresh data at the scheduled deadline.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (f *Fetcher) HandleChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 	f.attDataCache.Clear()
 	log.Debug(ctx, "Early attestation data cache invalidated due to chain reorg", z.U64("epoch", uint64(epoch)))
@@ -286,7 +288,8 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			break
 		}
 
-		// Check if attestation data was already fetched early and cached
+		// Check if attestation data was already fetched early and cached.
+		// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 		if cached, ok := f.attDataCache.Load(duty.Slot); ok {
 			f.attDataCache.Delete(duty.Slot)
 

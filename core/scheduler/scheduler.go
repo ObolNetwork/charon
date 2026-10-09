@@ -110,11 +110,12 @@ type Scheduler struct {
 	dutiesMutex                sync.RWMutex
 	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs                   []func(context.Context, core.Slot) error
+	// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 	fetcherFetchOnly           func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
-	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse head event (map[uint64]bool)
+	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse head event (map[uint64]bool). TODO(post-gloas): remove.
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -125,6 +126,7 @@ func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.Dut
 
 // RegisterFetcherFetchOnly registers the fetcher's FetchOnly method for early attestation fetching.
 // Note this should be called *before* Start.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (s *Scheduler) RegisterFetcherFetchOnly(fn func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error) {
 	s.fetcherFetchOnly = fn
 }
@@ -216,6 +218,10 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 // HandleHeadEvent handles SSE "head" events (fork-choice head updated) and triggers early attestation data fetching.
 // Triggering on the head event (rather than the block event) ensures the beacon node's head has settled onto the
 // new block before we fetch, avoiding stale attestation data at epoch boundaries.
+//
+// TODO(post-gloas): remove the pre-gloas early attestation fetch (this handler, FetchOnly and its
+// cache, waitForEarlyFetchOrTimeout) once all supported networks have activated gloas. Pre-gloas
+// networks then fetch attestation data at the deadline, while the gloas fork checks must remain.
 func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string) {
 	if s.fetcherFetchOnly == nil {
 		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
@@ -441,6 +447,7 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 // The head-event-triggered early fetch (HandleHeadEvent) runs concurrently and populates the
 // attestation data cache before this deadline in the happy path.
 // Returns false if the context is cancelled, true otherwise.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout
 	offset := s.slotOffsetFunc(core.Duty{Slot: slot.Slot, Type: core.DutyAttester})
