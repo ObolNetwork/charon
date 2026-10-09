@@ -95,7 +95,7 @@ var (
 		QUIC:                 statusAlpha,
 		FetchOnlyCommIdx0:    statusStable,
 		ChainSplitHalt:       statusAlpha,
-		FetchAttOnBlock:      statusAlpha,
+		FetchAttOnBlock:      statusStable,
 		DisableDutiesCache:   statusAlpha,
 		// Add all features and their status here.
 	}
