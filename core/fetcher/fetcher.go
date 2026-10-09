@@ -9,12 +9,14 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -27,11 +29,26 @@ import (
 
 // New returns a new fetcher instance. The fork schedule function returns the schedule charon
 // currently applies, which may change at runtime.
-func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder,
+func New(ctx context.Context, eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder,
 	forkSchedule func() eth2wrap.ForkForkSchedule, slotsPerEpoch uint64, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
 ) (*Fetcher, error) {
 	if slotsPerEpoch == 0 {
 		return nil, errors.New("zero slots per epoch")
+	}
+
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
+	if err != nil {
+		return nil, errors.Wrap(err, "new slot offset func")
 	}
 
 	return &Fetcher{
@@ -43,6 +60,11 @@ func New(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, buil
 		slotsPerEpoch:     slotsPerEpoch,
 		builderConfig:     builderConfig,
 		fetchOnlyCommIdx0: fetchOnlyCommIdx0,
+		clock:             clockwork.NewRealClock(),
+		genesisTime:       genesisTime,
+		slotDuration:      slotDuration,
+		slotOffsetFunc:    slotOffsetFunc,
+		headEvents:        make(map[uint64]chan headEvent),
 	}, nil
 }
 
@@ -60,8 +82,25 @@ type Fetcher struct {
 	slotsPerEpoch          uint64
 	builderConfig          *gloas.BuilderConfig
 	fetchOnlyCommIdx0      bool
-	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet)
+	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet). TODO(post-gloas): remove.
+	clock                  clockwork.Clock
+	genesisTime            time.Time
+	slotDuration           time.Duration
+	slotOffsetFunc         core.SlotOffsetFunc
+
+	headEventsMu sync.Mutex
+	headEvents   map[uint64]chan headEvent // SSE head events of slots with a gloas attestation data fetch waiting.
 }
+
+// headEvent is an SSE head event of a beacon node.
+type headEvent struct {
+	root   eth2p0.Root
+	bnAddr string
+}
+
+// headEventBuffer is the number of head events buffered per slot, enough for every beacon node to
+// report the slot's block and a reorg.
+const headEventBuffer = 16
 
 // Subscribe registers a callback for fetched duties.
 // Note this is not thread safe should be called *before* Fetch.
@@ -73,6 +112,7 @@ func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDat
 // This allows early fetching on head events while deferring consensus to the scheduled time.
 // The data is only cached if it votes for headBlockRoot (the head from the SSE head event);
 // otherwise it is dropped so consensus re-fetches fresh data at the scheduled deadline.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.DutyDefinitionSet, bnAddr string, headBlockRoot eth2p0.Root) error {
 	if duty.Type != core.DutyAttester {
 		return errors.New("unsupported duty", z.Str("type", duty.Type.String()))
@@ -123,9 +163,96 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 // HandleChainReorg invalidates the early-fetch cache upon a chain reorg, since cached
 // attestation data was verified against a head that may no longer be canonical.
 // Consensus then re-fetches fresh data at the scheduled deadline.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (f *Fetcher) HandleChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
 	f.attDataCache.Clear()
 	log.Debug(ctx, "Early attestation data cache invalidated due to chain reorg", z.U64("epoch", uint64(epoch)))
+}
+
+// HandleHeadEvent passes SSE head events to the gloas attestation data fetch waiting for the slot's
+// head, if any. It doesn't block, as head event subscribers are called inline.
+func (f *Fetcher) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, root eth2p0.Root, bnAddr string) {
+	f.headEventsMu.Lock()
+	defer f.headEventsMu.Unlock()
+
+	events, ok := f.headEvents[uint64(slot)]
+	if !ok {
+		return
+	}
+
+	select {
+	case events <- headEvent{root: root, bnAddr: bnAddr}:
+	default:
+		log.Debug(ctx, "Dropping head event, buffer full", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+	}
+}
+
+// fetchGloasAttesterData returns the attestation data of the slot as soon as it is available: upon a
+// head event of the slot from the beacon node reporting it, or from all beacon nodes at the
+// attestation due time, the end of the block proposal interval. If the reporting beacon node fails or
+// its data doesn't vote for the head event's block, since its head moved on, it waits for the next
+// head event.
+func (f *Fetcher) fetchGloasAttesterData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	events := make(chan headEvent, headEventBuffer)
+
+	f.headEventsMu.Lock()
+	f.headEvents[slot] = events
+	f.headEventsMu.Unlock()
+
+	defer func() {
+		f.headEventsMu.Lock()
+		delete(f.headEvents, slot)
+		f.headEventsMu.Unlock()
+	}()
+
+	// Fall back to fetching from all beacon nodes at the attestation due time, if no block arrived in
+	// the block proposal interval.
+	slotStart := f.genesisTime.Add(f.slotDuration * time.Duration(slot))
+	dueTime := slotStart.Add(f.slotOffsetFunc(core.NewAttesterDuty(slot)))
+
+	timer := f.clock.NewTimer(dueTime.Sub(f.clock.Now()))
+	defer timer.Stop()
+
+	for {
+		var event headEvent
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.Chan():
+			return f.fetchAttesterData(ctx, slot, defSet)
+		case event = <-events:
+		}
+
+		unsignedSet, err := f.fetchAttesterDataFrom(ctx, slot, defSet, event.bnAddr)
+		if err != nil {
+			log.Warn(ctx, "Attestation data fetch upon head event failed, waiting for next head event", err,
+				z.U64("slot", slot), z.Str("bn_addr", event.bnAddr))
+
+			continue
+		}
+
+		if !votesFor(unsignedSet, event.root) {
+			log.Debug(ctx, "Attestation data fetched upon head event votes for another head, waiting for next head event",
+				z.U64("slot", slot), z.Str("bn_addr", event.bnAddr), z.Str("head_event_root", event.root.String()))
+
+			continue
+		}
+
+		return unsignedSet, nil
+	}
+}
+
+// votesFor returns true if all attestation data in the set votes for the beacon block root.
+func votesFor(unsignedSet core.UnsignedDataSet, root eth2p0.Root) bool {
+	for _, data := range unsignedSet {
+		attData, ok := data.(core.AttestationData)
+		if !ok || attData.Data.BeaconBlockRoot != root {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Fetch triggers fetching of a proposed duty data set.
@@ -152,7 +279,17 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 			return errors.Wrap(err, "fetch proposer data")
 		}
 	case core.DutyAttester:
-		// Check if attestation data was already fetched early and cached
+		if f.forkActive(eth2wrap.Gloas, duty.Slot) {
+			unsignedSet, err = f.fetchGloasAttesterData(ctx, duty.Slot, defSet)
+			if err != nil {
+				return errors.Wrap(err, "fetch attester data")
+			}
+
+			break
+		}
+
+		// Check if attestation data was already fetched early and cached.
+		// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 		if cached, ok := f.attDataCache.Load(duty.Slot); ok {
 			f.attDataCache.Delete(duty.Slot)
 

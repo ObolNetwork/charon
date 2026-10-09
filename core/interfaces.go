@@ -389,7 +389,7 @@ func Wire(sched Scheduler,
 	w.SchedulerSubscribeDuties(func(ctx context.Context, duty Duty, _ DutyDefinitionSet) error {
 		return w.ConsensusParticipate(ctx, duty)
 	})
-	w.SchedulerRegisterFetcherFetchOnly(w.FetcherFetchOnly)
+	w.SchedulerRegisterFetcherFetchOnly(w.FetcherFetchOnly) // TODO(post-gloas): remove the pre-gloas early attestation fetch.
 	w.FetcherSubscribe(w.ConsensusPropose)
 	w.FetcherRegisterAggSigDB(w.AggSigDBAwait)
 	w.FetcherRegisterAwaitAttData(w.DutyDBAwaitAttestation)

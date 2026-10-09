@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
@@ -325,6 +326,72 @@ func TestReachedGloasFork(t *testing.T) {
 			sched := &Scheduler{eth2Cl: eth2Cl, clock: clockwork.NewFakeClockAt(t0), forkSchedule: func() eth2wrap.ForkForkSchedule { return forkSchedule }}
 
 			require.Equal(t, test.want, sched.reachedGloasFork(t.Context()))
+		})
+	}
+}
+
+func TestHandleHeadEventGloas(t *testing.T) {
+	featureset.EnableForT(t, featureset.FetchAttOnBlock)
+
+	tests := []struct {
+		name          string
+		gloasEpoch    string
+		wantFetchOnly bool
+	}{
+		{
+			name:          "pre-gloas head events prefetch attestation data",
+			gloasEpoch:    "100",
+			wantFetchOnly: true,
+		},
+		{
+			name:          "gloas head events are left to the fetcher",
+			gloasEpoch:    "0",
+			wantFetchOnly: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			eth2Cl, err := beaconmock.New(t.Context(),
+				beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+				beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", test.gloasEpoch),
+			)
+			require.NoError(t, err)
+
+			forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+			require.NoError(t, err)
+
+			const slot = 1
+
+			duty := core.NewAttesterDuty(slot)
+			sched := &Scheduler{
+				eth2Cl:       eth2Cl,
+				forkSchedule: func() eth2wrap.ForkForkSchedule { return forkSchedule },
+				duties: map[core.Duty]core.DutyDefinitionSet{
+					duty: {testutil.RandomCorePubKey(t): core.NewAttesterDefinition(&eth2v1.AttesterDuty{Slot: slot, CommitteeLength: 1, CommitteesAtSlot: 1})},
+				},
+			}
+
+			fetched := make(chan core.Duty, 1)
+
+			sched.RegisterFetcherFetchOnly(func(_ context.Context, duty core.Duty, _ core.DutyDefinitionSet, _ string, _ eth2p0.Root) error {
+				fetched <- duty
+				return nil
+			})
+
+			sched.HandleHeadEvent(t.Context(), slot, testutil.RandomRoot(), "bn")
+
+			_, triggered := sched.eventTriggeredAttestations.Load(uint64(slot))
+			require.Equal(t, test.wantFetchOnly, triggered)
+
+			if test.wantFetchOnly {
+				select {
+				case got := <-fetched:
+					require.Equal(t, duty, got)
+				case <-time.After(time.Second):
+					require.Fail(t, "early attestation data fetch not triggered")
+				}
+			}
 		})
 	}
 }

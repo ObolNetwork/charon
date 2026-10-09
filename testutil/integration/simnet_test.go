@@ -43,6 +43,7 @@ func TestSimnetDuties(t *testing.T) {
 
 	tests := []struct {
 		name               string
+		gloasAttester      bool
 		gloasProposer      bool
 		scheduledType      core.DutyType
 		duties             []core.DutyType
@@ -56,6 +57,13 @@ func TestSimnetDuties(t *testing.T) {
 			scheduledType: core.DutyAttester,
 			duties:        []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator},
 			vcType:        vcVmock,
+		},
+		{
+			name:          "gloas attester with mock VCs",
+			scheduledType: core.DutyAttester,
+			duties:        []core.DutyType{core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator},
+			vcType:        vcVmock,
+			gloasAttester: true,
 		},
 		{
 			name:          "proposer with mock VCs",
@@ -127,6 +135,12 @@ func TestSimnetDuties(t *testing.T) {
 			if test.scheduledType != core.DutyAttester {
 				// Beaconmock enables attester duties by default.
 				args.BMockOpts = append(args.BMockOpts, beaconmock.WithNoAttesterDuties())
+			} else if test.gloasAttester {
+				// Run attester duties on the gloas round schedule with the fork active from genesis.
+				args.BMockOpts = append(args.BMockOpts,
+					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+				)
 			}
 
 			if test.scheduledType != core.DutyProposer {
