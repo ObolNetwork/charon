@@ -223,7 +223,7 @@ func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, block
 	}
 
 	// Only process if either feature flag is enabled
-	if !featureset.Enabled(featureset.FetchAttOnBlock) && !featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if !featureset.Enabled(featureset.FetchAttOnBlock) {
 		return
 	}
 
@@ -368,7 +368,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 			defer span.End()
 
 			// Special handling for attester duties when FetchAttOnBlock features are enabled
-			if duty.Type == core.DutyAttester && (featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) {
+			if duty.Type == core.DutyAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
 				if !s.waitForEarlyFetchOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
@@ -421,21 +421,13 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	}
 }
 
-// waitForEarlyFetchOrTimeout waits until the fallback timeout is reached.
+// waitForEarlyFetchOrTimeout waits until the attestation slot offset is reached.
 // The head-event-triggered early fetch (HandleHeadEvent) runs concurrently and populates the
 // attestation data cache before this deadline in the happy path.
-// If FetchAttOnBlockWithDelay is enabled, the timeout is the attestation slot offset plus 300ms,
-// otherwise it is the attestation slot offset.
 // Returns false if the context is cancelled, true otherwise.
 func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout
 	offset := s.slotOffsetFunc(core.Duty{Slot: slot.Slot, Type: core.DutyAttester})
-
-	// Add 300ms delay only if FetchAttOnBlockWithDelay is enabled
-	if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-		offset += 300 * time.Millisecond
-	}
-
 	fallbackDeadline := slot.Time.Add(offset)
 
 	select {
@@ -444,13 +436,8 @@ func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Sl
 	case <-s.delayFunc(core.NewAttesterDuty(slot.Slot), fallbackDeadline):
 		// Check if head event triggered early fetch
 		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
-			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-				log.Debug(ctx, "Proceeding with attestation at 300ms delayed slot offset (no early head event)",
-					z.U64("slot", slot.Slot), z.Any("offset", offset))
-			} else {
-				log.Debug(ctx, "Proceeding with attestation at slot offset (no early head event)",
-					z.U64("slot", slot.Slot), z.Any("offset", offset))
-			}
+			log.Debug(ctx, "Proceeding with attestation at slot offset (no early head event)",
+				z.U64("slot", slot.Slot), z.Any("offset", offset))
 		}
 
 		return true
@@ -902,7 +889,7 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 	delete(s.dutiesByEpoch, epoch)
 
-	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
 		s.trimEventTriggeredAttestations(epoch)
 	}
 }

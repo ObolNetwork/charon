@@ -635,7 +635,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Invalidate early-fetched (head-event-triggered) attestation data on reorgs, since the cached
 	// data was verified against a head that may no longer be canonical.
-	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
 		sseListener.SubscribeChainReorgEvent(fetch.HandleChainReorg)
 	}
 
