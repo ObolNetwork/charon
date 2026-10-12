@@ -5,7 +5,7 @@
 // Protocol overview:
 //   - Priorities are arbitrary protobufs (data).
 //   - Priorities are grouped by a topic (also arbitrary protobuf data).
-//   - Peers in the cluster participate in a priority protocol instances.
+//   - Peers in the cluster participate in priority protocol instances.
 //   - The protocol consists of two steps: priority exchange followed by priority consensus.
 //   - All peers propose their own set of priorities for an instance.
 //   - These are exchanged with all other peers.

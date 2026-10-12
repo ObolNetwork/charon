@@ -34,8 +34,8 @@ func TestSendReceive(t *testing.T) {
 
 		// Register the server handler that either:
 		//  - Errors if slot is negative
-		//  - Echos the duty request if slot is even
-		//  - Returns nothing is slot is odd
+		//  - Echoes the duty request if slot is even
+		//  - Returns nothing if slot is odd
 		p2p.RegisterHandler("server", server, pID,
 			func() proto.Message { return new(pbv1.Duty) },
 			func(ctx context.Context, peerID peer.ID, req proto.Message) (proto.Message, bool, error) {
