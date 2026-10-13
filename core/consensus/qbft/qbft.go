@@ -140,7 +140,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 					return
 				}
 
-				err = attestationChecker(ctx, attLeaderSet, attLocalSet)
+				err = attestationChecker(attLeaderSet, attLocalSet)
 				if err != nil {
 					returnErrCh <- errors.Wrap(err, "attestation checker failed")
 					return
@@ -199,7 +199,10 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 	}
 }
 
-func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet, attLocalSet *pbv1.UnsignedDataSet) error {
+// attestationChecker returns an error if the leader's attestation set conflicts with the local one:
+// a validator without a local duty, a different duty assignment, or different source/target checkpoints.
+// A leader set covering only a subset of the local validators is accepted.
+func attestationChecker(attLeaderSet, attLocalSet *pbv1.UnsignedDataSet) error {
 	attLocalSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLocalSet)
 	if err != nil {
 		return errors.Wrap(err, "attLocal to unsigned data set duty attester")
@@ -213,8 +216,8 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 	for attLeaderKey, attLeaderData := range attLeaderSetCore {
 		attLocalData, ok := attLocalSetCore[attLeaderKey]
 		if !ok {
-			log.Warn(ctx, "", errors.New("no local attestation found, skipping"), z.Any("pk", attLeaderKey))
-			continue
+			// The leader's duties differ from ours (e.g. stale shuffling), agreeing would leave our scheduled validators unsigned.
+			return errors.New("leader attestation for validator without local duty", z.Any("public_key", attLeaderKey))
 		}
 
 		attLeaderAttestationData, ok := attLeaderData.(core.AttestationData)
@@ -227,29 +230,41 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 			return errors.New("unable to parse local unsigned data to core attestation data", z.Any("data", attLocalData))
 		}
 
-		mismatch := ""
-		if attLeaderAttestationData.Data.Source.Epoch != attLocalAttestationData.Data.Source.Epoch {
-			mismatch += "leader attestation source epoch differs from local source epoch;"
-		}
-
-		if attLeaderAttestationData.Data.Source.Root != attLocalAttestationData.Data.Source.Root {
-			mismatch += "leader attestation source root differs from local source root;"
-		}
-
-		if attLeaderAttestationData.Data.Target.Epoch != attLocalAttestationData.Data.Target.Epoch {
-			mismatch += "leader attestation target epoch differs from local target epoch;"
-		}
-
-		if attLeaderAttestationData.Data.Target.Root != attLocalAttestationData.Data.Target.Root {
-			mismatch += "leader attestation target root differs from local target root;"
-		}
-
+		mismatch := attestationMismatch(attLeaderAttestationData, attLocalAttestationData)
 		if mismatch != "" {
-			return errors.New(mismatch, z.Any("public_key", attLeaderKey), z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data))
+			return errors.New(mismatch, z.Any("public_key", attLeaderKey),
+				z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data),
+				z.Any("leader_duty", attLeaderAttestationData.Duty), z.Any("local_duty", attLocalAttestationData.Duty))
 		}
 	}
 
 	return nil
+}
+
+// attestationMismatch describes how the leader's attestation differs from the local one, or returns empty if they match.
+func attestationMismatch(leader, local core.AttestationData) string {
+	var mismatch string
+	if leader.Data.Source.Epoch != local.Data.Source.Epoch {
+		mismatch += "leader attestation source epoch differs from local source epoch;"
+	}
+
+	if leader.Data.Source.Root != local.Data.Source.Root {
+		mismatch += "leader attestation source root differs from local source root;"
+	}
+
+	if leader.Data.Target.Epoch != local.Data.Target.Epoch {
+		mismatch += "leader attestation target epoch differs from local target epoch;"
+	}
+
+	if leader.Data.Target.Root != local.Data.Target.Root {
+		mismatch += "leader attestation target root differs from local target root;"
+	}
+
+	if leader.Duty != local.Duty {
+		mismatch += "leader attester duty differs from local duty;"
+	}
+
+	return mismatch
 }
 
 // NewConsensus returns a new consensus QBFT component.
