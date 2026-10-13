@@ -4,6 +4,7 @@ package sse
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -46,6 +47,24 @@ func TestHandleEvents(t *testing.T) {
 				Timestamp: time.Now(),
 			},
 			err: errors.New("parse slot to uint64"),
+		},
+		{
+			name: "head without dependent roots",
+			event: &event{
+				Event:     sseHeadEvent,
+				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "execution_optimistic": false}`),
+				Timestamp: time.Now(),
+			},
+			err: nil,
+		},
+		{
+			name: "head malformed dependent root",
+			event: &event{
+				Event:     sseHeadEvent,
+				Data:      []byte(`{"slot":"10", "block":"0x9a2fefd2fdb57f74993c7780ea5b9030d2897b615b89f808011ca5aebed54eaf", "state":"0x600e852a08c1200654ddf11025f1ceacb3c2e74bdd5c630cde0838b2591b69f9", "epoch_transition":false, "previous_duty_dependent_root":"0x5e0043f107cb57913498fbf2f99ff55e730bf1e151f02f221e977c91a90a0e91", "current_duty_dependent_root":"0x12", "execution_optimistic": false}`),
+				Timestamp: time.Now(),
+			},
+			err: errors.New("parse head current duty dependent root"),
 		},
 		{
 			name: "chain_reorg happy path",
@@ -121,6 +140,9 @@ func TestHandleEvents(t *testing.T) {
 				slotsPerEpoch:  32,
 				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
 			}
+			l.SetDutiesDependentRootFunc(func(eth2p0.Epoch) (eth2p0.Root, bool) {
+				return eth2p0.Root{}, false
+			})
 
 			err := l.eventHandler(t.Context(), test.event, "test")
 			if test.err != nil {
@@ -152,9 +174,9 @@ func TestSubscribeNotifyChainReorg(t *testing.T) {
 		reportedEpochs = append(reportedEpochs, epoch)
 	})
 
-	l.notifyChainReorg(ctx, eth2p0.Epoch(5))
-	l.notifyChainReorg(ctx, eth2p0.Epoch(5)) // Duplicate should not be reported again
-	l.notifyChainReorg(ctx, eth2p0.Epoch(10))
+	l.notifyChainReorg(ctx, eth2p0.Epoch(5), true)
+	l.notifyChainReorg(ctx, eth2p0.Epoch(5), true) // Duplicate should not be reported again
+	l.notifyChainReorg(ctx, eth2p0.Epoch(10), true)
 
 	require.Len(t, reportedEpochs, 2)
 	require.Equal(t, eth2p0.Epoch(5), reportedEpochs[0])
@@ -182,6 +204,121 @@ func TestSubscribeNotifyHeadEvent(t *testing.T) {
 	require.Equal(t, eth2p0.Slot(100), reportedSlots[0])
 	require.Equal(t, eth2p0.Slot(100), reportedSlots[1])
 	require.Equal(t, eth2p0.Slot(101), reportedSlots[2])
+}
+
+func TestHeadEventDependentRootMismatch(t *testing.T) {
+	const slotsPerEpoch = 32
+
+	var (
+		rootA = eth2p0.Root{0x0a}
+		rootB = eth2p0.Root{0x0b}
+	)
+
+	// headEvent builds a head event at slot with the given duty dependent roots.
+	headEvent := func(slot uint64, previous, current eth2p0.Root) *event {
+		return &event{
+			Event: sseHeadEvent,
+			Data: []byte(fmt.Sprintf(`{"slot":"%d", "block":"%#x", "state":"%#x", "epoch_transition":false, "previous_duty_dependent_root":"%#x", "current_duty_dependent_root":"%#x", "execution_optimistic": false}`,
+				slot, eth2p0.Root{0x01}, eth2p0.Root{0x02}, previous, current)),
+			Timestamp: time.Now(),
+		}
+	}
+
+	tests := []struct {
+		name   string
+		cached map[eth2p0.Epoch]eth2p0.Root // Attester duties dependent roots recorded by the cache.
+		events []*event
+		want   []eth2p0.Epoch // Epochs notified to chain reorg subscribers.
+	}{
+		{
+			name:   "current root mismatch notifies head epoch",
+			cached: map[eth2p0.Epoch]eth2p0.Root{11: rootA},
+			events: []*event{headEvent(10*slotsPerEpoch+3, rootA, rootB)},
+			want:   []eth2p0.Epoch{10},
+		},
+		{
+			name:   "previous root mismatch notifies epoch before head",
+			cached: map[eth2p0.Epoch]eth2p0.Root{10: rootA},
+			events: []*event{headEvent(10*slotsPerEpoch+3, rootB, rootA)},
+			want:   []eth2p0.Epoch{9},
+		},
+		{
+			name:   "both roots mismatch notifies both epochs",
+			cached: map[eth2p0.Epoch]eth2p0.Root{10: rootA, 11: rootA},
+			events: []*event{headEvent(10*slotsPerEpoch+3, rootB, rootB)},
+			want:   []eth2p0.Epoch{9, 10},
+		},
+		{
+			name:   "matching roots keep duties",
+			cached: map[eth2p0.Epoch]eth2p0.Root{10: rootA, 11: rootB},
+			events: []*event{headEvent(10*slotsPerEpoch+3, rootA, rootB)},
+			want:   nil,
+		},
+		{
+			name:   "unknown cached roots keep duties",
+			cached: map[eth2p0.Epoch]eth2p0.Root{},
+			events: []*event{headEvent(10*slotsPerEpoch+3, rootA, rootB)},
+			want:   nil,
+		},
+		{
+			name:   "genesis epoch head skips previous root",
+			cached: map[eth2p0.Epoch]eth2p0.Root{0: rootA, 1: rootB},
+			events: []*event{headEvent(3, rootB, rootB)},
+			want:   nil,
+		},
+		{
+			name:   "repeated mismatch notifies again despite reorg dedupe",
+			cached: map[eth2p0.Epoch]eth2p0.Root{11: rootA},
+			events: []*event{
+				headEvent(10*slotsPerEpoch+3, rootA, rootB),
+				headEvent(10*slotsPerEpoch+4, rootA, rootB), // Refetch answered by the lagging node again.
+			},
+			want: []eth2p0.Epoch{10, 10},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			l := &listener{
+				chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
+				headSubs:       make([]HeadEventHandlerFunc, 0),
+				slotDuration:   12 * time.Second,
+				slotsPerEpoch:  slotsPerEpoch,
+				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
+			}
+
+			var notified []eth2p0.Epoch
+
+			l.SubscribeChainReorgEvent(func(_ context.Context, epoch eth2p0.Epoch) {
+				notified = append(notified, epoch)
+			})
+			l.SetDutiesDependentRootFunc(func(epoch eth2p0.Epoch) (eth2p0.Root, bool) {
+				root, ok := test.cached[epoch]
+				return root, ok
+			})
+
+			for _, e := range test.events {
+				require.NoError(t, l.eventHandler(t.Context(), e, "http://test-bn:5052"))
+			}
+
+			require.Equal(t, test.want, notified)
+		})
+	}
+
+	t.Run("no root func set", func(t *testing.T) {
+		l := &listener{
+			chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
+			slotDuration:   12 * time.Second,
+			slotsPerEpoch:  slotsPerEpoch,
+			genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
+		}
+
+		l.SubscribeChainReorgEvent(func(context.Context, eth2p0.Epoch) {
+			t.Fatal("unexpected chain reorg notification")
+		})
+
+		require.NoError(t, l.eventHandler(t.Context(), headEvent(10*slotsPerEpoch+3, rootA, rootB), "http://test-bn:5052"))
+	})
 }
 
 func TestComputeDelay(t *testing.T) {
