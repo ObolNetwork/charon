@@ -305,6 +305,26 @@ func TestHeadEventDependentRootMismatch(t *testing.T) {
 		})
 	}
 
+	t.Run("invalidation precedes head notification", func(t *testing.T) {
+		// Head subscribers start early fetches from the scheduler's duties, so the stale ones must be trimmed first.
+		l := &listener{
+			chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),
+			headSubs:       make([]HeadEventHandlerFunc, 0),
+			slotDuration:   12 * time.Second,
+			slotsPerEpoch:  slotsPerEpoch,
+			genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
+		}
+
+		var order []string
+
+		l.SubscribeChainReorgEvent(func(context.Context, eth2p0.Epoch) { order = append(order, "reorg") })
+		l.SubscribeHeadEvent(func(context.Context, eth2p0.Slot, eth2p0.Root, string) { order = append(order, "head") })
+		l.SetDutiesDependentRootFunc(func(eth2p0.Epoch) (eth2p0.Root, bool) { return rootA, true })
+
+		require.NoError(t, l.eventHandler(t.Context(), headEvent(10*slotsPerEpoch+3, rootB, rootB), "http://test-bn:5052"))
+		require.Equal(t, []string{"reorg", "reorg", "head"}, order)
+	})
+
 	t.Run("no root func set", func(t *testing.T) {
 		l := &listener{
 			chainReorgSubs: make([]ChainReorgEventHandlerFunc, 0),

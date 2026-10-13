@@ -186,9 +186,15 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 		return errors.Wrap(err, "parse head block root", z.Str("addr", addr))
 	}
 
+	// Invalidate stale duties before head subscribers start an early fetch from them.
+	err = p.checkDutiesDependentRoots(ctx, slot, head, addr)
+	if err != nil {
+		return err
+	}
+
 	p.notifyHeadEvent(ctx, eth2p0.Slot(slot), blockRoot, addr)
 
-	return p.checkDutiesDependentRoots(ctx, slot, head, addr)
+	return nil
 }
 
 // checkDutiesDependentRoots invalidates cached duties whose dependent root differs from the head event's, as if the
