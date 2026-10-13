@@ -67,8 +67,8 @@ const (
 	// FetchOnlyCommIdx0 enables querying the beacon node for attestation data only for committee index 0.
 	FetchOnlyCommIdx0 = "fetch_only_commidx_0"
 
-	// ChainSplitHalt compares locally fetched attestation's target and source to leader's proposed target and source attestation.
-	// In case they differ, Charon does not sign the attestation.
+	// ChainSplitHalt compares locally fetched attestations to the leader's proposed attestations: target, source and attester duty.
+	// In case they differ, or the leader proposes for a validator without a local duty, Charon does not sign the attestation.
 	ChainSplitHalt = "chain_split_halt"
 
 	// FetchAttOnBlock enables fetching attestation data early upon the SSE "head" event from the beacon node
