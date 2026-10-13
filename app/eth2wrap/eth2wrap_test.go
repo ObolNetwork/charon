@@ -283,7 +283,7 @@ func TestErrors(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("network dial error", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Hour, [4]byte{}, nil, []string{"localhost:22222"}, nil)
+		cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Hour, [4]byte{}, nil, []string{"localhost:22222"}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
@@ -298,7 +298,7 @@ func TestErrors(t *testing.T) {
 	}))
 
 	t.Run("http timeout", func(t *testing.T) {
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
+		cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
@@ -311,7 +311,7 @@ func TestErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		cl, err := eth2wrap.NewMultiHTTP(time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
+		cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Millisecond, [4]byte{}, nil, []string{srv.URL}, nil)
 		require.NoError(t, err)
 
 		_, err = cl.NodePeerCount(ctx, &eth2api.NodePeerCountOpts{})
@@ -367,7 +367,7 @@ func TestCtxCancel(t *testing.T) {
 
 		bmock, err := beaconmock.New(t.Context())
 		require.NoError(t, err)
-		eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, []string{bmock.Address()}, nil)
+		eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Second, [4]byte{}, nil, []string{bmock.Address()}, nil)
 		require.NoError(t, err)
 
 		cancel() // Cancel context before calling method.
@@ -394,7 +394,7 @@ func TestOneError(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, addresses, nil)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Second, [4]byte{}, nil, addresses, nil)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -425,7 +425,7 @@ func TestOneTimeout(t *testing.T) {
 		bmock.Address(), // Valid
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, nil, addresses, nil)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Minute, [4]byte{}, nil, addresses, nil)
 	require.NoError(t, err)
 
 	eth2Resp, err := eth2Cl.Spec(ctx, &eth2api.SpecOpts{})
@@ -448,7 +448,7 @@ func TestOnlyTimeout(t *testing.T) {
 	defer srv.Close()
 	defer cancel() // Cancel the context before stopping the server.
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Minute, [4]byte{}, nil, []string{srv.URL}, nil)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Minute, [4]byte{}, nil, []string{srv.URL}, nil)
 	require.NoError(t, err)
 
 	// Start goroutine that is blocking trying to create the client.
@@ -519,7 +519,7 @@ func TestLazy(t *testing.T) {
 		httputil.NewSingleHostReverseProxy(target).ServeHTTP(w, r)
 	}))
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte{}, nil, []string{srv1.URL, srv2.URL}, nil)
+	eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Second, [4]byte{}, nil, []string{srv1.URL, srv2.URL}, nil)
 	require.NoError(t, err)
 
 	// Both proxies are disabled, so this should fail.
@@ -598,7 +598,7 @@ func TestLazyDomain(t *testing.T) {
 
 			forkVersionHex, err := hex.DecodeString(test.in)
 			require.NoError(t, err)
-			eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second, [4]byte(forkVersionHex), nil, []string{srv.URL}, nil)
+			eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Second, [4]byte(forkVersionHex), nil, []string{srv.URL}, nil)
 			require.NoError(t, err)
 
 			voluntaryExitDomain := eth2p0.DomainType{0x04, 0x00, 0x00, 0x00}
