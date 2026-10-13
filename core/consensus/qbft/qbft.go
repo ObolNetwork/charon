@@ -292,9 +292,9 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func
 		return nil, errors.Wrap(err, "fetch genesis time")
 	}
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
-		return nil, errors.Wrap(err, "fetch slot duration")
+		return nil, errors.Wrap(err, "fetch slots config")
 	}
 
 	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
@@ -313,7 +313,7 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func
 		snifferFunc:         snifferFunc,
 		gaterFunc:           gaterFunc,
 		dropFilter:          log.Filter(),
-		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration, slotOffsetFunc),
+		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, forkSchedule),
 		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 		compareAttestations: compareAttestations,
 	}
@@ -546,6 +546,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
 		z.Any("peers", c.peerLabels),
 		z.Any("timer", string(roundTimer.Type())),
+		z.Any("timer_extensions", roundTimer.Extensions()),
 	)
 
 	inst := c.getInstanceIO(duty)

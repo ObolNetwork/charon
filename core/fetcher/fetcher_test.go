@@ -139,7 +139,7 @@ func TestFetchAttesterGloas(t *testing.T) {
 		return data, nil
 	}
 
-	fetch, err := fetcher.New(bmock, nil, false, &fetcher.GraffitiBuilder{},
+	fetch, err := fetcher.New(t.Context(), bmock, nil, false, &fetcher.GraffitiBuilder{},
 		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
@@ -444,7 +444,7 @@ func TestFetchEPBSBlocks(t *testing.T) {
 		t.Helper()
 
 		// Gloas active from epoch zero, so the EPBS path is taken.
-		fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+		fetch, err := fetcher.New(t.Context(), bmock, func(core.PubKey) string {
 			return "0x0000000000000000000000000000000000000000"
 		}, false, &fetcher.GraffitiBuilder{},
 			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
@@ -956,7 +956,7 @@ func TestFetchSyncContribution(t *testing.T) {
 func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{},
+	fetch, err := fetcher.New(t.Context(), bmock, nil, true, &fetcher.GraffitiBuilder{},
 		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 
@@ -966,7 +966,7 @@ func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock, addr string, graffitiBuilder *fetcher.GraffitiBuilder) *fetcher.Fetcher {
 	t.Helper()
 
-	fetch, err := fetcher.New(bmock, func(core.PubKey) string {
+	fetch, err := fetcher.New(t.Context(), bmock, func(core.PubKey) string {
 		return addr
 	}, true, graffitiBuilder, func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
@@ -1086,7 +1086,7 @@ func TestFetchPayloadAttestationNoPayload(t *testing.T) {
 	}
 
 	// The no-block data is versioned as the fork active at the slot, gloas here.
-	fetch, err := fetcher.New(bmock, nil, true, &fetcher.GraffitiBuilder{},
+	fetch, err := fetcher.New(t.Context(), bmock, nil, true, &fetcher.GraffitiBuilder{},
 		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
 	require.NoError(t, err)
 

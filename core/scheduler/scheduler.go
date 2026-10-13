@@ -110,11 +110,12 @@ type Scheduler struct {
 	dutiesMutex                sync.RWMutex
 	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs                   []func(context.Context, core.Slot) error
+	// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 	fetcherFetchOnly           func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
-	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse head event (map[uint64]bool)
+	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse head event (map[uint64]bool). TODO(post-gloas): remove.
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -125,6 +126,7 @@ func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.Dut
 
 // RegisterFetcherFetchOnly registers the fetcher's FetchOnly method for early attestation fetching.
 // Note this should be called *before* Start.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (s *Scheduler) RegisterFetcherFetchOnly(fn func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error) {
 	s.fetcherFetchOnly = fn
 }
@@ -216,6 +218,10 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 // HandleHeadEvent handles SSE "head" events (fork-choice head updated) and triggers early attestation data fetching.
 // Triggering on the head event (rather than the block event) ensures the beacon node's head has settled onto the
 // new block before we fetch, avoiding stale attestation data at epoch boundaries.
+//
+// TODO(post-gloas): remove the pre-gloas early attestation fetch (this handler, FetchOnly and its
+// cache, waitForEarlyFetchOrTimeout) once all supported networks have activated gloas. Pre-gloas
+// networks then fetch attestation data at the deadline, while the gloas fork checks must remain.
 func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string) {
 	if s.fetcherFetchOnly == nil {
 		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
@@ -223,7 +229,18 @@ func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, block
 	}
 
 	// Only process if either feature flag is enabled
-	if !featureset.Enabled(featureset.FetchAttOnBlock) && !featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if !featureset.Enabled(featureset.FetchAttOnBlock) {
+		return
+	}
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil {
+		log.Warn(ctx, "Early attestation data fetch skipped, failed to fetch slots config", err, z.U64("slot", uint64(slot)))
+		return
+	}
+
+	// From gloas the fetcher handles head events itself, see fetcher.HandleHeadEvent.
+	if s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(uint64(slot)/slotsPerEpoch)) {
 		return
 	}
 
@@ -367,14 +384,19 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			defer span.End()
 
+			// From gloas the fetcher waits for the block itself, so attester duties are triggered at
+			// the start of the block proposal interval, the start of the slot, for consensus to start
+			// one interval ahead of the attestation due time.
+			gloasAttester := duty.Type == core.DutyAttester && s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch()))
+
 			// Special handling for attester duties when FetchAttOnBlock features are enabled
-			if duty.Type == core.DutyAttester && (featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) {
+			if duty.Type == core.DutyAttester && !gloasAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
 				if !s.waitForEarlyFetchOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
 
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
+			} else if !gloasAttester && !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
 				return // context cancelled
 			}
 
@@ -421,36 +443,24 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	}
 }
 
-// waitForEarlyFetchOrTimeout waits until the fallback timeout is reached.
+// waitForEarlyFetchOrTimeout waits until the attestation slot offset is reached.
 // The head-event-triggered early fetch (HandleHeadEvent) runs concurrently and populates the
 // attestation data cache before this deadline in the happy path.
-// If FetchAttOnBlockWithDelay is enabled, the timeout is the attestation slot offset plus 300ms,
-// otherwise it is the attestation slot offset.
 // Returns false if the context is cancelled, true otherwise.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout
 	offset := s.slotOffsetFunc(core.Duty{Slot: slot.Slot, Type: core.DutyAttester})
-
-	// Add 300ms delay only if FetchAttOnBlockWithDelay is enabled
-	if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-		offset += 300 * time.Millisecond
-	}
-
 	fallbackDeadline := slot.Time.Add(offset)
 
 	select {
 	case <-ctx.Done():
 		return false
-	case <-s.clock.After(time.Until(fallbackDeadline)):
+	case <-s.delayFunc(core.NewAttesterDuty(slot.Slot), fallbackDeadline):
 		// Check if head event triggered early fetch
 		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
-			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-				log.Debug(ctx, "Proceeding with attestation at 300ms delayed slot offset (no early head event)",
-					z.U64("slot", slot.Slot), z.Any("offset", offset))
-			} else {
-				log.Debug(ctx, "Proceeding with attestation at slot offset (no early head event)",
-					z.U64("slot", slot.Slot), z.Any("offset", offset))
-			}
+			log.Debug(ctx, "Proceeding with attestation at slot offset (no early head event)",
+				z.U64("slot", slot.Slot), z.Any("offset", offset))
 		}
 
 		return true
@@ -902,7 +912,7 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 	delete(s.dutiesByEpoch, epoch)
 
-	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
 		s.trimEventTriggeredAttestations(epoch)
 	}
 }

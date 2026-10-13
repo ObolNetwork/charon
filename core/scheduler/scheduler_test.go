@@ -748,6 +748,16 @@ func (d *delayer) get() map[core.Duty]time.Time {
 	return d.deadlines
 }
 
+// delayed returns true if the duty was delayed.
+func (d *delayer) delayed(duty core.Duty) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, ok := d.deadlines[duty]
+
+	return ok
+}
+
 // delay implements scheduler.delayFunc and records the deadline and returns it immediately.
 func (d *delayer) delay(duty core.Duty, deadline time.Time) <-chan time.Time {
 	d.mu.Lock()
@@ -1015,4 +1025,85 @@ func TestSchedulerNoPTCDutiesPreGloas(t *testing.T) {
 
 	_, err = sched.GetDutyDefinition(t.Context(), core.NewPayloadAttestationDuty(1))
 	require.Error(t, err)
+}
+
+func TestSchedulerGloasAttesterNotDelayed(t *testing.T) {
+	tests := []struct {
+		name       string
+		gloasEpoch string
+		wantDelay  bool
+	}{
+		{
+			name:       "pre-gloas attester duties are delayed to their slot offset",
+			gloasEpoch: "100",
+			wantDelay:  true,
+		},
+		{
+			name:       "gloas attester duties are triggered at the start of the slot",
+			gloasEpoch: "0",
+			wantDelay:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var t0 time.Time
+
+			eth2Cl, err := beaconmock.New(
+				t.Context(),
+				beaconmock.WithValidatorSet(beaconmock.ValidatorSetA),
+				beaconmock.WithGenesisTime(t0),
+				beaconmock.WithDeterministicAttesterDuties(0),
+				beaconmock.WithSlotsPerEpoch(1),
+				beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+				beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", test.gloasEpoch),
+			)
+			require.NoError(t, err)
+
+			clock := newTestClock(t0)
+			dd := new(delayer)
+			sched := scheduler.NewForT(t, clock, dd.delay, &stubRegProvider{regs: beaconmock.BuilderRegistrationSetA}, eth2Cl, nil, false)
+
+			slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), eth2Cl)
+			require.NoError(t, err)
+
+			// Stop is not idempotent, and both the failsafe and the subscriber may trigger it.
+			var stopOnce sync.Once
+
+			stop := func() { stopOnce.Do(sched.Stop) }
+
+			clock.CallbackAfter(t0.Add(100*slotDuration), stop)
+
+			var (
+				mu       sync.Mutex
+				attested *core.Duty
+			)
+
+			sched.SubscribeDuties(func(_ context.Context, duty core.Duty, _ core.DutyDefinitionSet) error {
+				if duty.Type != core.DutyAttester {
+					return nil
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+
+				if attested == nil {
+					attested = &duty
+				}
+
+				stop()
+
+				return nil
+			})
+
+			require.NoError(t, sched.Run())
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			require.NotNil(t, attested, "no attester duty triggered")
+
+			require.Equal(t, test.wantDelay, dd.delayed(*attested))
+		})
+	}
 }
