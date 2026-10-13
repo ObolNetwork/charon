@@ -55,4 +55,11 @@ var (
 		Help:      "Time in seconds between block gossip and head events, indicating block processing time. Lower values indicate better CPU/disk/RAM performance.",
 		Buckets:   []float64{0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 4},
 	}, []string{"addr"})
+
+	sseDependentRootMismatchCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "app",
+		Subsystem: "beacon_node",
+		Name:      "sse_dependent_root_mismatch_total",
+		Help:      "Total number of head events whose duty dependent root differed from the cached attester duties, invalidating them",
+	}, []string{"addr"})
 )

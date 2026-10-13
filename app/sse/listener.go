@@ -25,19 +25,24 @@ import (
 type (
 	ChainReorgEventHandlerFunc func(ctx context.Context, epoch eth2p0.Epoch)
 	HeadEventHandlerFunc       func(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string)
+	// DutiesDependentRootFunc returns the dependent root recorded with the epoch's cached attester duties, or false if unknown.
+	DutiesDependentRootFunc func(epoch eth2p0.Epoch) (eth2p0.Root, bool)
 )
 
 type Listener interface {
 	SubscribeChainReorgEvent(ChainReorgEventHandlerFunc)
 	SubscribeHeadEvent(HeadEventHandlerFunc)
+	// SetDutiesDependentRootFunc enables invalidating cached duties whose dependent root differs from head events.
+	SetDutiesDependentRootFunc(DutiesDependentRootFunc)
 }
 
 type listener struct {
 	sync.Mutex
 
-	chainReorgSubs []ChainReorgEventHandlerFunc
-	headSubs       []HeadEventHandlerFunc
-	lastReorgEpoch eth2p0.Epoch
+	chainReorgSubs          []ChainReorgEventHandlerFunc
+	headSubs                []HeadEventHandlerFunc
+	dutiesDependentRootFunc DutiesDependentRootFunc
+	lastReorgEpoch          eth2p0.Epoch
 
 	// blockGossipTimes stores timestamps of block gossip events per slot and beacon node address
 	// first key: slot, second key: beacon node address
@@ -114,6 +119,13 @@ func (p *listener) SubscribeHeadEvent(handler HeadEventHandlerFunc) {
 	p.headSubs = append(p.headSubs, handler)
 }
 
+func (p *listener) SetDutiesDependentRootFunc(fn DutiesDependentRootFunc) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.dutiesDependentRootFunc = fn
+}
+
 func (p *listener) eventHandler(ctx context.Context, event *event, addr string) error {
 	switch event.Event {
 	case sseHeadEvent:
@@ -174,7 +186,71 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 		return errors.Wrap(err, "parse head block root", z.Str("addr", addr))
 	}
 
+	// Invalidate stale duties before head subscribers start an early fetch from them.
+	err = p.checkDutiesDependentRoots(ctx, slot, head, addr)
+	if err != nil {
+		return err
+	}
+
 	p.notifyHeadEvent(ctx, eth2p0.Slot(slot), blockRoot, addr)
+
+	return nil
+}
+
+// checkDutiesDependentRoots invalidates cached duties whose dependent root differs from the head event's, as if the
+// chain reorged back to the epoch before them. A beacon node importing an epoch's last block late serves the next
+// epoch's duties from a stale shuffling without any chain_reorg event, while a head event in epoch E reports the
+// dependent roots of epoch E (previous) and E+1 (current) attester duties on the chain the node has fully imported.
+func (p *listener) checkDutiesDependentRoots(ctx context.Context, slot uint64, head headEventData, addr string) error {
+	p.Lock()
+	rootFunc := p.dutiesDependentRootFunc
+	p.Unlock()
+
+	// Skip if there is no duties cache or the beacon node omitted the duty dependent roots.
+	if rootFunc == nil || head.PreviousDutyDependentRoot == "" || head.CurrentDutyDependentRoot == "" {
+		return nil
+	}
+
+	previous, err := parseRoot(head.PreviousDutyDependentRoot)
+	if err != nil {
+		return errors.Wrap(err, "parse head previous duty dependent root", z.Str("addr", addr))
+	}
+
+	current, err := parseRoot(head.CurrentDutyDependentRoot)
+	if err != nil {
+		return errors.Wrap(err, "parse head current duty dependent root", z.Str("addr", addr))
+	}
+
+	epoch := eth2p0.Epoch(slot / p.slotsPerEpoch)
+
+	for _, check := range []struct {
+		epoch    eth2p0.Epoch
+		headRoot eth2p0.Root
+	}{
+		{epoch: epoch, headRoot: previous},
+		{epoch: epoch + 1, headRoot: current},
+	} {
+		if check.epoch == 0 {
+			continue
+		}
+
+		cachedRoot, ok := rootFunc(check.epoch)
+		if !ok || cachedRoot == check.headRoot {
+			continue
+		}
+
+		log.Info(ctx, "Cached attester duties dependent root differs from head event, invalidating duties",
+			z.U64("epoch", uint64(check.epoch)),
+			z.Str("cached_dependent_root", cachedRoot.String()),
+			z.Str("head_dependent_root", check.headRoot.String()),
+			z.U64("head_slot", slot),
+			z.Str("addr", addr))
+		sseDependentRootMismatchCounter.WithLabelValues(addr).Inc()
+
+		// Not deduplicated by epoch like chain_reorg: the refetch may be answered by the lagging node again,
+		// in which case the next head event must trigger again.
+		p.notifyChainReorg(ctx, check.epoch-1, false)
+	}
 
 	return nil
 }
@@ -203,7 +279,7 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 	}
 
 	reorgEpoch := (slot - depth) / p.slotsPerEpoch
-	p.notifyChainReorg(ctx, eth2p0.Epoch(reorgEpoch))
+	p.notifyChainReorg(ctx, eth2p0.Epoch(reorgEpoch), true)
 
 	log.Debug(ctx, "SSE chain reorg event",
 		z.U64("slot", slot),
@@ -282,15 +358,19 @@ func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr stri
 	return nil
 }
 
-func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch) {
+// notifyChainReorg notifies the chain reorg subscribers, skipping a repeat of the last reorg epoch if dedupe is set.
+func (p *listener) notifyChainReorg(ctx context.Context, epoch eth2p0.Epoch, dedupe bool) {
 	p.Lock()
 	defer p.Unlock()
 
-	if epoch == p.lastReorgEpoch {
-		return
+	if dedupe {
+		if epoch == p.lastReorgEpoch {
+			return
+		}
+
+		p.lastReorgEpoch = epoch
 	}
 
-	p.lastReorgEpoch = epoch
 	for _, sub := range p.chainReorgSubs {
 		sub(ctx, epoch)
 	}

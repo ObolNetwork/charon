@@ -602,3 +602,58 @@ func TestAttesterDutiesCache_CallerSliceNotMutated(t *testing.T) {
 func TestSyncCommDutiesCache_CallerSliceNotMutated(t *testing.T) {
 	runCallerSliceNotMutated(t, syncCommitteeCacheAdapter())
 }
+
+// rootedAttesterClient is a beaconmock whose attester duties carry a configurable dependent root.
+type rootedAttesterClient struct {
+	beaconmock.Mock
+
+	root eth2p0.Root
+}
+
+func (c rootedAttesterClient) AttesterDuties(_ context.Context, opts *eth2api.AttesterDutiesOpts) (*eth2api.Response[[]*eth2v1.AttesterDuty], error) {
+	duties := make([]*eth2v1.AttesterDuty, 0, len(opts.Indices))
+	for _, vidx := range opts.Indices {
+		duties = append(duties, &eth2v1.AttesterDuty{ValidatorIndex: vidx})
+	}
+
+	return &eth2api.Response[[]*eth2v1.AttesterDuty]{
+		Data:     duties,
+		Metadata: map[string]any{"dependent_root": c.root},
+	}, nil
+}
+
+func TestAttesterDutiesDependentRoot(t *testing.T) {
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	idxs := []eth2p0.ValidatorIndex{1, 2}
+
+	t.Run("cached root", func(t *testing.T) {
+		cache := eth2wrap.NewDutiesCache(rootedAttesterClient{Mock: bmock, root: eth2p0.Root{0x01}}, idxs)
+
+		_, err := cache.AttesterDutiesCache(t.Context(), 11, idxs)
+		require.NoError(t, err)
+
+		root, ok := cache.AttesterDutiesDependentRoot(11)
+		require.True(t, ok)
+		require.Equal(t, eth2p0.Root{0x01}, root)
+	})
+
+	t.Run("uncached epoch", func(t *testing.T) {
+		cache := eth2wrap.NewDutiesCache(rootedAttesterClient{Mock: bmock, root: eth2p0.Root{0x01}}, idxs)
+
+		_, ok := cache.AttesterDutiesDependentRoot(11)
+		require.False(t, ok)
+	})
+
+	t.Run("zero root is unknown", func(t *testing.T) {
+		// beaconmock returns a zero dependent root.
+		cache := eth2wrap.NewDutiesCache(bmock, idxs)
+
+		_, err := cache.AttesterDutiesCache(t.Context(), 11, idxs)
+		require.NoError(t, err)
+
+		_, ok := cache.AttesterDutiesDependentRoot(11)
+		require.False(t, ok)
+	})
+}
