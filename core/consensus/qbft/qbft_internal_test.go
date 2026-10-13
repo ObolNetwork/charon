@@ -1285,8 +1285,8 @@ func mustUnmarshalUDS(t *testing.T, a *anypb.Any) *pbv1.UnsignedDataSet {
 }
 
 // TestAttestationChecker verifies the chain_split_halt comparator: identical
-// attestation data passes, any source/target vote mismatch fails, and leader
-// validators unknown to the local set are skipped.
+// attestation data passes, any source/target vote or duty mismatch fails, leader
+// validators unknown to the local set are rejected, and a leader subset is accepted.
 func TestAttestationChecker(t *testing.T) {
 	pubkey := testutil.RandomCorePubKey(t)
 	attData := testutil.RandomCoreAttestationData(t)
