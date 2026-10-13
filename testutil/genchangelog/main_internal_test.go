@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/testutil"
 )
 
@@ -144,4 +145,38 @@ func TestParsePRs(t *testing.T) {
 	t.Run("template", func(t *testing.T) {
 		testutil.RequireGoldenBytes(t, templ)
 	})
+}
+
+func TestAuthorsAndContributors(t *testing.T) {
+	prs := resolveAuthors([]pullRequest{
+		{Title: "app: first (#10)", Number: 10},
+		{Title: "core: fix (#11)", Number: 11, Category: "bug", Issue: 5},
+		{Title: "app: second (#12)", Number: 12},
+		{Title: "p2p: unresolved (#13)", Number: 13},
+	}, func(number int) (string, error) {
+		switch number {
+		case 10, 12:
+			return "alice", nil
+		case 11:
+			return "bob", nil
+		default:
+			return "", errors.New("rate limited")
+		}
+	})
+
+	data, err := tplDataFromPRs(prs, "v1.0.0..v1.0.1", func(int) (string, string, error) {
+		return "Issue title", "closed", nil
+	})
+	require.NoError(t, err)
+
+	// Authors of issue-linked PRs are contributors too, though only listed in categories.
+	require.Equal(t, []string{"alice", "bob"}, data.Contributors)
+
+	b, err := execTemplate(data)
+	require.NoError(t, err)
+
+	out := string(b)
+	require.Contains(t, out, "- [app: first (#10)](https://github.com/ObolNetwork/charon/pull/10) by @alice\n")
+	require.Contains(t, out, "- [p2p: unresolved (#13)](https://github.com/ObolNetwork/charon/pull/13)\n")
+	require.Contains(t, out, "## Contributors\n\n@alice, @bob\n")
 }

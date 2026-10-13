@@ -86,6 +86,7 @@ type pullRequest struct {
 	Number   int
 	Category string
 	Issue    int
+	Author   string `json:",omitempty"` // GitHub login, empty if unresolved.
 }
 
 // log is parsed from git logs.
@@ -98,13 +99,14 @@ type log struct {
 
 // tplData is the changelog template data structure.
 type tplData struct {
-	Tag        string
-	Date       string
-	RangeText  string
-	RangeLink  string
-	Categories []tplCategory
-	ExtraPRs   []pullRequest
-	Clients    clientVersions
+	Tag          string
+	Date         string
+	RangeText    string
+	RangeLink    string
+	Categories   []tplCategory
+	ExtraPRs     []pullRequest
+	Contributors []string `json:",omitempty"` // Unique PR author logins, sorted. GitHub renders their avatars under the release.
+	Clients      clientVersions
 }
 
 // clientVersions holds the client versions rendered in the compatibility matrix.
@@ -174,6 +176,8 @@ func run(ctx context.Context, gitRange string, output string, token string) erro
 	if err != nil {
 		return err
 	}
+
+	prs = resolveAuthors(prs, makeAuthorFunc(token))
 
 	data, err := tplDataFromPRs(prs, gitRange, makeIssueFunc(token))
 	if err != nil {
@@ -255,6 +259,47 @@ func makeIssueFunc(token string) func(int) (issue string, status string, err err
 
 		return issueResp.Title, issueResp.State, nil
 	}
+}
+
+// makeAuthorFunc returns a function that resolves a PR author's GitHub login via the github API.
+func makeAuthorFunc(token string) func(int) (string, error) {
+	return func(number int) (string, error) {
+		var resp struct {
+			User struct {
+				Login string `json:"login"`
+				Type  string `json:"type"`
+			} `json:"user"`
+		}
+
+		u := fmt.Sprintf("https://api.github.com/repos/obolnetwork/charon/pulls/%d", number)
+		if err := githubGetJSON(u, token, &resp); err != nil {
+			return "", errors.Wrap(err, "fetch pull request", z.Int("pr", number))
+		}
+
+		if resp.User.Type == "Bot" {
+			return "", nil
+		}
+
+		return resp.User.Login, nil
+	}
+}
+
+// resolveAuthors returns the PRs with their authors resolved. Unresolved authors are left empty
+// so a GitHub API failure only drops the mention instead of failing the changelog.
+func resolveAuthors(prs []pullRequest, authorFunc func(int) (string, error)) []pullRequest {
+	resp := make([]pullRequest, 0, len(prs))
+
+	for _, pr := range prs {
+		author, err := authorFunc(pr.Number)
+		if err != nil {
+			fmt.Printf("Failed resolving author of PR #%d: %v\n", pr.Number, err)
+		}
+
+		pr.Author = author
+		resp = append(resp, pr)
+	}
+
+	return resp
 }
 
 // clientVersionsForTag returns the compatibility-matrix client versions for the release tag.
@@ -444,7 +489,13 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 
 	issues := make(map[int]tplIssue)
 
+	var contributors []string
+
 	for _, pr := range prs {
+		if pr.Author != "" && !slices.Contains(contributors, pr.Author) {
+			contributors = append(contributors, pr.Author)
+		}
+
 		if pr.Issue == 0 {
 			// zero-indexed element from issues represents all the PRs with no issue associated
 			noIssuePRs = append(noIssuePRs, pr)
@@ -490,6 +541,8 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 		cats[issue.Category] = cat
 	}
 
+	slices.Sort(contributors)
+
 	var catSlice []tplCategory
 
 	for _, cat := range cats {
@@ -520,12 +573,13 @@ func tplDataFromPRs(prs []pullRequest, gitRange string, issueData func(int) (str
 	}
 
 	return tplData{
-		Tag:        tag,
-		Date:       time.Now().Format("2006-01-02"),
-		RangeText:  gitRange,
-		RangeLink:  "https://github.com/obolnetwork/charon/compare/" + gitRange,
-		Categories: catSlice,
-		ExtraPRs:   noIssuePRs,
+		Tag:          tag,
+		Date:         time.Now().Format("2006-01-02"),
+		RangeText:    gitRange,
+		RangeLink:    "https://github.com/obolnetwork/charon/compare/" + gitRange,
+		Categories:   catSlice,
+		ExtraPRs:     noIssuePRs,
+		Contributors: contributors,
 	}, nil
 }
 
