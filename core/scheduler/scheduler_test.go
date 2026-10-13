@@ -55,7 +55,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatal("BEACON_URL env var not set")
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second*2, [4]byte{}, map[string]string{}, []string{beaconURL}, []string{})
+	eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Second*2, [4]byte{}, map[string]string{}, []string{beaconURL}, []string{})
 	require.NoError(t, err)
 
 	// Builder registrations for mainnet validators

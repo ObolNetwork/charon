@@ -92,46 +92,51 @@ func WithSyntheticDuties(cl Client) Client {
 }
 
 // NewMultiHTTP returns a new instrumented multi eth2 http client.
-func NewMultiHTTP(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addrs []string, fallbackAddrs []string) (Client, error) {
+// The ctx bounds the lifetime of the underlying eth2http services' background routines.
+func NewMultiHTTP(ctx context.Context, timeout time.Duration, forkVersion [4]byte, headers map[string]string, addrs []string, fallbackAddrs []string) (Client, error) {
 	return Instrument(
-		newClients(timeout, forkVersion, headers, addrs),
-		newClients(timeout, forkVersion, headers, fallbackAddrs),
+		newClients(ctx, timeout, forkVersion, headers, addrs),
+		newClients(ctx, timeout, forkVersion, headers, fallbackAddrs),
 	)
 }
 
 // NewSimnetFallbacks returns a slice of Client initialized with the provided settings. Used in Simnet setting.
-func NewSimnetFallbacks(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
+func NewSimnetFallbacks(ctx context.Context, timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
 	var clients []Client
 	for _, address := range addresses {
-		clients = append(clients, newBeaconClient(timeout, forkVersion, headers, address))
+		clients = append(clients, newBeaconClient(ctx, timeout, forkVersion, headers, address))
 	}
 
 	return clients
 }
 
 // newClients returns a slice of Client initialized with the provided settings.
-func newClients(timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
+func newClients(ctx context.Context, timeout time.Duration, forkVersion [4]byte, headers map[string]string, addresses []string) []Client {
 	var clients []Client
 	for _, address := range addresses {
-		clients = append(clients, newBeaconClient(timeout, forkVersion, headers, address))
+		clients = append(clients, newBeaconClient(ctx, timeout, forkVersion, headers, address))
 	}
 
 	return clients
 }
 
-// newBeaconClient returns a Client with the provided settings.
-func newBeaconClient(timeout time.Duration, forkVersion [4]byte, headers map[string]string, address string) Client {
-	parameters := []eth2http.Parameter{
+// newBeaconClient returns a Client with the provided settings, extraParams override them.
+func newBeaconClient(svcCtx context.Context, timeout time.Duration, forkVersion [4]byte, headers map[string]string, address string,
+	extraParams ...eth2http.Parameter,
+) Client {
+	parameters := append([]eth2http.Parameter{
 		eth2http.WithLogLevel(zeroLogInfo),
 		eth2http.WithAddress(address),
 		eth2http.WithTimeout(timeout),
 		eth2http.WithAllowDelayedStart(true),
 		eth2http.WithEnforceJSON(featureset.Enabled(featureset.JSONRequests)),
 		eth2http.WithExtraHeaders(headers),
-	}
+	}, extraParams...)
 
 	cl := newLazy(func(ctx context.Context) (Client, error) {
-		eth2Svc, err := eth2http.New(ctx, parameters...)
+		// eth2http.New ties its background routines (static value cache clearing, connection
+		// state pings) to the ctx it is given, so use svcCtx, not the triggering request's ctx.
+		eth2Svc, err := eth2http.New(svcCtx, parameters...)
 		if err != nil {
 			return nil, wrapError(ctx, err, "new eth2 client", z.Str("address", address))
 		}

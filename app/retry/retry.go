@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -273,6 +274,12 @@ func isTemporaryBeaconErr(err error) bool {
 	}
 
 	if strings.Contains(err.Error(), "retryable") {
+		return true
+	}
+
+	// The eth2http service fails requests while its connection state is stale or being
+	// refreshed, which it does on the next request.
+	if errors.Is(err, eth2client.ErrNotActive) || errors.Is(err, eth2client.ErrNotSynced) {
 		return true
 	}
 
