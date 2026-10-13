@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/timer"
@@ -24,24 +25,25 @@ import (
 // all peers are blocked, so it neither waits in real time nor depends on goroutine scheduling.
 func TestRoundTimersFirstLeaderDown(t *testing.T) {
 	const (
-		nodes        = 4
-		slot         = 1
-		slotDuration = 12 * time.Second
-		latency      = 10 * time.Millisecond
+		nodes         = 4
+		slot          = 1
+		slotsPerEpoch = 32
+		slotDuration  = 12 * time.Second
+		latency       = 10 * time.Millisecond
 		// decideAfter is how long the second round takes to decide after the first round times out:
 		// the round changes, then the pre-prepare, prepares and commits, each delayed by the latency.
 		decideAfter = 4 * latency
 	)
-
-	// Duties start at the start of the slot.
-	zeroOffset := func(core.Duty) time.Duration { return 0 }
 
 	tests := []struct {
 		name     string
 		enable   []featureset.Feature
 		disable  []featureset.Feature
 		dutyType core.DutyType
-		wantType timer.Type
+		gloas    bool // Whether gloas is active at the duty's slot.
+		// dutyOffset is the duty's offset into the slot, when it is due.
+		dutyOffset time.Duration
+		wantType   timer.Type
 		// firstRoundEnd is when the first round times out, relative to the start of the slot.
 		firstRoundEnd time.Duration
 	}{
@@ -57,6 +59,14 @@ func TestRoundTimersFirstLeaderDown(t *testing.T) {
 			dutyType:      core.DutyAttester,
 			wantType:      timer.TimerIncreasing,
 			firstRoundEnd: time.Second,
+		},
+		{
+			name:          "gloas attester, defaults",
+			dutyType:      core.DutyAttester,
+			gloas:         true,
+			dutyOffset:    3 * time.Second,
+			wantType:      timer.TimerEagerAheadSplit,
+			firstRoundEnd: 4 * time.Second,
 		},
 		{
 			name:          "proposer, defaults",
@@ -94,7 +104,16 @@ func TestRoundTimersFirstLeaderDown(t *testing.T) {
 				// The bubble's fake time starts at the start of the slot.
 				slotStart := time.Now()
 				genesisTime := slotStart.Add(-slot * slotDuration)
-				timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration, zeroOffset)
+				forkSchedule := func() eth2wrap.ForkForkSchedule {
+					if !test.gloas {
+						return eth2wrap.ForkForkSchedule{}
+					}
+
+					return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}}
+				}
+
+				slotOffset := func(core.Duty) time.Duration { return test.dutyOffset }
+				timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffset, forkSchedule)
 
 				duty := core.Duty{Slot: slot, Type: test.dutyType}
 				require.Equal(t, test.wantType, timerFunc(duty).Type())

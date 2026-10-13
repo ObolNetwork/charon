@@ -627,16 +627,18 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			z.Int("builder_urls", len(conf.BuilderURLs)))
 	}
 
-	fetch, err := fetcher.New(eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder,
+	fetch, err := fetcher.New(ctx, eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder,
 		forkSchedule, slotsPerEpoch, builderConfig(conf), featureset.Enabled(featureset.FetchOnlyCommIdx0))
 	if err != nil {
 		return err
 	}
 
-	// Invalidate early-fetched (head-event-triggered) attestation data on reorgs, since the cached
-	// data was verified against a head that may no longer be canonical.
-	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
+		// Invalidate early-fetched (head-event-triggered) attestation data on reorgs, since the cached
+		// data was verified against a head that may no longer be canonical.
 		sseListener.SubscribeChainReorgEvent(fetch.HandleChainReorg)
+		// From gloas, head events trigger fetching attestation data for consensus directly.
+		sseListener.SubscribeHeadEvent(fetch.HandleHeadEvent)
 	}
 
 	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))

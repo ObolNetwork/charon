@@ -25,9 +25,9 @@ type extension interface {
 	// onArm returns the time the extension adds to the round's duration when the round is armed.
 	onArm(round int64) time.Duration
 	// onRearm returns the new deadline of the round armed again, given
-	// the round's duration and end including extras and its deadline when armed, or false if the
-	// extension doesn't act upon it.
-	onRearm(duration, end time.Duration, deadline, now time.Time) (time.Time, bool)
+	// the round's duration and end including extras, the anchor's lead and its deadline when armed,
+	// or false if the extension doesn't act upon it.
+	onRearm(duration, end, lead time.Duration, deadline, now time.Time) (time.Time, bool)
 }
 
 // noopExtension provides the default extension behaviour: applying to every duty without acting.
@@ -38,7 +38,7 @@ func (noopExtension) appliesForDuty(core.Duty) bool { return true }
 
 func (noopExtension) onArm(int64) time.Duration { return 0 }
 
-func (noopExtension) onRearm(time.Duration, time.Duration, time.Time, time.Time) (time.Time, bool) {
+func (noopExtension) onRearm(time.Duration, time.Duration, time.Duration, time.Time, time.Time) (time.Time, bool) {
 	return time.Time{}, false
 }
 
@@ -48,22 +48,37 @@ type resetOnRearm struct{ noopExtension }
 
 func (resetOnRearm) name() string { return "reset_on_rearm" }
 
-func (resetOnRearm) onRearm(duration, _ time.Duration, _, now time.Time) (time.Time, bool) {
+func (resetOnRearm) onRearm(duration, _, _ time.Duration, _, now time.Time) (time.Time, bool) {
 	return now.Add(duration), true
 }
 
-// doubleOnRearm extends the round when it is armed again, from its deadline by the round's end,
+// doubleTotalOnRearm extends the round when it is armed again, from its deadline by the round's end,
 // doubling the time since the start of the first round. Extending from the deadline, rather than
 // resetting the round's timer, keeps round end times aligned across peers: QBFT arms a round again
 // upon a justified pre-prepare, so resetting has no effect on the leader, who resets at the start of
 // the round, while it has a large effect on the other peers, who reset when they receive the
 // justified pre-prepare.
-type doubleOnRearm struct{ noopExtension }
+type doubleTotalOnRearm struct{ noopExtension }
 
-func (doubleOnRearm) name() string { return "double_on_rearm" }
+func (doubleTotalOnRearm) name() string { return "double_total_on_rearm" }
 
-func (doubleOnRearm) onRearm(_, end time.Duration, deadline, _ time.Time) (time.Time, bool) {
+func (doubleTotalOnRearm) onRearm(_, end, _ time.Duration, deadline, _ time.Time) (time.Time, bool) {
 	return deadline.Add(end), true
+}
+
+// doubleRoundOnRearm extends the round from its deadline by its duration after the duty start, at
+// least by minimum, when it is armed again, doubling the round. The lead a first round anchored ahead
+// of the duty start spans doesn't count.
+type doubleRoundOnRearm struct {
+	noopExtension
+
+	minimum time.Duration
+}
+
+func (e doubleRoundOnRearm) name() string { return "double_round_on_rearm_min_" + e.minimum.String() }
+
+func (e doubleRoundOnRearm) onRearm(duration, end, lead time.Duration, deadline, _ time.Time) (time.Time, bool) {
+	return deadline.Add(max(e.minimum, min(duration, end-lead))), true
 }
 
 // proposalTimeout adds 500ms to the first round of proposer duties.

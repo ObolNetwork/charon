@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 )
@@ -16,10 +18,12 @@ import (
 // RoundTimerFunc is a function that returns a round timer.
 type RoundTimerFunc func(core.Duty) RoundTimer
 
-// GetRoundTimerFunc returns a timer function based on the enabled features.
+// GetRoundTimerFunc returns a timer function based on the fork schedule and the enabled features.
 // Genesis time and slot duration are required to calculate deterministic slot start times, while
 // the slot offset function provides the duty's offset into the slot at which consensus starts.
-func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotOffsetFunc core.SlotOffsetFunc) RoundTimerFunc {
+func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotsPerEpoch uint64,
+	slotOffsetFunc core.SlotOffsetFunc, forkSchedule func() eth2wrap.ForkForkSchedule,
+) RoundTimerFunc {
 	timing := slotTiming{
 		genesisTime:  genesisTime,
 		slotDuration: slotDuration,
@@ -27,15 +31,24 @@ func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotOf
 	}
 
 	return func(duty core.Duty) RoundTimer {
-		return newRoundTimer(duty, selectTimer(duty), timing, clockwork.NewRealClock())
+		gloas := forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(duty.Slot/slotsPerEpoch))
+
+		return newRoundTimer(duty, selectTimer(duty, gloas), timing, clockwork.NewRealClock())
 	}
 }
 
-// selectTimer returns the timer for the duty, as selected by the feature set, with its extensions.
-func selectTimer(duty core.Duty) timerDef {
+// selectTimer returns the timer for the duty, as selected by the fork, whether gloas is active at the
+// duty's slot, and the feature set, with its extensions.
+func selectTimer(duty core.Duty, gloas bool) timerDef {
 	var def timerDef
 
 	switch {
+	case duty.Type == core.DutyAttester && gloas:
+		// From gloas, attester duties use the eager ahead split timer regardless of the feature set,
+		// since round end times must be identical across the cluster.
+		// TODO(post-gloas): make this the default for attester duties without the gloas check, removing
+		// the fork schedule from GetRoundTimerFunc.
+		def = eagerAheadSplitTimer()
 	case duty.Type == core.DutyProposer && featureset.Enabled(featureset.Linear):
 		// The linear timer has precedence over the eager double linear timer, but only for proposer duties.
 		def = linearTimer()
@@ -65,6 +78,7 @@ const (
 	TimerIncreasing        Type = "inc"
 	TimerEagerDoubleLinear Type = "eager_dlinear"
 	TimerLinear            Type = "linear"
+	TimerEagerAheadSplit   Type = "eager_ahead_split"
 )
 
 // RoundTimer provides the duration for each consensus round.
@@ -127,6 +141,8 @@ type anchor interface {
 	// start returns the start of the duty's round armed at now, given the total duration of the rounds
 	// before it.
 	start(duty core.Duty, timing slotTiming, now time.Time, priorRoundsDuration time.Duration) time.Time
+	// lead returns how long before the duty start the first round starts.
+	lead() time.Duration
 }
 
 // anchorLocalDutyStart starts the first round when the duty starts on this node, and each later round
@@ -137,6 +153,8 @@ type anchorLocalDutyStart struct{}
 func (anchorLocalDutyStart) start(_ core.Duty, _ slotTiming, now time.Time, _ time.Duration) time.Time {
 	return now
 }
+
+func (anchorLocalDutyStart) lead() time.Duration { return 0 }
 
 // anchorDutyStart starts the first round at the duty's start, its offset into the slot, with later
 // rounds following on at absolute times, aligned across peers.
@@ -152,6 +170,27 @@ func (anchorDutyStart) start(duty core.Duty, timing slotTiming, now time.Time, p
 	return start.Add(priorRoundsDuration)
 }
 
+func (anchorDutyStart) lead() time.Duration { return 0 }
+
+// anchorPreviousInterval starts the first round at the start of the interval preceding the duty's
+// own, one interval before the duty start, with later rounds following on at absolute times, aligned
+// across peers.
+type anchorPreviousInterval struct {
+	leadTime time.Duration
+}
+
+func (a anchorPreviousInterval) start(duty core.Duty, timing slotTiming, now time.Time, priorRoundsDuration time.Duration) time.Time {
+	dutyStart := timing.dutyStart(duty)
+	if dutyStart.IsZero() {
+		// Without slot timing (only in tests), the first round starts when armed.
+		return now.Add(priorRoundsDuration)
+	}
+
+	return dutyStart.Add(priorRoundsDuration - a.lead())
+}
+
+func (a anchorPreviousInterval) lead() time.Duration { return a.leadTime }
+
 // slotTiming provides the slot start times anchored timers start at.
 type slotTiming struct {
 	genesisTime  time.Time
@@ -159,14 +198,22 @@ type slotTiming struct {
 	slotOffset   core.SlotOffsetFunc
 }
 
-// dutyStart returns the start of the duty's slot plus the duty's offset into the slot, or the zero
-// time without slot timing (only in tests).
-func (s slotTiming) dutyStart(duty core.Duty) time.Time {
+// slotStart returns the start of the duty's slot, or the zero time without slot timing (only in tests).
+func (s slotTiming) slotStart(duty core.Duty) time.Time {
 	if s.genesisTime.IsZero() || s.slotDuration <= 0 {
 		return time.Time{}
 	}
 
-	slotStart := s.genesisTime.Add(s.slotDuration * time.Duration(duty.Slot))
+	return s.genesisTime.Add(s.slotDuration * time.Duration(duty.Slot))
+}
+
+// dutyStart returns the start of the duty's slot plus the duty's offset into the slot, or the zero
+// time without slot timing (only in tests).
+func (s slotTiming) dutyStart(duty core.Duty) time.Time {
+	slotStart := s.slotStart(duty)
+	if slotStart.IsZero() {
+		return time.Time{}
+	}
 
 	return slotStart.Add(s.slotOffset(duty))
 }
@@ -227,11 +274,12 @@ func (t *roundTimer) Timer(round int64) (<-chan time.Time, func()) {
 
 // rearmDeadline returns the deadline of the round armed again, as defined by the first extension
 // acting upon it, or its deadline if none does. In practice, QBFT rearms the current round
-// upon a justified pre-prepare for it. Two extensions currently act upon this rearming, declared
-// by the timers: resetOnRearm by inc and linear, and doubleOnRearm by eager_dlinear.
+// upon a justified pre-prepare for it. Three extensions currently act upon this rearming, declared
+// by the timers: resetOnRearm by inc and linear, doubleTotalOnRearm by eager_dlinear, and
+// doubleRoundOnRearm by eager_ahead_split.
 func (t *roundTimer) rearmDeadline(round int64, currentDeadline, now time.Time) time.Time {
 	for _, ext := range t.def.extensions {
-		adjustedDeadline, ok := ext.onRearm(t.duration(round), t.end(round), currentDeadline, now)
+		adjustedDeadline, ok := ext.onRearm(t.duration(round), t.end(round), t.def.anchor.lead(), currentDeadline, now)
 		if ok {
 			return adjustedDeadline
 		}

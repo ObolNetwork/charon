@@ -5,6 +5,14 @@ package timer
 import "time"
 
 const (
+	// eagerAheadSplitInterval is the length of an interval, the timeframe of a duty in the slot: from
+	// the gloas fork a 12s slot has four 3s intervals.
+	eagerAheadSplitInterval = 3 * time.Second
+	// eagerAheadSplitAttempts is the number of attempts the duty's own interval is split into.
+	eagerAheadSplitAttempts = 3
+)
+
+const (
 	// incRoundStart is the base duration of the increasing timer's rounds, which last
 	// incRoundStart + round*incRoundIncrease.
 	incRoundStart    = 750 * time.Millisecond
@@ -64,6 +72,34 @@ func eagerDLinearTimer() timerDef {
 			step:  time.Second,
 		},
 		anchor:     anchorDutyStart{},
-		extensions: []extension{doubleOnRearm{}},
+		extensions: []extension{doubleTotalOnRearm{}},
+	}
+}
+
+// eagerAheadSplitTimer starts its rounds one interval ahead of the duty's own interval, at the start
+// of the previous interval, and splits the duty's own interval into equal attempts. With 3s intervals
+// and 3 attempts, rounds last 4s, 1s, 1s, 2s, 3s, etc., starting at absolute times aligned across
+// peers. Arming a round again extends it by its duration after the duty start, at least 1s.
+func eagerAheadSplitTimer() timerDef {
+	return timerDef{
+		typ:        TimerEagerAheadSplit,
+		durations:  aheadSplit(eagerAheadSplitInterval, eagerAheadSplitAttempts),
+		anchor:     anchorPreviousInterval{leadTime: eagerAheadSplitInterval},
+		extensions: []extension{doubleRoundOnRearm{minimum: time.Second}},
+	}
+}
+
+// aheadSplit returns round durations starting one interval ahead of the duty's own interval and
+// splitting the duty's own interval into equal attempts: the first round spans the previous interval
+// plus one attempt, the next rounds one attempt each, and rounds past the attempts grow by a further
+// second.
+func aheadSplit(interval time.Duration, attempts int64) roundDurations {
+	attempt := interval / time.Duration(attempts)
+
+	return roundDurations{
+		first:  interval + attempt,
+		step:   attempt,
+		steps:  attempts - 1,
+		growth: time.Second,
 	}
 }
