@@ -1342,6 +1342,21 @@ func TestAttestationChecker(t *testing.T) {
 			mutate:  func(a *core.AttestationData) { a.Data.Target.Root[0]++ },
 			wantErr: "target root differs",
 		},
+		{
+			name:    "duty slot differs",
+			mutate:  func(a *core.AttestationData) { a.Duty.Slot++ },
+			wantErr: "duty differs",
+		},
+		{
+			name:    "duty committee index differs",
+			mutate:  func(a *core.AttestationData) { a.Duty.CommitteeIndex++ },
+			wantErr: "duty differs",
+		},
+		{
+			name:    "duty validator committee index differs",
+			mutate:  func(a *core.AttestationData) { a.Duty.ValidatorCommitteeIndex++ },
+			wantErr: "duty differs",
+		},
 	}
 
 	for _, test := range tests {
@@ -1351,7 +1366,7 @@ func TestAttestationChecker(t *testing.T) {
 				test.mutate(&leaderAtt)
 			}
 
-			err := attestationChecker(t.Context(), toProto(t, pubkey, leaderAtt), local)
+			err := attestationChecker(toProto(t, pubkey, leaderAtt), local)
 			if test.wantErr == "" {
 				require.NoError(t, err)
 			} else {
@@ -1360,13 +1375,25 @@ func TestAttestationChecker(t *testing.T) {
 		})
 	}
 
-	t.Run("unknown validator is skipped", func(t *testing.T) {
-		// Leader proposes for a validator the local node has no data for: a
-		// conflicting vote cannot be detected, so it is skipped with a warning.
-		leaderAtt := cloneAtt(t)
-		leaderAtt.Data.Target.Epoch++
+	t.Run("unknown validator is rejected", func(t *testing.T) {
+		// Leader proposes for a validator the local node has no duty for, e.g. its
+		// duties came from a different shuffling. Agreeing would leave the locally
+		// scheduled validators with nothing to sign.
+		err := attestationChecker(toProto(t, testutil.RandomCorePubKey(t), cloneAtt(t)), local)
+		require.ErrorContains(t, err, "without local duty")
+	})
 
-		err := attestationChecker(t.Context(), toProto(t, testutil.RandomCorePubKey(t), leaderAtt), local)
+	t.Run("leader subset of local validators is accepted", func(t *testing.T) {
+		otherAtt := testutil.RandomCoreAttestationData(t)
+		otherAtt.Data = attData.Data
+
+		localSet, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{
+			pubkey:                       attData,
+			testutil.RandomCorePubKey(t): otherAtt,
+		})
+		require.NoError(t, err)
+
+		err = attestationChecker(toProto(t, pubkey, cloneAtt(t)), localSet)
 		require.NoError(t, err)
 	})
 }

@@ -140,7 +140,7 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 					return
 				}
 
-				err = attestationChecker(ctx, attLeaderSet, attLocalSet)
+				err = attestationChecker(attLeaderSet, attLocalSet)
 				if err != nil {
 					returnErrCh <- errors.Wrap(err, "attestation checker failed")
 					return
@@ -199,7 +199,10 @@ func newDefinition(nodes int, subs func() []subscriber, roundTimer timer.RoundTi
 	}
 }
 
-func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet, attLocalSet *pbv1.UnsignedDataSet) error {
+// attestationChecker returns an error if the leader's attestation set conflicts with the local one:
+// a validator without a local duty, a different duty assignment, or different source/target checkpoints.
+// A leader set covering only a subset of the local validators is accepted.
+func attestationChecker(attLeaderSet *pbv1.UnsignedDataSet, attLocalSet *pbv1.UnsignedDataSet) error {
 	attLocalSetCore, err := core.UnsignedDataSetFromProto(core.DutyAttester, attLocalSet)
 	if err != nil {
 		return errors.Wrap(err, "attLocal to unsigned data set duty attester")
@@ -213,8 +216,8 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 	for attLeaderKey, attLeaderData := range attLeaderSetCore {
 		attLocalData, ok := attLocalSetCore[attLeaderKey]
 		if !ok {
-			log.Warn(ctx, "", errors.New("no local attestation found, skipping"), z.Any("pk", attLeaderKey))
-			continue
+			// The leader's duties differ from ours (e.g. stale shuffling), agreeing would leave our scheduled validators unsigned.
+			return errors.New("leader attestation for validator without local duty", z.Any("public_key", attLeaderKey))
 		}
 
 		attLeaderAttestationData, ok := attLeaderData.(core.AttestationData)
@@ -244,8 +247,14 @@ func attestationChecker(ctx context.Context, attLeaderSet *pbv1.UnsignedDataSet,
 			mismatch += "leader attestation target root differs from local target root;"
 		}
 
+		if attLeaderAttestationData.Duty != attLocalAttestationData.Duty {
+			mismatch += "leader attester duty differs from local duty;"
+		}
+
 		if mismatch != "" {
-			return errors.New(mismatch, z.Any("public_key", attLeaderKey), z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data))
+			return errors.New(mismatch, z.Any("public_key", attLeaderKey),
+				z.Any("leader", attLeaderAttestationData.Data), z.Any("local", attLocalAttestationData.Data),
+				z.Any("leader_duty", attLeaderAttestationData.Duty), z.Any("local_duty", attLocalAttestationData.Duty))
 		}
 	}
 
