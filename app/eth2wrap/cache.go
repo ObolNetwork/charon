@@ -349,6 +349,20 @@ func (c *DutiesCache) InvalidateCache(ctx context.Context, epoch eth2p0.Epoch) {
 	}
 }
 
+// AttesterDutiesDependentRoot returns the dependent root recorded with the epoch's cached attester duties,
+// or false if the epoch is not cached or the root is unknown (zero).
+func (c *DutiesCache) AttesterDutiesDependentRoot(epoch eth2p0.Epoch) (eth2p0.Root, bool) {
+	c.attesterDuties.RLock()
+	defer c.attesterDuties.RUnlock()
+
+	root, ok := c.attesterDuties.metadata[epoch]["dependent_root"].(eth2p0.Root)
+	if !ok || root == (eth2p0.Root{}) {
+		return eth2p0.Root{}, false
+	}
+
+	return root, true
+}
+
 // UpdateActiveValIndices updates the active validator indices in the cache.
 func (c *DutiesCache) UpdateActiveValIndices(vidxs []eth2p0.ValidatorIndex) {
 	c.activeValIdxs.Lock()

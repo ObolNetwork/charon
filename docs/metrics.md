@@ -18,6 +18,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_beacon_node_sse_block_gossip` | Histogram | Block reception via gossip delay, supplied by beacon node`s SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe | `addr` |
 | `app_beacon_node_sse_block_processing_time` | Histogram | Time in seconds between block gossip and head events, indicating block processing time. Lower values indicate better CPU/disk/RAM performance. | `addr` |
 | `app_beacon_node_sse_chain_reorg_depth` | Histogram | Chain reorg depth, supplied by beacon node`s SSE endpoint | `addr` |
+| `app_beacon_node_sse_dependent_root_mismatch_total` | Counter | Total number of head events whose duty dependent root differed from the cached attester duties, invalidating them | `addr` |
 | `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with labels set to the version and beacon_id of the upstream beacon node | `version, beacon_id` |
