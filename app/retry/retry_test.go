@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -33,6 +34,28 @@ func TestRetryer(t *testing.T) {
 			Func: func(ctx context.Context, attempt int) error {
 				if attempt == 0 {
 					return context.Canceled
+				}
+
+				return nil
+			},
+			ExpectBackoffs: 1,
+		},
+		{
+			Name: "one retry on beacon node not active",
+			Func: func(ctx context.Context, attempt int) error {
+				if attempt == 0 {
+					return errors.Wrap(eth2client.ErrNotActive, "beacon api attestation_data")
+				}
+
+				return nil
+			},
+			ExpectBackoffs: 1,
+		},
+		{
+			Name: "one retry on beacon node not synced",
+			Func: func(ctx context.Context, attempt int) error {
+				if attempt == 0 {
+					return errors.Wrap(eth2client.ErrNotSynced, "beacon api attestation_data")
 				}
 
 				return nil
