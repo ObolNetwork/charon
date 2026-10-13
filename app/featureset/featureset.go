@@ -76,11 +76,6 @@ const (
 	// head event is received in time.
 	FetchAttOnBlock = "fetch_att_on_block"
 
-	// FetchAttOnBlockWithDelay enables fetching attestation data with 300ms delay.
-	// When enabled with FetchAttOnBlock, uses the attestation deadline plus 300ms as fallback timeout.
-	// When enabled alone, uses the attestation deadline plus 300ms as timeout.
-	FetchAttOnBlockWithDelay = "fetch_att_on_block_with_delay"
-
 	// DisableDutiesCache is a safety measure to disable duties cache.
 	DisableDutiesCache = "disable_duties_cache"
 )
@@ -88,21 +83,20 @@ const (
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		EagerDoubleLinear:        statusStable,
-		ConsensusParticipate:     statusStable,
-		MockAlpha:                statusAlpha,
-		JSONRequests:             statusAlpha,
-		GnosisBlockHotfix:        statusAlpha,
-		Linear:                   statusAlpha,
-		SSEReorgDuties:           statusAlpha,
-		AttestationInclusion:     statusAlpha,
-		ProposalTimeout:          statusStable,
-		QUIC:                     statusAlpha,
-		FetchOnlyCommIdx0:        statusStable,
-		ChainSplitHalt:           statusAlpha,
-		FetchAttOnBlock:          statusAlpha,
-		FetchAttOnBlockWithDelay: statusAlpha,
-		DisableDutiesCache:       statusAlpha,
+		EagerDoubleLinear:    statusStable,
+		ConsensusParticipate: statusStable,
+		MockAlpha:            statusAlpha,
+		JSONRequests:         statusAlpha,
+		GnosisBlockHotfix:    statusAlpha,
+		Linear:               statusAlpha,
+		SSEReorgDuties:       statusAlpha,
+		AttestationInclusion: statusAlpha,
+		ProposalTimeout:      statusStable,
+		QUIC:                 statusAlpha,
+		FetchOnlyCommIdx0:    statusStable,
+		ChainSplitHalt:       statusAlpha,
+		FetchAttOnBlock:      statusStable,
+		DisableDutiesCache:   statusAlpha,
 		// Add all features and their status here.
 	}
 
