@@ -324,6 +324,115 @@ func TestMemDBEPBSProposerWrongEra(t *testing.T) {
 	require.ErrorContains(t, err, "pre-gloas proposals are served by AwaitProposal")
 }
 
+func TestMemDBPayloadContents(t *testing.T) {
+	ctx := context.Background()
+	deadliner := &testDeadliner{ch: make(chan core.Duty, 10)}
+	db := dutydb.NewMemDB(deadliner)
+
+	const slot = 123
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	root, err := contents.Root()
+	require.NoError(t, err)
+
+	agreed, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+
+	// Contents are refused until the proposal of their slot is agreed.
+	err = db.StorePayloadContents(ctx, contents)
+	require.ErrorContains(t, err, "no agreed proposal")
+
+	require.NoError(t, db.Store(ctx, core.NewProposerDuty(slot), core.UnsignedDataSet{pubkey: agreed}))
+
+	// A query waits for the contents.
+	type result struct {
+		contents *eth2api.VersionedEPBSProposal
+		err      error
+	}
+
+	resp := make(chan result, 1)
+
+	go func() {
+		got, err := db.AwaitPayloadContents(ctx, slot, root)
+		resp <- result{contents: got, err: err}
+	}()
+
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	res := <-resp
+	require.NoError(t, res.err)
+	require.Equal(t, contents.EPBS, res.contents)
+
+	// Storing again is idempotent, e.g. a retried share.
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	// Contents the agreed proposal doesn't commit to are refused.
+	other := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	other.EPBS.GloasContents.Block.Slot = slot
+
+	err = db.StorePayloadContents(ctx, other)
+	require.ErrorContains(t, err, "payload contents root mismatch")
+
+	// A proposal without its execution payload carries no contents.
+	err = db.StorePayloadContents(ctx, agreed)
+	require.ErrorContains(t, err, "no execution payload contents")
+
+	// The contents are deleted with the proposer duty.
+	require.Contains(t, deadliner.added, core.NewProposerDuty(slot))
+	deadliner.expire()
+
+	next := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	next.EPBS.GloasContents.Block.Slot = slot + 1
+
+	nextAgreed, err := core.WithoutPayloadContents(next)
+	require.NoError(t, err)
+	require.NoError(t, db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{pubkey: nextAgreed}))
+
+	ctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+
+	_, err = db.AwaitPayloadContents(ctx, slot, root)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestMemDBAwaitVersionedProposal(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	bare, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+	require.NotEqual(t, [32]byte{}, bare.PayloadContentsRoot)
+
+	// The query waits for the agreed proposal and returns it with its payload contents root.
+	type result struct {
+		proposal core.VersionedProposal
+		err      error
+	}
+
+	resultCh := make(chan result, 1)
+
+	go func() {
+		proposal, err := db.AwaitVersionedProposal(ctx, slot)
+		resultCh <- result{proposal: proposal, err: err}
+	}()
+
+	pubkey := testutil.RandomCorePubKey(t)
+	require.NoError(t, db.Store(ctx, core.NewProposerDuty(slot), core.UnsignedDataSet{pubkey: bare}))
+
+	res := <-resultCh
+	require.NoError(t, res.err)
+	require.Equal(t, bare, res.proposal)
+}
+
 func TestMemDBAggregator(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
