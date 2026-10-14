@@ -3,7 +3,9 @@
 package core
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"math"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -381,6 +383,36 @@ func NewVersionedEPBSProposal(proposal *eth2api.VersionedEPBSProposal) (Versione
 	}, nil
 }
 
+// BuilderIndexSelfBuild is the gloas BUILDER_INDEX_SELF_BUILD constant, the builder index of the
+// execution payload bid of a self-built block, whose proposer reveals the execution payload.
+const BuilderIndexSelfBuild = gloas.BuilderIndex(math.MaxUint64)
+
+// EPBSBid returns the execution payload bid the EPBS proposal's beacon block commits to, from
+// either arm of the proposal.
+func EPBSBid(proposal *eth2api.VersionedEPBSProposal) (*gloas.ExecutionPayloadBid, error) {
+	if proposal == nil {
+		return nil, errors.New("no epbs proposal")
+	}
+
+	// Each fork resolves its block (payload-included or -excluded); new forks add a case here.
+	switch proposal.Version {
+	case eth2spec.DataVersionGloas:
+		block := proposal.Gloas
+		if proposal.ExecutionPayloadIncluded && proposal.GloasContents != nil {
+			block = proposal.GloasContents.Block
+		}
+
+		if block == nil || block.Body == nil || block.Body.SignedExecutionPayloadBid == nil ||
+			block.Body.SignedExecutionPayloadBid.Message == nil {
+			return nil, errors.New("no gloas block execution payload bid")
+		}
+
+		return block.Body.SignedExecutionPayloadBid.Message, nil
+	default:
+		return nil, errors.New("unknown epbs proposal version")
+	}
+}
+
 // VersionedProposal wraps the eth2 versioned proposal and implements UnsignedData.
 type VersionedProposal struct {
 	eth2api.VersionedProposal
@@ -389,6 +421,58 @@ type VersionedProposal struct {
 	// has no arm for. It is set iff Version is gloas. The embedded Blinded flag does
 	// not apply to gloas, EPBS.ExecutionPayloadIncluded discriminates the two arms.
 	EPBS *eth2api.VersionedEPBSProposal
+
+	// PayloadContentsRoot commits to the execution payload envelope, blobs and KZG proofs of a
+	// self-built gloas proposal agreed without them, see PayloadContentsRoot, so that peers can
+	// verify the contents the proposer shares after the decision. Zero for builder bids, for
+	// proposals carrying their payload and before the gloas fork.
+	PayloadContentsRoot [32]byte
+}
+
+// PayloadContentsRoot returns the commitment to the execution payload contents of a self-built
+// gloas proposal: the sha256 of the SSZ encoding of its block contents (block, envelope, blobs and
+// KZG proofs), which is preset independent unlike the generated hash tree roots.
+func PayloadContentsRoot(proposal VersionedProposal) ([32]byte, error) {
+	if proposal.Version < eth2spec.DataVersionGloas || proposal.EPBS == nil ||
+		!proposal.EPBS.ExecutionPayloadIncluded || proposal.EPBS.GloasContents == nil {
+		return [32]byte{}, errors.New("no execution payload contents")
+	}
+
+	b, err := proposal.EPBS.GloasContents.MarshalSSZ()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "marshal block contents")
+	}
+
+	return sha256.Sum256(b), nil
+}
+
+// WithoutPayloadContents returns the self-built gloas proposal without its execution payload
+// envelope, blobs and KZG proofs: its beacon block, which commits to them, with the root of the
+// contents to agree on.
+func WithoutPayloadContents(proposal VersionedProposal) (VersionedProposal, error) {
+	root, err := PayloadContentsRoot(proposal)
+	if err != nil {
+		return VersionedProposal{}, err
+	}
+
+	full := proposal.EPBS
+
+	bare, err := NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+		Version:                  full.Version,
+		ExecutionPayloadIncluded: false,
+		BuilderIndex:             full.BuilderIndex,
+		ConsensusValue:           full.ConsensusValue,
+		ExecutionValue:           full.ExecutionValue,
+		Gloas:                    full.GloasContents.Block,
+		BeaconBlockBodyRoot:      full.BeaconBlockBodyRoot,
+	})
+	if err != nil {
+		return VersionedProposal{}, err
+	}
+
+	bare.PayloadContentsRoot = root
+
+	return bare, nil
 }
 
 // Root returns the proposal block root, handling the EPBS arm carrying proposals from
@@ -568,9 +652,18 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 
 	// From the gloas fork onwards proposals are discriminated by execution payload
 	// inclusion, the pre-gloas blinded flag does not apply to them.
-	var included *bool
+	var (
+		included     *bool
+		contentsRoot *eth2p0.Root
+	)
+
 	if p.Version >= eth2spec.DataVersionGloas {
 		included = &p.EPBS.ExecutionPayloadIncluded
+
+		if p.PayloadContentsRoot != [32]byte{} {
+			root := eth2p0.Root(p.PayloadContentsRoot)
+			contentsRoot = &root
+		}
 	}
 
 	resp, err := json.Marshal(versionedRawBlockJSON{
@@ -578,6 +671,7 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 		Block:                    block,
 		Blinded:                  p.Blinded,
 		ExecutionPayloadIncluded: included,
+		PayloadContentsRoot:      contentsRoot,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -732,7 +826,12 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		return errors.New("unknown version")
 	}
 
-	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs}
+	var contentsRoot [32]byte
+	if raw.PayloadContentsRoot != nil {
+		contentsRoot = *raw.PayloadContentsRoot
+	}
+
+	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs, PayloadContentsRoot: contentsRoot}
 
 	return nil
 }
