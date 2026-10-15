@@ -953,7 +953,21 @@ func TestComponent_SubmitExecutionPayloadEnvelope(t *testing.T) {
 	vapi.RegisterGetDutyDefinition(func(context.Context, core.Duty) (core.DutyDefinitionSet, error) {
 		return core.DutyDefinitionSet{corePubKey: nil}, nil
 	})
+	// Consensus agreed on the bare block, its contents were shared separately.
 	vapi.RegisterAwaitEPBSProposal(func(context.Context, uint64) (*eth2api.VersionedEPBSProposal, error) {
+		return &eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionGloas,
+			Gloas:   contents.Block,
+		}, nil
+	})
+
+	blockRoot, err := contents.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitPayloadContents(func(_ context.Context, s uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		require.Equal(t, eth2p0.Root(blockRoot), root)
+
 		return &eth2api.VersionedEPBSProposal{
 			Version:                  eth2spec.DataVersionGloas,
 			ExecutionPayloadIncluded: true,
@@ -991,6 +1005,7 @@ func TestComponent_SubmitExecutionPayloadEnvelope(t *testing.T) {
 		return nil
 	})
 
+	// The VC submits the bare signed envelope, the blobs and proofs come from the shared contents.
 	err = vapi.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
 		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
 			Version: eth2spec.DataVersionGloas,
@@ -999,11 +1014,25 @@ func TestComponent_SubmitExecutionPayloadEnvelope(t *testing.T) {
 				Signature: eth2p0.BLSSignature(s),
 			},
 		},
-		KZGProofs: contents.KZGProofs,
-		Blobs:     contents.Blobs,
 	})
 	require.NoError(t, err)
 	require.True(t, submitted)
+
+	// A validator client that signed another envelope than the agreed one is rejected before
+	// its signature is checked.
+	other := testutil.RandomGloasBlockContents().ExecutionPayloadEnvelope
+	other.Payload.SlotNumber = slot
+
+	err = vapi.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedExecutionPayloadEnvelope{
+				Message:   other,
+				Signature: eth2p0.BLSSignature(s),
+			},
+		},
+	})
+	require.ErrorContains(t, err, "do not match")
 }
 
 func TestComponent_ExecutionPayloadEnvelope(t *testing.T) {
@@ -1016,15 +1045,35 @@ func TestComponent_ExecutionPayloadEnvelope(t *testing.T) {
 	require.NoError(t, err)
 
 	contents := testutil.RandomGloasBlockContents()
+
+	blockRoot, err := contents.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	// Consensus agreed on the bare self-built block.
 	agreed := &eth2api.VersionedEPBSProposal{
-		Version:                  eth2spec.DataVersionGloas,
-		ExecutionPayloadIncluded: true,
-		GloasContents:            contents,
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   contents.Block,
 	}
 
 	vapi.RegisterAwaitEPBSProposal(func(_ context.Context, s uint64) (*eth2api.VersionedEPBSProposal, error) {
 		require.EqualValues(t, slot, s)
 		return agreed, nil
+	})
+
+	// The shared contents are awaited by the agreed block root.
+	var awaited int
+
+	vapi.RegisterAwaitPayloadContents(func(_ context.Context, s uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		require.Equal(t, eth2p0.Root(blockRoot), root)
+
+		awaited++
+
+		return &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            contents,
+		}, nil
 	})
 
 	// The agreed envelope is served for its block root.
@@ -1043,23 +1092,25 @@ func TestComponent_ExecutionPayloadEnvelope(t *testing.T) {
 	})
 	require.ErrorIs(t, err, eth2client.ErrNoExecutionPayloadEnvelope)
 
+	require.Equal(t, 2, awaited)
+
 	// A fork without an envelope case is not served.
 	agreed = &eth2api.VersionedEPBSProposal{
-		Version:                  eth2spec.DataVersionGloas + 1,
-		ExecutionPayloadIncluded: true,
-		GloasContents:            contents,
+		Version: eth2spec.DataVersionGloas + 1,
+		Gloas:   contents.Block,
 	}
 
 	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
 		Slot:            slot,
 		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
 	})
-	require.ErrorContains(t, err, "unsupported execution payload envelope version")
+	require.ErrorContains(t, err, "unknown epbs proposal version")
 
-	// An external builder bid has no envelope.
+	// An external builder bid has no envelope, without awaiting contents that never come.
+	bidBlock := testutil.RandomGloasBeaconBlock()
 	agreed = &eth2api.VersionedEPBSProposal{
-		Version:       eth2spec.DataVersionGloas,
-		GloasContents: contents,
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   bidBlock,
 	}
 
 	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
@@ -1067,6 +1118,7 @@ func TestComponent_ExecutionPayloadEnvelope(t *testing.T) {
 		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
 	})
 	require.ErrorIs(t, err, eth2client.ErrNoExecutionPayloadEnvelope)
+	require.Equal(t, 2, awaited)
 }
 
 // func TestComponent_SubmitProposal_Gnosis(t *testing.T) {
@@ -3296,41 +3348,33 @@ func TestComponent_EPBSProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	proposal := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
-	proposal.EPBS.GloasContents.Block.Slot = slot
+	// Consensus agrees on the bare self-built block.
+	contents := testutil.RandomGloasBlockContents()
+	contents.Block.Slot = slot
+
+	agreed := &eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   contents.Block,
+	}
 
 	component.RegisterAwaitEPBSProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
-		return proposal.EPBS, nil
+		return agreed, nil
 	})
 
-	includePayload := true
+	// The VC's IncludePayload is ignored: the agreed block is always served in the stateful
+	// (payload-excluded) form, the VC then retrieves the envelope separately.
+	for _, includePayload := range []bool{true, false} {
+		resp, err := component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+			Slot:           slot,
+			RandaoReveal:   randao,
+			IncludePayload: &includePayload,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.Data.ExecutionPayloadIncluded)
+		require.Equal(t, contents.Block, resp.Data.Gloas)
+	}
 
-	resp, err := component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
-		Slot:           slot,
-		RandaoReveal:   randao,
-		IncludePayload: &includePayload,
-	})
-	require.NoError(t, err)
-	require.True(t, resp.Data.ExecutionPayloadIncluded)
-	require.Equal(t, proposal.EPBS.GloasContents, resp.Data.GloasContents)
-
-	// A stateless request does not warn.
-	require.NotContains(t, logBuf.String(), "requested stateful gloas block production")
-
-	// The VC's IncludePayload is ignored: a self-built proposal is always served in the
-	// stateless (payload-included) form, even when the VC asks for the stateful one. A
-	// stateful request warns since a distributed validator cannot serve it.
-	includePayload = false
-
-	resp, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
-		Slot:           slot,
-		RandaoReveal:   randao,
-		IncludePayload: &includePayload,
-	})
-	require.NoError(t, err)
-	require.True(t, resp.Data.ExecutionPayloadIncluded)
-	require.Equal(t, proposal.EPBS.GloasContents, resp.Data.GloasContents)
-	require.Contains(t, logBuf.String(), "requested stateful gloas block production")
+	require.NotContains(t, logBuf.String(), "stateful")
 }
 
 func TestComponent_SubmitProposalGloas(t *testing.T) {
