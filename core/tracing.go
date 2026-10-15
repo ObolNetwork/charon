@@ -104,22 +104,6 @@ func WithTracing() WireOption {
 
 			return withSpanStatus(span, clone.PayloadExExchange(ctx, duty, defSet))
 		}
-		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.AwaitProposal")
-			defer span.End()
-
-			vp, err := clone.DutyDBAwaitProposal(ctx, slot)
-
-			return vp, withSpanStatus(span, err)
-		}
-		w.DutyDBAwaitEPBSProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.AwaitEPBSProposal")
-			defer span.End()
-
-			vp, err := clone.DutyDBAwaitEPBSProposal(ctx, slot)
-
-			return vp, withSpanStatus(span, err)
-		}
 		w.DutyDBAwaitVersionedProposal = func(parent context.Context, slot uint64) (VersionedProposal, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitVersionedProposal")
 			defer span.End()

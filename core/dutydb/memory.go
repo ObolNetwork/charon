@@ -264,43 +264,8 @@ func (db *MemDB) deleteExpiredUnsafe() error {
 	}
 }
 
-// AwaitProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-	proposal, err := db.awaitProposal(ctx, slot)
-	if err != nil {
-		return nil, err
-	}
-
-	if proposal.Version >= eth2spec.DataVersionGloas {
-		return nil, errors.New("gloas onwards proposals are served by AwaitEPBSProposal",
-			z.Str("version", proposal.Version.String()))
-	}
-
-	return &proposal.VersionedProposal, nil
-}
-
-// AwaitEPBSProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitEPBSProposal(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
-	proposal, err := db.awaitProposal(ctx, slot)
-	if err != nil {
-		return nil, err
-	}
-
-	if proposal.Version < eth2spec.DataVersionGloas {
-		return nil, errors.New("pre-gloas proposals are served by AwaitProposal",
-			z.Str("version", proposal.Version.String()))
-	}
-
-	return proposal.EPBS, nil
-}
-
 // AwaitVersionedProposal implements core.DutyDB, see its godoc.
 func (db *MemDB) AwaitVersionedProposal(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
-	return db.awaitProposal(ctx, slot)
-}
-
-// awaitProposal blocks and returns the stored core proposal for the slot when available.
-func (db *MemDB) awaitProposal(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 

@@ -29,7 +29,7 @@ func TestShutdown(t *testing.T) {
 	errChan := make(chan error, 1)
 
 	go func() {
-		_, err := db.AwaitProposal(context.Background(), 999)
+		_, err := db.AwaitVersionedProposal(context.Background(), 999)
 		errChan <- err
 	}()
 
@@ -231,10 +231,10 @@ func TestMemDBProposer(t *testing.T) {
 	for i := range queries {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
-			block, err := db.AwaitProposal(ctx, slots[slot])
+			block, err := db.AwaitVersionedProposal(ctx, slots[slot])
 			errCh <- err
 
-			awaitResponse[slot] <- response{block: block}
+			awaitResponse[slot] <- response{block: &block.VersionedProposal}
 		}(i)
 	}
 
@@ -289,16 +289,12 @@ func TestMemDBEPBSProposer(t *testing.T) {
 		pubkey: proposal,
 	}))
 
-	got, err := db.AwaitEPBSProposal(ctx, slot)
+	got, err := db.AwaitVersionedProposal(ctx, slot)
 	require.NoError(t, err)
-	require.Equal(t, proposal.EPBS, got)
-
-	// The pre-gloas getter rejects a gloas proposal.
-	_, err = db.AwaitProposal(ctx, slot)
-	require.ErrorContains(t, err, "gloas onwards proposals are served by AwaitEPBSProposal")
+	require.Equal(t, proposal, got)
 }
 
-func TestMemDBEPBSProposerWrongEra(t *testing.T) {
+func TestMemDBPreGloasProposer(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
 
@@ -319,9 +315,10 @@ func TestMemDBEPBSProposerWrongEra(t *testing.T) {
 		pubkey: unsigned,
 	}))
 
-	// The gloas getter rejects a pre-gloas proposal.
-	_, err = db.AwaitEPBSProposal(ctx, slot)
-	require.ErrorContains(t, err, "pre-gloas proposals are served by AwaitProposal")
+	// A pre-gloas proposal is served as stored, in its versioned form.
+	got, err := db.AwaitVersionedProposal(ctx, slot)
+	require.NoError(t, err)
+	require.Equal(t, unsigned, got)
 }
 
 func TestMemDBPayloadContents(t *testing.T) {

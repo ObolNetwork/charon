@@ -191,28 +191,54 @@ type Component struct {
 	sharesByKey map[core.PubKey]core.PubKey
 
 	// Registered input functions
-	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
-	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)
-	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
-	awaitEPBSProposalFunc     func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
-	awaitPayloadContentsFunc  func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
-	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
-	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
-	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
-	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
-	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc            func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
+	awaitAttFunc               func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	awaitPayloadAttDataFunc    func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)
+	awaitVersionedProposalFunc func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
+	awaitPayloadContentsFunc   func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
+	awaitSyncContributionFunc  func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
+	awaitAggAttFunc            func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
+	awaitAggSigDBFunc          func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	dutyDefFunc                func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
+	subs                       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
+// RegisterAwaitVersionedProposal registers a function to query agreed proposals by providing the slot.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)) {
-	c.awaitProposalFunc = fn
+func (c *Component) RegisterAwaitVersionedProposal(fn func(ctx context.Context, slot uint64) (core.VersionedProposal, error)) {
+	c.awaitVersionedProposalFunc = fn
 }
 
-// RegisterAwaitEPBSProposal registers a function to query unsigned ePBS beacon block proposals by providing necessary options.
-func (c *Component) RegisterAwaitEPBSProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)) {
-	c.awaitEPBSProposalFunc = fn
+// awaitProposal blocks and returns the agreed pre-gloas proposal for the slot. It errors for
+// gloas onwards proposals, which are served by awaitEPBSProposal.
+func (c Component) awaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+	proposal, err := c.awaitVersionedProposalFunc(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version >= eth2spec.DataVersionGloas {
+		return nil, errors.New("gloas onwards proposals are served by the epbs endpoint",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return &proposal.VersionedProposal, nil
+}
+
+// awaitEPBSProposal blocks and returns the agreed ePBS proposal for the slot, from the gloas fork
+// onwards. It errors for pre-gloas proposals, which are served by awaitProposal.
+func (c Component) awaitEPBSProposal(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+	proposal, err := c.awaitVersionedProposalFunc(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version < eth2spec.DataVersionGloas {
+		return nil, errors.New("pre-gloas proposals are served by the v3 endpoint",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return proposal.EPBS, nil
 }
 
 // RegisterAwaitPayloadContents registers a function to query the execution payload contents of
@@ -436,7 +462,7 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 
 	// Query unsigned proposal (this is blocking). Errors for gloas onwards proposals,
 	// which are served by the v4 epbs endpoint.
-	proposal, err := c.awaitProposalFunc(ctx, uint64(opts.Slot))
+	proposal, err := c.awaitProposal(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +499,7 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 
 	// Query unsigned proposal (this is blocking). Errors for pre-gloas proposals, which
 	// are served by the v3 endpoint.
-	proposal, err := c.awaitEPBSProposalFunc(ctx, uint64(opts.Slot))
+	proposal, err := c.awaitEPBSProposal(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
@@ -715,7 +741,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 	}
 
 	if opts.Proposal.Version >= eth2spec.DataVersionGloas {
-		prop, err := c.awaitEPBSProposalFunc(ctx, uint64(slot))
+		prop, err := c.awaitEPBSProposal(ctx, uint64(slot))
 		if err != nil {
 			return errors.Wrap(err, "could not fetch block definition from dutydb")
 		}
@@ -724,7 +750,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 			return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
 		}
 	} else {
-		prop, err := c.awaitProposalFunc(ctx, uint64(slot))
+		prop, err := c.awaitProposal(ctx, uint64(slot))
 		if err != nil {
 			return errors.Wrap(err, "could not fetch block definition from dutydb")
 		}
@@ -782,7 +808,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		return err
 	}
 
-	prop, err := c.awaitProposalFunc(ctx, uint64(slot))
+	prop, err := c.awaitProposal(ctx, uint64(slot))
 	if err != nil {
 		return errors.Wrap(err, "could not fetch block definition from dutydb")
 	}
@@ -976,7 +1002,7 @@ func (c Component) ExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.E
 // its execution payload contents, or ErrNoExecutionPayloadEnvelope if an external builder's bid
 // was agreed, whose payload the builder reveals.
 func (c Component) awaitAgreedPayloadContents(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
-	agreed, err := c.awaitEPBSProposalFunc(ctx, slot)
+	agreed, err := c.awaitEPBSProposal(ctx, slot)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not fetch block definition from dutydb")
 	}

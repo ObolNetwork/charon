@@ -710,9 +710,9 @@ type DutyDB interface {
 	// Store stores the unsigned duty data set.
 	Store(context.Context, Duty, UnsignedDataSet) error
 
-	// AwaitProposal blocks and returns the proposed beacon block
-	// for the slot when available.
-	AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
+	// AwaitVersionedProposal blocks and returns the agreed proposal for the slot when available,
+	// in charon's versioned form of any fork.
+	AwaitVersionedProposal(ctx context.Context, slot uint64) (VersionedProposal, error)
 
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
@@ -785,7 +785,7 @@ The validator API intercepts the following endpoints (all other calls are transp
 | `GET \| POST /eth/v1/beacon/states/{state_id}/validators`      | Intercepted to map public shares to DV pubkeys (and back in the response).                                                                                       |
 | `GET /eth/v1/validator/attestation_data`                       | Served from `DutyDB.AwaitAttestation` by `slot,committee_index`.                                                                                                 |
 | `POST /eth/v2/beacon/pool/attestations`                        | `DutyAttester`: DV pubkey inferred via `DutyDB.PubKeyByAttestation`; partial signatures stored in `ParSigDB` (v1 returns 404).                                   |
-| `GET /eth/v3/validator/blocks/{slot}`                          | `DutyProposer`/`DutyRandao`: verifies the partial randao reveal, submits it to `ParSigDB` for async aggregation, then blocks on `DutyDB.AwaitProposal` (v2 404). |
+| `GET /eth/v3/validator/blocks/{slot}`                          | `DutyProposer`/`DutyRandao`: verifies the partial randao reveal, submits it to `ParSigDB` for async aggregation, then blocks on `DutyDB.AwaitVersionedProposal` (v2 404). |
 | `POST /eth/v1,v2/beacon/blocks`                                | `DutyProposer`: DV pubkey looked up via the scheduler's `GetDutyDefinition`; partial signature stored in `ParSigDB`.                                             |
 | `POST /eth/v1,v2/beacon/blinded_blocks`                        | Same as above; blinded proposals are also `DutyProposer` (`Blinded` flag set on `VersionedSignedProposal`).                                                      |
 | `POST /eth/v1/beacon/pool/voluntary_exits`                     | `DutyExit`: partial signature stored in `ParSigDB`.                                                                                                              |
@@ -812,8 +812,8 @@ The validator api interface is defined as:
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
-	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
+	// RegisterAwaitVersionedProposal registers a function to query agreed proposals by providing the slot.
+	RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (VersionedProposal, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
@@ -989,7 +989,7 @@ func Wire(...) {
   fetch.RegisterAggSigDB(aggSigDB.Await)
   fetch.RegisterAwaitAttData(dutyDB.AwaitAttestation)
   cons.Subscribe(dutyDB.Store)
-  vapi.RegisterAwaitProposal(dutyDB.AwaitProposal)
+  vapi.RegisterAwaitVersionedProposal(dutyDB.AwaitVersionedProposal)
   vapi.RegisterAwaitAttestation(dutyDB.AwaitAttestation)
   vapi.RegisterAwaitSyncContribution(dutyDB.AwaitSyncContribution)
   vapi.RegisterGetDutyDefinition(sched.GetDutyDefinition)
