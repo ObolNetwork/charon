@@ -9,6 +9,7 @@ import (
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
@@ -97,6 +98,12 @@ func WithTracing() WireOption {
 
 			return withSpanStatus(span, clone.DutyDBStore(ctx, duty, set))
 		}
+		w.PayloadExExchange = func(parent context.Context, duty Duty, defSet DutyDefinitionSet) error {
+			ctx, span := tracer.Start(parent, "core/payloadex.Exchange")
+			defer span.End()
+
+			return withSpanStatus(span, clone.PayloadExExchange(ctx, duty, defSet))
+		}
 		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitProposal")
 			defer span.End()
@@ -112,6 +119,22 @@ func WithTracing() WireOption {
 			vp, err := clone.DutyDBAwaitEPBSProposal(ctx, slot)
 
 			return vp, withSpanStatus(span, err)
+		}
+		w.DutyDBAwaitVersionedProposal = func(parent context.Context, slot uint64) (VersionedProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitVersionedProposal")
+			defer span.End()
+
+			vp, err := clone.DutyDBAwaitVersionedProposal(ctx, slot)
+
+			return vp, withSpanStatus(span, err)
+		}
+		w.DutyDBAwaitPayloadContents = func(parent context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitPayloadContents")
+			defer span.End()
+
+			contents, err := clone.DutyDBAwaitPayloadContents(ctx, slot, root)
+
+			return contents, withSpanStatus(span, err)
 		}
 		w.DutyDBAwaitPayloadAttestation = func(parent context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
 			ctx, span := tracer.Start(parent, "core/dutydb.AwaitPayloadAttestationData")

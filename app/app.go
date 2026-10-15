@@ -57,6 +57,7 @@ import (
 	"github.com/obolnetwork/charon/core/infosync"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/core/payloadex"
 	"github.com/obolnetwork/charon/core/priority"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/core/sigagg"
@@ -767,7 +768,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
-	core.Wire(sched, fetch, coreConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
+
+	payloadEx := payloadex.New(p2pNode, sender.SendAsync, sender.SendReceive, nodeIdx.PeerIdx, peers, gaterFunc, deadlineFunc)
+
+	core.Wire(sched, fetch, coreConsensus, dutyDB, payloadEx, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
 	err = wireValidatorMock(ctx, conf, eth2Cl, forkSchedule, pubshares, sched)
 	if err != nil {
@@ -1271,6 +1275,7 @@ func Protocols() []protocol.ID {
 
 	resp = append(resp, protocols.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
+	resp = append(resp, payloadex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
 	resp = append(resp, priority.Protocols()...)
 

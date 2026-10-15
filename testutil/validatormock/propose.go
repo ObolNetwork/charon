@@ -6,6 +6,7 @@ package validatormock
 import (
 	"context"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
@@ -13,7 +14,6 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
-	eth2gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
@@ -25,6 +25,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -34,10 +35,10 @@ import (
 // SignFunc abstract signing done by the validator client.
 type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
 
-// ProposeBlock proposes block for the given slot.
 // proposeEPBSBlock proposes a gloas EPBS block for the provided slot: it fetches the v4
-// proposal, signs the beacon block and submits it. For a payload-included (self-built) proposal it
-// then signs and publishes the execution payload envelope that reveals the committed payload.
+// proposal, signs the beacon block and submits it. For a self-built proposal it then signs and
+// publishes the execution payload envelope that reveals the committed payload, retrieving the
+// envelope separately when the proposal came without it, as charon serves it.
 func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, randao eth2p0.BLSSignature,
 ) error {
@@ -96,24 +97,48 @@ func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Sign
 		return err
 	}
 
-	// A payload-excluded (external builder) proposal is revealed by the builder, not the proposer.
-	if !proposal.ExecutionPayloadIncluded {
+	if proposal.ExecutionPayloadIncluded {
+		contents := proposal.GloasContents
+
+		return proposeExecutionPayloadEnvelope(ctx, eth2Cl, signFunc, epoch, pubkey,
+			contents.ExecutionPayloadEnvelope, contents.KZGProofs, contents.Blobs)
+	}
+
+	// An external builder's payload is revealed by the builder, not the proposer.
+	bid := block.Body.SignedExecutionPayloadBid.Message
+	if bid.BuilderIndex != core.BuilderIndexSelfBuild {
 		return nil
 	}
 
-	return proposeExecutionPayloadEnvelope(ctx, eth2Cl, signFunc, epoch, pubkey, proposal.GloasContents)
+	// A self-built proposal served without its payload: retrieve the envelope, the beacon node
+	// attaches the blobs and proofs it holds when publishing it.
+	envelopes, ok := eth2Cl.(eth2client.ExecutionPayloadEnvelopeProvider)
+	if !ok {
+		return errors.New("execution payload envelope provider not supported")
+	}
+
+	envelopeResp, err := envelopes.ExecutionPayloadEnvelope(ctx, &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: blockSigRoot,
+	})
+	if err != nil {
+		return errors.Wrap(err, "vmock execution payload envelope")
+	}
+
+	return proposeExecutionPayloadEnvelope(ctx, eth2Cl, signFunc, epoch, pubkey, envelopeResp.Data.Gloas, nil, nil)
 }
 
 // proposeExecutionPayloadEnvelope signs and publishes the execution payload envelope for a
 // self-built gloas proposal, revealing the payload the beacon block committed to.
 func proposeExecutionPayloadEnvelope(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
-	epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, contents *eth2gloas.BlockContents,
+	epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, envelope *gloas.ExecutionPayloadEnvelope,
+	kzgProofs []deneb.KZGProof, blobs []deneb.Blob,
 ) error {
-	if contents.ExecutionPayloadEnvelope == nil {
+	if envelope == nil {
 		return errors.New("no gloas execution payload envelope")
 	}
 
-	envelopeSigRoot, err := contents.ExecutionPayloadEnvelope.HashTreeRoot()
+	envelopeSigRoot, err := envelope.HashTreeRoot()
 	if err != nil {
 		return errors.Wrap(err, "hash gloas execution payload envelope")
 	}
@@ -132,15 +157,16 @@ func proposeExecutionPayloadEnvelope(ctx context.Context, eth2Cl eth2wrap.Client
 		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
 			Version: eth2spec.DataVersionGloas,
 			Gloas: &gloas.SignedExecutionPayloadEnvelope{
-				Message:   contents.ExecutionPayloadEnvelope,
+				Message:   envelope,
 				Signature: envelopeSig,
 			},
 		},
-		KZGProofs: contents.KZGProofs,
-		Blobs:     contents.Blobs,
+		KZGProofs: kzgProofs,
+		Blobs:     blobs,
 	})
 }
 
+// ProposeBlock proposes block for the given slot.
 func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot,
 ) error {

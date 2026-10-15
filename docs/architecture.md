@@ -210,6 +210,19 @@ flowchart LR
     class VC,BN,Peers ext
 ```
 
+**From the gloas fork**, the `Fetcher` requests the proposal with its execution payload (`include_payload=true`),
+so any beacon node can publish it. For a self-built block it hands the execution payload envelope, blobs and KZG
+proofs to `PayloadEx` as this node's candidate, and consensus agrees on the beacon block and the root of those
+contents only (`VersionedProposal.PayloadContentsRoot`), keeping megabytes of blobs out of every consensus message.
+`PayloadEx`, triggered by the scheduler, awaits the agreed proposal in the `DutyDB`: the node whose candidate matches
+the agreed root, the one that built the block, stores the contents in the `DutyDB` and pushes them to its peers, and
+a peer that doesn't receive them within a second of its decision asks its peers, which answer from their `DutyDB` as
+soon as they hold them. The `DutyDB` refuses contents that don't hash to the agreed root, so it only ever holds agreed
+data and no sender is trusted. The
+VC is served the agreed block without its payload, then retrieves the envelope
+(the VAPI blocks until it is shared), signs it and submits it as `DutyExecutionPayloadEnvelope`, which Charon
+broadcasts with its blobs to the beacon node. An external builder bid's payload is revealed by the builder.
+
 #### `DutyAttester`
 
 **Serving data** — the scheduler triggers the fetch+consensus path while the VC independently requests the same
@@ -631,7 +644,9 @@ node to join the game before its own data is fetched) or by `Propose` (called wi
 local node’s fetcher). Proposals contain the full `UnsignedDataSet` of the duty. A deterministic leader is elected per
 round. Received consensus messages are checked by the duty gater (rejecting invalid or expired duties) and, for
 attestations, the leader's proposed data can additionally be compared against the locally fetched data.
-When a consensus game completes, the resulting `UnsignedDataSet` is stored in the DutyDB.
+When a consensus game completes, the resulting `UnsignedDataSet` is stored in the DutyDB. From the gloas fork, a
+self-built proposal is agreed without its execution payload envelope, blobs and KZG proofs, which the node whose
+block was agreed shares afterwards, see [`DutyProposer`](#dutyproposer).
 
 The consensus interfaces are defined as:
 ```go
@@ -674,6 +689,8 @@ by ensuring a single unique `UnsignedData` per `Duty,PubKey`.
 The implementation is an in-memory database (`MemDB`) holding per-duty-type maps:
 - Attestation data keyed by `slot,commIdx`, with a separate `slot,commIdx,valIdx` index to look up the DV public key by attestation.
 - Block proposals keyed by `slot` (proposals are unique per slot).
+- Execution payload contents of self-built gloas proposals keyed by `slot,blockRoot`, from the local fetch and peers'
+  shares; only the agreed block's root is queried.
 - Aggregated attestations keyed by `slot,dataRoot,commIdx`.
 - Sync committee contributions keyed by `slot,subcommIdx,blockRoot`.
 
