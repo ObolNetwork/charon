@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package core.corepb.v1;
+
+option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
+
+import "core/corepb/v1/core.proto";
+
+// PayloadExMsg carries a self-built proposal with its execution payload envelope, blobs and KZG
+// proofs. Receivers store it iff it hashes to the payload contents root agreed with the proposal's
+// beacon block, whoever delivers it.
+message PayloadExMsg {
+  core.corepb.v1.Duty duty = 1;
+  // contents is the SSZ encoding of the proposal with its execution payload contents.
+  bytes contents = 2;
+}
+
+// PayloadExRequest asks a peer for the execution payload contents of the agreed self-built
+// proposal with the block root, answered with the PayloadExMsg once the peer holds them.
+message PayloadExRequest {
+  core.corepb.v1.Duty duty = 1;
+  bytes block_root = 2;
+}
