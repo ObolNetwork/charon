@@ -224,6 +224,79 @@ func TestReceive(t *testing.T) {
 	})
 }
 
+func TestHandle(t *testing.T) {
+	const slot = 1
+
+	duty := core.NewProposerDuty(slot)
+	peers := newTestPeers(t, 2)
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	agreed, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+
+	decided := make(chan struct{})
+	stored := make(chan core.VersionedProposal, 8)
+
+	// Pushes are held until the decision, bounded by the duty deadline.
+	p := &PayloadEx{
+		peers:     peers,
+		gaterFunc: func(core.Duty) bool { return true },
+		deadlineFunc: func(core.Duty) (time.Time, bool) {
+			return time.Now().Add(time.Second), true
+		},
+		awaitProposalFunc: func(ctx context.Context, _ uint64) (core.VersionedProposal, error) {
+			select {
+			case <-decided:
+				return agreed, nil
+			case <-ctx.Done():
+				return core.VersionedProposal{}, ctx.Err()
+			}
+		},
+		storeFunc: func(_ context.Context, contents core.VersionedProposal) error {
+			stored <- contents
+			return nil
+		},
+	}
+
+	pending := func(peerID peer.ID) bool {
+		p.pendingPushes.mu.Lock()
+		defer p.pendingPushes.mu.Unlock()
+
+		_, ok := p.pendingPushes.slots[peerID]
+
+		return ok
+	}
+
+	msg := newTestMsg(t, duty, contents)
+
+	_, _, err = p.handle(t.Context(), peers[1], msg)
+	require.NoError(t, err)
+	require.True(t, pending(peers[1]))
+
+	// A peer has one push held at a time, for this or any other slot.
+	_, _, err = p.handle(t.Context(), peers[1], msg)
+	require.ErrorContains(t, err, "already pending")
+
+	_, _, err = p.handle(t.Context(), peers[1], newTestMsg(t, core.NewProposerDuty(slot+1), contents))
+	require.ErrorContains(t, err, "already pending")
+
+	// Other duties and unknown peers are rejected.
+	_, _, err = p.handle(t.Context(), peers[1], newTestMsg(t, core.NewAttesterDuty(slot), contents))
+	require.ErrorContains(t, err, "invalid payloadex duty")
+
+	_, _, err = p.handle(t.Context(), peer.ID("unknown"), msg)
+	require.ErrorContains(t, err, "unknown peer")
+
+	// The decision releases the held push: the contents are stored and nothing stays pending.
+	close(decided)
+
+	require.Equal(t, contents, <-stored)
+	require.Eventually(t, func() bool { return !pending(peers[1]) }, time.Second, 5*time.Millisecond)
+	require.Empty(t, stored)
+}
+
 func TestHandleRequest(t *testing.T) {
 	const slot = 1
 
@@ -268,6 +341,34 @@ func TestHandleRequest(t *testing.T) {
 	_, ok, err = p.handleRequest(ctx, peers[1], request(duty, testutil.RandomRoot()))
 	require.NoError(t, err)
 	require.False(t, ok)
+
+	// A peer has one request held at a time, for this or any other slot.
+	pending := func(peerID peer.ID) bool {
+		p.pendingRequests.mu.Lock()
+		defer p.pendingRequests.mu.Unlock()
+
+		_, ok := p.pendingRequests.slots[peerID]
+
+		return ok
+	}
+
+	parkedCtx, parkedCancel := context.WithCancel(t.Context())
+	defer parkedCancel()
+
+	go func() {
+		_, _, _ = p.handleRequest(parkedCtx, peers[1], request(core.NewProposerDuty(slot+1), testutil.RandomRoot()))
+	}()
+
+	require.Eventually(t, func() bool { return pending(peers[1]) }, time.Second, 5*time.Millisecond)
+
+	_, _, err = p.handleRequest(t.Context(), peers[1], request(core.NewProposerDuty(slot+1), testutil.RandomRoot()))
+	require.ErrorContains(t, err, "already pending")
+
+	_, _, err = p.handleRequest(t.Context(), peers[1], request(core.NewProposerDuty(slot+2), testutil.RandomRoot()))
+	require.ErrorContains(t, err, "already pending")
+
+	parkedCancel()
+	require.Eventually(t, func() bool { return !pending(peers[1]) }, time.Second, 5*time.Millisecond)
 
 	// Requests of other duties and from unknown peers are rejected.
 	_, _, err = p.handleRequest(t.Context(), peers[1], request(core.NewAttesterDuty(slot), root))

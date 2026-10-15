@@ -108,6 +108,9 @@ type PayloadEx struct {
 
 	mu         sync.Mutex
 	candidates map[uint64]candidate // This node's candidate contents by slot, those of the self-built block it proposes.
+
+	pendingPushes   pendingSet // Pushes held until the decision, by peer.
+	pendingRequests pendingSet // Requests held until the contents are held, by peer.
 }
 
 // candidate is this node's candidate execution payload contents of a slot, with their root.
@@ -354,7 +357,7 @@ func (p *PayloadEx) pull(ctx context.Context, duty core.Duty, root eth2p0.Root) 
 }
 
 // handle receives pushed execution payload contents and stores them asynchronously, since the
-// decision may still be in flight on this node.
+// decision may still be in flight on this node, holding one push per peer.
 func (p *PayloadEx) handle(ctx context.Context, sender peer.ID, req proto.Message) (proto.Message, bool, error) {
 	pb, ok := req.(*pbv1.PayloadExMsg)
 	if !ok || pb == nil || pb.GetDuty() == nil || len(pb.GetContents()) == 0 {
@@ -375,11 +378,17 @@ func (p *PayloadEx) handle(ctx context.Context, sender peer.ID, req proto.Messag
 		return nil, false, errors.New("payloadex duty without deadline", z.Any("duty", duty))
 	}
 
+	err := p.pendingPushes.add(sender, duty.Slot)
+	if err != nil {
+		return nil, false, errors.Wrap(err, "payloadex push", z.Any("duty", duty), z.Str("peer", p2p.PeerName(sender)))
+	}
+
 	// The handler's context ends when it returns, the acceptance lives until the duty deadline.
 	ctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
 
 	go func() {
 		defer cancel()
+		defer p.pendingPushes.remove(sender, duty.Slot)
 
 		ctx := log.WithCtx(ctx, z.Any("duty", duty))
 
@@ -399,7 +408,7 @@ func (p *PayloadEx) handle(ctx context.Context, sender peer.ID, req proto.Messag
 }
 
 // handleRequest answers a peer's request with the agreed contents it asks for, from the DutyDB,
-// once held and within the request timeout.
+// once held and within the request timeout, holding one request per peer.
 func (p *PayloadEx) handleRequest(ctx context.Context, sender peer.ID, req proto.Message) (proto.Message, bool, error) {
 	pb, ok := req.(*pbv1.PayloadExRequest)
 	if !ok || pb == nil || pb.GetDuty() == nil || len(pb.GetBlockRoot()) != len(eth2p0.Root{}) {
@@ -414,6 +423,13 @@ func (p *PayloadEx) handleRequest(ctx context.Context, sender peer.ID, req proto
 	if !slices.Contains(p.peers, sender) {
 		return nil, false, errors.New("payloadex request from unknown peer")
 	}
+
+	err := p.pendingRequests.add(sender, duty.Slot)
+	if err != nil {
+		return nil, false, errors.Wrap(err, "payloadex request", z.Any("duty", duty), z.Str("peer", p2p.PeerName(sender)))
+	}
+
+	defer p.pendingRequests.remove(sender, duty.Slot)
 
 	epbs, err := p.awaitContentsFunc(ctx, duty.Slot, eth2p0.Root(pb.GetBlockRoot()))
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
@@ -451,9 +467,15 @@ func (p *PayloadEx) receive(ctx context.Context, pb *pbv1.PayloadExMsg) error {
 		return errors.New("invalid payloadex duty", z.Any("duty", duty))
 	}
 
+	// Decode once decided, so that a push held for the decision costs its bytes only.
+	_, err := p.awaitProposalFunc(ctx, duty.Slot)
+	if err != nil {
+		return errors.Wrap(err, "await agreed proposal")
+	}
+
 	var contents core.VersionedProposal
 
-	err := contents.UnmarshalSSZ(pb.GetContents())
+	err = contents.UnmarshalSSZ(pb.GetContents())
 	if err != nil {
 		return errors.Wrap(err, "decode payloadex contents")
 	}
@@ -467,17 +489,49 @@ func (p *PayloadEx) receive(ctx context.Context, pb *pbv1.PayloadExMsg) error {
 		return errors.New("payloadex contents of another slot", z.U64("slot", uint64(slot)))
 	}
 
-	_, err = p.awaitProposalFunc(ctx, duty.Slot)
-	if err != nil {
-		return errors.Wrap(err, "await agreed proposal")
-	}
-
 	err = p.storeFunc(ctx, contents)
 	if err != nil {
 		return errors.Wrap(err, "store execution payload contents")
 	}
 
 	return nil
+}
+
+// pendingSet holds the slot each peer has work pending for, one at a time: a peer pushes and
+// requests once per slot and each lives at most until the end of its slot, so more is a bug or
+// abuse, and the first push or request from a peer is the one held.
+type pendingSet struct {
+	mu    sync.Mutex
+	slots map[peer.ID]uint64
+}
+
+// add registers the peer's pending slot, or errors if the peer already has one pending.
+func (s *pendingSet) add(peerID peer.ID, slot uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.slots == nil {
+		s.slots = make(map[peer.ID]uint64)
+	}
+
+	pending, ok := s.slots[peerID]
+	if ok {
+		return errors.New("already pending", z.U64("pending_slot", pending))
+	}
+
+	s.slots[peerID] = slot
+
+	return nil
+}
+
+// remove unregisters the peer's pending slot.
+func (s *pendingSet) remove(peerID peer.ID, slot uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.slots[peerID] == slot {
+		delete(s.slots, peerID)
+	}
 }
 
 // newMsg returns the message carrying the contents of the duty.
