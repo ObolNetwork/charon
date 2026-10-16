@@ -46,6 +46,9 @@ const (
 	// at most a few MB, like consensus messages carried before this protocol.
 	maxMsgSize = 32 * 1024 * 1024 // 32 MB.
 
+	// maxRequestSize caps the size of received requests, a duty and a block root.
+	maxRequestSize = 1024 // 1 KB.
+
 	// pullDelay is how long after the local decision a node waits for the proposer's push before
 	// asking its peers for the contents, a few times the usual transfer.
 	pullDelay = time.Second
@@ -89,7 +92,7 @@ func New(p2pNode host.Host, sendFunc p2p.SendFunc, sendReceiveFunc p2p.SendRecei
 
 	p2p.RegisterHandler("payloadex", p2pNode, requestProtocolID1,
 		func() proto.Message { return new(pbv1.PayloadExRequest) },
-		p.handleRequest, p2p.WithReceiveTimeout(requestTimeout))
+		p.handleRequest, p2p.WithReadLimit(maxRequestSize), p2p.WithReceiveTimeout(requestTimeout))
 
 	return p
 }
@@ -330,6 +333,16 @@ func (p *PayloadEx) pull(ctx context.Context, duty core.Duty, root eth2p0.Root) 
 				if ctx.Err() == nil {
 					log.Debug(ctx, "Execution payload contents request failed", z.Err(err), z.Str("peer", p2p.PeerName(peerID)))
 				}
+
+				return
+			}
+
+			// An answer for another duty, e.g. valid contents of another retained slot, mustn't
+			// count as this slot's, which the store couldn't tell apart.
+			if resp.GetDuty() == nil || core.DutyFromProto(resp.GetDuty()) != duty {
+				receivedCounter.WithLabelValues("rejected").Inc()
+				log.Warn(ctx, "Rejected requested execution payload contents of another duty", nil,
+					z.Any("answered_duty", core.DutyFromProto(resp.GetDuty())), z.Str("peer", p2p.PeerName(peerID)))
 
 				return
 			}

@@ -13,9 +13,11 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
@@ -221,6 +223,89 @@ func TestReceive(t *testing.T) {
 		err := p.receive(ctx, newTestMsg(t, duty, contents))
 		require.ErrorContains(t, err, "await agreed proposal")
 		require.Empty(t, stored)
+	})
+}
+
+func TestPull(t *testing.T) {
+	const (
+		n           = 3
+		proposerIdx = 0
+		slot        = 1
+	)
+
+	duty := core.NewProposerDuty(slot)
+	peers := newTestPeers(t, n)
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	root, err := contents.Root()
+	require.NoError(t, err)
+
+	// Valid contents of another retained slot.
+	other := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	other.EPBS.GloasContents.Block.Slot = slot + 1
+
+	var logBuf zaptest.Buffer
+	log.InitLogfmtForT(t, &logBuf)
+
+	// Every slot's proposal is agreed, the contents are not held, so the peers are asked.
+	newPayloadEx := func(answers map[peer.ID]*pbv1.PayloadExMsg, stored *[]core.VersionedProposal) *PayloadEx {
+		return &PayloadEx{
+			peerIdx: proposerIdx,
+			peers:   peers,
+			awaitProposalFunc: func(context.Context, uint64) (core.VersionedProposal, error) {
+				return core.VersionedProposal{}, nil
+			},
+			awaitContentsFunc: func(context.Context, uint64, eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+				return nil, errors.New("not held")
+			},
+			storeFunc: func(_ context.Context, contents core.VersionedProposal) error {
+				*stored = append(*stored, contents)
+				return nil
+			},
+			sendReceiveFunc: func(_ context.Context, _ host.Host, peerID peer.ID, _, resp proto.Message, _ protocol.ID, _ ...p2p.SendRecvOption) error {
+				answer, ok := answers[peerID]
+				if !ok {
+					return errors.New("no answer")
+				}
+
+				proto.Merge(resp, answer)
+
+				return nil
+			},
+		}
+	}
+
+	t.Run("answer for another slot", func(t *testing.T) {
+		var stored []core.VersionedProposal
+
+		logBuf.Reset()
+
+		p := newPayloadEx(map[peer.ID]*pbv1.PayloadExMsg{
+			peers[1]: newTestMsg(t, core.NewProposerDuty(slot+1), other),
+			peers[2]: newTestMsg(t, core.NewProposerDuty(slot+1), other),
+		}, &stored)
+
+		p.pull(t.Context(), duty, root)
+		require.Empty(t, stored)
+		require.Contains(t, logBuf.String(), "another duty")
+		require.Contains(t, logBuf.String(), "not received from any peer")
+	})
+
+	t.Run("answer for the slot", func(t *testing.T) {
+		var stored []core.VersionedProposal
+
+		logBuf.Reset()
+
+		p := newPayloadEx(map[peer.ID]*pbv1.PayloadExMsg{
+			peers[1]: newTestMsg(t, core.NewProposerDuty(slot+1), other),
+			peers[2]: newTestMsg(t, duty, contents),
+		}, &stored)
+
+		p.pull(t.Context(), duty, root)
+		require.Equal(t, []core.VersionedProposal{contents}, stored)
+		require.NotContains(t, logBuf.String(), "not received from any peer")
 	})
 }
 
