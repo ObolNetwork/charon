@@ -8,6 +8,7 @@ import (
 	"maps"
 	"math/big"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -3348,9 +3349,12 @@ func TestComponent_EPBSProposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	// Consensus agrees on the bare self-built block.
+	// Consensus agrees on the bare self-built block, committing to its contents.
 	contents := testutil.RandomGloasBlockContents()
 	contents.Block.Slot = slot
+
+	blockRoot, err := contents.Block.HashTreeRoot()
+	require.NoError(t, err)
 
 	agreed := &eth2api.VersionedEPBSProposal{
 		Version: eth2spec.DataVersionGloas,
@@ -3361,20 +3365,95 @@ func TestComponent_EPBSProposal(t *testing.T) {
 		return agreed, nil
 	})
 
-	// The VC's IncludePayload is ignored: the agreed block is always served in the stateful
-	// (payload-excluded) form, the VC then retrieves the envelope separately.
-	for _, includePayload := range []bool{true, false} {
+	var awaited int
+
+	component.RegisterAwaitPayloadContents(func(_ context.Context, s uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		require.Equal(t, eth2p0.Root(blockRoot), root)
+
+		awaited++
+
+		return &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            contents,
+		}, nil
+	})
+
+	propose := func(includePayload *bool) *eth2api.VersionedEPBSProposal {
 		resp, err := component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
 			Slot:           slot,
 			RandaoReveal:   randao,
-			IncludePayload: &includePayload,
+			IncludePayload: includePayload,
 		})
 		require.NoError(t, err)
-		require.False(t, resp.Data.ExecutionPayloadIncluded)
-		require.Equal(t, contents.Block, resp.Data.Gloas)
+
+		return resp.Data
 	}
 
-	require.NotContains(t, logBuf.String(), "stateful")
+	// A stateful request, the form validator clients use by default, is served the agreed block
+	// at once, the VC then retrieves the envelope separately.
+	stateful := false
+
+	for _, includePayload := range []*bool{nil, &stateful} {
+		proposal := propose(includePayload)
+		require.False(t, proposal.ExecutionPayloadIncluded)
+		require.Equal(t, contents.Block, proposal.Gloas)
+	}
+
+	require.Zero(t, awaited)
+	require.NotContains(t, logBuf.String(), "stateless")
+
+	// A stateless request waits for the shared contents and is served the full proposal, with a
+	// warning since it delays the proposal.
+	stateless := true
+
+	proposal := propose(&stateless)
+	require.True(t, proposal.ExecutionPayloadIncluded)
+	require.Equal(t, contents, proposal.GloasContents)
+	require.Equal(t, 1, awaited)
+	require.Contains(t, logBuf.String(), "stateless")
+
+	// Contents not shared in time are not waited for: the stateful form is served instead, the VC
+	// retrieving the envelope once shared.
+	component.RegisterAwaitPayloadContents(func(ctx context.Context, _ uint64, _ eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+
+	proposal = propose(&stateless)
+	require.False(t, proposal.ExecutionPayloadIncluded)
+	require.Equal(t, contents.Block, proposal.Gloas)
+	require.Contains(t, logBuf.String(), "serving the stateful form")
+
+	// Also if the request itself ends first.
+	requestCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer cancel()
+
+	resp, err := component.EPBSProposal(requestCtx, &eth2api.EPBSProposalOpts{
+		Slot:           slot,
+		RandaoReveal:   randao,
+		IncludePayload: &stateless,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Data.ExecutionPayloadIncluded)
+	require.Equal(t, contents.Block, resp.Data.Gloas)
+
+	// An external builder bid has no contents to wait for, its block is served as is.
+	bidBlock := testutil.RandomGloasBeaconBlock()
+	bidBlock.Slot = slot
+	agreed = &eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   bidBlock,
+	}
+
+	// The bid is known from the agreed block, so the contents aren't awaited: no timeout, no warning.
+	warnings := strings.Count(logBuf.String(), "serving the stateful form")
+
+	proposal = propose(&stateless)
+	require.False(t, proposal.ExecutionPayloadIncluded)
+	require.Equal(t, bidBlock, proposal.Gloas)
+	require.Equal(t, warnings, strings.Count(logBuf.String(), "serving the stateful form"))
 }
 
 func TestComponent_SubmitProposalGloas(t *testing.T) {

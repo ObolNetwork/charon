@@ -42,7 +42,9 @@ type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature,
 func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
 	slot eth2p0.Slot, epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, randao eth2p0.BLSSignature,
 ) error {
-	includePayload := true
+	// Stateful, as validator clients request by default: charon serves a self-built block without
+	// its payload and the envelope separately. A beacon node may still include the payload.
+	includePayload := false
 
 	eth2Resp, err := eth2Cl.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
 		Slot:           slot,

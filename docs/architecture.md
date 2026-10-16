@@ -221,7 +221,8 @@ soon as they hold them. The `DutyDB` refuses contents that don't hash to the agr
 data and no sender is trusted. The
 VC is served the agreed block without its payload, then retrieves the envelope
 (the VAPI blocks until it is shared), signs it and submits it as `DutyExecutionPayloadEnvelope`, which Charon
-broadcasts with its blobs to the beacon node. The `DutyDB` retains the agreed block and its contents, and `PayloadEx`
+broadcasts with its blobs to the beacon node; a VC requesting the stateless form is served the block with its
+contents if they are shared within half a second, with a warning, and the stateful form otherwise. The `DutyDB` retains the agreed block and its contents, and `PayloadEx`
 exchanges them, until the end of the slot, past the proposer duty's submission deadline at the attestation due time,
 since the envelope is revealed after the block. An external builder bid's payload is revealed by the builder.
 

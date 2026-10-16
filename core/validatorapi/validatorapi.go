@@ -40,6 +40,11 @@ import (
 
 const (
 	defaultGasLimit = 30000000
+
+	// statelessContentsTimeout bounds how long a stateless gloas proposal request waits for the
+	// shared execution payload contents before being served the stateful form, the block alone:
+	// the contents normally follow the decision within a few hundred milliseconds.
+	statelessContentsTimeout = 500 * time.Millisecond
 )
 
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
@@ -483,10 +488,13 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 // with charon's own builder configuration, which the proposer config file distributes
 // to the VCs.
 //
-// The VC's IncludePayload is ignored: the cluster agrees on the beacon block only, so the
-// proposal is always served in the stateful (payload-excluded) form. For a self-built block
+// The cluster agrees on the beacon block only, so the proposal is served in the stateful
+// (payload-excluded) form, which validator clients request by default. For a self-built block
 // the VC then retrieves the agreed execution payload envelope via ExecutionPayloadEnvelope,
-// shared by the node that built it; an external builder's payload is revealed by the builder.
+// shared by the node that built it. A stateless request (IncludePayload) is served the
+// self-built block with its contents if they are shared within statelessContentsTimeout, which
+// delays the proposal, so it is warned about, and the stateful form otherwise. An external
+// builder's payload is revealed by the builder.
 func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
 	var span trace.Span
 
@@ -502,6 +510,32 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 	proposal, err := c.awaitEPBSProposal(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.IncludePayload == nil || !*opts.IncludePayload {
+		proposalFormGauge.Set(proposalFormStateful)
+
+		return wrapResponse(proposal), nil
+	}
+
+	proposalFormGauge.Set(proposalFormStateless)
+	log.Warn(ctx, "Validator client requested a stateless gloas proposal, serving it with its execution payload contents if shared in time; validator clients in a distributed validator should request stateful proposals", nil,
+		z.U64("slot", uint64(opts.Slot)))
+
+	waitCtx, cancel := context.WithTimeout(ctx, statelessContentsTimeout)
+	defer cancel()
+
+	full, err := c.awaitAgreedPayloadContents(waitCtx, uint64(opts.Slot))
+	if err == nil {
+		return wrapResponse(full), nil
+	}
+
+	// The block is served without its contents rather than held up by them, whatever the error:
+	// the VC retrieves the envelope once shared, like a stateful one. An external builder bid
+	// has no contents.
+	if !errors.Is(err, eth2client.ErrNoExecutionPayloadEnvelope) {
+		log.Warn(ctx, "Execution payload contents not shared in time for a stateless gloas proposal, serving the stateful form", err,
+			z.U64("slot", uint64(opts.Slot)))
 	}
 
 	return wrapResponse(proposal), nil
