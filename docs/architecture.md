@@ -210,6 +210,22 @@ flowchart LR
     class VC,BN,Peers ext
 ```
 
+**From the gloas fork**, the `Fetcher` requests the proposal with its execution payload (`include_payload=true`),
+so any beacon node can publish it. For a self-built block it hands the execution payload envelope, blobs and KZG
+proofs to `PayloadEx` as this node's candidate, and consensus agrees on the beacon block and the root of those
+contents only (`VersionedProposal.PayloadContentsRoot`), keeping megabytes of blobs out of every consensus message.
+`PayloadEx`, triggered by the scheduler, awaits the agreed proposal in the `DutyDB`: the node whose candidate matches
+the agreed root, the one that built the block, stores the contents in the `DutyDB` and pushes them to its peers, and
+a peer that doesn't receive them within a second of its decision asks its peers, which answer from their `DutyDB` as
+soon as they hold them. The `DutyDB` refuses contents that don't hash to the agreed root, so it only ever holds agreed
+data and no sender is trusted. The
+VC is served the agreed block without its payload, then retrieves the envelope
+(the VAPI blocks until it is shared), signs it and submits it as `DutyExecutionPayloadEnvelope`, which Charon
+broadcasts with its blobs to the beacon node; a VC requesting the stateless form is served the block with its
+contents if they are shared within half a second, with a warning, and the stateful form otherwise. The `DutyDB` retains the agreed block and its contents, and `PayloadEx`
+exchanges them, until the end of the slot, past the proposer duty's submission deadline at the attestation due time,
+since the envelope is revealed after the block. An external builder bid's payload is revealed by the builder.
+
 #### `DutyAttester`
 
 **Serving data** — the scheduler triggers the fetch+consensus path while the VC independently requests the same
@@ -631,7 +647,9 @@ node to join the game before its own data is fetched) or by `Propose` (called wi
 local node’s fetcher). Proposals contain the full `UnsignedDataSet` of the duty. A deterministic leader is elected per
 round. Received consensus messages are checked by the duty gater (rejecting invalid or expired duties) and, for
 attestations, the leader's proposed data can additionally be compared against the locally fetched data.
-When a consensus game completes, the resulting `UnsignedDataSet` is stored in the DutyDB.
+When a consensus game completes, the resulting `UnsignedDataSet` is stored in the DutyDB. From the gloas fork, a
+self-built proposal is agreed without its execution payload envelope, blobs and KZG proofs, which the node whose
+block was agreed shares afterwards, see [`DutyProposer`](#dutyproposer).
 
 The consensus interfaces are defined as:
 ```go
@@ -674,6 +692,8 @@ by ensuring a single unique `UnsignedData` per `Duty,PubKey`.
 The implementation is an in-memory database (`MemDB`) holding per-duty-type maps:
 - Attestation data keyed by `slot,commIdx`, with a separate `slot,commIdx,valIdx` index to look up the DV public key by attestation.
 - Block proposals keyed by `slot` (proposals are unique per slot).
+- Execution payload contents of self-built gloas proposals keyed by `slot,blockRoot`, from the local fetch and peers'
+  shares; only the agreed block's root is queried.
 - Aggregated attestations keyed by `slot,dataRoot,commIdx`.
 - Sync committee contributions keyed by `slot,subcommIdx,blockRoot`.
 
@@ -693,9 +713,9 @@ type DutyDB interface {
 	// Store stores the unsigned duty data set.
 	Store(context.Context, Duty, UnsignedDataSet) error
 
-	// AwaitProposal blocks and returns the proposed beacon block
-	// for the slot when available.
-	AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
+	// AwaitVersionedProposal blocks and returns the agreed proposal for the slot when available,
+	// in charon's versioned form of any fork.
+	AwaitVersionedProposal(ctx context.Context, slot uint64) (VersionedProposal, error)
 
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
@@ -768,7 +788,7 @@ The validator API intercepts the following endpoints (all other calls are transp
 | `GET \| POST /eth/v1/beacon/states/{state_id}/validators`      | Intercepted to map public shares to DV pubkeys (and back in the response).                                                                                       |
 | `GET /eth/v1/validator/attestation_data`                       | Served from `DutyDB.AwaitAttestation` by `slot,committee_index`.                                                                                                 |
 | `POST /eth/v2/beacon/pool/attestations`                        | `DutyAttester`: DV pubkey inferred via `DutyDB.PubKeyByAttestation`; partial signatures stored in `ParSigDB` (v1 returns 404).                                   |
-| `GET /eth/v3/validator/blocks/{slot}`                          | `DutyProposer`/`DutyRandao`: verifies the partial randao reveal, submits it to `ParSigDB` for async aggregation, then blocks on `DutyDB.AwaitProposal` (v2 404). |
+| `GET /eth/v3/validator/blocks/{slot}`                          | `DutyProposer`/`DutyRandao`: verifies the partial randao reveal, submits it to `ParSigDB` for async aggregation, then blocks on `DutyDB.AwaitVersionedProposal` (v2 404). |
 | `POST /eth/v1,v2/beacon/blocks`                                | `DutyProposer`: DV pubkey looked up via the scheduler's `GetDutyDefinition`; partial signature stored in `ParSigDB`.                                             |
 | `POST /eth/v1,v2/beacon/blinded_blocks`                        | Same as above; blinded proposals are also `DutyProposer` (`Blinded` flag set on `VersionedSignedProposal`).                                                      |
 | `POST /eth/v1/beacon/pool/voluntary_exits`                     | `DutyExit`: partial signature stored in `ParSigDB`.                                                                                                              |
@@ -795,8 +815,8 @@ The validator api interface is defined as:
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the
 // DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
-	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
+	// RegisterAwaitVersionedProposal registers a function to query agreed proposals by providing the slot.
+	RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (VersionedProposal, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
@@ -972,7 +992,7 @@ func Wire(...) {
   fetch.RegisterAggSigDB(aggSigDB.Await)
   fetch.RegisterAwaitAttData(dutyDB.AwaitAttestation)
   cons.Subscribe(dutyDB.Store)
-  vapi.RegisterAwaitProposal(dutyDB.AwaitProposal)
+  vapi.RegisterAwaitVersionedProposal(dutyDB.AwaitVersionedProposal)
   vapi.RegisterAwaitAttestation(dutyDB.AwaitAttestation)
   vapi.RegisterAwaitSyncContribution(dutyDB.AwaitSyncContribution)
   vapi.RegisterGetDutyDefinition(sched.GetDutyDefinition)

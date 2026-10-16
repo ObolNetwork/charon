@@ -1083,7 +1083,7 @@ func RandomGloasExecutionPayload() *gloas.ExecutionPayload {
 	}
 }
 
-// RandomGloasBlockContents returns random gloas block contents whose envelope is
+// RandomGloasBlockContents returns random self-built gloas block contents whose envelope is
 // consistent with the block's execution payload bid, satisfying client-side guards.
 // Note the envelope beacon block root goes stale if the block is mutated afterwards.
 func RandomGloasBlockContents() *eth2gloas.BlockContents {
@@ -1095,7 +1095,12 @@ func RandomGloasBlockContents() *eth2gloas.BlockContents {
 		panic(err) // Should never happen, and this is test code sugar.
 	}
 
+	// Only a self-built block carries its payload: its bid pays nothing and is unsigned.
+	block.Body.SignedExecutionPayloadBid.Signature = eth2p0.BLSSignature{0xc0}
 	bid := block.Body.SignedExecutionPayloadBid.Message
+	bid.BuilderIndex = core.BuilderIndexSelfBuild
+	bid.Value = 0
+	bid.ExecutionPayment = 0
 	bid.ExecutionRequestsRoot = requestsRoot
 
 	blockRoot, err := block.HashTreeRoot()

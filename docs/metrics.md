@@ -77,6 +77,10 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_parsigdb_store` | Histogram | Latency of partial signatures received since earliest expected time, per duty, per peer index | `duty, peer_idx` |
 | `core_parsigex_set_verification_seconds` | Histogram | Duration to verify all partial signatures in a received set, in seconds | `duty` |
+| `core_payloadex_received_total` | Counter | Total number of execution payload contents received from peers, pushed or requested, by result (accepted or rejected) | `result` |
+| `core_payloadex_requested_total` | Counter | Total number of agreed self-built proposals whose execution payload contents this node had to request from its peers, the proposer`s push not having arrived in time |  |
+| `core_payloadex_served_total` | Counter | Total number of execution payload contents requests from peers, by result (found or missing) | `result` |
+| `core_payloadex_shared_total` | Counter | Total number of agreed self-built proposals whose execution payload contents this node shared with its peers |  |
 | `core_scheduler_current_epoch` | Gauge | The current epoch |  |
 | `core_scheduler_current_slot` | Gauge | The current slot |  |
 | `core_scheduler_duty_total` | Counter | The total count of duties scheduled by type | `duty` |
@@ -103,6 +107,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_participation_total` | Counter | Total number of successful participations by peer and duty type | `duty, peer` |
 | `core_tracker_success_duties_total` | Counter | Total number of successful duties by type | `duty` |
 | `core_tracker_unexpected_events_total` | Counter | Total number of unexpected events by peer | `peer` |
+| `core_validatorapi_proposal_form` | Gauge | The form the validator client requested the latest gloas proposal in: none requested yet (0), stateless with its execution payload, which waits for the shared payload contents (1), or stateful (2) |  |
 | `core_validatorapi_proposer_preferences_mismatch_total` | Counter | Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field | `field` |
 | `core_validatorapi_proxy_request_latency_seconds` | Histogram | The validatorapi proxy request latencies in seconds by path | `path` |
 | `core_validatorapi_request_error_total` | Counter | The total number of validatorapi request errors | `endpoint, status_code` |

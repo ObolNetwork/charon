@@ -774,3 +774,117 @@ func TestPayloadAttestationDataNoPayloadEncoding(t *testing.T) {
 		require.Equal(t, data, fromSSZ)
 	}
 }
+
+func TestEPBSBid(t *testing.T) {
+	excluded := testutil.RandomGloasCoreVersionedEPBSProposal()
+	included := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+
+	bid, err := core.EPBSBid(excluded.EPBS)
+	require.NoError(t, err)
+	require.Equal(t, excluded.EPBS.Gloas.Body.SignedExecutionPayloadBid.Message, bid)
+
+	bid, err = core.EPBSBid(included.EPBS)
+	require.NoError(t, err)
+	require.Equal(t, included.EPBS.GloasContents.Block.Body.SignedExecutionPayloadBid.Message, bid)
+
+	// A payload-included proposal is self-built.
+	require.Equal(t, core.BuilderIndexSelfBuild, bid.BuilderIndex)
+
+	_, err = core.EPBSBid(nil)
+	require.ErrorContains(t, err, "no epbs proposal")
+
+	_, err = core.EPBSBid(&eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas})
+	require.ErrorContains(t, err, "no gloas block execution payload bid")
+}
+
+func TestPayloadContentsRoot(t *testing.T) {
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+
+	root, err := core.PayloadContentsRoot(contents)
+	require.NoError(t, err)
+	require.NotEqual(t, [32]byte{}, root)
+
+	// Deterministic over clones, sensitive to any change of the contents.
+	clone, err := contents.Clone()
+	require.NoError(t, err)
+
+	cloned, ok := clone.(core.VersionedProposal)
+	require.True(t, ok)
+
+	cloneRoot, err := core.PayloadContentsRoot(cloned)
+	require.NoError(t, err)
+	require.Equal(t, root, cloneRoot)
+
+	cloned.EPBS.GloasContents.ExecutionPayloadEnvelope.Payload.GasLimit++
+
+	alteredRoot, err := core.PayloadContentsRoot(cloned)
+	require.NoError(t, err)
+	require.NotEqual(t, root, alteredRoot)
+
+	// Bare proposals have no contents.
+	_, err = core.PayloadContentsRoot(testutil.RandomGloasCoreVersionedEPBSProposal())
+	require.ErrorContains(t, err, "no execution payload contents")
+}
+
+func TestWithoutPayloadContents(t *testing.T) {
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+
+	root, err := core.PayloadContentsRoot(contents)
+	require.NoError(t, err)
+
+	bare, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+	require.False(t, bare.EPBS.ExecutionPayloadIncluded)
+	require.Equal(t, contents.EPBS.GloasContents.Block, bare.EPBS.Gloas)
+	require.Equal(t, root, bare.PayloadContentsRoot)
+
+	// The block root is unaffected by the payload contents root.
+	blockRoot, err := contents.Root()
+	require.NoError(t, err)
+
+	bareRoot, err := bare.Root()
+	require.NoError(t, err)
+	require.Equal(t, blockRoot, bareRoot)
+
+	// The payload contents root is agreed with the block: it survives the SSZ and JSON
+	// encodings of the proposal and its clone.
+	b, err := bare.MarshalSSZ()
+	require.NoError(t, err)
+
+	var fromSSZ core.VersionedProposal
+
+	require.NoError(t, fromSSZ.UnmarshalSSZ(b))
+	require.Equal(t, bare, fromSSZ)
+
+	j, err := bare.MarshalJSON()
+	require.NoError(t, err)
+	require.Contains(t, string(j), `"payload_contents_root":"0x`)
+
+	var fromJSON core.VersionedProposal
+
+	require.NoError(t, fromJSON.UnmarshalJSON(j))
+	require.Equal(t, bare, fromJSON)
+
+	clone, err := bare.Clone()
+	require.NoError(t, err)
+	require.Equal(t, bare, clone)
+
+	// A proposal without the root encodes without it.
+	plain := testutil.RandomGloasCoreVersionedEPBSProposal()
+
+	j, err = plain.MarshalJSON()
+	require.NoError(t, err)
+	require.NotContains(t, string(j), "payload_contents_root")
+
+	b, err = plain.MarshalSSZ()
+	require.NoError(t, err)
+
+	var plainFromSSZ core.VersionedProposal
+
+	require.NoError(t, plainFromSSZ.UnmarshalSSZ(b))
+	require.Equal(t, plain, plainFromSSZ)
+
+	// Bare proposals have no contents to strip.
+	_, err = core.WithoutPayloadContents(bare)
+	require.ErrorContains(t, err, "no execution payload contents")
+}

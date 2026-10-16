@@ -40,6 +40,11 @@ import (
 
 const (
 	defaultGasLimit = 30000000
+
+	// statelessContentsTimeout bounds how long a stateless gloas proposal request waits for the
+	// shared execution payload contents before being served the stateful form, the block alone:
+	// the contents normally follow the decision within a few hundred milliseconds.
+	statelessContentsTimeout = 500 * time.Millisecond
 )
 
 // SlotFromTimestamp returns the Ethereum slot associated to a timestamp, given the genesis configuration fetched
@@ -191,27 +196,60 @@ type Component struct {
 	sharesByKey map[core.PubKey]core.PubKey
 
 	// Registered input functions
-	pubKeyByAttFunc           func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
-	awaitAttFunc              func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	awaitPayloadAttDataFunc   func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)
-	awaitProposalFunc         func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
-	awaitEPBSProposalFunc     func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
-	awaitSyncContributionFunc func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
-	awaitAggAttFunc           func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
-	awaitAggSigDBFunc         func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
-	dutyDefFunc               func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
-	subs                      []func(context.Context, core.Duty, core.ParSignedDataSet) error
+	pubKeyByAttFunc            func(ctx context.Context, slot, commIdx, valIdx uint64) (core.PubKey, error)
+	awaitAttFunc               func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	awaitPayloadAttDataFunc    func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)
+	awaitVersionedProposalFunc func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
+	awaitPayloadContentsFunc   func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
+	awaitSyncContributionFunc  func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
+	awaitAggAttFunc            func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
+	awaitAggSigDBFunc          func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	dutyDefFunc                func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
+	subs                       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
-// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing necessary options.
+// RegisterAwaitVersionedProposal registers a function to query agreed proposals by providing the slot.
 // It supports a single function, since it is an input of the component.
-func (c *Component) RegisterAwaitProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)) {
-	c.awaitProposalFunc = fn
+func (c *Component) RegisterAwaitVersionedProposal(fn func(ctx context.Context, slot uint64) (core.VersionedProposal, error)) {
+	c.awaitVersionedProposalFunc = fn
 }
 
-// RegisterAwaitEPBSProposal registers a function to query unsigned ePBS beacon block proposals by providing necessary options.
-func (c *Component) RegisterAwaitEPBSProposal(fn func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)) {
-	c.awaitEPBSProposalFunc = fn
+// awaitProposal blocks and returns the agreed pre-gloas proposal for the slot. It errors for
+// gloas onwards proposals, which are served by awaitEPBSProposal.
+func (c Component) awaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+	proposal, err := c.awaitVersionedProposalFunc(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version >= eth2spec.DataVersionGloas {
+		return nil, errors.New("gloas onwards proposals are served by the epbs endpoint",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return &proposal.VersionedProposal, nil
+}
+
+// awaitEPBSProposal blocks and returns the agreed ePBS proposal for the slot, from the gloas fork
+// onwards. It errors for pre-gloas proposals, which are served by awaitProposal.
+func (c Component) awaitEPBSProposal(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+	proposal, err := c.awaitVersionedProposalFunc(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	if proposal.Version < eth2spec.DataVersionGloas {
+		return nil, errors.New("pre-gloas proposals are served by the v3 endpoint",
+			z.Str("version", proposal.Version.String()))
+	}
+
+	return proposal.EPBS, nil
+}
+
+// RegisterAwaitPayloadContents registers a function to query the execution payload contents of
+// self-built ePBS proposals by slot and block root.
+func (c *Component) RegisterAwaitPayloadContents(fn func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)) {
+	c.awaitPayloadContentsFunc = fn
 }
 
 // RegisterAwaitAttestation registers a function to query attestation data.
@@ -429,7 +467,7 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 
 	// Query unsigned proposal (this is blocking). Errors for gloas onwards proposals,
 	// which are served by the v4 epbs endpoint.
-	proposal, err := c.awaitProposalFunc(ctx, uint64(opts.Slot))
+	proposal, err := c.awaitProposal(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
 	}
@@ -450,27 +488,18 @@ func (c Component) Proposal(ctx context.Context, opts *eth2api.ProposalOpts) (*e
 // with charon's own builder configuration, which the proposer config file distributes
 // to the VCs.
 //
-// The VC's IncludePayload is ignored: the cluster proposal is always fetched in the
-// stateless (payload-included) form so any beacon node can publish it, and it is served
-// as-is. A self-built proposal is therefore always returned payload-included, and an
-// external builder bid always payload-excluded (the beacon node does not hold the
-// builder's payload), independent of what the VC requested. The stateful (payload-excluded)
-// form of a self-built proposal is not served: there is no single producing node holding
-// its envelope, so a VC retrieving the envelope separately is served the agreed one by
-// ExecutionPayloadEnvelope.
+// The cluster agrees on the beacon block only, so the proposal is served in the stateful
+// (payload-excluded) form, which validator clients request by default. For a self-built block
+// the VC then retrieves the agreed execution payload envelope via ExecutionPayloadEnvelope,
+// shared by the node that built it. A stateless request (IncludePayload) is served the
+// self-built block with its contents if they are shared within statelessContentsTimeout, which
+// delays the proposal, so it is warned about, and the stateful form otherwise. An external
+// builder's payload is revealed by the builder.
 func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
 	var span trace.Span
 
 	ctx, span = core.StartDutyTrace(ctx, core.NewRandaoDuty(uint64(opts.Slot)), "core/validatorapi.EPBSProposal")
 	defer span.End()
-
-	// A distributed validator only serves the stateless (payload-included) form, so a VC
-	// requesting the stateful one is misconfigured: it must enable its stateless block
-	// production flag (or point at multiple beacon nodes) to request payload inclusion.
-	if opts.IncludePayload != nil && !*opts.IncludePayload {
-		log.Warn(ctx, "Validator client requested stateful gloas block production, serving stateless instead; enable your validator client's stateless block production flag", nil,
-			z.U64("slot", uint64(opts.Slot)))
-	}
 
 	if err := c.submitRandao(ctx, opts.Slot, opts.RandaoReveal); err != nil {
 		return nil, err
@@ -478,9 +507,35 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 
 	// Query unsigned proposal (this is blocking). Errors for pre-gloas proposals, which
 	// are served by the v3 endpoint.
-	proposal, err := c.awaitEPBSProposalFunc(ctx, uint64(opts.Slot))
+	proposal, err := c.awaitEPBSProposal(ctx, uint64(opts.Slot))
 	if err != nil {
 		return nil, err
+	}
+
+	if opts.IncludePayload == nil || !*opts.IncludePayload {
+		proposalFormGauge.Set(proposalFormStateful)
+
+		return wrapResponse(proposal), nil
+	}
+
+	proposalFormGauge.Set(proposalFormStateless)
+	log.Warn(ctx, "Validator client requested a stateless gloas proposal, serving it with its execution payload contents if shared in time; validator clients in a distributed validator should request stateful proposals", nil,
+		z.U64("slot", uint64(opts.Slot)))
+
+	waitCtx, cancel := context.WithTimeout(ctx, statelessContentsTimeout)
+	defer cancel()
+
+	full, err := c.awaitAgreedPayloadContents(waitCtx, uint64(opts.Slot))
+	if err == nil {
+		return wrapResponse(full), nil
+	}
+
+	// The block is served without its contents rather than held up by them, whatever the error:
+	// the VC retrieves the envelope once shared, like a stateful one. An external builder bid
+	// has no contents.
+	if !errors.Is(err, eth2client.ErrNoExecutionPayloadEnvelope) {
+		log.Warn(ctx, "Execution payload contents not shared in time for a stateless gloas proposal, serving the stateful form", err,
+			z.U64("slot", uint64(opts.Slot)))
 	}
 
 	return wrapResponse(proposal), nil
@@ -720,7 +775,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 	}
 
 	if opts.Proposal.Version >= eth2spec.DataVersionGloas {
-		prop, err := c.awaitEPBSProposalFunc(ctx, uint64(slot))
+		prop, err := c.awaitEPBSProposal(ctx, uint64(slot))
 		if err != nil {
 			return errors.Wrap(err, "could not fetch block definition from dutydb")
 		}
@@ -729,7 +784,7 @@ func (c Component) SubmitProposal(ctx context.Context, opts *eth2api.SubmitPropo
 			return errors.Wrap(err, "consensus proposal and VC-submitted one do not match")
 		}
 	} else {
-		prop, err := c.awaitProposalFunc(ctx, uint64(slot))
+		prop, err := c.awaitProposal(ctx, uint64(slot))
 		if err != nil {
 			return errors.Wrap(err, "could not fetch block definition from dutydb")
 		}
@@ -787,7 +842,7 @@ func (c Component) SubmitBlindedProposal(ctx context.Context, opts *eth2api.Subm
 		return err
 	}
 
-	prop, err := c.awaitProposalFunc(ctx, uint64(slot))
+	prop, err := c.awaitProposal(ctx, uint64(slot))
 	if err != nil {
 		return errors.Wrap(err, "could not fetch block definition from dutydb")
 	}
@@ -848,12 +903,17 @@ func (c Component) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth
 	}
 
 	versioned := opts.SignedExecutionPayloadEnvelope
-	if versioned.Version < eth2spec.DataVersionGloas {
+
+	var signedEnvelope *gloas.SignedExecutionPayloadEnvelope
+
+	switch versioned.Version {
+	case eth2spec.DataVersionGloas:
+		signedEnvelope = versioned.Gloas
+	default:
 		return badRequestError("unsupported execution payload envelope version",
 			errors.New("unsupported version", z.Str("version", versioned.Version.String())))
 	}
 
-	signedEnvelope := versioned.Gloas
 	if signedEnvelope == nil || signedEnvelope.Message == nil || signedEnvelope.Message.Payload == nil {
 		return badRequestError("nil execution payload envelope message", nil)
 	}
@@ -875,30 +935,32 @@ func (c Component) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth
 		return err
 	}
 
-	// Use the consensus-agreed envelope, blobs and proofs so every node aggregates and broadcasts
-	// byte-identical data; only the signature comes from the validator client.
-	prop, err := c.awaitEPBSProposalFunc(ctx, slot)
-	if err != nil {
-		return errors.Wrap(err, "could not fetch block definition from dutydb")
+	// The validator client submits the signed envelope alone, see ExecutionPayloadEnvelope. It
+	// must be the agreed one, as a submitted block must be the agreed block, and the blobs and
+	// proofs it is published with come from the agreed contents.
+	prop, err := c.awaitAgreedPayloadContents(ctx, slot)
+	if errors.Is(err, eth2client.ErrNoExecutionPayloadEnvelope) {
+		return errors.New("agreed proposal has no execution payload envelope to reveal")
+	} else if err != nil {
+		return err
 	}
 
-	if !prop.ExecutionPayloadIncluded || prop.GloasContents == nil || prop.GloasContents.ExecutionPayloadEnvelope == nil {
-		return errors.New("consensus proposal has no execution payload envelope to reveal")
+	if prop.GloasContents == nil || prop.GloasContents.ExecutionPayloadEnvelope == nil {
+		return errors.New("agreed proposal has no execution payload envelope to reveal")
+	}
+
+	if err := envelopeMatchesAgreed(signedEnvelope.Message, prop.GloasContents.ExecutionPayloadEnvelope); err != nil {
+		return errors.Wrap(err, "agreed execution payload envelope and VC-submitted one do not match")
 	}
 
 	contents := &eth2v1gloas.SignedExecutionPayloadEnvelopeContents{
-		SignedExecutionPayloadEnvelope: &gloas.SignedExecutionPayloadEnvelope{
-			Message:   prop.GloasContents.ExecutionPayloadEnvelope,
-			Signature: signedEnvelope.Signature,
-		},
-		KZGProofs: prop.GloasContents.KZGProofs,
-		Blobs:     prop.GloasContents.Blobs,
+		SignedExecutionPayloadEnvelope: signedEnvelope,
+		KZGProofs:                      prop.GloasContents.KZGProofs,
+		Blobs:                          prop.GloasContents.Blobs,
 	}
 
 	parSigData := core.NewPartialSignedExecutionPayloadEnvelope(contents, c.shareIdx)
 
-	// Verifying the partial signature against the agreed envelope message inherently rejects a
-	// validator client that signed a different envelope than the cluster agreed on.
 	if err := c.verifyPartialSig(ctx, parSigData, pubkey); err != nil {
 		return err
 	}
@@ -916,24 +978,36 @@ func (c Component) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth
 	return nil
 }
 
-// ExecutionPayloadEnvelope returns the execution payload envelope of the consensus-agreed
-// proposal for the slot, which validator clients producing gloas blocks in the stateful form
-// retrieve to sign. It is served from the cluster proposal rather than proxied to the beacon
-// node, since only the beacon node that built the proposal caches its envelope, and every
-// validator client must sign the same agreed envelope.
-func (c Component) ExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.ExecutionPayloadEnvelopeOpts) (*eth2api.Response[*eth2spec.VersionedExecutionPayloadEnvelope], error) {
-	// Only validator clients producing blocks in the stateful form retrieve the envelope separately.
-	log.Warn(ctx, "Validator client retrieved the execution payload envelope separately, validator clients in a distributed validator should request stateless gloas blocks", nil,
-		z.U64("slot", uint64(opts.Slot)))
-
-	prop, err := c.awaitEPBSProposalFunc(ctx, uint64(opts.Slot))
+// envelopeMatchesAgreed returns an error unless the VC-submitted execution payload envelope is
+// the agreed one, comparing their hash tree roots computed with the generated hasher the VC
+// signs over, like epbsPropDataMatchesDuty does for blocks.
+func envelopeMatchesAgreed(submitted, agreed *gloas.ExecutionPayloadEnvelope) error {
+	submittedRoot, err := submitted.HashTreeRoot()
 	if err != nil {
-		return nil, errors.Wrap(err, "could not fetch block definition from dutydb")
+		return errors.Wrap(err, "hash tree root vc")
 	}
 
-	// An external builder bid carries no envelope, the builder reveals its own payload.
-	if !prop.ExecutionPayloadIncluded {
-		return nil, eth2client.ErrNoExecutionPayloadEnvelope
+	agreedRoot, err := agreed.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash tree root dutydb")
+	}
+
+	if submittedRoot != agreedRoot {
+		return errors.New("dutydb and VC execution payload envelopes have different hash tree root")
+	}
+
+	return nil
+}
+
+// ExecutionPayloadEnvelope returns the execution payload envelope of the agreed self-built
+// proposal for the slot, which validator clients retrieve to sign since the agreed block is
+// served without it. It blocks until the node that built the block shared its contents, rather
+// than proxying to the beacon node: only the beacon node that built the proposal caches its
+// envelope, and every validator client must sign the same agreed envelope.
+func (c Component) ExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.ExecutionPayloadEnvelopeOpts) (*eth2api.Response[*eth2spec.VersionedExecutionPayloadEnvelope], error) {
+	prop, err := c.awaitAgreedPayloadContents(ctx, uint64(opts.Slot))
+	if err != nil {
+		return nil, err
 	}
 
 	// Each fork reads its envelope from the agreed contents; new forks add a case here. The envelope
@@ -956,6 +1030,42 @@ func (c Component) ExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.E
 	}
 
 	return wrapResponse(resp), nil
+}
+
+// awaitAgreedPayloadContents blocks and returns the agreed self-built proposal for the slot with
+// its execution payload contents, or ErrNoExecutionPayloadEnvelope if an external builder's bid
+// was agreed, whose payload the builder reveals.
+func (c Component) awaitAgreedPayloadContents(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+	agreed, err := c.awaitEPBSProposal(ctx, slot)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not fetch block definition from dutydb")
+	}
+
+	bid, err := core.EPBSBid(agreed)
+	if err != nil {
+		return nil, err
+	}
+
+	if bid.BuilderIndex != core.BuilderIndexSelfBuild {
+		return nil, eth2client.ErrNoExecutionPayloadEnvelope
+	}
+
+	proposal, err := core.NewVersionedEPBSProposal(agreed)
+	if err != nil {
+		return nil, err
+	}
+
+	root, err := proposal.Root()
+	if err != nil {
+		return nil, err
+	}
+
+	prop, err := c.awaitPayloadContentsFunc(ctx, slot, root)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not fetch execution payload contents from dutydb")
+	}
+
+	return prop, nil
 }
 
 func (Component) SubmitValidatorRegistrations(ctx context.Context, _ []*eth2api.VersionedSignedValidatorRegistration) error {
