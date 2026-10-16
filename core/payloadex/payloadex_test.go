@@ -51,7 +51,7 @@ func testPayloadEx(t *testing.T, broken map[int][]int) {
 	duty := core.NewProposerDuty(slot)
 	pubkey := testutil.RandomCorePubKey(t)
 	defSet := core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{Slot: slot})}
-	deadlineFunc := func(core.Duty) (time.Time, bool) { return time.Now().Add(time.Minute), true }
+	retentionFunc := func(core.Duty) (time.Time, bool) { return time.Now().Add(time.Minute), true }
 
 	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
 	contents.EPBS.GloasContents.Block.Slot = slot
@@ -116,9 +116,9 @@ func testPayloadEx(t *testing.T, broken map[int][]int) {
 			return p2p.SendReceive(ctx, h, peerID, req, resp, pID, opts...)
 		}
 
-		db := dutydb.NewMemDB(core.NewDeadlinerForT(ctx, t, deadlineFunc, clockwork.NewRealClock()))
+		db := dutydb.NewMemDB(core.NewDeadlinerForT(ctx, t, retentionFunc, clockwork.NewRealClock()))
 
-		p := payloadex.New(hosts[i], sendFunc, sendReceiveFunc, i, peers, func(core.Duty) bool { return true }, deadlineFunc)
+		p := payloadex.New(hosts[i], sendFunc, sendReceiveFunc, i, peers, func(core.Duty) bool { return true }, retentionFunc)
 		p.RegisterAwaitVersionedProposal(db.AwaitVersionedProposal)
 		p.RegisterAwaitPayloadContents(db.AwaitPayloadContents)
 		p.RegisterStorePayloadContents(db.StorePayloadContents)

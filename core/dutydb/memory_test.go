@@ -16,11 +16,15 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestShutdown(t *testing.T) {
@@ -394,6 +398,108 @@ func TestMemDBPayloadContents(t *testing.T) {
 
 	_, err = db.AwaitPayloadContents(ctx, slot, root)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// TestMemDBProposalRetention verifies, with the retention of the network's slot timing, that an
+// agreed gloas proposal and its payload contents are retained past the proposer duty's submission
+// deadline, the attestation due time, to serve the reveal of the envelope until the end of the slot.
+func TestMemDBProposalRetention(t *testing.T) {
+	ctx := t.Context()
+
+	bmock, err := beaconmock.New(ctx)
+	require.NoError(t, err)
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	forkScheduleFunc := func() eth2wrap.ForkForkSchedule { return forkSchedule }
+
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock, forkScheduleFunc)
+	require.NoError(t, err)
+
+	retentionFunc, err := core.NewDutyRetentionFunc(ctx, bmock, forkScheduleFunc)
+	require.NoError(t, err)
+
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, bmock)
+	require.NoError(t, err)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	// The clock starts at the beginning of the slot, the DutyDB retains duties by the retention.
+	const slot = 123
+
+	clock := clockwork.NewFakeClockAt(genesisTime.Add(slot * slotDuration))
+	db := dutydb.NewMemDB(core.NewDeadlinerForT(ctx, t, retentionFunc, clock))
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	root, err := contents.Root()
+	require.NoError(t, err)
+
+	agreed, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+
+	duty := core.NewProposerDuty(slot)
+
+	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{pubkey: agreed}))
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	submitBy, ok := deadlineFunc(duty)
+	require.True(t, ok)
+
+	retainUntil, ok := retentionFunc(duty)
+	require.True(t, ok)
+	require.True(t, retainUntil.After(submitBy))
+
+	// Past the submission deadline the proposal and its contents are still served and stored:
+	// the envelope is revealed after the block.
+	clock.Advance(submitBy.Sub(clock.Now()) + time.Second)
+
+	gotAgreed, err := db.AwaitVersionedProposal(ctx, slot)
+	require.NoError(t, err)
+	require.Equal(t, agreed, gotAgreed)
+
+	gotContents, err := db.AwaitPayloadContents(ctx, slot, root)
+	require.NoError(t, err)
+	require.Equal(t, contents.EPBS, gotContents)
+
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	// Past the retention, the end of the slot, both are deleted, which the next store processes.
+	clock.Advance(retainUntil.Sub(clock.Now()) + time.Second)
+
+	next := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	next.EPBS.GloasContents.Block.Slot = slot + 1
+
+	nextAgreed, err := core.WithoutPayloadContents(next)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		err := db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{pubkey: nextAgreed})
+		if err != nil {
+			return false
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+		defer cancel()
+
+		_, err = db.AwaitVersionedProposal(ctx, slot)
+
+		return errors.Is(err, context.DeadlineExceeded)
+	}, time.Second, 10*time.Millisecond)
+
+	expiredCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer cancel()
+
+	_, err = db.AwaitPayloadContents(expiredCtx, slot, root)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	err = db.StorePayloadContents(ctx, contents)
+	require.ErrorContains(t, err, "no agreed proposal")
 }
 
 func TestMemDBAwaitVersionedProposal(t *testing.T) {

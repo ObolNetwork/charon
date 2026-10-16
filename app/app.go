@@ -523,8 +523,17 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
+	retentionFunc, err := core.NewDutyRetentionFunc(ctx, eth2Cl, forkSchedule)
+	if err != nil {
+		return err
+	}
+
 	deadlinerFunc := func(label string) core.Deadliner {
 		return core.NewDeadliner(ctx, label, deadlineFunc)
+	}
+
+	retainerFunc := func(label string) core.Deadliner {
+		return core.NewDeadliner(ctx, label, retentionFunc)
 	}
 
 	sched, err := scheduler.New(ctx, builderRegSvc, eth2Cl, forkSchedule, conf.BuilderAPI)
@@ -642,7 +651,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		sseListener.SubscribeHeadEvent(fetch.HandleHeadEvent)
 	}
 
-	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
+	dutyDB := dutydb.NewMemDB(retainerFunc("dutydb"))
 
 	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit)
 	if err != nil {
@@ -769,7 +778,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		core.WithAsyncRetry(retryer),
 	}
 
-	payloadEx := payloadex.New(p2pNode, sender.SendAsync, sender.SendReceive, nodeIdx.PeerIdx, peers, gaterFunc, deadlineFunc)
+	payloadEx := payloadex.New(p2pNode, sender.SendAsync, sender.SendReceive, nodeIdx.PeerIdx, peers, gaterFunc, retentionFunc)
 
 	core.Wire(sched, fetch, coreConsensus, dutyDB, payloadEx, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 

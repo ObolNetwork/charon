@@ -32,7 +32,7 @@ func TestStoreCandidate(t *testing.T) {
 	require.NoError(t, err)
 
 	p := &PayloadEx{
-		deadlineFunc: func(core.Duty) (time.Time, bool) {
+		retentionFunc: func(core.Duty) (time.Time, bool) {
 			return time.Now().Add(50 * time.Millisecond), true
 		},
 		candidates: make(map[uint64]candidate),
@@ -78,7 +78,7 @@ func TestExchange(t *testing.T) {
 		return &PayloadEx{
 			peerIdx: peerIdx,
 			peers:   peers,
-			deadlineFunc: func(core.Duty) (time.Time, bool) {
+			retentionFunc: func(core.Duty) (time.Time, bool) {
 				return time.Now().Add(time.Minute), true
 			},
 			sendFunc: func(_ context.Context, _ host.Host, _ protocol.ID, _ peer.ID, msg proto.Message, _ ...p2p.SendRecvOption) error {
@@ -243,7 +243,7 @@ func TestHandle(t *testing.T) {
 	p := &PayloadEx{
 		peers:     peers,
 		gaterFunc: func(core.Duty) bool { return true },
-		deadlineFunc: func(core.Duty) (time.Time, bool) {
+		retentionFunc: func(core.Duty) (time.Time, bool) {
 			return time.Now().Add(time.Second), true
 		},
 		awaitProposalFunc: func(ctx context.Context, _ uint64) (core.VersionedProposal, error) {
@@ -309,10 +309,14 @@ func TestHandleRequest(t *testing.T) {
 	root, err := contents.Root()
 	require.NoError(t, err)
 
-	// The DutyDB serves the contents of the agreed block only, the others wait.
+	// The DutyDB serves the contents of the agreed block only, the others wait until the duty
+	// deadline at most.
 	p := &PayloadEx{
 		peers:     peers,
 		gaterFunc: func(core.Duty) bool { return true },
+		retentionFunc: func(core.Duty) (time.Time, bool) {
+			return time.Now().Add(time.Minute), true
+		},
 		awaitContentsFunc: func(ctx context.Context, s uint64, r eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
 			if s == slot && r == eth2p0.Root(root) {
 				return contents.EPBS, nil
@@ -341,6 +345,19 @@ func TestHandleRequest(t *testing.T) {
 	_, ok, err = p.handleRequest(ctx, peers[1], request(duty, testutil.RandomRoot()))
 	require.NoError(t, err)
 	require.False(t, ok)
+
+	// Nor past the duty deadline.
+	p.retentionFunc = func(core.Duty) (time.Time, bool) {
+		return time.Now().Add(20 * time.Millisecond), true
+	}
+
+	_, ok, err = p.handleRequest(t.Context(), peers[1], request(duty, testutil.RandomRoot()))
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	p.retentionFunc = func(core.Duty) (time.Time, bool) {
+		return time.Now().Add(time.Minute), true
+	}
 
 	// A peer has one request held at a time, for this or any other slot.
 	pending := func(peerID peer.ID) bool {

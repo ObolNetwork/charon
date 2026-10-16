@@ -19,8 +19,10 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// NewMemDB returns a new in-memory dutyDB instance.
-func NewMemDB(deadliner core.Deadliner) *MemDB {
+// NewMemDB returns a new in-memory dutyDB instance. The retention deadliner provides until when
+// duties are retained for the components querying them, see core.NewDutyRetentionFunc: data of a
+// duty past its retention is refused, and deleted once it expires.
+func NewMemDB(retention core.Deadliner) *MemDB {
 	return &MemDB{
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]*core.PubKey),
@@ -33,7 +35,7 @@ func NewMemDB(deadliner core.Deadliner) *MemDB {
 		contribKeysBySlot: make(map[uint64][]contribKey),
 		payloadAttDuties:  make(map[uint64]core.VersionedPayloadAttestationData),
 		shutdown:          make(chan struct{}),
-		deadliner:         deadliner,
+		retention:         retention,
 	}
 }
 
@@ -72,7 +74,7 @@ type MemDB struct {
 	payloadAttQueries []payloadAttQuery
 
 	shutdown  chan struct{}
-	deadliner core.Deadliner
+	retention core.Deadliner
 }
 
 // Shutdown results in all blocking queries to return shutdown errors.
@@ -86,7 +88,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	if status := db.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+	if status := db.retention.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
 		return errors.New("not storing unsigned data for expired or exempt duty", z.Any("duty", duty))
 	}
 
@@ -195,7 +197,7 @@ func (db *MemDB) StorePayloadContents(_ context.Context, proposal core.Versioned
 		return errors.New("payload contents root mismatch", z.Any("duty", duty))
 	}
 
-	status := db.deadliner.Add(duty)
+	status := db.retention.Add(duty)
 	if status == core.DeadlineExpired || status == core.DeadlineExempt {
 		return errors.New("not storing payload contents for expired or exempt duty", z.Any("duty", duty))
 	}
@@ -253,7 +255,7 @@ func (db *MemDB) AwaitPayloadContents(ctx context.Context, slot uint64, root eth
 func (db *MemDB) deleteExpiredUnsafe() error {
 	for {
 		select {
-		case duty := <-db.deadliner.C():
+		case duty := <-db.retention.C():
 			err := db.deleteDutyUnsafe(duty)
 			if err != nil {
 				return err

@@ -8,7 +8,8 @@
 // that didn't receive them, e.g. because its link to the proposer is broken, pulls them from the
 // peers that did. The DutyDB is the only store of the agreed contents: received contents go into
 // it, which accepts those hashing to the agreed root only, whoever delivers them, and pulls are
-// answered from it.
+// answered from it. The exchange lives as long as the DutyDB retains the agreed proposal, until the
+// end of the slot, see core.NewDutyRetentionFunc.
 package payloadex
 
 import (
@@ -60,10 +61,11 @@ func Protocols() []protocol.ID {
 	return []protocol.ID{protocolID1, requestProtocolID1}
 }
 
-// New returns a new payload exchange component and registers its libp2p handlers. The DutyDB
-// functions it depends on are registered with the Register methods before use.
+// New returns a new payload exchange component and registers its libp2p handlers. The retention
+// function bounds the exchange of a slot's contents like the DutyDB retains its agreed proposal.
+// The DutyDB functions it depends on are registered with the Register methods before use.
 func New(p2pNode host.Host, sendFunc p2p.SendFunc, sendReceiveFunc p2p.SendReceiveFunc, peerIdx int,
-	peers []p2p.Peer, gaterFunc core.DutyGaterFunc, deadlineFunc core.DeadlineFunc,
+	peers []p2p.Peer, gaterFunc core.DutyGaterFunc, retentionFunc core.DeadlineFunc,
 ) *PayloadEx {
 	var peerIDs []peer.ID
 	for _, p := range peers {
@@ -77,7 +79,7 @@ func New(p2pNode host.Host, sendFunc p2p.SendFunc, sendReceiveFunc p2p.SendRecei
 		peerIdx:         peerIdx,
 		peers:           peerIDs,
 		gaterFunc:       gaterFunc,
-		deadlineFunc:    deadlineFunc,
+		retentionFunc:   retentionFunc,
 		candidates:      make(map[uint64]candidate),
 	}
 
@@ -100,7 +102,7 @@ type PayloadEx struct {
 	peerIdx         int
 	peers           []peer.ID
 	gaterFunc       core.DutyGaterFunc
-	deadlineFunc    core.DeadlineFunc
+	retentionFunc   core.DeadlineFunc // Until when the agreed proposal of a duty is retained, bounding its exchange.
 
 	awaitProposalFunc func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
 	awaitContentsFunc func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
@@ -150,9 +152,9 @@ func (p *PayloadEx) StoreCandidate(_ context.Context, contents core.VersionedPro
 
 	duty := core.NewProposerDuty(uint64(slot))
 
-	deadline, ok := p.deadlineFunc(duty)
+	deadline, ok := p.retentionFunc(duty)
 	if !ok {
-		return errors.New("payloadex duty without deadline", z.Any("duty", duty))
+		return errors.New("payloadex duty without retention", z.Any("duty", duty))
 	}
 
 	clone, err := contents.Clone() // Clone before storing.
@@ -206,9 +208,9 @@ func (p *PayloadEx) Exchange(ctx context.Context, duty core.Duty, _ core.DutyDef
 		return nil
 	}
 
-	deadline, ok := p.deadlineFunc(duty)
+	deadline, ok := p.retentionFunc(duty)
 	if !ok {
-		return errors.New("payloadex duty without deadline", z.Any("duty", duty))
+		return errors.New("payloadex duty without retention", z.Any("duty", duty))
 	}
 
 	// The scheduler's context ends with the slot, the exchange lives until the duty deadline.
@@ -373,9 +375,9 @@ func (p *PayloadEx) handle(ctx context.Context, sender peer.ID, req proto.Messag
 		return nil, false, errors.New("payloadex message from unknown peer")
 	}
 
-	deadline, ok := p.deadlineFunc(duty)
+	deadline, ok := p.retentionFunc(duty)
 	if !ok {
-		return nil, false, errors.New("payloadex duty without deadline", z.Any("duty", duty))
+		return nil, false, errors.New("payloadex duty without retention", z.Any("duty", duty))
 	}
 
 	err := p.pendingPushes.add(sender, duty.Slot)
@@ -408,7 +410,7 @@ func (p *PayloadEx) handle(ctx context.Context, sender peer.ID, req proto.Messag
 }
 
 // handleRequest answers a peer's request with the agreed contents it asks for, from the DutyDB,
-// once held and within the request timeout, holding one request per peer.
+// once held, within the request timeout and the duty deadline, holding one request per peer.
 func (p *PayloadEx) handleRequest(ctx context.Context, sender peer.ID, req proto.Message) (proto.Message, bool, error) {
 	pb, ok := req.(*pbv1.PayloadExRequest)
 	if !ok || pb == nil || pb.GetDuty() == nil || len(pb.GetBlockRoot()) != len(eth2p0.Root{}) {
@@ -430,6 +432,14 @@ func (p *PayloadEx) handleRequest(ctx context.Context, sender peer.ID, req proto
 	}
 
 	defer p.pendingRequests.remove(sender, duty.Slot)
+
+	deadline, ok := p.retentionFunc(duty)
+	if !ok {
+		return nil, false, errors.New("payloadex duty without retention", z.Any("duty", duty))
+	}
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 
 	epbs, err := p.awaitContentsFunc(ctx, duty.Slot, eth2p0.Root(pb.GetBlockRoot()))
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
