@@ -93,7 +93,7 @@ var (
 		JSONRequests:             statusAlpha,
 		GnosisBlockHotfix:        statusAlpha,
 		Linear:                   statusAlpha,
-		SSEReorgDuties:           statusAlpha,
+		SSEReorgDuties:           statusStable,
 		AttestationInclusion:     statusAlpha,
 		ProposalTimeout:          statusStable,
 		QUIC:                     statusAlpha,
