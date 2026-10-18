@@ -98,6 +98,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_sigagg_slot_aggregation_seconds` | Histogram | Total duration to aggregate all validators for a duty in a slot, in seconds | `duty` |
 | `core_tracker_attestation_expect_total` | Counter | Total number of expected attestations for the slot (counts individual attestations, not duties) |  |
 | `core_tracker_attestation_success_total` | Counter | Total number of successful attestations for the slot (counts individual attestations, not duties) |  |
+| `core_tracker_builder_request_auths_total` | Counter | Total number of partially signed builder request auths by peer and builder host, those for builders not configured on this node counted as unknown | `peer, builder` |
 | `core_tracker_expect_duties_total` | Counter | Total number of expected duties (failed + success) by type | `duty` |
 | `core_tracker_failed_duties_total` | Counter | Total number of failed duties by type | `duty` |
 | `core_tracker_failed_duty_reasons_total` | Counter | Total number of failed duties by type and reason code | `duty, reason` |

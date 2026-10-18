@@ -112,10 +112,34 @@ type Tracker struct {
 
 	// participationReporter instruments duty peer participation.
 	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedPeers map[int]int, expectedPerPeer int)
+
+	// builderAuthReporter instruments the builder request auths of each peer by builder.
+	builderAuthReporter func(duty core.Duty, events []event)
+}
+
+// Option configures a Tracker.
+type Option func(*options)
+
+// options are the optional Tracker settings.
+type options struct {
+	builderHosts []string
+}
+
+// WithBuilderHosts sets the hosts of the builders configured on this node, by which the builder
+// request auths of each peer are counted.
+func WithBuilderHosts(hosts []string) Option {
+	return func(o *options) {
+		o.builderHosts = hosts
+	}
 }
 
 // New returns a new Tracker. The deleter deadliner must return well after analyser deadliner since duties of the same slot are often analysed together.
-func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, fromSlot uint64) *Tracker {
+func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, fromSlot uint64, opts ...Option) *Tracker {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	t := &Tracker{
 		input:                 make(chan event),
 		events:                make(map[core.Duty][]event),
@@ -126,6 +150,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 		parSigReporter:        reportParSigs,
 		failedDutyReporter:    newFailedDutyReporter(),
 		participationReporter: newParticipationReporter(peers),
+		builderAuthReporter:   newBuilderAuthReporter(peers, o.builderHosts),
 	}
 
 	return t
@@ -178,6 +203,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 			// Analyse peer participation
 			participatedShares, unexpectedShares, expectedPerPeer := analyseParticipation(duty, t.events)
 			t.participationReporter(ctx, duty, failed, participatedShares, unexpectedShares, expectedPerPeer)
+
+			t.builderAuthReporter(duty, t.events[duty])
 		case duty := <-t.deleter.C():
 			delete(t.events, duty)
 		}
@@ -663,6 +690,75 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (resp
 	pubkeyMapLen = len(pubkeyMap)
 
 	return resp, unexpectedShares, pubkeyMapLen
+}
+
+// builderUnknown is the builder label of builder request auths for builders not configured on this node.
+const builderUnknown = "unknown"
+
+// newBuilderAuthReporter returns a reporter counting the partially signed builder request auths of
+// each peer by builder host, so that a peer whose validator client doesn't sign for a configured
+// builder, or still signs for a removed one, stands out. Hosts of builders not configured on this
+// node are counted as unknown, bounding the metric's cardinality.
+func newBuilderAuthReporter(peers []p2p.Peer, builderHosts []string) func(core.Duty, []event) {
+	configured := make(map[string]bool)
+	for _, host := range builderHosts {
+		configured[host] = true
+	}
+
+	peerNames := make(map[int]string)
+	for _, peer := range peers {
+		peerNames[peer.ShareIdx()] = peer.Name
+
+		// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
+		for _, host := range builderHosts {
+			builderRequestAuths.WithLabelValues(peer.Name, host).Add(0)
+		}
+	}
+
+	return func(duty core.Duty, events []event) {
+		if duty.Type != core.DutyBuilderPreferences {
+			return
+		}
+
+		// A peer's auth for a validator and builder is counted once, whichever step reported it.
+		type dedupKey struct {
+			pubkey   core.PubKey
+			shareIdx int
+			builder  string
+		}
+
+		dedup := make(map[dedupKey]bool)
+
+		for _, e := range events {
+			if (e.step != parSigDBInternal && e.step != parSigDBExternal) || e.parSig == nil {
+				continue
+			}
+
+			auth, ok := e.parSig.SignedData.(core.SignedBuilderRequestAuth)
+			if !ok || auth.Message == nil {
+				continue
+			}
+
+			builder := string(auth.Message.Data)
+			if !configured[builder] {
+				builder = builderUnknown
+			}
+
+			key := dedupKey{pubkey: e.pubkey, shareIdx: e.parSig.ShareIdx, builder: builder}
+			if dedup[key] {
+				continue
+			}
+
+			dedup[key] = true
+
+			name, ok := peerNames[e.parSig.ShareIdx]
+			if !ok {
+				continue
+			}
+
+			builderRequestAuths.WithLabelValues(name, builder).Inc()
+		}
+	}
 }
 
 // isParSigEventExpected returns true if a partial signature event is expected for the given duty and pubkey.

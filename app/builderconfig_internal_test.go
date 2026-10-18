@@ -75,3 +75,13 @@ func TestBuilderConfigHash(t *testing.T) {
 	// An unconfigured node still produces a stable non-empty hash.
 	require.Len(t, builderConfigHash(Config{}), 32)
 }
+
+func TestBuilderHosts(t *testing.T) {
+	hosts, err := builderHosts(Config{BuilderURLs: []string{"https://Relay-A.example.com:443/path", "http://relay-b.example.com"}})
+	require.NoError(t, err)
+	require.Equal(t, []string{"relay-a.example.com", "relay-b.example.com"}, hosts)
+
+	hosts, err = builderHosts(Config{})
+	require.NoError(t, err)
+	require.Empty(t, hosts)
+}

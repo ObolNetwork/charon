@@ -634,6 +634,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	builderCfg := builderConfig(conf)
 
+	hosts, err := builderHosts(conf)
+	if err != nil {
+		return err
+	}
+
 	fetch, err := fetcher.New(ctx, eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder,
 		forkSchedule, slotsPerEpoch, builderCfg, featureset.Enabled(featureset.FetchOnlyCommIdx0))
 	if err != nil {
@@ -758,7 +763,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		fetch.RegisterSyncContributionV2(isync.SyncContributionsSupported)
 	}
 
-	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl)
+	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl, hosts)
 	if err != nil {
 		return err
 	}
@@ -882,7 +887,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 
 // newTracker creates and starts a new tracker instance.
 func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
-	peers []p2p.Peer, eth2Cl eth2wrap.Client,
+	peers []p2p.Peer, eth2Cl eth2wrap.Client, builderHosts []string,
 ) (core.Tracker, error) {
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
@@ -906,7 +911,7 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 		return nil, err
 	}
 
-	track := tracker.New(analyser, deleter, peers, trackFrom)
+	track := tracker.New(analyser, deleter, peers, trackFrom, tracker.WithBuilderHosts(builderHosts))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(track.Run))
 
 	return track, nil

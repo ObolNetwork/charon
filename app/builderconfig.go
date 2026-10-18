@@ -9,6 +9,8 @@ import (
 
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
+	"github.com/obolnetwork/charon/eth2util"
 )
 
 // builderConfigured returns true if builder URLs are configured, enabling the v2
@@ -43,6 +45,22 @@ func builderConfig(conf Config) *gloas.BuilderConfig {
 		BuilderBoostFactor: conf.BuilderBoostFactor,
 		Builders:           builders,
 	}
+}
+
+// builderHosts returns the hosts of the configured builders, the default data of the builder
+// request auths validator clients sign for them, in the configured order.
+func builderHosts(conf Config) ([]string, error) {
+	hosts := make([]string, 0, len(conf.BuilderURLs))
+	for _, url := range conf.BuilderURLs {
+		host, err := eth2util.BuilderAuthData(url)
+		if err != nil {
+			return nil, err
+		}
+
+		hosts = append(hosts, string(host))
+	}
+
+	return hosts, nil
 }
 
 // builderConfigHash returns a digest of the canonicalised builder configuration.
