@@ -241,6 +241,8 @@ func (p *PayloadEx) exchange(ctx context.Context, duty core.Duty) error {
 		return errors.Wrap(err, "await agreed proposal")
 	}
 
+	decided := time.Now()
+
 	// Only self-built gloas blocks are agreed without their contents, committed to by their roots.
 	if agreed.Version < eth2spec.DataVersionGloas || agreed.PayloadContentsRoots == (core.PayloadContentsRoots{}) {
 		return nil
@@ -257,7 +259,7 @@ func (p *PayloadEx) exchange(ctx context.Context, duty core.Duty) error {
 		return p.push(ctx, duty, contents)
 	}
 
-	p.pull(ctx, duty, root)
+	p.pull(ctx, duty, root, decided)
 
 	return nil
 }
@@ -286,21 +288,42 @@ func (p *PayloadEx) push(ctx context.Context, duty core.Duty, contents core.Vers
 	}
 
 	sharedCounter.Inc()
+	observeContentsSize(contents)
 	log.Debug(ctx, "Shared execution payload contents of agreed self-built proposal")
 
 	return nil
 }
 
+// observeContentsSize observes the size of the envelope and the number of blobs, once per agreed
+// proposal, by the node that built the block: they are those of the block, not of a node.
+func observeContentsSize(contents core.VersionedProposal) {
+	if contents.EPBS == nil || contents.EPBS.GloasContents == nil || contents.EPBS.GloasContents.ExecutionPayloadEnvelope == nil {
+		return
+	}
+
+	blockContents := contents.EPBS.GloasContents
+
+	envelopeSize.Observe(float64(blockContents.ExecutionPayloadEnvelope.SizeSSZ()))
+	blobsPerProposal.Observe(float64(len(blockContents.Blobs)))
+}
+
 // pull awaits the contents of the agreed block for the pull delay and, if the proposer's push
-// hasn't arrived by then, asks all peers for them once, accepting the first valid answer.
-func (p *PayloadEx) pull(ctx context.Context, duty core.Duty, root eth2p0.Root) {
+// hasn't arrived by then, asks all peers for them once, accepting the first valid answer. The
+// delay since the decision until the contents are held is observed by their source.
+func (p *PayloadEx) pull(ctx context.Context, duty core.Duty, root eth2p0.Root, decided time.Time) {
 	awaitCtx, cancel := context.WithTimeout(ctx, pullDelay)
 	_, err := p.awaitContentsFunc(awaitCtx, duty.Slot, root)
 
 	cancel()
 
-	if err == nil || ctx.Err() != nil {
-		return // The push arrived, or the duty expired.
+	if err == nil {
+		contentsDelay.WithLabelValues("pushed").Observe(time.Since(decided).Seconds())
+
+		return // The push arrived.
+	}
+
+	if ctx.Err() != nil {
+		return // The duty expired.
 	}
 
 	// The proposer's push should have arrived by now, pulling is the fallback.
@@ -361,7 +384,11 @@ func (p *PayloadEx) pull(ctx context.Context, duty core.Duty, root eth2p0.Root) 
 
 			receivedCounter.WithLabelValues("accepted").Inc()
 			log.Debug(ctx, "Accepted requested execution payload contents", z.Str("peer", p2p.PeerName(peerID)))
-			accepted.Store(true)
+
+			if accepted.CompareAndSwap(false, true) {
+				contentsDelay.WithLabelValues("requested").Observe(time.Since(decided).Seconds())
+			}
+
 			cancel()
 		})
 	}

@@ -77,6 +77,9 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_parsigdb_store` | Histogram | Latency of partial signatures received since earliest expected time, per duty, per peer index | `duty, peer_idx` |
 | `core_parsigex_set_verification_seconds` | Histogram | Duration to verify all partial signatures in a received set, in seconds | `duty` |
+| `core_payloadex_blobs_per_proposal` | Histogram | Number of blobs of agreed self-built proposals shared by this node, each 128 KiB plus 6 KiB of KZG proofs on the wire |  |
+| `core_payloadex_contents_delay_seconds` | Histogram | Delay from this node`s decision on an agreed self-built proposal until it holds the execution payload contents, by source (pushed by the proposer or requested from peers) | `source` |
+| `core_payloadex_envelope_size_bytes` | Histogram | Size of the execution payload envelope of agreed self-built proposals shared by this node |  |
 | `core_payloadex_received_total` | Counter | Total number of execution payload contents received from peers, pushed or requested, by result (accepted or rejected) | `result` |
 | `core_payloadex_requested_total` | Counter | Total number of agreed self-built proposals whose execution payload contents this node had to request from its peers, the proposer`s push not having arrived in time |  |
 | `core_payloadex_served_total` | Counter | Total number of execution payload contents requests from peers, by result (found or missing) | `result` |

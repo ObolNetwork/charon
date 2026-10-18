@@ -8,10 +8,13 @@ import (
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/protobuf/proto"
@@ -91,6 +94,8 @@ func TestExchange(t *testing.T) {
 
 	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
 	contents.EPBS.GloasContents.Block.Slot = slot
+	contents.EPBS.GloasContents.Blobs = []deneb.Blob{{1}}
+	contents.EPBS.GloasContents.KZGProofs = []deneb.KZGProof{{1}}
 
 	agreed, err := core.WithoutPayloadContents(contents)
 	require.NoError(t, err)
@@ -128,12 +133,24 @@ func TestExchange(t *testing.T) {
 		p := newPayloadEx(proposerIdx, agreed, sent, &stored)
 		require.NoError(t, p.StoreCandidate(t.Context(), contents))
 
+		envelopeCount, envelopeSum := histogramSample(t, envelopeSize)
+		blobsCount, blobsSum := histogramSample(t, blobsPerProposal)
+
 		require.NoError(t, p.exchange(t.Context(), duty))
 		require.Equal(t, []core.VersionedProposal{contents}, stored)
 		require.Len(t, sent, n-1)
 
 		// The peers get the contents.
 		require.Equal(t, newTestMsg(t, duty, contents), <-sent)
+
+		// The envelope size and the number of blobs are observed once.
+		count, sum := histogramSample(t, envelopeSize)
+		require.Equal(t, envelopeCount+1, count)
+		require.InDelta(t, envelopeSum+float64(contents.EPBS.GloasContents.ExecutionPayloadEnvelope.SizeSSZ()), sum, 0)
+
+		count, sum = histogramSample(t, blobsPerProposal)
+		require.Equal(t, blobsCount+1, count)
+		require.InDelta(t, blobsSum+1, sum, 0)
 	})
 
 	t.Run("builder bid needs no exchange", func(t *testing.T) {
@@ -296,6 +313,15 @@ func TestPull(t *testing.T) {
 		}
 	}
 
+	// delayCount returns how many delays from the decision were observed by source.
+	delayCount := func(t *testing.T, source string) uint64 {
+		t.Helper()
+
+		count, _ := histogramSample(t, contentsDelay.WithLabelValues(source))
+
+		return count
+	}
+
 	t.Run("answer for another slot", func(t *testing.T) {
 		var stored []core.VersionedProposal
 
@@ -306,10 +332,13 @@ func TestPull(t *testing.T) {
 			peers[2]: newTestMsg(t, core.NewProposerDuty(slot+1), other),
 		}, &stored)
 
-		p.pull(t.Context(), duty, root)
+		requested := delayCount(t, "requested")
+
+		p.pull(t.Context(), duty, root, time.Now())
 		require.Empty(t, stored)
 		require.Contains(t, logBuf.String(), "another duty")
 		require.Contains(t, logBuf.String(), "not received from any peer")
+		require.Equal(t, requested, delayCount(t, "requested"))
 	})
 
 	t.Run("answer for the slot", func(t *testing.T) {
@@ -322,9 +351,27 @@ func TestPull(t *testing.T) {
 			peers[2]: newTestMsg(t, duty, contents),
 		}, &stored)
 
-		p.pull(t.Context(), duty, root)
+		requested := delayCount(t, "requested")
+
+		p.pull(t.Context(), duty, root, time.Now())
 		require.Equal(t, []core.VersionedProposal{contents}, stored)
 		require.NotContains(t, logBuf.String(), "not received from any peer")
+		require.Equal(t, requested+1, delayCount(t, "requested"))
+	})
+
+	t.Run("pushed in time", func(t *testing.T) {
+		var stored []core.VersionedProposal
+
+		p := newPayloadEx(nil, &stored)
+		p.awaitContentsFunc = func(context.Context, uint64, eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+			return contents.EPBS, nil
+		}
+
+		pushed := delayCount(t, "pushed")
+
+		p.pull(t.Context(), duty, root, time.Now())
+		require.Empty(t, stored) // The push was stored by the handler, not the pull.
+		require.Equal(t, pushed+1, delayCount(t, "pushed"))
 	})
 }
 
@@ -523,4 +570,18 @@ func newTestMsg(t *testing.T, duty core.Duty, contents core.VersionedProposal) *
 	require.NoError(t, err)
 
 	return msg
+}
+
+// histogramSample returns the sample count and sum of the histogram observer.
+func histogramSample(t *testing.T, observer prometheus.Observer) (uint64, float64) {
+	t.Helper()
+
+	hist, ok := observer.(prometheus.Histogram)
+	require.True(t, ok)
+
+	var metric dto.Metric
+
+	require.NoError(t, hist.Write(&metric))
+
+	return metric.GetHistogram().GetSampleCount(), metric.GetHistogram().GetSampleSum()
 }
