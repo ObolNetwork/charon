@@ -83,7 +83,7 @@ func New(p2pNode host.Host, sendFunc p2p.SendFunc, sendReceiveFunc p2p.SendRecei
 		peers:           peerIDs,
 		gaterFunc:       gaterFunc,
 		retentionFunc:   retentionFunc,
-		candidates:      make(map[uint64]candidate),
+		candidates:      make(map[candidateKey]core.VersionedProposal),
 	}
 
 	p2p.RegisterHandler("payloadex", p2pNode, protocolID1,
@@ -112,16 +112,17 @@ type PayloadEx struct {
 	storeFunc         func(context.Context, core.VersionedProposal) error
 
 	mu         sync.Mutex
-	candidates map[uint64]candidate // This node's candidate contents by slot, those of the self-built block it proposes.
+	candidates map[candidateKey]core.VersionedProposal // This node's candidate contents, those of the self-built blocks it proposes.
 
 	pendingPushes   pendingSet // Pushes held until the decision, by peer.
 	pendingRequests pendingSet // Requests held until the contents are held, by peer.
 }
 
-// candidate is this node's candidate execution payload contents of a slot, with their roots.
-type candidate struct {
-	roots    core.PayloadContentsRoots
-	contents core.VersionedProposal
+// candidateKey identifies this node's candidate execution payload contents by slot and roots, as
+// a slot may have several candidates, e.g. of a retried fetch.
+type candidateKey struct {
+	slot  uint64
+	roots core.PayloadContentsRoots
 }
 
 // RegisterAwaitVersionedProposal registers the DutyDB function to await agreed proposals by slot.
@@ -173,32 +174,33 @@ func (p *PayloadEx) StoreCandidate(_ context.Context, contents core.VersionedPro
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// The fetcher proposes one block per slot.
-	_, exists := p.candidates[duty.Slot]
+	key := candidateKey{slot: duty.Slot, roots: roots}
+
+	_, exists := p.candidates[key]
 	if exists {
-		return errors.New("candidate execution payload contents already stored", z.Any("duty", duty))
+		return nil
 	}
 
-	p.candidates[duty.Slot] = candidate{roots: roots, contents: cloned}
+	p.candidates[key] = cloned
 
 	time.AfterFunc(time.Until(deadline), func() {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
-		delete(p.candidates, duty.Slot)
+		delete(p.candidates, key)
 	})
 
 	return nil
 }
 
-// candidate returns this node's candidate contents of the slot, if any.
-func (p *PayloadEx) candidate(slot uint64) (candidate, bool) {
+// candidate returns this node's candidate contents of the slot with the roots, if any.
+func (p *PayloadEx) candidate(slot uint64, roots core.PayloadContentsRoots) (core.VersionedProposal, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	cand, ok := p.candidates[slot]
+	contents, ok := p.candidates[candidateKey{slot: slot, roots: roots}]
 
-	return cand, ok
+	return contents, ok
 }
 
 // Exchange arranges the exchange of the execution payload contents of the duty's agreed proposal,
@@ -249,10 +251,10 @@ func (p *PayloadEx) exchange(ctx context.Context, duty core.Duty) error {
 		return err
 	}
 
-	// This node built the agreed block if its candidate contents are those the block commits to.
-	cand, ok := p.candidate(duty.Slot)
-	if ok && cand.roots == agreed.PayloadContentsRoots {
-		return p.push(ctx, duty, cand.contents)
+	// This node built the agreed block if it holds the candidate contents the block commits to.
+	contents, ok := p.candidate(duty.Slot, agreed.PayloadContentsRoots)
+	if ok {
+		return p.push(ctx, duty, contents)
 	}
 
 	p.pull(ctx, duty, root)

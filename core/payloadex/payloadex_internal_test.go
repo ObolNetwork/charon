@@ -37,26 +37,45 @@ func TestStoreCandidate(t *testing.T) {
 		retentionFunc: func(core.Duty) (time.Time, bool) {
 			return time.Now().Add(50 * time.Millisecond), true
 		},
-		candidates: make(map[uint64]candidate),
+		candidates: make(map[candidateKey]core.VersionedProposal),
 	}
 
 	// A bare proposal has no contents to hold.
 	require.ErrorContains(t, p.StoreCandidate(t.Context(), testutil.RandomGloasCoreVersionedEPBSProposal()), "no execution payload contents")
 
-	// The candidate is held with its roots until the duty deadline.
+	// The candidate is held by its roots until the duty deadline.
 	require.NoError(t, p.StoreCandidate(t.Context(), contents))
 
-	cand, ok := p.candidate(slot)
+	cand, ok := p.candidate(slot, roots)
 	require.True(t, ok)
-	require.Equal(t, roots, cand.roots)
-	require.Equal(t, contents, cand.contents)
+	require.Equal(t, contents, cand)
 
-	// A slot has one candidate.
-	require.ErrorContains(t, p.StoreCandidate(t.Context(), contents), "already stored")
+	// Storing it again is idempotent.
+	require.NoError(t, p.StoreCandidate(t.Context(), contents))
+	require.Len(t, p.candidates, 1)
+
+	// A slot may have several candidates, e.g. of a retried fetch, each held by its roots.
+	other := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	other.EPBS.GloasContents.Block.Slot = slot
+
+	otherRoots, err := core.NewPayloadContentsRoots(other)
+	require.NoError(t, err)
+
+	require.NoError(t, p.StoreCandidate(t.Context(), other))
+
+	cand, ok = p.candidate(slot, otherRoots)
+	require.True(t, ok)
+	require.Equal(t, other, cand)
+
+	cand, ok = p.candidate(slot, roots)
+	require.True(t, ok)
+	require.Equal(t, contents, cand)
 
 	require.Eventually(t, func() bool {
-		_, ok := p.candidate(slot)
-		return !ok
+		p.mu.Lock()
+		defer p.mu.Unlock()
+
+		return len(p.candidates) == 0
 	}, time.Second, 5*time.Millisecond)
 }
 
@@ -98,7 +117,7 @@ func TestExchange(t *testing.T) {
 				*stored = append(*stored, contents)
 				return nil
 			},
-			candidates: make(map[uint64]candidate),
+			candidates: make(map[candidateKey]core.VersionedProposal),
 		}
 	}
 
