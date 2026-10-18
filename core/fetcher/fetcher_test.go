@@ -1509,3 +1509,84 @@ func TestFetchOnlyEvictsStaleSlots(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, called)
 }
+
+// TestFetchEPBSBuilderAuths verifies that the configured builders are requested with their
+// aggregated builder request auths, and that a builder whose aggregate doesn't resolve in time is
+// left out rather than delaying the proposal.
+func TestFetchEPBSBuilderAuths(t *testing.T) {
+	const slot = 1
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSet := core.DutyDefinitionSet{
+		pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{Slot: slot, ValidatorIndex: 2}),
+	}
+
+	template := &gloas.BuilderConfig{
+		MinBid:             3,
+		BuilderBoostFactor: 90,
+		Builders: []*gloas.BuilderEntry{
+			{URL: []byte("https://Relay-A.example.com/gloas"), MaxExecutionPayment: 7, MinBid: 3, BuilderBoostFactor: 90},
+			{URL: []byte("https://relay-b.example.com"), MaxExecutionPayment: 7, MinBid: 3, BuilderBoostFactor: 90},
+		},
+	}
+
+	authA := core.NewSignedBuilderRequestAuth(&gloas.SignedBuilderRequestAuth{
+		Message:   &gloas.BuilderRequestAuth{Data: []byte("relay-a.example.com"), Slot: slot},
+		Signature: testutil.RandomEth2Signature(),
+	})
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	var requested *gloas.BuilderConfig
+
+	bmock.EPBSProposalFunc = func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error) {
+		requested = opts.BuilderConfig
+
+		block := testutil.RandomGloasBeaconBlock()
+		block.Slot = opts.Slot
+		block.Body.RANDAOReveal = opts.RandaoReveal
+
+		return &eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas, Gloas: block}, nil
+	}
+
+	fetch, err := fetcher.New(t.Context(), bmock, func(core.PubKey) string {
+		return "0x0000000000000000000000000000000000000000"
+	}, false, &fetcher.GraffitiBuilder{},
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, template, false)
+	require.NoError(t, err)
+
+	// Only builder A's aggregate resolves, builder B's never does.
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, pk core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
+		if duty.Type != core.DutyBuilderPreferences {
+			return testutil.RandomCoreSignature(), nil
+		}
+
+		require.Equal(t, core.NewBuilderPreferencesDuty(slot), duty)
+		require.Equal(t, pubkey, pk)
+
+		if awaitOpts.BuilderHost == "relay-a.example.com" {
+			return authA, nil
+		}
+
+		<-ctx.Done()
+
+		return nil, ctx.Err()
+	})
+
+	fetch.Subscribe(func(context.Context, core.Duty, core.UnsignedDataSet) error { return nil })
+
+	require.NoError(t, fetch.Fetch(t.Context(), core.NewProposerDuty(slot), defSet))
+
+	require.NotNil(t, requested)
+	require.EqualValues(t, 3, requested.MinBid)
+	require.EqualValues(t, 90, requested.BuilderBoostFactor)
+	require.Len(t, requested.Builders, 1)
+	require.Equal(t, []byte("https://Relay-A.example.com/gloas"), requested.Builders[0].URL)
+	require.EqualValues(t, 7, requested.Builders[0].MaxExecutionPayment)
+	require.Equal(t, &authA.SignedBuilderRequestAuth, requested.Builders[0].Auth)
+
+	// The template is left untouched for later proposals.
+	require.Nil(t, template.Builders[0].Auth)
+	require.Len(t, template.Builders, 2)
+}

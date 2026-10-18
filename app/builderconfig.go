@@ -22,18 +22,26 @@ func builderConfigured(conf Config) bool {
 // every v4 EPBS proposal request. MinBid and BuilderBoostFactor gate P2P builder bids
 // against the locally built payload.
 //
-// No direct builder entries are emitted, even when builder URLs are configured: each
-// BuilderEntry requires a per-proposal-slot, proposer-signed authorization, and the eth2
-// client rejects an entry whose auth is missing, which would fail every proposal. Direct
-// builder bids therefore stay inert until the builder preferences duty supplies those
-// authorizations; the beacon node meanwhile considers P2P and local bids. The builder
-// URLs are still distributed to validator clients via the proposer config file and
-// surfaced in metrics and peer info.
-// TODO(gloas): populate Builders with authorized entries once the builder preferences duty lands (#4724).
+// Each configured builder is a direct builder entry without its auth: an entry requires
+// the proposer's builder request auth for the proposal slot, which the fetcher adds per
+// proposal from the aggregated builder preferences duty, leaving out a builder whose auth
+// isn't aggregated.
 func builderConfig(conf Config) *gloas.BuilderConfig {
+	builders := make([]*gloas.BuilderEntry, 0, len(conf.BuilderURLs))
+	for _, url := range conf.BuilderURLs {
+		builders = append(builders, &gloas.BuilderEntry{
+			URL:                 []byte(url),
+			BuilderPubkeys:      []eth2p0.BLSPubKey{},
+			MaxExecutionPayment: eth2p0.Gwei(conf.BuilderMaxExecutionPayment),
+			MinBid:              eth2p0.Gwei(conf.BuilderMinBid),
+			BuilderBoostFactor:  conf.BuilderBoostFactor,
+		})
+	}
+
 	return &gloas.BuilderConfig{
 		MinBid:             eth2p0.Gwei(conf.BuilderMinBid),
 		BuilderBoostFactor: conf.BuilderBoostFactor,
+		Builders:           builders,
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -621,7 +622,7 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 			Slot:           eth2p0.Slot(slot),
 			RandaoReveal:   randao,
 			Graffiti:       f.graffitiBuilder.GetGraffiti(pubkey),
-			BuilderConfig:  f.builderConfig,
+			BuilderConfig:  f.builderConfigFor(ctx, slot, pubkey),
 			IncludePayload: &includePayload,
 		}
 
@@ -675,6 +676,79 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 	}
 
 	return resp, nil
+}
+
+// builderAuthTimeout bounds how long a proposal waits for the aggregated builder request auths.
+// Validator clients sign them ahead of the proposal, so they are usually aggregated already.
+const builderAuthTimeout = 500 * time.Millisecond
+
+// builderConfigFor returns the builder configuration of the validator's proposal: the configured
+// builders with their aggregated builder request auths. A builder whose auth isn't aggregated in
+// time is left out, since the beacon node can't request bids from it without one.
+func (f *Fetcher) builderConfigFor(ctx context.Context, slot uint64, pubkey core.PubKey) *gloas.BuilderConfig {
+	if f.builderConfig == nil || len(f.builderConfig.Builders) == 0 || f.aggSigDBFunc == nil {
+		return f.builderConfig
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, builderAuthTimeout)
+	defer cancel()
+
+	entries := make([]*gloas.BuilderEntry, len(f.builderConfig.Builders))
+
+	var wg sync.WaitGroup
+	for i, entry := range f.builderConfig.Builders {
+		wg.Go(func() {
+			auth, err := f.awaitBuilderAuth(ctx, slot, pubkey, entry)
+			if err != nil {
+				log.Warn(ctx, "Requesting proposal without builder, its request auth isn't aggregated", err,
+					z.U64("slot", slot), z.Str("builder", string(entry.URL)))
+
+				return
+			}
+
+			withAuth := *entry
+			withAuth.BuilderPubkeys = slices.Clone(entry.BuilderPubkeys)
+			withAuth.Auth = auth
+			entries[i] = &withAuth
+		})
+	}
+
+	wg.Wait()
+
+	// Keep the builders whose auth resolved, in configured order.
+	var builders []*gloas.BuilderEntry
+
+	for _, entry := range entries {
+		if entry != nil {
+			builders = append(builders, entry)
+		}
+	}
+
+	return &gloas.BuilderConfig{
+		MinBid:             f.builderConfig.MinBid,
+		BuilderBoostFactor: f.builderConfig.BuilderBoostFactor,
+		Builders:           builders,
+	}
+}
+
+// awaitBuilderAuth returns the aggregated builder request auth of the validator's proposal for the builder.
+func (f *Fetcher) awaitBuilderAuth(ctx context.Context, slot uint64, pubkey core.PubKey, entry *gloas.BuilderEntry) (*gloas.SignedBuilderRequestAuth, error) {
+	builderHost, err := eth2util.BuilderAuthData(string(entry.URL))
+	if err != nil {
+		return nil, err
+	}
+
+	signed, err := f.aggSigDBFunc(ctx, core.NewBuilderPreferencesDuty(slot), pubkey, core.AwaitOpts{BuilderHost: string(builderHost)})
+	if err != nil {
+		return nil, err
+	}
+
+	auth, ok := signed.(core.SignedBuilderRequestAuth)
+	if !ok {
+		return nil, errors.New("invalid builder request auth")
+	}
+
+	return &auth.SignedBuilderRequestAuth, nil
 }
 
 // fetchRandao returns the previously aggregated randao reveal for the slot from the AggSigDB.
