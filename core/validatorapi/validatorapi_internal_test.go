@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -17,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestMismatchKeysFunc(t *testing.T) {
@@ -134,4 +137,75 @@ func TestWarnProposerPreferencesMismatch(t *testing.T) {
 	// Nil feeRecipientFunc: no panic, no increment.
 	empty := Component{}
 	empty.warnProposerPreferencesMismatch(ctx, pubkey, &gloas.ProposerPreferences{FeeRecipient: otherAddr})
+}
+
+func TestEPBSProposalFormGauge(t *testing.T) {
+	ctx := t.Context()
+
+	bmock, err := beaconmock.New(ctx)
+	require.NoError(t, err)
+
+	const slot = 123
+
+	component, err := NewComponentInsecure(t, bmock, 1)
+	require.NoError(t, err)
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pk, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	pubkey, err := core.PubKeyFromBytes(pk[:])
+	require.NoError(t, err)
+
+	component.RegisterGetDutyDefinition(func(context.Context, core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	contents := testutil.RandomGloasBlockContents()
+	contents.Block.Slot = slot
+
+	component.RegisterAwaitVersionedProposal(func(context.Context, uint64) (core.VersionedProposal, error) {
+		return core.VersionedProposal{
+			Version: eth2spec.DataVersionGloas,
+			EPBS:    &eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas, Gloas: contents.Block},
+		}, nil
+	})
+	component.RegisterAwaitPayloadContents(func(context.Context, uint64, eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		return &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            contents,
+		}, nil
+	})
+
+	sig, err := tbls.Sign(secret, []byte("randao reveal"))
+	require.NoError(t, err)
+
+	propose := func(includePayload *bool) {
+		_, err := component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+			Slot:           slot,
+			RandaoReveal:   eth2p0.BLSSignature(sig),
+			IncludePayload: includePayload,
+		})
+		require.NoError(t, err)
+	}
+
+	form := func() int { return int(promtestutil.ToFloat64(proposalFormGauge)) }
+
+	// Until a gloas proposal is requested the gauge is at its default, distinct from either form.
+	proposalFormGauge.Set(proposalFormUnknown)
+	require.Equal(t, proposalFormUnknown, form())
+
+	stateful, stateless := false, true
+
+	propose(&stateful)
+	require.Equal(t, proposalFormStateful, form())
+
+	propose(&stateless)
+	require.Equal(t, proposalFormStateless, form())
+
+	propose(nil)
+	require.Equal(t, proposalFormStateful, form())
 }

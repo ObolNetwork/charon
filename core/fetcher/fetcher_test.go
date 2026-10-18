@@ -463,26 +463,58 @@ func TestFetchEPBSBlocks(t *testing.T) {
 
 		fetch := newFetcher(t, bmock)
 
+		var contents []core.VersionedProposal
+
+		fetch.SubscribePayloadContents(func(_ context.Context, proposal core.VersionedProposal) error {
+			contents = append(contents, proposal)
+			return nil
+		})
+
+		var proposals []core.VersionedProposal
+
 		fetch.Subscribe(func(_ context.Context, resDuty core.Duty, resDataSet core.UnsignedDataSet) error {
 			require.Equal(t, core.NewProposerDuty(slot), resDuty)
 			require.Len(t, resDataSet, 1)
 
 			proposal, ok := resDataSet[pubkey].(core.VersionedProposal)
 			require.True(t, ok)
-			require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
-			require.False(t, proposal.Blinded)
-			require.True(t, proposal.EPBS.ExecutionPayloadIncluded)
 
-			resSlot, err := proposal.Slot()
-			require.NoError(t, err)
-			require.EqualValues(t, slot, resSlot)
-
-			require.Equal(t, randao.Signature().ToETH2(), proposal.EPBS.GloasContents.Block.Body.RANDAOReveal)
+			proposals = append(proposals, proposal)
 
 			return nil
 		})
 
 		require.NoError(t, fetch.Fetch(ctx, core.NewProposerDuty(slot), defSet))
+
+		// Consensus agrees on the bare self-built block.
+		require.Len(t, proposals, 1)
+		proposal := proposals[0]
+		require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
+		require.False(t, proposal.Blinded)
+		require.False(t, proposal.EPBS.ExecutionPayloadIncluded)
+		require.Nil(t, proposal.EPBS.GloasContents)
+
+		resSlot, err := proposal.Slot()
+		require.NoError(t, err)
+		require.EqualValues(t, slot, resSlot)
+		require.Equal(t, randao.Signature().ToETH2(), proposal.EPBS.Gloas.Body.RANDAOReveal)
+
+		// Its execution payload envelope, blobs and proofs go to the payload contents subscriber.
+		require.Len(t, contents, 1)
+		require.True(t, contents[0].EPBS.ExecutionPayloadIncluded)
+		require.NotNil(t, contents[0].EPBS.GloasContents.ExecutionPayloadEnvelope)
+		require.Equal(t, proposal.EPBS.Gloas, contents[0].EPBS.GloasContents.Block)
+
+		proposalRoot, err := proposal.Root()
+		require.NoError(t, err)
+		contentsRoot, err := contents[0].Root()
+		require.NoError(t, err)
+		require.Equal(t, proposalRoot, contentsRoot)
+
+		// The bare proposal commits to the contents.
+		payloadRoots, err := core.NewPayloadContentsRoots(contents[0])
+		require.NoError(t, err)
+		require.Equal(t, payloadRoots, proposal.PayloadContentsRoots)
 	})
 
 	t.Run("payload excluded", func(t *testing.T) {
@@ -506,6 +538,12 @@ func TestFetchEPBSBlocks(t *testing.T) {
 		}
 
 		fetch := newFetcher(t, bmock)
+
+		// A builder bid's payload is revealed by its builder, there are no contents to keep.
+		fetch.SubscribePayloadContents(func(context.Context, core.VersionedProposal) error {
+			require.Fail(t, "unexpected payload contents for a builder bid")
+			return nil
+		})
 
 		fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
 			proposal, ok := resDataSet[pubkey].(core.VersionedProposal)

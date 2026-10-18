@@ -259,7 +259,12 @@ func (p VersionedProposal) MarshalSSZTo(buf []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	return marshalSSZVersionedWithFlagTo(buf, version, payloadless, p.sszValFromVersion)
+	if p.Version < eth2spec.DataVersionGloas {
+		return marshalSSZVersionedWithFlagTo(buf, version, payloadless, p.sszValFromVersion)
+	}
+
+	// From the gloas fork the framing carries the payload contents roots.
+	return marshalSSZVersionedWithFlagRootsTo(buf, version, payloadless, p.PayloadContentsRoots, p.sszValFromVersion)
 }
 
 // payloadless returns the container discriminator bit: the pre-gloas blinded flag, or
@@ -279,18 +284,37 @@ func (p VersionedProposal) payloadless() (bool, error) {
 
 // UnmarshalSSZ ssz unmarshalls the VersionedProposal object.
 func (p *VersionedProposal) UnmarshalSSZ(buf []byte) error {
-	version, payloadless, err := unmarshalSSZVersionedWithFlag(buf, p.sszValFromVersion)
+	if len(buf) < 8 {
+		return errors.Wrap(errSSZSize, "unmarshal VersionedProposal version")
+	}
+
+	version, err := eth2util.DataVersionFromUint64(sszUnmarshalUint64(buf[0:8]))
+	if err != nil {
+		return errors.Wrap(err, "unmarshal VersionedProposal version")
+	}
+
+	// Before the gloas fork the container bit carries the blinded flag.
+	if version.ToETH2() < eth2spec.DataVersionGloas {
+		version, blinded, err := unmarshalSSZVersionedWithFlag(buf, p.sszValFromVersion)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal VersionedProposal")
+		}
+
+		p.Version = version.ToETH2()
+		p.Blinded = blinded
+
+		return nil
+	}
+
+	// From the gloas fork the container bit carries !ExecutionPayloadIncluded, already captured
+	// in the EPBS field, and the framing carries the payload contents roots.
+	version, _, roots, err := unmarshalSSZVersionedWithFlagRoots(buf, p.sszValFromVersion)
 	if err != nil {
 		return errors.Wrap(err, "unmarshal VersionedProposal")
 	}
 
 	p.Version = version.ToETH2()
-
-	// The pre-gloas blinded flag does not apply from the gloas fork onwards: the
-	// container bit carries !ExecutionPayloadIncluded, already captured in the EPBS field.
-	if p.Version < eth2spec.DataVersionGloas {
-		p.Blinded = payloadless
-	}
+	p.PayloadContentsRoots = roots
 
 	return nil
 }
@@ -315,7 +339,11 @@ func (p VersionedProposal) SizeSSZ() int {
 		return 0
 	}
 
-	return sizeSSZVersionedWithFlag(val)
+	if p.Version < eth2spec.DataVersionGloas {
+		return sizeSSZVersionedWithFlag(val)
+	}
+
+	return versionedWithFlagRootsOffset + val.SizeSSZ()
 }
 
 // sszValFromVersion returns the internal value of the VersionedBeaconBlock object for a given version.
@@ -910,6 +938,9 @@ func (m *VersionedPayloadAttestationMessage) sszValFromVersion(version eth2util.
 const (
 	// versionedWithFlagOffset is the offset of a versioned ssz encoded object with a bool flag.
 	versionedWithFlagOffset = 8 + 1 + 4 // version (uint64) + flag (uint8) + offset (uint32)
+	// versionedWithFlagRootsOffset is the offset of a versioned ssz encoded object with a bool flag
+	// and two roots, the framing of proposals from the gloas fork onwards.
+	versionedWithFlagRootsOffset = 8 + 1 + 32 + 32 + 4 // version (uint64) + flag (uint8) + 2 roots (bytes32) + offset (uint32)
 	// versionedOffset is the offset of a versioned ssz encoded object.
 	versionedOffset = 8 + 4 // version (uint64) + offset (uint32)
 	// versionedValIdxOffset is the offset of a versioned attestation ssz encoded object.
@@ -1091,6 +1122,79 @@ func unmarshalSSZVersioned(buf []byte, valFunc func(eth2util.DataVersion) (sszTy
 	}
 
 	return version, nil
+}
+
+// marshalSSZVersionedWithFlagRootsTo marshals a versioned object with a bool flag and the payload
+// contents roots, see marshalSSZVersionedWithFlagTo.
+func marshalSSZVersionedWithFlagRootsTo(dst []byte, version eth2util.DataVersion, flag bool, roots PayloadContentsRoots,
+	valFunc func(eth2util.DataVersion, bool) (sszType, error),
+) ([]byte, error) {
+	// Field (0) 'Version'
+	dst = sszMarshalUint64(dst, version.ToUint64())
+
+	// Field (1) 'Flag'
+	dst = sszMarshalBool(dst, flag)
+
+	// Field (2) 'EnvelopeRoot'
+	dst = append(dst, roots.Envelope[:]...)
+
+	// Field (3) 'BlobsRoot'
+	dst = append(dst, roots.Blobs[:]...)
+
+	// Offset (4) 'Value'
+	dst = sszWriteOffset(dst, versionedWithFlagRootsOffset)
+
+	val, err := valFunc(version, flag)
+	if err != nil {
+		return nil, errors.Wrap(err, "sszValFromVersion from version")
+	}
+
+	// Field (4) 'Value'
+	if dst, err = val.MarshalSSZTo(dst); err != nil {
+		return nil, errors.Wrap(err, "marshal sszValFromVersion")
+	}
+
+	return dst, nil
+}
+
+// unmarshalSSZVersionedWithFlagRoots unmarshals a versioned object with a bool flag and the payload
+// contents roots, see unmarshalSSZVersionedWithFlag.
+func unmarshalSSZVersionedWithFlagRoots(buf []byte, valFunc func(eth2util.DataVersion, bool) (sszType, error)) (eth2util.DataVersion, bool, PayloadContentsRoots, error) {
+	if len(buf) < versionedWithFlagRootsOffset {
+		return "", false, PayloadContentsRoots{}, errors.Wrap(errSSZSize, "versioned object too short")
+	}
+
+	// Field (0) 'Version'
+	version, err := eth2util.DataVersionFromUint64(sszUnmarshalUint64(buf[0:8]))
+	if err != nil {
+		return "", false, PayloadContentsRoots{}, errors.Wrap(err, "unmarshal sszValFromVersion version")
+	}
+
+	// Field (1) 'Flag'
+	flag := sszUnmarshalBool(buf[8:9])
+
+	// Field (2) 'EnvelopeRoot' and Field (3) 'BlobsRoot'
+	var roots PayloadContentsRoots
+
+	copy(roots.Envelope[:], buf[9:41])
+	copy(roots.Blobs[:], buf[41:73])
+
+	// Offset (4) 'Value'
+	o1 := sszReadOffset(buf[73:77])
+	if versionedWithFlagRootsOffset > o1 || o1 > uint64(len(buf)) {
+		return "", false, PayloadContentsRoots{}, errors.Wrap(errSSZOffset, "sszValFromVersion offset", z.Any("version", version), z.Bool("flag", flag))
+	}
+
+	val, err := valFunc(version, flag)
+	if err != nil {
+		return "", false, PayloadContentsRoots{}, errors.Wrap(err, "sszValFromVersion from version", z.Any("version", version), z.Bool("flag", flag))
+	}
+
+	if err = val.UnmarshalSSZ(buf[o1:]); err != nil {
+		return "", false, PayloadContentsRoots{}, errors.Wrap(err, "unmarshal sszValFromVersion", z.Any("version", version), z.Bool("flag", flag))
+	}
+
+	return version, flag, roots, nil
 }
 
 // sizeSSZVersionedWithFlag returns the ssz encoded size in bytes for a given versioned object with a bool flag.

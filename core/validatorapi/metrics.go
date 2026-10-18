@@ -50,12 +50,26 @@ var (
 		Help:      "Gauge with label set to user agent string of requests made by VC",
 	}, []string{"user_agent"})
 
+	proposalFormGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "proposal_form",
+		Help:      "The form the validator client requested the latest gloas proposal in: none requested yet (0), stateless with its execution payload, which waits for the shared payload contents (1), or stateful (2)",
+	})
+
 	proposerPrefMismatch = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "core",
 		Subsystem: "validatorapi",
 		Name:      "proposer_preferences_mismatch_total",
 		Help:      "Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field",
 	}, []string{"field"})
+)
+
+// Values of proposalFormGauge, the form the latest gloas proposal was requested in.
+const (
+	proposalFormUnknown   = 0 // No gloas proposal requested yet, the gauge's default.
+	proposalFormStateless = 1
+	proposalFormStateful  = 2
 )
 
 func incProposerPrefMismatch(field string) {

@@ -73,6 +73,7 @@ type Fetcher struct {
 	eth2Cl                 eth2wrap.Client
 	feeRecipientFunc       func(core.PubKey) string
 	subs                   []func(context.Context, core.Duty, core.UnsignedDataSet) error
+	payloadContentsSubs    []func(context.Context, core.VersionedProposal) error
 	aggSigDBFunc           func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
 	awaitAttDataFunc       func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	syncContributionV2Func func(slot uint64) bool
@@ -106,6 +107,13 @@ const headEventBuffer = 16
 // Note this is not thread safe should be called *before* Fetch.
 func (f *Fetcher) Subscribe(fn func(context.Context, core.Duty, core.UnsignedDataSet) error) {
 	f.subs = append(f.subs, fn)
+}
+
+// SubscribePayloadContents registers a callback for the execution payload envelope, blobs and KZG
+// proofs of fetched self-built gloas proposals, which are proposed to consensus without them.
+// Note this is not thread safe should be called *before* Fetch.
+func (f *Fetcher) SubscribePayloadContents(fn func(context.Context, core.VersionedProposal) error) {
+	f.payloadContentsSubs = append(f.payloadContentsSubs, fn)
 }
 
 // FetchOnly fetches attestation data and caches it without triggering subscribers.
@@ -592,6 +600,9 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 // fetchEPBSProposerData returns proposal data fetched via the v4 EPBS endpoint, used from
 // the gloas fork onwards. The endpoint selects between the locally built payload and
 // builder bids on the beacon node side, steered by this node's builder configuration.
+// A self-built proposal is returned without its execution payload envelope, blobs and KZG
+// proofs, which are emitted to the payload contents subscribers instead, so consensus agrees on
+// the beacon block only.
 func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
 	resp := make(core.UnsignedDataSet)
 
@@ -635,6 +646,30 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 		}
 
 		proposalBlindedGauge.Set(source)
+
+		if coreProposal.EPBS.ExecutionPayloadIncluded {
+			for _, sub := range f.payloadContentsSubs {
+				err := sub(ctx, coreProposal)
+				if err != nil {
+					return nil, errors.Wrap(err, "payload contents subscriber")
+				}
+			}
+
+			coreProposal, err = core.WithoutPayloadContents(coreProposal)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			bid, err := core.EPBSBid(coreProposal.EPBS)
+			if err != nil {
+				return nil, err
+			}
+
+			if bid.BuilderIndex == core.BuilderIndexSelfBuild {
+				log.Warn(ctx, "Beacon node returned a self-built proposal without its execution payload, which cannot be revealed", nil,
+					z.U64("slot", slot))
+			}
+		}
 
 		resp[pubkey] = coreProposal
 	}

@@ -27,7 +27,7 @@ func TestCancelledQueries(t *testing.T) {
 	_, err = db.AwaitAggAttestation(ctx, slot, eth2p0.Root{}, 0)
 	require.ErrorContains(t, err, "shutdown")
 
-	_, err = db.AwaitProposal(ctx, slot)
+	_, err = db.AwaitVersionedProposal(ctx, slot)
 	require.ErrorContains(t, err, "shutdown")
 
 	_, err = db.AwaitSyncContribution(ctx, slot, 0, eth2p0.Root{})

@@ -40,6 +40,10 @@ type Fetcher interface {
 	// Subscribe registers a callback for proposed unsigned duty data sets.
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 
+	// SubscribePayloadContents registers a callback for the execution payload envelope, blobs and
+	// KZG proofs of fetched self-built gloas proposals, which are proposed without them.
+	SubscribePayloadContents(func(context.Context, VersionedProposal) error)
+
 	// RegisterAggSigDB registers a function to get resolved aggregated
 	// signed data from the AggSigDB (e.g., randao reveals). The SubcommitteeIndex
 	// selects the sync subcommittee for sync-committee aggregator duties
@@ -57,15 +61,21 @@ type DutyDB interface {
 	// Store stores the unsigned duty data set.
 	Store(context.Context, Duty, UnsignedDataSet) error
 
-	// AwaitProposal blocks and returns the proposed beacon block
-	// for the slot when available. It errors for gloas onwards proposals, which are
-	// served by AwaitEPBSProposal.
-	AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
+	// AwaitVersionedProposal blocks and returns the agreed proposal for the slot when available,
+	// in charon's versioned form of any fork: the embedded eth2 proposal before the gloas fork
+	// and the EPBS proposal from it, carrying the payload contents roots of a self-built block
+	// agreed without its execution payload contents.
+	AwaitVersionedProposal(ctx context.Context, slot uint64) (VersionedProposal, error)
 
-	// AwaitEPBSProposal blocks and returns the proposed ePBS beacon block for the slot
-	// when available, used from the gloas fork onwards. It errors for pre-gloas proposals,
-	// which are served by AwaitProposal.
-	AwaitEPBSProposal(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
+	// StorePayloadContents stores the execution payload envelope, blobs and KZG proofs of the
+	// agreed self-built gloas proposal of their slot, by slot and block root. It refuses contents
+	// of a slot without an agreed proposal yet, and contents whose block root or payload contents
+	// roots differ from the agreed proposal's, so it only ever holds agreed data.
+	StorePayloadContents(context.Context, VersionedProposal) error
+
+	// AwaitPayloadContents blocks and returns the self-built gloas proposal with its execution
+	// payload envelope, blobs and KZG proofs for the slot and block root when available.
+	AwaitPayloadContents(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
 
 	// AwaitAttestation blocks and returns the attestation data
 	// for the slot and committee index when available.
@@ -114,6 +124,31 @@ type Consensus interface {
 	Subscribe(func(context.Context, Duty, UnsignedDataSet) error)
 }
 
+// PayloadEx exchanges the execution payload contents (envelope, blobs and KZG proofs) of agreed
+// self-built gloas proposals between the node that built the block and its peers. Consensus
+// agrees on such a proposal without its contents, committed to by its payload contents roots.
+type PayloadEx interface {
+	// StoreCandidate holds this node's candidate execution payload contents, those of the
+	// self-built block it proposes, until the proposer duty deadline, to share them if the block
+	// is agreed. It is subscribed to the fetcher's payload contents.
+	StoreCandidate(context.Context, VersionedProposal) error
+
+	// Exchange awaits the agreed proposal of the duty and, for a self-built gloas block, stores
+	// and pushes its contents to all peers if they are this node's candidate, or pulls them from
+	// the peers if the proposer's push doesn't arrive. It is subscribed to the scheduler's duties
+	// and returns without waiting.
+	Exchange(context.Context, Duty, DutyDefinitionSet) error
+
+	// RegisterAwaitVersionedProposal registers a function to await agreed proposals by slot.
+	RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (VersionedProposal, error))
+
+	// RegisterAwaitPayloadContents registers a function to await the agreed execution payload contents.
+	RegisterAwaitPayloadContents(func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error))
+
+	// RegisterStorePayloadContents registers a function to store the agreed execution payload contents.
+	RegisterStorePayloadContents(func(context.Context, VersionedProposal) error)
+}
+
 // ConsensusController manages consensus instances.
 type ConsensusController interface {
 	// Start starts the consensus controller lifecycle.
@@ -138,11 +173,12 @@ type ConsensusController interface {
 
 // ValidatorAPI provides a beacon node API to validator clients. It serves duty data from the DutyDB and stores partial signed data in the ParSigDB.
 type ValidatorAPI interface {
-	// RegisterAwaitProposal registers a function to query unsigned beacon block proposals by providing the slot.
-	RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
+	// RegisterAwaitVersionedProposal registers a function to query agreed proposals by providing the slot.
+	RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (VersionedProposal, error))
 
-	// RegisterAwaitEPBSProposal registers a function to query unsigned ePBS beacon block proposals by providing the slot.
-	RegisterAwaitEPBSProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error))
+	// RegisterAwaitPayloadContents registers a function to query the execution payload contents of
+	// self-built ePBS proposals by providing the slot and block root.
+	RegisterAwaitPayloadContents(func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error))
 
 	// RegisterAwaitAttestation registers a function to query attestation data.
 	RegisterAwaitAttestation(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
@@ -278,47 +314,54 @@ type Tracker interface {
 // wireFuncs defines the core workflow components as a list of input and output functions
 // instead as interfaces, since functions are easier to wrap than interfaces.
 type wireFuncs struct {
-	SchedulerSubscribeDuties          func(func(context.Context, Duty, DutyDefinitionSet) error)
-	SchedulerSubscribeSlots           func(func(context.Context, Slot) error)
-	SchedulerGetDutyDefinition        func(context.Context, Duty) (DutyDefinitionSet, error)
-	SchedulerRegisterFetcherFetchOnly func(func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error)
-	FetcherFetch                      func(context.Context, Duty, DutyDefinitionSet) error
-	FetcherFetchOnly                  func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error
-	FetcherSubscribe                  func(func(context.Context, Duty, UnsignedDataSet) error)
-	FetcherRegisterAggSigDB           func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
-	FetcherRegisterAwaitAttData       func(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error))
-	ConsensusParticipate              func(context.Context, Duty) error
-	ConsensusPropose                  func(context.Context, Duty, UnsignedDataSet) error
-	ConsensusSubscribe                func(func(context.Context, Duty, UnsignedDataSet) error)
-	DutyDBStore                       func(context.Context, Duty, UnsignedDataSet) error
-	DutyDBAwaitProposal               func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)
-	DutyDBAwaitEPBSProposal           func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)
-	DutyDBAwaitAttestation            func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
-	DutyDBPubKeyByAttestation         func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
-	DutyDBAwaitAggAttestation         func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
-	DutyDBAwaitSyncContribution       func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
-	DutyDBAwaitPayloadAttestation     func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)
-	VAPIRegisterAwaitAttestation      func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
-	VAPIRegisterAwaitSyncContribution func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
-	VAPIRegisterAwaitProposal         func(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error))
-	VAPIRegisterAwaitEPBSProposal     func(func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error))
-	VAPIRegisterGetDutyDefinition     func(func(context.Context, Duty) (DutyDefinitionSet, error))
-	VAPIRegisterPubKeyByAttestation   func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
-	VAPIRegisterAwaitAggAttestation   func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
-	VAPIRegisterAwaitAggSigDB         func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
-	VAPIRegisterAwaitPayloadAttData   func(func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error))
-	VAPISubscribe                     func(func(context.Context, Duty, ParSignedDataSet) error)
-	ParSigDBStoreInternal             func(context.Context, Duty, ParSignedDataSet) error
-	ParSigDBStoreExternal             func(context.Context, Duty, ParSignedDataSet) error
-	ParSigDBSubscribeInternal         func(func(context.Context, Duty, ParSignedDataSet) error)
-	ParSigDBSubscribeThreshold        func(func(context.Context, Duty, map[PubKey][]ParSignedData) error)
-	ParSigExBroadcast                 func(context.Context, Duty, ParSignedDataSet) error
-	ParSigExSubscribe                 func(func(context.Context, Duty, ParSignedDataSet) error)
-	SigAggAggregate                   func(context.Context, Duty, map[PubKey][]ParSignedData) error
-	SigAggSubscribe                   func(func(context.Context, Duty, SignedDataSet) error)
-	AggSigDBStore                     func(context.Context, Duty, SignedDataSet) error
-	AggSigDBAwait                     func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error)
-	BroadcasterBroadcast              func(context.Context, Duty, SignedDataSet) error
+	SchedulerSubscribeDuties           func(func(context.Context, Duty, DutyDefinitionSet) error)
+	SchedulerSubscribeSlots            func(func(context.Context, Slot) error)
+	SchedulerGetDutyDefinition         func(context.Context, Duty) (DutyDefinitionSet, error)
+	SchedulerRegisterFetcherFetchOnly  func(func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error)
+	FetcherFetch                       func(context.Context, Duty, DutyDefinitionSet) error
+	FetcherFetchOnly                   func(context.Context, Duty, DutyDefinitionSet, string, eth2p0.Root) error
+	FetcherSubscribe                   func(func(context.Context, Duty, UnsignedDataSet) error)
+	FetcherSubscribePayloadContents    func(func(context.Context, VersionedProposal) error)
+	FetcherRegisterAggSigDB            func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
+	FetcherRegisterAwaitAttData        func(func(ctx context.Context, slot uint64, commIdx uint64) (*eth2p0.AttestationData, error))
+	ConsensusParticipate               func(context.Context, Duty) error
+	ConsensusPropose                   func(context.Context, Duty, UnsignedDataSet) error
+	ConsensusSubscribe                 func(func(context.Context, Duty, UnsignedDataSet) error)
+	DutyDBStore                        func(context.Context, Duty, UnsignedDataSet) error
+	DutyDBAwaitVersionedProposal       func(ctx context.Context, slot uint64) (VersionedProposal, error)
+	DutyDBStorePayloadContents         func(context.Context, VersionedProposal) error
+	DutyDBAwaitPayloadContents         func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
+	DutyDBAwaitAttestation             func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
+	DutyDBPubKeyByAttestation          func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error)
+	DutyDBAwaitAggAttestation          func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
+	DutyDBAwaitSyncContribution        func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
+	DutyDBAwaitPayloadAttestation      func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error)
+	PayloadExStoreCandidate            func(context.Context, VersionedProposal) error
+	PayloadExExchange                  func(context.Context, Duty, DutyDefinitionSet) error
+	PayloadExRegisterAwaitProposal     func(func(ctx context.Context, slot uint64) (VersionedProposal, error))
+	PayloadExRegisterAwaitContents     func(func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error))
+	PayloadExRegisterStoreContents     func(func(context.Context, VersionedProposal) error)
+	VAPIRegisterAwaitAttestation       func(func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error))
+	VAPIRegisterAwaitSyncContribution  func(func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error))
+	VAPIRegisterAwaitVersionedProposal func(func(ctx context.Context, slot uint64) (VersionedProposal, error))
+	VAPIRegisterAwaitPayloadContents   func(func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error))
+	VAPIRegisterGetDutyDefinition      func(func(context.Context, Duty) (DutyDefinitionSet, error))
+	VAPIRegisterPubKeyByAttestation    func(func(ctx context.Context, slot, commIdx, valIdx uint64) (PubKey, error))
+	VAPIRegisterAwaitAggAttestation    func(func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error))
+	VAPIRegisterAwaitAggSigDB          func(func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error))
+	VAPIRegisterAwaitPayloadAttData    func(func(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error))
+	VAPISubscribe                      func(func(context.Context, Duty, ParSignedDataSet) error)
+	ParSigDBStoreInternal              func(context.Context, Duty, ParSignedDataSet) error
+	ParSigDBStoreExternal              func(context.Context, Duty, ParSignedDataSet) error
+	ParSigDBSubscribeInternal          func(func(context.Context, Duty, ParSignedDataSet) error)
+	ParSigDBSubscribeThreshold         func(func(context.Context, Duty, map[PubKey][]ParSignedData) error)
+	ParSigExBroadcast                  func(context.Context, Duty, ParSignedDataSet) error
+	ParSigExSubscribe                  func(func(context.Context, Duty, ParSignedDataSet) error)
+	SigAggAggregate                    func(context.Context, Duty, map[PubKey][]ParSignedData) error
+	SigAggSubscribe                    func(func(context.Context, Duty, SignedDataSet) error)
+	AggSigDBStore                      func(context.Context, Duty, SignedDataSet) error
+	AggSigDBAwait                      func(context.Context, Duty, PubKey, SubcommitteeIndex) (SignedData, error)
+	BroadcasterBroadcast               func(context.Context, Duty, SignedDataSet) error
 }
 
 // WireOption defines a functional option to configure wiring.
@@ -329,6 +372,7 @@ func Wire(sched Scheduler,
 	fetch Fetcher,
 	cons Consensus,
 	dutyDB DutyDB,
+	payloadEx PayloadEx,
 	vapi ValidatorAPI,
 	parSigDB ParSigDB,
 	parSigEx ParSigEx,
@@ -338,47 +382,54 @@ func Wire(sched Scheduler,
 	opts ...WireOption,
 ) {
 	w := wireFuncs{
-		SchedulerSubscribeDuties:          sched.SubscribeDuties,
-		SchedulerSubscribeSlots:           sched.SubscribeSlots,
-		SchedulerGetDutyDefinition:        sched.GetDutyDefinition,
-		SchedulerRegisterFetcherFetchOnly: sched.RegisterFetcherFetchOnly,
-		FetcherFetch:                      fetch.Fetch,
-		FetcherFetchOnly:                  fetch.FetchOnly,
-		FetcherSubscribe:                  fetch.Subscribe,
-		FetcherRegisterAggSigDB:           fetch.RegisterAggSigDB,
-		FetcherRegisterAwaitAttData:       fetch.RegisterAwaitAttData,
-		ConsensusParticipate:              cons.Participate,
-		ConsensusPropose:                  cons.Propose,
-		ConsensusSubscribe:                cons.Subscribe,
-		DutyDBStore:                       dutyDB.Store,
-		DutyDBAwaitAttestation:            dutyDB.AwaitAttestation,
-		DutyDBAwaitProposal:               dutyDB.AwaitProposal,
-		DutyDBAwaitEPBSProposal:           dutyDB.AwaitEPBSProposal,
-		DutyDBPubKeyByAttestation:         dutyDB.PubKeyByAttestation,
-		DutyDBAwaitAggAttestation:         dutyDB.AwaitAggAttestation,
-		DutyDBAwaitSyncContribution:       dutyDB.AwaitSyncContribution,
-		DutyDBAwaitPayloadAttestation:     dutyDB.AwaitPayloadAttestationData,
-		VAPIRegisterAwaitProposal:         vapi.RegisterAwaitProposal,
-		VAPIRegisterAwaitEPBSProposal:     vapi.RegisterAwaitEPBSProposal,
-		VAPIRegisterAwaitAttestation:      vapi.RegisterAwaitAttestation,
-		VAPIRegisterAwaitSyncContribution: vapi.RegisterAwaitSyncContribution,
-		VAPIRegisterGetDutyDefinition:     vapi.RegisterGetDutyDefinition,
-		VAPIRegisterPubKeyByAttestation:   vapi.RegisterPubKeyByAttestation,
-		VAPIRegisterAwaitAggAttestation:   vapi.RegisterAwaitAggAttestation,
-		VAPIRegisterAwaitAggSigDB:         vapi.RegisterAwaitAggSigDB,
-		VAPIRegisterAwaitPayloadAttData:   vapi.RegisterAwaitPayloadAttestationData,
-		VAPISubscribe:                     vapi.Subscribe,
-		ParSigDBStoreInternal:             parSigDB.StoreInternal,
-		ParSigDBStoreExternal:             parSigDB.StoreExternal,
-		ParSigDBSubscribeInternal:         parSigDB.SubscribeInternal,
-		ParSigDBSubscribeThreshold:        parSigDB.SubscribeThreshold,
-		ParSigExBroadcast:                 parSigEx.Broadcast,
-		ParSigExSubscribe:                 parSigEx.Subscribe,
-		SigAggAggregate:                   sigAgg.Aggregate,
-		SigAggSubscribe:                   sigAgg.Subscribe,
-		AggSigDBStore:                     aggSigDB.Store,
-		AggSigDBAwait:                     aggSigDB.Await,
-		BroadcasterBroadcast:              bcast.Broadcast,
+		SchedulerSubscribeDuties:           sched.SubscribeDuties,
+		SchedulerSubscribeSlots:            sched.SubscribeSlots,
+		SchedulerGetDutyDefinition:         sched.GetDutyDefinition,
+		SchedulerRegisterFetcherFetchOnly:  sched.RegisterFetcherFetchOnly,
+		FetcherFetch:                       fetch.Fetch,
+		FetcherFetchOnly:                   fetch.FetchOnly,
+		FetcherSubscribe:                   fetch.Subscribe,
+		FetcherSubscribePayloadContents:    fetch.SubscribePayloadContents,
+		FetcherRegisterAggSigDB:            fetch.RegisterAggSigDB,
+		FetcherRegisterAwaitAttData:        fetch.RegisterAwaitAttData,
+		ConsensusParticipate:               cons.Participate,
+		ConsensusPropose:                   cons.Propose,
+		ConsensusSubscribe:                 cons.Subscribe,
+		DutyDBStore:                        dutyDB.Store,
+		DutyDBAwaitAttestation:             dutyDB.AwaitAttestation,
+		DutyDBAwaitVersionedProposal:       dutyDB.AwaitVersionedProposal,
+		DutyDBStorePayloadContents:         dutyDB.StorePayloadContents,
+		DutyDBAwaitPayloadContents:         dutyDB.AwaitPayloadContents,
+		DutyDBPubKeyByAttestation:          dutyDB.PubKeyByAttestation,
+		DutyDBAwaitAggAttestation:          dutyDB.AwaitAggAttestation,
+		DutyDBAwaitSyncContribution:        dutyDB.AwaitSyncContribution,
+		DutyDBAwaitPayloadAttestation:      dutyDB.AwaitPayloadAttestationData,
+		PayloadExStoreCandidate:            payloadEx.StoreCandidate,
+		PayloadExExchange:                  payloadEx.Exchange,
+		PayloadExRegisterAwaitProposal:     payloadEx.RegisterAwaitVersionedProposal,
+		PayloadExRegisterAwaitContents:     payloadEx.RegisterAwaitPayloadContents,
+		PayloadExRegisterStoreContents:     payloadEx.RegisterStorePayloadContents,
+		VAPIRegisterAwaitVersionedProposal: vapi.RegisterAwaitVersionedProposal,
+		VAPIRegisterAwaitPayloadContents:   vapi.RegisterAwaitPayloadContents,
+		VAPIRegisterAwaitAttestation:       vapi.RegisterAwaitAttestation,
+		VAPIRegisterAwaitSyncContribution:  vapi.RegisterAwaitSyncContribution,
+		VAPIRegisterGetDutyDefinition:      vapi.RegisterGetDutyDefinition,
+		VAPIRegisterPubKeyByAttestation:    vapi.RegisterPubKeyByAttestation,
+		VAPIRegisterAwaitAggAttestation:    vapi.RegisterAwaitAggAttestation,
+		VAPIRegisterAwaitAggSigDB:          vapi.RegisterAwaitAggSigDB,
+		VAPIRegisterAwaitPayloadAttData:    vapi.RegisterAwaitPayloadAttestationData,
+		VAPISubscribe:                      vapi.Subscribe,
+		ParSigDBStoreInternal:              parSigDB.StoreInternal,
+		ParSigDBStoreExternal:              parSigDB.StoreExternal,
+		ParSigDBSubscribeInternal:          parSigDB.SubscribeInternal,
+		ParSigDBSubscribeThreshold:         parSigDB.SubscribeThreshold,
+		ParSigExBroadcast:                  parSigEx.Broadcast,
+		ParSigExSubscribe:                  parSigEx.Subscribe,
+		SigAggAggregate:                    sigAgg.Aggregate,
+		SigAggSubscribe:                    sigAgg.Subscribe,
+		AggSigDBStore:                      aggSigDB.Store,
+		AggSigDBAwait:                      aggSigDB.Await,
+		BroadcasterBroadcast:               bcast.Broadcast,
 	}
 
 	for _, opt := range opts {
@@ -386,16 +437,21 @@ func Wire(sched Scheduler,
 	}
 
 	w.SchedulerSubscribeDuties(w.FetcherFetch)
+	w.SchedulerSubscribeDuties(w.PayloadExExchange)
 	w.SchedulerSubscribeDuties(func(ctx context.Context, duty Duty, _ DutyDefinitionSet) error {
 		return w.ConsensusParticipate(ctx, duty)
 	})
 	w.SchedulerRegisterFetcherFetchOnly(w.FetcherFetchOnly) // TODO(post-gloas): remove the pre-gloas early attestation fetch.
 	w.FetcherSubscribe(w.ConsensusPropose)
+	w.FetcherSubscribePayloadContents(w.PayloadExStoreCandidate)
 	w.FetcherRegisterAggSigDB(w.AggSigDBAwait)
 	w.FetcherRegisterAwaitAttData(w.DutyDBAwaitAttestation)
 	w.ConsensusSubscribe(w.DutyDBStore)
-	w.VAPIRegisterAwaitProposal(w.DutyDBAwaitProposal)
-	w.VAPIRegisterAwaitEPBSProposal(w.DutyDBAwaitEPBSProposal)
+	w.PayloadExRegisterAwaitProposal(w.DutyDBAwaitVersionedProposal)
+	w.PayloadExRegisterAwaitContents(w.DutyDBAwaitPayloadContents)
+	w.PayloadExRegisterStoreContents(w.DutyDBStorePayloadContents)
+	w.VAPIRegisterAwaitVersionedProposal(w.DutyDBAwaitVersionedProposal)
+	w.VAPIRegisterAwaitPayloadContents(w.DutyDBAwaitPayloadContents)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterAwaitSyncContribution(w.DutyDBAwaitSyncContribution)
 	w.VAPIRegisterAwaitPayloadAttData(w.DutyDBAwaitPayloadAttestation)
