@@ -41,6 +41,7 @@ func New(ctx context.Context,
 	slotsPerEpoch uint64,
 	slotOffsetFunc core.SlotOffsetFunc,
 	builderAPI bool,
+	builderURLs []string,
 ) *Component {
 	c := &Component{
 		eth2ClProvider: eth2ClProvider,
@@ -53,6 +54,7 @@ func New(ctx context.Context,
 			SlotOffset:    slotOffsetFunc,
 		},
 		builderAPI:       builderAPI,
+		builderURLs:      builderURLs,
 		attestersBySlot:  make(map[uint64]*SlotAttester),
 		syncCommsByEpoch: make(map[uint64]*SyncCommMember),
 		scheduled:        make(chan scheduleTuple),
@@ -75,6 +77,7 @@ type Component struct {
 	meta           specMeta
 	scheduled      chan scheduleTuple
 	builderAPI     bool
+	builderURLs    []string
 
 	// Mutable state.
 	mu               sync.Mutex
@@ -312,6 +315,10 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		if err = ProposerPreferences(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
 			return err
 		}
+	case core.DutyBuilderPreferences:
+		if err = BuilderPreferences(ctx, eth2Cl, m.signFunc, eth2Slot, m.builderURLs); err != nil {
+			return err
+		}
 	case core.DutyBuilderRegistration:
 		// Expected duty, but no action needed in validatormock.
 	default:
@@ -453,6 +460,9 @@ var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	// Proposer preferences for a proposal slot in epoch E are submitted at the start of
 	// epoch E-1, the earliest time the E-2 dependent root they sign over is anchored.
 	core.DutyProposerPreferences: {startOfPrevEpoch},
+	// Builder preferences authorize builders for a proposal slot and are submitted ahead of it
+	// like proposer preferences.
+	core.DutyBuilderPreferences: {startOfPrevEpoch},
 }
 
 // startOfPrevEpoch returns the start time of the previous epoch.

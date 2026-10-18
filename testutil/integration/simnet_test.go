@@ -90,6 +90,13 @@ func TestSimnetDuties(t *testing.T) {
 			vcType:        vcVmock,
 		},
 		{
+			name:          "builder preferences with mock VCs",
+			scheduledType: core.DutyBuilderPreferences,
+			// The mock VCs also submit proposer preferences for the proposal slot they authorize builders for.
+			duties: []core.DutyType{core.DutyBuilderPreferences, core.DutyProposerPreferences},
+			vcType: vcVmock,
+		},
+		{
 			name:          "gloas epbs proposer with mock VCs",
 			scheduledType: core.DutyProposer,
 			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao, core.DutyExecutionPayloadEnvelope},
@@ -174,14 +181,19 @@ func TestSimnetDuties(t *testing.T) {
 				)
 			}
 
-			if test.scheduledType == core.DutyProposerPreferences {
-				// Proposer preferences only exist from gloas onwards, activate the fork and
-				// enable v2 proposer duties, the source of the slots the preferences target.
+			if test.scheduledType == core.DutyProposerPreferences || test.scheduledType == core.DutyBuilderPreferences {
+				// Proposer and builder preferences only exist from gloas onwards, activate the fork
+				// and enable v2 proposer duties, the source of the slots the preferences target.
 				args.BMockOpts = append(args.BMockOpts,
 					beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
 					beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
 					beaconmock.WithDeterministicProposerDutiesV2(2),
 				)
+			}
+
+			if test.scheduledType == core.DutyBuilderPreferences {
+				// The mock VCs authorize the builder charon is configured with.
+				args.BuilderURLs = []string{"https://relay-a.example.com"}
 			}
 
 			expect := newSimnetExpect(args.N, test.duties...)
@@ -200,6 +212,7 @@ type simnetArgs struct {
 	Lock               cluster.Lock
 	ErrChan            chan error
 	BuilderAPI         bool
+	BuilderURLs        []string
 	SyntheticProposals bool
 	VoluntaryExit      bool
 }
@@ -364,6 +377,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				Relays:   []string{relayAddr},
 			},
 			BuilderAPI:              args.BuilderAPI,
+			BuilderURLs:             args.BuilderURLs,
 			SyntheticBlockProposals: args.SyntheticProposals,
 		}
 
