@@ -10,9 +10,9 @@ import (
 
 	context "context"
 
-	eth2wrap "github.com/obolnetwork/charon/app/eth2wrap"
+	electra "github.com/attestantio/go-eth2-client/spec/electra"
 
-	gloas "github.com/attestantio/go-eth2-client/spec/gloas"
+	eth2wrap "github.com/obolnetwork/charon/app/eth2wrap"
 
 	http "net/http"
 
@@ -21,8 +21,6 @@ import (
 	phase0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	spec "github.com/attestantio/go-eth2-client/spec"
-
-	electra "github.com/attestantio/go-eth2-client/spec/electra"
 
 	time "time"
 
@@ -804,36 +802,6 @@ func (_m *Client) NodeVersionV2(ctx context.Context, opts *api.NodeVersionV2Opts
 	return r0, r1
 }
 
-// PendingDeposits provides a mock function with given fields: ctx, opts
-func (_m *Client) PendingDeposits(ctx context.Context, opts *api.PendingDepositsOpts) (*api.Response[[]*electra.PendingDeposit], error) {
-	ret := _m.Called(ctx, opts)
-
-	if len(ret) == 0 {
-		panic("no return value specified for PendingDeposits")
-	}
-
-	var r0 *api.Response[[]*electra.PendingDeposit]
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *api.PendingDepositsOpts) (*api.Response[[]*electra.PendingDeposit], error)); ok {
-		return rf(ctx, opts)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *api.PendingDepositsOpts) *api.Response[[]*electra.PendingDeposit]); ok {
-		r0 = rf(ctx, opts)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.Response[[]*electra.PendingDeposit])
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *api.PendingDepositsOpts) error); ok {
-		r1 = rf(ctx, opts)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // PTCDuties provides a mock function with given fields: ctx, opts
 func (_m *Client) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (*api.Response[[]*v1.PTCDuty], error) {
 	ret := _m.Called(ctx, opts)
@@ -886,6 +854,36 @@ func (_m *Client) PayloadAttestationData(ctx context.Context, opts *api.PayloadA
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.PayloadAttestationDataOpts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// PendingDeposits provides a mock function with given fields: ctx, opts
+func (_m *Client) PendingDeposits(ctx context.Context, opts *api.PendingDepositsOpts) (*api.Response[[]*electra.PendingDeposit], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PendingDeposits")
+	}
+
+	var r0 *api.Response[[]*electra.PendingDeposit]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PendingDepositsOpts) (*api.Response[[]*electra.PendingDeposit], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PendingDepositsOpts) *api.Response[[]*electra.PendingDeposit]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*electra.PendingDeposit])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.PendingDepositsOpts) error); ok {
 		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)
@@ -1303,6 +1301,24 @@ func (_m *Client) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBli
 	return r0
 }
 
+// SubmitBuilderPreferences provides a mock function with given fields: ctx, opts
+func (_m *Client) SubmitBuilderPreferences(ctx context.Context, opts *api.SubmitBuilderPreferencesOpts) error {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SubmitBuilderPreferences")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitBuilderPreferencesOpts) error); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // SubmitExecutionPayloadEnvelope provides a mock function with given fields: ctx, opts
 func (_m *Client) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *api.SubmitExecutionPayloadEnvelopeOpts) error {
 	ret := _m.Called(ctx, opts)
@@ -1375,17 +1391,17 @@ func (_m *Client) SubmitProposalPreparations(ctx context.Context, preparations [
 	return r0
 }
 
-// SubmitProposerPreferences provides a mock function with given fields: ctx, preferences
-func (_m *Client) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
-	ret := _m.Called(ctx, preferences)
+// SubmitProposerPreferences provides a mock function with given fields: ctx, opts
+func (_m *Client) SubmitProposerPreferences(ctx context.Context, opts *api.SubmitProposerPreferencesOpts) error {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SubmitProposerPreferences")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*gloas.SignedProposerPreferences) error); ok {
-		r0 = rf(ctx, preferences)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitProposerPreferencesOpts) error); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		r0 = ret.Error(0)
 	}

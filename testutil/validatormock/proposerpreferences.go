@@ -97,7 +97,7 @@ func ProposerPreferences(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		return nil
 	}
 
-	return eth2Cl.SubmitProposerPreferences(ctx, prefs)
+	return eth2Cl.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: prefs})
 }
 
 // dependentRoot returns the dependent root from the proposer duties response metadata,

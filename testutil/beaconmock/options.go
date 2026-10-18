@@ -736,7 +736,10 @@ func defaultMock(httpMock HTTPMock, httpServer *http.Server, clock clockwork.Clo
 		ProposerDutiesV2Func: func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 			return []*eth2v1.ProposerDuty{}, nil
 		},
-		SubmitProposerPreferencesFunc: func(context.Context, []*gloas.SignedProposerPreferences) error {
+		SubmitProposerPreferencesFunc: func(context.Context, *eth2api.SubmitProposerPreferencesOpts) error {
+			return nil
+		},
+		SubmitBuilderPreferencesFunc: func(context.Context, *eth2api.SubmitBuilderPreferencesOpts) error {
 			return nil
 		},
 		SubmitExecutionPayloadEnvelopeFunc: func(context.Context, *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {

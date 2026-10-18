@@ -2598,8 +2598,8 @@ func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, opts 
 	return h.SubmitPayloadAttMsgsFunc(ctx, opts)
 }
 
-func (h testHandler) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
-	return h.SubmitProposerPreferencesFunc(ctx, preferences)
+func (h testHandler) SubmitProposerPreferences(ctx context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
+	return h.SubmitProposerPreferencesFunc(ctx, opts.Preferences)
 }
 
 func (h testHandler) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {

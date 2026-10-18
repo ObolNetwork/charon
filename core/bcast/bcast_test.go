@@ -10,7 +10,6 @@ import (
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -307,7 +306,8 @@ func proposerPreferences(t *testing.T, mock *beaconmock.Mock) test {
 	asserted := make(chan struct{})
 	prefs := core.NewSignedProposerPreferences(testutil.RandomProposerPreferences())
 
-	mock.SubmitProposerPreferencesFunc = func(_ context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	mock.SubmitProposerPreferencesFunc = func(_ context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
+		preferences := opts.Preferences
 		require.Len(t, preferences, 1)
 		require.Equal(t, prefs.SignedProposerPreferences, *preferences[0])
 		close(asserted)

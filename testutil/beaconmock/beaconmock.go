@@ -34,7 +34,6 @@ import (
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/electra"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
 
@@ -207,7 +206,8 @@ type Mock struct {
 	SignedBeaconBlockFunc                  func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedBeaconBlock, error)
 	ProposerDutiesFunc                     func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
 	ProposerDutiesV2Func                   func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error)
-	SubmitProposerPreferencesFunc          func(context.Context, []*gloas.SignedProposerPreferences) error
+	SubmitProposerPreferencesFunc          func(context.Context, *eth2api.SubmitProposerPreferencesOpts) error
+	SubmitBuilderPreferencesFunc           func(context.Context, *eth2api.SubmitBuilderPreferencesOpts) error
 	SubmitExecutionPayloadEnvelopeFunc     func(context.Context, *eth2api.SubmitExecutionPayloadEnvelopeOpts) error
 	SignedExecutionPayloadEnvelopeFunc     func(ctx context.Context, blockID string) (*eth2spec.VersionedSignedExecutionPayloadEnvelope, error)
 	CachedProposerDutiesFunc               func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error)
@@ -349,8 +349,12 @@ func (m Mock) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDuties
 	return wrapResponseWithMetadata(duties), nil
 }
 
-func (m Mock) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
-	return m.SubmitProposerPreferencesFunc(ctx, preferences)
+func (m Mock) SubmitProposerPreferences(ctx context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
+	return m.SubmitProposerPreferencesFunc(ctx, opts)
+}
+
+func (m Mock) SubmitBuilderPreferences(ctx context.Context, opts *eth2api.SubmitBuilderPreferencesOpts) error {
+	return m.SubmitBuilderPreferencesFunc(ctx, opts)
 }
 
 func (m Mock) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {

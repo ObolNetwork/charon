@@ -1358,7 +1358,13 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 // proposal slot for threshold aggregation. Preferences are aggregated ungated (like sync committee
 // messages): the call never waits for other shares; the submission completing the threshold
 // synchronously triggers aggregation, like other VC-pushed duties.
-func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+func (c Component) SubmitProposerPreferences(ctx context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
+	if opts == nil {
+		return badRequestError("no proposer preferences options", nil)
+	}
+
+	preferences := opts.Preferences
+
 	// Use complete validators since preferences are submitted ahead of time: a validator
 	// activating in the proposal epoch is a valid proposer but not yet active when submitting.
 	vals, err := c.eth2Cl.CompleteValidators(ctx)

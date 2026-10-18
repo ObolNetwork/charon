@@ -128,6 +128,7 @@ type Client interface {
 		"BeaconCommitteesProvider":              {Latency: true, Log: false},
 		"BlindedProposalProvider":               {Latency: true, Log: false},
 		"BlindedProposalSubmitter":              {Latency: true, Log: false},
+		"BuilderPreferencesSubmitter":           {Latency: true, Log: false},
 		"DepositContractProvider":               {Latency: false, Log: false},
 		"DomainProvider":                        {Latency: false, Log: false},
 		"ForkProvider":                          {Latency: true, Log: false},

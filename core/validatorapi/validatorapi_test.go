@@ -2394,22 +2394,22 @@ func TestComponent_SubmitProposerPreferences(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
 	require.Equal(t, count, 1)
 
 	// Faulty entries are skipped with a warning, not forwarded and not failing the batch:
 	// already-started slots, far-future slots, unknown validators and nil entries.
 	pref.Message.ProposalSlot = currentSlot
-	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
 
 	pref.Message.ProposalSlot = currentSlot + 100_000
-	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
 
 	pref.Message.ProposalSlot = currentSlot + 1
 	pref.Message.ValidatorIndex = 99_999
-	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{pref}))
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
 
-	require.NoError(t, vapi.SubmitProposerPreferences(ctx, []*gloas.SignedProposerPreferences{nil}))
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{nil}}))
 
 	require.Equal(t, count, 1) // Subscriber not called for any skipped entry.
 
@@ -2422,7 +2422,7 @@ func TestComponent_SubmitProposerPreferences(t *testing.T) {
 		tooMany[i] = testutil.RandomProposerPreferences()
 	}
 
-	require.ErrorContains(t, vapi.SubmitProposerPreferences(ctx, tooMany), "too many proposer preferences")
+	require.ErrorContains(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: tooMany}), "too many proposer preferences")
 }
 
 func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {

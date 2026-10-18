@@ -2147,7 +2147,7 @@ func submitProposerPreferences(h Handler) handlerFunc {
 			return nil, nil, errors.Wrap(err, "unmarshal proposer preferences")
 		}
 
-		err = h.SubmitProposerPreferences(ctx, prefs)
+		err = h.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: prefs})
 		if err != nil {
 			return nil, nil, err
 		}

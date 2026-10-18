@@ -15,7 +15,6 @@ import (
 	"github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/electra"
-	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/attestantio/go-eth2-client/spec/phase0"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 )
@@ -51,6 +50,7 @@ type Client interface {
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BeaconCommitteesProvider
 	eth2client.BlindedProposalSubmitter
+	eth2client.BuilderPreferencesSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
 	eth2client.EPBSProposalProvider
@@ -64,10 +64,10 @@ type Client interface {
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.NodeVersionV2Provider
-	eth2client.PendingDepositProvider
 	eth2client.PTCDutiesProvider
 	eth2client.PayloadAttestationDataProvider
 	eth2client.PayloadAttestationMessagesSubmitter
+	eth2client.PendingDepositProvider
 	eth2client.ProposalPreparationsSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
@@ -1099,14 +1099,34 @@ func (m multi) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.S
 	return err
 }
 
-func (m multi) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+func (m multi) SubmitBuilderPreferences(ctx context.Context, opts *api.SubmitBuilderPreferencesOpts) error {
+	const label = "submit_builder_preferences"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitBuilderPreferences(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
+func (m multi) SubmitProposerPreferences(ctx context.Context, opts *api.SubmitProposerPreferencesOpts) error {
 	const label = "submit_proposer_preferences"
 	defer latency(ctx, label, false)()
 	defer incRequest(label)
 
 	err := submit(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) error {
-			return args.client.SubmitProposerPreferences(ctx, preferences)
+			return args.client.SubmitProposerPreferences(ctx, opts)
 		},
 		m.selector,
 	)
@@ -1599,13 +1619,22 @@ func (l *lazy) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.S
 	return cl.SubmitPayloadAttestationMessages(ctx, opts)
 }
 
-func (l *lazy) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) (err error) {
+func (l *lazy) SubmitBuilderPreferences(ctx context.Context, opts *api.SubmitBuilderPreferencesOpts) (err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	return cl.SubmitProposerPreferences(ctx, preferences)
+	return cl.SubmitBuilderPreferences(ctx, opts)
+}
+
+func (l *lazy) SubmitProposerPreferences(ctx context.Context, opts *api.SubmitProposerPreferencesOpts) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitProposerPreferences(ctx, opts)
 }
 
 // Proxy performs an HTTP proxy request and returns the response.

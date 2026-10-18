@@ -285,7 +285,7 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return err
 		}
 
-		err = b.eth2Cl.SubmitProposerPreferences(ctx, prefs)
+		err = b.eth2Cl.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: prefs})
 		if err == nil {
 			log.Info(ctx, "Successfully submitted proposer preferences to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposerPreferences)),
