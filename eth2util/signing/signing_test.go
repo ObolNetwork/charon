@@ -128,3 +128,38 @@ func TestConstantApplicationBuilder(t *testing.T) {
 		require.Equal(t, expect, domain, "domain for fork schedule %d", i)
 	}
 }
+
+func TestGetDomainBuilderRequestAuth(t *testing.T) {
+	// builder-specs gloas defines DOMAIN_BUILDER_REQUEST_AUTH as DomainType('0x0B000001'),
+	// computed with the genesis fork version and a zero genesis validators root.
+	// See https://github.com/ethereum/builder-specs/blob/61aeca42d9ba8eb467ae230d191ebc1c3f38107d/specs/gloas/builder.md
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	genesis, err := bmock.Genesis(t.Context(), &eth2api.GenesisOpts{})
+	require.NoError(t, err)
+	require.NotZero(t, genesis.Data.GenesisValidatorsRoot)
+
+	forkDataRoot, err := (&eth2p0.ForkData{CurrentVersion: genesis.Data.GenesisForkVersion}).HashTreeRoot()
+	require.NoError(t, err)
+
+	var expect eth2p0.Domain
+	copy(expect[:], []byte{0x0b, 0x00, 0x00, 0x01})
+	copy(expect[4:], forkDataRoot[:28])
+
+	// Most beacon nodes don't publish the builder API domain in their spec, so the
+	// builder-specs value is used. The domain doesn't depend on the epoch.
+	for _, epoch := range []eth2p0.Epoch{0, 100} {
+		domain, err := signing.GetDomain(t.Context(), bmock, signing.DomainBuilderRequestAuth, epoch)
+		require.NoError(t, err)
+		require.Equal(t, expect, domain)
+	}
+
+	// A beacon node publishing the domain is honoured.
+	bmock, err = beaconmock.New(t.Context(), beaconmock.WithSpecOverride("DOMAIN_BUILDER_REQUEST_AUTH", "0x0b000001"))
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(t.Context(), bmock, signing.DomainBuilderRequestAuth, 100)
+	require.NoError(t, err)
+	require.Equal(t, expect, domain)
+}
