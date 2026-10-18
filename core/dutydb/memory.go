@@ -154,10 +154,10 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 }
 
 // StorePayloadContents implements core.DutyDB, see its godoc. The contents are keyed by slot and
-// block root, verified against the agreed proposal's payload contents root, and deleted with the
-// proposer duty.
+// block root, verified against the agreed proposal's block root and payload contents roots, and
+// deleted with the proposer duty.
 func (db *MemDB) StorePayloadContents(_ context.Context, proposal core.VersionedProposal) error {
-	contentsRoot, err := core.PayloadContentsRoot(proposal)
+	contentsRoots, err := core.NewPayloadContentsRoots(proposal)
 	if err != nil {
 		return err
 	}
@@ -193,8 +193,17 @@ func (db *MemDB) StorePayloadContents(_ context.Context, proposal core.Versioned
 		return errors.New("no agreed proposal for payload contents", z.Any("duty", duty))
 	}
 
-	if contentsRoot != agreed.PayloadContentsRoot {
-		return errors.New("payload contents root mismatch", z.Any("duty", duty))
+	agreedRoot, err := agreed.Root()
+	if err != nil {
+		return err
+	}
+
+	if root != agreedRoot {
+		return errors.New("block root mismatch", z.Any("duty", duty))
+	}
+
+	if contentsRoots != agreed.PayloadContentsRoots {
+		return errors.New("payload contents roots mismatch", z.Any("duty", duty))
 	}
 
 	status := db.retention.Add(duty)

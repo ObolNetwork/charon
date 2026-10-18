@@ -63,14 +63,14 @@ type DutyDB interface {
 
 	// AwaitVersionedProposal blocks and returns the agreed proposal for the slot when available,
 	// in charon's versioned form of any fork: the embedded eth2 proposal before the gloas fork
-	// and the EPBS proposal from it, carrying the payload contents root of a self-built block
+	// and the EPBS proposal from it, carrying the payload contents roots of a self-built block
 	// agreed without its execution payload contents.
 	AwaitVersionedProposal(ctx context.Context, slot uint64) (VersionedProposal, error)
 
 	// StorePayloadContents stores the execution payload envelope, blobs and KZG proofs of the
 	// agreed self-built gloas proposal of their slot, by slot and block root. It refuses contents
-	// of a slot without an agreed proposal yet, and contents whose root differs from the agreed
-	// proposal's payload contents root, so it only ever holds agreed data.
+	// of a slot without an agreed proposal yet, and contents whose block root or payload contents
+	// roots differ from the agreed proposal's, so it only ever holds agreed data.
 	StorePayloadContents(context.Context, VersionedProposal) error
 
 	// AwaitPayloadContents blocks and returns the self-built gloas proposal with its execution
@@ -126,7 +126,7 @@ type Consensus interface {
 
 // PayloadEx exchanges the execution payload contents (envelope, blobs and KZG proofs) of agreed
 // self-built gloas proposals between the node that built the block and its peers. Consensus
-// agrees on such a proposal without its contents, committed to by its payload contents root.
+// agrees on such a proposal without its contents, committed to by its payload contents roots.
 type PayloadEx interface {
 	// StoreCandidate holds this node's candidate execution payload contents, those of the
 	// self-built block it proposes, until the proposer duty deadline, to share them if the block

@@ -13,6 +13,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -371,12 +372,24 @@ func TestMemDBPayloadContents(t *testing.T) {
 	// Storing again is idempotent, e.g. a retried share.
 	require.NoError(t, db.StorePayloadContents(ctx, contents))
 
-	// Contents the agreed proposal doesn't commit to are refused.
+	// Contents of another block of the slot are refused.
 	other := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
 	other.EPBS.GloasContents.Block.Slot = slot
 
 	err = db.StorePayloadContents(ctx, other)
-	require.ErrorContains(t, err, "payload contents root mismatch")
+	require.ErrorContains(t, err, "block root mismatch")
+
+	// Contents the agreed proposal doesn't commit to are refused.
+	clone, err := contents.Clone()
+	require.NoError(t, err)
+
+	altered, ok := clone.(core.VersionedProposal)
+	require.True(t, ok)
+
+	altered.EPBS.GloasContents.Blobs = append(altered.EPBS.GloasContents.Blobs, deneb.Blob{1})
+
+	err = db.StorePayloadContents(ctx, altered)
+	require.ErrorContains(t, err, "payload contents roots mismatch")
 
 	// A proposal without its execution payload carries no contents.
 	err = db.StorePayloadContents(ctx, agreed)
@@ -513,9 +526,9 @@ func TestMemDBAwaitVersionedProposal(t *testing.T) {
 
 	bare, err := core.WithoutPayloadContents(contents)
 	require.NoError(t, err)
-	require.NotEqual(t, [32]byte{}, bare.PayloadContentsRoot)
+	require.NotEqual(t, core.PayloadContentsRoots{}, bare.PayloadContentsRoots)
 
-	// The query waits for the agreed proposal and returns it with its payload contents root.
+	// The query waits for the agreed proposal and returns it with its payload contents roots.
 	type result struct {
 		proposal core.VersionedProposal
 		err      error

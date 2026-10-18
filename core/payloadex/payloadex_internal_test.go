@@ -30,7 +30,7 @@ func TestStoreCandidate(t *testing.T) {
 	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
 	contents.EPBS.GloasContents.Block.Slot = slot
 
-	root, err := core.PayloadContentsRoot(contents)
+	roots, err := core.NewPayloadContentsRoots(contents)
 	require.NoError(t, err)
 
 	p := &PayloadEx{
@@ -43,12 +43,12 @@ func TestStoreCandidate(t *testing.T) {
 	// A bare proposal has no contents to hold.
 	require.ErrorContains(t, p.StoreCandidate(t.Context(), testutil.RandomGloasCoreVersionedEPBSProposal()), "no execution payload contents")
 
-	// The candidate is held with its root until the duty deadline.
+	// The candidate is held with its roots until the duty deadline.
 	require.NoError(t, p.StoreCandidate(t.Context(), contents))
 
 	cand, ok := p.candidate(slot)
 	require.True(t, ok)
-	require.Equal(t, root, cand.root)
+	require.Equal(t, roots, cand.roots)
 	require.Equal(t, contents, cand.contents)
 
 	// A slot has one candidate.
@@ -166,13 +166,13 @@ func TestReceive(t *testing.T) {
 				return agreed, nil
 			},
 			storeFunc: func(_ context.Context, contents core.VersionedProposal) error {
-				root, err := core.PayloadContentsRoot(contents)
+				roots, err := core.NewPayloadContentsRoots(contents)
 				if err != nil {
 					return err
 				}
 
-				if root != agreed.PayloadContentsRoot {
-					return errors.New("payload contents root mismatch")
+				if roots != agreed.PayloadContentsRoots {
+					return errors.New("payload contents roots mismatch")
 				}
 
 				*stored = append(*stored, contents)
@@ -196,7 +196,7 @@ func TestReceive(t *testing.T) {
 		other.EPBS.GloasContents.Block.Slot = slot
 
 		err := newPayloadEx(&stored).receive(t.Context(), newTestMsg(t, duty, other))
-		require.ErrorContains(t, err, "root mismatch")
+		require.ErrorContains(t, err, "roots mismatch")
 		require.Empty(t, stored)
 	})
 

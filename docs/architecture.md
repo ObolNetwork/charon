@@ -213,11 +213,11 @@ flowchart LR
 **From the gloas fork**, the `Fetcher` requests the proposal with its execution payload (`include_payload=true`),
 so any beacon node can publish it. For a self-built block it hands the execution payload envelope, blobs and KZG
 proofs to `PayloadEx` as this node's candidate, and consensus agrees on the beacon block and the root of those
-contents only (`VersionedProposal.PayloadContentsRoot`), keeping megabytes of blobs out of every consensus message.
+contents only (`VersionedProposal.PayloadContentsRoots`, one for the envelope and one for the blobs and proofs), keeping megabytes of blobs out of every consensus message.
 `PayloadEx`, triggered by the scheduler, awaits the agreed proposal in the `DutyDB`: the node whose candidate matches
-the agreed root, the one that built the block, stores the contents in the `DutyDB` and pushes them to its peers, and
+the agreed roots, the one that built the block, stores the contents in the `DutyDB` and pushes them to its peers, and
 a peer that doesn't receive them within a second of its decision asks its peers, which answer from their `DutyDB` as
-soon as they hold them. The `DutyDB` refuses contents that don't hash to the agreed root, so it only ever holds agreed
+soon as they hold them. The `DutyDB` refuses contents that don't hash to the agreed roots, so it only ever holds agreed
 data and no sender is trusted. The
 VC is served the agreed block without its payload, then retrieves the envelope
 (the VAPI blocks until it is shared), signs it and submits it as `DutyExecutionPayloadEnvelope`, which Charon

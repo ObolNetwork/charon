@@ -22,7 +22,7 @@ const (
 )
 
 // PayloadExMsg carries a self-built proposal with its execution payload envelope, blobs and KZG
-// proofs. Receivers store it iff it hashes to the payload contents root agreed with the proposal's
+// proofs. Receivers store it iff it hashes to the payload contents roots agreed with the proposal's
 // beacon block, whoever delivers it.
 type PayloadExMsg struct {
 	state protoimpl.MessageState `protogen:"open.v1"`

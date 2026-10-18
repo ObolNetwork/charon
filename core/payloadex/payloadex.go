@@ -2,12 +2,12 @@
 
 // Package payloadex exchanges the execution payload envelope, blobs and KZG proofs of an agreed
 // self-built gloas proposal between the node that built it and its peers. Consensus agrees on the
-// beacon block and the root of its payload contents only, so that the large contents don't travel
+// beacon block and the roots of its payload contents only, so that the large contents don't travel
 // with every consensus message. Each node holds the contents of the block it proposes as its
 // candidate; once a block is agreed, the node whose candidate it is pushes the contents, and a peer
 // that didn't receive them, e.g. because its link to the proposer is broken, pulls them from the
 // peers that did. The DutyDB is the only store of the agreed contents: received contents go into
-// it, which accepts those hashing to the agreed root only, whoever delivers them, and pulls are
+// it, which accepts those hashing to the agreed roots only, whoever delivers them, and pulls are
 // answered from it. The exchange lives as long as the DutyDB retains the agreed proposal, until the
 // end of the slot, see core.NewDutyRetentionFunc.
 package payloadex
@@ -118,9 +118,9 @@ type PayloadEx struct {
 	pendingRequests pendingSet // Requests held until the contents are held, by peer.
 }
 
-// candidate is this node's candidate execution payload contents of a slot, with their root.
+// candidate is this node's candidate execution payload contents of a slot, with their roots.
 type candidate struct {
-	root     [32]byte
+	roots    core.PayloadContentsRoots
 	contents core.VersionedProposal
 }
 
@@ -143,7 +143,7 @@ func (p *PayloadEx) RegisterStorePayloadContents(fn func(context.Context, core.V
 // block it proposes, until the proposer duty deadline, to share them if the block is agreed. It is
 // subscribed to the fetcher's payload contents.
 func (p *PayloadEx) StoreCandidate(_ context.Context, contents core.VersionedProposal) error {
-	root, err := core.PayloadContentsRoot(contents)
+	roots, err := core.NewPayloadContentsRoots(contents)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (p *PayloadEx) StoreCandidate(_ context.Context, contents core.VersionedPro
 		return errors.New("candidate execution payload contents already stored", z.Any("duty", duty))
 	}
 
-	p.candidates[duty.Slot] = candidate{root: root, contents: cloned}
+	p.candidates[duty.Slot] = candidate{roots: roots, contents: cloned}
 
 	time.AfterFunc(time.Until(deadline), func() {
 		p.mu.Lock()
@@ -239,8 +239,8 @@ func (p *PayloadEx) exchange(ctx context.Context, duty core.Duty) error {
 		return errors.Wrap(err, "await agreed proposal")
 	}
 
-	// Only self-built gloas blocks are agreed without their contents, committed to by their root.
-	if agreed.Version < eth2spec.DataVersionGloas || agreed.PayloadContentsRoot == [32]byte{} {
+	// Only self-built gloas blocks are agreed without their contents, committed to by their roots.
+	if agreed.Version < eth2spec.DataVersionGloas || agreed.PayloadContentsRoots == (core.PayloadContentsRoots{}) {
 		return nil
 	}
 
@@ -251,7 +251,7 @@ func (p *PayloadEx) exchange(ctx context.Context, duty core.Duty) error {
 
 	// This node built the agreed block if its candidate contents are those the block commits to.
 	cand, ok := p.candidate(duty.Slot)
-	if ok && cand.root == agreed.PayloadContentsRoot {
+	if ok && cand.roots == agreed.PayloadContentsRoots {
 		return p.push(ctx, duty, cand.contents)
 	}
 

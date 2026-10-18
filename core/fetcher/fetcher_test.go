@@ -512,9 +512,9 @@ func TestFetchEPBSBlocks(t *testing.T) {
 		require.Equal(t, proposalRoot, contentsRoot)
 
 		// The bare proposal commits to the contents.
-		payloadRoot, err := core.PayloadContentsRoot(contents[0])
+		payloadRoots, err := core.NewPayloadContentsRoots(contents[0])
 		require.NoError(t, err)
-		require.Equal(t, payloadRoot, proposal.PayloadContentsRoot)
+		require.Equal(t, payloadRoots, proposal.PayloadContentsRoots)
 	})
 
 	t.Run("payload excluded", func(t *testing.T) {

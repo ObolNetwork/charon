@@ -7,7 +7,7 @@ option go_package = "github.com/obolnetwork/charon/core/corepb/v1";
 import "core/corepb/v1/core.proto";
 
 // PayloadExMsg carries a self-built proposal with its execution payload envelope, blobs and KZG
-// proofs. Receivers store it iff it hashes to the payload contents root agreed with the proposal's
+// proofs. Receivers store it iff it hashes to the payload contents roots agreed with the proposal's
 // beacon block, whoever delivers it.
 message PayloadExMsg {
   core.corepb.v1.Duty duty = 1;

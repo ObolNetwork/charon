@@ -646,9 +646,15 @@ type versionedRawBlockJSON struct {
 	// ExecutionPayloadIncluded discriminates the two arms of a gloas EPBS proposal,
 	// which the pre-gloas blinded flag does not apply to. Nil for other versions.
 	ExecutionPayloadIncluded *bool `json:"execution_payload_included,omitempty"`
-	// PayloadContentsRoot commits to the execution payload contents of a self-built gloas
+	// PayloadContentsRoots commit to the execution payload contents of a self-built gloas
 	// proposal agreed without them, see VersionedProposal. Nil when zero.
-	PayloadContentsRoot *eth2p0.Root `json:"payload_contents_root,omitempty"`
+	PayloadContentsRoots *payloadContentsRootsJSON `json:"payload_contents_roots,omitempty"`
+}
+
+// payloadContentsRootsJSON is the JSON form of PayloadContentsRoots.
+type payloadContentsRootsJSON struct {
+	Envelope eth2p0.Root `json:"envelope"`
+	Blobs    eth2p0.Root `json:"blobs"`
 }
 
 // NewVersionedAttestation is a convenience function that returns a new wrapped attestation.

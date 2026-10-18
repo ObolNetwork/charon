@@ -4,6 +4,7 @@ package core
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"math"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
@@ -422,35 +424,75 @@ type VersionedProposal struct {
 	// not apply to gloas, EPBS.ExecutionPayloadIncluded discriminates the two arms.
 	EPBS *eth2api.VersionedEPBSProposal
 
-	// PayloadContentsRoot commits to the execution payload envelope, blobs and KZG proofs of a
-	// self-built gloas proposal agreed without them, see PayloadContentsRoot, so that peers can
-	// verify the contents the proposer shares after the decision. Zero for builder bids, for
+	// PayloadContentsRoots commit to the execution payload envelope, blobs and KZG proofs of a
+	// self-built gloas proposal agreed without them, see NewPayloadContentsRoots, so that peers
+	// can verify the contents the proposer shares after the decision. Zero for builder bids, for
 	// proposals carrying their payload and before the gloas fork.
-	PayloadContentsRoot [32]byte
+	PayloadContentsRoots PayloadContentsRoots
 }
 
-// PayloadContentsRoot returns the commitment to the execution payload contents of a self-built
-// gloas proposal: the sha256 of the SSZ encoding of its block contents (block, envelope, blobs and
-// KZG proofs), which is preset independent unlike the generated hash tree roots.
-func PayloadContentsRoot(proposal VersionedProposal) ([32]byte, error) {
+// PayloadContentsRoots are the commitments to the execution payload contents of a self-built
+// gloas proposal, to its envelope and to its blobs separately, so that each is verified on its
+// own as it arrives.
+type PayloadContentsRoots struct {
+	// Envelope is the sha256 of the SSZ encoding of the execution payload envelope.
+	Envelope [32]byte
+	// Blobs is the sha256 of the KZG proofs and blobs, each list prefixed by its length.
+	Blobs [32]byte
+}
+
+// NewPayloadContentsRoots returns the commitments to the execution payload contents of a
+// self-built gloas proposal, sha256 digests of SSZ encodings, which are preset independent
+// unlike the generated hash tree roots.
+func NewPayloadContentsRoots(proposal VersionedProposal) (PayloadContentsRoots, error) {
 	if proposal.Version < eth2spec.DataVersionGloas || proposal.EPBS == nil ||
 		!proposal.EPBS.ExecutionPayloadIncluded || proposal.EPBS.GloasContents == nil {
-		return [32]byte{}, errors.New("no execution payload contents")
+		return PayloadContentsRoots{}, errors.New("no execution payload contents")
 	}
 
-	b, err := proposal.EPBS.GloasContents.MarshalSSZ()
+	contents := proposal.EPBS.GloasContents
+	if contents.ExecutionPayloadEnvelope == nil {
+		return PayloadContentsRoots{}, errors.New("no execution payload envelope")
+	}
+
+	b, err := contents.ExecutionPayloadEnvelope.MarshalSSZ()
 	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "marshal block contents")
+		return PayloadContentsRoots{}, errors.Wrap(err, "marshal execution payload envelope")
 	}
 
-	return sha256.Sum256(b), nil
+	return PayloadContentsRoots{
+		Envelope: sha256.Sum256(b),
+		Blobs:    hashBlobs(contents.KZGProofs, contents.Blobs),
+	}, nil
+}
+
+// hashBlobs returns the sha256 of the KZG proofs and blobs, each list prefixed by its length as
+// a little-endian uint64, i.e. the SSZ encoding of the fixed-size elements, length prefixed.
+func hashBlobs(proofs []deneb.KZGProof, blobs []deneb.Blob) [32]byte {
+	h := sha256.New()
+
+	_, _ = h.Write(binary.LittleEndian.AppendUint64(nil, uint64(len(proofs))))
+	for _, proof := range proofs {
+		_, _ = h.Write(proof[:])
+	}
+
+	_, _ = h.Write(binary.LittleEndian.AppendUint64(nil, uint64(len(blobs))))
+	for _, blob := range blobs {
+		_, _ = h.Write(blob[:])
+	}
+
+	var root [32]byte
+
+	copy(root[:], h.Sum(nil))
+
+	return root
 }
 
 // WithoutPayloadContents returns the self-built gloas proposal without its execution payload
-// envelope, blobs and KZG proofs: its beacon block, which commits to them, with the root of the
+// envelope, blobs and KZG proofs: its beacon block, which commits to them, with the roots of the
 // contents to agree on.
 func WithoutPayloadContents(proposal VersionedProposal) (VersionedProposal, error) {
-	root, err := PayloadContentsRoot(proposal)
+	roots, err := NewPayloadContentsRoots(proposal)
 	if err != nil {
 		return VersionedProposal{}, err
 	}
@@ -470,7 +512,7 @@ func WithoutPayloadContents(proposal VersionedProposal) (VersionedProposal, erro
 		return VersionedProposal{}, err
 	}
 
-	bare.PayloadContentsRoot = root
+	bare.PayloadContentsRoots = roots
 
 	return bare, nil
 }
@@ -653,16 +695,18 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	// From the gloas fork onwards proposals are discriminated by execution payload
 	// inclusion, the pre-gloas blinded flag does not apply to them.
 	var (
-		included     *bool
-		contentsRoot *eth2p0.Root
+		included      *bool
+		contentsRoots *payloadContentsRootsJSON
 	)
 
 	if p.Version >= eth2spec.DataVersionGloas {
 		included = &p.EPBS.ExecutionPayloadIncluded
 
-		if p.PayloadContentsRoot != [32]byte{} {
-			root := eth2p0.Root(p.PayloadContentsRoot)
-			contentsRoot = &root
+		if p.PayloadContentsRoots != (PayloadContentsRoots{}) {
+			contentsRoots = &payloadContentsRootsJSON{
+				Envelope: p.PayloadContentsRoots.Envelope,
+				Blobs:    p.PayloadContentsRoots.Blobs,
+			}
 		}
 	}
 
@@ -671,7 +715,7 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 		Block:                    block,
 		Blinded:                  p.Blinded,
 		ExecutionPayloadIncluded: included,
-		PayloadContentsRoot:      contentsRoot,
+		PayloadContentsRoots:     contentsRoots,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -826,12 +870,15 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		return errors.New("unknown version")
 	}
 
-	var contentsRoot [32]byte
-	if raw.PayloadContentsRoot != nil {
-		contentsRoot = *raw.PayloadContentsRoot
+	var contentsRoots PayloadContentsRoots
+	if raw.PayloadContentsRoots != nil {
+		contentsRoots = PayloadContentsRoots{
+			Envelope: raw.PayloadContentsRoots.Envelope,
+			Blobs:    raw.PayloadContentsRoots.Blobs,
+		}
 	}
 
-	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs, PayloadContentsRoot: contentsRoot}
+	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs, PayloadContentsRoots: contentsRoots}
 
 	return nil
 }
