@@ -333,3 +333,64 @@ func TestMemDBProposerPreferencesReorg(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, rootB, root)
 }
+
+// TestMemDBBuilderRequestAuthPerBuilder verifies that a share's builder request auths for several
+// builders of the same proposal slot don't collide, and that each builder's auth aggregates to
+// threshold independently.
+func TestMemDBBuilderRequestAuthPerBuilder(t *testing.T) {
+	const th = 2
+
+	db := NewMemDB(th, newTestDeadliner(), NewMemDBMetadata(eth2util.Mainnet.SlotDuration, time.Unix(eth2util.Mainnet.GenesisTimestamp, 0)))
+
+	var thresholdSets []map[core.PubKey][]core.ParSignedData
+
+	db.SubscribeThreshold(func(_ context.Context, _ core.Duty, set map[core.PubKey][]core.ParSignedData) error {
+		thresholdSets = append(thresholdSets, set)
+
+		return nil
+	})
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	authA := testutil.RandomSignedBuilderRequestAuth()
+	authA.Message.Data = []byte("relay-a.example.com")
+	duty := core.NewBuilderPreferencesDuty(uint64(authA.Message.Slot))
+
+	authB := testutil.RandomSignedBuilderRequestAuth()
+	authB.Message.Data = []byte("relay-b.example.com")
+	authB.Message.Slot = authA.Message.Slot
+
+	store := func(auth *gloas.SignedBuilderRequestAuth, shareIdx int) error {
+		return db.StoreExternal(context.Background(), duty, core.ParSignedDataSet{
+			pubkey: core.NewPartialSignedBuilderRequestAuth(auth, shareIdx),
+		})
+	}
+
+	// Share 1 authorizes both builders: the second must not error as mismatching.
+	require.NoError(t, store(authA, 1))
+	require.NoError(t, store(authB, 1))
+	require.Empty(t, thresholdSets)
+
+	// Share 2 authorizes builder B: threshold reached for B only.
+	require.NoError(t, store(authB, 2))
+	require.Len(t, thresholdSets, 1)
+	require.Len(t, thresholdSets[0][pubkey], th)
+
+	root, err := thresholdSets[0][pubkey][0].MessageRoot()
+	require.NoError(t, err)
+
+	rootB, err := core.NewSignedBuilderRequestAuth(authB).MessageRoot()
+	require.NoError(t, err)
+	require.Equal(t, rootB, root)
+
+	// Share 2 authorizes builder A: threshold reached for A independently.
+	require.NoError(t, store(authA, 2))
+	require.Len(t, thresholdSets, 2)
+
+	root, err = thresholdSets[1][pubkey][0].MessageRoot()
+	require.NoError(t, err)
+
+	rootA, err := core.NewSignedBuilderRequestAuth(authA).MessageRoot()
+	require.NoError(t, err)
+	require.Equal(t, rootA, root)
+}

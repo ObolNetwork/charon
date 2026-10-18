@@ -203,7 +203,7 @@ type Component struct {
 	awaitPayloadContentsFunc   func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
 	awaitSyncContributionFunc  func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc            func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
-	awaitAggSigDBFunc          func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	awaitAggSigDBFunc          func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)
 	dutyDefFunc                func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
@@ -289,7 +289,7 @@ func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slo
 }
 
 // RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
-func (c *Component) RegisterAwaitAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)) {
+func (c *Component) RegisterAwaitAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)) {
 	c.awaitAggSigDBFunc = fn
 }
 
@@ -1172,7 +1172,7 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 		duty := core.NewPrepareAggregatorDuty(uint64(slot))
 		for pk := range data {
 			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.awaitAggSigDBFunc(ctx, duty, pk, 0)
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk, core.AwaitOpts{})
 			if err != nil {
 				return nil, err
 			}
@@ -1724,7 +1724,7 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 		duty := core.NewPrepareSyncContributionDuty(uint64(selection.Slot))
 		subcommIdx := core.SubcommitteeIndex(selection.SubcommitteeIndex)
 
-		s, err := c.awaitAggSigDBFunc(ctx, duty, pubkeys[i], subcommIdx)
+		s, err := c.awaitAggSigDBFunc(ctx, duty, pubkeys[i], core.AwaitOpts{SubcommIdx: subcommIdx})
 		if err != nil {
 			return nil, err
 		}

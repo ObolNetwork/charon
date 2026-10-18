@@ -37,7 +37,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 		require.NoError(t, err)
 
-		result, err := db.Await(context.Background(), testDuty, testPubKey, 0)
+		result, err := db.Await(context.Background(), testDuty, testPubKey, core.AwaitOpts{})
 		require.NoError(t, err)
 
 		require.EqualValues(t, testSignedData, result)
@@ -59,7 +59,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		})
 
 		go func() {
-			result, err := db.Await(context.Background(), testDuty, testPubKey, 0)
+			result, err := db.Await(context.Background(), testDuty, testPubKey, core.AwaitOpts{})
 			resChan <- struct {
 				result core.SignedData
 				err    error
@@ -89,7 +89,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		ctx2, cancel2 := context.WithCancel(context.Background())
 
 		go func() {
-			_, err := db.Await(ctx2, testDuty, testPubKey, 0)
+			_, err := db.Await(ctx2, testDuty, testPubKey, core.AwaitOpts{})
 			errChan <- err
 		}()
 
@@ -114,7 +114,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		ctx2, cancel2 := context.WithCancel(context.Background())
 		cancel2()
 
-		_, err := db.Await(ctx2, testDuty, testPubKey, 0)
+		_, err := db.Await(ctx2, testDuty, testPubKey, core.AwaitOpts{})
 		require.Error(t, err)
 		require.Equal(t, "context canceled", err.Error())
 	})
@@ -135,7 +135,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		errChan := make(chan error)
 
 		go func() {
-			_, err := db.Await(context.Background(), testDuty, testPubKey, 0)
+			_, err := db.Await(context.Background(), testDuty, testPubKey, core.AwaitOpts{})
 			errChan <- err
 		}()
 
@@ -187,7 +187,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		err = db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 		require.NoError(t, err)
 
-		result, err := db.Await(context.Background(), testDuty, testPubKey, 0)
+		result, err := db.Await(context.Background(), testDuty, testPubKey, core.AwaitOpts{})
 		require.NoError(t, err)
 		require.EqualValues(t, testSignedData, result)
 	})
@@ -205,7 +205,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		err := db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 		require.NoError(t, err)
 
-		result, err := db.Await(context.Background(), testDuty, testPubKey, 0)
+		result, err := db.Await(context.Background(), testDuty, testPubKey, core.AwaitOpts{})
 		require.NoError(t, err)
 		require.EqualValues(t, testSignedData, result)
 
@@ -216,7 +216,7 @@ func testMemDB(t *testing.T, newMemDB func(core.Deadliner) core.AggSigDB) {
 		err = db.Store(context.Background(), testDuty, core.SignedDataSet{testPubKey: testSignedData})
 		require.Equal(t, err.Error(), aggsigdb.ErrStopped.Error())
 
-		_, err = db.Await(context.Background(), testDuty, testPubKey, 0)
+		_, err = db.Await(context.Background(), testDuty, testPubKey, core.AwaitOpts{})
 		require.Equal(t, err.Error(), aggsigdb.ErrStopped.Error())
 	})
 }

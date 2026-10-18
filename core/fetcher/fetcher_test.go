@@ -235,7 +235,7 @@ func TestFetchAggregator(t *testing.T) {
 	}
 
 	fetch := mustCreateFetcher(t, bmock)
-	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+	fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
 		return signedCommSubByPubKey[key], nil
@@ -374,7 +374,7 @@ func TestFetchBlocks(t *testing.T) {
 		duty := core.NewProposerDuty(slot)
 		fetch := mustCreateFetcherWithAddressAndGraffiti(t, bmock, feeRecipientAddr, graffitiBuilder)
 
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 			return randaoByPubKey[key], nil
 		})
 
@@ -450,7 +450,7 @@ func TestFetchEPBSBlocks(t *testing.T) {
 			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
 		require.NoError(t, err)
 
-		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error) {
 			return randao, nil
 		})
 
@@ -681,7 +681,7 @@ func TestFetchSyncContribution(t *testing.T) {
 		fetch := mustCreateFetcher(t, bmock)
 		// All peers on v1.11+ -> plural SyncContributions encoding.
 		fetch.RegisterSyncContributionV2(func(uint64) bool { return true })
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 				return commSelectionsByPubkey[key], nil
@@ -753,7 +753,7 @@ func TestFetchSyncContribution(t *testing.T) {
 
 		fetch := mustCreateFetcher(t, bmock)
 		// No RegisterSyncContribV2 → gate off → single (pre-v1.11) encoding.
-		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				return commSelectionsByPubkey[key], nil
 			}
@@ -821,10 +821,10 @@ func TestFetchSyncContribution(t *testing.T) {
 
 		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterSyncContributionV2(func(uint64) bool { return true }) // Plural encoding.
-		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, _ core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
 			switch duty.Type {
 			case core.DutyPrepareSyncContribution:
-				return selectionsBySubcomm[subcommIdx], nil
+				return selectionsBySubcomm[awaitOpts.SubcommIdx], nil
 			case core.DutySyncMessage:
 				return syncMsgsByPubkey[pubkey], nil
 			default:
@@ -854,7 +854,7 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.NoError(t, err)
 
 		fetch := mustCreateFetcher(t, bmock)
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 			if duty.Type == core.DutyPrepareSyncContribution {
 				require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 
@@ -940,7 +940,7 @@ func TestFetchSyncContribution(t *testing.T) {
 
 		fetch := mustCreateFetcher(t, bmock)
 		fetch.RegisterSyncContributionV2(func(uint64) bool { return true })
-		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(_ context.Context, duty core.Duty, key core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 			switch duty.Type {
 			case core.DutyPrepareSyncContribution:
 				return selectionsByPubkey[key], nil
@@ -980,7 +980,7 @@ func TestFetchSyncContribution(t *testing.T) {
 		require.NoError(t, err)
 
 		fetch := mustCreateFetcher(t, bmock)
-		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+		fetch.RegisterAggSigDB(func(ctx context.Context, duty core.Duty, key core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 			return nil, errors.New("error")
 		})
 

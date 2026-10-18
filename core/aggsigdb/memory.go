@@ -10,6 +10,7 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
 
@@ -24,15 +25,16 @@ var (
 // NewMemDB creates a basic memory based AggSigDB.
 func NewMemDB(deadliner core.Deadliner) *MemDB {
 	return &MemDB{
-		generalDuties:  newAggStore[generalKey](),
-		subCommDuties:  newAggStore[subCommKey](),
-		propPrefDuties: newAggStore[propPrefKey](),
-		commands:       make(chan writeCommand),
-		queries:        make(chan readQuery),
-		blockedQueries: []readQuery{},
-		queryCallback:  func([]readQuery) {},
-		quit:           make(chan struct{}),
-		deadliner:      deadliner,
+		generalDuties:     newAggStore[generalKey](),
+		subCommDuties:     newAggStore[subCommKey](),
+		propPrefDuties:    newAggStore[propPrefKey](),
+		builderPrefDuties: newAggStore[builderPrefKey](),
+		commands:          make(chan writeCommand),
+		queries:           make(chan readQuery),
+		blockedQueries:    []readQuery{},
+		queryCallback:     func([]readQuery) {},
+		quit:              make(chan struct{}),
+		deadliner:         deadliner,
 	}
 }
 
@@ -49,6 +51,9 @@ type MemDB struct {
 	// propPrefDuties holds proposer preferences, additionally keyed by the fields
 	// that may legitimately change on resubmission. They are not awaitable, only broadcasted.
 	propPrefDuties *aggStore[propPrefKey]
+	// builderPrefDuties holds builder request auths, additionally keyed by the builder's hostname
+	// since a proposer authorizes several builders for the same proposal slot.
+	builderPrefDuties *aggStore[builderPrefKey]
 
 	commands       chan writeCommand
 	queries        chan readQuery
@@ -103,23 +108,25 @@ func (db *MemDB) store(ctx context.Context, duty core.Duty, pubKey core.PubKey, 
 }
 
 // Await implements core.AggSigDB, see its godoc.
-func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
-	if duty.Type == core.DutyProposerPreferences {
+func (db *MemDB) Await(ctx context.Context, duty core.Duty, pubKey core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
+	switch duty.Type {
+	case core.DutyProposerPreferences:
 		return nil, errNotAwaitable
+	case core.DutyBuilderPreferences:
+		if awaitOpts.BuilderHost == "" {
+			return nil, errors.New("builder host required to await builder request auth", z.Any("duty", duty))
+		}
+	default:
 	}
+
+	query := readQuery{duty: duty, pubKey: pubKey, opts: awaitOpts}
 
 	cancel := make(chan struct{})
 	defer close(cancel)
 
 	response := make(chan core.SignedData, 1)
-
-	query := readQuery{
-		duty:       duty,
-		pubKey:     pubKey,
-		subcommIdx: subcommIdx,
-		response:   response,
-		cancel:     cancel,
-	}
+	query.response = response
+	query.cancel = cancel
 
 	select {
 	case <-ctx.Done():
@@ -158,6 +165,7 @@ func (db *MemDB) Run(ctx context.Context) {
 			db.generalDuties.trim(duty)
 			db.subCommDuties.trim(duty)
 			db.propPrefDuties.trim(duty)
+			db.builderPrefDuties.trim(duty)
 		case <-ctx.Done():
 			return
 		}
@@ -178,7 +186,7 @@ func (db *MemDB) execCommand(command writeCommand) {
 // execQuery returns true if the query was successfully executed.
 // If the requested entry is found in the DB it will be returned via query.response channel.
 func (db *MemDB) execQuery(query readQuery) bool {
-	data, ok := db.get(query.duty, query.pubKey, query.subcommIdx)
+	data, ok := db.get(query)
 	if !ok {
 		return false
 	}
@@ -236,9 +244,9 @@ type writeCommand struct {
 
 // readQuery holds the query data and the response channel.
 type readQuery struct {
-	duty       core.Duty
-	pubKey     core.PubKey
-	subcommIdx core.SubcommitteeIndex
+	duty   core.Duty
+	pubKey core.PubKey
+	opts   core.AwaitOpts
 
 	response chan<- core.SignedData
 	cancel   <-chan struct{}
@@ -269,6 +277,15 @@ type propPrefKey struct {
 	dependentRoot  eth2p0.Root
 	feeRecipient   bellatrix.ExecutionAddress
 	targetGasLimit uint64
+}
+
+// builderPrefKey additionally carries the builder's hostname, the identity signed in the request
+// auth, e.g. "relay-a.example.com" for the builder URL https://relay-a.example.com: a proposer
+// authorizes each builder it requests bids from separately for the same proposal slot.
+type builderPrefKey struct {
+	duty        core.Duty
+	pubKey      core.PubKey
+	builderHost string
 }
 
 // propPrefKeyFor returns the propPrefKey for the provided proposer preferences aggregate.
@@ -305,19 +322,28 @@ func (db *MemDB) storeRouted(duty core.Duty, pubKey core.PubKey, data core.Signe
 		}
 
 		return db.propPrefDuties.store(duty, k, data)
+	case core.DutyBuilderPreferences:
+		auth, ok := data.(core.SignedBuilderRequestAuth)
+		if !ok || auth.Message == nil {
+			return errors.New("invalid builder request auth data")
+		}
+
+		return db.builderPrefDuties.store(duty, builderPrefKey{duty: duty, pubKey: pubKey, builderHost: string(auth.Message.Data)}, data)
 	default:
 		return db.generalDuties.store(duty, generalKey{duty: duty, pubKey: pubKey}, data)
 	}
 }
 
-// get returns the aggregate for the provided awaitable duty. Proposer preferences are not
-// awaitable, Await rejects them before querying.
-func (db *MemDB) get(duty core.Duty, pubKey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, bool) {
-	switch duty.Type {
+// get returns the aggregate for the provided query. Proposer preferences are not awaitable,
+// Await rejects them before querying.
+func (db *MemDB) get(query readQuery) (core.SignedData, bool) {
+	switch query.duty.Type {
 	case core.DutyPrepareSyncContribution, core.DutySyncContribution:
-		return db.subCommDuties.get(subCommKey{duty: duty, pubKey: pubKey, subcommIdx: subcommIdx})
+		return db.subCommDuties.get(subCommKey{duty: query.duty, pubKey: query.pubKey, subcommIdx: query.opts.SubcommIdx})
+	case core.DutyBuilderPreferences:
+		return db.builderPrefDuties.get(builderPrefKey{duty: query.duty, pubKey: query.pubKey, builderHost: query.opts.BuilderHost})
 	default:
-		return db.generalDuties.get(generalKey{duty: duty, pubKey: pubKey})
+		return db.generalDuties.get(generalKey{duty: query.duty, pubKey: query.pubKey})
 	}
 }
 

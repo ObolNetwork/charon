@@ -2193,7 +2193,7 @@ func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 		},
 	}
 
-	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, pk core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, pk core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
 		for _, val := range valSet {
@@ -2827,7 +2827,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 
 		for _, val := range valSet {
@@ -2841,7 +2841,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 			for _, selection := range selections {
 				if selection.ValidatorIndex == val.Index {
 					require.Equal(t, eth2p0.Slot(slot), selection.Slot)
-					require.EqualValues(t, selection.SubcommitteeIndex, subcommIdx)
+					require.EqualValues(t, selection.SubcommitteeIndex, awaitOpts.SubcommIdx)
 
 					return core.NewSyncCommitteeSelection(selection), nil
 				}
@@ -2904,7 +2904,7 @@ func TestComponent_SyncCommitteeSelectionsExitedValidator(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error) {
 		return core.NewSyncCommitteeSelection(sel), nil
 	})
 
@@ -2969,12 +2969,12 @@ func TestComponent_SyncCommitteeSelectionsMultiSubcommittee(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 		require.Equal(t, pk, gotPk)
 
 		for _, sel := range selections {
-			if sel.SubcommitteeIndex == uint64(subcommIdx) {
+			if sel.SubcommitteeIndex == uint64(awaitOpts.SubcommIdx) {
 				return core.NewSyncCommitteeSelection(sel), nil
 			}
 		}
@@ -3064,9 +3064,9 @@ func TestComponent_SyncCommitteeSelectionsResponseOrder(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
 		for _, sel := range selections {
-			if sel.SubcommitteeIndex == uint64(subcommIdx) {
+			if sel.SubcommitteeIndex == uint64(awaitOpts.SubcommIdx) {
 				return core.NewSyncCommitteeSelection(sel), nil
 			}
 		}

@@ -74,7 +74,7 @@ type Fetcher struct {
 	feeRecipientFunc       func(core.PubKey) string
 	subs                   []func(context.Context, core.Duty, core.UnsignedDataSet) error
 	payloadContentsSubs    []func(context.Context, core.VersionedProposal) error
-	aggSigDBFunc           func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	aggSigDBFunc           func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)
 	awaitAttDataFunc       func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	syncContributionV2Func func(slot uint64) bool
 	builderEnabled         bool
@@ -362,7 +362,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 
 // RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
 // Note: This is not thread safe and should only be called *before* Fetch.
-func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)) {
+func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)) {
 	f.aggSigDBFunc = fn
 }
 
@@ -475,7 +475,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		}
 
 		// Query AggSigDB for DutyPrepareAggregator to get beacon committee selections.
-		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, 0)
+		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, core.AwaitOpts{})
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
@@ -679,7 +679,7 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 
 // fetchRandao returns the previously aggregated randao reveal for the slot from the AggSigDB.
 func (f *Fetcher) fetchRandao(ctx context.Context, slot uint64, pubkey core.PubKey) (eth2p0.BLSSignature, error) {
-	randaoData, err := f.aggSigDBFunc(ctx, core.NewRandaoDuty(slot), pubkey, 0)
+	randaoData, err := f.aggSigDBFunc(ctx, core.NewRandaoDuty(slot), pubkey, core.AwaitOpts{})
 	if err != nil {
 		return eth2p0.BLSSignature{}, err
 	}
@@ -814,7 +814,7 @@ type syncContribKey struct {
 // aggregator for the subcommittee.
 func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex, contribByKey map[syncContribKey]core.SyncContribution) (core.SyncContribution, bool, error) {
 	// Query AggSigDB for DutyPrepareSyncContribution to get the sync committee selection.
-	selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, subcommIdx)
+	selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, core.AwaitOpts{SubcommIdx: subcommIdx})
 	if err != nil {
 		return core.SyncContribution{}, false, err
 	}
@@ -833,7 +833,7 @@ func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pub
 	}
 
 	// Query AggSigDB for DutySyncMessage to get the beacon block root.
-	syncMsgData, err := f.aggSigDBFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, 0)
+	syncMsgData, err := f.aggSigDBFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, core.AwaitOpts{})
 	if err != nil {
 		return core.SyncContribution{}, false, err
 	}

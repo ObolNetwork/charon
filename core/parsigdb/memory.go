@@ -43,14 +43,15 @@ type MemDBMetadata struct {
 // NewMemDB returns a new in-memory partial signature database instance.
 func NewMemDB(threshold int, deadliner core.Deadliner, metadata MemDBMetadata) *MemDB {
 	return &MemDB{
-		generalDuties:   newDutyStore[generalKey](),
-		subCommDuties:   newDutyStore[subCommKey](),
-		propPrefDuties:  newDutyStore[propPrefKey](),
-		persistedDuties: newDutyStore[generalKey](),
-		exemptEntries:   make(map[exemptEntryKey][]generalKey),
-		threshold:       threshold,
-		deadliner:       deadliner,
-		metadata:        metadata,
+		generalDuties:     newDutyStore[generalKey](),
+		subCommDuties:     newDutyStore[subCommKey](),
+		propPrefDuties:    newDutyStore[propPrefKey](),
+		builderPrefDuties: newDutyStore[builderPrefKey](),
+		persistedDuties:   newDutyStore[generalKey](),
+		exemptEntries:     make(map[exemptEntryKey][]generalKey),
+		threshold:         threshold,
+		deadliner:         deadliner,
+		metadata:          metadata,
 	}
 }
 
@@ -71,6 +72,9 @@ type MemDB struct {
 	// propPrefDuties holds proposer preferences, additionally keyed by the fields
 	// that may legitimately change on resubmission.
 	propPrefDuties *dutyStore[propPrefKey]
+	// builderPrefDuties holds builder request auths, additionally keyed by the builder's hostname
+	// since a proposer authorizes several builders for the same proposal slot.
+	builderPrefDuties *dutyStore[builderPrefKey]
 	// persistedDuties holds exempt duties (exits, builder registrations) which the
 	// deadliner never trims; they are capped via exemptEntries instead.
 	persistedDuties *dutyStore[generalKey]
@@ -199,6 +203,7 @@ func (db *MemDB) Trim(ctx context.Context) {
 			db.generalDuties.trim(duty)
 			db.subCommDuties.trim(duty)
 			db.propPrefDuties.trim(duty)
+			db.builderPrefDuties.trim(duty)
 			db.mu.Unlock()
 		}
 	}
@@ -267,6 +272,14 @@ func (db *MemDB) store(ctx context.Context, duty core.Duty, pubkey core.PubKey, 
 		}
 
 		sigs, added, err = db.propPrefDuties.store(duty, pubkey, k, value, true)
+	case duty.Type == core.DutyBuilderPreferences:
+		auth, ok := value.SignedData.(core.SignedBuilderRequestAuth)
+		if !ok || auth.Message == nil {
+			return nil, false, errors.New("invalid builder request auth data")
+		}
+
+		k := builderPrefKey{Duty: duty, PubKey: pubkey, BuilderHost: string(auth.Message.Data)}
+		sigs, added, err = db.builderPrefDuties.store(duty, pubkey, k, value, true)
 	default:
 		sigs, added, err = db.generalDuties.store(duty, pubkey, generalKey{Duty: duty, PubKey: pubkey}, value, true)
 	}
@@ -378,6 +391,15 @@ type propPrefKey struct {
 	DependentRoot  eth2p0.Root
 	FeeRecipient   bellatrix.ExecutionAddress
 	TargetGasLimit uint64
+}
+
+// builderPrefKey additionally carries the builder's hostname, the identity signed in the request
+// auth, e.g. "relay-a.example.com" for the builder URL https://relay-a.example.com: a proposer
+// authorizes each builder it requests bids from separately for the same proposal slot.
+type builderPrefKey struct {
+	Duty        core.Duty
+	PubKey      core.PubKey
+	BuilderHost string
 }
 
 // newDutyStore returns a new empty duty store.
