@@ -74,9 +74,9 @@ func TestWriteProposerConfigFile(t *testing.T) {
 		return 0 // Exercise the default fallback for the rest.
 	}
 
-	created, err := writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	result, err := writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
 	require.NoError(t, err)
-	require.True(t, created)
+	require.Equal(t, proposerConfigCreated, result)
 
 	b, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -111,12 +111,28 @@ func TestWriteProposerConfigFile(t *testing.T) {
 	require.NotContains(t, string(b), "enabled")
 	require.NotContains(t, string(b), "min_bid")
 
-	// An existing file is never modified.
+	// An existing file keeps its proposer settings, even if they differ from charon's, and
+	// isn't rewritten while its builder settings match.
+	edited := config
+	edited.DefaultConfig.FeeRecipient = overrideAddr
+	require.NoError(t, writeProposerConfig(path, edited))
+
+	b, err = os.ReadFile(path)
+	require.NoError(t, err)
+
+	result, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	require.NoError(t, err)
+	require.Equal(t, proposerConfigUnchanged, result)
+
+	unchanged, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, b, unchanged)
+
+	// A file that isn't a proposer config is an error, and left as it is.
 	require.NoError(t, os.WriteFile(path, []byte("operator managed"), 0o644))
 
-	created, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
-	require.NoError(t, err)
-	require.False(t, created)
+	_, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	require.ErrorContains(t, err, "decode proposer config file")
 
 	b, err = os.ReadFile(path)
 	require.NoError(t, err)
@@ -148,9 +164,9 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 			BuilderMaxExecutionPayment: 2_000_000_000,
 		}
 
-		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+		result, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
 		require.NoError(t, err)
-		require.True(t, created)
+		require.Equal(t, proposerConfigCreated, result)
 
 		b, err := os.ReadFile(filepath.Join(dir, proposerConfigDir, proposerConfigFilename))
 		require.NoError(t, err)
@@ -183,9 +199,9 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 			BuilderMinBid: 1, // Inert without builder URLs (the flags reject this combination).
 		}
 
-		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+		result, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
 		require.NoError(t, err)
-		require.True(t, created)
+		require.Equal(t, proposerConfigCreated, result)
 
 		b, err := os.ReadFile(filepath.Join(dir, proposerConfigDir, proposerConfigFilename))
 		require.NoError(t, err)
@@ -197,6 +213,85 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 		require.Nil(t, config.DefaultConfig.Builder)
 		require.NotContains(t, string(b), "min_bid")
 	})
+}
+
+func TestUpdateProposerConfigBuilder(t *testing.T) {
+	lock, _, _ := cluster.NewForT(t, 1, 4, 4, 0, rand.New(rand.NewSource(0)))
+
+	nodeIdx := cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1}
+	noOverrides := func(core.PubKey) string { return "" }
+	noGasOverrides := func(core.PubKey) uint64 { return 0 }
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, proposerConfigDir, proposerConfigFilename)
+
+	newConf := func(builderURLs ...string) Config {
+		return Config{
+			LockFile:           filepath.Join(dir, "cluster-lock.json"),
+			BuilderAPI:         true,
+			BuilderURLs:        builderURLs,
+			BuilderBoostFactor: 90,
+		}
+	}
+
+	readConfig := func(t *testing.T) proposerConfigJSON {
+		t.Helper()
+
+		b, err := os.ReadFile(path)
+		require.NoError(t, err)
+
+		var config proposerConfigJSON
+
+		require.NoError(t, json.Unmarshal(b, &config))
+
+		return config
+	}
+
+	result, err := writeProposerConfigFile(newConf("https://builder1.example.com"), &lock, nodeIdx, noOverrides, noGasOverrides)
+	require.NoError(t, err)
+	require.Equal(t, proposerConfigCreated, result)
+
+	// The operator edits the proposer settings.
+	const operatorAddr = "0xdddddddddddddddddddddddddddddddddddddddd"
+
+	edited := readConfig(t)
+	edited.DefaultConfig.FeeRecipient = operatorAddr
+	require.NoError(t, writeProposerConfig(path, edited))
+
+	// Changed builder URLs replace the builder settings, keeping the proposer settings.
+	result, err = writeProposerConfigFile(newConf("https://builder2.example.com", "https://builder3.example.com"), &lock, nodeIdx, noOverrides, noGasOverrides)
+	require.NoError(t, err)
+	require.Equal(t, proposerConfigBuilderUpdated, result)
+
+	config := readConfig(t)
+	require.Equal(t, operatorAddr, config.DefaultConfig.FeeRecipient)
+	require.Equal(t, edited.ProposerConfig, config.ProposerConfig)
+	require.Equal(t, []builderEntryJSON{
+		{URL: "https://builder2.example.com"},
+		{URL: "https://builder3.example.com"},
+	}, config.DefaultConfig.Builder.Builders)
+	require.Equal(t, "90", config.DefaultConfig.Builder.BuilderBoostFactor)
+
+	// The same builder URLs leave the file as it is.
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	result, err = writeProposerConfigFile(newConf("https://builder2.example.com", "https://builder3.example.com"), &lock, nodeIdx, noOverrides, noGasOverrides)
+	require.NoError(t, err)
+	require.Equal(t, proposerConfigUnchanged, result)
+
+	unchanged, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, b, unchanged)
+
+	// No builder URLs remove the builder settings.
+	result, err = writeProposerConfigFile(newConf(), &lock, nodeIdx, noOverrides, noGasOverrides)
+	require.NoError(t, err)
+	require.Equal(t, proposerConfigBuilderUpdated, result)
+
+	config = readConfig(t)
+	require.Nil(t, config.DefaultConfig.Builder)
+	require.Equal(t, operatorAddr, config.DefaultConfig.FeeRecipient)
 }
 
 func TestGasLimitsByPubkey(t *testing.T) {
