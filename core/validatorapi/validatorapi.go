@@ -93,7 +93,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tbls.PublicKey,
-	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint,
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint, opts ...Option,
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -162,7 +162,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		return key, nil
 	}
 
-	return &Component{
+	c := &Component{
 		getVerifyShareFunc: getVerifyShareFunc,
 		getPubShareFunc:    getPubShareFunc,
 		getPubKeyFunc:      getPubKeyFunc,
@@ -173,7 +173,24 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		builderEnabled:     builderEnabled,
 		targetGasLimit:     targetGasLimit,
 		swallowRegFilter:   log.Filter(),
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c, nil
+}
+
+// Option configures a Component.
+type Option func(*Component)
+
+// WithBuilderHosts sets the hosts of the builders configured on this node, which the builder
+// request auths the validator client submits are compared with.
+func WithBuilderHosts(hosts []string) Option {
+	return func(c *Component) {
+		c.builderHosts = hosts
+	}
 }
 
 type Component struct {
@@ -183,6 +200,7 @@ type Component struct {
 	feeRecipientFunc func(core.PubKey) string
 	builderEnabled   bool
 	targetGasLimit   uint
+	builderHosts     []string
 	swallowRegFilter z.Field
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
@@ -1604,6 +1622,8 @@ func (c Component) submitInlineBuilderRequestAuths(ctx context.Context, slot eth
 func (c Component) forwardBuilderRequestAuths(ctx context.Context, slot eth2p0.Slot, pubkey core.PubKey, auths []*gloas.SignedBuilderRequestAuth) error {
 	duty := core.NewBuilderPreferencesDuty(uint64(slot))
 
+	c.warnBuilderPreferencesMismatch(ctx, slot, pubkey, auths)
+
 	for _, auth := range auths {
 		parSigData := core.NewPartialSignedBuilderRequestAuth(auth, c.shareIdx)
 
@@ -1627,6 +1647,43 @@ func (c Component) forwardBuilderRequestAuths(ctx context.Context, slot eth2p0.S
 	}
 
 	return nil
+}
+
+// warnBuilderPreferencesMismatch logs a warning and increments a metric for each builder configured
+// on this node that the validator client submitted no request auth for, and for each auth for a
+// builder not configured on this node, e.g. of a stale validator client configuration. It compares
+// the auths of a proposal slot and validator submitted together, and doesn't reject any: an auth
+// only aggregates with the matching auths of the other nodes.
+func (c Component) warnBuilderPreferencesMismatch(ctx context.Context, slot eth2p0.Slot, pubkey core.PubKey, auths []*gloas.SignedBuilderRequestAuth) {
+	submitted := make(map[string]bool)
+	for _, auth := range auths {
+		submitted[string(auth.Message.Data)] = true
+	}
+
+	configured := make(map[string]bool)
+
+	for _, host := range c.builderHosts {
+		configured[host] = true
+
+		if !submitted[host] {
+			log.Warn(ctx, "Validator client submitted no builder request auth for a configured builder", nil,
+				z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pubkey), z.Str("builder", host))
+			incBuilderPrefMismatch(host, "missing")
+		}
+	}
+
+	for _, auth := range auths {
+		host := string(auth.Message.Data)
+		if configured[host] {
+			continue
+		}
+
+		configured[host] = true // Report each unknown builder once.
+
+		log.Warn(ctx, "Validator client submitted a builder request auth for a builder not configured on this node", nil,
+			z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pubkey), z.Str("builder", host))
+		incBuilderPrefMismatch(host, "unknown")
+	}
 }
 
 // warnProposerPreferencesMismatch logs a warning and increments a metric when the VC-submitted fee

@@ -63,6 +63,14 @@ var (
 		Name:      "proposer_preferences_mismatch_total",
 		Help:      "Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field",
 	}, []string{"field"})
+
+	builderPrefMismatch = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "builder_preferences_mismatch_total",
+		Help: "Total number of builder preferences submitted by the VC that mismatch this node's builders, by builder host " +
+			"and reason: a configured builder without a request auth (missing) or an auth for a builder not configured (unknown)",
+	}, []string{"builder", "reason"})
 )
 
 // Values of proposalFormGauge, the form the latest gloas proposal was requested in.
@@ -74,6 +82,10 @@ const (
 
 func incProposerPrefMismatch(field string) {
 	proposerPrefMismatch.WithLabelValues(field).Inc()
+}
+
+func incBuilderPrefMismatch(builder, reason string) {
+	builderPrefMismatch.WithLabelValues(builder, reason).Inc()
 }
 
 func incAPIErrors(endpoint string, statusCode int) {

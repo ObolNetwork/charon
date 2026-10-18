@@ -655,7 +655,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(retainerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit)
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit,
+		validatorapi.WithBuilderHosts(hosts))
 	if err != nil {
 		return err
 	}

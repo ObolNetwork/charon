@@ -113,6 +113,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_participation_total` | Counter | Total number of successful participations by peer and duty type | `duty, peer` |
 | `core_tracker_success_duties_total` | Counter | Total number of successful duties by type | `duty` |
 | `core_tracker_unexpected_events_total` | Counter | Total number of unexpected events by peer | `peer` |
+| `core_validatorapi_builder_preferences_mismatch_total` | Counter | Total number of builder preferences submitted by the VC that mismatch this node`s builders, by builder host and reason: a configured builder without a request auth (missing) or an auth for a builder not configured (unknown) | `builder, reason` |
 | `core_validatorapi_proposal_form` | Gauge | The form the validator client requested the latest gloas proposal in: none requested yet (0), stateless with its execution payload, which waits for the shared payload contents (1), or stateful (2) |  |
 | `core_validatorapi_proposer_preferences_mismatch_total` | Counter | Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field | `field` |
 | `core_validatorapi_proxy_request_latency_seconds` | Histogram | The validatorapi proxy request latencies in seconds by path | `path` |
