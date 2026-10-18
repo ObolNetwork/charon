@@ -52,6 +52,7 @@ var (
 	_ SignedData = SyncCommitteeSelection{}
 	_ SignedData = VersionedPayloadAttestationMessage{}
 	_ SignedData = SignedProposerPreferences{}
+	_ SignedData = SignedBuilderRequestAuth{}
 	_ SignedData = SignedExecutionPayloadEnvelope{}
 
 	// Some types support SSZ marshalling and unmarshalling.
@@ -64,6 +65,7 @@ var (
 	_ sszMarshaler   = SignedSyncContributionAndProof{}
 	_ sszMarshaler   = VersionedPayloadAttestationMessage{}
 	_ sszMarshaler   = SignedProposerPreferences{}
+	_ sszMarshaler   = SignedBuilderRequestAuth{}
 	_ sszMarshaler   = SignedExecutionPayloadEnvelope{}
 	_ sszUnmarshaler = new(VersionedSignedProposal)
 	_ sszUnmarshaler = new(VersionedAttestation)
@@ -74,6 +76,7 @@ var (
 	_ sszUnmarshaler = new(SignedSyncContributionAndProof)
 	_ sszUnmarshaler = new(VersionedPayloadAttestationMessage)
 	_ sszUnmarshaler = new(SignedProposerPreferences)
+	_ sszUnmarshaler = new(SignedBuilderRequestAuth)
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -2425,6 +2428,92 @@ func (p SignedProposerPreferences) SizeSSZ() int {
 
 func (p *SignedProposerPreferences) UnmarshalSSZ(b []byte) error {
 	return p.SignedProposerPreferences.UnmarshalSSZ(b)
+}
+
+// BuilderRequestAuth: https://github.com/ethereum/builder-specs/blob/main/specs/gloas/validator.md#builderrequestauth.
+// From the gloas fork, a proposer authorizes each builder it requests bids from by signing the
+// builder's auth data and the proposal slot.
+
+// NewSignedBuilderRequestAuth is a convenience function which returns a new signed SignedBuilderRequestAuth.
+func NewSignedBuilderRequestAuth(data *gloas.SignedBuilderRequestAuth) SignedBuilderRequestAuth {
+	return SignedBuilderRequestAuth{SignedBuilderRequestAuth: *data}
+}
+
+// NewPartialSignedBuilderRequestAuth is a convenience function which returns a new partially signed SignedBuilderRequestAuth.
+func NewPartialSignedBuilderRequestAuth(data *gloas.SignedBuilderRequestAuth, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedBuilderRequestAuth(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedBuilderRequestAuth wraps gloas.SignedBuilderRequestAuth and implements SignedData.
+type SignedBuilderRequestAuth struct {
+	gloas.SignedBuilderRequestAuth
+}
+
+// MessageRoot returns the hash tree root of the builder request auth message, which is the object
+// signed over with DOMAIN_BUILDER_REQUEST_AUTH.
+func (a SignedBuilderRequestAuth) MessageRoot() ([32]byte, error) {
+	if a.Message == nil {
+		return [32]byte{}, errors.New("nil builder request auth message")
+	}
+
+	return a.Message.HashTreeRoot()
+}
+
+func (a SignedBuilderRequestAuth) Signature() Signature {
+	return SigFromETH2(a.SignedBuilderRequestAuth.Signature)
+}
+
+func (a SignedBuilderRequestAuth) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := a.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedBuilderRequestAuth.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (a SignedBuilderRequestAuth) Clone() (SignedData, error) {
+	return a.clone()
+}
+
+func (a SignedBuilderRequestAuth) clone() (SignedBuilderRequestAuth, error) {
+	var resp SignedBuilderRequestAuth
+
+	err := cloneSSZMarshaler(a, &resp)
+	if err != nil {
+		return SignedBuilderRequestAuth{}, errors.Wrap(err, "clone signed builder request auth")
+	}
+
+	return resp, nil
+}
+
+func (a SignedBuilderRequestAuth) MarshalJSON() ([]byte, error) {
+	return a.SignedBuilderRequestAuth.MarshalJSON()
+}
+
+func (a *SignedBuilderRequestAuth) UnmarshalJSON(input []byte) error {
+	return a.SignedBuilderRequestAuth.UnmarshalJSON(input)
+}
+
+func (a SignedBuilderRequestAuth) MarshalSSZ() ([]byte, error) {
+	return a.SignedBuilderRequestAuth.MarshalSSZ()
+}
+
+func (a SignedBuilderRequestAuth) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return a.SignedBuilderRequestAuth.MarshalSSZTo(dst)
+}
+
+func (a SignedBuilderRequestAuth) SizeSSZ() int {
+	return a.SignedBuilderRequestAuth.SizeSSZ()
+}
+
+func (a *SignedBuilderRequestAuth) UnmarshalSSZ(b []byte) error {
+	return a.SignedBuilderRequestAuth.UnmarshalSSZ(b)
 }
 
 // From the gloas fork, a self-building proposer reveals its execution payload via a

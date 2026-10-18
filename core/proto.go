@@ -163,6 +163,13 @@ func ParSignedDataFromProto(typ DutyType, data *pbv1.ParSignedData) (_ ParSigned
 		}
 
 		signedData = s
+	case DutyBuilderPreferences:
+		var s SignedBuilderRequestAuth
+		if err := unmarshal(data.GetData(), &s); err != nil {
+			return ParSignedData{}, errors.Wrap(err, "unmarshal signed builder request auth")
+		}
+
+		signedData = s
 	case DutyExecutionPayloadEnvelope:
 		var s SignedExecutionPayloadEnvelope
 		if err := unmarshal(data.GetData(), &s); err != nil {

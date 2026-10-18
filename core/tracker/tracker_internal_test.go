@@ -347,6 +347,16 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, reason, reasonParSigDBInconsistentPreferences)
 
+		// A proposer authorizes several builders for the same slot, so builder request auths
+		// with different message roots are expected: missing threshold is insufficient signatures.
+		builderPrefDuty := core.NewBuilderPreferencesDuty(uint64(slot))
+		events[builderPrefDuty] = events[attDuty]
+		failed, step, reason, err = analyseDutyFailed(builderPrefDuty, events, false)
+		require.NoError(t, err)
+		require.True(t, failed)
+		require.Equal(t, step, parSigDBExternal)
+		require.Equal(t, reason, reasonInsufficientPeerSignatures)
+
 		// Execution payload envelopes are consensus-gated, so inconsistent partial signatures are a
 		// bug (like a block proposal), not the expected divergence of proposer preferences.
 		envelopeDuty := core.NewExecutionPayloadEnvelopeDuty(uint64(slot))
@@ -1203,6 +1213,11 @@ func TestIsParSigEventExpected(t *testing.T) {
 		{
 			name: "DutyProposerPreferences",
 			duty: core.NewProposerPreferencesDuty(slot),
+			out:  true,
+		},
+		{
+			name: "DutyBuilderPreferences",
+			duty: core.NewBuilderPreferencesDuty(slot),
 			out:  true,
 		},
 		{

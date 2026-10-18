@@ -28,6 +28,7 @@ var (
 	_ Eth2SignedData = SyncCommitteeSelection{}
 	_ Eth2SignedData = VersionedPayloadAttestationMessage{}
 	_ Eth2SignedData = SignedProposerPreferences{}
+	_ Eth2SignedData = SignedBuilderRequestAuth{}
 	_ Eth2SignedData = SignedExecutionPayloadEnvelope{}
 )
 
@@ -201,6 +202,22 @@ func (p SignedProposerPreferences) Epoch(ctx context.Context, eth2Cl eth2wrap.Cl
 	}
 
 	return eth2util.EpochFromSlot(ctx, eth2Cl, p.Message.ProposalSlot)
+}
+
+// Implement Eth2SignedData for SignedBuilderRequestAuth.
+
+func (SignedBuilderRequestAuth) DomainName() signing.DomainName {
+	return signing.DomainBuilderRequestAuth
+}
+
+// Epoch returns the epoch of the authorized proposal slot. The builder request auth domain is
+// fork-independent, so the epoch doesn't affect the signing root.
+func (a SignedBuilderRequestAuth) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	if a.Message == nil {
+		return 0, errors.New("nil builder request auth message")
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, a.Message.Slot)
 }
 
 // Implement Eth2SignedData for SignedExecutionPayloadEnvelope.

@@ -90,6 +90,7 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.VersionedPayloadAttestationMessage) }},
 		{zero: func() any { return new(core.SignedProposerPreferences) }},
 		{zero: func() any { return new(core.SignedExecutionPayloadEnvelope) }},
+		{zero: func() any { return new(core.SignedBuilderRequestAuth) }},
 	}
 
 	f := testutil.NewEth2Fuzzer(t, 0)

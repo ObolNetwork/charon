@@ -47,9 +47,10 @@ const (
 	DutyPayloadAttestation       DutyType = 14
 	DutyProposerPreferences      DutyType = 15
 	DutyExecutionPayloadEnvelope DutyType = 16
+	DutyBuilderPreferences       DutyType = 17
 	// Only ever append new types here...
 
-	dutySentinel DutyType = 17 // Must always be last
+	dutySentinel DutyType = 18 // Must always be last
 )
 
 func (d DutyType) Valid() bool {
@@ -75,6 +76,7 @@ func (d DutyType) String() string {
 		DutyPayloadAttestation:       "payload_attestation",
 		DutyProposerPreferences:      "proposer_preferences",
 		DutyExecutionPayloadEnvelope: "execution_payload_envelope",
+		DutyBuilderPreferences:       "builder_preferences",
 	}[d]
 }
 
@@ -268,6 +270,15 @@ func NewProposerPreferencesDuty(slot uint64) Duty {
 	return Duty{
 		Slot: slot,
 		Type: DutyProposerPreferences,
+	}
+}
+
+// NewBuilderPreferencesDuty returns a new builder preferences duty, keyed by the proposal slot
+// the builder request authorizations are for.
+func NewBuilderPreferencesDuty(slot uint64) Duty {
+	return Duty{
+		Slot: slot,
+		Type: DutyBuilderPreferences,
 	}
 }
 

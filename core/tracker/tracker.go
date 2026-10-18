@@ -299,7 +299,9 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 			return true, parSigDBExternal, reasonBugParSigDBExternal, failedErr
 		}
 
-		if msgRootConsistent {
+		// A proposer authorizes several builders for the same slot, so builder request auths
+		// legitimately carry different message roots for the same duty and pubkey.
+		if msgRootConsistent || duty.Type == core.DutyBuilderPreferences {
 			reason = reasonInsufficientPeerSignatures
 		} else {
 			reason = reasonBugParSigDBInconsistent
@@ -667,7 +669,8 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (resp
 // It basically checks if the duty (or an associated duty) was scheduled.
 func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[core.Duty][]event) bool {
 	// Cannot validate validatorAPI triggered duties that are not linked to locally scheduled duties.
-	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration || duty.Type == core.DutyProposerPreferences {
+	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration || duty.Type == core.DutyProposerPreferences ||
+		duty.Type == core.DutyBuilderPreferences {
 		return true
 	}
 
