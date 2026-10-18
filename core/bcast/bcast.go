@@ -6,6 +6,8 @@ package bcast
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"strings"
 	"time"
 
@@ -20,26 +22,45 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 )
 
 // New returns a new broadcaster instance.
-func New(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule) (Broadcaster, error) {
+func New(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule, opts ...Option) (Broadcaster, error) {
 	delayFunc, err := newDelayFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return Broadcaster{}, err
 	}
 
-	return Broadcaster{
+	b := Broadcaster{
 		eth2Cl:    eth2Cl,
 		delayFunc: delayFunc,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(&b)
+	}
+
+	return b, nil
+}
+
+// Option configures the broadcaster.
+type Option func(*Broadcaster)
+
+// WithBuilderConfig sets the builder configuration whose builders the aggregated builder request
+// auths are submitted to the beacon node for.
+func WithBuilderConfig(config *gloas.BuilderConfig) Option {
+	return func(b *Broadcaster) {
+		b.builderConfig = config
+	}
 }
 
 type Broadcaster struct {
-	eth2Cl    eth2wrap.Client
-	delayFunc func(slot uint64, duty core.DutyType) time.Duration
+	eth2Cl        eth2wrap.Client
+	delayFunc     func(slot uint64, duty core.DutyType) time.Duration
+	builderConfig *gloas.BuilderConfig
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -294,6 +315,25 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		}
 
 		return err
+	case core.DutyBuilderPreferences:
+		entries, err := b.builderPreferencesEntries(ctx, set)
+		if err != nil {
+			return err
+		} else if len(entries) == 0 {
+			return nil
+		}
+
+		err = b.eth2Cl.SubmitBuilderPreferences(ctx, &eth2api.SubmitBuilderPreferencesOpts{Preferences: entries})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted builder preferences to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyBuilderPreferences)),
+				z.Int("amount", len(entries)),
+			)
+
+			return nil
+		}
+
+		return handleBuilderPreferencesError(ctx, err, entries)
 	case core.DutyAggregator:
 		aggAndProofs, err := setToAggAndProof(set)
 		if err != nil {
@@ -427,6 +467,122 @@ func setToPayloadAttestationMessages(set core.SignedDataSet) (*eth2api.SubmitPay
 }
 
 // setToProposerPreferences converts a set of signed data into a list of signed proposer preferences.
+// builderPreferencesEntries returns the builder preferences entries of the aggregated builder
+// request auths: each auth is submitted for the configured builder it authorizes, identified by
+// its auth data. The builder's URL and maximum execution payment come from charon's builder
+// configuration, which is identical across the cluster.
+func (b Broadcaster) builderPreferencesEntries(ctx context.Context, set core.SignedDataSet) ([]*gloas.BuilderPreferencesEntry, error) {
+	var resp []*gloas.BuilderPreferencesEntry
+
+	for pubkey, data := range set {
+		auth, ok := data.(core.SignedBuilderRequestAuth)
+		if !ok || auth.Message == nil {
+			return nil, errors.New("invalid builder request auth")
+		}
+
+		builder := b.configuredBuilder(auth.Message.Data)
+		if builder == nil {
+			log.Warn(ctx, "Not submitting builder request auth of a builder that isn't configured", nil,
+				z.Str("auth_data", string(auth.Message.Data)))
+
+			continue
+		}
+
+		pubkeyBytes, err := pubkey.Bytes()
+		if err != nil {
+			return nil, err
+		}
+
+		resp = append(resp, &gloas.BuilderPreferencesEntry{
+			ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
+			URL:                 builder.URL,
+			Auth:                &auth.SignedBuilderRequestAuth,
+			MaxExecutionPayment: builder.MaxExecutionPayment,
+		})
+	}
+
+	return resp, nil
+}
+
+// configuredBuilder returns the configured builder entry the auth data identifies, or nil.
+func (b Broadcaster) configuredBuilder(authData []byte) *gloas.BuilderEntry {
+	if b.builderConfig == nil {
+		return nil
+	}
+
+	for _, entry := range b.builderConfig.Builders {
+		data, err := eth2util.BuilderAuthData(string(entry.URL))
+		if err == nil && string(data) == string(authData) {
+			return entry
+		}
+	}
+
+	return nil
+}
+
+// handleBuilderPreferencesError handles a failed builder preferences submission. Like validator
+// registrations, a rejected submission isn't retried: the beacon node submitted the other entries
+// (400) or doesn't serve the endpoint (404), and the auth reaches the builder with the bid request
+// at proposal time regardless. Any other error is returned for the caller to retry.
+func handleBuilderPreferencesError(ctx context.Context, err error, entries []*gloas.BuilderPreferencesEntry) error {
+	var apiErr *eth2api.Error
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+
+	switch apiErr.StatusCode {
+	case http.StatusBadRequest:
+		for _, failure := range builderPreferencesFailures(apiErr.Data, entries) {
+			log.Warn(ctx, "Builder rejected builder preferences", nil,
+				z.Str("builder", failure.builder), z.Str("message", failure.message))
+			builderPreferencesRejected.WithLabelValues(failure.builder).Inc()
+		}
+
+		return nil
+	case http.StatusNotFound:
+		log.Warn(ctx, "Beacon node doesn't support submitting builder preferences, builders only receive the request auth with the bid request", err)
+
+		return nil
+	default:
+		return err
+	}
+}
+
+// builderPreferencesFailure is a builder's rejection of its builder preferences entry.
+type builderPreferencesFailure struct {
+	builder string
+	message string
+}
+
+// builderPreferencesFailures returns the failed entries of a builder preferences submission from
+// the beacon node's indexed error message. If it can't be parsed, the whole submission is reported.
+func builderPreferencesFailures(data []byte, entries []*gloas.BuilderPreferencesEntry) []builderPreferencesFailure {
+	var indexed struct {
+		Message  string `json:"message"`
+		Failures []struct {
+			Index   int    `json:"index"`
+			Message string `json:"message"`
+		} `json:"failures"`
+	}
+
+	if err := json.Unmarshal(data, &indexed); err != nil || len(indexed.Failures) == 0 {
+		return []builderPreferencesFailure{{builder: "unknown", message: strings.TrimSpace(string(data))}}
+	}
+
+	var resp []builderPreferencesFailure
+
+	for _, failure := range indexed.Failures {
+		builder := "unknown"
+		if failure.Index >= 0 && failure.Index < len(entries) {
+			builder = string(entries[failure.Index].URL)
+		}
+
+		resp = append(resp, builderPreferencesFailure{builder: builder, message: failure.Message})
+	}
+
+	return resp
+}
+
 func setToProposerPreferences(set core.SignedDataSet) ([]*gloas.SignedProposerPreferences, error) {
 	var resp []*gloas.SignedProposerPreferences
 

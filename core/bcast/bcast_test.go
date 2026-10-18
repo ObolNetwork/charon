@@ -4,12 +4,14 @@ package bcast_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2capella "github.com/attestantio/go-eth2-client/api/v1/capella"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -367,5 +369,102 @@ func syncCommitteeContribution(t *testing.T, mock *beaconmock.Mock) test {
 		duty:     core.DutySyncContribution,
 		bcastCnt: 1,
 		asserted: asserted,
+	}
+}
+
+func TestBroadcastBuilderPreferences(t *testing.T) {
+	builderConfig := &gloas.BuilderConfig{
+		Builders: []*gloas.BuilderEntry{
+			{URL: []byte("https://Relay-A.example.com/gloas"), MaxExecutionPayment: 7},
+			{URL: []byte("https://relay-b.example.com"), MaxExecutionPayment: 7},
+		},
+	}
+
+	pubkey := testutil.RandomCorePubKey(t)
+	pubkeyBytes, err := pubkey.Bytes()
+	require.NoError(t, err)
+
+	newAuth := func(data string) core.SignedBuilderRequestAuth {
+		return core.NewSignedBuilderRequestAuth(&gloas.SignedBuilderRequestAuth{
+			Message:   &gloas.BuilderRequestAuth{Data: []byte(data), Slot: 1},
+			Signature: testutil.RandomEth2Signature(),
+		})
+	}
+
+	tests := []struct {
+		name      string
+		auth      core.SignedBuilderRequestAuth
+		submitErr error
+		submitted bool
+		err       bool
+	}{
+		{
+			name:      "configured builder",
+			auth:      newAuth("relay-a.example.com"),
+			submitted: true,
+		},
+		{
+			name: "unconfigured builder",
+			auth: newAuth("relay-z.example.com"),
+		},
+		{
+			// The beacon node submitted the other entries, so retrying would resubmit them.
+			name:      "builder rejected",
+			auth:      newAuth("relay-a.example.com"),
+			submitErr: &eth2api.Error{StatusCode: http.StatusBadRequest, Data: []byte(`{"code":400,"message":"some entries failed","failures":[{"index":0,"message":"unknown proposer"}]}`)},
+			submitted: true,
+		},
+		{
+			// The beacon node doesn't forward builder preferences, the auth still reaches the
+			// builder with the bid request at proposal time.
+			name:      "unsupported by beacon node",
+			auth:      newAuth("relay-a.example.com"),
+			submitErr: &eth2api.Error{StatusCode: http.StatusNotFound},
+			submitted: true,
+		},
+		{
+			name:      "beacon node error",
+			auth:      newAuth("relay-a.example.com"),
+			submitErr: &eth2api.Error{StatusCode: http.StatusInternalServerError},
+			submitted: true,
+			err:       true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mock, err := beaconmock.New(t.Context())
+			require.NoError(t, err)
+
+			var submitted []*gloas.BuilderPreferencesEntry
+
+			mock.SubmitBuilderPreferencesFunc = func(_ context.Context, opts *eth2api.SubmitBuilderPreferencesOpts) error {
+				submitted = append(submitted, opts.Preferences...)
+
+				return test.submitErr
+			}
+
+			bcaster, err := bcast.New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil }, bcast.WithBuilderConfig(builderConfig))
+			require.NoError(t, err)
+
+			err = bcaster.Broadcast(t.Context(), core.NewBuilderPreferencesDuty(1), core.SignedDataSet{pubkey: test.auth})
+			if test.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if !test.submitted {
+				require.Empty(t, submitted)
+				return
+			}
+
+			require.Equal(t, []*gloas.BuilderPreferencesEntry{{
+				ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
+				URL:                 []byte("https://Relay-A.example.com/gloas"),
+				Auth:                &test.auth.SignedBuilderRequestAuth,
+				MaxExecutionPayment: 7,
+			}}, submitted)
+		})
 	}
 }

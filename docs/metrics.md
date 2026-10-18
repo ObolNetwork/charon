@@ -67,6 +67,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `cluster_validators` | Gauge | Number of validators in the cluster lock |  |
 | `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay since the expected duty submission in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
+| `core_bcast_builder_preferences_rejected_total` | Counter | The total count of builder preferences entries rejected by builder URL | `builder` |
 | `core_consensus_decided_leader_index` | Gauge | Index of the decided leader by protocol and duty | `protocol, duty` |
 | `core_consensus_decided_rounds` | Gauge | Number of decided rounds by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of the consensus process by protocol, duty, and timer | `protocol, duty, timer` |

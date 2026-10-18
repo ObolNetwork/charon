@@ -722,7 +722,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}
 
-	broadcaster, err := bcast.New(ctx, submissionEth2Cl, forkSchedule)
+	broadcaster, err := bcast.New(ctx, submissionEth2Cl, forkSchedule, bcast.WithBuilderConfig(builderCfg))
 	if err != nil {
 		return err
 	}
