@@ -505,6 +505,12 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 		return nil, err
 	}
 
+	if opts.BuilderConfig != nil {
+		if err := c.submitInlineBuilderRequestAuths(ctx, opts.Slot, opts.BuilderConfig); err != nil {
+			return nil, err
+		}
+	}
+
 	// Query unsigned proposal (this is blocking). Errors for pre-gloas proposals, which
 	// are served by the v3 endpoint.
 	proposal, err := c.awaitEPBSProposal(ctx, uint64(opts.Slot))
@@ -1456,6 +1462,164 @@ func (c Component) SubmitProposerPreferences(ctx context.Context, opts *eth2api.
 		duty := core.NewProposerPreferencesDuty(uint64(slot))
 		for _, sub := range c.subs {
 			err = sub(ctx, duty, data)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// SubmitBuilderPreferences receives the builder preferences of the validator client, verifies the
+// partially signed builder request auth of each entry and forwards them to subscribers for
+// threshold aggregation, grouped by proposal slot and builder since a proposer authorizes each
+// builder separately. Only the auth is aggregated: the builder URL and maximum execution payment
+// come from charon's own builder configuration, which is identical across the cluster.
+func (c Component) SubmitBuilderPreferences(ctx context.Context, opts *eth2api.SubmitBuilderPreferencesOpts) error {
+	if opts == nil {
+		return badRequestError("no builder preferences options", nil)
+	}
+
+	currentSlot, err := SlotFromTimestamp(ctx, c.eth2Cl, time.Now())
+	if err != nil {
+		return err
+	}
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, c.eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	const (
+		// MIN_SEED_LOOKAHEAD as per the consensus spec phase0 preset (identical on all networks).
+		minSeedLookahead = 1
+		// MAX_BUILDER_ENTRIES as per the beacon-APIs gloas builder preferences.
+		maxBuilderEntries = 64
+	)
+
+	// The request body is defined as
+	// List[BuilderPreferencesEntry, MAX_BUILDER_ENTRIES * (MIN_SEED_LOOKAHEAD + 1) * SLOTS_PER_EPOCH].
+	// Enforce the list limit before any signature verification to bound memory and CPU.
+	limit := maxBuilderEntries * (minSeedLookahead + 1) * slotsPerEpoch
+	if uint64(len(opts.Preferences)) > limit {
+		return badRequestError("too many builder preferences",
+			errors.New("too many builder preferences", z.Int("count", len(opts.Preferences)), z.U64("limit", limit)))
+	}
+
+	// Auths are only valid for future proposal slots within the proposer lookahead.
+	maxSlot := eth2p0.Slot((uint64(currentSlot)/slotsPerEpoch + 1 + minSeedLookahead) * slotsPerEpoch)
+
+	type groupKey struct {
+		slot   eth2p0.Slot
+		pubkey core.PubKey
+	}
+
+	var (
+		groups       []groupKey
+		authsByGroup = make(map[groupKey][]*gloas.SignedBuilderRequestAuth)
+	)
+
+	// Faulty entries are skipped with a warning instead of failing the whole batch: entries
+	// target independent proposal slots and builders, and the list limit bounds the work.
+	for _, entry := range opts.Preferences {
+		if entry == nil || entry.Auth == nil || entry.Auth.Message == nil {
+			log.Warn(ctx, "Skipping builder preferences without request auth", nil)
+			continue
+		}
+
+		slot := entry.Auth.Message.Slot
+		if slot <= currentSlot || slot >= maxSlot {
+			log.Warn(ctx, "Skipping builder preferences with proposal slot outside lookahead window", nil,
+				z.U64("proposal_slot", uint64(slot)), z.U64("current_slot", uint64(currentSlot)), z.U64("max_slot", uint64(maxSlot)))
+
+			continue
+		}
+
+		pubkey, err := c.getPubKeyFunc(entry.ProposerPubkey)
+		if err != nil {
+			log.Warn(ctx, "Skipping builder preferences for unknown public share", err)
+			continue
+		}
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		key := groupKey{slot: slot, pubkey: pk}
+		if _, ok := authsByGroup[key]; !ok {
+			groups = append(groups, key)
+		}
+
+		authsByGroup[key] = append(authsByGroup[key], entry.Auth)
+	}
+
+	for _, key := range groups {
+		err = c.forwardBuilderRequestAuths(ctx, key.slot, key.pubkey, authsByGroup[key])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// submitInlineBuilderRequestAuths forwards the builder request auths a validator client sends
+// inline with its block production request, instead of ahead of time as builder preferences.
+// Builders without an auth have nothing to aggregate, and an auth for another slot is skipped.
+func (c Component) submitInlineBuilderRequestAuths(ctx context.Context, slot eth2p0.Slot, config *gloas.BuilderConfig) error {
+	var auths []*gloas.SignedBuilderRequestAuth
+
+	for _, entry := range config.Builders {
+		if entry == nil || entry.Auth == nil || entry.Auth.Message == nil {
+			continue
+		}
+
+		if entry.Auth.Message.Slot != slot {
+			log.Warn(ctx, "Skipping inline builder request auth for another slot", nil,
+				z.U64("proposal_slot", uint64(slot)), z.U64("auth_slot", uint64(entry.Auth.Message.Slot)))
+
+			continue
+		}
+
+		auths = append(auths, entry.Auth)
+	}
+
+	if len(auths) == 0 {
+		return nil
+	}
+
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
+	if err != nil {
+		return err
+	}
+
+	return c.forwardBuilderRequestAuths(ctx, slot, pubkey, auths)
+}
+
+// forwardBuilderRequestAuths verifies the validator's partially signed builder request auths for
+// the proposal slot and forwards each to the subscribers for threshold aggregation, since a
+// proposer authorizes each builder separately. An invalid auth is skipped with a warning.
+func (c Component) forwardBuilderRequestAuths(ctx context.Context, slot eth2p0.Slot, pubkey core.PubKey, auths []*gloas.SignedBuilderRequestAuth) error {
+	duty := core.NewBuilderPreferencesDuty(uint64(slot))
+
+	for _, auth := range auths {
+		parSigData := core.NewPartialSignedBuilderRequestAuth(auth, c.shareIdx)
+
+		err := c.verifyPartialSig(ctx, parSigData, pubkey)
+		if err != nil {
+			log.Warn(ctx, "Skipping builder request auth with invalid partial signature", err,
+				z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pubkey), z.Str("auth_data", string(auth.Message.Data)))
+
+			continue
+		}
+
+		log.Debug(ctx, "Builder request auth received from validator client",
+			z.U64("proposal_slot", uint64(slot)), z.Str("auth_data", string(auth.Message.Data)))
+
+		for _, sub := range c.subs {
+			err := sub(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
 			if err != nil {
 				return err
 			}

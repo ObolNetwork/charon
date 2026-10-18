@@ -2576,6 +2576,7 @@ type testHandler struct {
 	PTCDutiesFunc                      func(ctx context.Context, opts *eth2api.PTCDutiesOpts) (*eth2api.Response[[]*eth2v1.PTCDuty], error)
 	SubmitPayloadAttMsgsFunc           func(ctx context.Context, opts *eth2api.SubmitPayloadAttestationMessagesOpts) error
 	SubmitProposerPreferencesFunc      func(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error
+	SubmitBuilderPreferencesFunc       func(ctx context.Context, preferences []*gloas.BuilderPreferencesEntry) error
 	SubmitExecutionPayloadEnvelopeFunc func(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error
 	ProxyFunc                          func(ctx context.Context, req *http.Request) (*http.Response, error)
 	AddressFunc                        func() string
@@ -2600,6 +2601,10 @@ func (h testHandler) SubmitPayloadAttestationMessages(ctx context.Context, opts 
 
 func (h testHandler) SubmitProposerPreferences(ctx context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
 	return h.SubmitProposerPreferencesFunc(ctx, opts.Preferences)
+}
+
+func (h testHandler) SubmitBuilderPreferences(ctx context.Context, opts *eth2api.SubmitBuilderPreferencesOpts) error {
+	return h.SubmitBuilderPreferencesFunc(ctx, opts.Preferences)
 }
 
 func (h testHandler) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
@@ -3704,4 +3709,171 @@ func TestSubmitExecutionPayloadEnvelopeRouter(t *testing.T) {
 			require.Empty(t, received)
 		})
 	})
+}
+
+func TestSubmitBuilderPreferencesRouter(t *testing.T) {
+	newEntry := func(data string) *gloas.BuilderPreferencesEntry {
+		return &gloas.BuilderPreferencesEntry{
+			ProposerPubkey:      testutil.RandomEth2PubKey(t),
+			URL:                 []byte("https://" + data),
+			Auth:                &gloas.SignedBuilderRequestAuth{Message: &gloas.BuilderRequestAuth{Data: []byte(data), Slot: 1}, Signature: testutil.RandomEth2Signature()},
+			MaxExecutionPayment: 7,
+		}
+	}
+
+	entries := []*gloas.BuilderPreferencesEntry{newEntry("relay-a.example.com"), newEntry("relay-b.example.com")}
+
+	newHandler := func(submitted *[][]*gloas.BuilderPreferencesEntry) testHandler {
+		return testHandler{
+			SubmitBuilderPreferencesFunc: func(_ context.Context, preferences []*gloas.BuilderPreferencesEntry) error {
+				*submitted = append(*submitted, preferences)
+
+				return nil
+			},
+		}
+	}
+
+	post := func(ctx context.Context, t *testing.T, baseURL, contentType, version string, body []byte) *http.Response {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/eth/v1/validator/builder_preferences", bytes.NewReader(body))
+		require.NoError(t, err)
+
+		req.Header.Set("Content-Type", contentType)
+
+		if version != "" {
+			req.Header.Set(versionHeader, version)
+		}
+
+		res, err := new(http.Client).Do(req)
+		require.NoError(t, err)
+
+		return res
+	}
+
+	t.Run("json", func(t *testing.T) {
+		var submitted [][]*gloas.BuilderPreferencesEntry
+
+		body, err := json.Marshal(entries)
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "gloas", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, submitted, 1)
+			require.Equal(t, entries, submitted[0])
+		})
+	})
+
+	t.Run("ssz", func(t *testing.T) {
+		var submitted [][]*gloas.BuilderPreferencesEntry
+
+		list := apiv1gloas.BuilderPreferencesEntryList(entries)
+		body, err := list.MarshalSSZ()
+		require.NoError(t, err)
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/octet-stream", "gloas", body)
+			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Len(t, submitted, 1)
+			require.Equal(t, entries, submitted[0])
+		})
+	})
+
+	t.Run("missing version header", func(t *testing.T) {
+		var submitted [][]*gloas.BuilderPreferencesEntry
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "", []byte("[]"))
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, submitted)
+		})
+	})
+
+	t.Run("wrong version header", func(t *testing.T) {
+		var submitted [][]*gloas.BuilderPreferencesEntry
+
+		testRawRouter(t, newHandler(&submitted), func(ctx context.Context, baseURL string) {
+			res := post(ctx, t, baseURL, "application/json", "fulu", []byte("[]"))
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+			require.Empty(t, submitted)
+		})
+	})
+}
+
+func TestProposeBlockV4BuilderConfigBody(t *testing.T) {
+	proposal := &eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas, Gloas: testutil.RandomGloasBeaconBlock()}
+
+	auth := &gloas.SignedBuilderRequestAuth{
+		Message:   &gloas.BuilderRequestAuth{Data: []byte("relay-a.example.com"), Slot: 456},
+		Signature: testutil.RandomEth2Signature(),
+	}
+	config := &gloas.BuilderConfig{
+		MinBid:             3,
+		BuilderBoostFactor: 90,
+		Builders: []*gloas.BuilderEntry{{
+			URL:                 []byte("https://relay-a.example.com"),
+			Auth:                auth,
+			BuilderPubkeys:      []eth2p0.BLSPubKey{},
+			MaxExecutionPayment: 7,
+		}},
+	}
+
+	jsonBody, err := json.Marshal(config)
+	require.NoError(t, err)
+
+	sszBody, err := config.MarshalSSZ()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		contentType string
+		body        []byte
+		decoded     bool
+	}{
+		{name: "json", contentType: "application/json", body: jsonBody, decoded: true},
+		{name: "ssz", contentType: "application/octet-stream", body: sszBody, decoded: true},
+		// The inline builder request auths are optional, so a body the builder config can't
+		// be decoded from doesn't fail the request.
+		{name: "undecodable", contentType: "application/json", body: []byte("{}")},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			handler := testHandler{
+				EPBSProposalFunc: func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+					require.Equal(t, eth2p0.Slot(456), opts.Slot)
+
+					if !test.decoded {
+						require.Nil(t, opts.BuilderConfig)
+
+						return wrapResponse(proposal), nil
+					}
+
+					require.NotNil(t, opts.BuilderConfig)
+					require.EqualValues(t, 3, opts.BuilderConfig.MinBid)
+					require.EqualValues(t, 90, opts.BuilderConfig.BuilderBoostFactor)
+					require.Len(t, opts.BuilderConfig.Builders, 1)
+					require.Equal(t, []byte("https://relay-a.example.com"), opts.BuilderConfig.Builders[0].URL)
+					require.Equal(t, auth, opts.BuilderConfig.Builders[0].Auth)
+					require.EqualValues(t, 7, opts.BuilderConfig.Builders[0].MaxExecutionPayment)
+
+					return wrapResponse(proposal), nil
+				},
+			}
+
+			testRawRouter(t, handler, func(ctx context.Context, baseURL string) {
+				url := fmt.Sprintf("%s/eth/v4/validator/blocks/456?randao_reveal=%#x&graffiti=%#x", baseURL, testutil.RandomEth2Signature(), testutil.RandomBytes32())
+
+				req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(test.body))
+				require.NoError(t, err)
+
+				req.Header.Set("Content-Type", test.contentType)
+
+				res, err := new(http.Client).Do(req)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, res.StatusCode)
+			})
+		})
+	}
 }

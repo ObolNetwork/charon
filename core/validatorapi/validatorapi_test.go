@@ -3561,3 +3561,173 @@ func registerAwaitEPBSProposal(c *validatorapi.Component, fn func(ctx context.Co
 		return core.VersionedProposal{Version: proposal.Version, EPBS: proposal}, nil
 	})
 }
+
+func TestComponent_SubmitBuilderPreferences(t *testing.T) {
+	ctx := context.Background()
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	const shareIdx = 1
+
+	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+	require.NoError(t, err)
+
+	currentSlot, err := validatorapi.SlotFromTimestamp(ctx, bmock, time.Now())
+	require.NoError(t, err)
+
+	newEntry := func(data string, slot eth2p0.Slot) *gloas.BuilderPreferencesEntry {
+		auth := &gloas.BuilderRequestAuth{Data: []byte(data), Slot: slot}
+
+		root, err := auth.HashTreeRoot()
+		require.NoError(t, err)
+
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBuilderRequestAuth, 0, root)
+		require.NoError(t, err)
+
+		sig, err := tbls.Sign(secret, sigData[:])
+		require.NoError(t, err)
+
+		return &gloas.BuilderPreferencesEntry{
+			ProposerPubkey:      eth2p0.BLSPubKey(pubkey),
+			URL:                 []byte("https://" + data),
+			Auth:                &gloas.SignedBuilderRequestAuth{Message: auth, Signature: eth2p0.BLSSignature(sig)},
+			MaxExecutionPayment: 7,
+		}
+	}
+
+	type submission struct {
+		duty core.Duty
+		set  core.ParSignedDataSet
+	}
+
+	var submitted []submission
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		submitted = append(submitted, submission{duty: duty, set: set})
+
+		return nil
+	})
+
+	submit := func(entries ...*gloas.BuilderPreferencesEntry) error {
+		return vapi.SubmitBuilderPreferences(ctx, &eth2api.SubmitBuilderPreferencesOpts{Preferences: entries})
+	}
+
+	// Each builder's auth is forwarded on its own, keyed by the proposal slot.
+	slot := currentSlot + 1
+	entryA := newEntry("relay-a.example.com", slot)
+	entryB := newEntry("relay-b.example.com", slot)
+	require.NoError(t, submit(entryA, entryB))
+	require.Len(t, submitted, 2)
+
+	for i, entry := range []*gloas.BuilderPreferencesEntry{entryA, entryB} {
+		require.Equal(t, core.NewBuilderPreferencesDuty(uint64(slot)), submitted[i].duty)
+		require.Equal(t, core.ParSignedDataSet{corePubKey: core.NewPartialSignedBuilderRequestAuth(entry.Auth, shareIdx)}, submitted[i].set)
+	}
+
+	// Faulty entries are skipped with a warning, not forwarded and not failing the batch:
+	// already-started and far-future slots, invalid signatures, unknown keys and nil entries.
+	invalidSig := newEntry("relay-a.example.com", slot)
+	invalidSig.Auth.Message.Data = []byte("relay-c.example.com")
+
+	unknownKey := newEntry("relay-a.example.com", slot)
+	unknownKey.ProposerPubkey = testutil.RandomEth2PubKey(t)
+
+	require.NoError(t, submit(
+		newEntry("relay-a.example.com", currentSlot),
+		newEntry("relay-a.example.com", currentSlot+100_000),
+		invalidSig,
+		unknownKey,
+		&gloas.BuilderPreferencesEntry{},
+		nil,
+	))
+	require.Len(t, submitted, 2)
+
+	// Requests exceeding the spec list limit are rejected.
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	tooMany := make([]*gloas.BuilderPreferencesEntry, 64*2*slotsPerEpoch+1)
+	require.ErrorContains(t, submit(tooMany...), "too many builder preferences")
+}
+
+func TestComponent_EPBSProposalBuilderRequestAuths(t *testing.T) {
+	ctx := context.Background()
+
+	eth2Cl, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	const (
+		slot     = 123
+		shareIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, shareIdx)
+	require.NoError(t, err)
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	component.RegisterGetDutyDefinition(func(context.Context, core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	block := testutil.RandomGloasBeaconBlock()
+	block.Slot = slot
+
+	registerAwaitEPBSProposal(component, func(context.Context, uint64) (*eth2api.VersionedEPBSProposal, error) {
+		return &eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas, Gloas: block}, nil
+	})
+
+	newAuth := func(data string, authSlot eth2p0.Slot) *gloas.SignedBuilderRequestAuth {
+		return &gloas.SignedBuilderRequestAuth{
+			Message:   &gloas.BuilderRequestAuth{Data: []byte(data), Slot: authSlot},
+			Signature: testutil.RandomEth2Signature(),
+		}
+	}
+
+	authA := newAuth("relay-a.example.com", slot)
+	authB := newAuth("relay-b.example.com", slot)
+
+	var submitted []core.ParSignedDataSet
+
+	component.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		if duty.Type == core.DutyBuilderPreferences {
+			require.Equal(t, core.NewBuilderPreferencesDuty(slot), duty)
+
+			submitted = append(submitted, set)
+		}
+
+		return nil
+	})
+
+	// A validator client without ahead-of-time builder preferences authorizes the builders
+	// inline in the block production request. Entries without an auth, or with an auth for
+	// another slot, are skipped without failing the proposal.
+	_, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:         slot,
+		RandaoReveal: testutil.RandomEth2Signature(),
+		BuilderConfig: &gloas.BuilderConfig{Builders: []*gloas.BuilderEntry{
+			{URL: []byte("https://relay-a.example.com"), Auth: authA},
+			{URL: []byte("https://relay-b.example.com"), Auth: authB},
+			{URL: []byte("https://relay-c.example.com")},
+			{URL: []byte("https://relay-d.example.com"), Auth: newAuth("relay-d.example.com", slot+1)},
+		}},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []core.ParSignedDataSet{
+		{pubkey: core.NewPartialSignedBuilderRequestAuth(authA, shareIdx)},
+		{pubkey: core.NewPartialSignedBuilderRequestAuth(authB, shareIdx)},
+	}, submitted)
+}
