@@ -5,6 +5,8 @@ package fetcher
 import (
 	"context"
 	"fmt"
+	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/jonboulle/clockwork"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
@@ -311,4 +314,160 @@ func TestFetchGloasAttester(t *testing.T) {
 		require.ErrorIs(t, <-errCh, context.Canceled)
 		require.Empty(t, fetch.headEvents, "head events of the slot not removed after a failed fetch")
 	})
+}
+
+// metadataClient adds response metadata to the mock's EPBS proposals.
+type metadataClient struct {
+	beaconmock.Mock
+
+	metadata map[string]any
+}
+
+func (c metadataClient) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.Response[*eth2api.VersionedEPBSProposal], error) {
+	resp, err := c.Mock.EPBSProposal(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	resp.Metadata = c.metadata
+
+	return resp, nil
+}
+
+func TestFetchEPBSBuilderSource(t *testing.T) {
+	const (
+		slot = 1
+		url  = "https://Builder-Sepolia.nflaig.dev"
+	)
+
+	tests := []struct {
+		name      string
+		selfBuilt bool
+		metadata  map[string]any
+		wantURL   string
+		wantGauge float64
+		wantLabel string
+	}{
+		{name: "direct builder bid", metadata: map[string]any{"Eth-Builder-Url": url}, wantURL: url, wantGauge: proposalSourceDirect, wantLabel: "builder-sepolia.nflaig.dev"},
+		{name: "lowercase header key", metadata: map[string]any{"eth-builder-url": url}, wantURL: url, wantGauge: proposalSourceDirect, wantLabel: "builder-sepolia.nflaig.dev"},
+		{name: "p2p bid", wantGauge: proposalSourceBuilder},
+		{name: "self-built ignores header", selfBuilt: true, metadata: map[string]any{"Eth-Builder-Url": url}, wantGauge: proposalSourceLocal},
+		// A URL that can't be agreed would fail the proposal, so it is dropped.
+		{name: "overlong url dropped", metadata: map[string]any{"Eth-Builder-Url": "https://" + strings.Repeat("a", core.MaxBuilderURLSize)}, wantGauge: proposalSourceBuilder},
+	}
+
+	const (
+		bidValueGwei = 67_000_000
+		executionWei = 67_000_000_500_000_000 // 67000000.5 gwei
+		consensusWei = 40_000_000_000_000_000 // 40000000 gwei
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bmock, err := beaconmock.New(t.Context())
+			require.NoError(t, err)
+
+			bmock.EPBSProposalFunc = func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error) {
+				block := testutil.RandomGloasBeaconBlock()
+				block.Slot = opts.Slot
+				block.Body.RANDAOReveal = opts.RandaoReveal
+				block.Body.SignedExecutionPayloadBid.Message.BuilderIndex = 7
+				block.Body.SignedExecutionPayloadBid.Message.Value = bidValueGwei
+
+				proposal := &eth2api.VersionedEPBSProposal{
+					Version:        eth2spec.DataVersionGloas,
+					Gloas:          block,
+					ConsensusValue: big.NewInt(consensusWei),
+					ExecutionValue: big.NewInt(executionWei),
+				}
+
+				// The client clears the execution value of self-built proposals.
+				if tt.selfBuilt {
+					block.Body.SignedExecutionPayloadBid.Message.BuilderIndex = core.BuilderIndexSelfBuild
+					block.Body.SignedExecutionPayloadBid.Message.Value = 0
+					proposal.ExecutionValue = nil
+				}
+
+				return proposal, nil
+			}
+
+			fetch, err := New(t.Context(), metadataClient{Mock: bmock, metadata: tt.metadata}, func(core.PubKey) string {
+				return "0x0000000000000000000000000000000000000000"
+			}, false, &GraffitiBuilder{},
+				func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+			require.NoError(t, err)
+
+			randao := testutil.RandomCoreSignature()
+
+			fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error) {
+				return randao, nil
+			})
+
+			pubkey := testutil.RandomCorePubKey(t)
+
+			type sample struct{ sum, count float64 }
+
+			valueOf := func(typ string) sample {
+				return sample{
+					sum:   promtest.ToFloat64(proposalValueSum.WithLabelValues(typ)),
+					count: promtest.ToFloat64(proposalValueCount.WithLabelValues(typ)),
+				}
+			}
+
+			before := map[string]sample{}
+			for _, typ := range []string{proposalValueBid, proposalValueExecution, proposalValueConsensus} {
+				before[typ] = valueOf(typ)
+			}
+
+			var logs zaptest.Buffer
+			log.InitLogfmtForT(t, &logs)
+
+			var fetched bool
+
+			fetch.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
+				proposal, ok := set[pubkey].(core.VersionedProposal)
+				require.True(t, ok)
+				require.Equal(t, tt.wantURL, proposal.BuilderURL)
+
+				// The fetched proposal can always be agreed.
+				_, err := proposal.MarshalSSZ()
+				require.NoError(t, err)
+
+				fetched = true
+
+				return nil
+			})
+
+			defSet := core.DutyDefinitionSet{pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{Slot: slot, ValidatorIndex: 2})}
+			require.NoError(t, fetch.Fetch(t.Context(), core.NewProposerDuty(slot), defSet))
+			require.True(t, fetched)
+
+			// The log line carries the same fields for every builder source.
+			require.Contains(t, logs.String(), "Fetched gloas proposal")
+			require.Contains(t, logs.String(), "builder_index=")
+			require.Contains(t, logs.String(), "builder_url=")
+
+			// Each fetched proposal's values are added in gwei, the bid only for builder bids and the
+			// execution value only when known.
+			requireObserved := func(typ string, want float64, observed bool) {
+				t.Helper()
+
+				after := valueOf(typ)
+				if !observed {
+					require.Equal(t, before[typ], after, typ)
+					return
+				}
+
+				require.InDelta(t, before[typ].count+1, after.count, 0, typ)
+				require.InDelta(t, before[typ].sum+want, after.sum, 0.001, typ)
+			}
+
+			requireObserved(proposalValueBid, bidValueGwei, !tt.selfBuilt)
+			requireObserved(proposalValueExecution, 67_000_000.5, !tt.selfBuilt)
+			requireObserved(proposalValueConsensus, 40_000_000, true)
+
+			require.Equal(t, 1, promtest.CollectAndCount(proposalBlindedGauge))
+			require.InDelta(t, tt.wantGauge, promtest.ToFloat64(proposalBlindedGauge.WithLabelValues(tt.wantLabel)), 0)
+		})
+	}
 }

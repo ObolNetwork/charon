@@ -289,6 +289,20 @@ func (p VersionedSignedProposal) ToBlinded() (eth2api.VersionedSignedBlindedProp
 	}, nil
 }
 
+// EPBSBid returns the execution payload bid the signed gloas proposal's beacon block commits to.
+func (p VersionedSignedProposal) EPBSBid() (*gloas.ExecutionPayloadBid, error) {
+	if p.Version != eth2spec.DataVersionGloas {
+		return nil, errors.New("not a gloas proposal", z.Str("version", p.Version.String()))
+	}
+
+	if p.Gloas == nil || p.Gloas.Message == nil || p.Gloas.Message.Body == nil ||
+		p.Gloas.Message.Body.SignedExecutionPayloadBid == nil || p.Gloas.Message.Body.SignedExecutionPayloadBid.Message == nil {
+		return nil, errors.New("no gloas block execution payload bid")
+	}
+
+	return p.Gloas.Message.Body.SignedExecutionPayloadBid.Message, nil
+}
+
 func (p VersionedSignedProposal) Signature() Signature {
 	switch p.Version {
 	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
@@ -652,6 +666,8 @@ type versionedRawBlockJSON struct {
 	// PayloadContentsRoots commit to the execution payload contents of a self-built gloas
 	// proposal agreed without them, see VersionedProposal. Nil when zero.
 	PayloadContentsRoots *payloadContentsRootsJSON `json:"payload_contents_roots,omitempty"`
+	// BuilderURL is the direct builder of a gloas proposal, see VersionedProposal. Gloas only.
+	BuilderURL string `json:"builder_url,omitempty"`
 }
 
 // payloadContentsRootsJSON is the JSON form of PayloadContentsRoots.

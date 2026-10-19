@@ -1431,3 +1431,20 @@ func TestSignedExecutionPayloadEnvelopeMethods(t *testing.T) {
 	_, err = nilEnv.Epoch(context.Background(), nil)
 	require.Error(t, err)
 }
+
+func TestVersionedSignedProposalEPBSBid(t *testing.T) {
+	p := testutil.RandomGloasCoreVersionedSignedProposal()
+
+	bid, err := p.EPBSBid()
+	require.NoError(t, err)
+	require.Equal(t, p.Gloas.Message.Body.SignedExecutionPayloadBid.Message, bid)
+
+	_, err = testutil.RandomFuluCoreVersionedSignedProposal().EPBSBid()
+	require.ErrorContains(t, err, "not a gloas proposal")
+
+	_, err = core.VersionedSignedProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   &gloas.SignedBeaconBlock{},
+	}.EPBSBid()
+	require.ErrorContains(t, err, "no gloas block execution payload bid")
+}

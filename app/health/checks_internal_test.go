@@ -501,6 +501,12 @@ func TestLocalBlockProposalCheck(t *testing.T) {
 			genFam(metricName, genGauge(nil, 2, 2, 2)),
 		)
 	})
+
+	t.Run("direct builder proposal", func(t *testing.T) {
+		testCheck(t, m, checkName, false,
+			genFam(metricName, genGauge([]*pb.LabelPair{l("builder", "builder.example.com")}, 3, 3, 3)),
+		)
+	})
 }
 
 func TestLocalProposalFeeRecipientMismatchCheck(t *testing.T) {

@@ -3,13 +3,22 @@
 package bcast
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -81,4 +90,124 @@ func forkScheduleFunc(t *testing.T, eth2Cl eth2wrap.Client) func() eth2wrap.Fork
 	require.NoError(t, err)
 
 	return func() eth2wrap.ForkForkSchedule { return forkSchedule }
+}
+
+func TestBroadcastGloasProposal(t *testing.T) {
+	const configured = "https://builder-a.example.com"
+
+	builderConfig := &gloas.BuilderConfig{
+		Builders: []*gloas.BuilderEntry{{URL: []byte(configured)}},
+	}
+
+	tests := []struct {
+		name        string
+		builderURL  string // Of the agreed proposal.
+		noAgreed    bool   // The agreed proposal can't be found.
+		slowAgreed  bool   // The agreed proposal lookup doesn't return before its deadline.
+		selfBuilt   bool
+		noBid       bool // The signed block's bid can't be read.
+		wantURL     string
+		wantSource  string
+		wantBuilder string
+		wantCounted bool
+	}{
+		{name: "p2p bid, no url", wantSource: core.BuilderSourceP2P, wantCounted: true},
+		{name: "configured url forwarded", builderURL: configured, wantURL: configured, wantSource: core.BuilderSourceDirect, wantBuilder: "builder-a.example.com", wantCounted: true},
+		{name: "unconfigured url not forwarded", builderURL: "https://other.example.com", wantSource: core.BuilderSourceDirect, wantBuilder: "other.example.com", wantCounted: true},
+		{name: "self-built with url ignored", builderURL: configured, selfBuilt: true, wantSource: core.BuilderSourceLocal, wantCounted: true},
+		// Without the agreed proposal a builder bid can't be told apart, so it isn't counted.
+		{name: "agreed proposal missing", builderURL: configured, noAgreed: true, wantSource: builderSourceUnknown},
+		{name: "agreed proposal lookup times out", builderURL: configured, slowAgreed: true, wantSource: builderSourceUnknown},
+		// Metadata never stops a block from being published.
+		{name: "unreadable bid still published", noBid: true, wantSource: builderSourceUnknown},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mock, err := beaconmock.New(t.Context())
+			require.NoError(t, err)
+
+			proposal := testutil.RandomGloasCoreVersionedSignedProposal()
+
+			bid := proposal.Gloas.Message.Body.SignedExecutionPayloadBid.Message
+			bid.BuilderIndex = 7
+
+			if test.selfBuilt {
+				bid.BuilderIndex = core.BuilderIndexSelfBuild
+			}
+
+			if test.noBid {
+				proposal.Gloas.Message.Body.SignedExecutionPayloadBid = nil
+			}
+
+			var submitted *eth2api.SubmitProposalOpts
+
+			mock.SubmitProposalFunc = func(_ context.Context, opts *eth2api.SubmitProposalOpts) error {
+				submitted = opts
+
+				return nil
+			}
+
+			bcaster, err := New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil }, WithBuilderConfig(builderConfig))
+			require.NoError(t, err)
+
+			// The builder URL comes from this node's own agreed proposal, never from the partials.
+			bcaster.RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+				require.Equal(t, uint64(1), slot)
+				require.False(t, test.selfBuilt, "a self-built proposal has no builder URL to look up")
+				require.False(t, test.noBid, "a proposal without a bid has no builder URL to look up")
+
+				if test.noAgreed {
+					return core.VersionedProposal{}, errors.New("no agreed proposal")
+				}
+
+				if test.slowAgreed {
+					<-ctx.Done()
+					return core.VersionedProposal{}, ctx.Err()
+				}
+
+				agreed, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+					Version: proposal.Version,
+					Gloas:   proposal.Gloas.Message,
+				})
+				require.NoError(t, err)
+
+				agreed.BuilderURL = test.builderURL
+
+				return agreed, nil
+			})
+
+			counter := proposalSourceCounter.WithLabelValues(test.wantSource, test.wantBuilder)
+			before := promtest.ToFloat64(counter)
+
+			var logs zaptest.Buffer
+			log.InitLogfmtForT(t, &logs)
+
+			pubkey := testutil.RandomCorePubKey(t)
+			err = bcaster.Broadcast(t.Context(), core.NewProposerDuty(1), core.SignedDataSet{pubkey: proposal})
+			require.NoError(t, err)
+
+			// The log line carries the same fields for every builder source.
+			require.Contains(t, logs.String(), "Successfully submitted block proposal to beacon node")
+			require.Contains(t, logs.String(), "builder_source="+test.wantSource)
+			require.Contains(t, logs.String(), "builder_index=")
+			require.Contains(t, logs.String(), "builder_url=")
+			require.Contains(t, logs.String(), fmt.Sprintf("builder_url_forwarded=%t", test.wantURL != ""))
+
+			if test.wantURL == "" && test.wantSource != core.BuilderSourceDirect {
+				require.NotContains(t, logs.String(), "example.com", "builder_url only logged for direct bids")
+			}
+
+			require.NotNil(t, submitted)
+			require.Equal(t, proposal.Gloas, submitted.Proposal.Gloas)
+			require.Equal(t, test.wantURL, submitted.BuilderURL)
+
+			want := before
+			if test.wantCounted {
+				want++
+			}
+
+			require.InDelta(t, want, promtest.ToFloat64(counter), 0)
+		})
+	}
 }

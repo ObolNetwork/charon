@@ -68,14 +68,17 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay since the expected duty submission in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
 | `core_bcast_builder_preferences_rejected_total` | Counter | The total count of builder preferences entries rejected by builder URL | `builder` |
+| `core_bcast_proposal_source_total` | Counter | The total count of successfully broadcast gloas block proposals by builder source (local, p2p, direct) and builder host when direct | `source, builder` |
 | `core_consensus_decided_leader_index` | Gauge | Index of the decided leader by protocol and duty | `protocol, duty` |
 | `core_consensus_decided_rounds` | Gauge | Number of decided rounds by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of the consensus process by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_error_total` | Counter | Total count of consensus errors by protocol | `protocol` |
 | `core_consensus_insufficient_round_changes_total` | Counter | Total count of consensus instances with insufficient round change messages by protocol, duty, timer, and outcome (decided or timeout) | `protocol, duty, timer, outcome` |
 | `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by protocol, duty, and timer | `protocol, duty, timer` |
-| `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was blinded (1) or local (2) |  |
+| `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was built by a builder via p2p (1, blinded pre-gloas), locally (2) or by a direct builder (3), labelled by builder host when direct | `builder` |
 | `core_fetcher_proposal_local_mismatch_fee_recipient` | Gauge | Counts the number of times a local proposal has a mismatched fee recipient |  |
+| `core_fetcher_proposal_value_gwei_total` | Counter | Sum of the values of fetched gloas proposals in gwei by type: the builder bid value (builder bids only), the execution payload value and the consensus block value (when known) | `type` |
+| `core_fetcher_proposal_values_total` | Counter | Number of values of fetched gloas proposals added to core_fetcher_proposal_value_gwei_total by type | `type` |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_parsigdb_store` | Histogram | Latency of partial signatures received since earliest expected time, per duty, per peer index | `duty, peer_idx` |
 | `core_parsigex_set_verification_seconds` | Histogram | Duration to verify all partial signatures in a received set, in seconds | `duty` |

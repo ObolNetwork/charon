@@ -3,8 +3,11 @@
 package core_test
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	bitfield "github.com/OffchainLabs/go-bitfield"
@@ -907,4 +910,118 @@ func TestWithoutPayloadContents(t *testing.T) {
 	// Bare proposals have no contents to strip.
 	_, err = core.WithoutPayloadContents(bare)
 	require.ErrorContains(t, err, "no execution payload contents")
+}
+
+func TestVersionedProposalBuilderURL(t *testing.T) {
+	const url = "https://builder-sepolia.nflaig.dev"
+
+	t.Run("round trip", func(t *testing.T) {
+		p := testutil.RandomGloasCoreVersionedEPBSProposal()
+		p.BuilderURL = url
+
+		b, err := p.MarshalSSZ()
+		require.NoError(t, err)
+		require.Len(t, b, p.SizeSSZ())
+
+		var fromSSZ core.VersionedProposal
+
+		require.NoError(t, fromSSZ.UnmarshalSSZ(b))
+		require.Equal(t, p, fromSSZ)
+
+		j, err := p.MarshalJSON()
+		require.NoError(t, err)
+		require.Contains(t, string(j), `"builder_url":"`+url+`"`)
+
+		var fromJSON core.VersionedProposal
+
+		require.NoError(t, fromJSON.UnmarshalJSON(j))
+		require.Equal(t, p, fromJSON)
+
+		clone, err := p.Clone()
+		require.NoError(t, err)
+		require.Equal(t, p, clone)
+	})
+
+	t.Run("empty url omitted", func(t *testing.T) {
+		p := testutil.RandomGloasCoreVersionedEPBSProposal()
+
+		j, err := p.MarshalJSON()
+		require.NoError(t, err)
+		require.NotContains(t, string(j), "builder_url")
+	})
+
+	t.Run("survives WithoutPayloadContents", func(t *testing.T) {
+		full := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+		full.BuilderURL = url
+
+		bare, err := core.WithoutPayloadContents(full)
+		require.NoError(t, err)
+		require.Equal(t, url, bare.BuilderURL)
+	})
+
+	t.Run("pre-gloas ignores builder url", func(t *testing.T) {
+		p := testutil.RandomBellatrixCoreVersionedProposal()
+
+		b0, err := p.MarshalSSZ()
+		require.NoError(t, err)
+		j0, err := p.MarshalJSON()
+		require.NoError(t, err)
+
+		p.BuilderURL = url
+
+		b1, err := p.MarshalSSZ()
+		require.NoError(t, err)
+		j1, err := p.MarshalJSON()
+		require.NoError(t, err)
+		require.Equal(t, b0, b1)
+		require.Equal(t, j0, j1)
+
+		// A round trip drops it.
+		var fromSSZ, fromJSON core.VersionedProposal
+
+		require.NoError(t, fromSSZ.UnmarshalSSZ(b1))
+		require.Empty(t, fromSSZ.BuilderURL)
+		require.NoError(t, fromJSON.UnmarshalJSON(j1))
+		require.Empty(t, fromJSON.BuilderURL)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		p := testutil.RandomGloasCoreVersionedEPBSProposal()
+		p.BuilderURL = strings.Repeat("a", core.MaxBuilderURLSize+1)
+
+		_, err := p.MarshalSSZ()
+		require.ErrorContains(t, err, "builder url too long")
+
+		p.BuilderURL = url
+
+		b, err := p.MarshalSSZ()
+		require.NoError(t, err)
+
+		// URL offset pointing before the block offset.
+		bad := slices.Clone(b)
+		binary.LittleEndian.PutUint32(bad[77:81], 80)
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalSSZ(bad), "incorrect offset")
+
+		// URL offset pointing past the end.
+		bad = slices.Clone(b)
+		binary.LittleEndian.PutUint32(bad[77:81], uint32(len(bad)+1))
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalSSZ(bad), "incorrect offset")
+
+		// URL longer than the maximum.
+		bad = append(slices.Clone(b), strings.Repeat("a", core.MaxBuilderURLSize)...)
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalSSZ(bad), "builder url too long")
+
+		// The JSON form has the same maximum, so a decoded proposal can always be encoded.
+		j, err := p.MarshalJSON()
+		require.NoError(t, err)
+
+		long := strings.Replace(string(j), `"builder_url":"`+url+`"`, `"builder_url":"`+strings.Repeat("a", core.MaxBuilderURLSize+1)+`"`, 1)
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalJSON([]byte(long)), "builder url too long")
+	})
+}
+
+func TestBuilderSource(t *testing.T) {
+	require.Equal(t, core.BuilderSourceLocal, core.BuilderSource(core.BuilderIndexSelfBuild, "https://x"))
+	require.Equal(t, core.BuilderSourceP2P, core.BuilderSource(7, ""))
+	require.Equal(t, core.BuilderSourceDirect, core.BuilderSource(7, "https://x"))
 }

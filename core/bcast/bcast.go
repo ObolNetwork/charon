@@ -57,10 +57,81 @@ func WithBuilderConfig(config *gloas.BuilderConfig) Option {
 	}
 }
 
+// configuredBuilder returns whether the builder URL is one of the configured builders.
+func (b Broadcaster) configuredBuilder(builderURL string) bool {
+	if b.builderConfig == nil {
+		return false
+	}
+
+	for _, entry := range b.builderConfig.Builders {
+		if string(entry.URL) == builderURL {
+			return true
+		}
+	}
+
+	return false
+}
+
 type Broadcaster struct {
-	eth2Cl        eth2wrap.Client
-	delayFunc     func(slot uint64, duty core.DutyType) time.Duration
-	builderConfig *gloas.BuilderConfig
+	eth2Cl            eth2wrap.Client
+	delayFunc         func(slot uint64, duty core.DutyType) time.Duration
+	builderConfig     *gloas.BuilderConfig
+	awaitProposalFunc func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
+}
+
+// RegisterAwaitVersionedProposal registers the function to query this node's agreed proposal of a
+// slot, whose builder URL a gloas proposal is published with.
+func (b *Broadcaster) RegisterAwaitVersionedProposal(fn func(ctx context.Context, slot uint64) (core.VersionedProposal, error)) {
+	b.awaitProposalFunc = fn
+}
+
+// builderSourceUnknown is the builder source of a published gloas proposal whose builder bid can't
+// be told apart, as its bid or this node's agreed proposal isn't available.
+const builderSourceUnknown = "unknown"
+
+// agreedProposalTimeout bounds the lookup of the agreed proposal when publishing a block. It is
+// agreed before the validator clients sign it, so the lookup returns at once unless it is gone.
+const agreedProposalTimeout = 100 * time.Millisecond
+
+// agreedBuilderURL returns the builder URL of this node's agreed proposal of the slot, or false if it
+// can't be found in time, so the block is still published.
+func (b Broadcaster) agreedBuilderURL(ctx context.Context, slot uint64) (string, bool) {
+	if b.awaitProposalFunc == nil {
+		return "", false
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, agreedProposalTimeout)
+	defer cancel()
+
+	agreed, err := b.awaitProposalFunc(ctx, slot)
+	if err != nil {
+		log.Warn(ctx, "Publishing block proposal without its builder URL, the agreed proposal isn't available", err, z.U64("slot", slot))
+		return "", false
+	}
+
+	return agreed.BuilderURL, true
+}
+
+// proposalBuilderSource returns the builder source, index and URL of a gloas proposal being
+// published, the URL from this node's agreed proposal. The source is unknown if the bid or the agreed
+// proposal can't be read: publishing never waits on or fails for them.
+func (b Broadcaster) proposalBuilderSource(ctx context.Context, slot uint64, block core.VersionedSignedProposal) (string, uint64, string) {
+	bid, err := block.EPBSBid()
+	if err != nil {
+		log.Warn(ctx, "Publishing block proposal without its builder source, its bid can't be read", err, z.U64("slot", slot))
+		return builderSourceUnknown, 0, ""
+	}
+
+	if bid.BuilderIndex == core.BuilderIndexSelfBuild {
+		return core.BuilderSourceLocal, uint64(bid.BuilderIndex), ""
+	}
+
+	builderURL, ok := b.agreedBuilderURL(ctx, slot)
+	if !ok {
+		return builderSourceUnknown, uint64(bid.BuilderIndex), ""
+	}
+
+	return core.BuilderSource(bid.BuilderIndex, builderURL), uint64(bid.BuilderIndex), builderURL
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -205,6 +276,24 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return errors.New("invalid proposal")
 		}
 
+		// From the gloas fork the bid tells where the execution payload comes from.
+		var (
+			source     string
+			builderURL string
+			bidFields  []z.Field
+		)
+
+		if block.Version >= eth2spec.DataVersionGloas {
+			var builderIndex uint64
+
+			source, builderIndex, builderURL = b.proposalBuilderSource(ctx, duty.Slot, block)
+			bidFields = []z.Field{
+				z.Str("builder_source", source),
+				z.U64("builder_index", builderIndex),
+				z.Str("builder_url", builderURL),
+			}
+		}
+
 		if block.Blinded {
 			var blinded eth2api.VersionedSignedBlindedProposal
 
@@ -217,9 +306,21 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 				Proposal: &blinded,
 			})
 		} else {
-			err = b.eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+			opts := &eth2api.SubmitProposalOpts{
 				Proposal: &block.VersionedSignedProposal,
-			})
+			}
+
+			// Forward the agreed direct builder, so the beacon node sends it the signed block for
+			// its payload reveal, but only a builder configured locally: the URL is the leader's.
+			if source == core.BuilderSourceDirect && b.configuredBuilder(builderURL) {
+				opts.BuilderURL = builderURL
+			}
+
+			if block.Version >= eth2spec.DataVersionGloas {
+				bidFields = append(bidFields, z.Bool("builder_url_forwarded", opts.BuilderURL != ""))
+			}
+
+			err = b.eth2Cl.SubmitProposal(ctx, opts)
 		}
 
 		logFields := []z.Field{
@@ -232,7 +333,18 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			logFields = append(logFields, z.Bool("blinded", block.Blinded))
 		}
 
+		logFields = append(logFields, bidFields...)
+
 		if err == nil {
+			if source != "" && source != builderSourceUnknown {
+				var builder string
+				if source == core.BuilderSourceDirect {
+					builder = builderLabel(builderURL)
+				}
+
+				proposalSourceCounter.WithLabelValues(source, builder).Inc()
+			}
+
 			log.Info(ctx, "Successfully submitted block proposal to beacon node", logFields...)
 		} else {
 			log.Error(ctx, "Failed to submit block proposal to beacon node", err, logFields...)
