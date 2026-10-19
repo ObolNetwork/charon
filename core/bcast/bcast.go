@@ -57,21 +57,6 @@ func WithBuilderConfig(config *gloas.BuilderConfig) Option {
 	}
 }
 
-// configuredBuilder returns whether the builder URL is one of the configured builders.
-func (b Broadcaster) configuredBuilder(builderURL string) bool {
-	if b.builderConfig == nil {
-		return false
-	}
-
-	for _, entry := range b.builderConfig.Builders {
-		if string(entry.URL) == builderURL {
-			return true
-		}
-	}
-
-	return false
-}
-
 type Broadcaster struct {
 	eth2Cl            eth2wrap.Client
 	delayFunc         func(slot uint64, duty core.DutyType) time.Duration
@@ -310,9 +295,9 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 				Proposal: &block.VersionedSignedProposal,
 			}
 
-			// Forward the agreed direct builder, so the beacon node sends it the signed block for
-			// its payload reveal, but only a builder configured locally: the URL is the leader's.
-			if source == core.BuilderSourceDirect && b.configuredBuilder(builderURL) {
+			// Forward the agreed direct builder as the beacon node spelled it, so the beacon node
+			// sends it the signed block for its payload reveal.
+			if source == core.BuilderSourceDirect {
 				opts.BuilderURL = builderURL
 			}
 
