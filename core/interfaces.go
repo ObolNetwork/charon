@@ -270,6 +270,10 @@ type AggSigDB interface {
 // Broadcaster broadcasts aggregated signed duty data set to the beacon node.
 type Broadcaster interface {
 	Broadcast(context.Context, Duty, SignedDataSet) error
+
+	// RegisterAwaitVersionedProposal registers a function to query this node's agreed proposals by
+	// slot, whose builder URL a gloas proposal is published with.
+	RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (VersionedProposal, error))
 }
 
 // InclusionChecker checks whether submitted duties have been included on-chain.
@@ -363,6 +367,7 @@ type wireFuncs struct {
 	AggSigDBStore                      func(context.Context, Duty, SignedDataSet) error
 	AggSigDBAwait                      func(context.Context, Duty, PubKey, AwaitOpts) (SignedData, error)
 	BroadcasterBroadcast               func(context.Context, Duty, SignedDataSet) error
+	BroadcasterRegisterAwaitProposal   func(func(ctx context.Context, slot uint64) (VersionedProposal, error))
 }
 
 // WireOption defines a functional option to configure wiring.
@@ -431,6 +436,7 @@ func Wire(sched Scheduler,
 		AggSigDBStore:                      aggSigDB.Store,
 		AggSigDBAwait:                      aggSigDB.Await,
 		BroadcasterBroadcast:               bcast.Broadcast,
+		BroadcasterRegisterAwaitProposal:   bcast.RegisterAwaitVersionedProposal,
 	}
 
 	for _, opt := range opts {
@@ -452,6 +458,7 @@ func Wire(sched Scheduler,
 	w.PayloadExRegisterAwaitContents(w.DutyDBAwaitPayloadContents)
 	w.PayloadExRegisterStoreContents(w.DutyDBStorePayloadContents)
 	w.VAPIRegisterAwaitVersionedProposal(w.DutyDBAwaitVersionedProposal)
+	w.BroadcasterRegisterAwaitProposal(w.DutyDBAwaitVersionedProposal)
 	w.VAPIRegisterAwaitPayloadContents(w.DutyDBAwaitPayloadContents)
 	w.VAPIRegisterAwaitAttestation(w.DutyDBAwaitAttestation)
 	w.VAPIRegisterAwaitSyncContribution(w.DutyDBAwaitSyncContribution)

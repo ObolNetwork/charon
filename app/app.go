@@ -783,7 +783,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	payloadEx := payloadex.New(p2pNode, sender.SendAsync, sender.SendReceive, nodeIdx.PeerIdx, peers, gaterFunc, retentionFunc)
 
-	core.Wire(sched, fetch, coreConsensus, dutyDB, payloadEx, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
+	core.Wire(sched, fetch, coreConsensus, dutyDB, payloadEx, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, &broadcaster, opts...)
 
 	err = wireValidatorMock(ctx, conf, eth2Cl, forkSchedule, pubshares, sched)
 	if err != nil {
