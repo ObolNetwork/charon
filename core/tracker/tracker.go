@@ -1033,6 +1033,13 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 		return
 	}
 
+	// A proposer authorizes several builders for the same slot with distinct request auths, and
+	// which builder's auth a peer is kept with depends on the event order, so differing message
+	// roots are expected (see analyseDutyFailed).
+	if duty.Type == core.DutyBuilderPreferences {
+		return
+	}
+
 	if parsigMsgs.MsgRootsConsistent() {
 		return // Nothing to report.
 	}

@@ -1749,6 +1749,24 @@ func TestReportSyncMessageCohorts(t *testing.T) {
 	})
 }
 
+// TestReportParSigsBuilderPreferences verifies that builder request auths with differing message
+// roots aren't reported as inconsistent: a proposer authorizes each builder with its own auth, and
+// which builder's auth is kept per peer depends on the order the events arrived in.
+func TestReportParSigsBuilderPreferences(t *testing.T) {
+	duty := core.NewBuilderPreferencesDuty(123)
+
+	inconsistentVal := func() float64 {
+		return promtestutil.ToFloat64(inconsistentCounter.WithLabelValues(duty.Type.String()))
+	}
+
+	before := inconsistentVal()
+
+	// Shares 1 and 2 are kept with builder A's auth, share 3 with builder B's.
+	reportParSigs(context.Background(), duty, parsigsByMsg{"pk": {rootFrom(0x0a): syncSigs(1, 2), rootFrom(0x0b): syncSigs(3)}})
+
+	require.InDelta(t, before, inconsistentVal(), 0)
+}
+
 func TestBuilderAuthReporter(t *testing.T) {
 	const (
 		builderA = "builder-a.example.com"
