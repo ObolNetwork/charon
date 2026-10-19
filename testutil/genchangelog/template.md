@@ -36,5 +36,10 @@ The below matrix details a combination of beacon node (consensus layer) + valida
 
 ## What's Changed
 {{range .ExtraPRs}}
-- [{{.Title}}](https://github.com/ObolNetwork/charon/pull/{{.Number}})
+- [{{.Title}}](https://github.com/ObolNetwork/charon/pull/{{.Number}}){{if .Author}} by @{{.Author}}{{end}}
+{{end}}
+{{- if .Contributors}}
+## Contributors
+
+{{range $i, $c := .Contributors}}{{if $i}}, {{end}}@{{$c}}{{end}}
 {{end}}
