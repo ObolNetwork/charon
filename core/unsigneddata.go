@@ -389,6 +389,29 @@ func NewVersionedEPBSProposal(proposal *eth2api.VersionedEPBSProposal) (Versione
 // execution payload bid of a self-built block, whose proposer reveals the execution payload.
 const BuilderIndexSelfBuild = gloas.BuilderIndex(math.MaxUint64)
 
+// MaxBuilderURLSize is the builder-specs MAX_BUILDER_URL_SIZE, the maximum length of a builder URL.
+const MaxBuilderURLSize = 2048
+
+// Builder sources of a gloas proposal's execution payload bid, see BuilderSource.
+const (
+	BuilderSourceLocal  = "local"
+	BuilderSourceP2P    = "p2p"
+	BuilderSourceDirect = "direct"
+)
+
+// BuilderSource returns where a gloas proposal's execution payload bid came from: built locally,
+// a builder's p2p bid, or a direct builder's bid, the one the beacon node returns a URL for.
+func BuilderSource(builderIndex gloas.BuilderIndex, builderURL string) string {
+	switch {
+	case builderIndex == BuilderIndexSelfBuild:
+		return BuilderSourceLocal
+	case builderURL != "":
+		return BuilderSourceDirect
+	default:
+		return BuilderSourceP2P
+	}
+}
+
 // EPBSBid returns the execution payload bid the EPBS proposal's beacon block commits to, from
 // either arm of the proposal.
 func EPBSBid(proposal *eth2api.VersionedEPBSProposal) (*gloas.ExecutionPayloadBid, error) {
@@ -429,6 +452,11 @@ type VersionedProposal struct {
 	// can verify the contents the proposer shares after the decision. Zero for builder bids, for
 	// proposals carrying their payload and before the gloas fork.
 	PayloadContentsRoots PayloadContentsRoots
+
+	// BuilderURL is the URL of the direct builder whose bid the gloas proposal commits to, the
+	// Eth-Builder-Url the beacon node returned with it. Empty for self-built blocks, p2p bids and
+	// before the gloas fork. Agreed with the block so every node forwards it when publishing.
+	BuilderURL string
 }
 
 // PayloadContentsRoots are the commitments to the execution payload contents of a self-built
@@ -513,6 +541,7 @@ func WithoutPayloadContents(proposal VersionedProposal) (VersionedProposal, erro
 	}
 
 	bare.PayloadContentsRoots = roots
+	bare.BuilderURL = proposal.BuilderURL
 
 	return bare, nil
 }
@@ -697,10 +726,12 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 	var (
 		included      *bool
 		contentsRoots *payloadContentsRootsJSON
+		builderURL    string
 	)
 
 	if p.Version >= eth2spec.DataVersionGloas {
 		included = &p.EPBS.ExecutionPayloadIncluded
+		builderURL = p.BuilderURL
 
 		if p.PayloadContentsRoots != (PayloadContentsRoots{}) {
 			contentsRoots = &payloadContentsRootsJSON{
@@ -716,6 +747,7 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 		Blinded:                  p.Blinded,
 		ExecutionPayloadIncluded: included,
 		PayloadContentsRoots:     contentsRoots,
+		BuilderURL:               builderURL,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -878,7 +910,16 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		}
 	}
 
-	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs, PayloadContentsRoots: contentsRoots}
+	var builderURL string
+	if resp.Version >= eth2spec.DataVersionGloas {
+		builderURL = raw.BuilderURL
+	}
+
+	if len(builderURL) > MaxBuilderURLSize {
+		return errors.New("builder url too long")
+	}
+
+	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs, PayloadContentsRoots: contentsRoots, BuilderURL: builderURL}
 
 	return nil
 }

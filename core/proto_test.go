@@ -69,6 +69,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomFuluCoreVersionedSignedProposal(),
 		},
 		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomGloasCoreVersionedSignedProposal(),
+		},
+		{
 			Type: core.DutyBuilderRegistration,
 			Data: testutil.RandomCoreVersionedSignedValidatorRegistration(t),
 		},
@@ -191,6 +195,10 @@ func TestUnsignedDataToProto(t *testing.T) {
 		{
 			Type: core.DutyProposer,
 			Data: testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: withBuilderURL(testutil.RandomGloasCoreVersionedEPBSProposal()),
 		},
 		{
 			Type: core.DutyAggregator,
@@ -371,4 +379,10 @@ func TestNilPointerChecks(t *testing.T) {
 
 	_, err = core.UnsignedDataSetFromProto(core.DutyAttester, new(pbv1.UnsignedDataSet))
 	require.ErrorContains(t, err, "invalid unsigned data set fields")
+}
+
+func withBuilderURL(p core.VersionedProposal) core.VersionedProposal {
+	p.BuilderURL = "https://builder.example.com"
+
+	return p
 }
