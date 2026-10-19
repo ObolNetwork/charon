@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -187,21 +188,8 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 		DefaultConfig: proposerSettingsJSON{
 			FeeRecipient: defaultFee,
 			GasLimit:     strconv.FormatUint(defaultGas, 10),
+			Builder:      builderSettings(conf),
 		},
-	}
-
-	if builderConfigured(conf) {
-		builderEntries := make([]builderEntryJSON, 0, len(conf.BuilderURLs))
-		for _, u := range conf.BuilderURLs {
-			builderEntries = append(builderEntries, builderEntryJSON{URL: u})
-		}
-
-		config.DefaultConfig.Builder = &builderSettingsJSON{
-			MinBid:              strconv.FormatUint(conf.BuilderMinBid, 10),
-			BuilderBoostFactor:  strconv.FormatUint(conf.BuilderBoostFactor, 10),
-			MaxExecutionPayment: strconv.FormatUint(conf.BuilderMaxExecutionPayment, 10),
-			Builders:            builderEntries,
-		}
 	}
 
 	// Entries only carry the fields diverging from the default config.
@@ -236,8 +224,57 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 	return true, nil
 }
 
-// wireProposerConfigFile generates the proposer config file, logging failures instead
-// of returning them so generation never prevents duties.
+// builderSettings returns the builder settings of the proposer config, nil if no builder
+// URLs are configured.
+func builderSettings(conf Config) *builderSettingsJSON {
+	if !builderConfigured(conf) {
+		return nil
+	}
+
+	builderEntries := make([]builderEntryJSON, 0, len(conf.BuilderURLs))
+	for _, u := range conf.BuilderURLs {
+		builderEntries = append(builderEntries, builderEntryJSON{URL: u})
+	}
+
+	return &builderSettingsJSON{
+		MinBid:              strconv.FormatUint(conf.BuilderMinBid, 10),
+		BuilderBoostFactor:  strconv.FormatUint(conf.BuilderBoostFactor, 10),
+		MaxExecutionPayment: strconv.FormatUint(conf.BuilderMaxExecutionPayment, 10),
+		Builders:            builderEntries,
+	}
+}
+
+// proposerConfigBuilderMatches returns whether the builder settings of the existing proposer
+// config file match the configured builder flags.
+func proposerConfigBuilderMatches(conf Config, path string) (bool, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false, errors.Wrap(err, "read proposer config file", z.Str("path", path))
+	}
+
+	var config proposerConfigJSON
+	if err := json.Unmarshal(b, &config); err != nil {
+		return false, errors.Wrap(err, "decode proposer config file", z.Str("path", path))
+	}
+
+	return builderSettingsEqual(config.DefaultConfig.Builder, builderSettings(conf)), nil
+}
+
+// builderSettingsEqual returns whether both builder settings are absent, or equal.
+func builderSettingsEqual(a, b *builderSettingsJSON) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return a.MinBid == b.MinBid &&
+		a.BuilderBoostFactor == b.BuilderBoostFactor &&
+		a.MaxExecutionPayment == b.MaxExecutionPayment &&
+		slices.Equal(a.Builders, b.Builders)
+}
+
+// wireProposerConfigFile generates the proposer config file, or warns if the builder settings of
+// an existing one differ from the builder flags, logging failures instead of returning them so
+// generation never prevents duties.
 func wireProposerConfigFile(ctx context.Context, conf Config, lock *cluster.Lock, nodeIdx cluster.NodeIdx,
 	feeRecipientFunc func(core.PubKey) string, gasLimitFunc func(core.PubKey) uint64,
 ) {
@@ -252,8 +289,19 @@ func wireProposerConfigFile(ctx context.Context, conf Config, lock *cluster.Lock
 		return
 	}
 
+	path := filepath.Join(filepath.Dir(conf.LockFile), proposerConfigDir, proposerConfigFilename)
+
 	if created {
-		log.Info(ctx, "Generated proposer config file for validator clients",
-			z.Str("path", filepath.Join(filepath.Dir(conf.LockFile), proposerConfigDir, proposerConfigFilename)))
+		log.Info(ctx, "Generated proposer config file for validator clients", z.Str("path", path))
+		return
+	}
+
+	// The builder flags only seed a new file, the cluster changes builders together.
+	matches, err := proposerConfigBuilderMatches(conf, path)
+	if err != nil {
+		log.Warn(ctx, "Failed checking builder settings of the proposer config file", err)
+	} else if !matches {
+		log.Warn(ctx, "Builder flags differ from the proposer config file and only apply to a new file, "+
+			"change its builders with `charon proposerconfig edit` in sync with the other peers", nil, z.Str("path", path))
 	}
 }

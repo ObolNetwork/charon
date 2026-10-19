@@ -199,6 +199,63 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 	})
 }
 
+func TestProposerConfigBuilderMatches(t *testing.T) {
+	lock, _, _ := cluster.NewForT(t, 1, 4, 4, 0, rand.New(rand.NewSource(0)))
+
+	nodeIdx := cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1}
+	noOverrides := func(core.PubKey) string { return "" }
+	noGasOverrides := func(core.PubKey) uint64 { return 0 }
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, proposerConfigDir, proposerConfigFilename)
+
+	newConf := func(builderURLs ...string) Config {
+		return Config{
+			LockFile:           filepath.Join(dir, "cluster-lock.json"),
+			BuilderAPI:         true,
+			BuilderURLs:        builderURLs,
+			BuilderBoostFactor: 90,
+		}
+	}
+
+	conf := newConf("https://builder1.example.com")
+
+	created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+	require.NoError(t, err)
+	require.True(t, created)
+
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	matches, err := proposerConfigBuilderMatches(conf, path)
+	require.NoError(t, err)
+	require.True(t, matches)
+
+	// Changed builder URLs, builder flags or no builder URLs differ, and leave the file as it is.
+	changedBoost := conf
+	changedBoost.BuilderBoostFactor = 100
+
+	for _, changed := range []Config{newConf("https://builder2.example.com"), changedBoost, newConf()} {
+		created, err = writeProposerConfigFile(changed, &lock, nodeIdx, noOverrides, noGasOverrides)
+		require.NoError(t, err)
+		require.False(t, created)
+
+		matches, err = proposerConfigBuilderMatches(changed, path)
+		require.NoError(t, err)
+		require.False(t, matches)
+	}
+
+	unchanged, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, b, unchanged)
+
+	// A file that isn't a proposer config is an error.
+	require.NoError(t, os.WriteFile(path, []byte("operator managed"), 0o644))
+
+	_, err = proposerConfigBuilderMatches(conf, path)
+	require.ErrorContains(t, err, "decode proposer config file")
+}
+
 func TestGasLimitsByPubkey(t *testing.T) {
 	lock, _, _ := cluster.NewForT(t, 1, 3, 3, 0, rand.New(rand.NewSource(0)))
 
