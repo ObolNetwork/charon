@@ -219,8 +219,7 @@ proofs to `PayloadEx` as this node's candidate, and consensus agrees on the beac
 contents only (`VersionedProposal.PayloadContentsRoots`, one for the envelope and one for the blobs and proofs), keeping megabytes of blobs out of every consensus message.
 When a direct builder's bid wins, the beacon node's `Eth-Builder-Url` is agreed with the block too
 (`VersionedProposal.BuilderURL`), and the `Bcast` of every node publishes the block with the URL of its own agreed
-proposal if that builder is in its own builder configuration, so the builder is told to reveal its payload by all
-the nodes configured with it, not only the node that fetched the bid.
+proposal, so the builder is told to reveal its payload by all of them, not only the node that fetched the bid.
 `PayloadEx`, triggered by the scheduler, awaits the agreed proposal in the `DutyDB`: the node whose candidate matches
 the agreed roots, the one that built the block, stores the contents in the `DutyDB` and pushes them to its peers, and
 a peer that doesn't receive them within a second of its decision asks its peers, which answer from their `DutyDB` as

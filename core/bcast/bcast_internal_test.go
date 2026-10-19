@@ -113,7 +113,9 @@ func TestBroadcastGloasProposal(t *testing.T) {
 	}{
 		{name: "p2p bid, no url", wantSource: core.BuilderSourceP2P, wantCounted: true},
 		{name: "configured url forwarded", builderURL: configured, wantURL: configured, wantSource: core.BuilderSourceDirect, wantBuilder: "builder-a.example.com", wantCounted: true},
-		{name: "unconfigured url not forwarded", builderURL: "https://other.example.com", wantSource: core.BuilderSourceDirect, wantBuilder: "other.example.com", wantCounted: true},
+		// The agreed URL is forwarded as the beacon node spelled it, e.g. with a trailing slash.
+		{name: "beacon node spelling forwarded", builderURL: configured + "/", wantURL: configured + "/", wantSource: core.BuilderSourceDirect, wantBuilder: "builder-a.example.com", wantCounted: true},
+		{name: "unconfigured url forwarded", builderURL: "https://other.example.com", wantURL: "https://other.example.com", wantSource: core.BuilderSourceDirect, wantBuilder: "other.example.com", wantCounted: true},
 		{name: "self-built with url ignored", builderURL: configured, selfBuilt: true, wantSource: core.BuilderSourceLocal, wantCounted: true},
 		// Without the agreed proposal a builder bid can't be told apart, so it isn't counted.
 		{name: "agreed proposal missing", builderURL: configured, noAgreed: true, wantSource: builderSourceUnknown},
