@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/big"
 	"slices"
 	"strings"
 	"sync"
@@ -590,7 +591,7 @@ func (f *Fetcher) fetchProposerData(ctx context.Context, slot uint64, defSet cor
 			source = proposalSourceBuilder
 		}
 
-		proposalBlindedGauge.Set(source)
+		setProposalSource(source, "")
 
 		resp[pubkey] = coreProposal
 	}
@@ -639,14 +640,47 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 		// Ensure fee recipient is correctly populated in the proposal.
 		verifyFeeRecipient(ctx, coreProposal, f.feeRecipientFunc(pubkey))
 
-		// Track whether the proposal carries its execution payload (built locally) or is
-		// based on an external builder bid whose payload travels separately.
-		source := proposalSourceLocal
-		if !coreProposal.EPBS.ExecutionPayloadIncluded {
-			source = proposalSourceBuilder
+		bid, err := core.EPBSBid(coreProposal.EPBS)
+		if err != nil {
+			return nil, err
 		}
 
-		proposalBlindedGauge.Set(source)
+		// The beacon node returns the URL of the direct builder whose bid won, agreed with the
+		// block so that every node forwards it when publishing.
+		var builderURL string
+		if bid.BuilderIndex != core.BuilderIndexSelfBuild {
+			builderURL = builderURLFromMetadata(eth2Resp.Metadata)
+		}
+
+		// A URL longer than the maximum can't be agreed, so the proposal is agreed without it.
+		if len(builderURL) > core.MaxBuilderURLSize {
+			log.Warn(ctx, "Ignoring builder URL of fetched proposal, longer than the maximum", nil,
+				z.U64("slot", slot), z.Int("size", len(builderURL)))
+
+			builderURL = ""
+		}
+
+		coreProposal.BuilderURL = builderURL
+
+		source := core.BuilderSource(bid.BuilderIndex, builderURL)
+		setProposalSource(proposalSourceValue(source), builderURL)
+
+		if source != core.BuilderSourceLocal {
+			addProposalValue(proposalValueBid, float64(bid.Value))
+		}
+
+		addProposalWeiValue(proposalValueExecution, eth2Resp.Data.ExecutionValue)
+		addProposalWeiValue(proposalValueConsensus, eth2Resp.Data.ConsensusValue)
+
+		log.Info(ctx, "Fetched gloas proposal",
+			z.U64("slot", slot),
+			z.Any("pubkey", pubkey),
+			z.Str("builder_source", source),
+			z.U64("builder_index", uint64(bid.BuilderIndex)),
+			z.Str("builder_url", builderURL),
+			z.Str("execution_value_wei", weiString(eth2Resp.Data.ExecutionValue)),
+			z.Str("consensus_value_wei", weiString(eth2Resp.Data.ConsensusValue)),
+		)
 
 		if coreProposal.EPBS.ExecutionPayloadIncluded {
 			for _, sub := range f.payloadContentsSubs {
@@ -660,22 +694,54 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			bid, err := core.EPBSBid(coreProposal.EPBS)
-			if err != nil {
-				return nil, err
-			}
-
-			if bid.BuilderIndex == core.BuilderIndexSelfBuild {
-				log.Warn(ctx, "Beacon node returned a self-built proposal without its execution payload, which cannot be revealed", nil,
-					z.U64("slot", slot))
-			}
+		} else if bid.BuilderIndex == core.BuilderIndexSelfBuild {
+			log.Warn(ctx, "Beacon node returned a self-built proposal without its execution payload, which cannot be revealed", nil,
+				z.U64("slot", slot))
 		}
 
 		resp[pubkey] = coreProposal
 	}
 
 	return resp, nil
+}
+
+// builderURLFromMetadata returns the Eth-Builder-Url header of a beacon node response, empty if absent.
+func builderURLFromMetadata(metadata map[string]any) string {
+	for key, value := range metadata {
+		if !strings.EqualFold(key, "Eth-Builder-Url") {
+			continue
+		}
+
+		url, ok := value.(string)
+		if !ok {
+			return ""
+		}
+
+		return url
+	}
+
+	return ""
+}
+
+// proposalSourceValue returns the proposalBlindedGauge value of a gloas proposal's builder source.
+func proposalSourceValue(source string) float64 {
+	switch source {
+	case core.BuilderSourceLocal:
+		return proposalSourceLocal
+	case core.BuilderSourceDirect:
+		return proposalSourceDirect
+	default:
+		return proposalSourceBuilder
+	}
+}
+
+// weiString returns a wei value as a decimal string, empty if unknown.
+func weiString(v *big.Int) string {
+	if v == nil {
+		return ""
+	}
+
+	return v.String()
 }
 
 // builderAuthTimeout bounds how long a proposal waits for the aggregated builder request auths.
