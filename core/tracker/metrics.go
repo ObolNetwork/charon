@@ -123,4 +123,12 @@ var (
 		Name:      "attestation_success_total",
 		Help:      "Total number of successful attestations for the slot (counts individual attestations, not duties)",
 	})
+
+	builderRequestAuths = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "tracker",
+		Name:      "builder_request_auths_total",
+		Help: "Total number of partially signed builder request auths by peer and builder host, " +
+			"those for builders not configured on this node counted as unknown",
+	}, []string{"peer", "builder"})
 )

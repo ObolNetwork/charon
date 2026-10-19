@@ -15,6 +15,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
@@ -346,6 +347,16 @@ func TestAnalyseDutyFailed(t *testing.T) {
 		require.True(t, failed)
 		require.Equal(t, step, parSigDBExternal)
 		require.Equal(t, reason, reasonParSigDBInconsistentPreferences)
+
+		// A proposer authorizes several builders for the same slot, so builder request auths
+		// with different message roots are expected: missing threshold is insufficient signatures.
+		builderPrefDuty := core.NewBuilderPreferencesDuty(uint64(slot))
+		events[builderPrefDuty] = events[attDuty]
+		failed, step, reason, err = analyseDutyFailed(builderPrefDuty, events, false)
+		require.NoError(t, err)
+		require.True(t, failed)
+		require.Equal(t, step, parSigDBExternal)
+		require.Equal(t, reason, reasonInsufficientPeerSignatures)
 
 		// Execution payload envelopes are consensus-gated, so inconsistent partial signatures are a
 		// bug (like a block proposal), not the expected divergence of proposer preferences.
@@ -1206,6 +1217,11 @@ func TestIsParSigEventExpected(t *testing.T) {
 			out:  true,
 		},
 		{
+			name: "DutyBuilderPreferences",
+			duty: core.NewBuilderPreferencesDuty(slot),
+			out:  true,
+		},
+		{
 			name: "DutyRandao expected",
 			duty: core.NewRandaoDuty(slot),
 			events: map[core.Duty][]event{
@@ -1731,4 +1747,91 @@ func TestReportSyncMessageCohorts(t *testing.T) {
 
 		require.InDelta(t, before, promtestutil.ToFloat64(cohortRank.WithLabelValues(attLabel, "0", "0")), 0)
 	})
+}
+
+// TestReportParSigsBuilderPreferences verifies that builder request auths with differing message
+// roots aren't reported as inconsistent: a proposer authorizes each builder with its own auth, and
+// which builder's auth is kept per peer depends on the order the events arrived in.
+func TestReportParSigsBuilderPreferences(t *testing.T) {
+	duty := core.NewBuilderPreferencesDuty(123)
+
+	inconsistentVal := func() float64 {
+		return promtestutil.ToFloat64(inconsistentCounter.WithLabelValues(duty.Type.String()))
+	}
+
+	before := inconsistentVal()
+
+	// Shares 1 and 2 are kept with builder A's auth, share 3 with builder B's.
+	reportParSigs(context.Background(), duty, parsigsByMsg{"pk": {rootFrom(0x0a): syncSigs(1, 2), rootFrom(0x0b): syncSigs(3)}})
+
+	require.InDelta(t, before, inconsistentVal(), 0)
+}
+
+func TestBuilderAuthReporter(t *testing.T) {
+	const (
+		builderA = "builder-a.example.com"
+		builderB = "builder-b.example.com"
+		builderC = "builder-c.example.com"
+		removed  = "removed.example.com"
+	)
+
+	// This node has builders A, B and C configured.
+	peers := []p2p.Peer{{Index: 0, Name: "peer1"}, {Index: 1, Name: "peer2"}, {Index: 2, Name: "peer3"}}
+	reporter := newBuilderAuthReporter(peers, []string{builderA, builderB, builderC})
+
+	duty := core.NewBuilderPreferencesDuty(1)
+	pubkey := testutil.RandomCorePubKey(t)
+
+	authEvent := func(step step, shareIdx int, host string) event {
+		parSig := core.NewPartialSignedBuilderRequestAuth(&gloas.SignedBuilderRequestAuth{
+			Message: &gloas.BuilderRequestAuth{Data: []byte(host), Slot: 1},
+		}, shareIdx)
+
+		return event{duty: duty, step: step, pubkey: pubkey, parSig: &parSig}
+	}
+
+	count := func(peer, builder string) float64 {
+		return promtestutil.ToFloat64(builderRequestAuths.WithLabelValues(peer, builder))
+	}
+
+	before := make(map[string]float64)
+
+	for _, peer := range []string{"peer1", "peer2", "peer3"} {
+		for _, builder := range []string{builderA, builderB, builderC, builderUnknown} {
+			before[peer+builder] = count(peer, builder)
+		}
+	}
+
+	reporter(duty, []event{
+		// Peer 1's validator client signs for all three builders.
+		authEvent(parSigDBInternal, 1, builderA),
+		authEvent(parSigDBInternal, 1, builderB),
+		authEvent(parSigDBInternal, 1, builderC),
+		// Peer 2's validator client doesn't know builder C. A repeated auth is counted once.
+		authEvent(parSigDBExternal, 2, builderA),
+		authEvent(parSigDBExternal, 2, builderA),
+		authEvent(parSigDBExternal, 2, builderB),
+		// Peer 3's validator client signs for A and C, and still for a removed builder. Only
+		// stored auths are counted.
+		authEvent(parSigEx, 3, builderB),
+		authEvent(parSigDBExternal, 3, builderA),
+		authEvent(parSigDBExternal, 3, builderC),
+		authEvent(parSigDBExternal, 3, removed),
+	})
+
+	expected := map[string]float64{
+		"peer1" + builderA: 1, "peer1" + builderB: 1, "peer1" + builderC: 1,
+		"peer2" + builderA: 1, "peer2" + builderB: 1,
+		"peer3" + builderA: 1, "peer3" + builderC: 1, "peer3" + builderUnknown: 1,
+	}
+
+	for _, peer := range []string{"peer1", "peer2", "peer3"} {
+		for _, builder := range []string{builderA, builderB, builderC, builderUnknown} {
+			require.InDelta(t, before[peer+builder]+expected[peer+builder], count(peer, builder), 0, "%s %s", peer, builder)
+		}
+	}
+
+	// Other duties are ignored.
+	reporter(core.NewProposerDuty(1), []event{authEvent(parSigDBInternal, 1, builderA)})
+	require.InDelta(t, before["peer1"+builderA]+1, count("peer1", builderA), 0)
 }

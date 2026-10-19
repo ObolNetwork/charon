@@ -5,6 +5,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -208,4 +209,54 @@ func TestEPBSProposalFormGauge(t *testing.T) {
 
 	propose(nil)
 	require.Equal(t, proposalFormStateful, form())
+}
+
+func TestWarnBuilderPreferencesMismatch(t *testing.T) {
+	const (
+		builderA = "builder-a.example.com"
+		builderB = "builder-b.example.com"
+		builderC = "builder-c.example.com"
+		removed  = "removed.example.com"
+	)
+
+	ctx := t.Context()
+	pubkey := testutil.RandomCorePubKey(t)
+	c := Component{builderHosts: []string{builderA, builderB, builderC}}
+
+	auths := func(hosts ...string) []*gloas.SignedBuilderRequestAuth {
+		var resp []*gloas.SignedBuilderRequestAuth
+		for _, host := range hosts {
+			resp = append(resp, &gloas.SignedBuilderRequestAuth{Message: &gloas.BuilderRequestAuth{Data: []byte(host), Slot: 1}})
+		}
+
+		return resp
+	}
+
+	count := func(builder, reason string) float64 {
+		return promtestutil.ToFloat64(builderPrefMismatch.WithLabelValues(builder, reason))
+	}
+
+	missingC, unknownRemoved := count(builderC, "missing"), count(removed, "unknown")
+
+	// All configured builders: no increment.
+	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB, builderC))
+	require.InDelta(t, missingC, count(builderC, "missing"), 0)
+
+	// A validator client that doesn't know builder C.
+	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB))
+	require.InDelta(t, missingC+1, count(builderC, "missing"), 0)
+
+	// A validator client still signing for a removed builder, counted once per submission.
+	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB, builderC, removed, removed))
+	require.InDelta(t, missingC+1, count(builderC, "missing"), 0)
+	require.InDelta(t, unknownRemoved+1, count(removed, "unknown"), 0)
+
+	// The host is unverified validator client input, so it is capped and made valid UTF-8 before
+	// labelling, like the User-Agent header: the Prometheus client panics on an invalid label value.
+	oversized := strings.Repeat("a", 300)
+	oversizedBefore := count(oversized[:253], "unknown")
+
+	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB, builderC, removed+"\xff", oversized))
+	require.InDelta(t, unknownRemoved+2, count(removed, "unknown"), 0)
+	require.InDelta(t, oversizedBefore+1, count(oversized[:253], "unknown"), 0)
 }

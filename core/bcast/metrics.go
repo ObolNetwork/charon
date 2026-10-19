@@ -26,6 +26,13 @@ var (
 		Help:      "Duty broadcast delay since the expected duty submission in seconds by type",
 		Buckets:   []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 20, 30, 60},
 	}, []string{"duty"})
+
+	builderPreferencesRejected = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "bcast",
+		Name:      "builder_preferences_rejected_total",
+		Help:      "The total count of builder preferences entries rejected by builder URL",
+	}, []string{"builder"})
 )
 
 // instrumentDuty increments the duty counter.

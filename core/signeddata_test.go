@@ -472,6 +472,10 @@ func TestSignedDataSetSignature(t *testing.T) {
 			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
 		},
 		{
+			name: "signed builder request auth",
+			data: core.NewSignedBuilderRequestAuth(testutil.RandomSignedBuilderRequestAuth()),
+		},
+		{
 			name: "signed execution payload envelope",
 			data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
 		},

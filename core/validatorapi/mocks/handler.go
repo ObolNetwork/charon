@@ -10,8 +10,6 @@ import (
 
 	context "context"
 
-	gloas "github.com/attestantio/go-eth2-client/spec/gloas"
-
 	http "net/http"
 
 	mock "github.com/stretchr/testify/mock"
@@ -510,6 +508,24 @@ func (_m *Handler) SubmitBlindedProposal(ctx context.Context, opts *api.SubmitBl
 	return r0
 }
 
+// SubmitBuilderPreferences provides a mock function with given fields: ctx, opts
+func (_m *Handler) SubmitBuilderPreferences(ctx context.Context, opts *api.SubmitBuilderPreferencesOpts) error {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SubmitBuilderPreferences")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitBuilderPreferencesOpts) error); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // SubmitExecutionPayloadEnvelope provides a mock function with given fields: ctx, opts
 func (_m *Handler) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *api.SubmitExecutionPayloadEnvelopeOpts) error {
 	ret := _m.Called(ctx, opts)
@@ -564,17 +580,17 @@ func (_m *Handler) SubmitProposal(ctx context.Context, opts *api.SubmitProposalO
 	return r0
 }
 
-// SubmitProposerPreferences provides a mock function with given fields: ctx, preferences
-func (_m *Handler) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
-	ret := _m.Called(ctx, preferences)
+// SubmitProposerPreferences provides a mock function with given fields: ctx, opts
+func (_m *Handler) SubmitProposerPreferences(ctx context.Context, opts *api.SubmitProposerPreferencesOpts) error {
+	ret := _m.Called(ctx, opts)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SubmitProposerPreferences")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, []*gloas.SignedProposerPreferences) error); ok {
-		r0 = rf(ctx, preferences)
+	if rf, ok := ret.Get(0).(func(context.Context, *api.SubmitProposerPreferencesOpts) error); ok {
+		r0 = rf(ctx, opts)
 	} else {
 		r0 = ret.Error(0)
 	}

@@ -47,7 +47,7 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 		return err
 	}
 
-	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, conf.BuilderAPI)
+	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, conf.BuilderAPI, conf.BuilderURLs)
 	sched.SubscribeSlots(vmock.SlotTicked)
 
 	return nil

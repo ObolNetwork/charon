@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -61,8 +62,8 @@ func TestProposerPreferences(t *testing.T) {
 
 		var submitted []*gloas.SignedProposerPreferences
 
-		bmock.SubmitProposerPreferencesFunc = func(_ context.Context, prefs []*gloas.SignedProposerPreferences) error {
-			submitted = prefs
+		bmock.SubmitProposerPreferencesFunc = func(_ context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
+			submitted = opts.Preferences
 			return nil
 		}
 
@@ -79,7 +80,7 @@ func TestProposerPreferences(t *testing.T) {
 
 	t.Run("no duty for slot", func(t *testing.T) {
 		bmock := newMock(t)
-		bmock.SubmitProposerPreferencesFunc = func(context.Context, []*gloas.SignedProposerPreferences) error {
+		bmock.SubmitProposerPreferencesFunc = func(context.Context, *eth2api.SubmitProposerPreferencesOpts) error {
 			require.Fail(t, "unexpected submission")
 			return nil
 		}

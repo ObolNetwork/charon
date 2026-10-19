@@ -93,6 +93,7 @@ type Handler interface {
 	eth2client.ProposerDutiesProvider
 	eth2client.ProposerDutiesV2Provider
 	eth2client.ProposerPreferencesSubmitter
+	eth2client.BuilderPreferencesSubmitter
 	eth2client.PTCDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
@@ -386,6 +387,14 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
 			MaxBody:   maxProposerPreferencesBody,
+		},
+		{
+			Name:      "submit_builder_preferences",
+			Path:      "/eth/v1/validator/builder_preferences",
+			Handler:   submitBuilderPreferences(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			MaxBody:   maxBuilderPreferencesBody,
 		},
 		{
 			Name:      "aggregate_sync_committee_selections",
@@ -1207,12 +1216,12 @@ func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled bool) handlerF
 const maxBuilderConfigBody = 1 << 20 // 1MB
 
 // proposeBlockV4 returns a handler function returning an unsigned gloas EPBS proposal.
-// The VC-supplied builder config body is not forwarded: the cluster proposal was already
-// fetched with charon's own builder configuration.
-// TODO(gloas): substitute threshold-aggregated builder request auths into the forwarded
-// builder config once the builder preferences duty lands.
+// The VC-supplied builder config body is not forwarded as such: the cluster proposal is fetched
+// with charon's own builder configuration. Only the builder request auths a validator client
+// sends inline with it, instead of ahead of time as builder preferences, are submitted for
+// threshold aggregation.
 func proposeBlockV4(p eth2client.EPBSProposalProvider) handlerFunc {
-	return func(ctx context.Context, params map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+	return func(ctx context.Context, params map[string]string, _ http.Header, query url.Values, typ contentType, body []byte) (any, http.Header, error) {
 		slot, randao, graffiti, err := getProposeBlockParams(params, query)
 		if err != nil {
 			return nil, nil, err
@@ -1231,6 +1240,19 @@ func proposeBlockV4(p eth2client.EPBSProposalProvider) handlerFunc {
 			RandaoReveal:   randao,
 			Graffiti:       graffiti,
 			IncludePayload: &includePayload,
+		}
+
+		// The inline builder request auths are optional, so a body the builder config can't be
+		// decoded from doesn't fail the request.
+		if len(body) > 0 {
+			var config gloas.BuilderConfig
+
+			err := unmarshal(typ, body, &config)
+			if err != nil {
+				log.Warn(ctx, "Ignoring undecodable builder config of block production request", err)
+			} else {
+				opts.BuilderConfig = &config
+			}
 		}
 
 		eth2Resp, err := p.EPBSProposal(ctx, opts)
@@ -2147,7 +2169,50 @@ func submitProposerPreferences(h Handler) handlerFunc {
 			return nil, nil, errors.Wrap(err, "unmarshal proposer preferences")
 		}
 
-		err = h.SubmitProposerPreferences(ctx, prefs)
+		err = h.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: prefs})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
+}
+
+// maxBuilderPreferencesBody bounds the builder preferences request body. The spec list limit
+// (MAX_BUILDER_ENTRIES per slot of the proposer lookahead) far exceeds what a validator client
+// submits for the few proposals of its validators within the lookahead.
+const maxBuilderPreferencesBody = 2 << 20 // 2MB
+
+// submitBuilderPreferences receives the builder preferences of the validator client and forwards
+// their partially signed builder request auths for threshold aggregation.
+func submitBuilderPreferences(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version != eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas",
+			}
+		}
+
+		var entries eth2v1gloas.BuilderPreferencesEntryList
+
+		err = unmarshal(typ, body, &entries)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal builder preferences")
+		}
+
+		err = h.SubmitBuilderPreferences(ctx, &eth2api.SubmitBuilderPreferencesOpts{Preferences: entries})
 		if err != nil {
 			return nil, nil, err
 		}

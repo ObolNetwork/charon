@@ -4,6 +4,7 @@ package bcast_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -307,7 +308,8 @@ func proposerPreferences(t *testing.T, mock *beaconmock.Mock) test {
 	asserted := make(chan struct{})
 	prefs := core.NewSignedProposerPreferences(testutil.RandomProposerPreferences())
 
-	mock.SubmitProposerPreferencesFunc = func(_ context.Context, preferences []*gloas.SignedProposerPreferences) error {
+	mock.SubmitProposerPreferencesFunc = func(_ context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
+		preferences := opts.Preferences
 		require.Len(t, preferences, 1)
 		require.Equal(t, prefs.SignedProposerPreferences, *preferences[0])
 		close(asserted)
@@ -367,5 +369,114 @@ func syncCommitteeContribution(t *testing.T, mock *beaconmock.Mock) test {
 		duty:     core.DutySyncContribution,
 		bcastCnt: 1,
 		asserted: asserted,
+	}
+}
+
+func TestBroadcastBuilderPreferences(t *testing.T) {
+	builderConfig := &gloas.BuilderConfig{
+		Builders: []*gloas.BuilderEntry{
+			{URL: []byte("https://Relay-A.example.com/gloas"), MaxExecutionPayment: 7},
+			{URL: []byte("https://relay-b.example.com"), MaxExecutionPayment: 7},
+			// A second builder on the same host, e.g. on another port, is authorized by the same auth.
+			{URL: []byte("https://relay-b.example.com:8443"), MaxExecutionPayment: 9},
+		},
+	}
+
+	pubkey := testutil.RandomCorePubKey(t)
+	pubkeyBytes, err := pubkey.Bytes()
+	require.NoError(t, err)
+
+	newAuth := func(data string) core.SignedBuilderRequestAuth {
+		return core.NewSignedBuilderRequestAuth(&gloas.SignedBuilderRequestAuth{
+			Message:   &gloas.BuilderRequestAuth{Data: []byte(data), Slot: 1},
+			Signature: testutil.RandomEth2Signature(),
+		})
+	}
+
+	tests := []struct {
+		name      string
+		auth      core.SignedBuilderRequestAuth
+		submitErr error
+		builders  []int // Indexes of the configured builders expected to be submitted.
+		err       bool
+	}{
+		{
+			name:     "configured builder",
+			auth:     newAuth("relay-a.example.com"),
+			builders: []int{0},
+		},
+		{
+			name:     "builders sharing a host",
+			auth:     newAuth("relay-b.example.com"),
+			builders: []int{1, 2},
+		},
+		{
+			name: "unconfigured builder",
+			auth: newAuth("relay-z.example.com"),
+		},
+		{
+			// The beacon node submitted the other entries, so retrying would resubmit them.
+			name:      "builder rejected",
+			auth:      newAuth("relay-a.example.com"),
+			submitErr: &eth2api.Error{StatusCode: http.StatusBadRequest, Data: []byte(`{"code":400,"message":"some entries failed","failures":[{"index":0,"message":"unknown proposer"}]}`)},
+			builders:  []int{0},
+		},
+		{
+			// The beacon node doesn't forward builder preferences, the auth still reaches the
+			// builder with the bid request at proposal time.
+			name:      "unsupported by beacon node",
+			auth:      newAuth("relay-a.example.com"),
+			submitErr: &eth2api.Error{StatusCode: http.StatusNotFound},
+			builders:  []int{0},
+		},
+		{
+			name:      "beacon node error",
+			auth:      newAuth("relay-a.example.com"),
+			submitErr: &eth2api.Error{StatusCode: http.StatusInternalServerError},
+			builders:  []int{0},
+			err:       true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mock, err := beaconmock.New(t.Context())
+			require.NoError(t, err)
+
+			var submitted []*gloas.BuilderPreferencesEntry
+
+			mock.SubmitBuilderPreferencesFunc = func(_ context.Context, opts *eth2api.SubmitBuilderPreferencesOpts) error {
+				submitted = append(submitted, opts.Preferences...)
+
+				return test.submitErr
+			}
+
+			bcaster, err := bcast.New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil }, bcast.WithBuilderConfig(builderConfig))
+			require.NoError(t, err)
+
+			err = bcaster.Broadcast(t.Context(), core.NewBuilderPreferencesDuty(1), core.SignedDataSet{pubkey: test.auth})
+			if test.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if len(test.builders) == 0 {
+				require.Empty(t, submitted)
+				return
+			}
+
+			var expected []*gloas.BuilderPreferencesEntry
+			for _, i := range test.builders {
+				expected = append(expected, &gloas.BuilderPreferencesEntry{
+					ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
+					URL:                 builderConfig.Builders[i].URL,
+					Auth:                &test.auth.SignedBuilderRequestAuth,
+					MaxExecutionPayment: builderConfig.Builders[i].MaxExecutionPayment,
+				})
+			}
+
+			require.Equal(t, expected, submitted)
+		})
 	}
 }

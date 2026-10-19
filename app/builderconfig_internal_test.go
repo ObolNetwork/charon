@@ -9,9 +9,8 @@ import (
 )
 
 func TestBuilderConfig(t *testing.T) {
-	// No direct builder entries are emitted even with builder URLs configured: the eth2
-	// client rejects an entry with a nil auth, which would fail every proposal. MinBid and
-	// BuilderBoostFactor still apply, gating P2P bids.
+	// Each configured builder is an entry without its auth: the fetcher adds the aggregated
+	// builder request auth per proposal. MinBid and BuilderBoostFactor also gate P2P bids.
 	conf := Config{
 		BuilderURLs:                []string{"https://a.example.com", "https://b.example.com"},
 		BuilderMinBid:              7,
@@ -20,9 +19,20 @@ func TestBuilderConfig(t *testing.T) {
 	}
 
 	cfg := builderConfig(conf)
-	require.Empty(t, cfg.Builders)
 	require.EqualValues(t, 7, cfg.MinBid)
 	require.EqualValues(t, 120, cfg.BuilderBoostFactor)
+	require.Len(t, cfg.Builders, 2)
+
+	for i, entry := range cfg.Builders {
+		require.Equal(t, []byte(conf.BuilderURLs[i]), entry.URL)
+		require.Nil(t, entry.Auth)
+		require.Empty(t, entry.BuilderPubkeys)
+		require.EqualValues(t, 3, entry.MaxExecutionPayment)
+		require.EqualValues(t, 7, entry.MinBid)
+		require.EqualValues(t, 120, entry.BuilderBoostFactor)
+	}
+
+	require.Empty(t, builderConfig(Config{BuilderMinBid: 7}).Builders)
 }
 
 func TestBuilderConfigured(t *testing.T) {
@@ -64,4 +74,14 @@ func TestBuilderConfigHash(t *testing.T) {
 
 	// An unconfigured node still produces a stable non-empty hash.
 	require.Len(t, builderConfigHash(Config{}), 32)
+}
+
+func TestBuilderHosts(t *testing.T) {
+	hosts, err := builderHosts(Config{BuilderURLs: []string{"https://Relay-A.example.com:443/path", "http://relay-b.example.com"}})
+	require.NoError(t, err)
+	require.Equal(t, []string{"relay-a.example.com", "relay-b.example.com"}, hosts)
+
+	hosts, err = builderHosts(Config{})
+	require.NoError(t, err)
+	require.Empty(t, hosts)
 }

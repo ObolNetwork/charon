@@ -40,6 +40,7 @@ var coreTypeFuncs = []func() any{
 	func() any { return new(core.VersionedPayloadAttestationMessage) },
 	func() any { return new(core.SignedProposerPreferences) },
 	func() any { return new(core.SignedExecutionPayloadEnvelope) },
+	func() any { return new(core.SignedBuilderRequestAuth) },
 }
 
 //go:generate go test . -run=TestJSONSerialisation -update

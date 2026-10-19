@@ -93,7 +93,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tbls.PublicKey,
-	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint,
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint, opts ...Option,
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -162,7 +162,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		return key, nil
 	}
 
-	return &Component{
+	c := &Component{
 		getVerifyShareFunc: getVerifyShareFunc,
 		getPubShareFunc:    getPubShareFunc,
 		getPubKeyFunc:      getPubKeyFunc,
@@ -173,7 +173,24 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		builderEnabled:     builderEnabled,
 		targetGasLimit:     targetGasLimit,
 		swallowRegFilter:   log.Filter(),
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c, nil
+}
+
+// Option configures a Component.
+type Option func(*Component)
+
+// WithBuilderHosts sets the hosts of the builders configured on this node, which the builder
+// request auths the validator client submits are compared with.
+func WithBuilderHosts(hosts []string) Option {
+	return func(c *Component) {
+		c.builderHosts = hosts
+	}
 }
 
 type Component struct {
@@ -183,6 +200,7 @@ type Component struct {
 	feeRecipientFunc func(core.PubKey) string
 	builderEnabled   bool
 	targetGasLimit   uint
+	builderHosts     []string
 	swallowRegFilter z.Field
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
@@ -203,7 +221,7 @@ type Component struct {
 	awaitPayloadContentsFunc   func(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error)
 	awaitSyncContributionFunc  func(ctx context.Context, slot, subcommIdx uint64, beaconBlockRoot eth2p0.Root) (*altair.SyncCommitteeContribution, error)
 	awaitAggAttFunc            func(ctx context.Context, slot uint64, attestationRoot eth2p0.Root, committeeIndex eth2p0.CommitteeIndex) (*eth2spec.VersionedAttestation, error)
-	awaitAggSigDBFunc          func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	awaitAggSigDBFunc          func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)
 	dutyDefFunc                func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error)
 	subs                       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
@@ -289,7 +307,7 @@ func (c *Component) RegisterAwaitAggAttestation(fn func(ctx context.Context, slo
 }
 
 // RegisterAwaitAggSigDB registers a function to query aggregated signed data from aggSigDB.
-func (c *Component) RegisterAwaitAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)) {
+func (c *Component) RegisterAwaitAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)) {
 	c.awaitAggSigDBFunc = fn
 }
 
@@ -503,6 +521,14 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 
 	if err := c.submitRandao(ctx, opts.Slot, opts.RandaoReveal); err != nil {
 		return nil, err
+	}
+
+	// The inline builder request auths are optional, so failing to forward them doesn't fail the proposal.
+	if opts.BuilderConfig != nil {
+		err := c.submitInlineBuilderRequestAuths(ctx, opts.Slot, opts.BuilderConfig)
+		if err != nil {
+			log.Warn(ctx, "Inline builder request auths not forwarded for aggregation", err, z.U64("slot", uint64(opts.Slot)))
+		}
 	}
 
 	// Query unsigned proposal (this is blocking). Errors for pre-gloas proposals, which
@@ -1172,7 +1198,7 @@ func (c Component) BeaconCommitteeSelections(ctx context.Context, opts *eth2api.
 		duty := core.NewPrepareAggregatorDuty(uint64(slot))
 		for pk := range data {
 			// Query aggregated subscription from aggsigdb for each duty and public key (this is blocking).
-			s, err := c.awaitAggSigDBFunc(ctx, duty, pk, 0)
+			s, err := c.awaitAggSigDBFunc(ctx, duty, pk, core.AwaitOpts{})
 			if err != nil {
 				return nil, err
 			}
@@ -1358,7 +1384,13 @@ func (c Component) SubmitSyncCommitteeMessages(ctx context.Context, messages []*
 // proposal slot for threshold aggregation. Preferences are aggregated ungated (like sync committee
 // messages): the call never waits for other shares; the submission completing the threshold
 // synchronously triggers aggregation, like other VC-pushed duties.
-func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []*gloas.SignedProposerPreferences) error {
+func (c Component) SubmitProposerPreferences(ctx context.Context, opts *eth2api.SubmitProposerPreferencesOpts) error {
+	if opts == nil {
+		return badRequestError("no proposer preferences options", nil)
+	}
+
+	preferences := opts.Preferences
+
 	// Use complete validators since preferences are submitted ahead of time: a validator
 	// activating in the proposal epoch is a valid proposer but not yet active when submitting.
 	vals, err := c.eth2Cl.CompleteValidators(ctx)
@@ -1457,6 +1489,203 @@ func (c Component) SubmitProposerPreferences(ctx context.Context, preferences []
 	}
 
 	return nil
+}
+
+// SubmitBuilderPreferences receives the builder preferences of the validator client, verifies the
+// partially signed builder request auth of each entry and forwards them to subscribers for
+// threshold aggregation, grouped by proposal slot and builder since a proposer authorizes each
+// builder separately. Only the auth is aggregated: the builder URL and maximum execution payment
+// come from charon's own builder configuration, which is identical across the cluster.
+func (c Component) SubmitBuilderPreferences(ctx context.Context, opts *eth2api.SubmitBuilderPreferencesOpts) error {
+	if opts == nil {
+		return badRequestError("no builder preferences options", nil)
+	}
+
+	currentSlot, err := SlotFromTimestamp(ctx, c.eth2Cl, time.Now())
+	if err != nil {
+		return err
+	}
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, c.eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	const (
+		// MIN_SEED_LOOKAHEAD as per the consensus spec phase0 preset (identical on all networks).
+		minSeedLookahead = 1
+		// MAX_BUILDER_ENTRIES as per the beacon-APIs gloas builder preferences.
+		maxBuilderEntries = 64
+	)
+
+	// The request body is defined as
+	// List[BuilderPreferencesEntry, MAX_BUILDER_ENTRIES * (MIN_SEED_LOOKAHEAD + 1) * SLOTS_PER_EPOCH].
+	// Enforce the list limit before any signature verification to bound memory and CPU.
+	limit := maxBuilderEntries * (minSeedLookahead + 1) * slotsPerEpoch
+	if uint64(len(opts.Preferences)) > limit {
+		return badRequestError("too many builder preferences",
+			errors.New("too many builder preferences", z.Int("count", len(opts.Preferences)), z.U64("limit", limit)))
+	}
+
+	// Auths are only valid for future proposal slots within the proposer lookahead.
+	maxSlot := eth2p0.Slot((uint64(currentSlot)/slotsPerEpoch + 1 + minSeedLookahead) * slotsPerEpoch)
+
+	type groupKey struct {
+		slot   eth2p0.Slot
+		pubkey core.PubKey
+	}
+
+	var (
+		groups       []groupKey
+		authsByGroup = make(map[groupKey][]*gloas.SignedBuilderRequestAuth)
+	)
+
+	// Faulty entries are skipped with a warning instead of failing the whole batch: entries
+	// target independent proposal slots and builders, and the list limit bounds the work.
+	for _, entry := range opts.Preferences {
+		if entry == nil || entry.Auth == nil || entry.Auth.Message == nil {
+			log.Warn(ctx, "Skipping builder preferences without request auth", nil)
+			continue
+		}
+
+		slot := entry.Auth.Message.Slot
+		if slot <= currentSlot || slot >= maxSlot {
+			log.Warn(ctx, "Skipping builder preferences with proposal slot outside lookahead window", nil,
+				z.U64("proposal_slot", uint64(slot)), z.U64("current_slot", uint64(currentSlot)), z.U64("max_slot", uint64(maxSlot)))
+
+			continue
+		}
+
+		pubkey, err := c.getPubKeyFunc(entry.ProposerPubkey)
+		if err != nil {
+			log.Warn(ctx, "Skipping builder preferences for unknown public share", err)
+			continue
+		}
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		if err != nil {
+			return err
+		}
+
+		key := groupKey{slot: slot, pubkey: pk}
+		if _, ok := authsByGroup[key]; !ok {
+			groups = append(groups, key)
+		}
+
+		authsByGroup[key] = append(authsByGroup[key], entry.Auth)
+	}
+
+	for _, key := range groups {
+		err = c.forwardBuilderRequestAuths(ctx, key.slot, key.pubkey, authsByGroup[key])
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// submitInlineBuilderRequestAuths forwards the builder request auths a validator client sends
+// inline with its block production request, instead of ahead of time as builder preferences.
+// Builders without an auth have nothing to aggregate, and an auth for another slot is skipped.
+func (c Component) submitInlineBuilderRequestAuths(ctx context.Context, slot eth2p0.Slot, config *gloas.BuilderConfig) error {
+	var auths []*gloas.SignedBuilderRequestAuth
+
+	for _, entry := range config.Builders {
+		if entry == nil || entry.Auth == nil || entry.Auth.Message == nil {
+			continue
+		}
+
+		if entry.Auth.Message.Slot != slot {
+			log.Warn(ctx, "Skipping inline builder request auth for another slot", nil,
+				z.U64("proposal_slot", uint64(slot)), z.U64("auth_slot", uint64(entry.Auth.Message.Slot)))
+
+			continue
+		}
+
+		auths = append(auths, entry.Auth)
+	}
+
+	if len(auths) == 0 {
+		return nil
+	}
+
+	pubkey, err := c.getProposerPubkey(ctx, core.NewProposerDuty(uint64(slot)))
+	if err != nil {
+		return err
+	}
+
+	return c.forwardBuilderRequestAuths(ctx, slot, pubkey, auths)
+}
+
+// forwardBuilderRequestAuths verifies the validator's partially signed builder request auths for
+// the proposal slot and forwards each to the subscribers for threshold aggregation, since a
+// proposer authorizes each builder separately. An invalid auth is skipped with a warning.
+func (c Component) forwardBuilderRequestAuths(ctx context.Context, slot eth2p0.Slot, pubkey core.PubKey, auths []*gloas.SignedBuilderRequestAuth) error {
+	duty := core.NewBuilderPreferencesDuty(uint64(slot))
+
+	c.warnBuilderPreferencesMismatch(ctx, slot, pubkey, auths)
+
+	for _, auth := range auths {
+		parSigData := core.NewPartialSignedBuilderRequestAuth(auth, c.shareIdx)
+
+		err := c.verifyPartialSig(ctx, parSigData, pubkey)
+		if err != nil {
+			log.Warn(ctx, "Skipping builder request auth with invalid partial signature", err,
+				z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pubkey), z.Str("auth_data", string(auth.Message.Data)))
+
+			continue
+		}
+
+		log.Debug(ctx, "Builder request auth received from validator client",
+			z.U64("proposal_slot", uint64(slot)), z.Str("auth_data", string(auth.Message.Data)))
+
+		for _, sub := range c.subs {
+			err := sub(ctx, duty, core.ParSignedDataSet{pubkey: parSigData})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// warnBuilderPreferencesMismatch logs a warning and increments a metric for each builder configured
+// on this node that the validator client submitted no request auth for, and for each auth for a
+// builder not configured on this node, e.g. of a stale validator client configuration. It compares
+// the auths of a proposal slot and validator submitted together, and doesn't reject any: an auth
+// only aggregates with the matching auths of the other nodes.
+func (c Component) warnBuilderPreferencesMismatch(ctx context.Context, slot eth2p0.Slot, pubkey core.PubKey, auths []*gloas.SignedBuilderRequestAuth) {
+	submitted := make(map[string]bool)
+	for _, auth := range auths {
+		submitted[string(auth.Message.Data)] = true
+	}
+
+	configured := make(map[string]bool)
+
+	for _, host := range c.builderHosts {
+		configured[host] = true
+
+		if !submitted[host] {
+			log.Warn(ctx, "Validator client submitted no builder request auth for a configured builder", nil,
+				z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pubkey), z.Str("builder", host))
+			incBuilderPrefMismatch(host, "missing")
+		}
+	}
+
+	for _, auth := range auths {
+		host := string(auth.Message.Data)
+		if configured[host] {
+			continue
+		}
+
+		configured[host] = true // Report each unknown builder once.
+
+		log.Warn(ctx, "Validator client submitted a builder request auth for a builder not configured on this node", nil,
+			z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pubkey), z.Str("builder", host))
+		incBuilderPrefMismatch(builderHostLabel(host), "unknown")
+	}
 }
 
 // warnProposerPreferencesMismatch logs a warning and increments a metric when the VC-submitted fee
@@ -1718,7 +1947,7 @@ func (c Component) SyncCommitteeSelections(ctx context.Context, opts *eth2api.Sy
 		duty := core.NewPrepareSyncContributionDuty(uint64(selection.Slot))
 		subcommIdx := core.SubcommitteeIndex(selection.SubcommitteeIndex)
 
-		s, err := c.awaitAggSigDBFunc(ctx, duty, pubkeys[i], subcommIdx)
+		s, err := c.awaitAggSigDBFunc(ctx, duty, pubkeys[i], core.AwaitOpts{SubcommIdx: subcommIdx})
 		if err != nil {
 			return nil, err
 		}

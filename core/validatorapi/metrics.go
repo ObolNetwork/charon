@@ -63,6 +63,14 @@ var (
 		Name:      "proposer_preferences_mismatch_total",
 		Help:      "Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field",
 	}, []string{"field"})
+
+	builderPrefMismatch = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "builder_preferences_mismatch_total",
+		Help: "Total number of builder preferences submitted by the VC that mismatch this node's builders, by builder host " +
+			"and reason: a configured builder without a request auth (missing) or an auth for a builder not configured (unknown)",
+	}, []string{"builder", "reason"})
 )
 
 // Values of proposalFormGauge, the form the latest gloas proposal was requested in.
@@ -74,6 +82,25 @@ const (
 
 func incProposerPrefMismatch(field string) {
 	proposerPrefMismatch.WithLabelValues(field).Inc()
+}
+
+func incBuilderPrefMismatch(builder, reason string) {
+	builderPrefMismatch.WithLabelValues(builder, reason).Inc()
+}
+
+// maxBuilderHostLabelLen bounds the untrusted builder request auth data used as a metric label
+// value, at the maximum length of a hostname, the data's default.
+const maxBuilderHostLabelLen = 253
+
+// builderHostLabel returns the builder host of a request auth as a metric label value: capped and
+// valid UTF-8 like the User-Agent header, since it is unverified validator client input and the
+// prometheus client panics on an invalid label value.
+func builderHostLabel(host string) string {
+	if len(host) > maxBuilderHostLabelLen {
+		host = host[:maxBuilderHostLabelLen]
+	}
+
+	return strings.ToValidUTF8(host, "")
 }
 
 func incAPIErrors(endpoint string, statusCode int) {

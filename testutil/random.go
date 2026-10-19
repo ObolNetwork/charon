@@ -1237,6 +1237,16 @@ func RandomProposerPreferences() *gloas.SignedProposerPreferences {
 	}
 }
 
+func RandomSignedBuilderRequestAuth() *gloas.SignedBuilderRequestAuth {
+	return &gloas.SignedBuilderRequestAuth{
+		Message: &gloas.BuilderRequestAuth{
+			Data: []byte("builder.example.com"),
+			Slot: RandomSlot(),
+		},
+		Signature: RandomEth2Signature(),
+	}
+}
+
 func RandomSyncCommitteeMessage() *altair.SyncCommitteeMessage {
 	return &altair.SyncCommitteeMessage{
 		Slot:            RandomSlot(),

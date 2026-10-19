@@ -24,6 +24,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/eth2exp"
 )
 
@@ -74,7 +75,7 @@ type Fetcher struct {
 	feeRecipientFunc       func(core.PubKey) string
 	subs                   []func(context.Context, core.Duty, core.UnsignedDataSet) error
 	payloadContentsSubs    []func(context.Context, core.VersionedProposal) error
-	aggSigDBFunc           func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)
+	aggSigDBFunc           func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)
 	awaitAttDataFunc       func(ctx context.Context, slot, commIdx uint64) (*eth2p0.AttestationData, error)
 	syncContributionV2Func func(slot uint64) bool
 	builderEnabled         bool
@@ -362,7 +363,7 @@ func (f *Fetcher) Fetch(ctx context.Context, duty core.Duty, defSet core.DutyDef
 
 // RegisterAggSigDB registers a function to get resolved aggregated signed data from AggSigDB.
 // Note: This is not thread safe and should only be called *before* Fetch.
-func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error)) {
+func (f *Fetcher) RegisterAggSigDB(fn func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error)) {
 	f.aggSigDBFunc = fn
 }
 
@@ -475,7 +476,7 @@ func (f *Fetcher) fetchAggregatorData(ctx context.Context, slot uint64, defSet c
 		}
 
 		// Query AggSigDB for DutyPrepareAggregator to get beacon committee selections.
-		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, 0)
+		prepAggData, err := f.aggSigDBFunc(ctx, core.NewPrepareAggregatorDuty(slot), pubkey, core.AwaitOpts{})
 		if err != nil {
 			return core.UnsignedDataSet{}, err
 		}
@@ -621,7 +622,7 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 			Slot:           eth2p0.Slot(slot),
 			RandaoReveal:   randao,
 			Graffiti:       f.graffitiBuilder.GetGraffiti(pubkey),
-			BuilderConfig:  f.builderConfig,
+			BuilderConfig:  f.builderConfigFor(ctx, slot, pubkey),
 			IncludePayload: &includePayload,
 		}
 
@@ -677,9 +678,82 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 	return resp, nil
 }
 
+// builderAuthTimeout bounds how long a proposal waits for the aggregated builder request auths.
+// Validator clients sign them ahead of the proposal, so they are usually aggregated already.
+const builderAuthTimeout = 500 * time.Millisecond
+
+// builderConfigFor returns the builder configuration of the validator's proposal: the configured
+// builders with their aggregated builder request auths. A builder whose auth isn't aggregated in
+// time is left out, since the beacon node can't request bids from it without one.
+func (f *Fetcher) builderConfigFor(ctx context.Context, slot uint64, pubkey core.PubKey) *gloas.BuilderConfig {
+	if f.builderConfig == nil || len(f.builderConfig.Builders) == 0 || f.aggSigDBFunc == nil {
+		return f.builderConfig
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, builderAuthTimeout)
+	defer cancel()
+
+	entries := make([]*gloas.BuilderEntry, len(f.builderConfig.Builders))
+
+	var wg sync.WaitGroup
+	for i, entry := range f.builderConfig.Builders {
+		wg.Go(func() {
+			auth, err := f.awaitBuilderAuth(ctx, slot, pubkey, entry)
+			if err != nil {
+				log.Warn(ctx, "Requesting proposal without builder, its request auth isn't aggregated", err,
+					z.U64("slot", slot), z.Str("builder", string(entry.URL)))
+
+				return
+			}
+
+			withAuth := *entry
+			withAuth.BuilderPubkeys = slices.Clone(entry.BuilderPubkeys)
+			withAuth.Auth = auth
+			entries[i] = &withAuth
+		})
+	}
+
+	wg.Wait()
+
+	// Keep the builders whose auth resolved, in configured order.
+	var builders []*gloas.BuilderEntry
+
+	for _, entry := range entries {
+		if entry != nil {
+			builders = append(builders, entry)
+		}
+	}
+
+	return &gloas.BuilderConfig{
+		MinBid:             f.builderConfig.MinBid,
+		BuilderBoostFactor: f.builderConfig.BuilderBoostFactor,
+		Builders:           builders,
+	}
+}
+
+// awaitBuilderAuth returns the aggregated builder request auth of the validator's proposal for the builder.
+func (f *Fetcher) awaitBuilderAuth(ctx context.Context, slot uint64, pubkey core.PubKey, entry *gloas.BuilderEntry) (*gloas.SignedBuilderRequestAuth, error) {
+	builderHost, err := eth2util.BuilderAuthData(string(entry.URL))
+	if err != nil {
+		return nil, err
+	}
+
+	signed, err := f.aggSigDBFunc(ctx, core.NewBuilderPreferencesDuty(slot), pubkey, core.AwaitOpts{BuilderHost: string(builderHost)})
+	if err != nil {
+		return nil, err
+	}
+
+	auth, ok := signed.(core.SignedBuilderRequestAuth)
+	if !ok {
+		return nil, errors.New("invalid builder request auth")
+	}
+
+	return &auth.SignedBuilderRequestAuth, nil
+}
+
 // fetchRandao returns the previously aggregated randao reveal for the slot from the AggSigDB.
 func (f *Fetcher) fetchRandao(ctx context.Context, slot uint64, pubkey core.PubKey) (eth2p0.BLSSignature, error) {
-	randaoData, err := f.aggSigDBFunc(ctx, core.NewRandaoDuty(slot), pubkey, 0)
+	randaoData, err := f.aggSigDBFunc(ctx, core.NewRandaoDuty(slot), pubkey, core.AwaitOpts{})
 	if err != nil {
 		return eth2p0.BLSSignature{}, err
 	}
@@ -814,7 +888,7 @@ type syncContribKey struct {
 // aggregator for the subcommittee.
 func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex, contribByKey map[syncContribKey]core.SyncContribution) (core.SyncContribution, bool, error) {
 	// Query AggSigDB for DutyPrepareSyncContribution to get the sync committee selection.
-	selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, subcommIdx)
+	selectionData, err := f.aggSigDBFunc(ctx, core.NewPrepareSyncContributionDuty(slot), pubkey, core.AwaitOpts{SubcommIdx: subcommIdx})
 	if err != nil {
 		return core.SyncContribution{}, false, err
 	}
@@ -833,7 +907,7 @@ func (f *Fetcher) fetchSubcommContribution(ctx context.Context, slot uint64, pub
 	}
 
 	// Query AggSigDB for DutySyncMessage to get the beacon block root.
-	syncMsgData, err := f.aggSigDBFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, 0)
+	syncMsgData, err := f.aggSigDBFunc(ctx, core.NewSyncMessageDuty(slot), pubkey, core.AwaitOpts{})
 	if err != nil {
 		return core.SyncContribution{}, false, err
 	}

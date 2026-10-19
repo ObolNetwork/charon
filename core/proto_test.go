@@ -105,6 +105,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
 		},
 		{
+			Type: core.DutyBuilderPreferences,
+			Data: core.NewSignedBuilderRequestAuth(testutil.RandomSignedBuilderRequestAuth()),
+		},
+		{
 			Type: core.DutyExecutionPayloadEnvelope,
 			Data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
 		},

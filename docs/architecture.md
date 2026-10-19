@@ -137,6 +137,9 @@ type Duty struct {
 - `DutySyncContribution = 12`: Sync contribution duty
 - `DutyInfoSync = 13`: Sending versions of peers in a cluster over wire
 - `DutyPayloadAttestation = 14`: Payload timeliness committee (PTC) attestation duty (gloas/ePBS)
+- `DutyProposerPreferences = 15`: Proposer preferences (fee recipient, gas limit) signed ahead of a proposal (gloas)
+- `DutyExecutionPayloadEnvelope = 16`: Revealing the execution payload envelope of a self-built block (gloas/ePBS)
+- `DutyBuilderPreferences = 17`: Builder request auths authorizing each configured builder for a proposal slot (gloas/ePBS)
 
 > ℹ️ Duty is on a cluster level, not a DV level. A duty defines the “unit of work” for the whole cluster,
 > not just a single DV. This allows the workflow to aggregate and batch multiple DVs in some steps, specifically consensus.
@@ -789,6 +792,9 @@ The validator API intercepts the following endpoints (all other calls are transp
 | `GET /eth/v1/validator/attestation_data`                       | Served from `DutyDB.AwaitAttestation` by `slot,committee_index`.                                                                                                 |
 | `POST /eth/v2/beacon/pool/attestations`                        | `DutyAttester`: DV pubkey inferred via `DutyDB.PubKeyByAttestation`; partial signatures stored in `ParSigDB` (v1 returns 404).                                   |
 | `GET /eth/v3/validator/blocks/{slot}`                          | `DutyProposer`/`DutyRandao`: verifies the partial randao reveal, submits it to `ParSigDB` for async aggregation, then blocks on `DutyDB.AwaitVersionedProposal` (v2 404). |
+| `POST /eth/v4/validator/blocks/{slot}`                         | As v3 from the gloas fork; `DutyBuilderPreferences`: builder request auths sent inline in the builder config body are submitted to `ParSigDB`.                  |
+| `POST /eth/v1/validator/proposer_preferences`                  | `DutyProposerPreferences`: partial signatures stored in `ParSigDB`; the aggregate is submitted to the beacon node by `Bcast`.                                   |
+| `POST /eth/v1/validator/builder_preferences`                   | `DutyBuilderPreferences`: partial builder request auths stored in `ParSigDB` per builder; aggregates are submitted by `Bcast` and attached to v4 proposal requests. |
 | `POST /eth/v1,v2/beacon/blocks`                                | `DutyProposer`: DV pubkey looked up via the scheduler's `GetDutyDefinition`; partial signature stored in `ParSigDB`.                                             |
 | `POST /eth/v1,v2/beacon/blinded_blocks`                        | Same as above; blinded proposals are also `DutyProposer` (`Blinded` flag set on `VersionedSignedProposal`).                                                      |
 | `POST /eth/v1/beacon/pool/voluntary_exits`                     | `DutyExit`: partial signature stored in `ParSigDB`.                                                                                                              |

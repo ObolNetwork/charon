@@ -67,6 +67,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `cluster_validators` | Gauge | Number of validators in the cluster lock |  |
 | `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay since the expected duty submission in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
+| `core_bcast_builder_preferences_rejected_total` | Counter | The total count of builder preferences entries rejected by builder URL | `builder` |
 | `core_consensus_decided_leader_index` | Gauge | Index of the decided leader by protocol and duty | `protocol, duty` |
 | `core_consensus_decided_rounds` | Gauge | Number of decided rounds by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of the consensus process by protocol, duty, and timer | `protocol, duty, timer` |
@@ -97,6 +98,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_sigagg_slot_aggregation_seconds` | Histogram | Total duration to aggregate all validators for a duty in a slot, in seconds | `duty` |
 | `core_tracker_attestation_expect_total` | Counter | Total number of expected attestations for the slot (counts individual attestations, not duties) |  |
 | `core_tracker_attestation_success_total` | Counter | Total number of successful attestations for the slot (counts individual attestations, not duties) |  |
+| `core_tracker_builder_request_auths_total` | Counter | Total number of partially signed builder request auths by peer and builder host, those for builders not configured on this node counted as unknown | `peer, builder` |
 | `core_tracker_expect_duties_total` | Counter | Total number of expected duties (failed + success) by type | `duty` |
 | `core_tracker_failed_duties_total` | Counter | Total number of failed duties by type | `duty` |
 | `core_tracker_failed_duty_reasons_total` | Counter | Total number of failed duties by type and reason code | `duty, reason` |
@@ -111,6 +113,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_participation_total` | Counter | Total number of successful participations by peer and duty type | `duty, peer` |
 | `core_tracker_success_duties_total` | Counter | Total number of successful duties by type | `duty` |
 | `core_tracker_unexpected_events_total` | Counter | Total number of unexpected events by peer | `peer` |
+| `core_validatorapi_builder_preferences_mismatch_total` | Counter | Total number of builder preferences submitted by the VC that mismatch this node`s builders, by builder host and reason: a configured builder without a request auth (missing) or an auth for a builder not configured (unknown) | `builder, reason` |
 | `core_validatorapi_proposal_form` | Gauge | The form the validator client requested the latest gloas proposal in: none requested yet (0), stateless with its execution payload, which waits for the shared payload contents (1), or stateful (2) |  |
 | `core_validatorapi_proposer_preferences_mismatch_total` | Counter | Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field | `field` |
 | `core_validatorapi_proxy_request_latency_seconds` | Histogram | The validatorapi proxy request latencies in seconds by path | `path` |

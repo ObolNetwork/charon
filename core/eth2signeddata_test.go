@@ -87,6 +87,10 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
 		},
 		{
+			name: "verify builder request auth",
+			data: core.NewSignedBuilderRequestAuth(testutil.RandomSignedBuilderRequestAuth()),
+		},
+		{
 			name: "verify execution payload envelope",
 			data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
 		},
