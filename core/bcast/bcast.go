@@ -466,11 +466,10 @@ func setToPayloadAttestationMessages(set core.SignedDataSet) (*eth2api.SubmitPay
 	return &eth2api.SubmitPayloadAttestationMessagesOpts{Messages: resp}, nil
 }
 
-// setToProposerPreferences converts a set of signed data into a list of signed proposer preferences.
 // builderPreferencesEntries returns the builder preferences entries of the aggregated builder
-// request auths: each auth is submitted for the configured builder it authorizes, identified by
-// its auth data. The builder's URL and maximum execution payment come from charon's builder
-// configuration, which is identical across the cluster.
+// request auths: each auth is submitted for the configured builders it authorizes, identified by
+// its auth data, which builders sharing a host share. The builder's URL and maximum execution
+// payment come from charon's builder configuration, which is identical across the cluster.
 func (b Broadcaster) builderPreferencesEntries(ctx context.Context, set core.SignedDataSet) ([]*gloas.BuilderPreferencesEntry, error) {
 	var resp []*gloas.BuilderPreferencesEntry
 
@@ -480,8 +479,8 @@ func (b Broadcaster) builderPreferencesEntries(ctx context.Context, set core.Sig
 			return nil, errors.New("invalid builder request auth")
 		}
 
-		builder := b.configuredBuilder(auth.Message.Data)
-		if builder == nil {
+		builders := b.configuredBuilders(auth.Message.Data)
+		if len(builders) == 0 {
 			log.Warn(ctx, "Not submitting builder request auth of a builder that isn't configured", nil,
 				z.Str("auth_data", string(auth.Message.Data)))
 
@@ -493,31 +492,36 @@ func (b Broadcaster) builderPreferencesEntries(ctx context.Context, set core.Sig
 			return nil, err
 		}
 
-		resp = append(resp, &gloas.BuilderPreferencesEntry{
-			ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
-			URL:                 builder.URL,
-			Auth:                &auth.SignedBuilderRequestAuth,
-			MaxExecutionPayment: builder.MaxExecutionPayment,
-		})
+		for _, builder := range builders {
+			resp = append(resp, &gloas.BuilderPreferencesEntry{
+				ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
+				URL:                 builder.URL,
+				Auth:                &auth.SignedBuilderRequestAuth,
+				MaxExecutionPayment: builder.MaxExecutionPayment,
+			})
+		}
 	}
 
 	return resp, nil
 }
 
-// configuredBuilder returns the configured builder entry the auth data identifies, or nil.
-func (b Broadcaster) configuredBuilder(authData []byte) *gloas.BuilderEntry {
+// configuredBuilders returns the configured builder entries the auth data identifies, in
+// configured order: several when builders share a host, e.g. on different ports.
+func (b Broadcaster) configuredBuilders(authData []byte) []*gloas.BuilderEntry {
 	if b.builderConfig == nil {
 		return nil
 	}
 
+	var resp []*gloas.BuilderEntry
+
 	for _, entry := range b.builderConfig.Builders {
 		data, err := eth2util.BuilderAuthData(string(entry.URL))
 		if err == nil && string(data) == string(authData) {
-			return entry
+			resp = append(resp, entry)
 		}
 	}
 
-	return nil
+	return resp
 }
 
 // handleBuilderPreferencesError handles a failed builder preferences submission. Like validator
@@ -583,6 +587,7 @@ func builderPreferencesFailures(data []byte, entries []*gloas.BuilderPreferences
 	return resp
 }
 
+// setToProposerPreferences converts a set of signed data into a list of signed proposer preferences.
 func setToProposerPreferences(set core.SignedDataSet) ([]*gloas.SignedProposerPreferences, error) {
 	var resp []*gloas.SignedProposerPreferences
 

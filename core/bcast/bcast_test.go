@@ -377,6 +377,8 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 		Builders: []*gloas.BuilderEntry{
 			{URL: []byte("https://Relay-A.example.com/gloas"), MaxExecutionPayment: 7},
 			{URL: []byte("https://relay-b.example.com"), MaxExecutionPayment: 7},
+			// A second builder on the same host, e.g. on another port, is authorized by the same auth.
+			{URL: []byte("https://relay-b.example.com:8443"), MaxExecutionPayment: 9},
 		},
 	}
 
@@ -395,13 +397,18 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 		name      string
 		auth      core.SignedBuilderRequestAuth
 		submitErr error
-		submitted bool
+		builders  []int // Indexes of the configured builders expected to be submitted.
 		err       bool
 	}{
 		{
-			name:      "configured builder",
-			auth:      newAuth("relay-a.example.com"),
-			submitted: true,
+			name:     "configured builder",
+			auth:     newAuth("relay-a.example.com"),
+			builders: []int{0},
+		},
+		{
+			name:     "builders sharing a host",
+			auth:     newAuth("relay-b.example.com"),
+			builders: []int{1, 2},
 		},
 		{
 			name: "unconfigured builder",
@@ -412,7 +419,7 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 			name:      "builder rejected",
 			auth:      newAuth("relay-a.example.com"),
 			submitErr: &eth2api.Error{StatusCode: http.StatusBadRequest, Data: []byte(`{"code":400,"message":"some entries failed","failures":[{"index":0,"message":"unknown proposer"}]}`)},
-			submitted: true,
+			builders:  []int{0},
 		},
 		{
 			// The beacon node doesn't forward builder preferences, the auth still reaches the
@@ -420,13 +427,13 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 			name:      "unsupported by beacon node",
 			auth:      newAuth("relay-a.example.com"),
 			submitErr: &eth2api.Error{StatusCode: http.StatusNotFound},
-			submitted: true,
+			builders:  []int{0},
 		},
 		{
 			name:      "beacon node error",
 			auth:      newAuth("relay-a.example.com"),
 			submitErr: &eth2api.Error{StatusCode: http.StatusInternalServerError},
-			submitted: true,
+			builders:  []int{0},
 			err:       true,
 		},
 	}
@@ -454,17 +461,22 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			if !test.submitted {
+			if len(test.builders) == 0 {
 				require.Empty(t, submitted)
 				return
 			}
 
-			require.Equal(t, []*gloas.BuilderPreferencesEntry{{
-				ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
-				URL:                 []byte("https://Relay-A.example.com/gloas"),
-				Auth:                &test.auth.SignedBuilderRequestAuth,
-				MaxExecutionPayment: 7,
-			}}, submitted)
+			var expected []*gloas.BuilderPreferencesEntry
+			for _, i := range test.builders {
+				expected = append(expected, &gloas.BuilderPreferencesEntry{
+					ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
+					URL:                 builderConfig.Builders[i].URL,
+					Auth:                &test.auth.SignedBuilderRequestAuth,
+					MaxExecutionPayment: builderConfig.Builders[i].MaxExecutionPayment,
+				})
+			}
+
+			require.Equal(t, expected, submitted)
 		})
 	}
 }
