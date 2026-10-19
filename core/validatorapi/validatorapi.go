@@ -1684,7 +1684,7 @@ func (c Component) warnBuilderPreferencesMismatch(ctx context.Context, slot eth2
 
 		log.Warn(ctx, "Validator client submitted a builder request auth for a builder not configured on this node", nil,
 			z.U64("proposal_slot", uint64(slot)), z.Any("pubkey", pubkey), z.Str("builder", host))
-		incBuilderPrefMismatch(host, "unknown")
+		incBuilderPrefMismatch(builderHostLabel(host), "unknown")
 	}
 }
 

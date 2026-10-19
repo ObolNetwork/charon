@@ -5,6 +5,7 @@ package validatorapi
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -249,4 +250,13 @@ func TestWarnBuilderPreferencesMismatch(t *testing.T) {
 	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB, builderC, removed, removed))
 	require.InDelta(t, missingC+1, count(builderC, "missing"), 0)
 	require.InDelta(t, unknownRemoved+1, count(removed, "unknown"), 0)
+
+	// The host is unverified validator client input, so it is capped and made valid UTF-8 before
+	// labelling, like the User-Agent header: the Prometheus client panics on an invalid label value.
+	oversized := strings.Repeat("a", 300)
+	oversizedBefore := count(oversized[:253], "unknown")
+
+	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB, builderC, removed+"\xff", oversized))
+	require.InDelta(t, unknownRemoved+2, count(removed, "unknown"), 0)
+	require.InDelta(t, oversizedBefore+1, count(oversized[:253], "unknown"), 0)
 }

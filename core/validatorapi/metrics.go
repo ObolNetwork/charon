@@ -88,6 +88,21 @@ func incBuilderPrefMismatch(builder, reason string) {
 	builderPrefMismatch.WithLabelValues(builder, reason).Inc()
 }
 
+// maxBuilderHostLabelLen bounds the untrusted builder request auth data used as a metric label
+// value, at the maximum length of a hostname, the data's default.
+const maxBuilderHostLabelLen = 253
+
+// builderHostLabel returns the builder host of a request auth as a metric label value: capped and
+// valid UTF-8 like the User-Agent header, since it is unverified validator client input and the
+// prometheus client panics on an invalid label value.
+func builderHostLabel(host string) string {
+	if len(host) > maxBuilderHostLabelLen {
+		host = host[:maxBuilderHostLabelLen]
+	}
+
+	return strings.ToValidUTF8(host, "")
+}
+
 func incAPIErrors(endpoint string, statusCode int) {
 	apiErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
 }
