@@ -16,6 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -160,6 +161,11 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 			parsed, err := url.Parse(u)
 			if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" {
 				return errors.New("builder-urls entry is not a valid http(s) URL", z.Str("url", u))
+			}
+
+			// A builder's URL is agreed with the proposals of its bids, which can't carry a longer one.
+			if len(u) > core.MaxBuilderURLSize {
+				return errors.New("builder-urls entry is longer than the maximum", z.Int("max", core.MaxBuilderURLSize))
 			}
 		}
 
