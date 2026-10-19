@@ -93,38 +93,28 @@ type builderEntryJSON struct {
 	MaxExecutionPayment string `json:"max_execution_payment,omitempty"`
 }
 
-// proposerConfigResult is what writeProposerConfigFile did to the proposer config file.
-type proposerConfigResult int
-
-const (
-	proposerConfigUnchanged proposerConfigResult = iota
-	proposerConfigCreated
-	proposerConfigBuilderUpdated
-)
-
 // writeProposerConfigFile generates the validator client proposer configuration file
 // if it doesn't already exist, mirroring what charon registers with builders: the
 // effective builder registrations including operator overrides, falling back to the
-// cluster lock. An existing file keeps its proposer settings and only gets its builder
-// settings updated to the configured builders, see updateProposerConfigBuilder.
+// cluster lock. An existing file is never modified.
 func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.NodeIdx,
 	feeRecipientFunc func(core.PubKey) string, gasLimitFunc func(core.PubKey) uint64,
-) (proposerConfigResult, error) {
+) (bool, error) {
 	dir := filepath.Join(filepath.Dir(conf.LockFile), proposerConfigDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return proposerConfigUnchanged, errors.Wrap(err, "create proposer config directory", z.Str("dir", dir))
+		return false, errors.Wrap(err, "create proposer config directory", z.Str("dir", dir))
 	}
 
 	path := filepath.Join(dir, proposerConfigFilename)
 
 	if info, err := os.Stat(path); err == nil {
 		if info.IsDir() {
-			return proposerConfigUnchanged, errors.New("proposer config file path is a directory", z.Str("path", path))
+			return false, errors.New("proposer config file path is a directory", z.Str("path", path))
 		}
 
-		return updateProposerConfigBuilder(conf, path)
+		return false, nil // Never modify an existing file.
 	} else if !os.IsNotExist(err) {
-		return proposerConfigUnchanged, errors.Wrap(err, "stat proposer config file", z.Str("path", path))
+		return false, errors.Wrap(err, "stat proposer config file", z.Str("path", path))
 	}
 
 	feeRecipients := lock.FeeRecipientAddresses()
@@ -146,12 +136,12 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 	for vi, val := range lock.Validators {
 		pubshare, err := val.PublicShare(nodeIdx.PeerIdx)
 		if err != nil {
-			return proposerConfigUnchanged, errors.Wrap(err, "public share", z.Int("validator", vi))
+			return false, errors.Wrap(err, "public share", z.Int("validator", vi))
 		}
 
 		corePubkey, err := core.PubKeyFromBytes(val.PubKey)
 		if err != nil {
-			return proposerConfigUnchanged, errors.Wrap(err, "core pubkey", z.Int("validator", vi))
+			return false, errors.Wrap(err, "core pubkey", z.Int("validator", vi))
 		}
 
 		feeRecipient := feeRecipientFunc(corePubkey)
@@ -221,40 +211,17 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 		config.ProposerConfig[vs.pubshareHex] = entry
 	}
 
-	if err := writeProposerConfig(path, config); err != nil {
-		return proposerConfigUnchanged, err
-	}
-
-	return proposerConfigCreated, nil
-}
-
-// updateProposerConfigBuilder sets the builder settings of the existing proposer config file
-// to the configured builders, removing them if none are configured, so that validator clients
-// sign builder request auths for the builders charon requests bids from. The proposer
-// settings are kept as they are. The file is only rewritten if its builder settings differ.
-func updateProposerConfigBuilder(conf Config, path string) (proposerConfigResult, error) {
-	b, err := os.ReadFile(path)
+	b, err := json.Marshal(config)
 	if err != nil {
-		return proposerConfigUnchanged, errors.Wrap(err, "read proposer config file", z.Str("path", path))
+		return false, errors.Wrap(err, "marshal proposer config")
 	}
 
-	var config proposerConfigJSON
-	if err := json.Unmarshal(b, &config); err != nil {
-		return proposerConfigUnchanged, errors.Wrap(err, "decode proposer config file", z.Str("path", path))
+	//nolint:gosec // Configuration file without secrets, needs to be readable by validator clients.
+	if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
+		return false, errors.Wrap(err, "write proposer config file", z.Str("path", path))
 	}
 
-	builder := builderSettings(conf)
-	if reflect.DeepEqual(config.DefaultConfig.Builder, builder) {
-		return proposerConfigUnchanged, nil
-	}
-
-	config.DefaultConfig.Builder = builder
-
-	if err := writeProposerConfig(path, config); err != nil {
-		return proposerConfigUnchanged, err
-	}
-
-	return proposerConfigBuilderUpdated, nil
+	return true, nil
 }
 
 // builderSettings returns the builder settings of the proposer config, nil if no builder
@@ -277,23 +244,25 @@ func builderSettings(conf Config) *builderSettingsJSON {
 	}
 }
 
-// writeProposerConfig writes the proposer config to the file.
-func writeProposerConfig(path string, config proposerConfigJSON) error {
-	b, err := json.Marshal(config)
+// proposerConfigBuilderMatches returns whether the builder settings of the existing proposer
+// config file match the configured builder flags.
+func proposerConfigBuilderMatches(conf Config, path string) (bool, error) {
+	b, err := os.ReadFile(path)
 	if err != nil {
-		return errors.Wrap(err, "marshal proposer config")
+		return false, errors.Wrap(err, "read proposer config file", z.Str("path", path))
 	}
 
-	//nolint:gosec // Configuration file without secrets, needs to be readable by validator clients.
-	if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
-		return errors.Wrap(err, "write proposer config file", z.Str("path", path))
+	var config proposerConfigJSON
+	if err := json.Unmarshal(b, &config); err != nil {
+		return false, errors.Wrap(err, "decode proposer config file", z.Str("path", path))
 	}
 
-	return nil
+	return reflect.DeepEqual(config.DefaultConfig.Builder, builderSettings(conf)), nil
 }
 
-// wireProposerConfigFile generates the proposer config file, or updates its builder
-// settings, logging failures instead of returning them so it never prevents duties.
+// wireProposerConfigFile generates the proposer config file, or warns if the builder settings of
+// an existing one differ from the builder flags, logging failures instead of returning them so
+// generation never prevents duties.
 func wireProposerConfigFile(ctx context.Context, conf Config, lock *cluster.Lock, nodeIdx cluster.NodeIdx,
 	feeRecipientFunc func(core.PubKey) string, gasLimitFunc func(core.PubKey) uint64,
 ) {
@@ -302,20 +271,25 @@ func wireProposerConfigFile(ctx context.Context, conf Config, lock *cluster.Lock
 		return
 	}
 
-	result, err := writeProposerConfigFile(conf, lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	created, err := writeProposerConfigFile(conf, lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
 	if err != nil {
 		log.Error(ctx, "Failed generating proposer config file, VC proposer settings must be configured manually", err)
 		return
 	}
 
-	path := z.Str("path", filepath.Join(filepath.Dir(conf.LockFile), proposerConfigDir, proposerConfigFilename))
+	path := filepath.Join(filepath.Dir(conf.LockFile), proposerConfigDir, proposerConfigFilename)
 
-	switch result {
-	case proposerConfigCreated:
-		log.Info(ctx, "Generated proposer config file for validator clients", path)
-	case proposerConfigBuilderUpdated:
-		log.Info(ctx, "Updated builder settings of the proposer config file for validator clients", path)
-	default:
-		// Unchanged.
+	if created {
+		log.Info(ctx, "Generated proposer config file for validator clients", z.Str("path", path))
+		return
+	}
+
+	// The builder flags only seed a new file, the cluster changes builders together.
+	matches, err := proposerConfigBuilderMatches(conf, path)
+	if err != nil {
+		log.Warn(ctx, "Failed checking builder settings of the proposer config file", err)
+	} else if !matches {
+		log.Warn(ctx, "Builder flags differ from the proposer config file and only apply to a new file, "+
+			"change its builders with `charon proposerconfig edit` in sync with the other peers", nil, z.Str("path", path))
 	}
 }
