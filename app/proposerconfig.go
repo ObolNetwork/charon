@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
+	"slices"
 	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -257,7 +257,19 @@ func proposerConfigBuilderMatches(conf Config, path string) (bool, error) {
 		return false, errors.Wrap(err, "decode proposer config file", z.Str("path", path))
 	}
 
-	return reflect.DeepEqual(config.DefaultConfig.Builder, builderSettings(conf)), nil
+	return builderSettingsEqual(config.DefaultConfig.Builder, builderSettings(conf)), nil
+}
+
+// builderSettingsEqual returns whether both builder settings are absent, or equal.
+func builderSettingsEqual(a, b *builderSettingsJSON) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+
+	return a.MinBid == b.MinBid &&
+		a.BuilderBoostFactor == b.BuilderBoostFactor &&
+		a.MaxExecutionPayment == b.MaxExecutionPayment &&
+		slices.Equal(a.Builders, b.Builders)
 }
 
 // wireProposerConfigFile generates the proposer config file, or warns if the builder settings of
