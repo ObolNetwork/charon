@@ -523,9 +523,11 @@ func (c Component) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProposalO
 		return nil, err
 	}
 
+	// The inline builder request auths are optional, so failing to forward them doesn't fail the proposal.
 	if opts.BuilderConfig != nil {
-		if err := c.submitInlineBuilderRequestAuths(ctx, opts.Slot, opts.BuilderConfig); err != nil {
-			return nil, err
+		err := c.submitInlineBuilderRequestAuths(ctx, opts.Slot, opts.BuilderConfig)
+		if err != nil {
+			log.Warn(ctx, "Inline builder request auths not forwarded for aggregation", err, z.U64("slot", uint64(opts.Slot)))
 		}
 	}
 

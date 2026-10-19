@@ -3730,4 +3730,20 @@ func TestComponent_EPBSProposalBuilderRequestAuths(t *testing.T) {
 		{pubkey: core.NewPartialSignedBuilderRequestAuth(authA, shareIdx)},
 		{pubkey: core.NewPartialSignedBuilderRequestAuth(authB, shareIdx)},
 	}, submitted)
+
+	// The inline auths are optional, so a subscriber failing on them doesn't fail the proposal.
+	component.Subscribe(func(_ context.Context, duty core.Duty, _ core.ParSignedDataSet) error {
+		if duty.Type == core.DutyBuilderPreferences {
+			return errors.New("subscriber error")
+		}
+
+		return nil
+	})
+
+	_, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:          slot,
+		RandaoReveal:  testutil.RandomEth2Signature(),
+		BuilderConfig: &gloas.BuilderConfig{Builders: []*gloas.BuilderEntry{{URL: []byte("https://relay-a.example.com"), Auth: authA}}},
+	})
+	require.NoError(t, err)
 }
