@@ -118,8 +118,8 @@ charon/                # project root
     - `exit`: Sign and broadcast validator exits (`sign`, `broadcast`, `fetch`, `delete`, `active-validator-list`)
     - `deposit`: Sign and fetch deposit data (`sign`, `fetch`)
     - `feerecipient`: Sign, fetch and list fee recipient changes (`sign`, `fetch`, `list`)
+    - `edit`: Edit an existing cluster (`add-validators`, `add-operators`, `remove-operators`, `replace-operator`, `recreate-private-keys`)
     - `alpha`: Early access to in-development features
-      - `edit`: Edit an existing cluster (`add-validators`, `add-operators`, `remove-operators`, `replace-operator`, `recreate-private-keys`)
       - `test`: Test charon setup (`all`, `peers`, `beacon`, `validator`, `mev`, `infra`)
     - `unsafe run`: Runs the charon node with unsafe test options
   - Defines and parses [viper](https://github.com/spf13/viper) configuration parameters for required by each command.

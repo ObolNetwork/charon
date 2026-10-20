@@ -48,14 +48,14 @@ func New() *cobra.Command {
 			newCreateClusterCmd(runCreateCluster),
 		),
 		newCombineCmd(newCombineFunc),
+		newEditCmd(
+			newAddValidatorsCmd(runAddValidators),
+			newRecreatePrivateKeysCmd(runRecreatePrivateKeys),
+			newAddOperatorsCmd(runAddOperators),
+			newRemoveOperatorsCmd(runRemoveOperators),
+			newReplaceOperatorCmd(runReplaceOperator),
+		),
 		newAlphaCmd(
-			newEditCmd(
-				newAddValidatorsCmd(runAddValidators),
-				newRecreatePrivateKeysCmd(runRecreatePrivateKeys),
-				newAddOperatorsCmd(runAddOperators),
-				newRemoveOperatorsCmd(runRemoveOperators),
-				newReplaceOperatorCmd(runReplaceOperator),
-			),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
 				newTestPeersCmd(runTestPeers),
