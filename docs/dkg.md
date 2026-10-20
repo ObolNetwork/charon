@@ -70,7 +70,7 @@ No user input is required, charon does the work and outputs the following files 
 
 ### Interruptions and restarts during a ceremony
 
-A DKG ceremony (including `dkg` and the `edit` add/remove/replace-operator and reshare
+A DKG ceremony (including `dkg` and the `alpha edit` add/remove/replace-operator and reshare
 ceremonies) holds per-ceremony state in memory on every participating node. A charon process
 that stops or restarts mid-ceremony cannot rejoin the run in progress: the remaining peers
 detect the restart and abort with an error instructing all operators to restart the ceremony.
