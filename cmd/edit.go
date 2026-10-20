@@ -17,3 +17,16 @@ func newEditCmd(cmds ...*cobra.Command) *cobra.Command {
 
 	return root
 }
+
+// newAlphaEditCmd returns the hidden, deprecated `charon alpha edit` alias of `charon edit`.
+func newAlphaEditCmd(cmds ...*cobra.Command) *cobra.Command {
+	root := newEditCmd(cmds...)
+	root.Hidden = true
+	root.Deprecated = "use 'charon edit' instead"
+
+	for _, cmd := range cmds {
+		cmd.Deprecated = "use 'charon edit " + cmd.Name() + "' instead"
+	}
+
+	return root
+}

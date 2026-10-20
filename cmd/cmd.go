@@ -36,6 +36,16 @@ const (
 
 // New returns a new root cobra command that handles our command line tool.
 func New() *cobra.Command {
+	editCmds := func() []*cobra.Command {
+		return []*cobra.Command{
+			newAddValidatorsCmd(runAddValidators),
+			newRecreatePrivateKeysCmd(runRecreatePrivateKeys),
+			newAddOperatorsCmd(runAddOperators),
+			newRemoveOperatorsCmd(runRemoveOperators),
+			newReplaceOperatorCmd(runReplaceOperator),
+		}
+	}
+
 	return newRootCmd(
 		newVersionCmd(runVersionCmd),
 		newEnrCmd(runNewENR),
@@ -48,14 +58,9 @@ func New() *cobra.Command {
 			newCreateClusterCmd(runCreateCluster),
 		),
 		newCombineCmd(newCombineFunc),
-		newEditCmd(
-			newAddValidatorsCmd(runAddValidators),
-			newRecreatePrivateKeysCmd(runRecreatePrivateKeys),
-			newAddOperatorsCmd(runAddOperators),
-			newRemoveOperatorsCmd(runRemoveOperators),
-			newReplaceOperatorCmd(runReplaceOperator),
-		),
+		newEditCmd(editCmds()...),
 		newAlphaCmd(
+			newAlphaEditCmd(editCmds()...),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
 				newTestPeersCmd(runTestPeers),
