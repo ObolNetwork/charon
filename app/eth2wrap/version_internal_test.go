@@ -59,18 +59,18 @@ func TestCheckBeaconNodeVersionStatus(t *testing.T) {
 	minGrandineVersion, _ = version.Parse("v1.1.0")
 
 	minimumBeaconNodeVersion = map[string]version.SemVer{
-		"Lighthouse": minLighthouseVersion,
-		"teku":       minTekuVersion,
-		"Lodestar":   minLodestarVersion,
-		"Nimbus":     minNimbusVersion,
-		"Prysm":      minPrysmVersion,
-		"Grandine":   minGrandineVersion,
+		clientLighthouse: minLighthouseVersion,
+		clientTeku:       minTekuVersion,
+		clientLodestar:   minLodestarVersion,
+		clientNimbus:     minNimbusVersion,
+		clientPrysm:      minPrysmVersion,
+		clientGrandine:   minGrandineVersion,
 	}
 
 	incompatibleLighthouseVersion, _ := version.Parse("v7.0.3")
 
 	incompatibleBeaconNodeVersion = map[string][]version.SemVer{
-		"Lighthouse": {incompatibleLighthouseVersion},
+		clientLighthouse: {incompatibleLighthouseVersion},
 	}
 
 	for _, tc := range cases {

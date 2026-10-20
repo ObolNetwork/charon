@@ -83,6 +83,10 @@ type event struct {
 
 	// parSig is an optional field only set by validatorAPI, parSigDBInternal and parSigExReceive events.
 	parSig *core.ParSignedData
+
+	// noPayload is set by consensus and dutyDB events for payload attestation data without a
+	// payload to attest, i.e. the cluster agreed there is nothing to perform for the duty.
+	noPayload bool
 }
 
 // Tracker represents the step that listens to events from core workflow steps.
@@ -108,10 +112,34 @@ type Tracker struct {
 
 	// participationReporter instruments duty peer participation.
 	participationReporter func(ctx context.Context, duty core.Duty, failed bool, participatedShares map[int]int, unexpectedPeers map[int]int, expectedPerPeer int)
+
+	// builderAuthReporter instruments the builder request auths of each peer by builder.
+	builderAuthReporter func(duty core.Duty, events []event)
+}
+
+// Option configures a Tracker.
+type Option func(*options)
+
+// options are the optional Tracker settings.
+type options struct {
+	builderHosts []string
+}
+
+// WithBuilderHosts sets the hosts of the builders configured on this node, by which the builder
+// request auths of each peer are counted.
+func WithBuilderHosts(hosts []string) Option {
+	return func(o *options) {
+		o.builderHosts = hosts
+	}
 }
 
 // New returns a new Tracker. The deleter deadliner must return well after analyser deadliner since duties of the same slot are often analysed together.
-func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, fromSlot uint64) *Tracker {
+func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, fromSlot uint64, opts ...Option) *Tracker {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	t := &Tracker{
 		input:                 make(chan event),
 		events:                make(map[core.Duty][]event),
@@ -122,6 +150,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 		parSigReporter:        reportParSigs,
 		failedDutyReporter:    newFailedDutyReporter(),
 		participationReporter: newParticipationReporter(peers),
+		builderAuthReporter:   newBuilderAuthReporter(peers, o.builderHosts),
 	}
 
 	return t
@@ -174,6 +203,8 @@ func (t *Tracker) Run(ctx context.Context) error {
 			// Analyse peer participation
 			participatedShares, unexpectedShares, expectedPerPeer := analyseParticipation(duty, t.events)
 			t.participationReporter(ctx, duty, failed, participatedShares, unexpectedShares, expectedPerPeer)
+
+			t.builderAuthReporter(duty, t.events[duty])
 		case duty := <-t.deleter.C():
 			delete(t.events, duty)
 		}
@@ -262,6 +293,12 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 		return false, failedStep, reason{}, nil
 	}
 
+	// The cluster agreed there is no payload to attest, so there is nothing to perform:
+	// a no-op duty reported like other no-op duties (step fetcher, not expected to be performed).
+	if failedStep == dutyDB && failedErr == nil && storedNoPayload(allEvents[duty]) {
+		return false, fetcher, reason{}, nil
+	}
+
 	reason := reasonUnknown
 
 	switch failedStep {
@@ -289,13 +326,20 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 			return true, parSigDBExternal, reasonBugParSigDBExternal, failedErr
 		}
 
-		if msgRootConsistent {
+		// A proposer authorizes several builders for the same slot, so builder request auths
+		// legitimately carry different message roots for the same duty and pubkey.
+		if msgRootConsistent || duty.Type == core.DutyBuilderPreferences {
 			reason = reasonInsufficientPeerSignatures
 		} else {
 			reason = reasonBugParSigDBInconsistent
 			// Sync committee duties skip consensus, so inconsistent partial signatures are expected, not a bug.
 			if duty.Type == core.DutySyncMessage || duty.Type == core.DutySyncContribution {
 				reason = reasonParSigDBInconsistentSync
+			}
+			// Proposer preferences also skip consensus and legitimately diverge on a reorg
+			// (changed dependent root) or a staggered fee recipient or gas limit change.
+			if duty.Type == core.DutyProposerPreferences {
+				reason = reasonParSigDBInconsistentPreferences
 			}
 		}
 	case sigAgg:
@@ -325,16 +369,35 @@ func analyseDutyFailed(duty core.Duty, allEvents map[core.Duty][]event, msgRootC
 	return true, failedStep, reason, failedErr
 }
 
+// storedNoPayload returns true if the dutyDB stored payload attestation data without a payload
+// to attest for the duty.
+func storedNoPayload(events []event) bool {
+	for _, e := range events {
+		if e.step == dutyDB && e.noPayload && e.stepErr == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// noPayload returns true if the unsigned data is payload attestation data without a payload to attest.
+func noPayload(data core.UnsignedData) bool {
+	ptc, ok := data.(core.VersionedPayloadAttestationData)
+
+	return ok && ptc.NoPayload
+}
+
 // analyseFetcherFailed returns whether the duty that got stuck in fetcher actually failed
 // and the reason which might actually be due a pre-requisite duty that failed.
 func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetchErr error) (bool, step, reason, error) {
-	reason := reasonBugFetchError
+	failedReason := reasonBugFetchError
 	// Check for beacon api errors.
 	var eth2Error eth2api.Error
 	if errors.As(fetchErr, &eth2Error) {
-		reason = reasonFetchBNError
+		failedReason = reasonFetchBNError
 	} else if !errors.Is(fetchErr, context.Canceled) && !errors.Is(fetchErr, context.DeadlineExceeded) {
-		reason = reasonBugFetchError
+		failedReason = reasonBugFetchError
 	}
 
 	// Proposer duties depend on randao duty, so check if that was why it failed.
@@ -352,7 +415,7 @@ func analyseFetcherFailed(duty core.Duty, allEvents map[core.Duty][]event, fetch
 		return analyseFetcherFailedSyncContribution(duty, allEvents, fetchErr)
 	}
 
-	return true, fetcher, reason, fetchErr
+	return true, fetcher, failedReason, fetchErr
 }
 
 // analyseFetcherFailedProposer returns the reason behind why proposer duty failed which might actually
@@ -629,11 +692,81 @@ func analyseParticipation(duty core.Duty, allEvents map[core.Duty][]event) (resp
 	return resp, unexpectedShares, pubkeyMapLen
 }
 
+// builderUnknown is the builder label of builder request auths for builders not configured on this node.
+const builderUnknown = "unknown"
+
+// newBuilderAuthReporter returns a reporter counting the partially signed builder request auths of
+// each peer by builder host, so that a peer whose validator client doesn't sign for a configured
+// builder, or still signs for a removed one, stands out. Hosts of builders not configured on this
+// node are counted as unknown, bounding the metric's cardinality.
+func newBuilderAuthReporter(peers []p2p.Peer, builderHosts []string) func(core.Duty, []event) {
+	configured := make(map[string]bool)
+	for _, host := range builderHosts {
+		configured[host] = true
+	}
+
+	peerNames := make(map[int]string)
+	for _, peer := range peers {
+		peerNames[peer.ShareIdx()] = peer.Name
+
+		// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
+		for _, host := range builderHosts {
+			builderRequestAuths.WithLabelValues(peer.Name, host).Add(0)
+		}
+	}
+
+	return func(duty core.Duty, events []event) {
+		if duty.Type != core.DutyBuilderPreferences {
+			return
+		}
+
+		// A peer's auth for a validator and builder is counted once, whichever step reported it.
+		type dedupKey struct {
+			pubkey   core.PubKey
+			shareIdx int
+			builder  string
+		}
+
+		dedup := make(map[dedupKey]bool)
+
+		for _, e := range events {
+			if (e.step != parSigDBInternal && e.step != parSigDBExternal) || e.parSig == nil {
+				continue
+			}
+
+			auth, ok := e.parSig.SignedData.(core.SignedBuilderRequestAuth)
+			if !ok || auth.Message == nil {
+				continue
+			}
+
+			builder := string(auth.Message.Data)
+			if !configured[builder] {
+				builder = builderUnknown
+			}
+
+			key := dedupKey{pubkey: e.pubkey, shareIdx: e.parSig.ShareIdx, builder: builder}
+			if dedup[key] {
+				continue
+			}
+
+			dedup[key] = true
+
+			name, ok := peerNames[e.parSig.ShareIdx]
+			if !ok {
+				continue
+			}
+
+			builderRequestAuths.WithLabelValues(name, builder).Inc()
+		}
+	}
+}
+
 // isParSigEventExpected returns true if a partial signature event is expected for the given duty and pubkey.
 // It basically checks if the duty (or an associated duty) was scheduled.
 func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[core.Duty][]event) bool {
 	// Cannot validate validatorAPI triggered duties that are not linked to locally scheduled duties.
-	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration {
+	if duty.Type == core.DutyExit || duty.Type == core.DutyBuilderRegistration || duty.Type == core.DutyProposerPreferences ||
+		duty.Type == core.DutyBuilderPreferences {
 		return true
 	}
 
@@ -651,6 +784,12 @@ func isParSigEventExpected(duty core.Duty, pubkey core.PubKey, allEvents map[cor
 	// For DutyRandao, check that if DutyProposer or DutyBuilderProposer was scheduled.
 	if duty.Type == core.DutyRandao {
 		return scheduled(core.DutyProposer) || scheduled(core.DutyBuilderProposer)
+	}
+
+	// For DutyExecutionPayloadEnvelope, check that DutyProposer was scheduled: the proposer reveals
+	// the execution payload its block committed to, so the envelope rides on the proposer duty.
+	if duty.Type == core.DutyExecutionPayloadEnvelope {
+		return scheduled(core.DutyProposer)
 	}
 
 	// For DutyPrepareAggregator, check that if DutyAttester was scheduled.
@@ -741,15 +880,16 @@ func (t *Tracker) FetcherFetched(duty core.Duty, set core.DutyDefinitionSet, ste
 
 // ConsensusProposed implements core.Tracker interface.
 func (t *Tracker) ConsensusProposed(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
-	for pubkey := range set {
+	for pubkey, data := range set {
 		select {
 		case <-t.quit:
 			return
 		case t.input <- event{
-			duty:    duty,
-			step:    consensus,
-			pubkey:  pubkey,
-			stepErr: stepErr,
+			duty:      duty,
+			step:      consensus,
+			pubkey:    pubkey,
+			stepErr:   stepErr,
+			noPayload: noPayload(data),
 		}:
 		}
 	}
@@ -757,15 +897,16 @@ func (t *Tracker) ConsensusProposed(duty core.Duty, set core.UnsignedDataSet, st
 
 // DutyDBStored implements core.Tracker interface.
 func (t *Tracker) DutyDBStored(duty core.Duty, set core.UnsignedDataSet, stepErr error) {
-	for pubkey := range set {
+	for pubkey, data := range set {
 		select {
 		case <-t.quit:
 			return
 		case t.input <- event{
-			duty:    duty,
-			step:    dutyDB,
-			pubkey:  pubkey,
-			stepErr: stepErr,
+			duty:      duty,
+			step:      dutyDB,
+			pubkey:    pubkey,
+			stepErr:   stepErr,
+			noPayload: noPayload(data),
 		}:
 		}
 	}
@@ -889,6 +1030,13 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 	// per-slot (all validators share the head root) via a dedicated per-peer metric and log.
 	if duty.Type == core.DutySyncMessage {
 		reportSyncMessageCohorts(ctx, duty, parsigMsgs)
+		return
+	}
+
+	// A proposer authorizes several builders for the same slot with distinct request auths, and
+	// which builder's auth a peer is kept with depends on the event order, so differing message
+	// roots are expected (see analyseDutyFailed).
+	if duty.Type == core.DutyBuilderPreferences {
 		return
 	}
 

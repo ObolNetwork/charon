@@ -145,7 +145,7 @@ func TestPeerInfo(t *testing.T) {
 		}
 
 		peerInfo := peerinfo.NewForT(t, tcpNodes[i], peers, node.Version, node.LockHash, gitCommit, p2p.SendReceive, p2p.RegisterHandler,
-			tickProvider, nowFunc(i), metricSubmitter, true, baseNickname+p2p.PeerName(peers[i]))
+			tickProvider, nowFunc(i), metricSubmitter, true, baseNickname+p2p.PeerName(peers[i]), nil)
 
 		peerInfos = append(peerInfos, peerInfo)
 	}

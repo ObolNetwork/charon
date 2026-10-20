@@ -86,6 +86,7 @@ func TestCmdFlags(t *testing.T) {
 				BuilderRegOverridesFilePath: ".charon/builder_registrations_overrides.json",
 				PublishAddress:              "https://api.obol.tech/v1",
 				PublishTimeout:              5 * time.Minute,
+				BuilderBoostFactor:          100,
 			},
 		},
 		{
@@ -140,6 +141,7 @@ func TestCmdFlags(t *testing.T) {
 				BuilderRegOverridesFilePath: ".charon/builder_registrations_overrides.json",
 				PublishAddress:              "https://api.obol.tech/v1",
 				PublishTimeout:              5 * time.Minute,
+				BuilderBoostFactor:          100,
 				TestConfig: app.TestConfig{
 					P2PFuzz: true,
 				},

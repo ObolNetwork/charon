@@ -32,7 +32,15 @@ const (
 	DomainContributionAndProof        DomainName = "DOMAIN_CONTRIBUTION_AND_PROOF"
 	DomainDeposit                     DomainName = "DOMAIN_DEPOSIT"
 	DomainBlobSidecar                 DomainName = "DOMAIN_BLOB_SIDECAR"
+	DomainPTCAttester                 DomainName = "DOMAIN_PTC_ATTESTER"
+	DomainProposerPreferences         DomainName = "DOMAIN_PROPOSER_PREFERENCES"
+	DomainBeaconBuilder               DomainName = "DOMAIN_BEACON_BUILDER"
+	DomainBuilderRequestAuth          DomainName = "DOMAIN_BUILDER_REQUEST_AUTH"
 )
+
+// builderRequestAuthDomainType is DOMAIN_BUILDER_REQUEST_AUTH as defined by the gloas
+// builder-specs. It is a builder API domain, so most beacon nodes don't publish it in their spec.
+var builderRequestAuthDomainType = eth2p0.DomainType{0x0b, 0x00, 0x00, 0x01}
 
 // GetDomain returns the beacon domain for the provided type.
 func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epoch eth2p0.Epoch) (eth2p0.Domain, error) {
@@ -44,6 +52,10 @@ func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epo
 	spec := resp.Data
 
 	domainType, ok := spec[string(name)]
+	if !ok && name == DomainBuilderRequestAuth {
+		domainType, ok = builderRequestAuthDomainType, true
+	}
+
 	if !ok {
 		return eth2p0.Domain{}, errors.New("domain type not found")
 	}
@@ -58,7 +70,32 @@ func GetDomain(ctx context.Context, eth2Cl eth2wrap.Client, name DomainName, epo
 		return eth2Cl.GenesisDomain(ctx, domainTyped)
 	}
 
+	if name == DomainBuilderRequestAuth {
+		return builderRequestAuthDomain(ctx, eth2Cl, domainTyped)
+	}
+
 	return eth2Cl.Domain(ctx, domainTyped, epoch)
+}
+
+// builderRequestAuthDomain returns the fork-independent builder request auth domain: the genesis
+// fork version and a zero genesis validators root. The go-eth2-client GenesisDomain only uses a
+// zero genesis validators root for DOMAIN_APPLICATION_BUILDER, so it can't be used here.
+func builderRequestAuthDomain(ctx context.Context, eth2Cl eth2wrap.Client, domainType eth2p0.DomainType) (eth2p0.Domain, error) {
+	genesis, err := eth2Cl.Genesis(ctx, &eth2api.GenesisOpts{})
+	if err != nil {
+		return eth2p0.Domain{}, err
+	}
+
+	forkDataRoot, err := (&eth2p0.ForkData{CurrentVersion: genesis.Data.GenesisForkVersion}).HashTreeRoot()
+	if err != nil {
+		return eth2p0.Domain{}, errors.Wrap(err, "hash fork data")
+	}
+
+	var domain eth2p0.Domain
+	copy(domain[:], domainType[:])
+	copy(domain[4:], forkDataRoot[:])
+
+	return domain, nil
 }
 
 // GetDataRoot wraps the signing root with the domain and returns signing data hash tree root.

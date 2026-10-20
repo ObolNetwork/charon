@@ -52,7 +52,12 @@ type Client interface {
     CachedValidatorsProvider
     SetValidatorCache(func(context.Context) (ActiveValidators, CompleteValidators, error))
 		CachedDutiesProvider
-		SetDutiesCache(func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error), func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error), func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.SyncCommitteeDuty, error))
+		SetDutiesCache(
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
+			func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
+		)
 
 		SetForkVersion(forkVersion [4]byte)
 
@@ -112,6 +117,9 @@ type Client interface {
 		"AttestationsSubmitter":                 {Latency: true, Log: false},
 		"AttesterDutiesProvider":                {Latency: true, Log: false},
 		"ProposalProvider":                      {Latency: true, Log: true},
+		"EPBSProposalProvider":                  {Latency: true, Log: true},
+		"ExecutionPayloadEnvelopeSubmitter":     {Latency: true, Log: false},
+		"ExecutionPayloadProvider":              {Latency: true, Log: false},
 		"BeaconBlockRootProvider":               {Latency: false, Log: false},
 		"ProposalSubmitter":                     {Latency: true, Log: false},
 		"BeaconCommitteeSubscriptionsSubmitter": {Latency: true, Log: false},
@@ -120,6 +128,7 @@ type Client interface {
 		"BeaconCommitteesProvider":              {Latency: true, Log: false},
 		"BlindedProposalProvider":               {Latency: true, Log: false},
 		"BlindedProposalSubmitter":              {Latency: true, Log: false},
+		"BuilderPreferencesSubmitter":           {Latency: true, Log: false},
 		"DepositContractProvider":               {Latency: false, Log: false},
 		"DomainProvider":                        {Latency: false, Log: false},
 		"ForkProvider":                          {Latency: true, Log: false},
@@ -132,6 +141,11 @@ type Client interface {
 		"NodeVersionV2Provider":                 {Latency: false, Log: false},
 		"PendingDepositProvider":                {Latency: true, Log: false},
 		"ProposerDutiesProvider":                {Latency: true, Log: false},
+		"ProposerDutiesV2Provider":              {Latency: true, Log: false},
+		"ProposerPreferencesSubmitter":          {Latency: true, Log: false},
+		"PTCDutiesProvider":                     {Latency: true, Log: false},
+		"PayloadAttestationDataProvider":        {Latency: true, Log: false},
+		"PayloadAttestationMessagesSubmitter":   {Latency: true, Log: false},
 		"ProposalPreparationsSubmitter":         {Latency: true, Log: true},
 		"SlotDurationProvider":                  {Latency: false, Log: false},
 		"SlotsPerEpochProvider":                 {Latency: false, Log: false},

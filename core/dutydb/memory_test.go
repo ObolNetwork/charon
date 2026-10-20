@@ -7,18 +7,25 @@ import (
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
 func TestShutdown(t *testing.T) {
@@ -27,7 +34,7 @@ func TestShutdown(t *testing.T) {
 	errChan := make(chan error, 1)
 
 	go func() {
-		_, err := db.AwaitProposal(context.Background(), 999)
+		_, err := db.AwaitVersionedProposal(context.Background(), 999)
 		errChan <- err
 	}()
 
@@ -140,6 +147,53 @@ func TestMemDB(t *testing.T) {
 	require.Equal(t, pubkeysByIdx[vIdxB], pkB)
 }
 
+// TestMemDBGloasPayloadStatusIndex asserts that post-gloas attestation data with the payload
+// status bit set (Data.Index=1) flows through the dutydb unmangled: it is keyed by the duty
+// committee index (and 0), not by Data.Index.
+func TestMemDBGloasPayloadStatusIndex(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const (
+		slot    = 123
+		commIdx = 4
+		valIdx  = 5
+		notZero = 99
+	)
+
+	attData := eth2p0.AttestationData{
+		Slot:   slot,
+		Index:  1, // Payload present in the canonical chain.
+		Source: &eth2p0.Checkpoint{},
+		Target: &eth2p0.Checkpoint{},
+	}
+
+	unsigned := core.AttestationData{
+		Data: attData,
+		Duty: eth2v1.AttesterDuty{
+			Slot:             slot,
+			CommitteeIndex:   commIdx,
+			CommitteeLength:  notZero,
+			CommitteesAtSlot: notZero,
+			ValidatorIndex:   valIdx,
+		},
+	}
+
+	pubkey := testutil.RandomCorePubKey(t)
+	duty := core.Duty{Slot: slot, Type: core.DutyAttester}
+
+	err := db.Store(ctx, duty, core.UnsignedDataSet{pubkey: unsigned})
+	require.NoError(t, err)
+
+	// Served by duty committee index and by the post-electra hardcoded 0, both with the index intact.
+	for _, reqCommIdx := range []uint64{commIdx, 0} {
+		data, err := db.AwaitAttestation(ctx, slot, reqCommIdx)
+		require.NoError(t, err)
+		require.Equal(t, eth2p0.CommitteeIndex(1), data.Index)
+		require.Equal(t, attData.String(), data.String())
+	}
+}
+
 func TestMemDBStoreUnsupported(t *testing.T) {
 	ctx := context.Background()
 	db := dutydb.NewMemDB(new(testDeadliner))
@@ -182,10 +236,10 @@ func TestMemDBProposer(t *testing.T) {
 	for i := range queries {
 		awaitResponse[i] = make(chan response)
 		go func(slot int) {
-			block, err := db.AwaitProposal(ctx, slots[slot])
+			block, err := db.AwaitVersionedProposal(ctx, slots[slot])
 			errCh <- err
 
-			awaitResponse[slot] <- response{block: block}
+			awaitResponse[slot] <- response{block: &block.VersionedProposal}
 		}(i)
 	}
 
@@ -224,6 +278,275 @@ func TestMemDBProposer(t *testing.T) {
 		actualData := <-awaitResponse[i]
 		require.Equal(t, proposals[i], actualData.block)
 	}
+}
+
+func TestMemDBEPBSProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	pubkey := testutil.RandomCorePubKey(t)
+	proposal := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	proposal.EPBS.GloasContents.Block.Slot = slot
+
+	require.NoError(t, db.Store(ctx, core.Duty{Slot: slot, Type: core.DutyProposer}, core.UnsignedDataSet{
+		pubkey: proposal,
+	}))
+
+	got, err := db.AwaitVersionedProposal(ctx, slot)
+	require.NoError(t, err)
+	require.Equal(t, proposal, got)
+}
+
+func TestMemDBPreGloasProposer(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	proposal := &eth2api.VersionedProposal{
+		Version:   eth2spec.DataVersionBellatrix,
+		Bellatrix: testutil.RandomBellatrixBeaconBlock(),
+	}
+	proposal.Bellatrix.Slot = slot
+
+	unsigned, err := core.NewVersionedProposal(proposal)
+	require.NoError(t, err)
+
+	require.NoError(t, db.Store(ctx, core.Duty{Slot: slot, Type: core.DutyProposer}, core.UnsignedDataSet{
+		pubkey: unsigned,
+	}))
+
+	// A pre-gloas proposal is served as stored, in its versioned form.
+	got, err := db.AwaitVersionedProposal(ctx, slot)
+	require.NoError(t, err)
+	require.Equal(t, unsigned, got)
+}
+
+func TestMemDBPayloadContents(t *testing.T) {
+	ctx := context.Background()
+	deadliner := &testDeadliner{ch: make(chan core.Duty, 10)}
+	db := dutydb.NewMemDB(deadliner)
+
+	const slot = 123
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	root, err := contents.Root()
+	require.NoError(t, err)
+
+	agreed, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+
+	// Contents are refused until the proposal of their slot is agreed.
+	err = db.StorePayloadContents(ctx, contents)
+	require.ErrorContains(t, err, "no agreed proposal")
+
+	require.NoError(t, db.Store(ctx, core.NewProposerDuty(slot), core.UnsignedDataSet{pubkey: agreed}))
+
+	// A query waits for the contents.
+	type result struct {
+		contents *eth2api.VersionedEPBSProposal
+		err      error
+	}
+
+	resp := make(chan result, 1)
+
+	go func() {
+		got, err := db.AwaitPayloadContents(ctx, slot, root)
+		resp <- result{contents: got, err: err}
+	}()
+
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	res := <-resp
+	require.NoError(t, res.err)
+	require.Equal(t, contents.EPBS, res.contents)
+
+	// Storing again is idempotent, e.g. a retried share.
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	// Contents of another block of the slot are refused.
+	other := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	other.EPBS.GloasContents.Block.Slot = slot
+
+	err = db.StorePayloadContents(ctx, other)
+	require.ErrorContains(t, err, "block root mismatch")
+
+	// Contents the agreed proposal doesn't commit to are refused.
+	clone, err := contents.Clone()
+	require.NoError(t, err)
+
+	altered, ok := clone.(core.VersionedProposal)
+	require.True(t, ok)
+
+	altered.EPBS.GloasContents.Blobs = append(altered.EPBS.GloasContents.Blobs, deneb.Blob{1})
+
+	err = db.StorePayloadContents(ctx, altered)
+	require.ErrorContains(t, err, "payload contents roots mismatch")
+
+	// A proposal without its execution payload carries no contents.
+	err = db.StorePayloadContents(ctx, agreed)
+	require.ErrorContains(t, err, "no execution payload contents")
+
+	// The contents are deleted with the proposer duty.
+	require.Contains(t, deadliner.added, core.NewProposerDuty(slot))
+	deadliner.expire()
+
+	next := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	next.EPBS.GloasContents.Block.Slot = slot + 1
+
+	nextAgreed, err := core.WithoutPayloadContents(next)
+	require.NoError(t, err)
+	require.NoError(t, db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{pubkey: nextAgreed}))
+
+	ctx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+
+	_, err = db.AwaitPayloadContents(ctx, slot, root)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// TestMemDBProposalRetention verifies, with the retention of the network's slot timing, that an
+// agreed gloas proposal and its payload contents are retained past the proposer duty's submission
+// deadline, the attestation due time, to serve the reveal of the envelope until the end of the slot.
+func TestMemDBProposalRetention(t *testing.T) {
+	ctx := t.Context()
+
+	bmock, err := beaconmock.New(ctx)
+	require.NoError(t, err)
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	forkScheduleFunc := func() eth2wrap.ForkForkSchedule { return forkSchedule }
+
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, bmock, forkScheduleFunc)
+	require.NoError(t, err)
+
+	retentionFunc, err := core.NewDutyRetentionFunc(ctx, bmock, forkScheduleFunc)
+	require.NoError(t, err)
+
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, bmock)
+	require.NoError(t, err)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	// The clock starts at the beginning of the slot, the DutyDB retains duties by the retention.
+	const slot = 123
+
+	clock := clockwork.NewFakeClockAt(genesisTime.Add(slot * slotDuration))
+	db := dutydb.NewMemDB(core.NewDeadlinerForT(ctx, t, retentionFunc, clock))
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	root, err := contents.Root()
+	require.NoError(t, err)
+
+	agreed, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+
+	duty := core.NewProposerDuty(slot)
+
+	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{pubkey: agreed}))
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	submitBy, ok := deadlineFunc(duty)
+	require.True(t, ok)
+
+	retainUntil, ok := retentionFunc(duty)
+	require.True(t, ok)
+	require.True(t, retainUntil.After(submitBy))
+
+	// Past the submission deadline the proposal and its contents are still served and stored:
+	// the envelope is revealed after the block.
+	clock.Advance(submitBy.Sub(clock.Now()) + time.Second)
+
+	gotAgreed, err := db.AwaitVersionedProposal(ctx, slot)
+	require.NoError(t, err)
+	require.Equal(t, agreed, gotAgreed)
+
+	gotContents, err := db.AwaitPayloadContents(ctx, slot, root)
+	require.NoError(t, err)
+	require.Equal(t, contents.EPBS, gotContents)
+
+	require.NoError(t, db.StorePayloadContents(ctx, contents))
+
+	// Past the retention, the end of the slot, both are deleted, which the next store processes.
+	clock.Advance(retainUntil.Sub(clock.Now()) + time.Second)
+
+	next := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	next.EPBS.GloasContents.Block.Slot = slot + 1
+
+	nextAgreed, err := core.WithoutPayloadContents(next)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		err := db.Store(ctx, core.NewProposerDuty(slot+1), core.UnsignedDataSet{pubkey: nextAgreed})
+		if err != nil {
+			return false
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+		defer cancel()
+
+		_, err = db.AwaitVersionedProposal(ctx, slot)
+
+		return errors.Is(err, context.DeadlineExceeded)
+	}, time.Second, 10*time.Millisecond)
+
+	expiredCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer cancel()
+
+	_, err = db.AwaitPayloadContents(expiredCtx, slot, root)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	err = db.StorePayloadContents(ctx, contents)
+	require.ErrorContains(t, err, "no agreed proposal")
+}
+
+func TestMemDBAwaitVersionedProposal(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+	contents.EPBS.GloasContents.Block.Slot = slot
+
+	bare, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+	require.NotEqual(t, core.PayloadContentsRoots{}, bare.PayloadContentsRoots)
+
+	// The query waits for the agreed proposal and returns it with its payload contents roots.
+	type result struct {
+		proposal core.VersionedProposal
+		err      error
+	}
+
+	resultCh := make(chan result, 1)
+
+	go func() {
+		proposal, err := db.AwaitVersionedProposal(ctx, slot)
+		resultCh <- result{proposal: proposal, err: err}
+	}()
+
+	pubkey := testutil.RandomCorePubKey(t)
+	require.NoError(t, db.Store(ctx, core.NewProposerDuty(slot), core.UnsignedDataSet{pubkey: bare}))
+
+	res := <-resultCh
+	require.NoError(t, res.err)
+	require.Equal(t, bare, res.proposal)
 }
 
 func TestMemDBAggregator(t *testing.T) {
@@ -550,4 +873,175 @@ func (d *testDeadliner) expire() {
 	}
 
 	d.added = nil
+}
+
+func TestMemDBPayloadAttestation(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const queries = 3
+
+	slots := [queries]uint64{123, 456, 789}
+
+	type response struct {
+		data *eth2spec.VersionedPayloadAttestationData
+	}
+
+	var awaitResponse [queries]chan response
+
+	errCh := make(chan error, queries)
+	for i := range queries {
+		awaitResponse[i] = make(chan response)
+		go func(i int) {
+			data, _, err := db.AwaitPayloadAttestationData(ctx, slots[i])
+			errCh <- err
+
+			awaitResponse[i] <- response{data: data}
+		}(i)
+	}
+
+	datas := make([]*eth2spec.VersionedPayloadAttestationData, queries)
+	for i := range queries {
+		datas[i] = testutil.RandomVersionedPayloadAttestationData()
+		datas[i].Gloas.Slot = eth2p0.Slot(slots[i])
+	}
+
+	// Store the payload attestation data, with multiple cluster validators
+	// in the PTC for the same slot sharing identical data.
+	for i := range queries {
+		unsigned, err := core.NewVersionedPayloadAttestationData(datas[i])
+		require.NoError(t, err)
+
+		duty := core.Duty{Slot: slots[i], Type: core.DutyPayloadAttestation}
+
+		err = db.Store(ctx, duty, core.UnsignedDataSet{
+			testutil.RandomCorePubKey(t): unsigned,
+			testutil.RandomCorePubKey(t): unsigned,
+		})
+		require.NoError(t, err)
+	}
+
+	for range queries {
+		require.NoError(t, <-errCh)
+	}
+
+	// Get and assert the query responses.
+	for i := range queries {
+		actual := <-awaitResponse[i]
+		require.Equal(t, datas[i], actual.data)
+	}
+
+	// Await after store resolves immediately.
+	data, ok, err := db.AwaitPayloadAttestationData(ctx, slots[0])
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, datas[0], data)
+
+	// Storing identical data for the same slot is idempotent.
+	identical, err := core.NewVersionedPayloadAttestationData(datas[0])
+	require.NoError(t, err)
+
+	err = db.Store(ctx, core.Duty{Slot: slots[0], Type: core.DutyPayloadAttestation}, core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): identical,
+	})
+	require.NoError(t, err)
+
+	// Storing different data for the same slot errors.
+	clashing := testutil.RandomVersionedPayloadAttestationData()
+	clashing.Gloas.Slot = eth2p0.Slot(slots[0])
+	clashing.Gloas.PayloadPresent = !datas[0].Gloas.PayloadPresent
+
+	clashingUnsigned, err := core.NewVersionedPayloadAttestationData(clashing)
+	require.NoError(t, err)
+
+	err = db.Store(ctx, core.Duty{Slot: slots[0], Type: core.DutyPayloadAttestation}, core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): clashingUnsigned,
+	})
+	require.ErrorContains(t, err, "clashing payload attestation data")
+}
+
+func TestMemDBPayloadAttestationNoPayload(t *testing.T) {
+	ctx := context.Background()
+	db := dutydb.NewMemDB(new(testDeadliner))
+
+	const slot = 123
+
+	duty := core.NewPayloadAttestationDuty(slot)
+
+	noPayload, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, slot)
+	require.NoError(t, err)
+
+	// A pending query resolves once the cluster agreed there is no payload to attest for the
+	// slot: no data, no error.
+	type result struct {
+		ok  bool
+		err error
+	}
+
+	resCh := make(chan result, 1)
+
+	go func() {
+		_, ok, err := db.AwaitPayloadAttestationData(ctx, slot)
+		resCh <- result{ok: ok, err: err}
+	}()
+
+	require.NoError(t, db.Store(ctx, duty, core.UnsignedDataSet{
+		testutil.RandomCorePubKey(t): noPayload,
+		testutil.RandomCorePubKey(t): noPayload,
+	}))
+
+	res := <-resCh
+	require.NoError(t, res.err)
+	require.False(t, res.ok)
+
+	// Querying after the store resolves immediately.
+	_, ok, err := db.AwaitPayloadAttestationData(ctx, slot)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// Other slots are unaffected.
+	timeoutCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	defer cancel()
+
+	_, _, err = db.AwaitPayloadAttestationData(timeoutCtx, slot+1)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// The slot is decided: data stored afterwards clashes with the no payload outcome.
+	data := testutil.RandomVersionedPayloadAttestationData()
+	data.Gloas.Slot = slot
+
+	unsigned, err := core.NewVersionedPayloadAttestationData(data)
+	require.NoError(t, err)
+
+	err = db.Store(ctx, duty, core.UnsignedDataSet{testutil.RandomCorePubKey(t): unsigned})
+	require.ErrorContains(t, err, "clashing payload attestation data")
+
+	_, ok, err = db.AwaitPayloadAttestationData(ctx, slot)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// Likewise no payload clashes with data already stored for a slot, even with the same
+	// spec fields, since the flag differs.
+	const dataSlot = slot + 2
+
+	dataDuty := core.NewPayloadAttestationDuty(dataSlot)
+
+	stored, err := core.NewVersionedPayloadAttestationData(&eth2spec.VersionedPayloadAttestationData{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   &gloas.PayloadAttestationData{Slot: dataSlot},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, db.Store(ctx, dataDuty, core.UnsignedDataSet{testutil.RandomCorePubKey(t): stored}))
+
+	noPayload, err = core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, dataSlot)
+	require.NoError(t, err)
+
+	err = db.Store(ctx, dataDuty, core.UnsignedDataSet{testutil.RandomCorePubKey(t): noPayload})
+	require.ErrorContains(t, err, "clashing payload attestation data")
+
+	actual, ok, err := db.AwaitPayloadAttestationData(ctx, dataSlot)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, &stored.VersionedPayloadAttestationData, actual)
 }

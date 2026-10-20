@@ -14,13 +14,14 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2v1gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
@@ -28,6 +29,11 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
+)
+
+type (
+	sszMarshaler   interface{ MarshalSSZ() ([]byte, error) }
+	sszUnmarshaler interface{ UnmarshalSSZ([]byte) error }
 )
 
 var (
@@ -44,22 +50,33 @@ var (
 	_ SignedData = SyncContributionAndProof{}
 	_ SignedData = SignedSyncContributionAndProof{}
 	_ SignedData = SyncCommitteeSelection{}
+	_ SignedData = VersionedPayloadAttestationMessage{}
+	_ SignedData = SignedProposerPreferences{}
+	_ SignedData = SignedBuilderRequestAuth{}
+	_ SignedData = SignedExecutionPayloadEnvelope{}
 
 	// Some types support SSZ marshalling and unmarshalling.
-	_ ssz.Marshaler   = VersionedSignedProposal{}
-	_ ssz.Marshaler   = VersionedAttestation{}
-	_ ssz.Marshaler   = SignedAggregateAndProof{}
-	_ ssz.Marshaler   = VersionedSignedAggregateAndProof{}
-	_ ssz.Marshaler   = SignedSyncMessage{}
-	_ ssz.Marshaler   = SyncContributionAndProof{}
-	_ ssz.Marshaler   = SignedSyncContributionAndProof{}
-	_ ssz.Unmarshaler = new(VersionedSignedProposal)
-	_ ssz.Unmarshaler = new(VersionedAttestation)
-	_ ssz.Unmarshaler = new(SignedAggregateAndProof)
-	_ ssz.Unmarshaler = new(VersionedSignedAggregateAndProof)
-	_ ssz.Unmarshaler = new(SignedSyncMessage)
-	_ ssz.Unmarshaler = new(SyncContributionAndProof)
-	_ ssz.Unmarshaler = new(SignedSyncContributionAndProof)
+	_ sszMarshaler   = VersionedSignedProposal{}
+	_ sszMarshaler   = VersionedAttestation{}
+	_ sszMarshaler   = SignedAggregateAndProof{}
+	_ sszMarshaler   = VersionedSignedAggregateAndProof{}
+	_ sszMarshaler   = SignedSyncMessage{}
+	_ sszMarshaler   = SyncContributionAndProof{}
+	_ sszMarshaler   = SignedSyncContributionAndProof{}
+	_ sszMarshaler   = VersionedPayloadAttestationMessage{}
+	_ sszMarshaler   = SignedProposerPreferences{}
+	_ sszMarshaler   = SignedBuilderRequestAuth{}
+	_ sszMarshaler   = SignedExecutionPayloadEnvelope{}
+	_ sszUnmarshaler = new(VersionedSignedProposal)
+	_ sszUnmarshaler = new(VersionedAttestation)
+	_ sszUnmarshaler = new(SignedAggregateAndProof)
+	_ sszUnmarshaler = new(VersionedSignedAggregateAndProof)
+	_ sszUnmarshaler = new(SignedSyncMessage)
+	_ sszUnmarshaler = new(SyncContributionAndProof)
+	_ sszUnmarshaler = new(SignedSyncContributionAndProof)
+	_ sszUnmarshaler = new(VersionedPayloadAttestationMessage)
+	_ sszUnmarshaler = new(SignedProposerPreferences)
+	_ sszUnmarshaler = new(SignedBuilderRequestAuth)
 )
 
 // SigFromETH2 returns a new signature from eth2 phase0 BLSSignature.
@@ -185,6 +202,16 @@ func NewVersionedSignedProposal(proposal *eth2api.VersionedSignedProposal) (Vers
 		if proposal.FuluBlinded == nil && proposal.Blinded {
 			return VersionedSignedProposal{}, errors.New("no fulu blinded proposal")
 		}
+	case eth2spec.DataVersionGloas:
+		// Gloas blocks carry a builder bid instead of an execution payload, the
+		// blinded/full split does not exist from the gloas fork onwards.
+		if proposal.Blinded {
+			return VersionedSignedProposal{}, errors.New("gloas proposals do not support blinding")
+		}
+
+		if proposal.Gloas == nil {
+			return VersionedSignedProposal{}, errors.New("no gloas proposal")
+		}
 	default:
 		return VersionedSignedProposal{}, errors.New("unknown version")
 	}
@@ -262,6 +289,20 @@ func (p VersionedSignedProposal) ToBlinded() (eth2api.VersionedSignedBlindedProp
 	}, nil
 }
 
+// EPBSBid returns the execution payload bid the signed gloas proposal's beacon block commits to.
+func (p VersionedSignedProposal) EPBSBid() (*gloas.ExecutionPayloadBid, error) {
+	if p.Version != eth2spec.DataVersionGloas {
+		return nil, errors.New("not a gloas proposal", z.Str("version", p.Version.String()))
+	}
+
+	if p.Gloas == nil || p.Gloas.Message == nil || p.Gloas.Message.Body == nil ||
+		p.Gloas.Message.Body.SignedExecutionPayloadBid == nil || p.Gloas.Message.Body.SignedExecutionPayloadBid.Message == nil {
+		return nil, errors.New("no gloas block execution payload bid")
+	}
+
+	return p.Gloas.Message.Body.SignedExecutionPayloadBid.Message, nil
+}
+
 func (p VersionedSignedProposal) Signature() Signature {
 	switch p.Version {
 	// No block nil checks since `NewVersionedSignedBeaconBlock` assumed.
@@ -299,6 +340,8 @@ func (p VersionedSignedProposal) Signature() Signature {
 		}
 
 		return SigFromETH2(p.Fulu.SignedBlock.Signature)
+	case eth2spec.DataVersionGloas:
+		return SigFromETH2(p.Gloas.Signature)
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -346,6 +389,8 @@ func (p VersionedSignedProposal) SetSignature(sig Signature) (SignedData, error)
 		} else {
 			resp.Fulu.SignedBlock.Signature = sig.ToETH2()
 		}
+	case eth2spec.DataVersionGloas:
+		resp.Gloas.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown type")
 	}
@@ -395,6 +440,8 @@ func (p VersionedSignedProposal) MessageRoot() ([32]byte, error) {
 		}
 
 		return p.Fulu.SignedBlock.Message.HashTreeRoot()
+	case eth2spec.DataVersionGloas:
+		return p.Gloas.Message.HashTreeRoot()
 	default:
 		panic("unknown version") // Note this is avoided by using `NewVersionedSignedProposal`.
 	}
@@ -456,6 +503,8 @@ func (p VersionedSignedProposal) MarshalJSON() ([]byte, error) {
 		} else {
 			marshaller = p.Fulu
 		}
+	case eth2spec.DataVersionGloas:
+		marshaller = p.Gloas
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -584,6 +633,17 @@ func (p *VersionedSignedProposal) UnmarshalJSON(input []byte) error {
 
 			resp.Fulu = block
 		}
+	case eth2spec.DataVersionGloas:
+		if raw.Blinded {
+			return errors.New("gloas proposals do not support blinding")
+		}
+
+		block := new(gloas.SignedBeaconBlock)
+		if err := json.Unmarshal(raw.Block, &block); err != nil {
+			return errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = block
 	default:
 		return errors.New("unknown version")
 	}
@@ -600,6 +660,20 @@ type versionedRawBlockJSON struct {
 	Version eth2util.DataVersion `json:"version"`
 	Block   json.RawMessage      `json:"block"`
 	Blinded bool                 `json:"blinded,omitempty"`
+	// ExecutionPayloadIncluded discriminates the two arms of a gloas EPBS proposal,
+	// which the pre-gloas blinded flag does not apply to. Nil for other versions.
+	ExecutionPayloadIncluded *bool `json:"execution_payload_included,omitempty"`
+	// PayloadContentsRoots commit to the execution payload contents of a self-built gloas
+	// proposal agreed without them, see VersionedProposal. Nil when zero.
+	PayloadContentsRoots *payloadContentsRootsJSON `json:"payload_contents_roots,omitempty"`
+	// BuilderURL is the direct builder of a gloas proposal, see VersionedProposal. Gloas only.
+	BuilderURL string `json:"builder_url,omitempty"`
+}
+
+// payloadContentsRootsJSON is the JSON form of PayloadContentsRoots.
+type payloadContentsRootsJSON struct {
+	Envelope eth2p0.Root `json:"envelope"`
+	Blobs    eth2p0.Root `json:"blobs"`
 }
 
 // NewVersionedAttestation is a convenience function that returns a new wrapped attestation.
@@ -632,6 +706,10 @@ func NewVersionedAttestation(att *eth2spec.VersionedAttestation) (VersionedAttes
 	case eth2spec.DataVersionFulu:
 		if att.Fulu == nil {
 			return VersionedAttestation{}, errors.New("no fulu attestation")
+		}
+	case eth2spec.DataVersionGloas:
+		if att.Gloas == nil {
+			return VersionedAttestation{}, errors.New("no gloas attestation")
 		}
 	default:
 		return VersionedAttestation{}, errors.New("unknown version")
@@ -730,6 +808,8 @@ func (a VersionedAttestation) SetSignature(sig Signature) (SignedData, error) {
 		resp.Electra.Signature = sig.ToETH2()
 	case eth2spec.DataVersionFulu:
 		resp.Fulu.Signature = sig.ToETH2()
+	case eth2spec.DataVersionGloas:
+		resp.Gloas.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -759,6 +839,8 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 		marshaller = a.Electra
 	case eth2spec.DataVersionFulu:
 		marshaller = a.Fulu
+	case eth2spec.DataVersionGloas:
+		marshaller = a.Gloas
 	default:
 		return nil, errors.New("unknown attestation version", z.Str("version", a.Version.String()))
 	}
@@ -785,10 +867,11 @@ func (a VersionedAttestation) MarshalJSON() ([]byte, error) {
 	return resp, nil
 }
 
-func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
+// unmarshalVersionedAttestationJSON unmarshals a versionedRawAttestationJSON envelope into a versioned attestation.
+func unmarshalVersionedAttestationJSON(input []byte) (eth2spec.VersionedAttestation, error) {
 	var raw versionedRawAttestationJSON
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal attestation")
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal attestation")
 	}
 
 	resp := eth2spec.VersionedAttestation{Version: raw.Version.ToETH2()}
@@ -798,7 +881,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal phase0")
 		}
 
 		resp.Phase0 = att
@@ -807,7 +890,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal altair")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal altair")
 		}
 
 		resp.Altair = att
@@ -816,7 +899,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal bellatrix")
 		}
 
 		resp.Bellatrix = att
@@ -825,7 +908,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal capella")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal capella")
 		}
 
 		resp.Capella = att
@@ -834,7 +917,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal deneb")
 		}
 
 		resp.Deneb = att
@@ -843,7 +926,7 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal electra")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal electra")
 		}
 
 		resp.Electra = att
@@ -852,15 +935,33 @@ func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
 
 		err := json.Unmarshal(raw.Attestation, &att)
 		if err != nil {
-			return errors.Wrap(err, "unmarshal fulu")
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal fulu")
 		}
 
 		resp.Fulu = att
+	case eth2spec.DataVersionGloas:
+		att := new(gloas.Attestation)
+
+		err := json.Unmarshal(raw.Attestation, &att)
+		if err != nil {
+			return eth2spec.VersionedAttestation{}, errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = att
 	default:
-		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
+		return eth2spec.VersionedAttestation{}, errors.New("unknown attestation version", z.Str("version", resp.Version.String()))
 	}
 
 	resp.ValidatorIndex = raw.ValidatorIndex
+
+	return resp, nil
+}
+
+func (a *VersionedAttestation) UnmarshalJSON(b []byte) error {
+	resp, err := unmarshalVersionedAttestationJSON(b)
+	if err != nil {
+		return err
+	}
 
 	a.VersionedAttestation = resp
 
@@ -1436,6 +1537,12 @@ func (ap VersionedSignedAggregateAndProof) MessageRoot() ([32]byte, error) {
 		}
 
 		return ap.Fulu.Message.HashTreeRoot()
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return [32]byte{}, errors.New("unmarshal gloas")
+		}
+
+		return ap.Gloas.Message.HashTreeRoot()
 	default:
 		return [32]byte{}, errors.New("unknown version")
 	}
@@ -1485,6 +1592,12 @@ func (ap VersionedSignedAggregateAndProof) Signature() Signature {
 		}
 
 		return SigFromETH2(ap.Fulu.Signature)
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return Signature{}
+		}
+
+		return SigFromETH2(ap.Gloas.Signature)
 	default:
 		return Signature{}
 	}
@@ -1539,6 +1652,12 @@ func (ap VersionedSignedAggregateAndProof) SetSignature(sig Signature) (SignedDa
 		}
 
 		resp.Fulu.Signature = sig.ToETH2()
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return nil, errors.New("unmarshal gloas")
+		}
+
+		resp.Gloas.Signature = sig.ToETH2()
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -1583,6 +1702,8 @@ func (ap VersionedSignedAggregateAndProof) MarshalJSON() ([]byte, error) {
 		marshaller = ap.Electra
 	case eth2spec.DataVersionFulu:
 		marshaller = ap.Fulu
+	case eth2spec.DataVersionGloas:
+		marshaller = ap.Gloas
 	default:
 		return nil, errors.New("unknown signedAggregateAndProof version", z.Str("version", ap.Version.String()))
 	}
@@ -1665,6 +1786,13 @@ func (ap *VersionedSignedAggregateAndProof) UnmarshalJSON(input []byte) error {
 		}
 
 		resp.Fulu = aggregateAndProof
+	case eth2spec.DataVersionGloas:
+		aggregateAndProof := new(gloas.SignedAggregateAndProof)
+		if err := json.Unmarshal(raw.AggregateAndProof, &aggregateAndProof); err != nil {
+			return errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = aggregateAndProof
 	default:
 		return errors.New("unknown version")
 	}
@@ -1718,6 +1846,12 @@ func (ap VersionedSignedAggregateAndProof) Data() *eth2p0.AttestationData {
 		}
 
 		return ap.Fulu.Message.Aggregate.Data
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return nil
+		}
+
+		return ap.Gloas.Message.Aggregate.Data
 	default:
 		return nil
 	}
@@ -1767,6 +1901,12 @@ func (ap VersionedSignedAggregateAndProof) AggregationBits() bitfield.Bitlist {
 		}
 
 		return ap.Fulu.Message.Aggregate.AggregationBits
+	case eth2spec.DataVersionGloas:
+		if ap.Gloas == nil {
+			return nil
+		}
+
+		return ap.Gloas.Message.Aggregate.AggregationBits
 	default:
 		return nil
 	}
@@ -2046,7 +2186,7 @@ func cloneJSONMarshaler(data json.Marshaler, v any) error {
 
 // cloneSSZMarshaler clones the marshaler by serialising to-from ssz
 // since eth2 types contain pointers. The result is stored in the value pointed to by v.
-func cloneSSZMarshaler(data ssz.Marshaler, v ssz.Unmarshaler) error {
+func cloneSSZMarshaler(data sszMarshaler, v sszUnmarshaler) error {
 	bytes, err := data.MarshalSSZ()
 	if err != nil {
 		return errors.Wrap(err, "marshal data")
@@ -2057,4 +2197,432 @@ func cloneSSZMarshaler(data ssz.Marshaler, v ssz.Unmarshaler) error {
 	}
 
 	return nil
+}
+
+// PayloadAttestationMessage: https://github.com/ethereum/consensus-specs/blob/dev/specs/gloas/beacon-chain.md#payloadattestationmessage.
+
+// NewVersionedPayloadAttestationMessage validates and returns a new wrapped VersionedPayloadAttestationMessage.
+func NewVersionedPayloadAttestationMessage(msg *eth2spec.VersionedPayloadAttestationMessage) (VersionedPayloadAttestationMessage, error) {
+	switch msg.Version {
+	case eth2spec.DataVersionGloas:
+		if msg.Gloas == nil {
+			return VersionedPayloadAttestationMessage{}, errors.New("no gloas payload attestation message")
+		}
+
+		if msg.Gloas.Data == nil {
+			return VersionedPayloadAttestationMessage{}, errors.New("no payload attestation data")
+		}
+	default:
+		return VersionedPayloadAttestationMessage{}, errors.New("unknown version")
+	}
+
+	return VersionedPayloadAttestationMessage{VersionedPayloadAttestationMessage: *msg}, nil
+}
+
+// NewPartialVersionedPayloadAttestationMessage is a convenience function which returns a new partially signed VersionedPayloadAttestationMessage.
+func NewPartialVersionedPayloadAttestationMessage(msg *eth2spec.VersionedPayloadAttestationMessage, shareIdx int) (ParSignedData, error) {
+	wrap, err := NewVersionedPayloadAttestationMessage(msg)
+	if err != nil {
+		return ParSignedData{}, err
+	}
+
+	return ParSignedData{
+		SignedData: wrap,
+		ShareIdx:   shareIdx,
+	}, nil
+}
+
+// VersionedPayloadAttestationMessage wraps a versioned payload attestation message and implements SignedData.
+type VersionedPayloadAttestationMessage struct {
+	eth2spec.VersionedPayloadAttestationMessage
+}
+
+// MessageRoot returns the hash tree root of the payload attestation data.
+// PTC members sign only the data; the validator index is not part of the signed message.
+func (m VersionedPayloadAttestationMessage) MessageRoot() ([32]byte, error) {
+	data, err := m.Data()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "get payload attestation data")
+	}
+
+	root, err := data.HashTreeRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "hash payload attestation data")
+	}
+
+	return root, nil
+}
+
+func (m VersionedPayloadAttestationMessage) Signature() Signature {
+	switch m.Version {
+	// No nil checks since `NewVersionedPayloadAttestationMessage` assumed.
+	case eth2spec.DataVersionGloas:
+		return SigFromETH2(m.Gloas.Signature)
+	default:
+		return Signature{}
+	}
+}
+
+func (m VersionedPayloadAttestationMessage) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := m.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	switch m.Version {
+	// No nil checks since `NewVersionedPayloadAttestationMessage` assumed.
+	case eth2spec.DataVersionGloas:
+		resp.Gloas.Signature = sig.ToETH2()
+	default:
+		return nil, errors.New("unknown version")
+	}
+
+	return resp, nil
+}
+
+func (m VersionedPayloadAttestationMessage) Clone() (SignedData, error) {
+	return m.clone()
+}
+
+func (m VersionedPayloadAttestationMessage) clone() (VersionedPayloadAttestationMessage, error) {
+	var resp VersionedPayloadAttestationMessage
+
+	err := cloneSSZMarshaler(m, &resp)
+	if err != nil {
+		return VersionedPayloadAttestationMessage{}, errors.Wrap(err, "clone payload attestation message")
+	}
+
+	return resp, nil
+}
+
+func (m VersionedPayloadAttestationMessage) MarshalJSON() ([]byte, error) {
+	var marshaller json.Marshaler
+
+	switch m.Version {
+	// No nil checks since `NewVersionedPayloadAttestationMessage` assumed.
+	case eth2spec.DataVersionGloas:
+		marshaller = m.Gloas
+	default:
+		return nil, errors.New("unknown version")
+	}
+
+	message, err := marshaller.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal payload attestation message")
+	}
+
+	version, err := eth2util.DataVersionFromETH2(m.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
+	resp, err := json.Marshal(versionedRawPayloadAttMsgJSON{
+		Version: version,
+		Message: message,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal wrapper")
+	}
+
+	return resp, nil
+}
+
+func (m *VersionedPayloadAttestationMessage) UnmarshalJSON(input []byte) error {
+	var raw versionedRawPayloadAttMsgJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal payload attestation message")
+	}
+
+	resp := eth2spec.VersionedPayloadAttestationMessage{Version: raw.Version.ToETH2()}
+
+	switch resp.Version {
+	case eth2spec.DataVersionGloas:
+		message := new(gloas.PayloadAttestationMessage)
+
+		err := json.Unmarshal(raw.Message, message)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = message
+	default:
+		return errors.New("unknown version")
+	}
+
+	m.VersionedPayloadAttestationMessage = resp
+
+	return nil
+}
+
+// versionedRawPayloadAttMsgJSON is a custom VersionedPayloadAttestationMessage serialiser.
+type versionedRawPayloadAttMsgJSON struct {
+	Version eth2util.DataVersion `json:"version"`
+	Message json.RawMessage      `json:"message"`
+}
+
+// ProposerPreferences: https://github.com/ethereum/consensus-specs/blob/master/specs/gloas/validator.md#proposer-preferences.
+// From the gloas fork, signed proposer preferences supersede prepare_beacon_proposer and
+// register_validator as the source of a proposer's fee recipient and gas limit preferences.
+
+// NewSignedProposerPreferences is a convenience function which returns a new signed SignedProposerPreferences.
+func NewSignedProposerPreferences(data *gloas.SignedProposerPreferences) SignedProposerPreferences {
+	return SignedProposerPreferences{SignedProposerPreferences: *data}
+}
+
+// NewPartialSignedProposerPreferences is a convenience function which returns a new partially signed SignedProposerPreferences.
+func NewPartialSignedProposerPreferences(data *gloas.SignedProposerPreferences, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedProposerPreferences(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedProposerPreferences wraps gloas.SignedProposerPreferences and implements SignedData.
+type SignedProposerPreferences struct {
+	gloas.SignedProposerPreferences
+}
+
+// MessageRoot returns the hash tree root of the proposer preferences message, which is the object
+// signed over with DOMAIN_PROPOSER_PREFERENCES at the proposal epoch.
+func (p SignedProposerPreferences) MessageRoot() ([32]byte, error) {
+	if p.Message == nil {
+		return [32]byte{}, errors.New("nil proposer preferences message")
+	}
+
+	return p.Message.HashTreeRoot()
+}
+
+func (p SignedProposerPreferences) Signature() Signature {
+	return SigFromETH2(p.SignedProposerPreferences.Signature)
+}
+
+func (p SignedProposerPreferences) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := p.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedProposerPreferences.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (p SignedProposerPreferences) Clone() (SignedData, error) {
+	return p.clone()
+}
+
+func (p SignedProposerPreferences) clone() (SignedProposerPreferences, error) {
+	var resp SignedProposerPreferences
+
+	err := cloneSSZMarshaler(p, &resp)
+	if err != nil {
+		return SignedProposerPreferences{}, errors.Wrap(err, "clone signed proposer preferences")
+	}
+
+	return resp, nil
+}
+
+func (p SignedProposerPreferences) MarshalJSON() ([]byte, error) {
+	return p.SignedProposerPreferences.MarshalJSON()
+}
+
+func (p *SignedProposerPreferences) UnmarshalJSON(input []byte) error {
+	return p.SignedProposerPreferences.UnmarshalJSON(input)
+}
+
+func (p SignedProposerPreferences) MarshalSSZ() ([]byte, error) {
+	return p.SignedProposerPreferences.MarshalSSZ()
+}
+
+func (p SignedProposerPreferences) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return p.SignedProposerPreferences.MarshalSSZTo(dst)
+}
+
+func (p SignedProposerPreferences) SizeSSZ() int {
+	return p.SignedProposerPreferences.SizeSSZ()
+}
+
+func (p *SignedProposerPreferences) UnmarshalSSZ(b []byte) error {
+	return p.SignedProposerPreferences.UnmarshalSSZ(b)
+}
+
+// BuilderRequestAuth: https://github.com/ethereum/builder-specs/blob/main/specs/gloas/validator.md#builderrequestauth.
+// From the gloas fork, a proposer authorizes each builder it requests bids from by signing the
+// builder's auth data and the proposal slot.
+
+// NewSignedBuilderRequestAuth is a convenience function which returns a new signed SignedBuilderRequestAuth.
+func NewSignedBuilderRequestAuth(data *gloas.SignedBuilderRequestAuth) SignedBuilderRequestAuth {
+	return SignedBuilderRequestAuth{SignedBuilderRequestAuth: *data}
+}
+
+// NewPartialSignedBuilderRequestAuth is a convenience function which returns a new partially signed SignedBuilderRequestAuth.
+func NewPartialSignedBuilderRequestAuth(data *gloas.SignedBuilderRequestAuth, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedBuilderRequestAuth(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedBuilderRequestAuth wraps gloas.SignedBuilderRequestAuth and implements SignedData.
+type SignedBuilderRequestAuth struct {
+	gloas.SignedBuilderRequestAuth
+}
+
+// MessageRoot returns the hash tree root of the builder request auth message, which is the object
+// signed over with DOMAIN_BUILDER_REQUEST_AUTH.
+func (a SignedBuilderRequestAuth) MessageRoot() ([32]byte, error) {
+	if a.Message == nil {
+		return [32]byte{}, errors.New("nil builder request auth message")
+	}
+
+	return a.Message.HashTreeRoot()
+}
+
+func (a SignedBuilderRequestAuth) Signature() Signature {
+	return SigFromETH2(a.SignedBuilderRequestAuth.Signature)
+}
+
+func (a SignedBuilderRequestAuth) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := a.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	resp.SignedBuilderRequestAuth.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (a SignedBuilderRequestAuth) Clone() (SignedData, error) {
+	return a.clone()
+}
+
+func (a SignedBuilderRequestAuth) clone() (SignedBuilderRequestAuth, error) {
+	var resp SignedBuilderRequestAuth
+
+	err := cloneSSZMarshaler(a, &resp)
+	if err != nil {
+		return SignedBuilderRequestAuth{}, errors.Wrap(err, "clone signed builder request auth")
+	}
+
+	return resp, nil
+}
+
+func (a SignedBuilderRequestAuth) MarshalJSON() ([]byte, error) {
+	return a.SignedBuilderRequestAuth.MarshalJSON()
+}
+
+func (a *SignedBuilderRequestAuth) UnmarshalJSON(input []byte) error {
+	return a.SignedBuilderRequestAuth.UnmarshalJSON(input)
+}
+
+func (a SignedBuilderRequestAuth) MarshalSSZ() ([]byte, error) {
+	return a.SignedBuilderRequestAuth.MarshalSSZ()
+}
+
+func (a SignedBuilderRequestAuth) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return a.SignedBuilderRequestAuth.MarshalSSZTo(dst)
+}
+
+func (a SignedBuilderRequestAuth) SizeSSZ() int {
+	return a.SignedBuilderRequestAuth.SizeSSZ()
+}
+
+func (a *SignedBuilderRequestAuth) UnmarshalSSZ(b []byte) error {
+	return a.SignedBuilderRequestAuth.UnmarshalSSZ(b)
+}
+
+// From the gloas fork, a self-building proposer reveals its execution payload via a
+// SignedExecutionPayloadEnvelope. The wrapped type is the stateless submission contents (envelope
+// plus blobs and proofs) so blobs ride through aggregation; aggregation only touches the message.
+
+// NewSignedExecutionPayloadEnvelope is a convenience function which returns a new signed SignedExecutionPayloadEnvelope.
+func NewSignedExecutionPayloadEnvelope(data *eth2v1gloas.SignedExecutionPayloadEnvelopeContents) SignedExecutionPayloadEnvelope {
+	return SignedExecutionPayloadEnvelope{SignedExecutionPayloadEnvelopeContents: *data}
+}
+
+// NewPartialSignedExecutionPayloadEnvelope is a convenience function which returns a new partially signed SignedExecutionPayloadEnvelope.
+func NewPartialSignedExecutionPayloadEnvelope(data *eth2v1gloas.SignedExecutionPayloadEnvelopeContents, shareIdx int) ParSignedData {
+	return ParSignedData{
+		SignedData: NewSignedExecutionPayloadEnvelope(data),
+		ShareIdx:   shareIdx,
+	}
+}
+
+// SignedExecutionPayloadEnvelope wraps the stateless execution payload envelope submission contents
+// (signed envelope plus blobs and KZG proofs) and implements SignedData.
+type SignedExecutionPayloadEnvelope struct {
+	eth2v1gloas.SignedExecutionPayloadEnvelopeContents
+}
+
+// MessageRoot returns the hash tree root of the execution payload envelope message, which is the
+// object signed over with DOMAIN_BEACON_BUILDER at the proposal epoch.
+func (p SignedExecutionPayloadEnvelope) MessageRoot() ([32]byte, error) {
+	if p.SignedExecutionPayloadEnvelope == nil || p.SignedExecutionPayloadEnvelope.Message == nil {
+		return [32]byte{}, errors.New("nil execution payload envelope message")
+	}
+
+	return p.SignedExecutionPayloadEnvelope.Message.HashTreeRoot()
+}
+
+func (p SignedExecutionPayloadEnvelope) Signature() Signature {
+	if p.SignedExecutionPayloadEnvelope == nil {
+		return Signature{}
+	}
+
+	return SigFromETH2(p.SignedExecutionPayloadEnvelope.Signature)
+}
+
+func (p SignedExecutionPayloadEnvelope) SetSignature(sig Signature) (SignedData, error) {
+	resp, err := p.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.SignedExecutionPayloadEnvelope == nil {
+		return nil, errors.New("nil execution payload envelope")
+	}
+
+	resp.SignedExecutionPayloadEnvelope.Signature = sig.ToETH2()
+
+	return resp, nil
+}
+
+func (p SignedExecutionPayloadEnvelope) Clone() (SignedData, error) {
+	return p.clone()
+}
+
+func (p SignedExecutionPayloadEnvelope) clone() (SignedExecutionPayloadEnvelope, error) {
+	var resp SignedExecutionPayloadEnvelope
+
+	err := cloneSSZMarshaler(p, &resp)
+	if err != nil {
+		return SignedExecutionPayloadEnvelope{}, errors.Wrap(err, "clone signed execution payload envelope")
+	}
+
+	return resp, nil
+}
+
+func (p SignedExecutionPayloadEnvelope) MarshalJSON() ([]byte, error) {
+	return p.SignedExecutionPayloadEnvelopeContents.MarshalJSON()
+}
+
+func (p *SignedExecutionPayloadEnvelope) UnmarshalJSON(input []byte) error {
+	return p.SignedExecutionPayloadEnvelopeContents.UnmarshalJSON(input)
+}
+
+func (p SignedExecutionPayloadEnvelope) MarshalSSZ() ([]byte, error) {
+	return p.SignedExecutionPayloadEnvelopeContents.MarshalSSZ()
+}
+
+func (p SignedExecutionPayloadEnvelope) MarshalSSZTo(dst []byte) ([]byte, error) {
+	return p.SignedExecutionPayloadEnvelopeContents.MarshalSSZTo(dst)
+}
+
+func (p SignedExecutionPayloadEnvelope) SizeSSZ() int {
+	return p.SignedExecutionPayloadEnvelopeContents.SizeSSZ()
+}
+
+func (p *SignedExecutionPayloadEnvelope) UnmarshalSSZ(b []byte) error {
+	return p.SignedExecutionPayloadEnvelopeContents.UnmarshalSSZ(b)
 }

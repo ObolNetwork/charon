@@ -4,13 +4,16 @@ package eth2wrap
 
 import (
 	"context"
+	"math"
 	"time"
 
 	eth2client "github.com/attestantio/go-eth2-client"
 	"github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 type ForkSchedule struct {
@@ -19,6 +22,27 @@ type ForkSchedule struct {
 }
 
 type ForkForkSchedule map[Fork]ForkSchedule
+
+// Active returns true if the fork is scheduled and active at the provided epoch.
+func (s ForkForkSchedule) Active(fork Fork, epoch eth2p0.Epoch) bool {
+	fs, ok := s[fork]
+
+	return ok && fs.Epoch != math.MaxUint64 && epoch >= fs.Epoch
+}
+
+// DataVersion returns the data version of the latest fork active at the provided epoch,
+// phase0 if none is.
+func (s ForkForkSchedule) DataVersion(epoch eth2p0.Epoch) eth2spec.DataVersion {
+	for fork := latestFork(); ; fork-- {
+		if s.Active(fork, epoch) {
+			return forkDataVersions[fork]
+		}
+
+		if fork == Altair {
+			return eth2spec.DataVersionPhase0
+		}
+	}
+}
 
 type Fork uint64
 
@@ -29,7 +53,29 @@ const (
 	Deneb
 	Electra
 	Fulu
+	Gloas
 )
+
+// forkDataVersions maps each fork to the data version of the objects it introduces.
+var forkDataVersions = map[Fork]eth2spec.DataVersion{
+	Altair:    eth2spec.DataVersionAltair,
+	Bellatrix: eth2spec.DataVersionBellatrix,
+	Capella:   eth2spec.DataVersionCapella,
+	Deneb:     eth2spec.DataVersionDeneb,
+	Electra:   eth2spec.DataVersionElectra,
+	Fulu:      eth2spec.DataVersionFulu,
+	Gloas:     eth2spec.DataVersionGloas,
+}
+
+// latestFork returns the most recent fork with a data version.
+func latestFork() Fork {
+	var latest Fork
+	for fork := range forkDataVersions {
+		latest = max(latest, fork)
+	}
+
+	return latest
+}
 
 func (f Fork) String() string {
 	return forkLabels[f]
@@ -42,21 +88,137 @@ var forkLabels = map[Fork]string{
 	Deneb:     "DENEB",
 	Electra:   "ELECTRA",
 	Fulu:      "FULU",
+	Gloas:     "GLOAS",
 }
 
+// optionalForks are future forks that beacon nodes may not publish spec keys for yet.
+// Missing spec keys resolve to an unscheduled fork instead of an error.
+var optionalForks = map[Fork]bool{
+	Gloas: true,
+}
+
+// Sentinel errors are wrapped when first returned so that the stack trace and the wrapping message
+// identify which network spec fetch failed.
 var (
-	errFetchNetworkSpec   = errors.New("fetch network spec")
-	errMissingNetworkSpec = errors.New("missing network spec")
+	errFetchNetworkSpec   = errors.NewSentinel("fetch network spec")
+	errMissingNetworkSpec = errors.NewSentinel("missing network spec")
 )
+
+// BasisPoints is the total number of basis points, ie. 100% of the slot duration.
+const BasisPoints = 10_000
+
+// ForkBPS defines an intra-slot duty deadline in basis points of the slot duration, per fork.
+// PreGloas is zero for deadlines that the gloas fork introduces, since they don't apply before it.
+type ForkBPS struct {
+	PreGloas uint64
+	Gloas    uint64
+}
+
+// SlotTimingConfig defines the network's intra-slot duty deadlines in basis points of the slot duration.
+type SlotTimingConfig struct {
+	Attestation  ForkBPS
+	Aggregate    ForkBPS
+	SyncMessage  ForkBPS
+	Contribution ForkBPS
+	// Payload is the deadline for the builder to reveal the execution payload.
+	Payload ForkBPS
+	// PayloadAttestation is the deadline for payload timeliness committee members to broadcast
+	// payload attestations.
+	PayloadAttestation ForkBPS
+}
+
+// Intra-slot duty deadlines as basis points of the slot duration as defined by the consensus spec.
+// These are applied for beacon nodes that predate the corresponding spec keys.
+var (
+	defaultAttestationBPS        = ForkBPS{PreGloas: 3333, Gloas: 2500}
+	defaultAggregateBPS          = ForkBPS{PreGloas: 6667, Gloas: 5000}
+	defaultSyncMessageBPS        = ForkBPS{PreGloas: 3333, Gloas: 2500}
+	defaultContributionBPS       = ForkBPS{PreGloas: 6667, Gloas: 5000}
+	defaultPayloadBPS            = ForkBPS{Gloas: 5000}
+	defaultPayloadAttestationBPS = ForkBPS{Gloas: 7500}
+)
+
+// FetchSlotTimingConfig returns the network's intra-slot duty deadlines.
+func FetchSlotTimingConfig(ctx context.Context, client eth2client.SpecProvider) (SlotTimingConfig, error) {
+	spec, err := client.Spec(ctx, &api.SpecOpts{})
+	if err != nil {
+		return SlotTimingConfig{}, errors.Wrap(errFetchNetworkSpec, "fetch slot timing config")
+	}
+
+	if spec == nil {
+		return SlotTimingConfig{}, errors.Wrap(errMissingNetworkSpec, "fetch slot timing config")
+	}
+
+	return parseSlotTimingConfig(spec.Data)
+}
+
+// parseSlotTimingConfig returns the intra-slot duty deadlines in the network spec data,
+// defaulting to the consensus spec values for keys the beacon node doesn't publish.
+func parseSlotTimingConfig(data map[string]any) (SlotTimingConfig, error) {
+	var resp SlotTimingConfig
+
+	// Note that the deadlines introduced by the gloas fork have no pre-gloas key, since the
+	// unsuffixed key is itself the gloas value.
+	for _, field := range []struct {
+		PreGloasKey string
+		GloasKey    string
+		Default     ForkBPS
+		Resolved    *ForkBPS
+	}{
+		{PreGloasKey: "ATTESTATION_DUE_BPS", GloasKey: "ATTESTATION_DUE_BPS_GLOAS", Default: defaultAttestationBPS, Resolved: &resp.Attestation},
+		{PreGloasKey: "AGGREGATE_DUE_BPS", GloasKey: "AGGREGATE_DUE_BPS_GLOAS", Default: defaultAggregateBPS, Resolved: &resp.Aggregate},
+		{PreGloasKey: "SYNC_MESSAGE_DUE_BPS", GloasKey: "SYNC_MESSAGE_DUE_BPS_GLOAS", Default: defaultSyncMessageBPS, Resolved: &resp.SyncMessage},
+		{PreGloasKey: "CONTRIBUTION_DUE_BPS", GloasKey: "CONTRIBUTION_DUE_BPS_GLOAS", Default: defaultContributionBPS, Resolved: &resp.Contribution},
+		{GloasKey: "PAYLOAD_DUE_BPS", Default: defaultPayloadBPS, Resolved: &resp.Payload},
+		{GloasKey: "PAYLOAD_ATTESTATION_DUE_BPS", Default: defaultPayloadAttestationBPS, Resolved: &resp.PayloadAttestation},
+	} {
+		resolved := field.Default
+
+		if field.PreGloasKey != "" {
+			preGloas, err := parseBPS(data, field.PreGloasKey, field.Default.PreGloas)
+			if err != nil {
+				return SlotTimingConfig{}, err
+			}
+
+			resolved.PreGloas = preGloas
+		}
+
+		gloas, err := parseBPS(data, field.GloasKey, field.Default.Gloas)
+		if err != nil {
+			return SlotTimingConfig{}, err
+		}
+
+		resolved.Gloas = gloas
+
+		*field.Resolved = resolved
+	}
+
+	return resp, nil
+}
+
+// parseBPS returns the basis points at the key in the network spec data,
+// or def if the beacon node doesn't publish it.
+func parseBPS(data map[string]any, key string, def uint64) (uint64, error) {
+	bps, ok := data[key].(uint64)
+	if !ok {
+		return def, nil
+	}
+
+	if bps == 0 || bps > BasisPoints {
+		return 0, errors.New("invalid basis points in network spec", z.Str("key", key), z.U64("bps", bps))
+	}
+
+	return bps, nil
+}
 
 func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (time.Time, error) {
 	genesisTime, err := client.Genesis(ctx, &api.GenesisOpts{})
 	if err != nil {
-		return time.Time{}, errFetchNetworkSpec
+		return time.Time{}, errors.Wrap(errFetchNetworkSpec, "fetch genesis time")
 	}
 
 	if genesisTime == nil {
-		return time.Time{}, errMissingNetworkSpec
+		return time.Time{}, errors.Wrap(errMissingNetworkSpec, "fetch genesis time")
 	}
 
 	return genesisTime.Data.GenesisTime, nil
@@ -65,11 +227,11 @@ func FetchGenesisTime(ctx context.Context, client eth2client.GenesisProvider) (t
 func FetchSlotsConfig(ctx context.Context, client eth2client.SpecProvider) (slotDuration time.Duration, slotsPerEpoch uint64, err error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
-		return 0, 0, errFetchNetworkSpec
+		return 0, 0, errors.Wrap(errFetchNetworkSpec, "fetch slots config")
 	}
 
 	if spec == nil {
-		return 0, 0, errMissingNetworkSpec
+		return 0, 0, errors.Wrap(errMissingNetworkSpec, "fetch slots config")
 	}
 
 	var ok bool
@@ -117,17 +279,17 @@ func FetchSyncCommitteePeriod(ctx context.Context, client eth2client.SpecProvide
 func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork ForkForkSchedule, err error) {
 	spec, err := client.Spec(ctx, &api.SpecOpts{})
 	if err != nil {
-		return nil, errFetchNetworkSpec
+		return nil, errors.Wrap(errFetchNetworkSpec, "fetch fork config")
 	}
 
 	if spec == nil {
-		return nil, errMissingNetworkSpec
+		return nil, errors.Wrap(errMissingNetworkSpec, "fetch fork config")
 	}
 
 	res := ForkForkSchedule{}
 
 	for k, v := range forkLabels {
-		fs, err := fetchFork(v, spec.Data)
+		fs, err := fetchFork(v, spec.Data, optionalForks[k])
 		if err != nil {
 			return nil, err
 		}
@@ -138,14 +300,18 @@ func FetchForkConfig(ctx context.Context, client eth2client.SpecProvider) (fork 
 	return res, nil
 }
 
-func fetchFork(forkName string, data map[string]any) (ForkSchedule, error) {
+// fetchFork returns the fork schedule of the named fork from the network spec.
+// Optional (future) forks tolerate missing spec keys and resolve to an unscheduled
+// fork with an epoch of math.MaxUint64, consistent with how beacon nodes publish
+// unscheduled forks.
+func fetchFork(forkName string, data map[string]any, optional bool) (ForkSchedule, error) {
 	var ok bool
 
-	fs := ForkSchedule{}
+	fs := ForkSchedule{Epoch: math.MaxUint64}
 	forkVersion := forkName + "_FORK_VERSION"
 
 	version, ok := data[forkVersion].(eth2p0.Version)
-	if !ok {
+	if !ok && !optional {
 		return fs, errors.New("missing " + forkVersion + " in network spec")
 	}
 
@@ -154,11 +320,13 @@ func fetchFork(forkName string, data map[string]any) (ForkSchedule, error) {
 	forkEpoch := forkName + "_FORK_EPOCH"
 
 	epoch, ok := data[forkEpoch].(uint64)
-	if !ok {
+	if !ok && !optional {
 		return fs, errors.New("missing " + forkEpoch + " in network spec")
 	}
 
-	fs.Epoch = eth2p0.Epoch(epoch)
+	if ok {
+		fs.Epoch = eth2p0.Epoch(epoch)
+	}
 
 	return fs, nil
 }

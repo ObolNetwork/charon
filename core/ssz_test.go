@@ -23,8 +23,8 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
@@ -34,6 +34,16 @@ import (
 
 //go:generate go test . -run=TestSSZSerialisation -update
 
+type sszMarshaler interface {
+	MarshalSSZ() ([]byte, error)
+	MarshalSSZTo([]byte) ([]byte, error)
+	SizeSSZ() int
+}
+
+type sszUnmarshaler interface {
+	UnmarshalSSZ([]byte) error
+}
+
 func TestSSZSerialisation(t *testing.T) {
 	for _, typFunc := range coreTypeFuncs {
 		any1, any2 := typFunc(), typFunc()
@@ -42,7 +52,7 @@ func TestSSZSerialisation(t *testing.T) {
 		name = strings.TrimPrefix(name, "*core.")
 		name += ".ssz"
 
-		if _, ok := any1.(ssz.Marshaler); !ok {
+		if _, ok := any1.(sszMarshaler); !ok {
 			t.Logf("Skipping non SSZ type: %v", name)
 			continue
 		}
@@ -50,11 +60,12 @@ func TestSSZSerialisation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			testutil.NewEth2Fuzzer(t, 1).Fuzz(any1)
 
-			b, err := ssz.MarshalSSZ(any1.(ssz.Marshaler))
+			m := any1.(sszMarshaler)
+			b, err := m.MarshalSSZTo(make([]byte, 0, m.SizeSSZ()))
 			testutil.RequireNoError(t, err)
 			testutil.RequireGoldenBytes(t, b)
 
-			err = any2.(ssz.Unmarshaler).UnmarshalSSZ(b)
+			err = any2.(sszUnmarshaler).UnmarshalSSZ(b)
 			testutil.RequireNoError(t, err)
 			require.Equal(t, any1, any2)
 		})
@@ -75,6 +86,11 @@ func TestSSZ(t *testing.T) {
 		{zero: func() any { return new(core.VersionedAggregatedAttestation) }},
 		{zero: func() any { return new(core.VersionedProposal) }},
 		{zero: func() any { return new(core.SyncContribution) }},
+		{zero: func() any { return new(core.VersionedPayloadAttestationData) }},
+		{zero: func() any { return new(core.VersionedPayloadAttestationMessage) }},
+		{zero: func() any { return new(core.SignedProposerPreferences) }},
+		{zero: func() any { return new(core.SignedExecutionPayloadEnvelope) }},
+		{zero: func() any { return new(core.SignedBuilderRequestAuth) }},
 	}
 
 	f := testutil.NewEth2Fuzzer(t, 0)
@@ -85,13 +101,13 @@ func TestSSZ(t *testing.T) {
 
 			f.Fuzz(val1)
 
-			marshaller, ok := val1.(ssz.Marshaler)
+			marshaller, ok := val1.(sszMarshaler)
 			require.True(t, ok)
 
 			b, err := marshaller.MarshalSSZ()
 			testutil.RequireNoError(t, err)
 
-			unmarshaller, ok := val2.(ssz.Unmarshaler)
+			unmarshaller, ok := val2.(sszUnmarshaler)
 			require.True(t, ok)
 
 			err = unmarshaller.UnmarshalSSZ(b)
@@ -122,6 +138,10 @@ func TestMarshalUnsignedProto(t *testing.T) {
 		{
 			dutyType:    core.DutySyncContribution,
 			unsignedPtr: func() any { return new(core.SyncContributions) },
+		},
+		{
+			dutyType:    core.DutyPayloadAttestation,
+			unsignedPtr: func() any { return new(core.VersionedPayloadAttestationData) },
 		},
 	}
 
@@ -197,6 +217,10 @@ func TestMarshalParSignedProto(t *testing.T) {
 		{
 			dutyType:  core.DutySyncContribution,
 			signedPtr: func() any { return new(core.SignedSyncContributionAndProof) },
+		},
+		{
+			dutyType:  core.DutyPayloadAttestation,
+			signedPtr: func() any { return new(core.VersionedPayloadAttestationMessage) },
 		},
 	}
 
@@ -385,7 +409,7 @@ func TestV3SignedProposalSSZSerialisation(t *testing.T) {
 			p, err := core.NewVersionedSignedProposal(&test.proposal)
 			require.NoError(t, err)
 
-			b, err := ssz.MarshalSSZ(p)
+			b, err := p.MarshalSSZTo(make([]byte, 0, p.SizeSSZ()))
 			require.NoError(t, err)
 
 			p2 := new(core.VersionedSignedProposal)
@@ -470,7 +494,7 @@ func TestV3ProposalSSZSerialisation(t *testing.T) {
 			p, err := core.NewVersionedProposal(&test.proposal)
 			require.NoError(t, err)
 
-			b, err := ssz.MarshalSSZ(p)
+			b, err := p.MarshalSSZTo(make([]byte, 0, p.SizeSSZ()))
 			require.NoError(t, err)
 
 			p2 := new(core.VersionedProposal)
@@ -1302,6 +1326,165 @@ func TestVersionedProposalSSZ(t *testing.T) {
 
 			p2 := new(core.VersionedProposal)
 			require.NoError(t, p2.UnmarshalSSZ(b))
+		})
+	}
+}
+
+func TestPayloadAttestationDataSSZ(t *testing.T) {
+	var root eth2p0.Root
+	for i := range root {
+		root[i] = 0xab
+	}
+
+	// Versioned envelope: version(uint64) + no_payload(bool) + offset(uint32) prefixing the payload.
+	versionedPrefix := "0700000000000000" + // Version=7 (gloas, LE)
+		"00" + // NoPayload=false
+		"0d000000" // Offset=13 (LE)
+
+	tests := []struct {
+		name     string
+		value    core.VersionedPayloadAttestationData
+		expected string
+	}{
+		{
+			name: "zeros",
+			value: core.VersionedPayloadAttestationData{
+				VersionedPayloadAttestationData: eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   &gloas.PayloadAttestationData{},
+				},
+			},
+			// Fixed-size container: beacon_block_root(32) + slot(8) + payload_present(1) + blob_data_available(1).
+			expected: "0x" + versionedPrefix +
+				strings.Repeat("00", 32) + // BeaconBlockRoot
+				"0000000000000000" + // Slot
+				"00" + // PayloadPresent
+				"00", // BlobDataAvailable
+		},
+		{
+			name: "populated",
+			value: core.VersionedPayloadAttestationData{
+				VersionedPayloadAttestationData: eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.PayloadAttestationData{
+						BeaconBlockRoot:   root,
+						Slot:              42,
+						PayloadPresent:    true,
+						BlobDataAvailable: false,
+					},
+				},
+			},
+			expected: "0x" + versionedPrefix +
+				strings.Repeat("ab", 32) + // BeaconBlockRoot
+				"2a00000000000000" + // Slot=42 (LE)
+				"01" + // PayloadPresent=true
+				"00", // BlobDataAvailable=false
+		},
+		{
+			name: "no payload",
+			value: core.VersionedPayloadAttestationData{
+				VersionedPayloadAttestationData: eth2spec.VersionedPayloadAttestationData{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   &gloas.PayloadAttestationData{Slot: 42},
+				},
+				NoPayload: true,
+			},
+			expected: "0x" + "0700000000000000" + // Version=7 (gloas, LE)
+				"01" + // NoPayload=true
+				"0d000000" + // Offset=13 (LE)
+				strings.Repeat("00", 32) + // BeaconBlockRoot
+				"2a00000000000000" + // Slot=42 (LE)
+				"00" + // PayloadPresent
+				"00", // BlobDataAvailable
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := tt.value.MarshalSSZ()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
+			require.Len(t, b, tt.value.SizeSSZ())
+
+			var got core.VersionedPayloadAttestationData
+			require.NoError(t, got.UnmarshalSSZ(b))
+			require.Equal(t, tt.value, got)
+		})
+	}
+}
+
+func TestSignedPayloadAttestationMessageSSZ(t *testing.T) {
+	var root eth2p0.Root
+	for i := range root {
+		root[i] = 0xab
+	}
+
+	var sig eth2p0.BLSSignature
+	for i := range sig {
+		sig[i] = 0x11
+	}
+
+	// Versioned envelope: version(uint64) + offset(uint32) prefixing the payload.
+	versionedPrefix := "0700000000000000" + // Version=7 (gloas, LE)
+		"0c000000" // Offset=12 (LE)
+
+	tests := []struct {
+		name     string
+		value    core.VersionedPayloadAttestationMessage
+		expected string
+	}{
+		{
+			name: "zeros",
+			value: core.VersionedPayloadAttestationMessage{
+				VersionedPayloadAttestationMessage: eth2spec.VersionedPayloadAttestationMessage{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.PayloadAttestationMessage{
+						Data: new(gloas.PayloadAttestationData),
+					},
+				},
+			},
+			// Fixed-size container: validator_index(8) + data(42) + signature(96).
+			expected: "0x" + versionedPrefix +
+				"0000000000000000" + // ValidatorIndex
+				strings.Repeat("00", 42) + // Data
+				strings.Repeat("00", 96), // Signature
+		},
+		{
+			name: "populated",
+			value: core.VersionedPayloadAttestationMessage{
+				VersionedPayloadAttestationMessage: eth2spec.VersionedPayloadAttestationMessage{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.PayloadAttestationMessage{
+						ValidatorIndex: 7,
+						Data: &gloas.PayloadAttestationData{
+							BeaconBlockRoot:   root,
+							Slot:              42,
+							PayloadPresent:    true,
+							BlobDataAvailable: true,
+						},
+						Signature: sig,
+					},
+				},
+			},
+			expected: "0x" + versionedPrefix +
+				"0700000000000000" + // ValidatorIndex=7 (LE)
+				strings.Repeat("ab", 32) + // Data.BeaconBlockRoot
+				"2a00000000000000" + // Data.Slot=42 (LE)
+				"01" + // Data.PayloadPresent=true
+				"01" + // Data.BlobDataAvailable=true
+				strings.Repeat("11", 96), // Signature
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := tt.value.MarshalSSZ()
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, fmt.Sprintf("%#x", b))
+
+			var got core.VersionedPayloadAttestationMessage
+			require.NoError(t, got.UnmarshalSSZ(b))
+			require.Equal(t, tt.value, got)
 		})
 	}
 }

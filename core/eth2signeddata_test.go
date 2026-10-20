@@ -63,6 +63,10 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			data: core.NewSignedSyncMessage(testutil.RandomSyncCommitteeMessage()),
 		},
 		{
+			name: "verify payload attestation message",
+			data: mustVersionedPayloadAttestationMessage(t),
+		},
+		{
 			name: "verify sync committee contribution and proof",
 			data: core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 		},
@@ -77,6 +81,18 @@ func TestVerifyEth2SignedData(t *testing.T) {
 		{
 			name: "verify sync contribution and proof",
 			data: testutil.RandomCoreSignedSyncContributionAndProof(),
+		},
+		{
+			name: "verify proposer preferences",
+			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
+		},
+		{
+			name: "verify builder request auth",
+			data: core.NewSignedBuilderRequestAuth(testutil.RandomSignedBuilderRequestAuth()),
+		},
+		{
+			name: "verify execution payload envelope",
+			data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
 		},
 	}
 
@@ -112,6 +128,15 @@ func TestVerifyEth2SignedData(t *testing.T) {
 			require.NoError(t, core.VerifyEth2SignedData(context.Background(), bmock, eth2Signed, pubkey))
 		})
 	}
+}
+
+func mustVersionedPayloadAttestationMessage(t *testing.T) core.VersionedPayloadAttestationMessage {
+	t.Helper()
+
+	msg, err := core.NewVersionedPayloadAttestationMessage(testutil.RandomVersionedPayloadAttestationMessage())
+	require.NoError(t, err)
+
+	return msg
 }
 
 func sign(t *testing.T, secret tbls.PrivateKey, data []byte) core.Signature {

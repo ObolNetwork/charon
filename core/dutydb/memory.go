@@ -19,19 +19,23 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-// NewMemDB returns a new in-memory dutyDB instance.
-func NewMemDB(deadliner core.Deadliner) *MemDB {
+// NewMemDB returns a new in-memory dutyDB instance. The retention deadliner provides until when
+// duties are retained for the components querying them, see core.NewDutyRetentionFunc: data of a
+// duty past its retention is refused, and deleted once it expires.
+func NewMemDB(retention core.Deadliner) *MemDB {
 	return &MemDB{
 		attDuties:         make(map[attKey]*eth2p0.AttestationData),
 		attPubKeys:        make(map[pkKey]*core.PubKey),
 		attKeysBySlot:     make(map[uint64][]pkKey),
-		proDuties:         make(map[uint64]*eth2api.VersionedProposal),
+		proDuties:         make(map[uint64]core.VersionedProposal),
+		payloadContents:   make(map[payloadKey]core.VersionedProposal),
 		aggDuties:         make(map[aggKey]core.VersionedAggregatedAttestation),
 		aggKeysBySlot:     make(map[uint64][]aggKey),
 		contribDuties:     make(map[contribKey]*altair.SyncCommitteeContribution),
 		contribKeysBySlot: make(map[uint64][]contribKey),
+		payloadAttDuties:  make(map[uint64]core.VersionedPayloadAttestationData),
 		shutdown:          make(chan struct{}),
-		deadliner:         deadliner,
+		retention:         retention,
 	}
 }
 
@@ -46,8 +50,13 @@ type MemDB struct {
 	attQueries    []attQuery
 
 	// DutyProposer
-	proDuties  map[uint64]*eth2api.VersionedProposal
+	proDuties  map[uint64]core.VersionedProposal
 	proQueries []proQuery
+
+	// payloadContents holds the self-built proposals with their execution payload envelope, blobs
+	// and KZG proofs by slot and block root, while the agreed proposals in proDuties don't carry them.
+	payloadContents map[payloadKey]core.VersionedProposal
+	payloadQueries  []payloadQuery
 
 	// DutyAggregator
 	aggDuties     map[aggKey]core.VersionedAggregatedAttestation
@@ -59,8 +68,13 @@ type MemDB struct {
 	contribKeysBySlot map[uint64][]contribKey
 	contribQueries    []contribQuery
 
+	// DutyPayloadAttestation
+	// payloadAttDuties holds the agreed data per slot, including the agreed no payload data.
+	payloadAttDuties  map[uint64]core.VersionedPayloadAttestationData
+	payloadAttQueries []payloadAttQuery
+
 	shutdown  chan struct{}
-	deadliner core.Deadliner
+	retention core.Deadliner
 }
 
 // Shutdown results in all blocking queries to return shutdown errors.
@@ -74,7 +88,7 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	if status := db.deadliner.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
+	if status := db.retention.Add(duty); status == core.DeadlineExpired || status == core.DeadlineExempt {
 		return errors.New("not storing unsigned data for expired or exempt duty", z.Any("duty", duty))
 	}
 
@@ -123,39 +137,150 @@ func (db *MemDB) Store(_ context.Context, duty core.Duty, unsignedSet core.Unsig
 		}
 
 		db.resolveContribQueriesUnsafe()
+	case core.DutyPayloadAttestation:
+		for _, unsignedData := range unsignedSet {
+			err := db.storePayloadAttestationUnsafe(unsignedData)
+			if err != nil {
+				return err
+			}
+		}
+
+		db.resolvePayloadAttQueriesUnsafe()
 	default:
 		return errors.New("unsupported duty type", z.Str("type", duty.Type.String()))
 	}
 
-	// Delete all expired duties.
-	for {
-		var deleted bool
+	return db.deleteExpiredUnsafe()
+}
 
+// StorePayloadContents implements core.DutyDB, see its godoc. The contents are keyed by slot and
+// block root, verified against the agreed proposal's block root and payload contents roots, and
+// deleted with the proposer duty.
+func (db *MemDB) StorePayloadContents(_ context.Context, proposal core.VersionedProposal) error {
+	contentsRoots, err := core.NewPayloadContentsRoots(proposal)
+	if err != nil {
+		return err
+	}
+
+	clone, err := proposal.Clone() // Clone before storing.
+	if err != nil {
+		return err
+	}
+
+	cloned, ok := clone.(core.VersionedProposal)
+	if !ok {
+		return errors.New("invalid versioned proposal")
+	}
+
+	slot, err := proposal.Slot()
+	if err != nil {
+		return err
+	}
+
+	root, err := proposal.Root()
+	if err != nil {
+		return err
+	}
+
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	duty := core.NewProposerDuty(uint64(slot))
+
+	// Only the contents the agreed proposal commits to are stored.
+	agreed, ok := db.proDuties[duty.Slot]
+	if !ok {
+		return errors.New("no agreed proposal for payload contents", z.Any("duty", duty))
+	}
+
+	agreedRoot, err := agreed.Root()
+	if err != nil {
+		return err
+	}
+
+	if root != agreedRoot {
+		return errors.New("block root mismatch", z.Any("duty", duty))
+	}
+
+	if contentsRoots != agreed.PayloadContentsRoots {
+		return errors.New("payload contents roots mismatch", z.Any("duty", duty))
+	}
+
+	status := db.retention.Add(duty)
+	if status == core.DeadlineExpired || status == core.DeadlineExempt {
+		return errors.New("not storing payload contents for expired or exempt duty", z.Any("duty", duty))
+	}
+
+	key := payloadKey{Slot: uint64(slot), Root: root}
+
+	_, exists := db.payloadContents[key]
+	if !exists {
+		db.payloadContents[key] = cloned
+	}
+
+	db.resolvePayloadQueriesUnsafe()
+
+	return db.deleteExpiredUnsafe()
+}
+
+// AwaitPayloadContents blocks and returns the self-built proposal with its execution payload
+// envelope, blobs and KZG proofs for the slot and block root when available.
+func (db *MemDB) AwaitPayloadContents(ctx context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+	cancel := make(chan struct{})
+	defer close(cancel)
+
+	response := make(chan core.VersionedProposal, 1)
+
+	db.mu.Lock()
+	db.payloadQueries = append(db.payloadQueries, payloadQuery{
+		Key:      payloadKey{Slot: slot, Root: root},
+		Response: response,
+		Cancel:   cancel,
+	})
+	db.resolvePayloadQueriesUnsafe()
+	db.mu.Unlock()
+
+	select {
+	case <-db.shutdown:
+		return nil, errors.New("dutydb shutdown")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case proposal := <-response:
+		clone, err := proposal.Clone()
+		if err != nil {
+			return nil, err
+		}
+
+		cloned, ok := clone.(core.VersionedProposal)
+		if !ok {
+			return nil, errors.New("invalid versioned proposal")
+		}
+
+		return cloned.EPBS, nil
+	}
+}
+
+// deleteExpiredUnsafe deletes all expired duties. It is unsafe since it assumes the lock is held.
+func (db *MemDB) deleteExpiredUnsafe() error {
+	for {
 		select {
-		case duty := <-db.deadliner.C():
+		case duty := <-db.retention.C():
 			err := db.deleteDutyUnsafe(duty)
 			if err != nil {
 				return err
 			}
-
-			deleted = true
 		default:
-		}
-
-		if !deleted {
-			break
+			return nil
 		}
 	}
-
-	return nil
 }
 
-// AwaitProposal implements core.DutyDB, see its godoc.
-func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+// AwaitVersionedProposal implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitVersionedProposal(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
 	cancel := make(chan struct{})
 	defer close(cancel)
 
-	response := make(chan *eth2api.VersionedProposal, 1)
+	response := make(chan core.VersionedProposal, 1)
 
 	db.mu.Lock()
 	db.proQueries = append(db.proQueries, proQuery{
@@ -168,11 +293,53 @@ func (db *MemDB) AwaitProposal(ctx context.Context, slot uint64) (*eth2api.Versi
 
 	select {
 	case <-db.shutdown:
-		return nil, errors.New("dutydb shutdown")
+		return core.VersionedProposal{}, errors.New("dutydb shutdown")
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return core.VersionedProposal{}, ctx.Err()
 	case block := <-response:
 		return block, nil
+	}
+}
+
+// AwaitPayloadAttestationData implements core.DutyDB, see its godoc.
+func (db *MemDB) AwaitPayloadAttestationData(ctx context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
+	cancel := make(chan struct{})
+	defer close(cancel)
+
+	response := make(chan core.VersionedPayloadAttestationData, 1)
+
+	db.mu.Lock()
+	db.payloadAttQueries = append(db.payloadAttQueries, payloadAttQuery{
+		Key:      slot,
+		Response: response,
+		Cancel:   cancel,
+	})
+	db.resolvePayloadAttQueriesUnsafe()
+	db.mu.Unlock()
+
+	select {
+	case <-db.shutdown:
+		return nil, false, errors.New("dutydb shutdown")
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	case value := <-response:
+		// The cluster agreed there is no payload to attest for the slot.
+		if value.NoPayload {
+			return nil, false, nil
+		}
+
+		// Clone before returning.
+		clone, err := value.Clone()
+		if err != nil {
+			return nil, false, err
+		}
+
+		data, ok := clone.(core.VersionedPayloadAttestationData)
+		if !ok {
+			return nil, false, errors.New("invalid payload attestation data")
+		}
+
+		return &data.VersionedPayloadAttestationData, true, nil
 	}
 }
 
@@ -570,7 +737,57 @@ func (db *MemDB) storeProposalUnsafe(unsignedData core.UnsignedData) error {
 			return errors.New("clashing blocks")
 		}
 	} else {
-		db.proDuties[uint64(slot)] = &proposal.VersionedProposal
+		db.proDuties[uint64(slot)] = proposal
+	}
+
+	return nil
+}
+
+// storePayloadAttestationUnsafe stores the payload attestation data. It is unsafe since it assumes the lock is held.
+func (db *MemDB) storePayloadAttestationUnsafe(unsignedData core.UnsignedData) error {
+	cloned, err := unsignedData.Clone() // Clone before storing.
+	if err != nil {
+		return err
+	}
+
+	data, ok := cloned.(core.VersionedPayloadAttestationData)
+	if !ok {
+		return errors.New("invalid payload attestation data")
+	}
+
+	dataSlot, err := data.Slot()
+	if err != nil {
+		return errors.Wrap(err, "payload attestation data slot")
+	}
+
+	slot := uint64(dataSlot)
+
+	existing, ok := db.payloadAttDuties[slot]
+	if !ok {
+		db.payloadAttDuties[slot] = data
+
+		return nil
+	}
+
+	existingRoot, err := existing.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "existing payload attestation data root")
+	}
+
+	providedRoot, err := data.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "provided payload attestation data root")
+	}
+
+	// A slot is decided once, the flag isn't part of the root so it's compared separately.
+	if existing.NoPayload != data.NoPayload || existingRoot != providedRoot {
+		return errors.New("clashing payload attestation data",
+			z.U64("slot", slot),
+			z.Bool("existing_no_payload", existing.NoPayload),
+			z.Bool("provided_no_payload", data.NoPayload),
+			z.Str("existing_root", hex.EncodeToString(existingRoot[:])),
+			z.Str("provided_root", hex.EncodeToString(providedRoot[:])),
+		)
 	}
 
 	return nil
@@ -618,6 +835,50 @@ func (db *MemDB) resolveProQueriesUnsafe() {
 	}
 
 	db.proQueries = unresolved
+}
+
+// resolvePayloadQueriesUnsafe resolves any payloadQuery to a result if found.
+// It is unsafe since it assumes that the lock is held.
+func (db *MemDB) resolvePayloadQueriesUnsafe() {
+	var unresolved []payloadQuery
+
+	for _, query := range db.payloadQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
+		value, ok := db.payloadContents[query.Key]
+		if !ok {
+			unresolved = append(unresolved, query)
+			continue
+		}
+
+		query.Response <- value
+	}
+
+	db.payloadQueries = unresolved
+}
+
+// resolvePayloadAttQueriesUnsafe resolve any payloadAttQuery to a result if found.
+// It is unsafe since it assume that the lock is held.
+func (db *MemDB) resolvePayloadAttQueriesUnsafe() {
+	var unresolved []payloadAttQuery
+
+	for _, query := range db.payloadAttQueries {
+		if cancelled(query.Cancel) {
+			continue // Drop cancelled queries.
+		}
+
+		value, ok := db.payloadAttDuties[query.Key]
+		if !ok {
+			unresolved = append(unresolved, query)
+			continue
+		}
+
+		query.Response <- value
+	}
+
+	db.payloadAttQueries = unresolved
 }
 
 // resolveAggQueriesUnsafe resolve any aggQuery to a result if found.
@@ -669,6 +930,12 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 	switch duty.Type {
 	case core.DutyProposer:
 		delete(db.proDuties, duty.Slot)
+
+		for key := range db.payloadContents {
+			if key.Slot == duty.Slot {
+				delete(db.payloadContents, key)
+			}
+		}
 	case core.DutyBuilderProposer:
 		return core.ErrDeprecatedDutyBuilderProposer
 	case core.DutyAttester:
@@ -690,6 +957,8 @@ func (db *MemDB) deleteDutyUnsafe(duty core.Duty) error {
 		}
 
 		delete(db.contribKeysBySlot, duty.Slot)
+	case core.DutyPayloadAttestation:
+		delete(db.payloadAttDuties, duty.Slot)
 	default:
 		return errors.New("unknown duty type")
 	}
@@ -717,6 +986,12 @@ type aggKey struct {
 	CommitteeIndex eth2p0.CommitteeIndex
 }
 
+// payloadKey is the key to look up the execution payload contents of a self-built proposal.
+type payloadKey struct {
+	Slot uint64
+	Root eth2p0.Root
+}
+
 // contribKey is the key to look up sync contribution by root and subcommittee index in the DB.
 type contribKey struct {
 	Slot       uint64
@@ -734,7 +1009,21 @@ type attQuery struct {
 // proQuery is a waiting proQuery with a response channel.
 type proQuery struct {
 	Key      uint64
-	Response chan<- *eth2api.VersionedProposal
+	Response chan<- core.VersionedProposal
+	Cancel   <-chan struct{}
+}
+
+// payloadQuery is a waiting payloadQuery with a response channel.
+type payloadQuery struct {
+	Key      payloadKey
+	Response chan<- core.VersionedProposal
+	Cancel   <-chan struct{}
+}
+
+// payloadAttQuery is a waiting payloadAttQuery with a response channel.
+type payloadAttQuery struct {
+	Key      uint64
+	Response chan<- core.VersionedPayloadAttestationData
 	Cancel   <-chan struct{}
 }
 

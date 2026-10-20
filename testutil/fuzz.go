@@ -4,6 +4,7 @@ package testutil
 
 import (
 	"math/rand"
+	"slices"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
@@ -44,6 +46,9 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 		eth2spec.DataVersionElectra,
 		eth2spec.DataVersionFulu,
 	}
+
+	// Attestation types support gloas, unlike proposals which don't yet.
+	attestationVersions := append(slices.Clone(allVersions), eth2spec.DataVersionGloas)
 
 	if seed == 0 {
 		seed = time.Now().Unix()
@@ -129,6 +134,25 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 
 				for idx := range e.Deposits {
 					e.Deposits[idx].WithdrawalCredentials = bits
+				}
+			},
+			// gloas.ExecutionRequests reuses electra.DepositRequest and adds
+			// gloas.BuilderDepositRequest, both of which require fixed-length withdrawal
+			// credentials for JSON round-tripping.
+			func(e *gloas.ExecutionRequests, c fuzz.Continue) {
+				c.FuzzNoCustom(e)
+
+				bits := bitfield.NewBitvector256()
+				for i := range 32 {
+					bits.SetBitAt(uint64(i), true)
+				}
+
+				for idx := range e.Deposits {
+					e.Deposits[idx].WithdrawalCredentials = bits
+				}
+
+				for idx := range e.BuilderDeposits {
+					e.BuilderDeposits[idx].WithdrawalCredentials = make([]byte, 32)
 				}
 			},
 			// Populate one of the versions of these VersionedSignedProposal types.
@@ -353,7 +377,7 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				}
 			},
 			func(e *core.VersionedAttestation, c fuzz.Continue) {
-				e.Version = allVersions[c.Intn(len(allVersions))]
+				e.Version = attestationVersions[c.Intn(len(attestationVersions))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
@@ -382,8 +406,19 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 
 				e.CommitteeBits = bits
 			},
+			// gloas.Attestation must have 8 bits
+			func(e *gloas.Attestation, c fuzz.Continue) {
+				c.FuzzNoCustom(e)
+
+				bits := bitfield.NewBitvector64()
+				for i := range 8 {
+					bits.SetBitAt(uint64(i), true)
+				}
+
+				e.CommitteeBits = bits
+			},
 			func(e *core.VersionedAggregatedAttestation, c fuzz.Continue) {
-				e.Version = allVersions[c.Intn(len(allVersions))]
+				e.Version = attestationVersions[c.Intn(len(attestationVersions))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
@@ -391,12 +426,24 @@ func NewEth2Fuzzer(t *testing.T, seed int64) *fuzz.Fuzzer {
 				c.Fuzz(val)
 			},
 			func(e *core.VersionedSignedAggregateAndProof, c fuzz.Continue) {
-				e.Version = allVersions[c.Intn(len(allVersions))]
+				e.Version = attestationVersions[c.Intn(len(attestationVersions))]
 				version, err := eth2util.DataVersionFromETH2(e.Version)
 				require.NoError(t, err)
 
 				val := core.VersionedSSZValueForT(t, e, version)
 				c.Fuzz(val)
+			},
+			// Payload attestation data only exists from gloas onwards.
+			func(e *core.VersionedPayloadAttestationData, c fuzz.Continue) {
+				e.Version = eth2spec.DataVersionGloas
+				e.Gloas = new(gloas.PayloadAttestationData)
+				c.Fuzz(e.Gloas)
+			},
+			// Payload attestation messages only exist from gloas onwards.
+			func(e *core.VersionedPayloadAttestationMessage, c fuzz.Continue) {
+				e.Version = eth2spec.DataVersionGloas
+				e.Gloas = new(gloas.PayloadAttestationMessage)
+				c.Fuzz(e.Gloas)
 			},
 		)
 }

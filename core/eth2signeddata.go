@@ -26,6 +26,10 @@ var (
 	_ Eth2SignedData = SignedSyncMessage{}
 	_ Eth2SignedData = SignedSyncContributionAndProof{}
 	_ Eth2SignedData = SyncCommitteeSelection{}
+	_ Eth2SignedData = VersionedPayloadAttestationMessage{}
+	_ Eth2SignedData = SignedProposerPreferences{}
+	_ Eth2SignedData = SignedBuilderRequestAuth{}
+	_ Eth2SignedData = SignedExecutionPayloadEnvelope{}
 )
 
 // VerifyEth2SignedData verifies signature associated with the given Eth2SignedData.
@@ -169,4 +173,63 @@ func (SyncCommitteeSelection) DomainName() signing.DomainName {
 
 func (s SyncCommitteeSelection) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
 	return eth2util.EpochFromSlot(ctx, eth2Cl, s.Slot)
+}
+
+// Implement Eth2SignedData for VersionedPayloadAttestationMessage.
+
+func (VersionedPayloadAttestationMessage) DomainName() signing.DomainName {
+	return signing.DomainPTCAttester
+}
+
+func (m VersionedPayloadAttestationMessage) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	data, err := m.Data()
+	if err != nil {
+		return 0, errors.Wrap(err, "get payload attestation data")
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, data.Slot)
+}
+
+// Implement Eth2SignedData for SignedProposerPreferences.
+
+func (SignedProposerPreferences) DomainName() signing.DomainName {
+	return signing.DomainProposerPreferences
+}
+
+func (p SignedProposerPreferences) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	if p.Message == nil {
+		return 0, errors.New("nil proposer preferences message")
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, p.Message.ProposalSlot)
+}
+
+// Implement Eth2SignedData for SignedBuilderRequestAuth.
+
+func (SignedBuilderRequestAuth) DomainName() signing.DomainName {
+	return signing.DomainBuilderRequestAuth
+}
+
+// Epoch returns the epoch of the authorized proposal slot. The builder request auth domain is
+// fork-independent, so the epoch doesn't affect the signing root.
+func (a SignedBuilderRequestAuth) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	if a.Message == nil {
+		return 0, errors.New("nil builder request auth message")
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, a.Message.Slot)
+}
+
+// Implement Eth2SignedData for SignedExecutionPayloadEnvelope.
+
+func (SignedExecutionPayloadEnvelope) DomainName() signing.DomainName {
+	return signing.DomainBeaconBuilder
+}
+
+func (p SignedExecutionPayloadEnvelope) Epoch(ctx context.Context, eth2Cl eth2wrap.Client) (eth2p0.Epoch, error) {
+	if p.SignedExecutionPayloadEnvelope == nil || p.SignedExecutionPayloadEnvelope.Message == nil || p.SignedExecutionPayloadEnvelope.Message.Payload == nil {
+		return 0, errors.New("nil execution payload envelope message")
+	}
+
+	return eth2util.EpochFromSlot(ctx, eth2Cl, eth2p0.Slot(p.SignedExecutionPayloadEnvelope.Message.Payload.SlotNumber))
 }

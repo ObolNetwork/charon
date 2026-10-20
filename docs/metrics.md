@@ -14,14 +14,18 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | Name | Type | Help | Labels |
 |---|---|---|---|
 | `app_beacon_node_peers` | Gauge | Gauge set to the peer count of the upstream beacon node |  |
-| `app_beacon_node_sse_block` | Histogram | Block imported into fork choice delay, supplied by beacon node`s SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe | `addr` |
-| `app_beacon_node_sse_block_gossip` | Histogram | Block reception via gossip delay, supplied by beacon node`s SSE endpoint. Values between 0s and 4s for Ethereum mainnet are considered safe | `addr` |
+| `app_beacon_node_sse_block` | Histogram | Block imported into fork choice delay, supplied by beacon node`s SSE endpoint. Values below the attestation due offset (4s pre-gloas, 3s post-gloas for Ethereum mainnet) are considered safe | `addr` |
+| `app_beacon_node_sse_block_gossip` | Histogram | Block reception via gossip delay, supplied by beacon node`s SSE endpoint. Values below the attestation due offset (4s pre-gloas, 3s post-gloas for Ethereum mainnet) are considered safe | `addr` |
 | `app_beacon_node_sse_block_processing_time` | Histogram | Time in seconds between block gossip and head events, indicating block processing time. Lower values indicate better CPU/disk/RAM performance. | `addr` |
 | `app_beacon_node_sse_chain_reorg_depth` | Histogram | Chain reorg depth, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_sse_dependent_root_mismatch_total` | Counter | Total number of head events whose duty dependent root differed from the cached attester duties, invalidating them | `addr` |
-| `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values between 8s and 12s for Ethereum mainnet are considered safe. | `addr` |
+| `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values up to the end of the slot (12s for Ethereum mainnet) are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
 | `app_beacon_node_version` | Gauge | Constant gauge with labels set to the version and beacon_id of the upstream beacon node | `version, beacon_id` |
+| `app_builder_config_boost_factor_percent` | Gauge | The configured percentage multiplier applied to builder bid values. Absent when no builder URLs are configured. |  |
+| `app_builder_config_max_execution_payment_gwei` | Gauge | The configured maximum execution layer payment in gwei counted when valuing a builder bid. Absent when no builder URLs are configured. |  |
+| `app_builder_config_min_bid_gwei` | Gauge | The configured minimum builder bid value in gwei. Absent when no builder URLs are configured. |  |
+| `app_builder_config_url` | Gauge | Constant gauge set to 1 for each configured builder URL. Absent when no builder URLs are configured. | `url` |
 | `app_cache_hits_total` | Counter | Total number of times the cache was used | `endpoint` |
 | `app_cache_invalidated_reorg_total` | Counter | Total number of times the cache was invalidated due to a chain reorg | `endpoint` |
 | `app_cache_misses_total` | Counter | Total number of times the cache was missed | `endpoint` |
@@ -31,6 +35,10 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_eth2_using_fallback` | Gauge | Indicates if client is using fallback (1) or primary (0) beacon node |  |
 | `app_execution_layer_version` | Gauge | Constant gauge with labels set to the version of the upstream execution layer | `version` |
 | `app_feature_flags` | Gauge | Constant gauge with custom enabled feature flags | `feature_flags` |
+| `app_fork_current_activation_epoch` | Gauge | Constant gauge with the epoch at which the current fork activated, labelled by the fork name, e.g. gloas | `fork` |
+| `app_fork_next_activation_epoch` | Gauge | Constant gauge with the epoch at which the next scheduled fork activates, labelled by the fork name, e.g. heze. Absent if no fork is scheduled | `fork` |
+| `app_fork_readiness` | Gauge | Constant gauge set to 1 per fork and component with the fork readiness status: ready, upgrade_required, known_issues or unknown. The address label is set for per-beacon-node rows and per-validator-client user agent rows, where unknown is used for validator clients not sending a user agent, e.g. Lighthouse | `fork, component, status, address` |
+| `app_fork_schedule_conflict` | Gauge | Constant gauge set to 1 for a fork the beacon nodes schedule at different epochs, of which the earliest is applied, labelled by the fork name. Absent if they agree | `fork` |
 | `app_git_commit` | Gauge | Constant gauge with label set to current git commit hash | `git_hash` |
 | `app_health_checks` | Gauge | Application health checks by name and severity. Set to 1 for failing, 0 for ok. | `severity, name, description` |
 | `app_health_checks_failed_total` | Counter | Total number of times each health check has been observed failing. Allows querying historical failures via increase(). | `severity, name, description` |
@@ -41,6 +49,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_monitoring_readyz` | Gauge | Set to 1 if the node is operational and monitoring api `/readyz` endpoint is returning 200s. Else `/readyz` is returning 500s and this metric is either set to 2 if the beacon node is down, or3 if the beacon node is syncing, or4 if quorum peers are not connected. |  |
 | `app_peer_name` | Gauge | Constant gauge with label set to the name of the cluster peer | `peer_name` |
 | `app_peerinfo_builder_api_enabled` | Gauge | Set to 1 if builder API is enabled on this peer, else 0 if disabled. | `peer` |
+| `app_peerinfo_builder_config_mismatch` | Gauge | Set to 1 if the peer`s builder configuration (builder URLs and related flags) differs from this node`s, else 0. Absent for peers not reporting a builder configuration hash. | `peer` |
 | `app_peerinfo_clock_offset_seconds` | Gauge | Peer clock offset in seconds | `peer` |
 | `app_peerinfo_dv_client` | Gauge | Constant gauge with dv_client label set to the peer`s distributed validator client type. | `peer, dv_client` |
 | `app_peerinfo_git_commit` | Gauge | Constant gauge with git_hash label set to peer`s git commit hash. | `peer, git_hash` |
@@ -58,17 +67,28 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `cluster_validators` | Gauge | Number of validators in the cluster lock |  |
 | `core_bcast_broadcast_delay_seconds` | Histogram | Duty broadcast delay since the expected duty submission in seconds by type | `duty` |
 | `core_bcast_broadcast_total` | Counter | The total count of successfully broadcast duties by type | `duty` |
+| `core_bcast_builder_preferences_rejected_total` | Counter | The total count of builder preferences entries rejected by builder URL | `builder` |
+| `core_bcast_proposal_source_total` | Counter | The total count of successfully broadcast gloas block proposals by builder source (local, p2p, direct) and builder host when direct | `source, builder` |
 | `core_consensus_decided_leader_index` | Gauge | Index of the decided leader by protocol and duty | `protocol, duty` |
 | `core_consensus_decided_rounds` | Gauge | Number of decided rounds by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_duration_seconds` | Histogram | Duration of the consensus process by protocol, duty, and timer | `protocol, duty, timer` |
 | `core_consensus_error_total` | Counter | Total count of consensus errors by protocol | `protocol` |
 | `core_consensus_insufficient_round_changes_total` | Counter | Total count of consensus instances with insufficient round change messages by protocol, duty, timer, and outcome (decided or timeout) | `protocol, duty, timer, outcome` |
 | `core_consensus_timeout_total` | Counter | Total count of consensus timeouts by protocol, duty, and timer | `protocol, duty, timer` |
-| `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was blinded (1) or local (2) |  |
+| `core_fetcher_proposal_blinded` | Gauge | Whether the fetched proposal was built by a builder via p2p (1, blinded pre-gloas), locally (2) or by a direct builder (3), labelled by builder host when direct | `builder` |
 | `core_fetcher_proposal_local_mismatch_fee_recipient` | Gauge | Counts the number of times a local proposal has a mismatched fee recipient |  |
+| `core_fetcher_proposal_value_gwei_total` | Counter | Sum of the values of fetched gloas proposals in gwei by type: the builder bid value (builder bids only), the execution payload value and the consensus block value (when known) | `type` |
+| `core_fetcher_proposal_values_total` | Counter | Number of values of fetched gloas proposals added to core_fetcher_proposal_value_gwei_total by type | `type` |
 | `core_parsigdb_exit_total` | Counter | Total number of partially signed voluntary exits per public key | `pubkey` |
 | `core_parsigdb_store` | Histogram | Latency of partial signatures received since earliest expected time, per duty, per peer index | `duty, peer_idx` |
 | `core_parsigex_set_verification_seconds` | Histogram | Duration to verify all partial signatures in a received set, in seconds | `duty` |
+| `core_payloadex_blobs_per_proposal` | Histogram | Number of blobs of agreed self-built proposals shared by this node, each 128 KiB plus 6 KiB of KZG proofs on the wire |  |
+| `core_payloadex_contents_delay_seconds` | Histogram | Delay from this node`s decision on an agreed self-built proposal until it holds the execution payload contents, by source (pushed by the proposer or requested from peers) | `source` |
+| `core_payloadex_envelope_size_bytes` | Histogram | Size of the execution payload envelope of agreed self-built proposals shared by this node |  |
+| `core_payloadex_received_total` | Counter | Total number of execution payload contents received from peers, pushed or requested, by result (accepted or rejected) | `result` |
+| `core_payloadex_requested_total` | Counter | Total number of agreed self-built proposals whose execution payload contents this node had to request from its peers, the proposer`s push not having arrived in time |  |
+| `core_payloadex_served_total` | Counter | Total number of execution payload contents requests from peers, by result (found or missing) | `result` |
+| `core_payloadex_shared_total` | Counter | Total number of agreed self-built proposals whose execution payload contents this node shared with its peers |  |
 | `core_scheduler_current_epoch` | Gauge | The current epoch |  |
 | `core_scheduler_current_slot` | Gauge | The current slot |  |
 | `core_scheduler_duty_total` | Counter | The total count of duties scheduled by type | `duty` |
@@ -81,6 +101,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_sigagg_slot_aggregation_seconds` | Histogram | Total duration to aggregate all validators for a duty in a slot, in seconds | `duty` |
 | `core_tracker_attestation_expect_total` | Counter | Total number of expected attestations for the slot (counts individual attestations, not duties) |  |
 | `core_tracker_attestation_success_total` | Counter | Total number of successful attestations for the slot (counts individual attestations, not duties) |  |
+| `core_tracker_builder_request_auths_total` | Counter | Total number of partially signed builder request auths by peer and builder host, those for builders not configured on this node counted as unknown | `peer, builder` |
 | `core_tracker_expect_duties_total` | Counter | Total number of expected duties (failed + success) by type | `duty` |
 | `core_tracker_failed_duties_total` | Counter | Total number of failed duties by type | `duty` |
 | `core_tracker_failed_duty_reasons_total` | Counter | Total number of failed duties by type and reason code | `duty, reason` |
@@ -95,6 +116,9 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `core_tracker_participation_total` | Counter | Total number of successful participations by peer and duty type | `duty, peer` |
 | `core_tracker_success_duties_total` | Counter | Total number of successful duties by type | `duty` |
 | `core_tracker_unexpected_events_total` | Counter | Total number of unexpected events by peer | `peer` |
+| `core_validatorapi_builder_preferences_mismatch_total` | Counter | Total number of builder preferences submitted by the VC that mismatch this node`s builders, by builder host and reason: a configured builder without a request auth (missing) or an auth for a builder not configured (unknown) | `builder, reason` |
+| `core_validatorapi_proposal_form` | Gauge | The form the validator client requested the latest gloas proposal in: none requested yet (0), stateless with its execution payload, which waits for the shared payload contents (1), or stateful (2) |  |
+| `core_validatorapi_proposer_preferences_mismatch_total` | Counter | Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field | `field` |
 | `core_validatorapi_proxy_request_latency_seconds` | Histogram | The validatorapi proxy request latencies in seconds by path | `path` |
 | `core_validatorapi_request_error_total` | Counter | The total number of validatorapi request errors | `endpoint, status_code` |
 | `core_validatorapi_request_latency_seconds` | Histogram | The validatorapi request latencies in seconds by endpoint | `endpoint` |

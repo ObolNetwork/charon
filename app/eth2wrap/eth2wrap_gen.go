@@ -28,6 +28,7 @@ type Client interface {
 	CachedDutiesProvider
 	SetDutiesCache(
 		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
 		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
 		func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
 	)
@@ -49,8 +50,12 @@ type Client interface {
 	eth2client.BeaconCommitteeSubscriptionsSubmitter
 	eth2client.BeaconCommitteesProvider
 	eth2client.BlindedProposalSubmitter
+	eth2client.BuilderPreferencesSubmitter
 	eth2client.DepositContractProvider
 	eth2client.DomainProvider
+	eth2client.EPBSProposalProvider
+	eth2client.ExecutionPayloadEnvelopeSubmitter
+	eth2client.ExecutionPayloadProvider
 	eth2client.ForkProvider
 	eth2client.ForkScheduleProvider
 	eth2client.GenesisProvider
@@ -59,11 +64,16 @@ type Client interface {
 	eth2client.NodeSyncingProvider
 	eth2client.NodeVersionProvider
 	eth2client.NodeVersionV2Provider
+	eth2client.PTCDutiesProvider
+	eth2client.PayloadAttestationDataProvider
+	eth2client.PayloadAttestationMessagesSubmitter
 	eth2client.PendingDepositProvider
 	eth2client.ProposalPreparationsSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.ProposerDutiesV2Provider
+	eth2client.ProposerPreferencesSubmitter
 	eth2client.ProxyProvider
 	eth2client.SignedBeaconBlockProvider
 	eth2client.SlotDurationProvider
@@ -445,6 +455,27 @@ func (m multi) Proposal(ctx context.Context, opts *api.ProposalOpts) (*api.Respo
 	return res0, err
 }
 
+// EPBSProposal fetches an ePBS proposal for signing.
+func (m multi) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (*api.Response[*api.VersionedEPBSProposal], error) {
+	const label = "epbs_proposal"
+	defer latency(ctx, label, true)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*api.VersionedEPBSProposal], error) {
+			return args.client.EPBSProposal(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // BeaconBlockRoot fetches a block's root given a set of options.
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (*api.Response[*phase0.Root], error) {
@@ -530,7 +561,7 @@ func (m multi) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return err
 }
 
-// BeaconCommitteeSelections submits beacon committee selections.
+// BeaconCommitteeSelections obtains beacon committee selections.
 func (m multi) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (*api.Response[[]*apiv1.BeaconCommitteeSelection], error) {
 	const label = "beacon_committee_selections"
 	defer latency(ctx, label, false)()
@@ -810,6 +841,27 @@ func (m multi) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 	return res0, err
 }
 
+// ProposerDutiesV2 obtains proposer duties for the given options.
+func (m multi) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDutiesOpts) (*api.Response[[]*apiv1.ProposerDuty], error) {
+	const label = "proposer_duties_v2"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.ProposerDuty], error) {
+			return args.client.ProposerDutiesV2(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
 // Spec provides the spec information of the chain.
 // Note this endpoint is cached in go-eth2-client.
 func (m multi) Spec(ctx context.Context, opts *api.SpecOpts) (*api.Response[map[string]any], error) {
@@ -940,6 +992,151 @@ func (m multi) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	}
 
 	return res0, err
+}
+
+// SignedExecutionPayloadEnvelope fetches a signed execution payload
+// envelope given a block ID. Returns a versioned wrapper so callers can
+// branch on Version regardless of which fork's envelope is populated.
+func (m multi) SignedExecutionPayloadEnvelope(ctx context.Context, opts *api.SignedExecutionPayloadEnvelopeOpts) (*api.Response[*spec.VersionedSignedExecutionPayloadEnvelope], error) {
+	const label = "signed_execution_payload_envelope"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedSignedExecutionPayloadEnvelope], error) {
+			return args.client.SignedExecutionPayloadEnvelope(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+// SubmitExecutionPayloadEnvelope submits a signed execution payload
+// envelope (with its blobs and KZG proofs) for broadcast.
+func (m multi) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *api.SubmitExecutionPayloadEnvelopeOpts) error {
+	const label = "submit_execution_payload_envelope"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitExecutionPayloadEnvelope(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
+func (m multi) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (*api.Response[[]*apiv1.PTCDuty], error) {
+	const label = "ptc_duties"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[[]*apiv1.PTCDuty], error) {
+			return args.client.PTCDuties(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) PayloadAttestationData(ctx context.Context, opts *api.PayloadAttestationDataOpts) (*api.Response[*spec.VersionedPayloadAttestationData], error) {
+	const label = "payload_attestation_data"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (*api.Response[*spec.VersionedPayloadAttestationData], error) {
+			return args.client.PayloadAttestationData(ctx, opts)
+		},
+		nil, m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.SubmitPayloadAttestationMessagesOpts) error {
+	const label = "submit_payload_attestation_messages"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitPayloadAttestationMessages(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
+func (m multi) SubmitBuilderPreferences(ctx context.Context, opts *api.SubmitBuilderPreferencesOpts) error {
+	const label = "submit_builder_preferences"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitBuilderPreferences(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
+}
+
+func (m multi) SubmitProposerPreferences(ctx context.Context, opts *api.SubmitProposerPreferencesOpts) error {
+	const label = "submit_proposer_preferences"
+	defer latency(ctx, label, false)()
+	defer incRequest(label)
+
+	err := submit(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) error {
+			return args.client.SubmitProposerPreferences(ctx, opts)
+		},
+		m.selector,
+	)
+
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return err
 }
 
 // SlotDuration provides the duration of a slot of the chain.
@@ -1117,6 +1314,16 @@ func (l *lazy) Proposal(ctx context.Context, opts *api.ProposalOpts) (res0 *api.
 	return cl.Proposal(ctx, opts)
 }
 
+// EPBSProposal fetches an ePBS proposal for signing.
+func (l *lazy) EPBSProposal(ctx context.Context, opts *api.EPBSProposalOpts) (res0 *api.Response[*api.VersionedEPBSProposal], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.EPBSProposal(ctx, opts)
+}
+
 // BeaconBlockRoot fetches a block's root given a set of options.
 func (l *lazy) BeaconBlockRoot(ctx context.Context, opts *api.BeaconBlockRootOpts) (res0 *api.Response[*phase0.Root], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -1157,7 +1364,7 @@ func (l *lazy) SubmitBeaconCommitteeSubscriptions(ctx context.Context, subscript
 	return cl.SubmitBeaconCommitteeSubscriptions(ctx, subscriptions)
 }
 
-// BeaconCommitteeSelections submits beacon committee selections.
+// BeaconCommitteeSelections obtains beacon committee selections.
 func (l *lazy) BeaconCommitteeSelections(ctx context.Context, opts *api.BeaconCommitteeSelectionsOpts) (res0 *api.Response[[]*apiv1.BeaconCommitteeSelection], err error) {
 	cl, err := l.getOrCreateClient(ctx)
 	if err != nil {
@@ -1289,6 +1496,16 @@ func (l *lazy) ProposerDuties(ctx context.Context, opts *api.ProposerDutiesOpts)
 	return cl.ProposerDuties(ctx, opts)
 }
 
+// ProposerDutiesV2 obtains proposer duties for the given options.
+func (l *lazy) ProposerDutiesV2(ctx context.Context, opts *api.ProposerDutiesOpts) (res0 *api.Response[[]*apiv1.ProposerDuty], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.ProposerDutiesV2(ctx, opts)
+}
+
 // Spec provides the spec information of the chain.
 func (l *lazy) Spec(ctx context.Context, opts *api.SpecOpts) (res0 *api.Response[map[string]any], err error) {
 	cl, err := l.getOrCreateClient(ctx)
@@ -1350,6 +1567,74 @@ func (l *lazy) GenesisDomain(ctx context.Context, domainType phase0.DomainType) 
 	}
 
 	return cl.GenesisDomain(ctx, domainType)
+}
+
+// SignedExecutionPayloadEnvelope fetches a signed execution payload
+// envelope given a block ID. Returns a versioned wrapper so callers can
+// branch on Version regardless of which fork's envelope is populated.
+func (l *lazy) SignedExecutionPayloadEnvelope(ctx context.Context, opts *api.SignedExecutionPayloadEnvelopeOpts) (res0 *api.Response[*spec.VersionedSignedExecutionPayloadEnvelope], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.SignedExecutionPayloadEnvelope(ctx, opts)
+}
+
+// SubmitExecutionPayloadEnvelope submits a signed execution payload
+// envelope (with its blobs and KZG proofs) for broadcast.
+func (l *lazy) SubmitExecutionPayloadEnvelope(ctx context.Context, opts *api.SubmitExecutionPayloadEnvelopeOpts) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitExecutionPayloadEnvelope(ctx, opts)
+}
+
+func (l *lazy) PTCDuties(ctx context.Context, opts *api.PTCDutiesOpts) (res0 *api.Response[[]*apiv1.PTCDuty], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.PTCDuties(ctx, opts)
+}
+
+func (l *lazy) PayloadAttestationData(ctx context.Context, opts *api.PayloadAttestationDataOpts) (res0 *api.Response[*spec.VersionedPayloadAttestationData], err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return res0, err
+	}
+
+	return cl.PayloadAttestationData(ctx, opts)
+}
+
+func (l *lazy) SubmitPayloadAttestationMessages(ctx context.Context, opts *api.SubmitPayloadAttestationMessagesOpts) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitPayloadAttestationMessages(ctx, opts)
+}
+
+func (l *lazy) SubmitBuilderPreferences(ctx context.Context, opts *api.SubmitBuilderPreferencesOpts) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitBuilderPreferences(ctx, opts)
+}
+
+func (l *lazy) SubmitProposerPreferences(ctx context.Context, opts *api.SubmitProposerPreferencesOpts) (err error) {
+	cl, err := l.getOrCreateClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return cl.SubmitProposerPreferences(ctx, opts)
 }
 
 // Proxy performs an HTTP proxy request and returns the response.

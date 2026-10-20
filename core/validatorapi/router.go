@@ -14,6 +14,7 @@ import (
 	stdlog "log"
 	"maps"
 	"math"
+	"math/big"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -31,16 +32,19 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2v1gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/gorilla/mux"
+	"github.com/pk910/dynamic-ssz/sszutils"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
@@ -52,15 +56,19 @@ import (
 type contentType string
 
 const (
-	contentTypeJSON               contentType = "application/json"
-	contentTypeSSZ                contentType = "application/octet-stream"
-	versionHeader                             = "Eth-Consensus-Version"
-	executionPayloadBlindedHeader             = "Eth-Execution-Payload-Blinded"
-	executionPayloadValueHeader               = "Eth-Execution-Payload-Value"
-	consensusBlockValueHeader                 = "Eth-Consensus-Block-Value"
-	defaultRequestTimeout                     = 10 * time.Second
+	contentTypeJSON                contentType = "application/json"
+	contentTypeSSZ                 contentType = "application/octet-stream"
+	versionHeader                              = "Eth-Consensus-Version"
+	blobDataIncludedHeader                     = "Eth-Blob-Data-Included"
+	executionPayloadBlindedHeader              = "Eth-Execution-Payload-Blinded"
+	executionPayloadIncludedHeader             = "Eth-Execution-Payload-Included"
+	executionPayloadValueHeader                = "Eth-Execution-Payload-Value"
+	consensusBlockValueHeader                  = "Eth-Consensus-Block-Value"
+	defaultRequestTimeout                      = 10 * time.Second
 	// maxUserAgentLen bounds the untrusted User-Agent header used as a metric label value.
 	maxUserAgentLen = 128
+	// unknownUserAgent is recorded for validator client requests without a User-Agent header.
+	unknownUserAgent = "unknown"
 )
 
 // Handler defines the request handler providing the business logic
@@ -71,13 +79,22 @@ type Handler interface {
 	eth2client.AttestationDataProvider
 	eth2client.AttestationsSubmitter
 	eth2client.AttesterDutiesProvider
+	eth2client.EPBSProposalProvider
+	eth2client.ExecutionPayloadEnvelopeProvider
+	eth2client.ExecutionPayloadEnvelopeSubmitter
 	eth2client.ProposalProvider
 	eth2client.ProposalSubmitter
 	eth2client.ProxyProvider
 	eth2client.BeaconCommitteeSelectionsProvider
 	eth2client.BlindedProposalSubmitter
 	eth2client.NodeVersionProvider
+	eth2client.PayloadAttestationDataProvider
+	eth2client.PayloadAttestationMessagesSubmitter
 	eth2client.ProposerDutiesProvider
+	eth2client.ProposerDutiesV2Provider
+	eth2client.ProposerPreferencesSubmitter
+	eth2client.BuilderPreferencesSubmitter
+	eth2client.PTCDutiesProvider
 	eth2client.SyncCommitteeContributionProvider
 	eth2client.SyncCommitteeContributionsSubmitter
 	eth2client.SyncCommitteeDutiesProvider
@@ -105,6 +122,12 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 		Handler   handlerFunc
 		Methods   []string
 		Encodings []contentType
+		// ResponseEncodings are the supported response content types, negotiated via the
+		// request Accept header; json only if empty.
+		ResponseEncodings []contentType
+		// MaxBody limits the request body size in bytes, enforced at the read boundary
+		// before the body is buffered; zero means unlimited.
+		MaxBody int64
 	}{
 		{
 			Name:      "attester_duties",
@@ -123,8 +146,15 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 		{
 			Name:      "proposer_duties_v2",
 			Path:      "/eth/v2/validator/duties/proposer/{epoch}",
-			Handler:   proposerDuties(h),
+			Handler:   proposerDutiesV2(h),
 			Methods:   []string{http.MethodGet},
+			Encodings: []contentType{contentTypeJSON},
+		},
+		{
+			Name:      "ptc_duties",
+			Path:      "/eth/v1/validator/duties/ptc/{epoch}",
+			Handler:   ptcDuties(h),
+			Methods:   []string{http.MethodPost},
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
@@ -189,6 +219,16 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Handler:   proposeBlockV3(h, builderEnabled),
 			Methods:   []string{http.MethodGet},
 			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+		},
+		{
+			Name:              "propose_block_v4",
+			Path:              "/eth/v4/validator/blocks/{slot}",
+			Handler:           proposeBlockV4(h),
+			Methods:           []string{http.MethodPost},
+			Encodings:         []contentType{contentTypeJSON, contentTypeSSZ},
+			ResponseEncodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			// The request body carries the VC builder config, see maxBuilderConfigBody.
+			MaxBody: maxBuilderConfigBody,
 		},
 		{
 			Name:      "submit_proposal_v1",
@@ -289,6 +329,37 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
+			Name:              "payload_attestation_data",
+			Path:              "/eth/v1/validator/payload_attestation_data",
+			Handler:           payloadAttestationData(h),
+			Methods:           []string{http.MethodGet},
+			Encodings:         []contentType{contentTypeJSON},
+			ResponseEncodings: []contentType{contentTypeJSON, contentTypeSSZ},
+		},
+		{
+			Name:      "submit_payload_attestations",
+			Path:      "/eth/v1/beacon/pool/payload_attestations",
+			Handler:   submitPayloadAttestationMessages(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			MaxBody:   maxPayloadAttestationsBody,
+		},
+		{
+			Name:              "execution_payload_envelope",
+			Path:              "/eth/v1/validator/execution_payload_envelopes/{slot}/{beacon_block_root}",
+			Handler:           executionPayloadEnvelope(h),
+			Methods:           []string{http.MethodGet},
+			Encodings:         []contentType{contentTypeJSON},
+			ResponseEncodings: []contentType{contentTypeJSON, contentTypeSSZ},
+		},
+		{
+			Name:      "submit_execution_payload_envelope",
+			Path:      "/eth/v1/beacon/execution_payload_envelopes",
+			Handler:   submitExecutionPayloadEnvelope(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+		},
+		{
 			Name:      "sync_committee_contribution",
 			Path:      "/eth/v1/validator/sync_committee_contribution",
 			Handler:   syncCommitteeContribution(h),
@@ -310,6 +381,22 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 			Encodings: []contentType{contentTypeJSON},
 		},
 		{
+			Name:      "submit_proposer_preferences",
+			Path:      "/eth/v1/validator/proposer_preferences",
+			Handler:   submitProposerPreferences(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			MaxBody:   maxProposerPreferencesBody,
+		},
+		{
+			Name:      "submit_builder_preferences",
+			Path:      "/eth/v1/validator/builder_preferences",
+			Handler:   submitBuilderPreferences(h),
+			Methods:   []string{http.MethodPost},
+			Encodings: []contentType{contentTypeJSON, contentTypeSSZ},
+			MaxBody:   maxBuilderPreferencesBody,
+		},
+		{
 			Name:      "aggregate_sync_committee_selections",
 			Path:      "/eth/v1/validator/sync_committee_selections",
 			Handler:   syncCommitteeSelections(h),
@@ -327,7 +414,7 @@ func NewRouter(h Handler, builderEnabled bool) (*mux.Router, error) {
 
 	r := mux.NewRouter()
 	for _, e := range endpoints {
-		handler := r.Handle(e.Path, wrap(e.Name, e.Handler, e.Encodings))
+		handler := r.Handle(e.Path, wrap(e.Name, e.Handler, e.Encodings, e.ResponseEncodings, e.MaxBody))
 		if len(e.Methods) != 0 {
 			handler.Methods(e.Methods...)
 		}
@@ -356,13 +443,27 @@ func (a apiError) Error() string {
 	return fmt.Sprintf("api error[status=%d,msg=%s]: %v", a.StatusCode, a.Message, a.Err)
 }
 
+// badRequestError returns an apiError with status 400 for client input validation failures.
+func badRequestError(msg string, err error) error {
+	if err == nil {
+		err = errors.New(msg)
+	}
+
+	return apiError{
+		StatusCode: http.StatusBadRequest,
+		Message:    msg,
+		Err:        err,
+	}
+}
+
 // handlerFunc is a convenient handler function providing a context, parsed path parameters,
-// the request body, and returning the response struct or an error.
+// the request body, and returning the response struct or an error. The response is encoded
+// as json, or as ssz if negotiated (see writeResponse).
 type handlerFunc func(ctx context.Context, params map[string]string, header http.Header, query url.Values, typ contentType, body []byte) (res any, headers http.Header, err error)
 
 // wrap adapts the handler function returning a standard http handler.
 // It does tracing, metrics and response and error writing.
-func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Handler {
+func wrap(endpoint string, handler handlerFunc, encodings []contentType, responseEncodings []contentType, maxBody int64) http.Handler {
 	wrap := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		ctx = log.WithTopic(ctx, "vapi")
@@ -406,7 +507,10 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 		}
 
 		userAgent := r.Header.Get("User-Agent")
-		if userAgent != "" {
+		if userAgent == "" {
+			// Record validator clients not sending a user agent, e.g. Lighthouse, so their fork readiness is unknown instead of missing.
+			recordVCUserAgent(unknownUserAgent)
+		} else {
 			if len(userAgent) > maxUserAgentLen {
 				userAgent = userAgent[:maxUserAgentLen]
 			}
@@ -415,11 +519,30 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 
 			vcUserAgentGauge.Reset()
 			vcUserAgentGauge.WithLabelValues(userAgent).Set(1)
+
+			// Only record known validator clients, other API users like monitoring tools and scripts have no fork readiness.
+			if eth2wrap.IsValidatorClientUserAgent(userAgent) {
+				recordVCUserAgent(userAgent)
+			}
+		}
+
+		if maxBody > 0 {
+			// Enforce the endpoint body limit at the read boundary, before buffering.
+			r.Body = http.MaxBytesReader(w, r.Body, maxBody)
 		}
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			if maxBytesErr := new(http.MaxBytesError); errors.As(err, &maxBytesErr) {
+				err = apiError{
+					StatusCode: http.StatusRequestEntityTooLarge,
+					Message:    "request body too large",
+					Err:        err,
+				}
+			}
+
 			writeError(ctx, w, endpoint, err)
+
 			return
 		}
 
@@ -429,25 +552,73 @@ func wrap(endpoint string, handler handlerFunc, encodings []contentType) http.Ha
 			return
 		}
 
-		writeResponse(ctx, w, endpoint, res, headers)
+		writeResponse(ctx, w, endpoint, res, negotiateResponseType(r.Header, responseEncodings), headers)
 	}
 
 	return http.HandlerFunc(wrap)
 }
 
-// writeResponse writes the 200 OK response and json response body.
-func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response any, headers http.Header) {
+// noContentResponse is a handler response resulting in 204 No Content without a body.
+type noContentResponse struct{}
+
+// negotiateResponseType returns the response content type for the request: ssz if the Accept
+// header asks for it and the endpoint supports it, json otherwise. Quality weights (q=) in the
+// Accept header are deliberately ignored: validator clients send a single media type or list
+// ssz first, so any mention of ssz is treated as a preference for it.
+func negotiateResponseType(header http.Header, supported []contentType) contentType {
+	if strings.Contains(header.Get("Accept"), string(contentTypeSSZ)) && slices.Contains(supported, contentTypeSSZ) {
+		return contentTypeSSZ
+	}
+
+	return contentTypeJSON
+}
+
+// sszMarshaler is a response that can be encoded as ssz.
+type sszMarshaler interface {
+	MarshalSSZ() ([]byte, error)
+}
+
+// writeResponse writes the 200 OK response with the response struct encoded as the provided content type.
+func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, response any, typ contentType, headers http.Header) {
 	if response == nil {
 		return
 	}
 
-	b, err := json.Marshal(response)
-	if err != nil {
-		writeError(ctx, w, endpoint, errors.Wrap(err, "marshal response body"))
+	// A no-content response has no body to encode, regardless of the negotiated type.
+	if _, ok := response.(noContentResponse); ok {
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	var b []byte
+
+	switch typ {
+	case contentTypeJSON:
+		var err error
+
+		b, err = json.Marshal(response)
+		if err != nil {
+			writeError(ctx, w, endpoint, errors.Wrap(err, "marshal json response body"))
+			return
+		}
+	case contentTypeSSZ:
+		marshaller, ok := response.(sszMarshaler)
+		if !ok {
+			writeError(ctx, w, endpoint, errors.New("response type doesn't support ssz marshalling"))
+			return
+		}
+
+		var err error
+
+		b, err = marshaller.MarshalSSZ()
+		if err != nil {
+			writeError(ctx, w, endpoint, errors.Wrap(err, "marshal ssz response body"))
+			return
+		}
+	default:
+		writeError(ctx, w, endpoint, errors.New("unsupported response content type", z.Str("type", string(typ))))
+		return
+	}
 
 	for name, values := range headers {
 		for _, val := range values {
@@ -455,7 +626,9 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, endpoint string, 
 		}
 	}
 
-	if _, err = w.Write(b); err != nil {
+	w.Header().Set("Content-Type", string(typ))
+
+	if _, err := w.Write(b); err != nil {
 		// Too late to also try to writeError at this point, so just log.
 		log.Error(ctx, "Failed to write API response to client. Connection may have been closed", err)
 	}
@@ -519,9 +692,15 @@ func attestationData(p eth2client.AttestationDataProvider) handlerFunc {
 			return nil, nil, err
 		}
 
-		commIdx, err := uintQuery(query, "committee_index")
-		if err != nil {
-			return nil, nil, err
+		// The committee_index parameter is deprecated: post-electra it may always be 0 and
+		// post-gloas spec-compliant validator clients should omit it entirely, so default to 0.
+		var commIdx uint64
+
+		if query.Has("committee_index") {
+			commIdx, err = uintQuery(query, "committee_index")
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 
 		opts := &eth2api.AttestationDataOpts{
@@ -682,6 +861,31 @@ func submitAttestations(p eth2client.AttestationsSubmitter) handlerFunc {
 				}
 				versionedAtts = append(versionedAtts, &versionedAtt)
 			}
+		case eth2spec.DataVersionGloas:
+			singleAtts := new([]electra.SingleAttestation)
+
+			err = unmarshal(typ, body, singleAtts)
+			if err != nil {
+				return nil, nil, errors.New("invalid gloas attestations", z.Hex("body", body))
+			}
+
+			for _, singleAtt := range *singleAtts {
+				commBits := bitfield.NewBitvector64()
+				commBits.SetBitAt(uint64(singleAtt.CommitteeIndex), true)
+				versionedAtt := eth2spec.VersionedAttestation{
+					Version:        eth2spec.DataVersionGloas,
+					ValidatorIndex: &singleAtt.AttesterIndex,
+					Gloas: &gloas.Attestation{
+						// the VersionedAttestation object will be converted back to SingleAttestation object inside go-eth2-client's SubmitAttestations,
+						// SingleAttestation object disregards AggregationBits, so this empty Bitlist is safe
+						AggregationBits: bitfield.NewBitlist(0),
+						Data:            singleAtt.Data,
+						Signature:       singleAtt.Signature,
+						CommitteeBits:   commBits,
+					},
+				}
+				versionedAtts = append(versionedAtts, &versionedAtt)
+			}
 		default:
 			return nil, nil, errors.New("invalid attestations version", z.Hex("body", body), z.Str("version", version.String()))
 		}
@@ -733,6 +937,48 @@ func proposerDuties(p eth2client.ProposerDutiesProvider) handlerFunc {
 	}
 }
 
+// proposerDutiesV2 returns a handler function for the v2 proposer duty endpoint, which
+// only differs from v1 in the dependent root being the E-2 shuffling anchor.
+func proposerDutiesV2(p eth2client.ProposerDutiesV2Provider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		opts := &eth2api.ProposerDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: nil,
+		}
+
+		eth2Resp, err := p.ProposerDutiesV2(ctx, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
+			data = []*eth2v1.ProposerDuty{}
+		}
+
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDutiesV2 response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode ProposerDutiesV2 response metadata")
+		}
+
+		return proposerDutiesResponse{
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
+			Data:                data,
+		}, nil, nil
+	}
+}
+
 // attesterDuties returns a handler function for the attester duty endpoint.
 func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
@@ -772,6 +1018,52 @@ func attesterDuties(p eth2client.AttesterDutiesProvider) handlerFunc {
 		}
 
 		return attesterDutiesResponse{
+			ExecutionOptimistic: executionOptimistic,
+			DependentRoot:       dependentRoot,
+			Data:                data,
+		}, nil, nil
+	}
+}
+
+// ptcDuties returns a handler function for the payload timeliness committee duty endpoint.
+func ptcDuties(p eth2client.PTCDutiesProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		epoch, err := uintParam(params, "epoch")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var req valIndexesJSON
+		if err := unmarshal(typ, body, &req); err != nil {
+			return nil, nil, err
+		}
+
+		opts := &eth2api.PTCDutiesOpts{
+			Epoch:   eth2p0.Epoch(epoch),
+			Indices: req,
+		}
+
+		eth2Resp, err := p.PTCDuties(ctx, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		data := eth2Resp.Data
+		if len(data) == 0 { // Return empty json array instead of null
+			data = []*eth2v1.PTCDuty{}
+		}
+
+		executionOptimistic, err := getExecutionOptimisticFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode PTCDuties response metadata")
+		}
+
+		dependentRoot, err := getDependentRootFromMetadata(eth2Resp.Metadata)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to decode PTCDuties response metadata")
+		}
+
+		return ptcDutiesResponse{
 			ExecutionOptimistic: executionOptimistic,
 			DependentRoot:       dependentRoot,
 			Data:                data,
@@ -916,6 +1208,113 @@ func proposeBlockV3(p eth2client.ProposalProvider, builderEnabled bool) handlerF
 
 		return proposedBlock, resHeaders, nil
 	}
+}
+
+// maxBuilderConfigBody is a sanity cap on the v4 propose block request body, which
+// carries the VC builder config. The config is bounded by the spec list limits (64
+// builder entries with 2048-byte URLs), far below this cap.
+const maxBuilderConfigBody = 1 << 20 // 1MB
+
+// proposeBlockV4 returns a handler function returning an unsigned gloas EPBS proposal.
+// The VC-supplied builder config body is not forwarded as such: the cluster proposal is fetched
+// with charon's own builder configuration. Only the builder request auths a validator client
+// sends inline with it, instead of ahead of time as builder preferences, are submitted for
+// threshold aggregation.
+func proposeBlockV4(p eth2client.EPBSProposalProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, query url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		slot, randao, graffiti, err := getProposeBlockParams(params, query)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		includePayload := true
+		if query.Has("include_payload") {
+			includePayload, err = strconv.ParseBool(query.Get("include_payload"))
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "invalid include_payload query parameter")
+			}
+		}
+
+		opts := &eth2api.EPBSProposalOpts{
+			Slot:           eth2p0.Slot(slot),
+			RandaoReveal:   randao,
+			Graffiti:       graffiti,
+			IncludePayload: &includePayload,
+		}
+
+		// The inline builder request auths are optional, so a body the builder config can't be
+		// decoded from doesn't fail the request.
+		if len(body) > 0 {
+			var config gloas.BuilderConfig
+
+			err := unmarshal(typ, body, &config)
+			if err != nil {
+				log.Warn(ctx, "Ignoring undecodable builder config of block production request", err)
+			} else {
+				opts.BuilderConfig = &config
+			}
+		}
+
+		eth2Resp, err := p.EPBSProposal(ctx, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		proposal := eth2Resp.Data
+
+		var blockData any
+		if proposal.ExecutionPayloadIncluded {
+			blockData = proposal.GloasContents
+		} else {
+			blockData = proposal.Gloas
+		}
+
+		resHeaders := make(http.Header)
+		resHeaders.Add(versionHeader, proposal.Version.String())
+		resHeaders.Add(executionPayloadIncludedHeader, strconv.FormatBool(proposal.ExecutionPayloadIncluded))
+		resHeaders.Add(executionPayloadValueHeader, weiString(proposal.ExecutionValue))
+		resHeaders.Add(consensusBlockValueHeader, weiString(proposal.ConsensusValue))
+
+		return proposeBlockV4Response{
+			Version:                  proposal.Version.String(),
+			ExecutionPayloadIncluded: proposal.ExecutionPayloadIncluded,
+			ExecutionPayloadValue:    weiString(proposal.ExecutionValue),
+			ConsensusBlockValue:      weiString(proposal.ConsensusValue),
+			Data:                     blockData,
+		}, resHeaders, nil
+	}
+}
+
+// proposeBlockV4Response is the response body of the v4 propose block endpoint. The json body
+// wraps the block data in this envelope, while the ssz body is the block data alone with the
+// envelope fields provided as response headers.
+type proposeBlockV4Response struct {
+	Version                  string `json:"version"`
+	ExecutionPayloadIncluded bool   `json:"execution_payload_included"`
+	ExecutionPayloadValue    string `json:"execution_payload_value"`
+	ConsensusBlockValue      string `json:"consensus_block_value"`
+	Data                     any    `json:"data"`
+}
+
+// MarshalSSZ encodes the block data as ssz, see proposeBlockV4Response.
+func (r proposeBlockV4Response) MarshalSSZ() ([]byte, error) {
+	data, ok := r.Data.(sszMarshaler)
+	if !ok {
+		return nil, errors.New("block data doesn't support ssz marshalling")
+	}
+
+	return data.MarshalSSZ()
+}
+
+// weiString returns the value as a decimal Wei string, or "0" when unset. The value
+// headers are required in the response, but the eth2 client leaves a proposal value
+// nil when the bid it commits to cannot be attributed.
+func weiString(value *big.Int) string {
+	if value == nil {
+		return "0"
+	}
+
+	return value.String()
 }
 
 // getProposeBlockParams returns slot, randao and graffiti from propose block request params.
@@ -1197,6 +1596,23 @@ func submitProposal(p eth2client.ProposalSubmitter) handlerFunc {
 				Proposal: block,
 			})
 
+		case eth2spec.DataVersionGloas:
+			gloasBlock := new(gloas.SignedBeaconBlock)
+
+			err = unmarshal(typ, body, gloasBlock)
+			if err != nil {
+				return nil, nil, errors.New("invalid submitted gloas block", z.Hex("body", body))
+			}
+
+			block := &eth2api.VersionedSignedProposal{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   gloasBlock,
+			}
+
+			return nil, nil, p.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+				Proposal: block,
+			})
+
 		default:
 			return nil, nil, errors.New("invalid submitted block", z.Hex("body", body))
 		}
@@ -1447,6 +1863,12 @@ func createAggregateAttestation(aggAtt *eth2spec.VersionedAttestation) (*aggrega
 		}
 
 		res.Data = aggAtt.Fulu
+	case eth2spec.DataVersionGloas:
+		if aggAtt.Gloas == nil {
+			return nil, errors.New("no gloas attestation")
+		}
+
+		res.Data = aggAtt.Gloas
 	default:
 		return nil, errors.New("invalid attestation")
 	}
@@ -1571,13 +1993,125 @@ func submitAggregateAttestations(s eth2client.AggregateAttestationsSubmitter) ha
 				}
 				aggs = append(aggs, &versionedAgg)
 			}
+		case eth2spec.DataVersionGloas:
+			var gloasAggs []*gloas.SignedAggregateAndProof
+
+			err := unmarshal(typ, body, &gloasAggs)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal gloas signed aggregate and proofs", z.Hex("body", body))
+			}
+
+			for _, gloasAgg := range gloasAggs {
+				versionedAgg := eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   gloasAgg,
+				}
+				aggs = append(aggs, &versionedAgg)
+			}
 		default:
-			return nil, nil, errors.Wrap(err, "unknown signed aggregate and proofs version", z.Hex("body", body), z.Str("version", version.String()))
+			return nil, nil, errors.New("unknown signed aggregate and proofs version", z.Hex("body", body), z.Str("version", version.String()))
 		}
 
 		return nil, nil, s.SubmitAggregateAttestations(ctx, &eth2api.SubmitAggregateAttestationsOpts{
 			SignedAggregateAndProofs: aggs,
 		})
+	}
+}
+
+// payloadAttestationData returns a handler function for the payload attestation data endpoint.
+func payloadAttestationData(p eth2client.PayloadAttestationDataProvider) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, _ http.Header, query url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintQuery(query, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		opts := &eth2api.PayloadAttestationDataOpts{
+			Slot: eth2p0.Slot(slot),
+		}
+
+		eth2Resp, err := p.PayloadAttestationData(ctx, opts)
+		if errors.Is(err, eth2client.ErrNoPayloadAttestationData) {
+			// No block seen for the slot, so nothing to attest: mirror the beacon api's 204 No Content.
+			return noContentResponse{}, nil, nil
+		} else if err != nil {
+			return nil, nil, err
+		}
+
+		data := eth2Resp.Data
+		if data.Version != eth2spec.DataVersionGloas || data.Gloas == nil {
+			return nil, nil, errors.New("unsupported payload attestation data version")
+		}
+
+		version := data.Version.String()
+
+		return payloadAttestationDataResponse{
+			Version: version,
+			Data:    data.Gloas,
+		}, http.Header{versionHeader: []string{version}}, nil
+	}
+}
+
+// payloadAttestationDataResponse is the response body of the payload attestation data endpoint.
+// The json body wraps the data in this envelope, while the ssz body is the data alone with the
+// version provided as response header.
+type payloadAttestationDataResponse struct {
+	Version string                        `json:"version"`
+	Data    *gloas.PayloadAttestationData `json:"data"`
+}
+
+// MarshalSSZ encodes the payload attestation data as ssz, see payloadAttestationDataResponse.
+func (r payloadAttestationDataResponse) MarshalSSZ() ([]byte, error) {
+	return r.Data.MarshalSSZ()
+}
+
+// maxPayloadAttestationsBody is a sanity cap on the payload attestation messages request body,
+// enforced by the route's MaxBody at the read boundary. It is far above the encoded size of the
+// spec list limit (PTC_SIZE items), which the api list type enforces when decoding.
+const maxPayloadAttestationsBody = 1 << 20 // 1MB
+
+// submitPayloadAttestationMessages returns a handler function for the payload attestation pool submission endpoint.
+func submitPayloadAttestationMessages(s eth2client.PayloadAttestationMessagesSubmitter) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version != eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas",
+			}
+		}
+
+		var msgs eth2v1gloas.PayloadAttestationMessages
+
+		err = unmarshal(typ, body, &msgs)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal payload attestation messages")
+		}
+
+		versioned := make([]*eth2spec.VersionedPayloadAttestationMessage, 0, len(msgs))
+		for _, msg := range msgs {
+			versioned = append(versioned, &eth2spec.VersionedPayloadAttestationMessage{
+				Version: version,
+				Gloas:   msg,
+			})
+		}
+
+		err = s.SubmitPayloadAttestationMessages(ctx, &eth2api.SubmitPayloadAttestationMessagesOpts{Messages: versioned})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
 	}
 }
 
@@ -1592,6 +2126,237 @@ func submitSyncCommitteeMessages(s eth2client.SyncCommitteeMessagesSubmitter) ha
 
 		err = s.SubmitSyncCommitteeMessages(ctx, msgs)
 		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
+}
+
+// maxProposerPreferencesBody is a sanity cap on the proposer preferences request body size,
+// enforced by the route's MaxBody at the read boundary. It is far above the encoded size of
+// the spec list limit ((MIN_SEED_LOOKAHEAD+1)*SLOTS_PER_EPOCH items) on any network; the
+// exact spec limit is enforced in Component.SubmitProposerPreferences.
+const maxProposerPreferencesBody = 1 << 20 // 1MB
+
+// submitProposerPreferences receives partially signed proposer preferences from the validator
+// client and forwards them for threshold aggregation. From the gloas fork, these supersede
+// prepare_beacon_proposer and register_validator as the source of fee recipient and gas limit.
+func submitProposerPreferences(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version != eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas",
+			}
+		}
+
+		var prefs eth2v1gloas.SignedProposerPreferencesList
+
+		err = unmarshal(typ, body, &prefs)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal proposer preferences")
+		}
+
+		err = h.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: prefs})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
+}
+
+// maxBuilderPreferencesBody bounds the builder preferences request body. The spec list limit
+// (MAX_BUILDER_ENTRIES per slot of the proposer lookahead) far exceeds what a validator client
+// submits for the few proposals of its validators within the lookahead.
+const maxBuilderPreferencesBody = 2 << 20 // 2MB
+
+// submitBuilderPreferences receives the builder preferences of the validator client and forwards
+// their partially signed builder request auths for threshold aggregation.
+func submitBuilderPreferences(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version != eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas",
+			}
+		}
+
+		var entries eth2v1gloas.BuilderPreferencesEntryList
+
+		err = unmarshal(typ, body, &entries)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "unmarshal builder preferences")
+		}
+
+		err = h.SubmitBuilderPreferences(ctx, &eth2api.SubmitBuilderPreferencesOpts{Preferences: entries})
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, nil, nil
+	}
+}
+
+// executionPayloadEnvelope returns a handler function for the execution payload envelope endpoint,
+// serving the envelope of the cluster agreed proposal to validator clients that produce gloas
+// blocks in the stateful form.
+func executionPayloadEnvelope(p eth2client.ExecutionPayloadEnvelopeProvider) handlerFunc {
+	return func(ctx context.Context, params map[string]string, _ http.Header, _ url.Values, _ contentType, _ []byte) (any, http.Header, error) {
+		slot, err := uintParam(params, "slot")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var root eth2p0.Root
+		if err := hexParamFixed(params, "beacon_block_root", root[:]); err != nil {
+			return nil, nil, err
+		}
+
+		eth2Resp, err := p.ExecutionPayloadEnvelope(ctx, &eth2api.ExecutionPayloadEnvelopeOpts{
+			Slot:            eth2p0.Slot(slot),
+			BeaconBlockRoot: root,
+		})
+		if errors.Is(err, eth2client.ErrNoExecutionPayloadEnvelope) {
+			return nil, nil, apiError{
+				StatusCode: http.StatusNotFound,
+				Message:    "Execution payload envelope not available for slot",
+				Err:        err,
+			}
+		} else if err != nil {
+			return nil, nil, err
+		}
+
+		// Each fork serves its envelope type; new forks add a case here.
+		var data sszMarshaler
+
+		switch eth2Resp.Data.Version {
+		case eth2spec.DataVersionGloas:
+			data = eth2Resp.Data.Gloas
+		default:
+			return nil, nil, errors.New("unsupported execution payload envelope version", z.Str("version", eth2Resp.Data.Version.String()))
+		}
+
+		version := eth2Resp.Data.Version.String()
+
+		return executionPayloadEnvelopeResponse{
+			Version: version,
+			Data:    data,
+		}, http.Header{versionHeader: []string{version}}, nil
+	}
+}
+
+// executionPayloadEnvelopeResponse is the response body of the execution payload envelope endpoint.
+// The json body wraps the fork's envelope in this envelope, while the ssz body is the envelope alone
+// with the version provided as response header.
+type executionPayloadEnvelopeResponse struct {
+	Version string       `json:"version"`
+	Data    sszMarshaler `json:"data"`
+}
+
+// MarshalSSZ encodes the execution payload envelope as ssz, see executionPayloadEnvelopeResponse.
+func (r executionPayloadEnvelopeResponse) MarshalSSZ() ([]byte, error) {
+	return r.Data.MarshalSSZ()
+}
+
+// submitExecutionPayloadEnvelope receives a partially signed execution payload envelope (with its
+// blobs and KZG proofs) from the validator client and forwards it for threshold aggregation. From
+// the gloas fork, a self-building proposer reveals its execution payload with this submission.
+func submitExecutionPayloadEnvelope(h Handler) handlerFunc {
+	return func(ctx context.Context, _ map[string]string, header http.Header, _ url.Values, typ contentType, body []byte) (any, http.Header, error) {
+		var version eth2spec.DataVersion
+
+		err := version.UnmarshalJSON([]byte("\"" + header.Get(versionHeader) + "\""))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + versionHeader + " header",
+				Err:        err,
+			}
+		}
+
+		if version < eth2spec.DataVersionGloas {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "unsupported " + versionHeader + " header, expected gloas or later",
+			}
+		}
+
+		// Eth-Blob-Data-Included selects the request body schema: "true" is the stateless
+		// SignedExecutionPayloadEnvelopeContents (envelope with blobs and proofs), "false" is the
+		// bare SignedExecutionPayloadEnvelope. Both carry the same signed envelope; charon sources
+		// the broadcast blobs from the agreed proposal either way.
+		blobDataIncluded, err := strconv.ParseBool(header.Get(blobDataIncludedHeader))
+		if err != nil {
+			return nil, nil, apiError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid or missing " + blobDataIncludedHeader + " header",
+				Err:        err,
+			}
+		}
+
+		opts := &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+			SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{Version: version},
+		}
+
+		if blobDataIncluded {
+			contents := new(eth2v1gloas.SignedExecutionPayloadEnvelopeContents)
+			if typ == contentTypeSSZ {
+				err = contents.UnmarshalSSZ(body)
+			} else {
+				err = unmarshal(typ, body, contents)
+			}
+
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal execution payload envelope contents")
+			}
+
+			opts.SignedExecutionPayloadEnvelope.Gloas = contents.SignedExecutionPayloadEnvelope
+			opts.KZGProofs = contents.KZGProofs
+			opts.Blobs = contents.Blobs
+		} else {
+			envelope := new(gloas.SignedExecutionPayloadEnvelope)
+			if typ == contentTypeSSZ {
+				err = envelope.UnmarshalSSZ(body)
+			} else {
+				err = unmarshal(typ, body, envelope)
+			}
+
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "unmarshal execution payload envelope")
+			}
+
+			opts.SignedExecutionPayloadEnvelope.Gloas = envelope
+		}
+
+		if opts.SignedExecutionPayloadEnvelope.Gloas == nil {
+			return nil, nil, badRequestError("nil execution payload envelope", nil)
+		}
+
+		if err := h.SubmitExecutionPayloadEnvelope(ctx, opts); err != nil {
 			return nil, nil, err
 		}
 
@@ -1823,7 +2588,7 @@ func unmarshal(typ contentType, body []byte, v any) error {
 
 		return nil
 	case contentTypeSSZ:
-		unmarshaller, ok := v.(ssz.Unmarshaler)
+		unmarshaller, ok := v.(sszutils.FastsszUnmarshaler)
 		if !ok {
 			return apiError{
 				StatusCode: http.StatusUnsupportedMediaType,
@@ -1835,7 +2600,7 @@ func unmarshal(typ contentType, body []byte, v any) error {
 		err := unmarshaller.UnmarshalSSZ(body)
 		if err != nil {
 			return apiError{
-				StatusCode: http.StatusUnsupportedMediaType,
+				StatusCode: http.StatusBadRequest,
 				Message:    "failed parsing ssz request body",
 				Err:        err,
 			}
@@ -1867,6 +2632,35 @@ func uintParam(params map[string]string, name string) (uint64, error) {
 	}
 
 	return res, nil
+}
+
+// hexParamFixed parses a fixed length 0x-hex path parameter into target.
+func hexParamFixed(params map[string]string, name string, target []byte) error {
+	param, ok := params[name]
+	if !ok {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "missing path parameter " + name,
+		}
+	}
+
+	resp, err := hex.DecodeString(strings.TrimPrefix(param, "0x"))
+	if err != nil {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid 0x-hex path parameter %s [%s]", name, param),
+			Err:        err,
+		}
+	} else if len(resp) != len(target) {
+		return apiError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("invalid length for 0x-hex path parameter %s, expect %d bytes", name, len(target)),
+		}
+	}
+
+	copy(target, resp)
+
+	return nil
 }
 
 // uintQuery returns a uint query parameter.

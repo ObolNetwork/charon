@@ -48,7 +48,10 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 ) *Scheduler {
 	t.Helper()
 
-	s, err := New(builderRegProvider, eth2Cl, builderEnabled)
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	s, err := New(t.Context(), builderRegProvider, eth2Cl, func() eth2wrap.ForkForkSchedule { return forkSchedule }, builderEnabled)
 	require.NoError(t, err)
 
 	s.clock = clock
@@ -58,10 +61,20 @@ func NewForT(t *testing.T, clock clockwork.Clock, delayFunc delayFunc, builderRe
 	return s
 }
 
-// New returns a new scheduler.
-func New(builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client, builderEnabled bool) (*Scheduler, error) {
+// New returns a new scheduler. The fork schedule function returns the schedule charon currently
+// applies, which may change at runtime.
+func New(ctx context.Context, builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client,
+	forkSchedule func() eth2wrap.ForkForkSchedule, builderEnabled bool,
+) (*Scheduler, error) {
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
+	if err != nil {
+		return nil, errors.Wrap(err, "new slot offset func")
+	}
+
 	return &Scheduler{
 		eth2Cl:                     eth2Cl,
+		slotOffsetFunc:             slotOffsetFunc,
+		forkSchedule:               forkSchedule,
 		builderRegProvider:         builderRegProvider,
 		submittedRegistrationEpoch: math.MaxUint64,
 		quit:                       make(chan struct{}),
@@ -81,6 +94,8 @@ func New(builderRegProvider BuilderRegistrationProvider, eth2Cl eth2wrap.Client,
 
 type Scheduler struct {
 	eth2Cl                     eth2wrap.Client
+	slotOffsetFunc             core.SlotOffsetFunc
+	forkSchedule               func() eth2wrap.ForkForkSchedule
 	builderRegProvider         BuilderRegistrationProvider
 	submittedRegistrationEpoch uint64
 	registrationMutex          sync.Mutex
@@ -95,11 +110,12 @@ type Scheduler struct {
 	dutiesMutex                sync.RWMutex
 	dutySubs                   []func(context.Context, core.Duty, core.DutyDefinitionSet) error
 	slotSubs                   []func(context.Context, core.Slot) error
+	// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 	fetcherFetchOnly           func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error
 	builderEnabled             bool
 	schedSlotFunc              schedSlotFunc
 	epochResolved              map[uint64]chan struct{} // Notification channels for epoch resolution
-	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse head event (map[uint64]bool)
+	eventTriggeredAttestations sync.Map                 // Track attestation duties triggered via sse head event (map[uint64]bool). TODO(post-gloas): remove.
 }
 
 // SubscribeDuties subscribes a callback function for triggered duties.
@@ -110,6 +126,7 @@ func (s *Scheduler) SubscribeDuties(fn func(context.Context, core.Duty, core.Dut
 
 // RegisterFetcherFetchOnly registers the fetcher's FetchOnly method for early attestation fetching.
 // Note this should be called *before* Start.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (s *Scheduler) RegisterFetcherFetchOnly(fn func(context.Context, core.Duty, core.DutyDefinitionSet, string, eth2p0.Root) error) {
 	s.fetcherFetchOnly = fn
 }
@@ -151,9 +168,10 @@ func (s *Scheduler) Run() error {
 	waitChainStart(ctx, s.eth2Cl, s.clock)
 	waitBeaconSync(ctx, s.eth2Cl, s.clock)
 
-	// Submit validator registrations on startup if builder is enabled.
-	// This ensures registrations are sent before the first proposal opportunity.
-	if s.builderEnabled {
+	// Submit validator registrations on startup if builder is enabled and the gloas fork, which
+	// deprecates them, is not active yet. This ensures registrations are sent before the first
+	// proposal opportunity.
+	if s.builderEnabled && !s.reachedGloasFork(ctx) {
 		go s.submitValidatorRegistrations(ctx, 0)
 	}
 
@@ -200,6 +218,10 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 // HandleHeadEvent handles SSE "head" events (fork-choice head updated) and triggers early attestation data fetching.
 // Triggering on the head event (rather than the block event) ensures the beacon node's head has settled onto the
 // new block before we fetch, avoiding stale attestation data at epoch boundaries.
+//
+// TODO(post-gloas): remove the pre-gloas early attestation fetch (this handler, FetchOnly and its
+// cache, waitForEarlyFetchOrTimeout) once all supported networks have activated gloas. Pre-gloas
+// networks then fetch attestation data at the deadline, while the gloas fork checks must remain.
 func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string) {
 	if s.fetcherFetchOnly == nil {
 		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
@@ -207,7 +229,18 @@ func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, block
 	}
 
 	// Only process if either feature flag is enabled
-	if !featureset.Enabled(featureset.FetchAttOnBlock) && !featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if !featureset.Enabled(featureset.FetchAttOnBlock) {
+		return
+	}
+
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil {
+		log.Warn(ctx, "Early attestation data fetch skipped, failed to fetch slots config", err, z.U64("slot", uint64(slot)))
+		return
+	}
+
+	// From gloas the fetcher handles head events itself, see fetcher.HandleHeadEvent.
+	if s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(uint64(slot)/slotsPerEpoch)) {
 		return
 	}
 
@@ -319,9 +352,11 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	}
 
 	// Submit validator registrations asynchronously to avoid blocking duty triggering.
-	// Only submit at slot 0 of each epoch, delayed to end of slot to reduce BN load.
+	// Only submit at slot 0 of each epoch, delayed to end of slot to reduce BN load. Registrations
+	// are deprecated from the gloas fork, so stop submitting once it is reached (checked here, once
+	// per epoch, rather than in the submit path which would otherwise skip-log every epoch).
 	if s.builderEnabled && s.getSubmittedRegistrationEpoch() != slot.Epoch() {
-		if slot.Slot%slot.SlotsPerEpoch == 0 {
+		if slot.Slot%slot.SlotsPerEpoch == 0 && !s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
 			go s.submitValidatorRegistrationsDelayed(ctx, slot)
 		}
 	}
@@ -349,14 +384,19 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			defer span.End()
 
+			// From gloas the fetcher waits for the block itself, so attester duties are triggered at
+			// the start of the block proposal interval, the start of the slot, for consensus to start
+			// one interval ahead of the attestation due time.
+			gloasAttester := duty.Type == core.DutyAttester && s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch()))
+
 			// Special handling for attester duties when FetchAttOnBlock features are enabled
-			if duty.Type == core.DutyAttester && (featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay)) {
+			if duty.Type == core.DutyAttester && !gloasAttester && featureset.Enabled(featureset.FetchAttOnBlock) {
 				if !s.waitForEarlyFetchOrTimeout(dutyCtx, slot) {
 					return // context cancelled
 				}
 
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc) {
+			} else if !gloasAttester && !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
 				return // context cancelled
 			}
 
@@ -386,14 +426,13 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 
 // delaySlotOffset blocks until the slot offset for the duty has been reached and return true.
 // It returns false if the context is cancelled.
-func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc) bool {
-	fn, ok := slotOffsets[duty.Type]
-	if !ok {
+func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc, slotOffsetFunc core.SlotOffsetFunc) bool {
+	offset := slotOffsetFunc(duty)
+	if offset == 0 {
+		// Duty is triggered at the start of the slot.
 		return true
 	}
 
-	// Calculate delay until slot offset
-	offset := fn(slot.SlotDuration)
 	deadline := slot.Time.Add(offset)
 
 	select {
@@ -404,40 +443,24 @@ func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayF
 	}
 }
 
-// waitForEarlyFetchOrTimeout waits until the fallback timeout is reached.
+// waitForEarlyFetchOrTimeout waits until the attestation slot offset is reached.
 // The head-event-triggered early fetch (HandleHeadEvent) runs concurrently and populates the
 // attestation data cache before this deadline in the happy path.
-// If FetchAttOnBlockWithDelay is enabled, timeout is T=1/3+300ms, otherwise T=1/3.
 // Returns false if the context is cancelled, true otherwise.
+// TODO(post-gloas): remove the pre-gloas early attestation fetch.
 func (s *Scheduler) waitForEarlyFetchOrTimeout(ctx context.Context, slot core.Slot) bool {
 	// Calculate fallback timeout
-	fn, ok := slotOffsets[core.DutyAttester]
-	if !ok {
-		log.Warn(ctx, "Slot offset not found for attester duty, proceeding immediately", nil, z.U64("slot", slot.Slot))
-		return true
-	}
-
-	offset := fn(slot.SlotDuration)
-	// Add 300ms delay only if FetchAttOnBlockWithDelay is enabled
-	if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-		offset += 300 * time.Millisecond
-	}
-
+	offset := s.slotOffsetFunc(core.Duty{Slot: slot.Slot, Type: core.DutyAttester})
 	fallbackDeadline := slot.Time.Add(offset)
 
 	select {
 	case <-ctx.Done():
 		return false
-	case <-s.clock.After(time.Until(fallbackDeadline)):
+	case <-s.delayFunc(core.NewAttesterDuty(slot.Slot), fallbackDeadline):
 		// Check if head event triggered early fetch
 		if _, triggered := s.eventTriggeredAttestations.Load(slot.Slot); !triggered {
-			if featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-				log.Debug(ctx, "Proceeding with attestation at T=1/3+300ms (no early head event)",
-					z.U64("slot", slot.Slot))
-			} else {
-				log.Debug(ctx, "Proceeding with attestation at T=1/3 (no early head event)",
-					z.U64("slot", slot.Slot))
-			}
+			log.Debug(ctx, "Proceeding with attestation at slot offset (no early head event)",
+				z.U64("slot", slot.Slot), z.Any("offset", offset))
 		}
 
 		return true
@@ -481,6 +504,11 @@ func (s *Scheduler) resolveDuties(ctx context.Context, slot core.Slot) error {
 	// may still be committee members); the beacon node returns duties only for the current period's
 	// actual members.
 	err = s.resolveSyncCommDuties(ctx, slot, syncVals)
+	if err != nil {
+		return err
+	}
+
+	err = s.resolvePTCDuties(ctx, slot, vals)
 	if err != nil {
 		return err
 	}
@@ -709,6 +737,56 @@ func (s *Scheduler) resolveSyncCommDuties(ctx context.Context, slot core.Slot, v
 	return nil
 }
 
+// resolvePTCDuties resolves payload timeliness committee duties for the epoch of the slot.
+// PTC duties only exist from the gloas fork onwards.
+func (s *Scheduler) resolvePTCDuties(ctx context.Context, slot core.Slot, vals validators) error {
+	if !s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
+		return nil
+	}
+
+	eth2Resp, err := s.eth2Cl.PTCDuties(ctx, &eth2api.PTCDutiesOpts{
+		Epoch:   eth2p0.Epoch(slot.Epoch()),
+		Indices: vals.Indexes(),
+	})
+	if err != nil {
+		return err
+	}
+
+	var ptcResolvedPubkeys []string
+
+	for _, ptcDuty := range eth2Resp.Data {
+		if ptcDuty == nil {
+			return errors.New("ptc duty is nil")
+		}
+
+		if ptcDuty.Slot < eth2p0.Slot(slot.Slot) {
+			// Skip duties for earlier slots in initial epoch.
+			continue
+		}
+
+		pubkey, ok := vals.PubKeyFromIndex(ptcDuty.ValidatorIndex)
+		if !ok {
+			log.Warn(ctx, "Received ptc duty for unknown validator. The validator may not be part of this cluster. Ignoring", nil, z.U64("vidx", uint64(ptcDuty.ValidatorIndex)), z.U64("slot", uint64(ptcDuty.Slot)))
+			continue
+		}
+
+		if core.PubKeyFrom48Bytes(ptcDuty.PubKey) != pubkey {
+			return errors.New("invalid ptc duty pubkey")
+		}
+
+		duty := core.NewPayloadAttestationDuty(uint64(ptcDuty.Slot))
+		if !s.setDutyDefinition(duty, slot.Epoch(), pubkey, core.NewPTCDefinition(ptcDuty)) {
+			continue
+		}
+
+		ptcResolvedPubkeys = append(ptcResolvedPubkeys, pubkey.String())
+	}
+
+	logResolvedDuties(ctx, "Resolved ptc duties", slot.Epoch(), ptcResolvedPubkeys)
+
+	return nil
+}
+
 func (s *Scheduler) getDutyDefinitionSet(duty core.Duty) (core.DutyDefinitionSet, bool) {
 	s.dutiesMutex.RLock()
 	defer s.dutiesMutex.RUnlock()
@@ -834,7 +912,7 @@ func (s *Scheduler) trimDuties(epoch uint64) {
 
 	delete(s.dutiesByEpoch, epoch)
 
-	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
 		s.trimEventTriggeredAttestations(epoch)
 	}
 }
@@ -905,6 +983,24 @@ func (s *Scheduler) submitValidatorRegistrations(ctx context.Context, epoch uint
 		log.Info(ctx, "Submitted validator registrations", z.Int("count", len(regs)), z.U64("epoch", epoch))
 		s.setSubmittedRegistrationEpoch(epoch)
 	}
+}
+
+// reachedGloasFork reports whether the gloas fork is active at the current clock epoch, for use on
+// startup before the first slot ticks. Errors resolve to false so registrations keep flowing.
+func (s *Scheduler) reachedGloasFork(ctx context.Context) bool {
+	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, s.eth2Cl)
+	if err != nil {
+		return false
+	}
+
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, s.eth2Cl)
+	if err != nil || slotDuration == 0 || slotsPerEpoch == 0 {
+		return false
+	}
+
+	epoch := uint64(s.clock.Since(genesisTime)/slotDuration) / slotsPerEpoch
+
+	return s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(epoch))
 }
 
 // newSlotTicker returns a blocking channel that will be populated with new slots in real time.

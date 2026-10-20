@@ -19,16 +19,17 @@ import (
 
 func TestSignedEpochHashTreeRoot(t *testing.T) {
 	tests := []struct {
-		name     string
-		epoch    eth2p0.Epoch
-		expected string
+		name  string
+		epoch eth2p0.Epoch
 	}{
 		{
-			name:     "epoch_12345",
-			epoch:    12345,
-			expected: "3930000000000000000000000000000000000000000000000000000000000000",
+			name:  "epoch_12345",
+			epoch: 12345,
 		},
 	}
+
+	roots := make(map[string]string)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Signature is not included in the hash; verify same epoch with different
@@ -38,13 +39,16 @@ func TestSignedEpochHashTreeRoot(t *testing.T) {
 
 			got1, err := se1.HashTreeRoot()
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, hex.EncodeToString(got1[:]))
 
 			got2, err := se2.HashTreeRoot()
 			require.NoError(t, err)
 			require.Equal(t, got1, got2)
+
+			roots[tt.name] = hex.EncodeToString(got1[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }
 
 func TestUnmarshallingSignedEpoch(t *testing.T) {
@@ -113,6 +117,10 @@ func TestToETH2(t *testing.T) {
 			version:         eth2util.DataVersionFulu,
 			expectedVersion: eth2spec.DataVersionFulu,
 		},
+		{
+			version:         eth2util.DataVersionGloas,
+			expectedVersion: eth2spec.DataVersionGloas,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.version.String(), func(t *testing.T) {
@@ -160,6 +168,10 @@ func TestDataVersionFromETH2(t *testing.T) {
 		{
 			version:         eth2spec.DataVersionFulu,
 			expectedVersion: eth2util.DataVersionFulu,
+		},
+		{
+			version:         eth2spec.DataVersionGloas,
+			expectedVersion: eth2util.DataVersionGloas,
 		},
 	}
 	for _, test := range tests {

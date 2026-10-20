@@ -39,7 +39,9 @@ func New(ctx context.Context,
 	genesisTime time.Time,
 	slotDuration time.Duration,
 	slotsPerEpoch uint64,
+	slotOffsetFunc core.SlotOffsetFunc,
 	builderAPI bool,
+	builderURLs []string,
 ) *Component {
 	c := &Component{
 		eth2ClProvider: eth2ClProvider,
@@ -49,8 +51,10 @@ func New(ctx context.Context,
 			GenesisTime:   genesisTime,
 			SlotDuration:  slotDuration,
 			SlotsPerEpoch: slotsPerEpoch,
+			SlotOffset:    slotOffsetFunc,
 		},
 		builderAPI:       builderAPI,
+		builderURLs:      builderURLs,
 		attestersBySlot:  make(map[uint64]*SlotAttester),
 		syncCommsByEpoch: make(map[uint64]*SyncCommMember),
 		scheduled:        make(chan scheduleTuple),
@@ -73,6 +77,7 @@ type Component struct {
 	meta           specMeta
 	scheduled      chan scheduleTuple
 	builderAPI     bool
+	builderURLs    []string
 
 	// Mutable state.
 	mu               sync.Mutex
@@ -302,6 +307,18 @@ func (m *Component) runDuty(ctx context.Context, duty core.Duty) error {
 		if _, err = syncComm.Aggregate(ctx, eth2Slot); err != nil { // Rename to sync.Comm.AggregateSyncContribution
 			return err
 		}
+	case core.DutyPayloadAttestation:
+		if err = PayloadAttest(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
+			return err
+		}
+	case core.DutyProposerPreferences:
+		if err = ProposerPreferences(ctx, eth2Cl, m.signFunc, eth2Slot); err != nil {
+			return err
+		}
+	case core.DutyBuilderPreferences:
+		if err = BuilderPreferences(ctx, eth2Cl, m.signFunc, eth2Slot, m.builderURLs); err != nil {
+			return err
+		}
 	case core.DutyBuilderRegistration:
 		// Expected duty, but no action needed in validatormock.
 	default:
@@ -432,13 +449,20 @@ type dutyStartTimeFunc func(metaSlot) time.Time
 // dutyStartTimeFuncsByDuty defines the offsets by duty type.
 var dutyStartTimeFuncsByDuty = map[core.DutyType][]dutyStartTimeFunc{
 	core.DutyPrepareAggregator:       {startOfPrevEpoch, startOfCurrentEpoch},
-	core.DutyAttester:                {fraction(1, 3)}, // 1/3 slot duration
-	core.DutyAggregator:              {fraction(2, 3)}, // 2/3 slot duration
+	core.DutyAttester:                {dutyOffset(core.DutyAttester)},
+	core.DutyAggregator:              {dutyOffset(core.DutyAggregator)},
 	core.DutyProposer:                {slotStartTime},
 	core.DutyBuilderRegistration:     {startOfCurrentEpoch},
 	core.DutyPrepareSyncContribution: {slotStartTime},
-	core.DutySyncMessage:             {fraction(1, 3)},
-	core.DutySyncContribution:        {fraction(2, 3)},
+	core.DutySyncMessage:             {dutyOffset(core.DutySyncMessage)},
+	core.DutySyncContribution:        {dutyOffset(core.DutySyncContribution)},
+	core.DutyPayloadAttestation:      {dutyOffset(core.DutyPayloadAttestation)},
+	// Proposer preferences for a proposal slot in epoch E are submitted at the start of
+	// epoch E-1, the earliest time the E-2 dependent root they sign over is anchored.
+	core.DutyProposerPreferences: {startOfPrevEpoch},
+	// Builder preferences authorize builders for a proposal slot and are submitted ahead of it
+	// like proposer preferences.
+	core.DutyBuilderPreferences: {startOfPrevEpoch},
 }
 
 // startOfPrevEpoch returns the start time of the previous epoch.
@@ -451,12 +475,11 @@ func startOfCurrentEpoch(slot metaSlot) time.Time {
 	return slot.Epoch().FirstSlot().StartTime()
 }
 
-// fraction returns a function that calculates slot offset based on the fraction x/y of total slot duration.
-func fraction(x, y int64) func(slot metaSlot) time.Time { //nolint:unparam
+// dutyOffset returns a function that calculates the time at which the duty type's data is due,
+// being its spec-defined offset into the slot.
+func dutyOffset(dutyType core.DutyType) dutyStartTimeFunc {
 	return func(slot metaSlot) time.Time {
-		offset := slot.Duration() * time.Duration(x) / time.Duration(y)
-
-		return slot.StartTime().Add(offset)
+		return slot.StartTime().Add(slot.meta.SlotOffset(core.Duty{Slot: slot.Slot, Type: dutyType}))
 	}
 }
 

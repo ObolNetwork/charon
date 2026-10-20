@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
@@ -887,7 +888,8 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 		// Use zero values for tests to use default clock.Now() behavior
-		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0)
+		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0, 32, func(core.Duty) time.Duration { return 0 },
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{} })
 
 		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
@@ -983,7 +985,7 @@ func testDecidedMessageScenarios(t *testing.T, compareAttestations bool) {
 	bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
 	require.NoError(t, err)
 
-	c, err := NewConsensus(t.Context(), bmock, h, new(p2p.Sender), peers, p2pkeys[0],
+	c, err := NewConsensus(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return nil }, h, new(p2p.Sender), peers, p2pkeys[0],
 		deadliner, func(core.Duty) bool { return true }, func(*pbv1.SniffedConsensusInstance) {}, compareAttestations)
 	require.NoError(t, err)
 

@@ -6,6 +6,7 @@ package validatormock
 import (
 	"context"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
@@ -19,10 +20,12 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -31,6 +34,139 @@ import (
 
 // SignFunc abstract signing done by the validator client.
 type SignFunc func(pubshare eth2p0.BLSPubKey, data []byte) (eth2p0.BLSSignature, error)
+
+// proposeEPBSBlock proposes a gloas EPBS block for the provided slot: it fetches the v4
+// proposal, signs the beacon block and submits it. For a self-built proposal it then signs and
+// publishes the execution payload envelope that reveals the committed payload, retrieving the
+// envelope separately when the proposal came without it, as charon serves it.
+func proposeEPBSBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+	slot eth2p0.Slot, epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, randao eth2p0.BLSSignature,
+) error {
+	// Stateful, as validator clients request by default: charon serves a self-built block without
+	// its payload and the envelope separately. A beacon node may still include the payload.
+	includePayload := false
+
+	eth2Resp, err := eth2Cl.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:           slot,
+		RandaoReveal:   randao,
+		BuilderConfig:  &gloas.BuilderConfig{},
+		IncludePayload: &includePayload,
+	})
+	if err != nil {
+		return errors.Wrap(err, "vmock epbs proposal")
+	}
+
+	proposal := eth2Resp.Data
+
+	block := proposal.Gloas
+	if proposal.ExecutionPayloadIncluded {
+		if proposal.GloasContents == nil {
+			return errors.New("no gloas block contents")
+		}
+
+		block = proposal.GloasContents.Block
+	}
+
+	if block == nil {
+		return errors.New("no gloas block")
+	}
+
+	blockSigRoot, err := block.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash gloas block")
+	}
+
+	blockSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconProposer, epoch, blockSigRoot)
+	if err != nil {
+		return err
+	}
+
+	sig, err := signFunc(pubkey, blockSigData[:])
+	if err != nil {
+		return err
+	}
+
+	err = eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+		Proposal: &eth2api.VersionedSignedProposal{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedBeaconBlock{
+				Message:   block,
+				Signature: sig,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	if proposal.ExecutionPayloadIncluded {
+		contents := proposal.GloasContents
+
+		return proposeExecutionPayloadEnvelope(ctx, eth2Cl, signFunc, epoch, pubkey,
+			contents.ExecutionPayloadEnvelope, contents.KZGProofs, contents.Blobs)
+	}
+
+	// An external builder's payload is revealed by the builder, not the proposer.
+	bid := block.Body.SignedExecutionPayloadBid.Message
+	if bid.BuilderIndex != core.BuilderIndexSelfBuild {
+		return nil
+	}
+
+	// A self-built proposal served without its payload: retrieve the envelope, the beacon node
+	// attaches the blobs and proofs it holds when publishing it.
+	envelopes, ok := eth2Cl.(eth2client.ExecutionPayloadEnvelopeProvider)
+	if !ok {
+		return errors.New("execution payload envelope provider not supported")
+	}
+
+	envelopeResp, err := envelopes.ExecutionPayloadEnvelope(ctx, &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: blockSigRoot,
+	})
+	if err != nil {
+		return errors.Wrap(err, "vmock execution payload envelope")
+	}
+
+	return proposeExecutionPayloadEnvelope(ctx, eth2Cl, signFunc, epoch, pubkey, envelopeResp.Data.Gloas, nil, nil)
+}
+
+// proposeExecutionPayloadEnvelope signs and publishes the execution payload envelope for a
+// self-built gloas proposal, revealing the payload the beacon block committed to.
+func proposeExecutionPayloadEnvelope(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
+	epoch eth2p0.Epoch, pubkey eth2p0.BLSPubKey, envelope *gloas.ExecutionPayloadEnvelope,
+	kzgProofs []deneb.KZGProof, blobs []deneb.Blob,
+) error {
+	if envelope == nil {
+		return errors.New("no gloas execution payload envelope")
+	}
+
+	envelopeSigRoot, err := envelope.HashTreeRoot()
+	if err != nil {
+		return errors.Wrap(err, "hash gloas execution payload envelope")
+	}
+
+	envelopeSigData, err := signing.GetDataRoot(ctx, eth2Cl, signing.DomainBeaconBuilder, epoch, envelopeSigRoot)
+	if err != nil {
+		return err
+	}
+
+	envelopeSig, err := signFunc(pubkey, envelopeSigData[:])
+	if err != nil {
+		return err
+	}
+
+	return eth2Cl.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedExecutionPayloadEnvelope{
+				Message:   envelope,
+				Signature: envelopeSig,
+			},
+		},
+		KZGProofs: kzgProofs,
+		Blobs:     blobs,
+	})
+}
 
 // ProposeBlock proposes block for the given slot.
 func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc,
@@ -99,6 +235,16 @@ func ProposeBlock(ctx context.Context, eth2Cl eth2wrap.Client, signFunc SignFunc
 	randao, err := signFunc(slotProposer.PubKey, randaoSigData[:])
 	if err != nil {
 		return err
+	}
+
+	// From the gloas fork blocks are produced by the v4 EPBS endpoint.
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	if epoch >= forkSchedule[eth2wrap.Gloas].Epoch {
+		return proposeEPBSBlock(ctx, eth2Cl, signFunc, slot, epoch, pubkey, randao)
 	}
 
 	// Get Unsigned beacon block with given randao and slot

@@ -6,12 +6,15 @@ package bcast
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"strings"
 	"time"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -19,26 +22,101 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
 )
 
 // New returns a new broadcaster instance.
-func New(ctx context.Context, eth2Cl eth2wrap.Client) (Broadcaster, error) {
-	delayFunc, err := newDelayFunc(ctx, eth2Cl)
+func New(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule, opts ...Option) (Broadcaster, error) {
+	delayFunc, err := newDelayFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return Broadcaster{}, err
 	}
 
-	return Broadcaster{
+	b := Broadcaster{
 		eth2Cl:    eth2Cl,
 		delayFunc: delayFunc,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(&b)
+	}
+
+	return b, nil
+}
+
+// Option configures the broadcaster.
+type Option func(*Broadcaster)
+
+// WithBuilderConfig sets the builder configuration whose builders the aggregated builder request
+// auths are submitted to the beacon node for.
+func WithBuilderConfig(config *gloas.BuilderConfig) Option {
+	return func(b *Broadcaster) {
+		b.builderConfig = config
+	}
 }
 
 type Broadcaster struct {
-	eth2Cl    eth2wrap.Client
-	delayFunc func(slot uint64, duty core.DutyType) time.Duration
+	eth2Cl            eth2wrap.Client
+	delayFunc         func(slot uint64, duty core.DutyType) time.Duration
+	builderConfig     *gloas.BuilderConfig
+	awaitProposalFunc func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
+}
+
+// RegisterAwaitVersionedProposal registers the function to query this node's agreed proposal of a
+// slot, whose builder URL a gloas proposal is published with.
+func (b *Broadcaster) RegisterAwaitVersionedProposal(fn func(ctx context.Context, slot uint64) (core.VersionedProposal, error)) {
+	b.awaitProposalFunc = fn
+}
+
+// builderSourceUnknown is the builder source of a published gloas proposal whose builder bid can't
+// be told apart, as its bid or this node's agreed proposal isn't available.
+const builderSourceUnknown = "unknown"
+
+// agreedProposalTimeout bounds the lookup of the agreed proposal when publishing a block. It is
+// agreed before the validator clients sign it, so the lookup returns at once unless it is gone.
+const agreedProposalTimeout = 100 * time.Millisecond
+
+// agreedBuilderURL returns the builder URL of this node's agreed proposal of the slot, or false if it
+// can't be found in time, so the block is still published.
+func (b Broadcaster) agreedBuilderURL(ctx context.Context, slot uint64) (string, bool) {
+	if b.awaitProposalFunc == nil {
+		return "", false
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, agreedProposalTimeout)
+	defer cancel()
+
+	agreed, err := b.awaitProposalFunc(ctx, slot)
+	if err != nil {
+		log.Warn(ctx, "Publishing block proposal without its builder URL, the agreed proposal isn't available", err, z.U64("slot", slot))
+		return "", false
+	}
+
+	return agreed.BuilderURL, true
+}
+
+// proposalBuilderSource returns the builder source, index and URL of a gloas proposal being
+// published, the URL from this node's agreed proposal. The source is unknown if the bid or the agreed
+// proposal can't be read: publishing never waits on or fails for them.
+func (b Broadcaster) proposalBuilderSource(ctx context.Context, slot uint64, block core.VersionedSignedProposal) (string, uint64, string) {
+	bid, err := block.EPBSBid()
+	if err != nil {
+		log.Warn(ctx, "Publishing block proposal without its builder source, its bid can't be read", err, z.U64("slot", slot))
+		return builderSourceUnknown, 0, ""
+	}
+
+	if bid.BuilderIndex == core.BuilderIndexSelfBuild {
+		return core.BuilderSourceLocal, uint64(bid.BuilderIndex), ""
+	}
+
+	builderURL, ok := b.agreedBuilderURL(ctx, slot)
+	if !ok {
+		return builderSourceUnknown, uint64(bid.BuilderIndex), ""
+	}
+
+	return core.BuilderSource(bid.BuilderIndex, builderURL), uint64(bid.BuilderIndex), builderURL
 }
 
 // Broadcast broadcasts the aggregated signed duty data object to the beacon-node.
@@ -183,6 +261,24 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			return errors.New("invalid proposal")
 		}
 
+		// From the gloas fork the bid tells where the execution payload comes from.
+		var (
+			source     string
+			builderURL string
+			bidFields  []z.Field
+		)
+
+		if block.Version >= eth2spec.DataVersionGloas {
+			var builderIndex uint64
+
+			source, builderIndex, builderURL = b.proposalBuilderSource(ctx, duty.Slot, block)
+			bidFields = []z.Field{
+				z.Str("builder_source", source),
+				z.U64("builder_index", builderIndex),
+				z.Str("builder_url", builderURL),
+			}
+		}
+
 		if block.Blinded {
 			var blinded eth2api.VersionedSignedBlindedProposal
 
@@ -195,23 +291,75 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 				Proposal: &blinded,
 			})
 		} else {
-			err = b.eth2Cl.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{
+			opts := &eth2api.SubmitProposalOpts{
 				Proposal: &block.VersionedSignedProposal,
-			})
+			}
+
+			// Forward the agreed direct builder as the beacon node spelled it, so the beacon node
+			// sends it the signed block for its payload reveal.
+			if source == core.BuilderSourceDirect {
+				opts.BuilderURL = builderURL
+			}
+
+			if block.Version >= eth2spec.DataVersionGloas {
+				bidFields = append(bidFields, z.Bool("builder_url_forwarded", opts.BuilderURL != ""))
+			}
+
+			err = b.eth2Cl.SubmitProposal(ctx, opts)
 		}
 
+		logFields := []z.Field{
+			z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
+			z.Any("pubkey", pubkey),
+		}
+		// The blinded flag does not apply from the gloas fork onwards, where proposals are
+		// discriminated by execution payload inclusion instead.
+		if block.Version < eth2spec.DataVersionGloas {
+			logFields = append(logFields, z.Bool("blinded", block.Blinded))
+		}
+
+		logFields = append(logFields, bidFields...)
+
 		if err == nil {
-			log.Info(ctx, "Successfully submitted block proposal to beacon node",
-				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
-				z.Any("pubkey", pubkey),
-				z.Bool("blinded", block.Blinded),
-			)
+			if source != "" && source != builderSourceUnknown {
+				var builder string
+				if source == core.BuilderSourceDirect {
+					builder = builderLabel(builderURL)
+				}
+
+				proposalSourceCounter.WithLabelValues(source, builder).Inc()
+			}
+
+			log.Info(ctx, "Successfully submitted block proposal to beacon node", logFields...)
 		} else {
-			log.Error(ctx, "Failed to submit block proposal to beacon node",
-				err,
-				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposer)),
+			log.Error(ctx, "Failed to submit block proposal to beacon node", err, logFields...)
+		}
+
+		return err
+
+	case core.DutyExecutionPayloadEnvelope:
+		pubkey, aggData, err := setToOne(set)
+		if err != nil {
+			return err
+		}
+
+		envelope, ok := aggData.(core.SignedExecutionPayloadEnvelope)
+		if !ok {
+			return errors.New("invalid execution payload envelope")
+		}
+
+		err = b.eth2Cl.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+			SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+				Version: eth2spec.DataVersionGloas,
+				Gloas:   envelope.SignedExecutionPayloadEnvelope,
+			},
+			KZGProofs: envelope.KZGProofs,
+			Blobs:     envelope.Blobs,
+		})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted execution payload envelope to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyExecutionPayloadEnvelope)),
 				z.Any("pubkey", pubkey),
-				z.Bool("blinded", block.Blinded),
 			)
 		}
 
@@ -249,6 +397,40 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 	case core.DutyPrepareAggregator:
 		// Beacon committee selections are only applicable to DVT, not broadcasted to beacon chain.
 		return nil
+	case core.DutyProposerPreferences:
+		prefs, err := setToProposerPreferences(set)
+		if err != nil {
+			return err
+		}
+
+		err = b.eth2Cl.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: prefs})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted proposer preferences to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyProposerPreferences)),
+				z.Int("amount", len(prefs)),
+			)
+		}
+
+		return err
+	case core.DutyBuilderPreferences:
+		entries, err := b.builderPreferencesEntries(ctx, set)
+		if err != nil {
+			return err
+		} else if len(entries) == 0 {
+			return nil
+		}
+
+		err = b.eth2Cl.SubmitBuilderPreferences(ctx, &eth2api.SubmitBuilderPreferencesOpts{Preferences: entries})
+		if err == nil {
+			log.Info(ctx, "Successfully submitted builder preferences to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyBuilderPreferences)),
+				z.Int("amount", len(entries)),
+			)
+
+			return nil
+		}
+
+		return handleBuilderPreferencesError(ctx, err, entries)
 	case core.DutyAggregator:
 		aggAndProofs, err := setToAggAndProof(set)
 		if err != nil {
@@ -293,6 +475,21 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 		if err == nil {
 			log.Info(ctx, "Successfully submitted sync committee contributions to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot, core.DutySyncContribution)),
+			)
+		}
+
+		return err
+	case core.DutyPayloadAttestation:
+		msgs, err := setToPayloadAttestationMessages(set)
+		if err != nil {
+			return err
+		}
+
+		err = b.eth2Cl.SubmitPayloadAttestationMessages(ctx, msgs)
+		if err == nil {
+			log.Info(ctx, "Successfully submitted payload attestation messages to beacon node",
+				z.Any("delay", b.delayFunc(duty.Slot, core.DutyPayloadAttestation)),
+				z.Int("amount", len(msgs.Messages)),
 			)
 		}
 
@@ -350,6 +547,159 @@ func setToAggAndProof(set core.SignedDataSet) (*eth2api.SubmitAggregateAttestati
 	return &eth2api.SubmitAggregateAttestationsOpts{SignedAggregateAndProofs: resp}, nil
 }
 
+// setToPayloadAttestationMessages converts a set of signed data into payload attestation message submission options.
+func setToPayloadAttestationMessages(set core.SignedDataSet) (*eth2api.SubmitPayloadAttestationMessagesOpts, error) {
+	var resp []*eth2spec.VersionedPayloadAttestationMessage
+
+	for _, msg := range set {
+		msg, ok := msg.(core.VersionedPayloadAttestationMessage)
+		if !ok {
+			return nil, errors.New("invalid payload attestation message")
+		}
+
+		resp = append(resp, &msg.VersionedPayloadAttestationMessage)
+	}
+
+	return &eth2api.SubmitPayloadAttestationMessagesOpts{Messages: resp}, nil
+}
+
+// builderPreferencesEntries returns the builder preferences entries of the aggregated builder
+// request auths: each auth is submitted for the configured builders it authorizes, identified by
+// its auth data, which builders sharing a host share. The builder's URL and maximum execution
+// payment come from charon's builder configuration, which is identical across the cluster.
+func (b Broadcaster) builderPreferencesEntries(ctx context.Context, set core.SignedDataSet) ([]*gloas.BuilderPreferencesEntry, error) {
+	var resp []*gloas.BuilderPreferencesEntry
+
+	for pubkey, data := range set {
+		auth, ok := data.(core.SignedBuilderRequestAuth)
+		if !ok || auth.Message == nil {
+			return nil, errors.New("invalid builder request auth")
+		}
+
+		builders := b.configuredBuilders(auth.Message.Data)
+		if len(builders) == 0 {
+			log.Warn(ctx, "Not submitting builder request auth of a builder that isn't configured", nil,
+				z.Str("auth_data", string(auth.Message.Data)))
+
+			continue
+		}
+
+		pubkeyBytes, err := pubkey.Bytes()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, builder := range builders {
+			resp = append(resp, &gloas.BuilderPreferencesEntry{
+				ProposerPubkey:      eth2p0.BLSPubKey(pubkeyBytes),
+				URL:                 builder.URL,
+				Auth:                &auth.SignedBuilderRequestAuth,
+				MaxExecutionPayment: builder.MaxExecutionPayment,
+			})
+		}
+	}
+
+	return resp, nil
+}
+
+// configuredBuilders returns the configured builder entries the auth data identifies, in
+// configured order: several when builders share a host, e.g. on different ports.
+func (b Broadcaster) configuredBuilders(authData []byte) []*gloas.BuilderEntry {
+	if b.builderConfig == nil {
+		return nil
+	}
+
+	var resp []*gloas.BuilderEntry
+
+	for _, entry := range b.builderConfig.Builders {
+		data, err := eth2util.BuilderAuthData(string(entry.URL))
+		if err == nil && string(data) == string(authData) {
+			resp = append(resp, entry)
+		}
+	}
+
+	return resp
+}
+
+// handleBuilderPreferencesError handles a failed builder preferences submission. Like validator
+// registrations, a rejected submission isn't retried: the beacon node submitted the other entries
+// (400) or doesn't serve the endpoint (404), and the auth reaches the builder with the bid request
+// at proposal time regardless. Any other error is returned for the caller to retry.
+func handleBuilderPreferencesError(ctx context.Context, err error, entries []*gloas.BuilderPreferencesEntry) error {
+	var apiErr *eth2api.Error
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+
+	switch apiErr.StatusCode {
+	case http.StatusBadRequest:
+		for _, failure := range builderPreferencesFailures(apiErr.Data, entries) {
+			log.Warn(ctx, "Builder rejected builder preferences", nil,
+				z.Str("builder", failure.builder), z.Str("message", failure.message))
+			builderPreferencesRejected.WithLabelValues(failure.builder).Inc()
+		}
+
+		return nil
+	case http.StatusNotFound:
+		log.Warn(ctx, "Beacon node doesn't support submitting builder preferences, builders only receive the request auth with the bid request", err)
+
+		return nil
+	default:
+		return err
+	}
+}
+
+// builderPreferencesFailure is a builder's rejection of its builder preferences entry.
+type builderPreferencesFailure struct {
+	builder string
+	message string
+}
+
+// builderPreferencesFailures returns the failed entries of a builder preferences submission from
+// the beacon node's indexed error message. If it can't be parsed, the whole submission is reported.
+func builderPreferencesFailures(data []byte, entries []*gloas.BuilderPreferencesEntry) []builderPreferencesFailure {
+	var indexed struct {
+		Message  string `json:"message"`
+		Failures []struct {
+			Index   int    `json:"index"`
+			Message string `json:"message"`
+		} `json:"failures"`
+	}
+
+	if err := json.Unmarshal(data, &indexed); err != nil || len(indexed.Failures) == 0 {
+		return []builderPreferencesFailure{{builder: "unknown", message: strings.TrimSpace(string(data))}}
+	}
+
+	var resp []builderPreferencesFailure
+
+	for _, failure := range indexed.Failures {
+		builder := "unknown"
+		if failure.Index >= 0 && failure.Index < len(entries) {
+			builder = string(entries[failure.Index].URL)
+		}
+
+		resp = append(resp, builderPreferencesFailure{builder: builder, message: failure.Message})
+	}
+
+	return resp
+}
+
+// setToProposerPreferences converts a set of signed data into a list of signed proposer preferences.
+func setToProposerPreferences(set core.SignedDataSet) ([]*gloas.SignedProposerPreferences, error) {
+	var resp []*gloas.SignedProposerPreferences
+
+	for _, prefs := range set {
+		prefs, ok := prefs.(core.SignedProposerPreferences)
+		if !ok {
+			return nil, errors.New("invalid proposer preferences")
+		}
+
+		resp = append(resp, &prefs.SignedProposerPreferences)
+	}
+
+	return resp, nil
+}
+
 // setToOne converts a set of signed data into a single signed data.
 func setToOne(set core.SignedDataSet) (core.PubKey, core.SignedData, error) {
 	if len(set) != 1 {
@@ -380,13 +730,18 @@ func setToAttestations(set core.SignedDataSet) ([]*eth2spec.VersionedAttestation
 }
 
 // newDelayFunc returns a function that calculates the delay since the expected duty submission.
-func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64, duty core.DutyType) time.Duration, error) {
+func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule) (func(slot uint64, duty core.DutyType) time.Duration, error) {
 	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return nil, err
 	}
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return nil, err
+	}
+
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return nil, err
 	}
@@ -394,16 +749,23 @@ func newDelayFunc(ctx context.Context, eth2Cl eth2wrap.Client) (func(slot uint64
 	return func(slot uint64, duty core.DutyType) time.Duration {
 		slotStart := genesisTime.Add(slotDuration * time.Duration(slot))
 
-		expectedSubmission := slotStart
-		if duty == core.DutyAttester {
-			expectedSubmission = slotStart.Add(slotDuration * 1 / 3)
+		// Note that sync message submissions are expected from the start of the slot, even though
+		// the spec defines a deadline for them, since charon doesn't schedule them.
+		var offset time.Duration
+
+		switch duty {
+		case core.DutyAttester, core.DutyAggregator, core.DutySyncContribution, core.DutyPayloadAttestation, core.DutyExecutionPayloadEnvelope:
+			offset = slotOffsetFunc(core.Duty{Slot: slot, Type: duty})
+		case core.DutyProposerPreferences:
+			// Proposer preferences target a future proposal slot. They are computable from the
+			// start of epoch E-1 for a proposal slot in epoch E, when the E-2 dependent root they
+			// sign over is anchored, so report the delay since that earliest possible submission time.
+			slotsIntoEpoch := slot % slotsPerEpoch
+			offset = -time.Duration(slotsIntoEpoch+slotsPerEpoch) * slotDuration
+		default:
 		}
 
-		if duty == core.DutyAggregator || duty == core.DutySyncContribution {
-			expectedSubmission = slotStart.Add(slotDuration * 2 / 3)
-		}
-
-		return time.Since(expectedSubmission)
+		return time.Since(slotStart.Add(offset))
 	}, nil
 }
 

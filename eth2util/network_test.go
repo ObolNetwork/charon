@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -94,4 +95,33 @@ func TestValidNetwork(t *testing.T) {
 			require.False(t, eth2util.ValidNetwork(network))
 		})
 	}
+}
+
+func TestGloasActive(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0)
+
+	scheduled := eth2util.Network{
+		ChainID:                999901,
+		Name:                   "gloas-scheduled-test",
+		GenesisForkVersionHex:  "0x000099aa",
+		GenesisTimestamp:       1_600_000_000,
+		GloasHardForkTimestamp: now.Unix(),
+	}
+	eth2util.AddTestNetwork(scheduled)
+
+	forkVersion, err := eth2util.NetworkToForkVersionBytes(scheduled.Name)
+	require.NoError(t, err)
+
+	// Active from the fork timestamp onwards.
+	require.True(t, eth2util.GloasActive(forkVersion, now))
+	require.True(t, eth2util.GloasActive(forkVersion, now.Add(time.Hour)))
+	require.False(t, eth2util.GloasActive(forkVersion, now.Add(-time.Second)))
+
+	// Not scheduled (zero timestamp) is never active.
+	mainnetForkVersion, err := eth2util.NetworkToForkVersionBytes(eth2util.Mainnet.Name)
+	require.NoError(t, err)
+	require.False(t, eth2util.GloasActive(mainnetForkVersion, now))
+
+	// Unknown networks are never active.
+	require.False(t, eth2util.GloasActive(invalidForkVersion, now))
 }

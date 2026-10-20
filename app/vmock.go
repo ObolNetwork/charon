@@ -20,7 +20,9 @@ import (
 )
 
 // wireValidatorMock wires the validator mock if enabled. It connects via http validatorapi.Router.
-func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client, pubshares []eth2p0.BLSPubKey, sched core.Scheduler) error {
+func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule,
+	pubshares []eth2p0.BLSPubKey, sched core.Scheduler,
+) error {
 	if !conf.SimnetVMock {
 		return nil
 	}
@@ -40,7 +42,12 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 		return err
 	}
 
-	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, genesisTime, slotDuration, slotsPerEpoch, conf.BuilderAPI)
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
+	if err != nil {
+		return err
+	}
+
+	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, conf.BuilderAPI, conf.BuilderURLs)
 	sched.SubscribeSlots(vmock.SlotTicked)
 
 	return nil
@@ -90,7 +97,7 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 			cached.SetValidatorCache(valCache.GetByHead)
 
 			dutiesCache := eth2wrap.NewDutiesCache(cached, []eth2p0.ValidatorIndex{})
-			cached.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+			cached.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 
 			break
 		}

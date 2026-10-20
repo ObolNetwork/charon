@@ -276,7 +276,7 @@ var checks = []check{
 				return false, err
 			}
 
-			return maxVal == 2, nil // 1=blinded (MEV), 2=local block
+			return maxVal == 2, nil // 1=builder p2p/blinded (MEV), 2=local block, 3=direct builder
 		},
 	},
 	{

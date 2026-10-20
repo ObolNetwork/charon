@@ -85,6 +85,10 @@ maintain system performance.
   - *Summary*: duty not included on-chain
   - *Details*: Reason `not_included_onchain` indicates that even though charon broadcasted the duty successfully, it wasn`t included in the beacon chain. This is expected for up to 20% of attestations. It may however indicate problematic charon broadcast delays or beacon node network problems.
 
+### Failure Reason: `par_sig_db_inconsistent_preferences`
+  - *Summary*: expected: inconsistent proposer preferences received
+  - *Details*: Reason `par_sig_db_inconsistent_preferences` indicates that partial signed proposer preferences were inconsistent across the cluster nodes. This is expected during a reorg (changed dependent root) or a staggered fee recipient or gas limit change, and self-heals once a threshold of nodes signs identical values.
+
 ### Failure Reason: `par_sig_db_inconsistent_sync`
   - *Summary*: known limitation: inconsistent sync committee signatures received
   - *Details*: Reason `par_sig_db_inconsistent_sync` indicates that partial signed data for the sync committee duty were inconsistent. This is known limitation in this version of charon.

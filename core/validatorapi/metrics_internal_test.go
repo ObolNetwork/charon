@@ -3,7 +3,9 @@
 package validatorapi
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -73,4 +75,35 @@ func TestProxyPathLabelBoundedCardinality(t *testing.T) {
 	a := proxyPathLabel("/eth/v2/beacon/blocks/0x0342020caa311b9f104cd1b223872b7d416d868d2e5add744e7af8265ba435ff")
 	b := proxyPathLabel("/eth/v2/beacon/blocks/0x04639c0c1fff050014a818280fcd12dc8880077583e83fee738afd74ade618c0")
 	require.Equal(t, a, b)
+}
+
+func TestVCUserAgentRegistry(t *testing.T) {
+	t.Cleanup(func() {
+		vcUserAgentRegistry.Lock()
+		vcUserAgentRegistry.agents = make(map[string]time.Time)
+		vcUserAgentRegistry.Unlock()
+	})
+
+	recordVCUserAgent("Lighthouse/v9.0.1")
+	recordVCUserAgent("Vouch/v1.12.0")
+	recordVCUserAgent("Lighthouse/v9.0.1") // Duplicates refresh, not grow.
+
+	require.Equal(t, []string{"Lighthouse/v9.0.1", "Vouch/v1.12.0"}, SeenVCUserAgents())
+
+	// The registry is bounded: agents beyond the cap are dropped.
+	for i := range maxVCUserAgents * 2 {
+		recordVCUserAgent(fmt.Sprintf("agent-%d", i))
+	}
+
+	require.Len(t, SeenVCUserAgents(), maxVCUserAgents)
+
+	// Expired agents are pruned, making room for new ones.
+	vcUserAgentRegistry.Lock()
+	for agent := range vcUserAgentRegistry.agents {
+		vcUserAgentRegistry.agents[agent] = time.Now().Add(-2 * vcUserAgentTTL)
+	}
+	vcUserAgentRegistry.Unlock()
+
+	recordVCUserAgent("teku/v25.9.3")
+	require.Equal(t, []string{"teku/v25.9.3"}, SeenVCUserAgents())
 }

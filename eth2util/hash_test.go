@@ -11,41 +11,42 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/eth2util"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestSlotHashRoot(t *testing.T) {
 	tests := []struct {
-		name     string
-		slot     eth2p0.Slot
-		expected string
+		name string
+		slot eth2p0.Slot
 	}{
 		{
-			name:     "zero",
-			slot:     0,
-			expected: "0000000000000000000000000000000000000000000000000000000000000000",
+			name: "zero",
+			slot: 0,
 		},
 		{
-			name:     "one",
-			slot:     1,
-			expected: "0100000000000000000000000000000000000000000000000000000000000000",
+			name: "one",
+			slot: 1,
 		},
 		{
-			name:     "epoch_boundary",
-			slot:     32000,
-			expected: "007d000000000000000000000000000000000000000000000000000000000000",
+			name: "epoch_boundary",
+			slot: 32000,
 		},
 		{
-			name:     "max_uint64",
-			slot:     math.MaxUint64,
-			expected: "ffffffffffffffff000000000000000000000000000000000000000000000000",
+			name: "max_uint64",
+			slot: math.MaxUint64,
 		},
 	}
+
+	roots := make(map[string]string)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := eth2util.SlotHashRoot(tt.slot)
 			require.NoError(t, err)
-			require.Equal(t, tt.expected, hex.EncodeToString(got[:]))
+
+			roots[tt.name] = hex.EncodeToString(got[:])
 		})
 	}
+
+	testutil.RequireGoldenJSON(t, roots)
 }

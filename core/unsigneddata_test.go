@@ -3,15 +3,20 @@
 package core_test
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	bitfield "github.com/OffchainLabs/go-bitfield"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
@@ -51,6 +56,14 @@ func TestUnsignedDataClone(t *testing.T) {
 		{
 			name: "sync contribution",
 			data: testutil.RandomCoreSyncContribution(),
+		},
+		{
+			name: "versioned epbs proposal gloas",
+			data: testutil.RandomGloasCoreVersionedEPBSProposal(),
+		},
+		{
+			name: "versioned epbs proposal gloas with payload",
+			data: testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
 		},
 	}
 
@@ -188,6 +201,10 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 			error:   "no fulu attestation",
 			version: eth2spec.DataVersionFulu,
 		},
+		{
+			error:   "no gloas attestation",
+			version: eth2spec.DataVersionGloas,
+		},
 	}
 
 	for _, test := range tests {
@@ -213,6 +230,53 @@ func TestNewVersionedAggregatedAttestation(t *testing.T) {
 		p, err := core.NewVersionedAggregatedAttestation(&attestation.VersionedAttestation)
 		require.NoError(t, err)
 		require.Equal(t, attestation.VersionedAttestation, p.VersionedAttestation)
+	})
+
+	t.Run("happy path gloas", func(t *testing.T) {
+		attestation := testutil.RandomGloasCoreVersionedAttestation()
+
+		p, err := core.NewVersionedAggregatedAttestation(&attestation.VersionedAttestation)
+		require.NoError(t, err)
+		require.Equal(t, attestation.VersionedAttestation, p.VersionedAttestation)
+	})
+}
+
+func TestNewVersionedPayloadAttestationData(t *testing.T) {
+	type testCase struct {
+		error   string
+		version eth2spec.DataVersion
+	}
+
+	tests := []testCase{
+		{
+			error:   "unknown version",
+			version: eth2spec.DataVersion(999),
+		},
+		{
+			error:   "unknown version",
+			version: eth2spec.DataVersionFulu, // Payload attestation data only exists from gloas onwards.
+		},
+		{
+			error:   "no gloas payload attestation data",
+			version: eth2spec.DataVersionGloas,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.error, func(t *testing.T) {
+			_, err := core.NewVersionedPayloadAttestationData(&eth2spec.VersionedPayloadAttestationData{
+				Version: test.version,
+			})
+			require.ErrorContains(t, err, test.error)
+		})
+	}
+
+	t.Run("happy path gloas", func(t *testing.T) {
+		data := testutil.RandomVersionedPayloadAttestationData()
+
+		p, err := core.NewVersionedPayloadAttestationData(data)
+		require.NoError(t, err)
+		require.Equal(t, *data, p.VersionedPayloadAttestationData)
 	})
 }
 
@@ -364,6 +428,13 @@ func TestVersionedProposal(t *testing.T) {
 				Blinded: true,
 			},
 			err: "phase0 blocks do not support blinding",
+		},
+		{
+			name: "gloas error",
+			proposal: eth2api.VersionedProposal{
+				Version: eth2spec.DataVersionGloas,
+			},
+			err: "gloas proposals must be constructed from an EPBS proposal",
 		},
 		{
 			name: "altair",
@@ -585,4 +656,372 @@ func TestSyncContributionMarshalSSZ(t *testing.T) {
 			require.Equal(t, tt.value, got)
 		})
 	}
+}
+
+func TestNewVersionedEPBSProposal(t *testing.T) {
+	t.Run("payload excluded", func(t *testing.T) {
+		proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionGloas,
+			Gloas:   testutil.RandomGloasBeaconBlock(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, eth2spec.DataVersionGloas, proposal.Version)
+		// The pre-gloas blinded flag does not apply to gloas proposals.
+		require.False(t, proposal.Blinded)
+		require.False(t, proposal.EPBS.ExecutionPayloadIncluded)
+	})
+
+	t.Run("payload included", func(t *testing.T) {
+		proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            testutil.RandomGloasBlockContents(),
+		})
+		require.NoError(t, err)
+		require.False(t, proposal.Blinded)
+		require.True(t, proposal.EPBS.ExecutionPayloadIncluded)
+	})
+
+	t.Run("no block", func(t *testing.T) {
+		_, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionGloas,
+		})
+		require.ErrorContains(t, err, "no gloas block")
+	})
+
+	t.Run("no contents", func(t *testing.T) {
+		_, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+		})
+		require.ErrorContains(t, err, "no gloas block contents")
+	})
+
+	t.Run("non gloas", func(t *testing.T) {
+		_, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionFulu,
+		})
+		require.ErrorContains(t, err, "unknown version")
+	})
+
+	t.Run("accessors", func(t *testing.T) {
+		for _, proposal := range []core.VersionedProposal{
+			testutil.RandomGloasCoreVersionedEPBSProposal(),
+			testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		} {
+			slot, err := proposal.Slot()
+			require.NoError(t, err)
+			require.NotZero(t, slot)
+
+			_, err = proposal.ProposerIndex()
+			require.NoError(t, err)
+
+			graffiti, err := proposal.Graffiti()
+			require.NoError(t, err)
+			require.NotZero(t, graffiti)
+		}
+	})
+
+	t.Run("json roundtrip", func(t *testing.T) {
+		for _, proposal := range []core.VersionedProposal{
+			testutil.RandomGloasCoreVersionedEPBSProposal(),
+			testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		} {
+			b, err := proposal.MarshalJSON()
+			require.NoError(t, err)
+
+			var decoded core.VersionedProposal
+
+			require.NoError(t, decoded.UnmarshalJSON(b))
+			require.Equal(t, proposal, decoded)
+		}
+	})
+}
+
+func TestNewNoPayloadAttestationData(t *testing.T) {
+	data, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 42)
+	require.NoError(t, err)
+	require.True(t, data.NoPayload)
+	require.Equal(t, eth2spec.DataVersionGloas, data.Version)
+	require.Equal(t, &gloas.PayloadAttestationData{Slot: 42}, data.Gloas)
+
+	_, err = core.NewNoPayloadAttestationData(eth2spec.DataVersionFulu, 42)
+	require.ErrorContains(t, err, "unknown version")
+}
+
+// TestPayloadAttestationDataNoPayloadEncoding asserts the no payload flag survives every
+// encoding the wrapper goes through: clone, json and ssz.
+func TestPayloadAttestationDataNoPayloadEncoding(t *testing.T) {
+	noPayload, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 42)
+	require.NoError(t, err)
+
+	withPayload, err := core.NewVersionedPayloadAttestationData(testutil.RandomVersionedPayloadAttestationData())
+	require.NoError(t, err)
+
+	for _, data := range []core.VersionedPayloadAttestationData{noPayload, withPayload} {
+		clone, err := data.Clone()
+		require.NoError(t, err)
+		require.Equal(t, data, clone)
+
+		b, err := data.MarshalJSON()
+		require.NoError(t, err)
+
+		var fromJSON core.VersionedPayloadAttestationData
+		require.NoError(t, fromJSON.UnmarshalJSON(b))
+		require.Equal(t, data, fromJSON)
+
+		b, err = data.MarshalSSZ()
+		require.NoError(t, err)
+
+		var fromSSZ core.VersionedPayloadAttestationData
+		require.NoError(t, fromSSZ.UnmarshalSSZ(b))
+		require.Equal(t, data, fromSSZ)
+	}
+}
+
+func TestEPBSBid(t *testing.T) {
+	excluded := testutil.RandomGloasCoreVersionedEPBSProposal()
+	included := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+
+	bid, err := core.EPBSBid(excluded.EPBS)
+	require.NoError(t, err)
+	require.Equal(t, excluded.EPBS.Gloas.Body.SignedExecutionPayloadBid.Message, bid)
+
+	bid, err = core.EPBSBid(included.EPBS)
+	require.NoError(t, err)
+	require.Equal(t, included.EPBS.GloasContents.Block.Body.SignedExecutionPayloadBid.Message, bid)
+
+	// A payload-included proposal is self-built.
+	require.Equal(t, core.BuilderIndexSelfBuild, bid.BuilderIndex)
+
+	_, err = core.EPBSBid(nil)
+	require.ErrorContains(t, err, "no epbs proposal")
+
+	_, err = core.EPBSBid(&eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas})
+	require.ErrorContains(t, err, "no gloas block execution payload bid")
+}
+
+func TestNewPayloadContentsRoots(t *testing.T) {
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+
+	roots, err := core.NewPayloadContentsRoots(contents)
+	require.NoError(t, err)
+	require.NotEqual(t, [32]byte{}, roots.Envelope)
+	require.NotEqual(t, [32]byte{}, roots.Blobs)
+
+	// Deterministic over clones.
+	clone, err := contents.Clone()
+	require.NoError(t, err)
+
+	cloned, ok := clone.(core.VersionedProposal)
+	require.True(t, ok)
+
+	cloneRoots, err := core.NewPayloadContentsRoots(cloned)
+	require.NoError(t, err)
+	require.Equal(t, roots, cloneRoots)
+
+	// A change of the envelope changes its root only.
+	cloned.EPBS.GloasContents.ExecutionPayloadEnvelope.Payload.GasLimit++
+
+	altered, err := core.NewPayloadContentsRoots(cloned)
+	require.NoError(t, err)
+	require.NotEqual(t, roots.Envelope, altered.Envelope)
+	require.Equal(t, roots.Blobs, altered.Blobs)
+
+	// A change of the blobs or proofs changes their root only.
+	cloned.EPBS.GloasContents.Blobs = append(cloned.EPBS.GloasContents.Blobs, deneb.Blob{1})
+
+	withBlob, err := core.NewPayloadContentsRoots(cloned)
+	require.NoError(t, err)
+	require.Equal(t, altered.Envelope, withBlob.Envelope)
+	require.NotEqual(t, altered.Blobs, withBlob.Blobs)
+
+	cloned.EPBS.GloasContents.KZGProofs = append(cloned.EPBS.GloasContents.KZGProofs, deneb.KZGProof{1})
+
+	withProof, err := core.NewPayloadContentsRoots(cloned)
+	require.NoError(t, err)
+	require.Equal(t, withBlob.Envelope, withProof.Envelope)
+	require.NotEqual(t, withBlob.Blobs, withProof.Blobs)
+
+	// Bare proposals have no contents.
+	_, err = core.NewPayloadContentsRoots(testutil.RandomGloasCoreVersionedEPBSProposal())
+	require.ErrorContains(t, err, "no execution payload contents")
+}
+
+func TestWithoutPayloadContents(t *testing.T) {
+	contents := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+
+	roots, err := core.NewPayloadContentsRoots(contents)
+	require.NoError(t, err)
+
+	bare, err := core.WithoutPayloadContents(contents)
+	require.NoError(t, err)
+	require.False(t, bare.EPBS.ExecutionPayloadIncluded)
+	require.Equal(t, contents.EPBS.GloasContents.Block, bare.EPBS.Gloas)
+	require.Equal(t, roots, bare.PayloadContentsRoots)
+
+	// The block root is unaffected by the payload contents roots.
+	blockRoot, err := contents.Root()
+	require.NoError(t, err)
+
+	bareRoot, err := bare.Root()
+	require.NoError(t, err)
+	require.Equal(t, blockRoot, bareRoot)
+
+	// The payload contents roots are agreed with the block: they survive the SSZ and JSON
+	// encodings of the proposal and its clone.
+	b, err := bare.MarshalSSZ()
+	require.NoError(t, err)
+
+	var fromSSZ core.VersionedProposal
+
+	require.NoError(t, fromSSZ.UnmarshalSSZ(b))
+	require.Equal(t, bare, fromSSZ)
+
+	j, err := bare.MarshalJSON()
+	require.NoError(t, err)
+	require.Contains(t, string(j), `"payload_contents_roots":{"envelope":"0x`)
+	require.Contains(t, string(j), `"blobs":"0x`)
+
+	var fromJSON core.VersionedProposal
+
+	require.NoError(t, fromJSON.UnmarshalJSON(j))
+	require.Equal(t, bare, fromJSON)
+
+	clone, err := bare.Clone()
+	require.NoError(t, err)
+	require.Equal(t, bare, clone)
+
+	// A proposal without the roots encodes without them.
+	plain := testutil.RandomGloasCoreVersionedEPBSProposal()
+
+	j, err = plain.MarshalJSON()
+	require.NoError(t, err)
+	require.NotContains(t, string(j), "payload_contents_roots")
+
+	b, err = plain.MarshalSSZ()
+	require.NoError(t, err)
+
+	var plainFromSSZ core.VersionedProposal
+
+	require.NoError(t, plainFromSSZ.UnmarshalSSZ(b))
+	require.Equal(t, plain, plainFromSSZ)
+
+	// Bare proposals have no contents to strip.
+	_, err = core.WithoutPayloadContents(bare)
+	require.ErrorContains(t, err, "no execution payload contents")
+}
+
+func TestVersionedProposalBuilderURL(t *testing.T) {
+	const url = "https://builder-sepolia.nflaig.dev"
+
+	t.Run("round trip", func(t *testing.T) {
+		p := testutil.RandomGloasCoreVersionedEPBSProposal()
+		p.BuilderURL = url
+
+		b, err := p.MarshalSSZ()
+		require.NoError(t, err)
+		require.Len(t, b, p.SizeSSZ())
+
+		var fromSSZ core.VersionedProposal
+
+		require.NoError(t, fromSSZ.UnmarshalSSZ(b))
+		require.Equal(t, p, fromSSZ)
+
+		j, err := p.MarshalJSON()
+		require.NoError(t, err)
+		require.Contains(t, string(j), `"builder_url":"`+url+`"`)
+
+		var fromJSON core.VersionedProposal
+
+		require.NoError(t, fromJSON.UnmarshalJSON(j))
+		require.Equal(t, p, fromJSON)
+
+		clone, err := p.Clone()
+		require.NoError(t, err)
+		require.Equal(t, p, clone)
+	})
+
+	t.Run("empty url omitted", func(t *testing.T) {
+		p := testutil.RandomGloasCoreVersionedEPBSProposal()
+
+		j, err := p.MarshalJSON()
+		require.NoError(t, err)
+		require.NotContains(t, string(j), "builder_url")
+	})
+
+	t.Run("survives WithoutPayloadContents", func(t *testing.T) {
+		full := testutil.RandomGloasCoreVersionedEPBSProposalWithPayload()
+		full.BuilderURL = url
+
+		bare, err := core.WithoutPayloadContents(full)
+		require.NoError(t, err)
+		require.Equal(t, url, bare.BuilderURL)
+	})
+
+	t.Run("pre-gloas ignores builder url", func(t *testing.T) {
+		p := testutil.RandomBellatrixCoreVersionedProposal()
+
+		b0, err := p.MarshalSSZ()
+		require.NoError(t, err)
+		j0, err := p.MarshalJSON()
+		require.NoError(t, err)
+
+		p.BuilderURL = url
+
+		b1, err := p.MarshalSSZ()
+		require.NoError(t, err)
+		j1, err := p.MarshalJSON()
+		require.NoError(t, err)
+		require.Equal(t, b0, b1)
+		require.Equal(t, j0, j1)
+
+		// A round trip drops it.
+		var fromSSZ, fromJSON core.VersionedProposal
+
+		require.NoError(t, fromSSZ.UnmarshalSSZ(b1))
+		require.Empty(t, fromSSZ.BuilderURL)
+		require.NoError(t, fromJSON.UnmarshalJSON(j1))
+		require.Empty(t, fromJSON.BuilderURL)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		p := testutil.RandomGloasCoreVersionedEPBSProposal()
+		p.BuilderURL = strings.Repeat("a", core.MaxBuilderURLSize+1)
+
+		_, err := p.MarshalSSZ()
+		require.ErrorContains(t, err, "builder url too long")
+
+		p.BuilderURL = url
+
+		b, err := p.MarshalSSZ()
+		require.NoError(t, err)
+
+		// URL offset pointing before the block offset.
+		bad := slices.Clone(b)
+		binary.LittleEndian.PutUint32(bad[77:81], 80)
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalSSZ(bad), "incorrect offset")
+
+		// URL offset pointing past the end.
+		bad = slices.Clone(b)
+		binary.LittleEndian.PutUint32(bad[77:81], uint32(len(bad)+1))
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalSSZ(bad), "incorrect offset")
+
+		// URL longer than the maximum.
+		bad = append(slices.Clone(b), strings.Repeat("a", core.MaxBuilderURLSize)...)
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalSSZ(bad), "builder url too long")
+
+		// The JSON form has the same maximum, so a decoded proposal can always be encoded.
+		j, err := p.MarshalJSON()
+		require.NoError(t, err)
+
+		long := strings.Replace(string(j), `"builder_url":"`+url+`"`, `"builder_url":"`+strings.Repeat("a", core.MaxBuilderURLSize+1)+`"`, 1)
+		require.ErrorContains(t, new(core.VersionedProposal).UnmarshalJSON([]byte(long)), "builder url too long")
+	})
+}
+
+func TestBuilderSource(t *testing.T) {
+	require.Equal(t, core.BuilderSourceLocal, core.BuilderSource(core.BuilderIndexSelfBuild, "https://x"))
+	require.Equal(t, core.BuilderSourceP2P, core.BuilderSource(7, ""))
+	require.Equal(t, core.BuilderSourceDirect, core.BuilderSource(7, "https://x"))
 }

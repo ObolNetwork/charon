@@ -72,7 +72,7 @@ func (m multi) ClientForAddress(addr string) Client {
 
 	// Find client matching the address
 	for _, cl := range m.clients {
-		if cl.Address() == addr {
+		if matchesAddress(cl, addr) {
 			return multi{
 				clients:   []Client{cl},
 				fallbacks: m.fallbacks,
@@ -83,7 +83,7 @@ func (m multi) ClientForAddress(addr string) Client {
 
 	// Address not found in clients, check fallbacks
 	for _, cl := range m.fallbacks {
-		if cl.Address() == addr {
+		if matchesAddress(cl, addr) {
 			return multi{
 				clients:   []Client{cl},
 				fallbacks: nil,
@@ -94,6 +94,24 @@ func (m multi) ClientForAddress(addr string) Client {
 
 	// Address not found, return original multi client
 	return m
+}
+
+// PrimaryOnly returns the multi client without its fallback beacon nodes, so that responses come
+// from the configured clients only, e.g. to attribute a response to the node a client is scoped
+// to. Other clients are returned as is.
+func PrimaryOnly(cl Client) Client {
+	switch m := cl.(type) {
+	case multi:
+		m.fallbacks = nil
+		return m
+	case *multi:
+		c := *m
+		c.fallbacks = nil
+
+		return c
+	default:
+		return cl
+	}
 }
 
 func (m multi) Headers() map[string]string {
@@ -172,11 +190,12 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 
 func (m multi) SetDutiesCache(
 	proposerDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
+	proposerDutiesV2Cache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error),
 	attesterDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (AttesterDutyWithMeta, error),
 	syncCommDutiesCache func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error),
 ) {
 	for _, cl := range m.clients {
-		cl.SetDutiesCache(proposerDutiesCache, attesterDutiesCache, syncCommDutiesCache)
+		cl.SetDutiesCache(proposerDutiesCache, proposerDutiesV2Cache, attesterDutiesCache, syncCommDutiesCache)
 	}
 }
 
@@ -189,6 +208,26 @@ func (m multi) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 	res0, err := provide(ctx, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (ProposerDutyWithMeta, error) {
 			return args.client.ProposerDutiesCache(ctx, epoch, vidxs)
+		},
+		nil, nil,
+	)
+	if err != nil {
+		incError(label)
+		err = wrapError(ctx, err, label)
+	}
+
+	return res0, err
+}
+
+func (m multi) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
+	const label = "proposer_duties_v2_cache"
+	// No latency since this is a cached endpoint.
+
+	defer incRequest(label)
+
+	res0, err := provide(ctx, m.clients, m.fallbacks,
+		func(ctx context.Context, args provideArgs) (ProposerDutyWithMeta, error) {
+			return args.client.ProposerDutiesV2Cache(ctx, epoch, vidxs)
 		},
 		nil, nil,
 	)
@@ -286,4 +325,20 @@ func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, er
 	)
 
 	return res0, err
+}
+
+// matchesAddress returns true if the client corresponds to the provided configured beacon
+// node address. Clients constructed from a configured address match on the original address,
+// since Address returns the masked form (credentials, path and query redacted) which is both
+// lossy and ambiguous between endpoints on the same host.
+func matchesAddress(cl Client, addr string) bool {
+	type configuredAddresser interface {
+		configuredAddress() string
+	}
+
+	if ca, ok := cl.(configuredAddresser); ok && ca.configuredAddress() == addr {
+		return true
+	}
+
+	return cl.Address() == addr
 }

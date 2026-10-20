@@ -69,6 +69,10 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Data: testutil.RandomFuluCoreVersionedSignedProposal(),
 		},
 		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomGloasCoreVersionedSignedProposal(),
+		},
+		{
 			Type: core.DutyBuilderRegistration,
 			Data: testutil.RandomCoreVersionedSignedValidatorRegistration(t),
 		},
@@ -100,6 +104,18 @@ func TestParSignedDataSetProto(t *testing.T) {
 			Type: core.DutySyncContribution,
 			Data: core.NewSignedSyncContributionAndProof(testutil.RandomSignedSyncContributionAndProof()),
 		},
+		{
+			Type: core.DutyProposerPreferences,
+			Data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
+		},
+		{
+			Type: core.DutyBuilderPreferences,
+			Data: core.NewSignedBuilderRequestAuth(testutil.RandomSignedBuilderRequestAuth()),
+		},
+		{
+			Type: core.DutyExecutionPayloadEnvelope,
+			Data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.Type.String(), func(t *testing.T) {
@@ -129,6 +145,36 @@ func TestParSignedDataSetProto(t *testing.T) {
 	}
 }
 
+// TestUnsignedDataSetToProtoNoPayload asserts that the no payload attestation data, the agreed
+// no-block outcome of the duty, round trips through proto as a regular non-empty set, while
+// empty sets are rejected for every duty.
+func TestUnsignedDataSetToProtoNoPayload(t *testing.T) {
+	data, err := core.NewNoPayloadAttestationData(eth2spec.DataVersionGloas, 42)
+	require.NoError(t, err)
+
+	set := core.UnsignedDataSet{testutil.RandomCorePubKey(t): data}
+
+	pb, err := core.UnsignedDataSetToProto(set)
+	require.NoError(t, err)
+
+	// The proto never marshals to zero bytes, which consensus would treat as no value.
+	b, err := proto.MarshalOptions{Deterministic: true}.Marshal(pb)
+	require.NoError(t, err)
+	require.NotEmpty(t, b)
+
+	got, err := core.UnsignedDataSetFromProto(core.DutyPayloadAttestation, pb)
+	require.NoError(t, err)
+	require.Equal(t, set, got)
+
+	empty, err := core.UnsignedDataSetToProto(core.UnsignedDataSet{})
+	require.NoError(t, err)
+
+	for _, typ := range []core.DutyType{core.DutyPayloadAttestation, core.DutyAttester} {
+		_, err = core.UnsignedDataSetFromProto(typ, empty)
+		require.ErrorContains(t, err, "invalid unsigned data set")
+	}
+}
+
 func TestUnsignedDataToProto(t *testing.T) {
 	tests := []struct {
 		Type core.DutyType
@@ -141,6 +187,18 @@ func TestUnsignedDataToProto(t *testing.T) {
 		{
 			Type: core.DutyProposer,
 			Data: testutil.RandomBellatrixCoreVersionedProposal(),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomGloasCoreVersionedEPBSProposal(),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: testutil.RandomGloasCoreVersionedEPBSProposalWithPayload(),
+		},
+		{
+			Type: core.DutyProposer,
+			Data: withBuilderURL(testutil.RandomGloasCoreVersionedEPBSProposal()),
 		},
 		{
 			Type: core.DutyAggregator,
@@ -321,4 +379,10 @@ func TestNilPointerChecks(t *testing.T) {
 
 	_, err = core.UnsignedDataSetFromProto(core.DutyAttester, new(pbv1.UnsignedDataSet))
 	require.ErrorContains(t, err, "invalid unsigned data set fields")
+}
+
+func withBuilderURL(p core.VersionedProposal) core.VersionedProposal {
+	p.BuilderURL = "https://builder.example.com"
+
+	return p
 }

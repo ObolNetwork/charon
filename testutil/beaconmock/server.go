@@ -200,10 +200,12 @@ func newHTTPMock(ctx context.Context, optionalHandlers map[string]http.HandlerFu
 	// Wait for server to be up
 	for {
 		resp, err := http.Get(addr + "/up") //nolint:noctx // Non-critical code
+		if err == nil {
+			_ = resp.Body.Close()
 
-		_ = resp.Body.Close()
-		if err == nil && resp.StatusCode == http.StatusOK {
-			break
+			if resp.StatusCode == http.StatusOK {
+				break
+			}
 		}
 
 		time.Sleep(time.Millisecond * 100)

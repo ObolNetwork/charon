@@ -3,8 +3,10 @@
 package validatorapi
 
 import (
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -47,7 +49,59 @@ var (
 		Name:      "vc_user_agent",
 		Help:      "Gauge with label set to user agent string of requests made by VC",
 	}, []string{"user_agent"})
+
+	proposalFormGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "proposal_form",
+		Help:      "The form the validator client requested the latest gloas proposal in: none requested yet (0), stateless with its execution payload, which waits for the shared payload contents (1), or stateful (2)",
+	})
+
+	proposerPrefMismatch = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "proposer_preferences_mismatch_total",
+		Help:      "Total number of proposer preferences submitted by the VC that mismatch the cluster-lock value, by field",
+	}, []string{"field"})
+
+	builderPrefMismatch = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "core",
+		Subsystem: "validatorapi",
+		Name:      "builder_preferences_mismatch_total",
+		Help: "Total number of builder preferences submitted by the VC that mismatch this node's builders, by builder host " +
+			"and reason: a configured builder without a request auth (missing) or an auth for a builder not configured (unknown)",
+	}, []string{"builder", "reason"})
 )
+
+// Values of proposalFormGauge, the form the latest gloas proposal was requested in.
+const (
+	proposalFormUnknown   = 0 // No gloas proposal requested yet, the gauge's default.
+	proposalFormStateless = 1
+	proposalFormStateful  = 2
+)
+
+func incProposerPrefMismatch(field string) {
+	proposerPrefMismatch.WithLabelValues(field).Inc()
+}
+
+func incBuilderPrefMismatch(builder, reason string) {
+	builderPrefMismatch.WithLabelValues(builder, reason).Inc()
+}
+
+// maxBuilderHostLabelLen bounds the untrusted builder request auth data used as a metric label
+// value, at the maximum length of a hostname, the data's default.
+const maxBuilderHostLabelLen = 253
+
+// builderHostLabel returns the builder host of a request auth as a metric label value: capped and
+// valid UTF-8 like the User-Agent header, since it is unverified validator client input and the
+// prometheus client panics on an invalid label value.
+func builderHostLabel(host string) string {
+	if len(host) > maxBuilderHostLabelLen {
+		host = host[:maxBuilderHostLabelLen]
+	}
+
+	return strings.ToValidUTF8(host, "")
+}
 
 func incAPIErrors(endpoint string, statusCode int) {
 	apiErrors.WithLabelValues(endpoint, strconv.Itoa(statusCode)).Inc()
@@ -101,4 +155,63 @@ func isNumeric(s string) bool {
 	return !strings.ContainsFunc(s, func(r rune) bool {
 		return r < '0' || r > '9'
 	})
+}
+
+// vcUserAgentRegistry tracks validator client user agents recently seen on API requests,
+// so fork readiness checks can evaluate the connected validator clients.
+var vcUserAgentRegistry = struct {
+	sync.Mutex
+
+	agents map[string]time.Time
+}{agents: make(map[string]time.Time)}
+
+const (
+	// vcUserAgentTTL bounds how long a user agent is considered connected after its last request.
+	vcUserAgentTTL = time.Hour
+	// maxVCUserAgents bounds the registry size (and the resulting metric cardinality) since
+	// user agents are untrusted request input. New agents are dropped when the registry is
+	// full; expired entries make room again. Validator clients connect continuously, so
+	// legitimate agents recorded early are retained.
+	maxVCUserAgents = 10
+)
+
+// recordVCUserAgent records a validator client user agent seen on an API request.
+func recordVCUserAgent(agent string) {
+	vcUserAgentRegistry.Lock()
+	defer vcUserAgentRegistry.Unlock()
+
+	if _, ok := vcUserAgentRegistry.agents[agent]; !ok {
+		for existing, seen := range vcUserAgentRegistry.agents {
+			if time.Since(seen) > vcUserAgentTTL {
+				delete(vcUserAgentRegistry.agents, existing)
+			}
+		}
+
+		if len(vcUserAgentRegistry.agents) >= maxVCUserAgents {
+			return
+		}
+	}
+
+	vcUserAgentRegistry.agents[agent] = time.Now()
+}
+
+// SeenVCUserAgents returns the validator client user agents seen recently on API requests.
+func SeenVCUserAgents() []string {
+	vcUserAgentRegistry.Lock()
+	defer vcUserAgentRegistry.Unlock()
+
+	var resp []string
+
+	for agent, seen := range vcUserAgentRegistry.agents {
+		if time.Since(seen) > vcUserAgentTTL {
+			delete(vcUserAgentRegistry.agents, agent)
+			continue
+		}
+
+		resp = append(resp, agent)
+	}
+
+	slices.Sort(resp)
+
+	return resp
 }

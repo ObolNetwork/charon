@@ -193,7 +193,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 
 	t.Run("no overrides", func(t *testing.T) {
 		feeMap := maps.Clone(feeRecipientByPubkey)
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, nil, feeMap)
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, nil, feeMap, map[core.PubKey]uint64{})
 		require.Equal(t, baseRegs, result)
 	})
 
@@ -213,7 +213,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 			},
 		}
 
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap)
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap, map[core.PubKey]uint64{})
 
 		require.Equal(t, override, result[0])
 
@@ -237,7 +237,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 			},
 		}
 
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap)
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap, map[core.PubKey]uint64{})
 
 		require.Equal(t, baseRegs[0], result[0])
 	})
@@ -257,7 +257,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 			},
 		}
 
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap)
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap, map[core.PubKey]uint64{})
 
 		for i := range baseRegs {
 			require.Equal(t, baseRegs[i], result[i])
@@ -463,4 +463,13 @@ func writeOverridesFile(t *testing.T, regs []*eth2api.VersionedSignedValidatorRe
 	require.NoError(t, os.WriteFile(path, data, 0o644))
 
 	return path
+}
+
+func TestVerifyRegistrationSignatureZeroGasLimit(t *testing.T) {
+	reg := &eth2api.VersionedSignedValidatorRegistration{
+		V1: &eth2v1.SignedValidatorRegistration{Message: &eth2v1.ValidatorRegistration{}},
+	}
+
+	err := verifyRegistrationSignature(reg, eth2p0.Version{})
+	require.ErrorContains(t, err, "zero gas limit")
 }

@@ -1,0 +1,10 @@
+{
+  "message": {
+    "dependent_root": "0x760c58485fe3352bc5b52456f0eff11f99ef25258727c8b2922e22f5563d3949",
+    "proposal_slot": "16546581078090080517",
+    "validator_index": "18058059291253152324",
+    "fee_recipient": "0xd5ce92f83e0212d3077d0549b01b83b78e64fc14",
+    "target_gas_limit": "7556123538639849854"
+  },
+  "signature": "0x03f2ecd45fac9d4aef1d6a649ec7799f34798eb91ff4c4fe748e21819c51945e7ed3df1fb0b5a4e0e895804813d1f4a80680595fb94b57636910c8ea580e905fda113b925adfac8d80ebb68deac0c0d6cb9aa138c60f34218fefbffdf6e04b99"
+}

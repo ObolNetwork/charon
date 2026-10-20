@@ -25,12 +25,14 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/holiman/uint256"
@@ -174,6 +176,25 @@ func RandomFuluCoreVersionedAttestation() core.VersionedAttestation {
 		Version:        eth2spec.DataVersionFulu,
 		ValidatorIndex: &vIdx,
 		Fulu:           RandomElectraAttestation(),
+	}
+}
+
+func RandomGloasAttestation() *gloas.Attestation {
+	return &gloas.Attestation{
+		AggregationBits: RandomBitList(64),
+		Data:            RandomAttestationDataPhase0(),
+		Signature:       RandomEth2Signature(),
+		CommitteeBits:   RandomBitVec64(),
+	}
+}
+
+func RandomGloasCoreVersionedAttestation() core.VersionedAttestation {
+	vIdx := RandomVIdx()
+
+	return core.VersionedAttestation{
+		Version:        eth2spec.DataVersionGloas,
+		ValidatorIndex: &vIdx,
+		Gloas:          RandomGloasAttestation(),
 	}
 }
 
@@ -974,6 +995,255 @@ func RandomSyncCommitteeContribution() *altair.SyncCommitteeContribution {
 		SubcommitteeIndex: rand.Uint64(),
 		AggregationBits:   RandomBitVec128(),
 		Signature:         RandomEth2Signature(),
+	}
+}
+
+func RandomPayloadAttestationData() *gloas.PayloadAttestationData {
+	return &gloas.PayloadAttestationData{
+		BeaconBlockRoot:   RandomRoot(),
+		Slot:              RandomSlot(),
+		PayloadPresent:    rand.Intn(2) == 1,
+		BlobDataAvailable: rand.Intn(2) == 1,
+	}
+}
+
+func RandomGloasExecutionPayloadBid() *gloas.ExecutionPayloadBid {
+	return &gloas.ExecutionPayloadBid{
+		ParentBlockHash:       RandomArray32(),
+		ParentBlockRoot:       RandomRoot(),
+		BlockHash:             RandomArray32(),
+		PrevRandao:            RandomRoot(),
+		FeeRecipient:          RandomExecutionAddress(),
+		GasLimit:              rand.Uint64(),
+		BuilderIndex:          gloas.BuilderIndex(rand.Uint64()),
+		Slot:                  RandomSlot(),
+		Value:                 RandomGwei(),
+		ExecutionPayment:      RandomGwei(),
+		BlobKZGCommitments:    []deneb.KZGCommitment{},
+		ExecutionRequestsRoot: RandomRoot(),
+	}
+}
+
+func RandomGloasBeaconBlockBody() *gloas.BeaconBlockBody {
+	return &gloas.BeaconBlockBody{
+		RANDAOReveal: RandomEth2Signature(),
+		ETH1Data: &eth2p0.ETH1Data{
+			DepositRoot:  RandomRoot(),
+			DepositCount: 0,
+			BlockHash:    RandomBytes32(),
+		},
+		Graffiti:              RandomArray32(),
+		ProposerSlashings:     []*eth2p0.ProposerSlashing{},
+		AttesterSlashings:     []*gloas.AttesterSlashing{},
+		Attestations:          []*gloas.Attestation{},
+		Deposits:              []*eth2p0.Deposit{},
+		VoluntaryExits:        []*eth2p0.SignedVoluntaryExit{},
+		SyncAggregate:         RandomSyncAggregate(),
+		BLSToExecutionChanges: []*capella.SignedBLSToExecutionChange{},
+		SignedExecutionPayloadBid: &gloas.SignedExecutionPayloadBid{
+			Message:   RandomGloasExecutionPayloadBid(),
+			Signature: RandomEth2Signature(),
+		},
+		PayloadAttestations:     []*gloas.PayloadAttestation{},
+		ParentExecutionRequests: randomGloasExecutionRequests(),
+	}
+}
+
+func RandomGloasBeaconBlock() *gloas.BeaconBlock {
+	return &gloas.BeaconBlock{
+		Slot:          RandomSlot(),
+		ProposerIndex: RandomVIdx(),
+		ParentRoot:    RandomRoot(),
+		StateRoot:     RandomRoot(),
+		Body:          RandomGloasBeaconBlockBody(),
+	}
+}
+
+func RandomGloasExecutionPayload() *gloas.ExecutionPayload {
+	baseFeePerGas := new(uint256.Int)
+	randBytes := RandomArray32()
+	baseFeePerGas.SetBytes32(randBytes[:])
+
+	return &gloas.ExecutionPayload{
+		ParentHash:      RandomArray32(),
+		FeeRecipient:    RandomExecutionAddress(),
+		StateRoot:       RandomRoot(),
+		ReceiptsRoot:    RandomRoot(),
+		PrevRandao:      RandomArray32(),
+		BlockNumber:     rand.Uint64(),
+		GasLimit:        rand.Uint64(),
+		GasUsed:         rand.Uint64(),
+		Timestamp:       rand.Uint64(),
+		ExtraData:       []byte{},
+		BaseFeePerGas:   baseFeePerGas,
+		BlockHash:       RandomArray32(),
+		Transactions:    []bellatrix.Transaction{},
+		Withdrawals:     []*capella.Withdrawal{},
+		BlockAccessList: gloas.BlockAccessList{},
+	}
+}
+
+// RandomGloasBlockContents returns random self-built gloas block contents whose envelope is
+// consistent with the block's execution payload bid, satisfying client-side guards.
+// Note the envelope beacon block root goes stale if the block is mutated afterwards.
+func RandomGloasBlockContents() *eth2gloas.BlockContents {
+	block := RandomGloasBeaconBlock()
+	requests := randomGloasExecutionRequests()
+
+	requestsRoot, err := requests.HashTreeRoot()
+	if err != nil {
+		panic(err) // Should never happen, and this is test code sugar.
+	}
+
+	// Only a self-built block carries its payload: its bid pays nothing and is unsigned.
+	block.Body.SignedExecutionPayloadBid.Signature = eth2p0.BLSSignature{0xc0}
+	bid := block.Body.SignedExecutionPayloadBid.Message
+	bid.BuilderIndex = core.BuilderIndexSelfBuild
+	bid.Value = 0
+	bid.ExecutionPayment = 0
+	bid.ExecutionRequestsRoot = requestsRoot
+
+	blockRoot, err := block.HashTreeRoot()
+	if err != nil {
+		panic(err) // Should never happen, and this is test code sugar.
+	}
+
+	payload := RandomGloasExecutionPayload()
+	payload.BlockHash = bid.BlockHash
+
+	return &eth2gloas.BlockContents{
+		Block: block,
+		ExecutionPayloadEnvelope: &gloas.ExecutionPayloadEnvelope{
+			Payload:               payload,
+			ExecutionRequests:     requests,
+			BuilderIndex:          bid.BuilderIndex,
+			BeaconBlockRoot:       blockRoot,
+			ParentBeaconBlockRoot: bid.ParentBlockRoot,
+		},
+		KZGProofs: []deneb.KZGProof{},
+		Blobs:     []deneb.Blob{},
+	}
+}
+
+// RandomExecutionPayloadEnvelope returns random signed execution payload envelope submission
+// contents (signed envelope plus blobs and proofs), taken from consistent gloas block contents so
+// the envelope satisfies hash-tree-root and client-side guards.
+func RandomExecutionPayloadEnvelope() *eth2gloas.SignedExecutionPayloadEnvelopeContents {
+	bc := RandomGloasBlockContents()
+
+	return &eth2gloas.SignedExecutionPayloadEnvelopeContents{
+		SignedExecutionPayloadEnvelope: &gloas.SignedExecutionPayloadEnvelope{
+			Message:   bc.ExecutionPayloadEnvelope,
+			Signature: RandomEth2Signature(),
+		},
+		KZGProofs: bc.KZGProofs,
+		Blobs:     bc.Blobs,
+	}
+}
+
+// RandomGloasCoreVersionedEPBSProposal returns a random payload-excluded gloas EPBS
+// proposal (an external builder bid, the block travels without its execution payload).
+func RandomGloasCoreVersionedEPBSProposal() core.VersionedProposal {
+	proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+		Version:                  eth2spec.DataVersionGloas,
+		ExecutionPayloadIncluded: false,
+		Gloas:                    RandomGloasBeaconBlock(),
+	})
+	if err != nil {
+		panic(err) // Should never happen, and this is test code sugar.
+	}
+
+	return proposal
+}
+
+// RandomGloasCoreVersionedEPBSProposalWithPayload returns a random payload-included
+// gloas EPBS proposal (the stateless self-built form carrying its envelope).
+func RandomGloasCoreVersionedEPBSProposalWithPayload() core.VersionedProposal {
+	proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+		Version:                  eth2spec.DataVersionGloas,
+		ExecutionPayloadIncluded: true,
+		GloasContents:            RandomGloasBlockContents(),
+	})
+	if err != nil {
+		panic(err) // Should never happen, and this is test code sugar.
+	}
+
+	return proposal
+}
+
+// randomGloasExecutionRequests returns empty gloas execution requests with all lists
+// allocated, matching what an SSZ or JSON decode of empty requests produces.
+func randomGloasExecutionRequests() *gloas.ExecutionRequests {
+	return &gloas.ExecutionRequests{
+		Deposits:        []*electra.DepositRequest{},
+		Withdrawals:     []*electra.WithdrawalRequest{},
+		Consolidations:  []*electra.ConsolidationRequest{},
+		BuilderDeposits: []*gloas.BuilderDepositRequest{},
+		BuilderExits:    []*gloas.BuilderExitRequest{},
+	}
+}
+
+func RandomGloasSignedBeaconBlock() *gloas.SignedBeaconBlock {
+	return &gloas.SignedBeaconBlock{
+		Message:   RandomGloasBeaconBlock(),
+		Signature: RandomEth2Signature(),
+	}
+}
+
+func RandomGloasCoreVersionedSignedProposal() core.VersionedSignedProposal {
+	proposal, err := core.NewVersionedSignedProposal(&eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   RandomGloasSignedBeaconBlock(),
+	})
+	if err != nil {
+		panic(err) // Should never happen, and this is test code sugar.
+	}
+
+	return proposal
+}
+
+func RandomVersionedPayloadAttestationData() *eth2spec.VersionedPayloadAttestationData {
+	return &eth2spec.VersionedPayloadAttestationData{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   RandomPayloadAttestationData(),
+	}
+}
+
+func RandomPayloadAttestationMessage() *gloas.PayloadAttestationMessage {
+	return &gloas.PayloadAttestationMessage{
+		ValidatorIndex: RandomVIdx(),
+		Data:           RandomPayloadAttestationData(),
+		Signature:      RandomEth2Signature(),
+	}
+}
+
+func RandomVersionedPayloadAttestationMessage() *eth2spec.VersionedPayloadAttestationMessage {
+	return &eth2spec.VersionedPayloadAttestationMessage{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   RandomPayloadAttestationMessage(),
+	}
+}
+
+func RandomProposerPreferences() *gloas.SignedProposerPreferences {
+	return &gloas.SignedProposerPreferences{
+		Message: &gloas.ProposerPreferences{
+			DependentRoot:  RandomRoot(),
+			ProposalSlot:   RandomSlot(),
+			ValidatorIndex: RandomVIdx(),
+			FeeRecipient:   RandomExecutionAddress(),
+			TargetGasLimit: rand.Uint64(),
+		},
+		Signature: RandomEth2Signature(),
+	}
+}
+
+func RandomSignedBuilderRequestAuth() *gloas.SignedBuilderRequestAuth {
+	return &gloas.SignedBuilderRequestAuth{
+		Message: &gloas.BuilderRequestAuth{
+			Data: []byte("builder.example.com"),
+			Slot: RandomSlot(),
+		},
+		Signature: RandomEth2Signature(),
 	}
 }
 

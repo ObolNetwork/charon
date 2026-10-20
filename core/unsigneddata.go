@@ -3,7 +3,10 @@
 package core
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
+	"math"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -12,16 +15,16 @@ import (
 	eth2deneb "github.com/attestantio/go-eth2-client/api/v1/deneb"
 	eth2electra "github.com/attestantio/go-eth2-client/api/v1/electra"
 	eth2fulu "github.com/attestantio/go-eth2-client/api/v1/fulu"
+	eth2gloas "github.com/attestantio/go-eth2-client/api/v1/gloas"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	"github.com/attestantio/go-eth2-client/spec/altair"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
 	"github.com/attestantio/go-eth2-client/spec/capella"
-	eth2e "github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/deneb"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -32,18 +35,21 @@ var (
 	_ UnsignedData = VersionedProposal{}
 	_ UnsignedData = SyncContribution{}
 	_ UnsignedData = SyncContributions{}
+	_ UnsignedData = VersionedPayloadAttestationData{}
 
 	// Some types also support SSZ marshalling and unmarshalling.
-	_ ssz.Marshaler   = AttestationData{}
-	_ ssz.Marshaler   = AggregatedAttestation{}
-	_ ssz.Marshaler   = VersionedAggregatedAttestation{}
-	_ ssz.Marshaler   = VersionedProposal{}
-	_ ssz.Marshaler   = SyncContribution{}
-	_ ssz.Unmarshaler = new(AttestationData)
-	_ ssz.Unmarshaler = new(AggregatedAttestation)
-	_ ssz.Unmarshaler = new(VersionedAggregatedAttestation)
-	_ ssz.Unmarshaler = new(VersionedProposal)
-	_ ssz.Unmarshaler = new(SyncContribution)
+	_ sszMarshaler   = AttestationData{}
+	_ sszMarshaler   = AggregatedAttestation{}
+	_ sszMarshaler   = VersionedAggregatedAttestation{}
+	_ sszMarshaler   = VersionedProposal{}
+	_ sszMarshaler   = SyncContribution{}
+	_ sszMarshaler   = VersionedPayloadAttestationData{}
+	_ sszUnmarshaler = new(AttestationData)
+	_ sszUnmarshaler = new(AggregatedAttestation)
+	_ sszUnmarshaler = new(VersionedAggregatedAttestation)
+	_ sszUnmarshaler = new(VersionedProposal)
+	_ sszUnmarshaler = new(SyncContribution)
+	_ sszUnmarshaler = new(VersionedPayloadAttestationData)
 )
 
 // AttestationData wraps the eth2 attestation data and adds the original duty.
@@ -177,6 +183,10 @@ func NewVersionedAggregatedAttestation(att *eth2spec.VersionedAttestation) (Vers
 		if att.Fulu == nil {
 			return VersionedAggregatedAttestation{}, errors.New("no fulu attestation")
 		}
+	case eth2spec.DataVersionGloas:
+		if att.Gloas == nil {
+			return VersionedAggregatedAttestation{}, errors.New("no gloas attestation")
+		}
 	default:
 		return VersionedAggregatedAttestation{}, errors.New("unknown version")
 	}
@@ -219,6 +229,8 @@ func (a VersionedAggregatedAttestation) MarshalJSON() ([]byte, error) {
 		marshaller = a.Electra
 	case eth2spec.DataVersionFulu:
 		marshaller = a.Fulu
+	case eth2spec.DataVersionGloas:
+		marshaller = a.Gloas
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -262,87 +274,18 @@ func (a VersionedAggregatedAttestation) HashTreeRoot() ([32]byte, error) {
 		return a.Electra.HashTreeRoot()
 	case eth2spec.DataVersionFulu:
 		return a.Fulu.HashTreeRoot()
+	case eth2spec.DataVersionGloas:
+		return a.Gloas.HashTreeRoot()
 	default:
 		return [32]byte{}, errors.New("unknown version")
 	}
 }
 
 func (a *VersionedAggregatedAttestation) UnmarshalJSON(input []byte) error {
-	var raw versionedRawAttestationJSON
-	if err := json.Unmarshal(input, &raw); err != nil {
-		return errors.Wrap(err, "unmarshal attestation")
+	resp, err := unmarshalVersionedAttestationJSON(input)
+	if err != nil {
+		return err
 	}
-
-	resp := eth2spec.VersionedAttestation{Version: raw.Version.ToETH2()}
-	switch resp.Version {
-	case eth2spec.DataVersionPhase0:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal phase0")
-		}
-
-		resp.Phase0 = att
-	case eth2spec.DataVersionAltair:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal altair")
-		}
-
-		resp.Altair = att
-	case eth2spec.DataVersionBellatrix:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal bellatrix")
-		}
-
-		resp.Bellatrix = att
-	case eth2spec.DataVersionCapella:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal capella")
-		}
-
-		resp.Capella = att
-	case eth2spec.DataVersionDeneb:
-		att := new(eth2p0.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal deneb")
-		}
-
-		resp.Deneb = att
-	case eth2spec.DataVersionElectra:
-		att := new(eth2e.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal electra")
-		}
-
-		resp.Electra = att
-	case eth2spec.DataVersionFulu:
-		att := new(eth2e.Attestation)
-
-		err := json.Unmarshal(raw.Attestation, &att)
-		if err != nil {
-			return errors.Wrap(err, "unmarshal fulu")
-		}
-
-		resp.Fulu = att
-	default:
-		return errors.New("unknown attestation version", z.Str("version", a.Version.String()))
-	}
-
-	resp.ValidatorIndex = raw.ValidatorIndex
 
 	a.VersionedAttestation = resp
 
@@ -408,6 +351,10 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 		if proposal.FuluBlinded == nil && proposal.Blinded {
 			return VersionedProposal{}, errors.New("no fulu blinded block")
 		}
+	case eth2spec.DataVersionGloas:
+		// Gloas proposals are produced by the v4 EPBS endpoint and carried in a
+		// separate type, see NewVersionedEPBSProposal.
+		return VersionedProposal{}, errors.New("gloas proposals must be constructed from an EPBS proposal")
 	default:
 		return VersionedProposal{}, errors.New("unknown version")
 	}
@@ -415,9 +362,289 @@ func NewVersionedProposal(proposal *eth2api.VersionedProposal) (VersionedProposa
 	return VersionedProposal{VersionedProposal: *proposal}, nil
 }
 
+// NewVersionedEPBSProposal validates and returns a new wrapped VersionedProposal
+// carrying an EPBS proposal, which supersedes the embedded client union from the gloas
+// fork onwards. The pre-gloas Blinded flag is never set for it.
+func NewVersionedEPBSProposal(proposal *eth2api.VersionedEPBSProposal) (VersionedProposal, error) {
+	switch proposal.Version {
+	case eth2spec.DataVersionGloas:
+		if proposal.ExecutionPayloadIncluded {
+			if proposal.GloasContents == nil || proposal.GloasContents.Block == nil {
+				return VersionedProposal{}, errors.New("no gloas block contents")
+			}
+		} else if proposal.Gloas == nil {
+			return VersionedProposal{}, errors.New("no gloas block")
+		}
+	default:
+		return VersionedProposal{}, errors.New("unknown version")
+	}
+
+	return VersionedProposal{
+		Version: proposal.Version,
+		EPBS:    proposal,
+	}, nil
+}
+
+// BuilderIndexSelfBuild is the gloas BUILDER_INDEX_SELF_BUILD constant, the builder index of the
+// execution payload bid of a self-built block, whose proposer reveals the execution payload.
+const BuilderIndexSelfBuild = gloas.BuilderIndex(math.MaxUint64)
+
+// MaxBuilderURLSize is the builder-specs MAX_BUILDER_URL_SIZE, the maximum length of a builder URL.
+const MaxBuilderURLSize = 2048
+
+// Builder sources of a gloas proposal's execution payload bid, see BuilderSource.
+const (
+	BuilderSourceLocal  = "local"
+	BuilderSourceP2P    = "p2p"
+	BuilderSourceDirect = "direct"
+)
+
+// BuilderSource returns where a gloas proposal's execution payload bid came from: built locally,
+// a builder's p2p bid, or a direct builder's bid, the one the beacon node returns a URL for.
+func BuilderSource(builderIndex gloas.BuilderIndex, builderURL string) string {
+	switch {
+	case builderIndex == BuilderIndexSelfBuild:
+		return BuilderSourceLocal
+	case builderURL != "":
+		return BuilderSourceDirect
+	default:
+		return BuilderSourceP2P
+	}
+}
+
+// EPBSBid returns the execution payload bid the EPBS proposal's beacon block commits to, from
+// either arm of the proposal.
+func EPBSBid(proposal *eth2api.VersionedEPBSProposal) (*gloas.ExecutionPayloadBid, error) {
+	if proposal == nil {
+		return nil, errors.New("no epbs proposal")
+	}
+
+	// Each fork resolves its block (payload-included or -excluded); new forks add a case here.
+	switch proposal.Version {
+	case eth2spec.DataVersionGloas:
+		block := proposal.Gloas
+		if proposal.ExecutionPayloadIncluded && proposal.GloasContents != nil {
+			block = proposal.GloasContents.Block
+		}
+
+		if block == nil || block.Body == nil || block.Body.SignedExecutionPayloadBid == nil ||
+			block.Body.SignedExecutionPayloadBid.Message == nil {
+			return nil, errors.New("no gloas block execution payload bid")
+		}
+
+		return block.Body.SignedExecutionPayloadBid.Message, nil
+	default:
+		return nil, errors.New("unknown epbs proposal version")
+	}
+}
+
 // VersionedProposal wraps the eth2 versioned proposal and implements UnsignedData.
 type VersionedProposal struct {
 	eth2api.VersionedProposal
+
+	// EPBS carries the gloas proposal, which the embedded eth2api.VersionedProposal
+	// has no arm for. It is set iff Version is gloas. The embedded Blinded flag does
+	// not apply to gloas, EPBS.ExecutionPayloadIncluded discriminates the two arms.
+	EPBS *eth2api.VersionedEPBSProposal
+
+	// PayloadContentsRoots commit to the execution payload envelope, blobs and KZG proofs of a
+	// self-built gloas proposal agreed without them, see NewPayloadContentsRoots, so that peers
+	// can verify the contents the proposer shares after the decision. Zero for builder bids, for
+	// proposals carrying their payload and before the gloas fork.
+	PayloadContentsRoots PayloadContentsRoots
+
+	// BuilderURL is the URL of the direct builder whose bid the gloas proposal commits to, the
+	// Eth-Builder-Url the beacon node returned with it. Empty for self-built blocks, p2p bids and
+	// before the gloas fork. Agreed with the block so every node forwards it when publishing.
+	BuilderURL string
+}
+
+// PayloadContentsRoots are the commitments to the execution payload contents of a self-built
+// gloas proposal, to its envelope and to its blobs separately, so that each is verified on its
+// own as it arrives.
+type PayloadContentsRoots struct {
+	// Envelope is the sha256 of the SSZ encoding of the execution payload envelope.
+	Envelope [32]byte
+	// Blobs is the sha256 of the KZG proofs and blobs, each list prefixed by its length.
+	Blobs [32]byte
+}
+
+// NewPayloadContentsRoots returns the commitments to the execution payload contents of a
+// self-built gloas proposal, sha256 digests of SSZ encodings, which are preset independent
+// unlike the generated hash tree roots.
+func NewPayloadContentsRoots(proposal VersionedProposal) (PayloadContentsRoots, error) {
+	if proposal.Version < eth2spec.DataVersionGloas || proposal.EPBS == nil ||
+		!proposal.EPBS.ExecutionPayloadIncluded || proposal.EPBS.GloasContents == nil {
+		return PayloadContentsRoots{}, errors.New("no execution payload contents")
+	}
+
+	contents := proposal.EPBS.GloasContents
+	if contents.ExecutionPayloadEnvelope == nil {
+		return PayloadContentsRoots{}, errors.New("no execution payload envelope")
+	}
+
+	b, err := contents.ExecutionPayloadEnvelope.MarshalSSZ()
+	if err != nil {
+		return PayloadContentsRoots{}, errors.Wrap(err, "marshal execution payload envelope")
+	}
+
+	return PayloadContentsRoots{
+		Envelope: sha256.Sum256(b),
+		Blobs:    hashBlobs(contents.KZGProofs, contents.Blobs),
+	}, nil
+}
+
+// hashBlobs returns the sha256 of the KZG proofs and blobs, each list prefixed by its length as
+// a little-endian uint64, i.e. the SSZ encoding of the fixed-size elements, length prefixed.
+func hashBlobs(proofs []deneb.KZGProof, blobs []deneb.Blob) [32]byte {
+	h := sha256.New()
+
+	_, _ = h.Write(binary.LittleEndian.AppendUint64(nil, uint64(len(proofs))))
+	for _, proof := range proofs {
+		_, _ = h.Write(proof[:])
+	}
+
+	_, _ = h.Write(binary.LittleEndian.AppendUint64(nil, uint64(len(blobs))))
+	for _, blob := range blobs {
+		_, _ = h.Write(blob[:])
+	}
+
+	var root [32]byte
+
+	copy(root[:], h.Sum(nil))
+
+	return root
+}
+
+// WithoutPayloadContents returns the self-built gloas proposal without its execution payload
+// envelope, blobs and KZG proofs: its beacon block, which commits to them, with the roots of the
+// contents to agree on.
+func WithoutPayloadContents(proposal VersionedProposal) (VersionedProposal, error) {
+	roots, err := NewPayloadContentsRoots(proposal)
+	if err != nil {
+		return VersionedProposal{}, err
+	}
+
+	full := proposal.EPBS
+
+	bare, err := NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+		Version:                  full.Version,
+		ExecutionPayloadIncluded: false,
+		BuilderIndex:             full.BuilderIndex,
+		ConsensusValue:           full.ConsensusValue,
+		ExecutionValue:           full.ExecutionValue,
+		Gloas:                    full.GloasContents.Block,
+		BeaconBlockBodyRoot:      full.BeaconBlockBodyRoot,
+	})
+	if err != nil {
+		return VersionedProposal{}, err
+	}
+
+	bare.PayloadContentsRoots = roots
+	bare.BuilderURL = proposal.BuilderURL
+
+	return bare, nil
+}
+
+// Root returns the proposal block root, handling the EPBS arm carrying proposals from
+// the gloas fork onwards, which the embedded client union has no knowledge of. Note the
+// EPBS root uses the generated (mainnet preset) hasher, consistent with every other
+// root computed in charon.
+func (p VersionedProposal) Root() ([32]byte, error) {
+	// Pre-gloas proposals live in the embedded union, which computes their root.
+	if p.Version < eth2spec.DataVersionGloas {
+		return p.VersionedProposal.Root()
+	}
+
+	if p.EPBS == nil {
+		return [32]byte{}, errors.New("no epbs proposal")
+	}
+
+	// From gloas the proposal is an EPBS proposal in the EPBS field. Each fork resolves its
+	// block (payload-included or -excluded) and hashes it; new forks add a case here.
+	switch p.Version {
+	case eth2spec.DataVersionGloas:
+		block := p.EPBS.Gloas
+		if p.EPBS.ExecutionPayloadIncluded {
+			if p.EPBS.GloasContents == nil || p.EPBS.GloasContents.Block == nil {
+				return [32]byte{}, errors.New("no gloas block contents")
+			}
+
+			block = p.EPBS.GloasContents.Block
+		}
+
+		if block == nil {
+			return [32]byte{}, errors.New("no gloas block")
+		}
+
+		return block.HashTreeRoot()
+	default:
+		return [32]byte{}, errors.New("unknown epbs proposal version")
+	}
+}
+
+// Slot returns the proposal slot, handling the EPBS arm carrying proposals from the
+// gloas fork onwards, which the embedded client union has no knowledge of.
+func (p VersionedProposal) Slot() (eth2p0.Slot, error) {
+	if p.Version >= eth2spec.DataVersionGloas {
+		if p.EPBS == nil {
+			return 0, errors.New("no epbs proposal")
+		}
+
+		return p.EPBS.Slot()
+	}
+
+	return p.VersionedProposal.Slot()
+}
+
+// ProposerIndex returns the proposal proposer index, handling the EPBS arm carrying
+// proposals from the gloas fork onwards, which the embedded client union has no
+// knowledge of.
+func (p VersionedProposal) ProposerIndex() (eth2p0.ValidatorIndex, error) {
+	if p.Version >= eth2spec.DataVersionGloas {
+		if p.EPBS == nil {
+			return 0, errors.New("no epbs proposal")
+		}
+
+		return p.EPBS.ProposerIndex()
+	}
+
+	return p.VersionedProposal.ProposerIndex()
+}
+
+// Graffiti returns the proposal graffiti, handling the gloas EPBS arm which the embedded
+// client union has no knowledge of.
+func (p VersionedProposal) Graffiti() ([32]byte, error) {
+	// Pre-gloas proposals live in the embedded union, which reads their graffiti.
+	if p.Version < eth2spec.DataVersionGloas {
+		return p.VersionedProposal.Graffiti()
+	}
+
+	if p.EPBS == nil {
+		return [32]byte{}, errors.New("no epbs proposal")
+	}
+
+	// From gloas the proposal is an EPBS proposal in the EPBS field. Each fork resolves its
+	// block (payload-included or -excluded) and reads its graffiti; new forks add a case here.
+	switch p.Version {
+	case eth2spec.DataVersionGloas:
+		block := p.EPBS.Gloas
+		if p.EPBS.ExecutionPayloadIncluded {
+			if p.EPBS.GloasContents == nil || p.EPBS.GloasContents.Block == nil {
+				return [32]byte{}, errors.New("no gloas block contents")
+			}
+
+			block = p.EPBS.GloasContents.Block
+		}
+
+		if block == nil || block.Body == nil {
+			return [32]byte{}, errors.New("no gloas block")
+		}
+
+		return block.Body.Graffiti, nil
+	default:
+		return [32]byte{}, errors.New("unknown epbs proposal version")
+	}
 }
 
 func (p VersionedProposal) Clone() (UnsignedData, error) {
@@ -470,6 +697,16 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 		} else {
 			marshaller = p.Fulu
 		}
+	case eth2spec.DataVersionGloas:
+		if p.EPBS == nil {
+			return nil, errors.New("no epbs proposal")
+		}
+
+		if p.EPBS.ExecutionPayloadIncluded {
+			marshaller = p.EPBS.GloasContents
+		} else {
+			marshaller = p.EPBS.Gloas
+		}
 	default:
 		return nil, errors.New("unknown version")
 	}
@@ -484,10 +721,33 @@ func (p VersionedProposal) MarshalJSON() ([]byte, error) {
 		return nil, errors.Wrap(err, "convert version")
 	}
 
+	// From the gloas fork onwards proposals are discriminated by execution payload
+	// inclusion, the pre-gloas blinded flag does not apply to them.
+	var (
+		included      *bool
+		contentsRoots *payloadContentsRootsJSON
+		builderURL    string
+	)
+
+	if p.Version >= eth2spec.DataVersionGloas {
+		included = &p.EPBS.ExecutionPayloadIncluded
+		builderURL = p.BuilderURL
+
+		if p.PayloadContentsRoots != (PayloadContentsRoots{}) {
+			contentsRoots = &payloadContentsRootsJSON{
+				Envelope: p.PayloadContentsRoots.Envelope,
+				Blobs:    p.PayloadContentsRoots.Blobs,
+			}
+		}
+	}
+
 	resp, err := json.Marshal(versionedRawBlockJSON{
-		Version: version,
-		Block:   block,
-		Blinded: p.Blinded,
+		Version:                  version,
+		Block:                    block,
+		Blinded:                  p.Blinded,
+		ExecutionPayloadIncluded: included,
+		PayloadContentsRoots:     contentsRoots,
+		BuilderURL:               builderURL,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal wrapper")
@@ -506,6 +766,9 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 		Version: raw.Version.ToETH2(),
 		Blinded: raw.Blinded,
 	}
+
+	// EPBS carries proposals from the gloas fork onwards, nil for earlier versions.
+	var epbs *eth2api.VersionedEPBSProposal
 
 	switch resp.Version {
 	case eth2spec.DataVersionPhase0:
@@ -610,11 +873,53 @@ func (p *VersionedProposal) UnmarshalJSON(input []byte) error {
 
 			resp.Fulu = block
 		}
+	case eth2spec.DataVersionGloas:
+		if raw.ExecutionPayloadIncluded == nil {
+			return errors.New("no execution_payload_included in gloas proposal")
+		}
+
+		epbs = &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: *raw.ExecutionPayloadIncluded,
+		}
+
+		if epbs.ExecutionPayloadIncluded {
+			contents := new(eth2gloas.BlockContents)
+			if err := json.Unmarshal(raw.Block, &contents); err != nil {
+				return errors.Wrap(err, "unmarshal gloas contents")
+			}
+
+			epbs.GloasContents = contents
+		} else {
+			block := new(gloas.BeaconBlock)
+			if err := json.Unmarshal(raw.Block, &block); err != nil {
+				return errors.Wrap(err, "unmarshal gloas")
+			}
+
+			epbs.Gloas = block
+		}
 	default:
 		return errors.New("unknown version")
 	}
 
-	*p = VersionedProposal{VersionedProposal: resp}
+	var contentsRoots PayloadContentsRoots
+	if raw.PayloadContentsRoots != nil {
+		contentsRoots = PayloadContentsRoots{
+			Envelope: raw.PayloadContentsRoots.Envelope,
+			Blobs:    raw.PayloadContentsRoots.Blobs,
+		}
+	}
+
+	var builderURL string
+	if resp.Version >= eth2spec.DataVersionGloas {
+		builderURL = raw.BuilderURL
+	}
+
+	if len(builderURL) > MaxBuilderURLSize {
+		return errors.New("builder url too long")
+	}
+
+	*p = VersionedProposal{VersionedProposal: resp, EPBS: epbs, PayloadContentsRoots: contentsRoots, BuilderURL: builderURL}
 
 	return nil
 }
@@ -756,7 +1061,152 @@ func unmarshalUnsignedData(typ DutyType, data []byte) (UnsignedData, error) {
 		}
 
 		return single, nil
+	case DutyPayloadAttestation:
+		var resp VersionedPayloadAttestationData
+		if err := unmarshal(data, &resp); err != nil {
+			return nil, errors.Wrap(err, "unmarshal payload attestation data")
+		}
+
+		return resp, nil
 	default:
 		return nil, errors.New("unsupported unsigned data duty type")
 	}
+}
+
+// VersionedPayloadAttestationData: https://github.com/ethereum/consensus-specs/blob/dev/specs/gloas/beacon-chain.md#payloadattestationdata.
+
+// NewVersionedPayloadAttestationData validates and returns a new VersionedPayloadAttestationData.
+func NewVersionedPayloadAttestationData(data *eth2spec.VersionedPayloadAttestationData) (VersionedPayloadAttestationData, error) {
+	switch data.Version {
+	case eth2spec.DataVersionGloas:
+		if data.Gloas == nil {
+			return VersionedPayloadAttestationData{}, errors.New("no gloas payload attestation data")
+		}
+	default:
+		return VersionedPayloadAttestationData{}, errors.New("unknown version")
+	}
+
+	return VersionedPayloadAttestationData{VersionedPayloadAttestationData: *data}, nil
+}
+
+// NewNoPayloadAttestationData returns the payload attestation data of a slot the beacon node has
+// no block for, so there is no payload to attest. Only the version and slot are set.
+func NewNoPayloadAttestationData(version eth2spec.DataVersion, slot eth2p0.Slot) (VersionedPayloadAttestationData, error) {
+	data := eth2spec.VersionedPayloadAttestationData{Version: version}
+
+	switch version {
+	case eth2spec.DataVersionGloas:
+		data.Gloas = &gloas.PayloadAttestationData{Slot: slot}
+	default:
+		return VersionedPayloadAttestationData{}, errors.New("unknown version")
+	}
+
+	resp, err := NewVersionedPayloadAttestationData(&data)
+	if err != nil {
+		return VersionedPayloadAttestationData{}, err
+	}
+
+	resp.NoPayload = true
+
+	return resp, nil
+}
+
+// VersionedPayloadAttestationData wraps a versioned payload attestation data and implements UnsignedData.
+type VersionedPayloadAttestationData struct {
+	eth2spec.VersionedPayloadAttestationData
+
+	// NoPayload is set when the beacon node has no block for the slot, so there is no payload to
+	// attest. Only the version and slot of the data are then meaningful. It is charon specific
+	// and excluded from the hash tree root, so a no payload value has the same root as zero data
+	// for the slot: anything deduplicating or indexing by root must compare the flag too.
+	NoPayload bool
+}
+
+func (p VersionedPayloadAttestationData) Clone() (UnsignedData, error) {
+	var resp VersionedPayloadAttestationData
+
+	err := cloneSSZMarshaler(p, &resp)
+	if err != nil {
+		return nil, errors.Wrap(err, "clone payload attestation data")
+	}
+
+	return resp, nil
+}
+
+func (p VersionedPayloadAttestationData) MarshalJSON() ([]byte, error) {
+	var marshaller json.Marshaler
+
+	switch p.Version {
+	// No nil checks since `NewVersionedPayloadAttestationData` assumed.
+	case eth2spec.DataVersionGloas:
+		marshaller = p.Gloas
+	default:
+		return nil, errors.New("unknown version")
+	}
+
+	data, err := marshaller.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal payload attestation data")
+	}
+
+	version, err := eth2util.DataVersionFromETH2(p.Version)
+	if err != nil {
+		return nil, errors.Wrap(err, "convert version")
+	}
+
+	resp, err := json.Marshal(versionedRawPayloadAttDataJSON{
+		Version:   version,
+		Data:      data,
+		NoPayload: p.NoPayload,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal wrapper")
+	}
+
+	return resp, nil
+}
+
+func (p *VersionedPayloadAttestationData) UnmarshalJSON(input []byte) error {
+	var raw versionedRawPayloadAttDataJSON
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return errors.Wrap(err, "unmarshal payload attestation data")
+	}
+
+	resp := eth2spec.VersionedPayloadAttestationData{Version: raw.Version.ToETH2()}
+
+	switch resp.Version {
+	case eth2spec.DataVersionGloas:
+		data := new(gloas.PayloadAttestationData)
+
+		err := json.Unmarshal(raw.Data, data)
+		if err != nil {
+			return errors.Wrap(err, "unmarshal gloas")
+		}
+
+		resp.Gloas = data
+	default:
+		return errors.New("unknown version")
+	}
+
+	p.VersionedPayloadAttestationData = resp
+	p.NoPayload = raw.NoPayload
+
+	return nil
+}
+
+func (p VersionedPayloadAttestationData) HashTreeRoot() ([32]byte, error) {
+	switch p.Version {
+	// No nil checks since `NewVersionedPayloadAttestationData` assumed.
+	case eth2spec.DataVersionGloas:
+		return p.Gloas.HashTreeRoot()
+	default:
+		return [32]byte{}, errors.New("unknown version")
+	}
+}
+
+// versionedRawPayloadAttDataJSON is a custom VersionedPayloadAttestationData serialiser.
+type versionedRawPayloadAttDataJSON struct {
+	Version   eth2util.DataVersion `json:"version"`
+	Data      json.RawMessage      `json:"data"`
+	NoPayload bool                 `json:"no_payload,omitempty"`
 }

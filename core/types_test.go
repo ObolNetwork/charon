@@ -32,9 +32,13 @@ func TestBackwardsCompatibility(t *testing.T) {
 	require.EqualValues(t, 11, core.DutyPrepareSyncContribution)
 	require.EqualValues(t, 12, core.DutySyncContribution)
 	require.EqualValues(t, 13, core.DutyInfoSync)
+	require.EqualValues(t, 14, core.DutyPayloadAttestation)
+	require.EqualValues(t, 15, core.DutyProposerPreferences)
+	require.EqualValues(t, 16, core.DutyExecutionPayloadEnvelope)
+	require.EqualValues(t, 17, core.DutyBuilderPreferences)
 	// Add more types here.
 
-	const sentinel = core.DutyType(14)
+	const sentinel = core.DutyType(18)
 	for i := core.DutyUnknown; i <= sentinel; i++ {
 		switch i {
 		case core.DutyUnknown:
@@ -78,7 +82,7 @@ func TestWithDutySpanCtx(t *testing.T) {
 func TestAllDutyTypes(t *testing.T) {
 	adt := core.AllDutyTypes()
 
-	require.Len(t, adt, 13)
+	require.Len(t, adt, 17)
 
 	for i, dt := range adt {
 		require.Equal(t, i, slices.Index(adt, dt))
@@ -146,6 +150,22 @@ func TestNewInfoSyncDuty(t *testing.T) {
 
 	require.Equal(t, core.DutyInfoSync, d.Type)
 	require.Equal(t, "1/info_sync", d.String())
+	require.EqualValues(t, 1, d.Slot)
+}
+
+func TestNewPayloadAttestationDuty(t *testing.T) {
+	d := core.NewPayloadAttestationDuty(1)
+
+	require.Equal(t, core.DutyPayloadAttestation, d.Type)
+	require.Equal(t, "1/payload_attestation", d.String())
+	require.EqualValues(t, 1, d.Slot)
+}
+
+func TestNewExecutionPayloadEnvelopeDuty(t *testing.T) {
+	d := core.NewExecutionPayloadEnvelopeDuty(1)
+
+	require.Equal(t, core.DutyExecutionPayloadEnvelope, d.Type)
+	require.Equal(t, "1/execution_payload_envelope", d.String())
 	require.EqualValues(t, 1, d.Slot)
 }
 

@@ -3,7 +3,8 @@
 package cluster
 
 import (
-	ssz "github.com/ferranbt/fastssz"
+	"github.com/pk910/dynamic-ssz/hasher"
+	"github.com/pk910/dynamic-ssz/sszutils"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
@@ -29,7 +30,7 @@ const (
 )
 
 // getDefinitionHashFunc returns the function to hash a definition based on the provided version.
-func getDefinitionHashFunc(version string) (func(Definition, ssz.HashWalker, bool) error, error) {
+func getDefinitionHashFunc(version string) (func(Definition, sszutils.HashWalker, bool) error, error) {
 	switch {
 	case isAnyVersion(version, v1_0, v1_1, v1_2):
 		return hashDefinitionLegacy, nil
@@ -58,8 +59,8 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 		return [32]byte{}, err
 	}
 
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	if err := hashFunc(d, hh, configOnly); err != nil {
 		return [32]byte{}, err
@@ -74,7 +75,7 @@ func hashDefinition(d Definition, configOnly bool) ([32]byte, error) {
 }
 
 // hashDefinitionLegacy hashes a legacy definition.
-func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) error {
+func hashDefinitionLegacy(d Definition, hh sszutils.HashWalker, configOnly bool) error {
 	vaddrs, err := d.LegacyValidatorAddresses()
 	if err != nil {
 		return err
@@ -163,7 +164,7 @@ func hashDefinitionLegacy(d Definition, hh ssz.HashWalker, configOnly bool) erro
 }
 
 // hashDefinitionV1x3or4 hashes the latest definition.
-func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) error {
+func hashDefinitionV1x3or4(d Definition, hh sszutils.HashWalker, configOnly bool) error {
 	vaddrs, err := d.LegacyValidatorAddresses()
 	if err != nil {
 		return err
@@ -287,10 +288,10 @@ func hashDefinitionV1x3or4(d Definition, hh ssz.HashWalker, configOnly bool) err
 }
 
 // hashExtraFields is a function that hashes extra fields from index 11 onwards.
-type hashExtraFields func(d Definition, hh ssz.HashWalker) error
+type hashExtraFields func(d Definition, hh sszutils.HashWalker) error
 
 // hashDefinitionV1x5to9 hashes the new definition.
-func hashDefinitionV1x5to9(d Definition, hh ssz.HashWalker, configOnly bool, extra []hashExtraFields) error {
+func hashDefinitionV1x5to9(d Definition, hh sszutils.HashWalker, configOnly bool, extra []hashExtraFields) error {
 	indx := hh.Index()
 
 	// Field (0) 'UUID' ByteList[64]
@@ -428,26 +429,21 @@ func hashDefinitionV1x5to9(d Definition, hh ssz.HashWalker, configOnly bool, ext
 }
 
 // hashDefinitionV1x5to7 hashes the new definition.
-func hashDefinitionV1x5to7(d Definition, hh ssz.HashWalker, configOnly bool) error {
+func hashDefinitionV1x5to7(d Definition, hh sszutils.HashWalker, configOnly bool) error {
 	return hashDefinitionV1x5to9(d, hh, configOnly, nil)
 }
 
 // hashDefinitionV1x8to10 hashes the new definition with extra fields.
-func hashDefinitionV1x8to10(d Definition, hh ssz.HashWalker, configOnly bool, extra []hashExtraFields) error {
+func hashDefinitionV1x8to10(d Definition, hh sszutils.HashWalker, configOnly bool, extra []hashExtraFields) error {
 	return hashDefinitionV1x5to9(d, hh, configOnly, []hashExtraFields{
-		func(d Definition, hh ssz.HashWalker) error {
+		func(d Definition, hh sszutils.HashWalker) error {
 			// Field (11) 'DepositAmounts' uint64[256]
-			hasher, ok := hh.(*ssz.Hasher)
-			if !ok {
-				return errors.New("invalid hasher type")
-			}
-
 			var amounts64 []uint64
 			for _, amount := range d.DepositAmounts {
 				amounts64 = append(amounts64, uint64(amount))
 			}
 
-			hasher.PutUint64Array(amounts64, sszMaxDepositAmounts)
+			hh.PutUint64Array(amounts64, sszMaxDepositAmounts)
 
 			for _, f := range extra {
 				if err := f(d, hh); err != nil {
@@ -461,14 +457,14 @@ func hashDefinitionV1x8to10(d Definition, hh ssz.HashWalker, configOnly bool, ex
 }
 
 // hashDefinitionV1x8 hashes the new definition.
-func hashDefinitionV1x8(d Definition, hh ssz.HashWalker, configOnly bool) error {
+func hashDefinitionV1x8(d Definition, hh sszutils.HashWalker, configOnly bool) error {
 	return hashDefinitionV1x8to10(d, hh, configOnly, nil)
 }
 
 // hashDefinitionV1x9 hashes the new definition.
-func hashDefinitionV1x9(d Definition, hh ssz.HashWalker, configOnly bool) error {
+func hashDefinitionV1x9(d Definition, hh sszutils.HashWalker, configOnly bool) error {
 	return hashDefinitionV1x8to10(d, hh, configOnly, []hashExtraFields{
-		func(d Definition, hh ssz.HashWalker) error {
+		func(d Definition, hh sszutils.HashWalker) error {
 			// Field (12) 'ConsensusProtocol' ByteList[256]
 			return putByteList(hh, []byte(d.ConsensusProtocol), sszMaxName, "consensus_protocol")
 		},
@@ -476,13 +472,13 @@ func hashDefinitionV1x9(d Definition, hh ssz.HashWalker, configOnly bool) error 
 }
 
 // hashDefinitionV1x10 hashes the new definition.
-func hashDefinitionV1x10(d Definition, hh ssz.HashWalker, configOnly bool) error {
+func hashDefinitionV1x10(d Definition, hh sszutils.HashWalker, configOnly bool) error {
 	return hashDefinitionV1x8to10(d, hh, configOnly, []hashExtraFields{
-		func(d Definition, hh ssz.HashWalker) error {
+		func(d Definition, hh sszutils.HashWalker) error {
 			// Field (12) 'ConsensusProtocol' ByteList[256]
 			return putByteList(hh, []byte(d.ConsensusProtocol), sszMaxName, "consensus_protocol")
 		},
-		func(d Definition, hh ssz.HashWalker) error {
+		func(d Definition, hh sszutils.HashWalker) error {
 			// Field (13) 'TargetGasLimit' uint64
 			hh.PutUint64(uint64(d.TargetGasLimit))
 
@@ -495,7 +491,7 @@ func hashDefinitionV1x10(d Definition, hh ssz.HashWalker, configOnly bool) error
 }
 
 // hashDefinitionV1x11 hashes the new definition.
-func hashDefinitionV1x11(d Definition, hh ssz.HashWalker, configOnly bool) error {
+func hashDefinitionV1x11(d Definition, hh sszutils.HashWalker, configOnly bool) error {
 	indx := hh.Index()
 
 	// Field (0) 'UUID' ByteList[64]
@@ -614,17 +610,12 @@ func hashDefinitionV1x11(d Definition, hh ssz.HashWalker, configOnly bool) error
 	}
 
 	// Field (11) 'DepositAmounts' uint64[256]
-	hasher, ok := hh.(*ssz.Hasher)
-	if !ok {
-		return errors.New("invalid hasher type")
-	}
-
 	var amounts64 []uint64
 	for _, amount := range d.DepositAmounts {
 		amounts64 = append(amounts64, uint64(amount))
 	}
 
-	hasher.PutUint64Array(amounts64, sszMaxDepositAmounts)
+	hh.PutUint64Array(amounts64, sszMaxDepositAmounts)
 
 	// Field (12) 'ConsensusProtocol' ByteList[256]
 	if err := putByteList(hh, []byte(d.ConsensusProtocol), sszMaxName, "consensus_protocol"); err != nil {
@@ -649,7 +640,7 @@ func hashDefinitionV1x11(d Definition, hh ssz.HashWalker, configOnly bool) error
 
 // hashLock returns a lock hash.
 func hashLock(l Lock) ([32]byte, error) {
-	var hashFunc func(Lock, ssz.HashWalker) error
+	var hashFunc func(Lock, sszutils.HashWalker) error
 	if isAnyVersion(l.Version, v1_0, v1_1, v1_2) {
 		hashFunc = hashLockLegacy
 	} else if isAnyVersion(l.Version, v1_3, v1_4, v1_5, v1_6, v1_7, v1_8, v1_9, v1_10, v1_11) {
@@ -658,8 +649,8 @@ func hashLock(l Lock) ([32]byte, error) {
 		return [32]byte{}, errors.New("unknown version")
 	}
 
-	hh := ssz.DefaultHasherPool.Get()
-	defer ssz.DefaultHasherPool.Put(hh)
+	hh := hasher.DefaultHasherPool.Get()
+	defer hasher.DefaultHasherPool.Put(hh)
 
 	if err := hashFunc(l, hh); err != nil {
 		return [32]byte{}, err
@@ -674,7 +665,7 @@ func hashLock(l Lock) ([32]byte, error) {
 }
 
 // hashLockV1x3orLater hashes the version v1.3 or later.
-func hashLockV1x3orLater(l Lock, hh ssz.HashWalker) error {
+func hashLockV1x3orLater(l Lock, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	defHashFunc, err := getDefinitionHashFunc(l.Version)
@@ -712,7 +703,7 @@ func hashLockV1x3orLater(l Lock, hh ssz.HashWalker) error {
 }
 
 // getValidatorHashFunc returns the function to hash a validator based on the provided version.
-func getValidatorHashFunc(version string) (func(DistValidator, ssz.HashWalker, string) error, error) {
+func getValidatorHashFunc(version string) (func(DistValidator, sszutils.HashWalker, string) error, error) {
 	if isAnyVersion(version, v1_3, v1_4) {
 		return hashValidatorV1x3Or4, nil
 	} else if isAnyVersion(version, v1_5, v1_6, v1_7) {
@@ -724,7 +715,7 @@ func getValidatorHashFunc(version string) (func(DistValidator, ssz.HashWalker, s
 	return nil, errors.New("unknown version", z.Str("version", version))
 }
 
-func hashValidatorPubsharesField(v DistValidator, hh ssz.HashWalker) error {
+func hashValidatorPubsharesField(v DistValidator, hh sszutils.HashWalker) error {
 	subIndx := hh.Index()
 	num := uint64(len(v.PubShares))
 
@@ -740,7 +731,7 @@ func hashValidatorPubsharesField(v DistValidator, hh ssz.HashWalker) error {
 }
 
 // hashValidatorV1x3Or4 hashes the distributed validator v1.3 or v1.4.
-func hashValidatorV1x3Or4(v DistValidator, hh ssz.HashWalker, _ string) error {
+func hashValidatorV1x3Or4(v DistValidator, hh sszutils.HashWalker, _ string) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
@@ -760,7 +751,7 @@ func hashValidatorV1x3Or4(v DistValidator, hh ssz.HashWalker, _ string) error {
 }
 
 // hashValidatorV1x5to7 hashes the distributed validator v1.5 - v1.7.
-func hashValidatorV1x5to7(v DistValidator, hh ssz.HashWalker, version string) error {
+func hashValidatorV1x5to7(v DistValidator, hh sszutils.HashWalker, version string) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
@@ -804,7 +795,7 @@ func hashValidatorV1x5to7(v DistValidator, hh ssz.HashWalker, version string) er
 }
 
 // hashValidatorV1x8OrLater hashes the distributed validator v1.8 or later.
-func hashValidatorV1x8OrLater(v DistValidator, hh ssz.HashWalker, version string) error {
+func hashValidatorV1x8OrLater(v DistValidator, hh sszutils.HashWalker, version string) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
@@ -855,7 +846,7 @@ func hashValidatorV1x8OrLater(v DistValidator, hh ssz.HashWalker, version string
 }
 
 // hashLockLegacy hashes the legacy lock.
-func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
+func hashLockLegacy(l Lock, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'Definition'
@@ -883,7 +874,7 @@ func hashLockLegacy(l Lock, hh ssz.HashWalker) error {
 }
 
 // hashValidatorLegacy hashes the legacy distributed validator.
-func hashValidatorLegacy(v DistValidator, hh ssz.HashWalker) error {
+func hashValidatorLegacy(v DistValidator, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey'
@@ -910,10 +901,10 @@ func hashValidatorLegacy(v DistValidator, hh ssz.HashWalker) error {
 }
 
 // getDepositDataHashFunc returns the function to hash a deposit data based on the provided version.
-func getDepositDataHashFunc(version string) (func(DepositData, ssz.HashWalker) error, error) {
+func getDepositDataHashFunc(version string) (func(DepositData, sszutils.HashWalker) error, error) {
 	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
 		// Noop hash function for v1.0 to v1.5 that do not support deposit data.
-		return func(DepositData, ssz.HashWalker) error { return nil }, nil
+		return func(DepositData, sszutils.HashWalker) error { return nil }, nil
 	} else if isAnyVersion(version, v1_6) {
 		return hashDepositDataV1x6, nil
 	} else if isAnyVersion(version, v1_7, v1_8, v1_9, v1_10, v1_11) {
@@ -924,10 +915,10 @@ func getDepositDataHashFunc(version string) (func(DepositData, ssz.HashWalker) e
 }
 
 // getRegistrationHashFunc returns the function to hash a BuilderRegistration based on the provided version.
-func getRegistrationHashFunc(version string) (func(BuilderRegistration, ssz.HashWalker) error, error) {
+func getRegistrationHashFunc(version string) (func(BuilderRegistration, sszutils.HashWalker) error, error) {
 	if isAnyVersion(version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5, v1_6) {
 		// Noop hash function for v1.0 to v1.6 that do not support builder registration.
-		return func(BuilderRegistration, ssz.HashWalker) error { return nil }, nil
+		return func(BuilderRegistration, sszutils.HashWalker) error { return nil }, nil
 	} else if isAnyVersion(version, v1_7, v1_8, v1_9, v1_10, v1_11) {
 		return hashBuilderRegistration, nil
 	}
@@ -937,7 +928,7 @@ func getRegistrationHashFunc(version string) (func(BuilderRegistration, ssz.Hash
 
 // hashDepositDataV1x6 hashes the deposit data for version v1.6.0.
 // Note: There is a bug in this function where we missed merkleize step of DepositData.
-func hashDepositDataV1x6(d DepositData, hh ssz.HashWalker) error {
+func hashDepositDataV1x6(d DepositData, hh sszutils.HashWalker) error {
 	// Field (0) 'PubKey' Bytes48
 	if err := putBytesN(hh, d.PubKey, sszLenPubKey); err != nil {
 		return err
@@ -956,7 +947,7 @@ func hashDepositDataV1x6(d DepositData, hh ssz.HashWalker) error {
 }
 
 // hashDepositDataV1x7OrLater hashes the latest deposit data.
-func hashDepositDataV1x7OrLater(d DepositData, hh ssz.HashWalker) error {
+func hashDepositDataV1x7OrLater(d DepositData, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
@@ -983,7 +974,7 @@ func hashDepositDataV1x7OrLater(d DepositData, hh ssz.HashWalker) error {
 }
 
 // hashBuilderRegistration hashes the latest builder registration.
-func hashBuilderRegistration(b BuilderRegistration, hh ssz.HashWalker) error {
+func hashBuilderRegistration(b BuilderRegistration, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'Message' Composite
@@ -1002,7 +993,7 @@ func hashBuilderRegistration(b BuilderRegistration, hh ssz.HashWalker) error {
 }
 
 // hashRegistration hashes the latest deposit data.
-func hashRegistration(r Registration, hh ssz.HashWalker) error {
+func hashRegistration(r Registration, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'FeeRecipient'

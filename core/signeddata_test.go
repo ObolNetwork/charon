@@ -4,6 +4,7 @@ package core_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -37,6 +39,15 @@ func TestSignedDataSetSignature(t *testing.T) {
 		name string
 		data core.SignedData
 	}{
+		{
+			name: "versioned signed proposal gloas",
+			data: core.VersionedSignedProposal{
+				VersionedSignedProposal: eth2api.VersionedSignedProposal{
+					Version: eth2spec.DataVersionGloas,
+					Gloas:   testutil.RandomGloasSignedBeaconBlock(),
+				},
+			},
+		},
 		{
 			name: "versioned signed proposal phase0",
 			data: core.VersionedSignedProposal{
@@ -315,6 +326,22 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "signed aggregate and proof gloas",
+			data: core.VersionedSignedAggregateAndProof{
+				VersionedSignedAggregateAndProof: eth2spec.VersionedSignedAggregateAndProof{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.SignedAggregateAndProof{
+						Message: &gloas.AggregateAndProof{
+							AggregatorIndex: 0,
+							Aggregate:       testutil.RandomGloasAttestation(),
+							SelectionProof:  testutil.RandomEth2Signature(),
+						},
+						Signature: testutil.RandomEth2Signature(),
+					},
+				},
+			},
+		},
+		{
 			name: "signed attestation phase0",
 			data: core.VersionedAttestation{
 				VersionedAttestation: eth2spec.VersionedAttestation{
@@ -408,6 +435,20 @@ func TestSignedDataSetSignature(t *testing.T) {
 			},
 		},
 		{
+			name: "signed attestation gloas",
+			data: core.VersionedAttestation{
+				VersionedAttestation: eth2spec.VersionedAttestation{
+					Version: eth2spec.DataVersionGloas,
+					Gloas: &gloas.Attestation{
+						AggregationBits: testutil.RandomBitList(1),
+						Data:            testutil.RandomAttestationDataPhase0(),
+						Signature:       testutil.RandomEth2Signature(),
+						CommitteeBits:   testutil.RandomBitVec64(),
+					},
+				},
+			},
+		},
+		{
 			name: "signed sync committee message",
 			data: core.SignedSyncMessage{
 				SyncCommitteeMessage: altair.SyncCommitteeMessage{
@@ -425,6 +466,18 @@ func TestSignedDataSetSignature(t *testing.T) {
 		{
 			name: "signed sync committee selection",
 			data: core.NewSyncCommitteeSelection(testutil.RandomSyncCommitteeSelection()),
+		},
+		{
+			name: "signed proposer preferences",
+			data: core.NewSignedProposerPreferences(testutil.RandomProposerPreferences()),
+		},
+		{
+			name: "signed builder request auth",
+			data: core.NewSignedBuilderRequestAuth(testutil.RandomSignedBuilderRequestAuth()),
+		},
+		{
+			name: "signed execution payload envelope",
+			data: core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
 		},
 	}
 
@@ -1349,4 +1402,49 @@ func TestSyncSubcommitteeIndex(t *testing.T) {
 	idx, err = core.SyncSubcommitteeIndex(core.DutyAttester, testutil.RandomCoreBeaconCommitteeSelection())
 	require.NoError(t, err)
 	require.Zero(t, idx)
+}
+
+func TestSignedExecutionPayloadEnvelopeMethods(t *testing.T) {
+	// NewPartial carries the share index.
+	par := core.NewPartialSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope(), 3)
+	require.Equal(t, 3, par.ShareIdx)
+
+	// Clone of a valid envelope succeeds and round-trips.
+	valid := core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope())
+
+	cloned, err := valid.Clone()
+	require.NoError(t, err)
+	require.Equal(t, valid, cloned)
+
+	root, err := valid.MessageRoot()
+	require.NoError(t, err)
+	require.NotEqual(t, [32]byte{}, root)
+
+	// Nil-inner guards return errors/empties rather than panicking.
+	var nilEnv core.SignedExecutionPayloadEnvelope
+
+	_, err = nilEnv.MessageRoot()
+	require.Error(t, err)
+
+	require.Empty(t, nilEnv.Signature())
+
+	_, err = nilEnv.Epoch(context.Background(), nil)
+	require.Error(t, err)
+}
+
+func TestVersionedSignedProposalEPBSBid(t *testing.T) {
+	p := testutil.RandomGloasCoreVersionedSignedProposal()
+
+	bid, err := p.EPBSBid()
+	require.NoError(t, err)
+	require.Equal(t, p.Gloas.Message.Body.SignedExecutionPayloadBid.Message, bid)
+
+	_, err = testutil.RandomFuluCoreVersionedSignedProposal().EPBSBid()
+	require.ErrorContains(t, err, "not a gloas proposal")
+
+	_, err = core.VersionedSignedProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   &gloas.SignedBeaconBlock{},
+	}.EPBSBid()
+	require.ErrorContains(t, err, "no gloas block execution payload bid")
 }

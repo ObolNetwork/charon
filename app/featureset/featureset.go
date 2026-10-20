@@ -72,13 +72,9 @@ const (
 	// (fork-choice head updated), rather than waiting for the scheduled deadline. Triggering on the head event
 	// (instead of the "block" event) ensures the beacon node's head has settled onto the new block before
 	// fetching, avoiding stale attestation data at epoch boundaries. Fetched data is dropped if it does not
-	// vote for the head from the event. Falls back to T=1/3 if no head event is received in time.
+	// vote for the head from the event. Falls back to the spec-defined attestation deadline if no
+	// head event is received in time.
 	FetchAttOnBlock = "fetch_att_on_block"
-
-	// FetchAttOnBlockWithDelay enables fetching attestation data with 300ms delay.
-	// When enabled with FetchAttOnBlock, uses T=1/3+300ms as fallback timeout.
-	// When enabled alone, uses T=1/3+300ms as timeout.
-	FetchAttOnBlockWithDelay = "fetch_att_on_block_with_delay"
 
 	// DisableDutiesCache is a safety measure to disable duties cache.
 	DisableDutiesCache = "disable_duties_cache"
@@ -87,21 +83,20 @@ const (
 var (
 	// state defines the current rollout status of each feature.
 	state = map[Feature]status{
-		EagerDoubleLinear:        statusStable,
-		ConsensusParticipate:     statusStable,
-		MockAlpha:                statusAlpha,
-		JSONRequests:             statusAlpha,
-		GnosisBlockHotfix:        statusAlpha,
-		Linear:                   statusAlpha,
-		SSEReorgDuties:           statusStable,
-		AttestationInclusion:     statusAlpha,
-		ProposalTimeout:          statusStable,
-		QUIC:                     statusAlpha,
-		FetchOnlyCommIdx0:        statusStable,
-		ChainSplitHalt:           statusAlpha,
-		FetchAttOnBlock:          statusAlpha,
-		FetchAttOnBlockWithDelay: statusAlpha,
-		DisableDutiesCache:       statusAlpha,
+		EagerDoubleLinear:    statusStable,
+		ConsensusParticipate: statusStable,
+		MockAlpha:            statusAlpha,
+		JSONRequests:         statusAlpha,
+		GnosisBlockHotfix:    statusAlpha,
+		Linear:               statusAlpha,
+		SSEReorgDuties:       statusStable,
+		AttestationInclusion: statusAlpha,
+		ProposalTimeout:      statusStable,
+		QUIC:                 statusAlpha,
+		FetchOnlyCommIdx0:    statusStable,
+		ChainSplitHalt:       statusAlpha,
+		FetchAttOnBlock:      statusStable,
+		DisableDutiesCache:   statusAlpha,
 		// Add all features and their status here.
 	}
 

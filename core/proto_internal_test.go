@@ -10,7 +10,6 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	ssz "github.com/ferranbt/fastssz"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
@@ -19,7 +18,7 @@ import (
 )
 
 // TestMarshal tests the marshal() internal function.
-// marshal() uses SSZ when the type implements ssz.Marshaler and SSZ is enabled,
+// marshal() uses SSZ when the type implements sszMarshaler and SSZ is enabled,
 // otherwise falls back to JSON.
 func TestMarshal(t *testing.T) {
 	// adZeros is a zero-valued AttestationData with non-nil Source/Target (required for valid SSZ).
@@ -103,11 +102,11 @@ func TestMarshal(t *testing.T) {
 // TestUnsignedDataSetFromProtoMalformedSSZOffset verifies that malformed SSZ bytes with an
 // out-of-bounds offset field return an error instead of panicking.
 func TestUnsignedDataSetFromProtoMalformedSSZOffset(t *testing.T) {
-	// versionedBlindedOffset = 13: 8 (version uint64) + 1 (blinded uint8) + 4 (offset uint32).
+	// versionedWithFlagOffset = 13: 8 (version uint64) + 1 (flag uint8) + 4 (offset uint32).
 	// A 13-byte buffer with the offset field encoding 14 caused slice bounds [14:13] before the fix.
 	proposerBuf := []byte{
 		0, 0, 0, 0, 0, 0, 0, 0, // version = Phase0 (0)
-		0,           // blinded = false
+		0,           // flag = false
 		14, 0, 0, 0, // offset = 14, but len(buf) = 13
 	}
 
@@ -118,14 +117,14 @@ func TestUnsignedDataSetFromProtoMalformedSSZOffset(t *testing.T) {
 		13, 0, 0, 0, // offset = 13, but len(buf) = 12
 	}
 
-	t.Run("versioned_blinded_helper_returns_offset_error", func(t *testing.T) {
-		_, _, err := unmarshalSSZVersionedBlinded(proposerBuf, func(eth2util.DataVersion, bool) (sszType, error) {
+	t.Run("versioned_with_flag_helper_returns_offset_error", func(t *testing.T) {
+		_, _, err := unmarshalSSZVersionedWithFlag(proposerBuf, func(eth2util.DataVersion, bool) (sszType, error) {
 			t.Fatal("valFunc must not be called for an out-of-bounds offset")
 
 			return nil, stderrors.New("unexpected valFunc call")
 		})
 		require.Error(t, err)
-		require.True(t, errors.Is(err, ssz.ErrOffset), "error must wrap ssz.ErrOffset: %v", err)
+		require.True(t, errors.Is(err, errSSZOffset), "error must wrap errSSZOffset: %v", err)
 		require.NotContains(t, err.Error(), "panic recovered")
 	})
 
@@ -136,7 +135,7 @@ func TestUnsignedDataSetFromProtoMalformedSSZOffset(t *testing.T) {
 			return nil, stderrors.New("unexpected valFunc call")
 		})
 		require.Error(t, err)
-		require.True(t, errors.Is(err, ssz.ErrOffset), "error must wrap ssz.ErrOffset: %v", err)
+		require.True(t, errors.Is(err, errSSZOffset), "error must wrap errSSZOffset: %v", err)
 		require.NotContains(t, err.Error(), "panic recovered")
 	})
 
@@ -206,7 +205,7 @@ func TestRecoverPanicErr(t *testing.T) {
 }
 
 // TestUnmarshal tests the unmarshal() internal function.
-// unmarshal() tries SSZ first (if the type implements ssz.Unmarshaler),
+// unmarshal() tries SSZ first (if the type implements sszUnmarshaler),
 // falling back to JSON when SSZ fails and the data starts with '{'.
 func TestUnmarshal(t *testing.T) {
 	// adZeros is a zero-valued AttestationData with non-nil Source/Target (required for valid SSZ).

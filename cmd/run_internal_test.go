@@ -5,11 +5,13 @@ package cmd
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -133,6 +135,15 @@ func TestBindRunFlagsValidation(t *testing.T) {
 		{
 			Name: "valid vc tls cert and key files",
 			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--vc-tls-cert-file", certFile.Name(), "--vc-tls-key-file", keyFile.Name()),
+		},
+		{
+			Name: "too long builder url",
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--builder-urls", "https://"+strings.Repeat("a", core.MaxBuilderURLSize)),
+			Err:  "builder-urls entry is longer than the maximum",
+		},
+		{
+			Name: "valid builder url",
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--builder-urls", "https://builder.example.com"),
 		},
 		{
 			Name: "invalid hostname",

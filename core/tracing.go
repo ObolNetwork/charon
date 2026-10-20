@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2spec "github.com/attestantio/go-eth2-client/spec"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
@@ -96,13 +98,35 @@ func WithTracing() WireOption {
 
 			return withSpanStatus(span, clone.DutyDBStore(ctx, duty, set))
 		}
-		w.DutyDBAwaitProposal = func(parent context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
-			ctx, span := tracer.Start(parent, "core/dutydb.AwaitProposal")
+		w.PayloadExExchange = func(parent context.Context, duty Duty, defSet DutyDefinitionSet) error {
+			ctx, span := tracer.Start(parent, "core/payloadex.Exchange")
 			defer span.End()
 
-			vp, err := clone.DutyDBAwaitProposal(ctx, slot)
+			return withSpanStatus(span, clone.PayloadExExchange(ctx, duty, defSet))
+		}
+		w.DutyDBAwaitVersionedProposal = func(parent context.Context, slot uint64) (VersionedProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitVersionedProposal")
+			defer span.End()
+
+			vp, err := clone.DutyDBAwaitVersionedProposal(ctx, slot)
 
 			return vp, withSpanStatus(span, err)
+		}
+		w.DutyDBAwaitPayloadContents = func(parent context.Context, slot uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitPayloadContents")
+			defer span.End()
+
+			contents, err := clone.DutyDBAwaitPayloadContents(ctx, slot, root)
+
+			return contents, withSpanStatus(span, err)
+		}
+		w.DutyDBAwaitPayloadAttestation = func(parent context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
+			ctx, span := tracer.Start(parent, "core/dutydb.AwaitPayloadAttestationData")
+			defer span.End()
+
+			data, ok, err := clone.DutyDBAwaitPayloadAttestation(ctx, slot)
+
+			return data, ok, withSpanStatus(span, err)
 		}
 		w.ParSigDBStoreInternal = func(parent context.Context, duty Duty, set ParSignedDataSet) error {
 			ctx, span := tracer.Start(parent, "core/parsigdb.StoreInternal")
@@ -134,11 +158,11 @@ func WithTracing() WireOption {
 
 			return withSpanStatus(span, clone.AggSigDBStore(ctx, duty, set))
 		}
-		w.AggSigDBAwait = func(parent context.Context, duty Duty, key PubKey, subcommIdx SubcommitteeIndex) (SignedData, error) {
+		w.AggSigDBAwait = func(parent context.Context, duty Duty, key PubKey, awaitOpts AwaitOpts) (SignedData, error) {
 			ctx, span := tracer.Start(parent, "core/aggsigdb.Await")
 			defer span.End()
 
-			sd, err := clone.AggSigDBAwait(ctx, duty, key, subcommIdx)
+			sd, err := clone.AggSigDBAwait(ctx, duty, key, awaitOpts)
 
 			return sd, withSpanStatus(span, err)
 		}

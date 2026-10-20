@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 1,
   "validator_index": null,
   "attestation": {
     "aggregation_bits": "0x0272908d45b01601",
@@ -16,7 +16,6 @@
         "root": "0x141c7cfe1c0ef0c2f60c29616c2f6b3a805e91ebdedc8fef611e1d079aa67a62"
       }
     },
-    "signature": "0x6910c8ea580e905fda113b925adfac8d80ebb68deac0c0d6cb9aa138c60f34218fefbffdf6e04b99c493c785f588d20e8521bdc94684152c509ad47e009399b5de04763e89ef5dd57558ad80535cb99835d61d2c5add5afb4d30b84e5bbd988c",
-    "committee_bits": "0xff00000000000000"
+    "signature": "0x6910c8ea580e905fda113b925adfac8d80ebb68deac0c0d6cb9aa138c60f34218fefbffdf6e04b99c493c785f588d20e8521bdc94684152c509ad47e009399b5de04763e89ef5dd57558ad80535cb99835d61d2c5add5afb4d30b84e5bbd988c"
   }
 }

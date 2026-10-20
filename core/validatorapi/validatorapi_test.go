@@ -6,12 +6,15 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math/big"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/OffchainLabs/go-bitfield"
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2bellatrix "github.com/attestantio/go-eth2-client/api/v1/bellatrix"
@@ -25,11 +28,14 @@ import (
 	"github.com/attestantio/go-eth2-client/spec/capella"
 	"github.com/attestantio/go-eth2-client/spec/deneb"
 	"github.com/attestantio/go-eth2-client/spec/electra"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/validatorapi"
 	"github.com/obolnetwork/charon/eth2util"
@@ -549,7 +555,7 @@ func TestComponent_Proposal(t *testing.T) {
 		return core.DutyDefinitionSet{pubkey: nil}, nil
 	})
 
-	component.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+	registerAwaitProposal(component, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 		return block1, nil
 	})
 
@@ -572,7 +578,12 @@ func TestComponent_Proposal(t *testing.T) {
 
 	block2 := eth2Resp2.Data
 
-	require.Equal(t, block1, block2)
+	// The component returns a copy carrying the unified consensus and execution values,
+	// leaving the stored proposal untouched.
+	expected := *block1
+	expected.ConsensusValue = big.NewInt(1)
+	expected.ExecutionValue = big.NewInt(1)
+	require.Equal(t, &expected, block2)
 }
 
 func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
@@ -616,7 +627,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 			return core.DutyDefinitionSet{corePubKey: nil}, nil
 		})
 
-		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 			unsignedBlock := &eth2spec.VersionedBeaconBlock{
 				Version: eth2spec.DataVersionCapella,
 				Capella: testutil.RandomCapellaBeaconBlock(),
@@ -655,7 +666,7 @@ func TestComponent_SubmitProposalsWithWrongVCData(t *testing.T) {
 			},
 		}
 
-		vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+		registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 			p := &eth2api.VersionedProposal{
 				Blinded:        true,
 				Version:        eth2spec.DataVersionCapella,
@@ -888,7 +899,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 
 			signedBlock := test.signedBlockFunc(unsignedBlock, s)
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 				return test.awaitBlockFunc(unsignedBlock, signedBlock), nil
 			})
 
@@ -907,6 +918,208 @@ func TestComponent_SubmitProposal(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestComponent_SubmitExecutionPayloadEnvelope(t *testing.T) {
+	ctx := context.Background()
+
+	const (
+		shareIdx = 1
+		slot     = 123
+		epoch    = eth2p0.Epoch(3)
+	)
+
+	// Use normal keys (not split tbls); map the share to itself.
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}}
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+	require.NoError(t, err)
+
+	// Agreed self-built gloas proposal with a consistent envelope keyed to the proposal slot.
+	contents := testutil.RandomGloasBlockContents()
+	contents.ExecutionPayloadEnvelope.Payload.SlotNumber = slot
+
+	vapi.RegisterGetDutyDefinition(func(context.Context, core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{corePubKey: nil}, nil
+	})
+	// Consensus agreed on the bare block, its contents were shared separately.
+	registerAwaitEPBSProposal(vapi, func(context.Context, uint64) (*eth2api.VersionedEPBSProposal, error) {
+		return &eth2api.VersionedEPBSProposal{
+			Version: eth2spec.DataVersionGloas,
+			Gloas:   contents.Block,
+		}, nil
+	})
+
+	blockRoot, err := contents.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitPayloadContents(func(_ context.Context, s uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		require.Equal(t, eth2p0.Root(blockRoot), root)
+
+		return &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            contents,
+		}, nil
+	})
+
+	// Sign the agreed envelope message under DOMAIN_BEACON_BUILDER.
+	sigRoot, err := contents.ExecutionPayloadEnvelope.HashTreeRoot()
+	require.NoError(t, err)
+
+	domain, err := signing.GetDomain(ctx, bmock, signing.DomainBeaconBuilder, epoch)
+	require.NoError(t, err)
+
+	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()
+	require.NoError(t, err)
+
+	s, err := tbls.Sign(secret, sigData[:])
+	require.NoError(t, err)
+
+	var submitted bool
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.DutyExecutionPayloadEnvelope, duty.Type)
+		require.EqualValues(t, slot, duty.Slot)
+
+		envelope, ok := set[corePubKey].SignedData.(core.SignedExecutionPayloadEnvelope)
+		require.True(t, ok)
+		require.Equal(t, contents.ExecutionPayloadEnvelope, envelope.SignedExecutionPayloadEnvelope.Message)
+		require.Equal(t, contents.Blobs, envelope.Blobs)
+		require.Equal(t, contents.KZGProofs, envelope.KZGProofs)
+
+		submitted = true
+
+		return nil
+	})
+
+	// The VC submits the bare signed envelope, the blobs and proofs come from the shared contents.
+	err = vapi.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedExecutionPayloadEnvelope{
+				Message:   contents.ExecutionPayloadEnvelope,
+				Signature: eth2p0.BLSSignature(s),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, submitted)
+
+	// A validator client that signed another envelope than the agreed one is rejected before
+	// its signature is checked.
+	other := testutil.RandomGloasBlockContents().ExecutionPayloadEnvelope
+	other.Payload.SlotNumber = slot
+
+	err = vapi.SubmitExecutionPayloadEnvelope(ctx, &eth2api.SubmitExecutionPayloadEnvelopeOpts{
+		SignedExecutionPayloadEnvelope: &eth2spec.VersionedSignedExecutionPayloadEnvelope{
+			Version: eth2spec.DataVersionGloas,
+			Gloas: &gloas.SignedExecutionPayloadEnvelope{
+				Message:   other,
+				Signature: eth2p0.BLSSignature(s),
+			},
+		},
+	})
+	require.ErrorContains(t, err, "do not match")
+}
+
+func TestComponent_ExecutionPayloadEnvelope(t *testing.T) {
+	const slot = 123
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponent(bmock, nil, 1, nil, false, 30000000)
+	require.NoError(t, err)
+
+	contents := testutil.RandomGloasBlockContents()
+
+	blockRoot, err := contents.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	// Consensus agreed on the bare self-built block.
+	agreed := &eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   contents.Block,
+	}
+
+	registerAwaitEPBSProposal(vapi, func(_ context.Context, s uint64) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		return agreed, nil
+	})
+
+	// The shared contents are awaited by the agreed block root.
+	var awaited int
+
+	vapi.RegisterAwaitPayloadContents(func(_ context.Context, s uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		require.Equal(t, eth2p0.Root(blockRoot), root)
+
+		awaited++
+
+		return &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            contents,
+		}, nil
+	})
+
+	// The agreed envelope is served for its block root.
+	resp, err := vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
+	})
+	require.NoError(t, err)
+	require.Equal(t, eth2spec.DataVersionGloas, resp.Data.Version)
+	require.Equal(t, contents.ExecutionPayloadEnvelope, resp.Data.Gloas)
+
+	// A different block root has no envelope.
+	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: testutil.RandomRoot(),
+	})
+	require.ErrorIs(t, err, eth2client.ErrNoExecutionPayloadEnvelope)
+
+	require.Equal(t, 2, awaited)
+
+	// A fork without an envelope case is not served.
+	agreed = &eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas + 1,
+		Gloas:   contents.Block,
+	}
+
+	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
+	})
+	require.ErrorContains(t, err, "unknown epbs proposal version")
+
+	// An external builder bid has no envelope, without awaiting contents that never come.
+	bidBlock := testutil.RandomGloasBeaconBlock()
+	agreed = &eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   bidBlock,
+	}
+
+	_, err = vapi.ExecutionPayloadEnvelope(t.Context(), &eth2api.ExecutionPayloadEnvelopeOpts{
+		Slot:            slot,
+		BeaconBlockRoot: contents.ExecutionPayloadEnvelope.BeaconBlockRoot,
+	})
+	require.ErrorIs(t, err, eth2client.ErrNoExecutionPayloadEnvelope)
+	require.Equal(t, 2, awaited)
 }
 
 // func TestComponent_SubmitProposal_Gnosis(t *testing.T) {
@@ -993,7 +1206,7 @@ func TestComponent_SubmitProposal(t *testing.T) {
 // 		return nil
 // 	})
 
-// 	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+// 	registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 // 		return &eth2api.VersionedProposal{
 // 			Version: signedBlock.Version,
 // 			Deneb: &eth2deneb.BlockContents{
@@ -1066,7 +1279,7 @@ func TestComponent_SubmitProposalInvalidSignature(t *testing.T) {
 		},
 	}
 
-	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+	registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 		return &eth2api.VersionedProposal{
 			Version: signedBlock.Version,
 			Capella: signedBlock.Capella.Message,
@@ -1201,7 +1414,7 @@ func TestComponent_SubmitProposalInvalidBlock(t *testing.T) {
 				proposal.DenebBlinded = b.DenebBlinded.Message
 			}
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 				return proposal, nil
 			})
 
@@ -1399,7 +1612,7 @@ func TestComponent_SubmitBlindedProposal(t *testing.T) {
 
 			signedBlindedBlock := test.signedBlockFunc(unsignedBlindedBlock, s)
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 				return test.awaitBlockFunc(signedBlindedBlock), nil
 			})
 
@@ -1493,7 +1706,7 @@ func TestComponent_SubmitBlindedProposalInvalidSignature(t *testing.T) {
 		return nil
 	})
 
-	vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+	registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 		return &eth2api.VersionedProposal{
 			Version:        signedBlindedBlock.Version,
 			Blinded:        true,
@@ -1609,7 +1822,7 @@ func TestComponent_SubmitBlindedProposalInvalidBlock(t *testing.T) {
 				proposal.DenebBlinded = b.Deneb.Message
 			}
 
-			vapi.RegisterAwaitProposal(func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
+			registerAwaitProposal(vapi, func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error) {
 				return proposal, nil
 			})
 
@@ -1811,6 +2024,43 @@ func TestComponent_Duties(t *testing.T) {
 		require.Equal(t, duties[0].PubKey, eth2Share)
 	})
 
+	t.Run("proposer_duties_v2", func(t *testing.T) {
+		bmock.ProposerDutiesV2Func = func(_ context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+
+			return []*eth2v1.ProposerDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
+		bmock.CachedProposerDutiesV2Func = func(_ context.Context, epoch eth2p0.Epoch, _ []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+
+			return eth2wrap.ProposerDutyWithMeta{
+				Duties: []*eth2v1.ProposerDuty{{
+					PubKey:         eth2Pubkey,
+					ValidatorIndex: vIdx,
+				}},
+				Metadata: map[string]any{"dependent_root": eth2p0.Root{}},
+			}, nil
+		}
+
+		// Construct the validator api component
+		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+		require.NoError(t, err)
+
+		opts := &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(epch)}
+
+		resp, err := vapi.ProposerDutiesV2(ctx, opts)
+		require.NoError(t, err)
+
+		// The pubkey is swapped to the pubshare, the metadata passes through untouched.
+		require.Len(t, resp.Data, 1)
+		require.Equal(t, eth2Share, resp.Data[0].PubKey)
+		require.Contains(t, resp.Metadata, "dependent_root")
+	})
+
 	t.Run("attester_duties", func(t *testing.T) {
 		bmock.AttesterDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 			require.Equal(t, epoch, eth2p0.Epoch(epch))
@@ -1844,6 +2094,33 @@ func TestComponent_Duties(t *testing.T) {
 			Indices: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)},
 		}
 		resp, err := vapi.AttesterDuties(ctx, opts)
+		require.NoError(t, err)
+
+		duties := resp.Data
+		require.Len(t, duties, 1)
+		require.Equal(t, duties[0].PubKey, eth2Share)
+	})
+
+	t.Run("ptc_duties", func(t *testing.T) {
+		bmock.PTCDutiesFunc = func(_ context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.PTCDuty, error) {
+			require.Equal(t, epoch, eth2p0.Epoch(epch))
+			require.Equal(t, []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)}, indices)
+
+			return []*eth2v1.PTCDuty{{
+				PubKey:         eth2Pubkey,
+				ValidatorIndex: vIdx,
+			}}, nil
+		}
+
+		// Construct the validator api component
+		vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+		require.NoError(t, err)
+
+		opts := &eth2api.PTCDutiesOpts{
+			Epoch:   eth2p0.Epoch(epch),
+			Indices: []eth2p0.ValidatorIndex{eth2p0.ValidatorIndex(vIdx)},
+		}
+		resp, err := vapi.PTCDuties(ctx, opts)
 		require.NoError(t, err)
 
 		duties := resp.Data
@@ -1916,7 +2193,7 @@ func TestComponent_AggregateBeaconCommitteeSelections(t *testing.T) {
 		},
 	}
 
-	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, pk core.PubKey, _ core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, pk core.PubKey, _ core.AwaitOpts) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareAggregatorDuty(slot), duty)
 
 		for _, val := range valSet {
@@ -2076,6 +2353,76 @@ func TestComponent_SubmitSyncCommitteeMessagesExitedValidator(t *testing.T) {
 
 	require.NoError(t, vapi.SubmitSyncCommitteeMessages(ctx, []*altair.SyncCommitteeMessage{msg}))
 	require.Equal(t, 1, count)
+}
+
+func TestComponent_SubmitProposerPreferences(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		ctx    = context.Background()
+		pref   = testutil.RandomProposerPreferences()
+		pubkey = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		count  = 0 // No of times the subscription function is called.
+	)
+
+	pref.Message.ValidatorIndex = vIdx
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	// Preferences are only accepted for future slots within the proposer lookahead.
+	currentSlot, err := validatorapi.SlotFromTimestamp(ctx, bmock, time.Now())
+	require.NoError(t, err)
+
+	pref.Message.ProposalSlot = currentSlot + 1
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewProposerPreferencesDuty(uint64(pref.Message.ProposalSlot)), duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+		require.Equal(t, core.NewPartialSignedProposerPreferences(pref, 0), data)
+
+		count++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
+	require.Equal(t, count, 1)
+
+	// Faulty entries are skipped with a warning, not forwarded and not failing the batch:
+	// already-started slots, far-future slots, unknown validators and nil entries.
+	pref.Message.ProposalSlot = currentSlot
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
+
+	pref.Message.ProposalSlot = currentSlot + 100_000
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
+
+	pref.Message.ProposalSlot = currentSlot + 1
+	pref.Message.ValidatorIndex = 99_999
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{pref}}))
+
+	require.NoError(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: []*gloas.SignedProposerPreferences{nil}}))
+
+	require.Equal(t, count, 1) // Subscriber not called for any skipped entry.
+
+	// Requests exceeding the spec list limit are rejected.
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	tooMany := make([]*gloas.SignedProposerPreferences, 2*slotsPerEpoch+1)
+	for i := range tooMany {
+		tooMany[i] = testutil.RandomProposerPreferences()
+	}
+
+	require.ErrorContains(t, vapi.SubmitProposerPreferences(ctx, &eth2api.SubmitProposerPreferencesOpts{Preferences: tooMany}), "too many proposer preferences")
 }
 
 func TestComponent_SubmitSyncCommitteeContributions(t *testing.T) {
@@ -2480,7 +2827,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(ctx context.Context, duty core.Duty, pubkey core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 
 		for _, val := range valSet {
@@ -2494,7 +2841,7 @@ func TestComponent_AggregateSyncCommitteeSelectionsVerify(t *testing.T) {
 			for _, selection := range selections {
 				if selection.ValidatorIndex == val.Index {
 					require.Equal(t, eth2p0.Slot(slot), selection.Slot)
-					require.EqualValues(t, selection.SubcommitteeIndex, subcommIdx)
+					require.EqualValues(t, selection.SubcommitteeIndex, awaitOpts.SubcommIdx)
 
 					return core.NewSyncCommitteeSelection(selection), nil
 				}
@@ -2557,7 +2904,7 @@ func TestComponent_SyncCommitteeSelectionsExitedValidator(t *testing.T) {
 	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(context.Context, core.Duty, core.PubKey, core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error) {
 		return core.NewSyncCommitteeSelection(sel), nil
 	})
 
@@ -2622,12 +2969,12 @@ func TestComponent_SyncCommitteeSelectionsMultiSubcommittee(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
 		require.Equal(t, core.NewPrepareSyncContributionDuty(slot), duty)
 		require.Equal(t, pk, gotPk)
 
 		for _, sel := range selections {
-			if sel.SubcommitteeIndex == uint64(subcommIdx) {
+			if sel.SubcommitteeIndex == uint64(awaitOpts.SubcommIdx) {
 				return core.NewSyncCommitteeSelection(sel), nil
 			}
 		}
@@ -2717,9 +3064,9 @@ func TestComponent_SyncCommitteeSelectionsResponseOrder(t *testing.T) {
 	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
 	require.NoError(t, err)
 
-	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, subcommIdx core.SubcommitteeIndex) (core.SignedData, error) {
+	vapi.RegisterAwaitAggSigDB(func(_ context.Context, duty core.Duty, gotPk core.PubKey, awaitOpts core.AwaitOpts) (core.SignedData, error) {
 		for _, sel := range selections {
-			if sel.SubcommitteeIndex == uint64(subcommIdx) {
+			if sel.SubcommitteeIndex == uint64(awaitOpts.SubcommIdx) {
 				return core.NewSyncCommitteeSelection(sel), nil
 			}
 		}
@@ -2882,4 +3229,521 @@ func TestSlotFromTimestamp(t *testing.T) {
 			require.GreaterOrEqual(t, got, tt.want)
 		})
 	}
+}
+
+func TestComponent_PayloadAttestationData(t *testing.T) {
+	ctx := context.Background()
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	expected := testutil.RandomVersionedPayloadAttestationData()
+	expected.Gloas.Slot = 42
+
+	vapi.RegisterAwaitPayloadAttestationData(func(_ context.Context, slot uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
+		require.Equal(t, uint64(42), slot)
+
+		return expected, true, nil
+	})
+
+	resp, err := vapi.PayloadAttestationData(ctx, &eth2api.PayloadAttestationDataOpts{Slot: 42})
+	require.NoError(t, err)
+	require.Equal(t, eth2spec.DataVersionGloas, resp.Data.Version)
+	require.Equal(t, expected, resp.Data)
+}
+
+// TestComponent_PayloadAttestationDataNoBlock asserts that an agreed no-block outcome is
+// reported with the eth2 client sentinel error, which the router maps to 204 No Content.
+func TestComponent_PayloadAttestationDataNoBlock(t *testing.T) {
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.RegisterAwaitPayloadAttestationData(func(context.Context, uint64) (*eth2spec.VersionedPayloadAttestationData, bool, error) {
+		return nil, false, nil
+	})
+
+	_, err = vapi.PayloadAttestationData(t.Context(), &eth2api.PayloadAttestationDataOpts{Slot: 42})
+	require.ErrorIs(t, err, eth2client.ErrNoPayloadAttestationData)
+}
+
+func TestComponent_SubmitPayloadAttestationMessages(t *testing.T) {
+	const vIdx = 1
+
+	var (
+		ctx    = context.Background()
+		msg    = testutil.RandomPayloadAttestationMessage()
+		pubkey = beaconmock.ValidatorSetA[vIdx].Validator.PublicKey
+		count  = 0 // No of times the subscription function is called.
+	)
+
+	msg.ValidatorIndex = vIdx
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponentInsecure(t, bmock, 0)
+	require.NoError(t, err)
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewPayloadAttestationDuty(uint64(msg.Data.Slot)), duty)
+
+		pk, err := core.PubKeyFromBytes(pubkey[:])
+		require.NoError(t, err)
+
+		data, ok := set[pk]
+		require.True(t, ok)
+
+		expected, err := core.NewPartialVersionedPayloadAttestationMessage(
+			&eth2spec.VersionedPayloadAttestationMessage{Version: eth2spec.DataVersionGloas, Gloas: msg}, 0)
+		require.NoError(t, err)
+		require.Equal(t, expected, data)
+
+		count++
+
+		return nil
+	})
+
+	require.NoError(t, vapi.SubmitPayloadAttestationMessages(ctx, &eth2api.SubmitPayloadAttestationMessagesOpts{
+		Messages: []*eth2spec.VersionedPayloadAttestationMessage{{Version: eth2spec.DataVersionGloas, Gloas: msg}},
+	}))
+	require.Equal(t, 1, count)
+}
+
+func TestComponent_EPBSProposal(t *testing.T) {
+	ctx := context.Background()
+
+	var logBuf zaptest.Buffer
+	log.InitLogfmtForT(t, &logBuf)
+
+	eth2Cl, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	const (
+		slot = 123
+		vIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
+	require.NoError(t, err)
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pk, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	sig, err := tbls.Sign(secret, []byte("randao reveal"))
+	require.NoError(t, err)
+
+	randao := eth2p0.BLSSignature(sig)
+	pubkey, err := core.PubKeyFromBytes(pk[:])
+	require.NoError(t, err)
+
+	component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	// Consensus agrees on the bare self-built block, committing to its contents.
+	contents := testutil.RandomGloasBlockContents()
+	contents.Block.Slot = slot
+
+	blockRoot, err := contents.Block.HashTreeRoot()
+	require.NoError(t, err)
+
+	agreed := &eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   contents.Block,
+	}
+
+	registerAwaitEPBSProposal(component, func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+		return agreed, nil
+	})
+
+	var awaited int
+
+	component.RegisterAwaitPayloadContents(func(_ context.Context, s uint64, root eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		require.EqualValues(t, slot, s)
+		require.Equal(t, eth2p0.Root(blockRoot), root)
+
+		awaited++
+
+		return &eth2api.VersionedEPBSProposal{
+			Version:                  eth2spec.DataVersionGloas,
+			ExecutionPayloadIncluded: true,
+			GloasContents:            contents,
+		}, nil
+	})
+
+	propose := func(includePayload *bool) *eth2api.VersionedEPBSProposal {
+		resp, err := component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+			Slot:           slot,
+			RandaoReveal:   randao,
+			IncludePayload: includePayload,
+		})
+		require.NoError(t, err)
+
+		return resp.Data
+	}
+
+	// A stateful request, the form validator clients use by default, is served the agreed block
+	// at once, the VC then retrieves the envelope separately.
+	stateful := false
+
+	for _, includePayload := range []*bool{nil, &stateful} {
+		proposal := propose(includePayload)
+		require.False(t, proposal.ExecutionPayloadIncluded)
+		require.Equal(t, contents.Block, proposal.Gloas)
+	}
+
+	require.Zero(t, awaited)
+	require.NotContains(t, logBuf.String(), "stateless")
+
+	// A stateless request waits for the shared contents and is served the full proposal, with a
+	// warning since it delays the proposal.
+	stateless := true
+
+	proposal := propose(&stateless)
+	require.True(t, proposal.ExecutionPayloadIncluded)
+	require.Equal(t, contents, proposal.GloasContents)
+	require.Equal(t, 1, awaited)
+	require.Contains(t, logBuf.String(), "stateless")
+
+	// Contents not shared in time are not waited for: the stateful form is served instead, the VC
+	// retrieving the envelope once shared.
+	component.RegisterAwaitPayloadContents(func(ctx context.Context, _ uint64, _ eth2p0.Root) (*eth2api.VersionedEPBSProposal, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+
+	proposal = propose(&stateless)
+	require.False(t, proposal.ExecutionPayloadIncluded)
+	require.Equal(t, contents.Block, proposal.Gloas)
+	require.Contains(t, logBuf.String(), "serving the stateful form")
+
+	// Also if the request itself ends first.
+	requestCtx, cancel := context.WithTimeout(ctx, 10*time.Millisecond)
+	defer cancel()
+
+	resp, err := component.EPBSProposal(requestCtx, &eth2api.EPBSProposalOpts{
+		Slot:           slot,
+		RandaoReveal:   randao,
+		IncludePayload: &stateless,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.Data.ExecutionPayloadIncluded)
+	require.Equal(t, contents.Block, resp.Data.Gloas)
+
+	// An external builder bid has no contents to wait for, its block is served as is.
+	bidBlock := testutil.RandomGloasBeaconBlock()
+	bidBlock.Slot = slot
+	agreed = &eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   bidBlock,
+	}
+
+	// The bid is known from the agreed block, so the contents aren't awaited: no timeout, no warning.
+	warnings := strings.Count(logBuf.String(), "serving the stateful form")
+
+	proposal = propose(&stateless)
+	require.False(t, proposal.ExecutionPayloadIncluded)
+	require.Equal(t, bidBlock, proposal.Gloas)
+	require.Equal(t, warnings, strings.Count(logBuf.String(), "serving the stateful form"))
+}
+
+func TestComponent_SubmitProposalGloas(t *testing.T) {
+	ctx := context.Background()
+	eth2Cl, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	const (
+		slot = 123
+		vIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, vIdx)
+	require.NoError(t, err)
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pk, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	pubkey, err := core.PubKeyFromBytes(pk[:])
+	require.NoError(t, err)
+
+	block := testutil.RandomGloasBeaconBlock()
+	block.Slot = slot
+	block.ProposerIndex = vIdx
+
+	proposal, err := core.NewVersionedEPBSProposal(&eth2api.VersionedEPBSProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas:   block,
+	})
+	require.NoError(t, err)
+
+	signed := &eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas: &gloas.SignedBeaconBlock{
+			Message:   block,
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}
+
+	component.RegisterGetDutyDefinition(func(ctx context.Context, duty core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	registerAwaitEPBSProposal(component, func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error) {
+		return proposal.EPBS, nil
+	})
+
+	var subCalled bool
+
+	component.Subscribe(func(ctx context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		require.Equal(t, core.NewProposerDuty(slot), duty)
+
+		data, ok := set[pubkey].SignedData.(core.VersionedSignedProposal)
+		require.True(t, ok)
+		require.Equal(t, eth2spec.DataVersionGloas, data.Version)
+
+		subCalled = true
+
+		return nil
+	})
+
+	require.NoError(t, component.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{Proposal: signed}))
+	require.True(t, subCalled)
+
+	// A VC proposal not matching the dutydb one is rejected.
+	otherBlock := testutil.RandomGloasBeaconBlock()
+	otherBlock.Slot = slot
+	otherBlock.ProposerIndex = vIdx
+
+	err = component.SubmitProposal(ctx, &eth2api.SubmitProposalOpts{Proposal: &eth2api.VersionedSignedProposal{
+		Version: eth2spec.DataVersionGloas,
+		Gloas: &gloas.SignedBeaconBlock{
+			Message:   otherBlock,
+			Signature: testutil.RandomEth2Signature(),
+		},
+	}})
+	require.ErrorContains(t, err, "different hash tree root")
+}
+
+// registerAwaitProposal registers the pre-gloas proposals the function returns as the agreed
+// proposals, in the versioned form the DutyDB serves them in.
+func registerAwaitProposal(c *validatorapi.Component, fn func(ctx context.Context, slot uint64) (*eth2api.VersionedProposal, error)) {
+	c.RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+		proposal, err := fn(ctx, slot)
+		if err != nil {
+			return core.VersionedProposal{}, err
+		}
+
+		return core.VersionedProposal{VersionedProposal: *proposal}, nil
+	})
+}
+
+// registerAwaitEPBSProposal registers the ePBS proposals the function returns as the agreed
+// proposals, in the versioned form the DutyDB serves them in.
+func registerAwaitEPBSProposal(c *validatorapi.Component, fn func(ctx context.Context, slot uint64) (*eth2api.VersionedEPBSProposal, error)) {
+	c.RegisterAwaitVersionedProposal(func(ctx context.Context, slot uint64) (core.VersionedProposal, error) {
+		proposal, err := fn(ctx, slot)
+		if err != nil {
+			return core.VersionedProposal{}, err
+		}
+
+		return core.VersionedProposal{Version: proposal.Version, EPBS: proposal}, nil
+	})
+}
+
+func TestComponent_SubmitBuilderPreferences(t *testing.T) {
+	ctx := context.Background()
+
+	secret, err := tbls.GenerateSecretKey()
+	require.NoError(t, err)
+
+	pubkey, err := tbls.SecretToPublicKey(secret)
+	require.NoError(t, err)
+
+	const shareIdx = 1
+
+	corePubKey, err := core.PubKeyFromBytes(pubkey[:])
+	require.NoError(t, err)
+
+	allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	vapi, err := validatorapi.NewComponent(bmock, allPubSharesByKey, shareIdx, nil, false, 30000000)
+	require.NoError(t, err)
+
+	currentSlot, err := validatorapi.SlotFromTimestamp(ctx, bmock, time.Now())
+	require.NoError(t, err)
+
+	newEntry := func(data string, slot eth2p0.Slot) *gloas.BuilderPreferencesEntry {
+		auth := &gloas.BuilderRequestAuth{Data: []byte(data), Slot: slot}
+
+		root, err := auth.HashTreeRoot()
+		require.NoError(t, err)
+
+		sigData, err := signing.GetDataRoot(ctx, bmock, signing.DomainBuilderRequestAuth, 0, root)
+		require.NoError(t, err)
+
+		sig, err := tbls.Sign(secret, sigData[:])
+		require.NoError(t, err)
+
+		return &gloas.BuilderPreferencesEntry{
+			ProposerPubkey:      eth2p0.BLSPubKey(pubkey),
+			URL:                 []byte("https://" + data),
+			Auth:                &gloas.SignedBuilderRequestAuth{Message: auth, Signature: eth2p0.BLSSignature(sig)},
+			MaxExecutionPayment: 7,
+		}
+	}
+
+	type submission struct {
+		duty core.Duty
+		set  core.ParSignedDataSet
+	}
+
+	var submitted []submission
+
+	vapi.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		submitted = append(submitted, submission{duty: duty, set: set})
+
+		return nil
+	})
+
+	submit := func(entries ...*gloas.BuilderPreferencesEntry) error {
+		return vapi.SubmitBuilderPreferences(ctx, &eth2api.SubmitBuilderPreferencesOpts{Preferences: entries})
+	}
+
+	// Each builder's auth is forwarded on its own, keyed by the proposal slot.
+	slot := currentSlot + 1
+	entryA := newEntry("relay-a.example.com", slot)
+	entryB := newEntry("relay-b.example.com", slot)
+	require.NoError(t, submit(entryA, entryB))
+	require.Len(t, submitted, 2)
+
+	for i, entry := range []*gloas.BuilderPreferencesEntry{entryA, entryB} {
+		require.Equal(t, core.NewBuilderPreferencesDuty(uint64(slot)), submitted[i].duty)
+		require.Equal(t, core.ParSignedDataSet{corePubKey: core.NewPartialSignedBuilderRequestAuth(entry.Auth, shareIdx)}, submitted[i].set)
+	}
+
+	// Faulty entries are skipped with a warning, not forwarded and not failing the batch:
+	// already-started and far-future slots, invalid signatures, unknown keys and nil entries.
+	invalidSig := newEntry("relay-a.example.com", slot)
+	invalidSig.Auth.Message.Data = []byte("relay-c.example.com")
+
+	unknownKey := newEntry("relay-a.example.com", slot)
+	unknownKey.ProposerPubkey = testutil.RandomEth2PubKey(t)
+
+	require.NoError(t, submit(
+		newEntry("relay-a.example.com", currentSlot),
+		newEntry("relay-a.example.com", currentSlot+100_000),
+		invalidSig,
+		unknownKey,
+		&gloas.BuilderPreferencesEntry{},
+		nil,
+	))
+	require.Len(t, submitted, 2)
+
+	// Requests exceeding the spec list limit are rejected.
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, bmock)
+	require.NoError(t, err)
+
+	tooMany := make([]*gloas.BuilderPreferencesEntry, 64*2*slotsPerEpoch+1)
+	require.ErrorContains(t, submit(tooMany...), "too many builder preferences")
+}
+
+func TestComponent_EPBSProposalBuilderRequestAuths(t *testing.T) {
+	ctx := context.Background()
+
+	eth2Cl, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	const (
+		slot     = 123
+		shareIdx = 1
+	)
+
+	component, err := validatorapi.NewComponentInsecure(t, eth2Cl, shareIdx)
+	require.NoError(t, err)
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	component.RegisterGetDutyDefinition(func(context.Context, core.Duty) (core.DutyDefinitionSet, error) {
+		return core.DutyDefinitionSet{pubkey: nil}, nil
+	})
+
+	block := testutil.RandomGloasBeaconBlock()
+	block.Slot = slot
+
+	registerAwaitEPBSProposal(component, func(context.Context, uint64) (*eth2api.VersionedEPBSProposal, error) {
+		return &eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas, Gloas: block}, nil
+	})
+
+	newAuth := func(data string, authSlot eth2p0.Slot) *gloas.SignedBuilderRequestAuth {
+		return &gloas.SignedBuilderRequestAuth{
+			Message:   &gloas.BuilderRequestAuth{Data: []byte(data), Slot: authSlot},
+			Signature: testutil.RandomEth2Signature(),
+		}
+	}
+
+	authA := newAuth("relay-a.example.com", slot)
+	authB := newAuth("relay-b.example.com", slot)
+
+	var submitted []core.ParSignedDataSet
+
+	component.Subscribe(func(_ context.Context, duty core.Duty, set core.ParSignedDataSet) error {
+		if duty.Type == core.DutyBuilderPreferences {
+			require.Equal(t, core.NewBuilderPreferencesDuty(slot), duty)
+
+			submitted = append(submitted, set)
+		}
+
+		return nil
+	})
+
+	// A validator client without ahead-of-time builder preferences authorizes the builders
+	// inline in the block production request. Entries without an auth, or with an auth for
+	// another slot, are skipped without failing the proposal.
+	_, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:         slot,
+		RandaoReveal: testutil.RandomEth2Signature(),
+		BuilderConfig: &gloas.BuilderConfig{Builders: []*gloas.BuilderEntry{
+			{URL: []byte("https://relay-a.example.com"), Auth: authA},
+			{URL: []byte("https://relay-b.example.com"), Auth: authB},
+			{URL: []byte("https://relay-c.example.com")},
+			{URL: []byte("https://relay-d.example.com"), Auth: newAuth("relay-d.example.com", slot+1)},
+		}},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []core.ParSignedDataSet{
+		{pubkey: core.NewPartialSignedBuilderRequestAuth(authA, shareIdx)},
+		{pubkey: core.NewPartialSignedBuilderRequestAuth(authB, shareIdx)},
+	}, submitted)
+
+	// The inline auths are optional, so a subscriber failing on them doesn't fail the proposal.
+	component.Subscribe(func(_ context.Context, duty core.Duty, _ core.ParSignedDataSet) error {
+		if duty.Type == core.DutyBuilderPreferences {
+			return errors.New("subscriber error")
+		}
+
+		return nil
+	})
+
+	_, err = component.EPBSProposal(ctx, &eth2api.EPBSProposalOpts{
+		Slot:          slot,
+		RandaoReveal:  testutil.RandomEth2Signature(),
+		BuilderConfig: &gloas.BuilderConfig{Builders: []*gloas.BuilderEntry{{URL: []byte("https://relay-a.example.com"), Auth: authA}}},
+	})
+	require.NoError(t, err)
 }

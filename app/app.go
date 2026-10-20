@@ -31,6 +31,7 @@ import (
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/featureset"
+	"github.com/obolnetwork/charon/app/forkschedule"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/app/log"
@@ -56,6 +57,7 @@ import (
 	"github.com/obolnetwork/charon/core/infosync"
 	"github.com/obolnetwork/charon/core/parsigdb"
 	"github.com/obolnetwork/charon/core/parsigex"
+	"github.com/obolnetwork/charon/core/payloadex"
 	"github.com/obolnetwork/charon/core/priority"
 	"github.com/obolnetwork/charon/core/scheduler"
 	"github.com/obolnetwork/charon/core/sigagg"
@@ -113,6 +115,10 @@ type Config struct {
 	PublishAddress              string
 	PublishTimeout              time.Duration
 	FetchFeerecipientUpdates    bool
+	BuilderURLs                 []string
+	BuilderMinBid               uint64
+	BuilderBoostFactor          uint64
+	BuilderMaxExecutionPayment  uint64
 
 	TestConfig TestConfig
 }
@@ -284,13 +290,19 @@ func Run(ctx context.Context, conf Config) (err error) {
 		z.Int("peers", len(lock.Operators)))
 
 	initStartupMetrics(p2p.PeerName(p2pNode.ID()), lock.Threshold, len(lock.Operators), len(lock.Validators), network)
+	initBuilderConfigMetrics(conf)
 
 	eth2Cl, subEth2Cl, err := newETH2Client(ctx, conf, life, lock, lock.ForkVersion, conf.BeaconNodeTimeout, conf.BeaconNodeSubmitTimeout)
 	if err != nil {
 		return err
 	}
 
-	sseListener, err := sse.StartListener(ctx, eth2Cl, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
+	forkSchedule, err := forkschedule.Start(ctx, eth2Cl, conf.BeaconNodeAddrs)
+	if err != nil {
+		return err
+	}
+
+	sseListener, err := sse.StartListener(ctx, eth2Cl, forkSchedule, conf.BeaconNodeAddrs, conf.BeaconNodeHeaders)
 	if err != nil {
 		return err
 	}
@@ -311,7 +323,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("nickname cannot exceed 32 characters")
 	}
 
-	wirePeerInfo(life, p2pNode, peerIDs, lock.LockHash, sender, conf.BuilderAPI, conf.Nickname)
+	wirePeerInfo(life, p2pNode, peerIDs, lock.LockHash, sender, conf.BuilderAPI, conf.Nickname, builderConfigHash(conf))
 
 	vapiCalls := make(chan struct{})
 	vapiCallsFunc := func() {
@@ -329,10 +341,11 @@ func Run(ctx context.Context, conf Config) (err error) {
 	consensusDebugger := consensus.NewDebugger()
 
 	wireMonitoringAPI(ctx, life, conf.MonitoringAddr, conf.DebugAddr, p2pNode, eth2Cl, conf.BeaconNodeAddrs, eth1Cl,
-		peerIDs, promRegistry, consensusDebugger, pubkeys, vapiCalls, len(lock.Validators))
+		peerIDs, promRegistry, consensusDebugger, pubkeys, vapiCalls, len(lock.Validators), validatorapi.SeenVCUserAgents,
+		forkSchedule)
 
 	err = wireCoreWorkflow(ctx, life, conf, lock, nodeIdx, p2pNode, p2pKey, eth2Cl, subEth2Cl,
-		peerIDs, sender, consensusDebugger, pubkeys, sseListener, vapiCallsFunc)
+		peerIDs, sender, consensusDebugger, pubkeys, sseListener, vapiCallsFunc, forkSchedule)
 	if err != nil {
 		return err
 	}
@@ -342,9 +355,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wirePeerInfo wires the peerinfo protocol.
-func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string) {
+func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string, builderConfigHash []byte) {
 	gitHash, _ := version.GitCommit()
-	peerInfo := peerinfo.New(p2pNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname)
+	peerInfo := peerinfo.New(p2pNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname, builderConfigHash)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
@@ -419,7 +432,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	lock *cluster.Lock, nodeIdx cluster.NodeIdx, p2pNode host.Host, p2pKey *k1.PrivateKey,
 	eth2Cl, submissionEth2Cl eth2wrap.Client, peerIDs []peer.ID, sender *p2p.Sender,
 	consensusDebugger consensus.Debugger, pubkeys []core.PubKey,
-	sseListener sse.Listener, vapiCalls func(),
+	sseListener sse.Listener, vapiCalls func(), forkSchedule func() eth2wrap.ForkForkSchedule,
 ) error {
 	// Convert and prep public keys and public shares
 	var (
@@ -498,12 +511,19 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartBuilderRegWatcher,
 		lifecycle.HookFuncCtx(builderRegSvc.Run))
 
+	wireProposerConfigFile(ctx, conf, lock, nodeIdx, builderRegSvc.FeeRecipient, builderRegSvc.GasLimit)
+
 	peers, err := lock.Peers()
 	if err != nil {
 		return err
 	}
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl)
+	deadlineFunc, err := core.NewDutyDeadlineFunc(ctx, eth2Cl, forkSchedule)
+	if err != nil {
+		return err
+	}
+
+	retentionFunc, err := core.NewDutyRetentionFunc(ctx, eth2Cl, forkSchedule)
 	if err != nil {
 		return err
 	}
@@ -512,7 +532,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return core.NewDeadliner(ctx, label, deadlineFunc)
 	}
 
-	sched, err := scheduler.New(builderRegSvc, eth2Cl, conf.BuilderAPI)
+	retainerFunc := func(label string) core.Deadliner {
+		return core.NewDeadliner(ctx, label, retentionFunc)
+	}
+
+	sched, err := scheduler.New(ctx, builderRegSvc, eth2Cl, forkSchedule, conf.BuilderAPI)
 	if err != nil {
 		return err
 	}
@@ -533,7 +557,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	var dutiesCache *eth2wrap.DutiesCache
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
 		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
-		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 		sseListener.SetDutiesDependentRootFunc(dutiesCache.AttesterDutiesDependentRoot)
 	}
@@ -603,32 +627,36 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
 	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
 
-	electraSlot := eth2p0.Slot(uint64(forkSchedule[eth2wrap.Electra].Epoch) * slotsPerEpoch)
+	builderCfg := builderConfig(conf)
 
-	fetch, err := fetcher.New(eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder, electraSlot, featureset.Enabled(featureset.FetchOnlyCommIdx0))
+	hosts, err := builderHosts(conf)
 	if err != nil {
 		return err
 	}
 
-	// Invalidate early-fetched (head-event-triggered) attestation data on reorgs, since the cached
-	// data was verified against a head that may no longer be canonical.
-	if featureset.Enabled(featureset.FetchAttOnBlock) || featureset.Enabled(featureset.FetchAttOnBlockWithDelay) {
-		sseListener.SubscribeChainReorgEvent(fetch.HandleChainReorg)
+	fetch, err := fetcher.New(ctx, eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder,
+		forkSchedule, slotsPerEpoch, builderCfg, featureset.Enabled(featureset.FetchOnlyCommIdx0))
+	if err != nil {
+		return err
 	}
 
-	dutyDB := dutydb.NewMemDB(deadlinerFunc("dutydb"))
+	if featureset.Enabled(featureset.FetchAttOnBlock) {
+		// Invalidate early-fetched (head-event-triggered) attestation data on reorgs, since the cached
+		// data was verified against a head that may no longer be canonical.
+		sseListener.SubscribeChainReorgEvent(fetch.HandleChainReorg)
+		// From gloas, head events trigger fetching attestation data for consensus directly.
+		sseListener.SubscribeHeadEvent(fetch.HandleHeadEvent)
+	}
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit)
+	dutyDB := dutydb.NewMemDB(retainerFunc("dutydb"))
+
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit,
+		validatorapi.WithBuilderHosts(hosts))
 	if err != nil {
 		return err
 	}
@@ -697,10 +725,10 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	submissionEth2Cl.SetValidatorCache(valCache.GetByHead)
 
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
-		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
+		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}
 
-	broadcaster, err := bcast.New(ctx, submissionEth2Cl)
+	broadcaster, err := bcast.New(ctx, submissionEth2Cl, forkSchedule, bcast.WithBuilderConfig(builderCfg))
 	if err != nil {
 		return err
 	}
@@ -709,7 +737,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	// Consensus
 	consensusController, err := consensus.NewConsensusController(
-		ctx, eth2Cl, p2pNode, sender, peers, p2pKey,
+		ctx, eth2Cl, forkSchedule, p2pNode, sender, peers, p2pKey,
 		deadlineFunc, gaterFunc, consensusDebugger, featureset.Enabled(featureset.ChainSplitHalt))
 	if err != nil {
 		return err
@@ -736,7 +764,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		fetch.RegisterSyncContributionV2(isync.SyncContributionsSupported)
 	}
 
-	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl)
+	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl, hosts)
 	if err != nil {
 		return err
 	}
@@ -752,9 +780,12 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		core.WithTracking(track, inclusion),
 		core.WithAsyncRetry(retryer),
 	}
-	core.Wire(sched, fetch, coreConsensus, dutyDB, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, broadcaster, opts...)
 
-	err = wireValidatorMock(ctx, conf, eth2Cl, pubshares, sched)
+	payloadEx := payloadex.New(p2pNode, sender.SendAsync, sender.SendReceive, nodeIdx.PeerIdx, peers, gaterFunc, retentionFunc)
+
+	core.Wire(sched, fetch, coreConsensus, dutyDB, payloadEx, vapi, parSigDB, parSigEx, sigAgg, aggSigDB, &broadcaster, opts...)
+
+	err = wireValidatorMock(ctx, conf, eth2Cl, forkSchedule, pubshares, sched)
 	if err != nil {
 		return err
 	}
@@ -857,7 +888,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 
 // newTracker creates and starts a new tracker instance.
 func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
-	peers []p2p.Peer, eth2Cl eth2wrap.Client,
+	peers []p2p.Peer, eth2Cl eth2wrap.Client, builderHosts []string,
 ) (core.Tracker, error) {
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
@@ -881,7 +912,7 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 		return nil, err
 	}
 
-	track := tracker.New(analyser, deleter, peers, trackFrom)
+	track := tracker.New(analyser, deleter, peers, trackFrom, tracker.WithBuilderHosts(builderHosts))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(track.Run))
 
 	return track, nil
@@ -1256,6 +1287,7 @@ func Protocols() []protocol.ID {
 
 	resp = append(resp, protocols.Protocols()...)
 	resp = append(resp, parsigex.Protocols()...)
+	resp = append(resp, payloadex.Protocols()...)
 	resp = append(resp, peerinfo.Protocols()...)
 	resp = append(resp, priority.Protocols()...)
 

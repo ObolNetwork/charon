@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
 
@@ -139,6 +141,7 @@ func TestHandleEvents(t *testing.T) {
 				slotDuration:   12 * time.Second,
 				slotsPerEpoch:  32,
 				genesisTime:    time.Date(2020, 12, 1, 12, 0, 23, 0, time.UTC),
+				slotOffsetFunc: func(core.Duty) time.Duration { return 4 * time.Second },
 			}
 			l.SetDutiesDependentRootFunc(func(eth2p0.Epoch) (eth2p0.Root, bool) {
 				return eth2p0.Root{}, false
@@ -158,7 +161,7 @@ func TestStartListener(t *testing.T) {
 	bmock, err := beaconmock.New(t.Context())
 	require.NoError(t, err)
 
-	_, err = StartListener(t.Context(), bmock, []string{bmock.Address()}, []string{})
+	_, err = StartListener(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return nil }, []string{bmock.Address()}, []string{})
 	require.NoError(t, err)
 }
 
@@ -339,6 +342,31 @@ func TestHeadEventDependentRootMismatch(t *testing.T) {
 
 		require.NoError(t, l.eventHandler(t.Context(), headEvent(10*slotsPerEpoch+3, rootA, rootB), "http://test-bn:5052"))
 	})
+}
+
+func TestAttestationOffset(t *testing.T) {
+	// Schedule gloas at epoch 2, so with 16 slots per epoch the threshold migrates at slot 32.
+	bmock, err := beaconmock.New(t.Context(),
+		beaconmock.WithSlotsPerEpoch(16),
+		beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "2"),
+	)
+	require.NoError(t, err)
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return forkSchedule })
+	require.NoError(t, err)
+
+	slotDuration, _, err := eth2wrap.FetchSlotsConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	l := &listener{slotOffsetFunc: slotOffsetFunc}
+
+	// A third of the slot pre-gloas, a quarter from the fork onwards.
+	require.Equal(t, slotDuration/3, l.attestationOffset(31))
+	require.Equal(t, slotDuration/4, l.attestationOffset(32))
 }
 
 func TestComputeDelay(t *testing.T) {

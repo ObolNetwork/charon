@@ -268,8 +268,9 @@ func attestationMismatch(leader, local core.AttestationData) string {
 }
 
 // NewConsensus returns a new consensus QBFT component.
-func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host, sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey,
-	deadliner core.Deadliner, gaterFunc core.DutyGaterFunc, snifferFunc func(*pbv1.SniffedConsensusInstance), compareAttestations bool,
+func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule, p2pNode host.Host,
+	sender *p2p.Sender, peers []p2p.Peer, p2pKey *k1.PrivateKey, deadliner core.Deadliner, gaterFunc core.DutyGaterFunc,
+	snifferFunc func(*pbv1.SniffedConsensusInstance), compareAttestations bool,
 ) (*Consensus, error) {
 	// Extract peer pubkeys.
 	keys := make(map[int64]*k1.PublicKey)
@@ -291,9 +292,14 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host
 		return nil, errors.Wrap(err, "fetch genesis time")
 	}
 
-	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
-		return nil, errors.Wrap(err, "fetch slot duration")
+		return nil, errors.Wrap(err, "fetch slots config")
+	}
+
+	slotOffsetFunc, err := core.NewSlotOffsetFunc(ctx, eth2Cl, forkSchedule)
+	if err != nil {
+		return nil, errors.Wrap(err, "new slot offset func")
 	}
 
 	c := &Consensus{
@@ -307,7 +313,7 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, p2pNode host.Host
 		snifferFunc:         snifferFunc,
 		gaterFunc:           gaterFunc,
 		dropFilter:          log.Filter(),
-		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration),
+		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, forkSchedule),
 		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 		compareAttestations: compareAttestations,
 	}
@@ -540,6 +546,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
 		z.Any("peers", c.peerLabels),
 		z.Any("timer", string(roundTimer.Type())),
+		z.Any("timer_extensions", roundTimer.Extensions()),
 	)
 
 	inst := c.getInstanceIO(duty)

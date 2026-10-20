@@ -129,7 +129,10 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 	currentSlot := uint64(time.Since(genesisTime) / slotDuration)
 	now := genesisTime.Add(time.Duration(currentSlot) * slotDuration)
 
-	deadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), bmock)
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), bmock)
+	require.NoError(t, err)
+
+	deadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return forkSchedule })
 	require.NoError(t, err)
 
 	t.Run("never expire", func(t *testing.T) {
@@ -186,6 +189,10 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 			duty:             core.NewPrepareSyncContributionDuty(currentSlot),
 			expectedDuration: twoEpochs + margin,
 		},
+		{
+			duty:             core.NewExecutionPayloadEnvelopeDuty(currentSlot),
+			expectedDuration: slotDuration + margin,
+		},
 	}
 
 	for _, tt := range tests {
@@ -197,6 +204,53 @@ func TestNewDutyDeadlineFunc(t *testing.T) {
 			require.Equal(t, time.Millisecond, end.Sub(now))
 		})
 	}
+
+	t.Run("retention", func(t *testing.T) {
+		retentionFunc, err := core.NewDutyRetentionFunc(t.Context(), bmock, func() eth2wrap.ForkForkSchedule { return forkSchedule })
+		require.NoError(t, err)
+
+		// An agreed proposal is retained until the end of the slot, past its submission deadline.
+		end, ok := retentionFunc(core.NewProposerDuty(currentSlot))
+		require.True(t, ok)
+		require.Equal(t, now.Add(slotDuration+margin), end)
+
+		// Every other duty is retained until its submission deadline.
+		for _, duty := range []core.Duty{
+			core.NewRandaoDuty(currentSlot),
+			core.NewAttesterDuty(currentSlot),
+			core.NewAggregatorDuty(currentSlot),
+			core.NewSyncContributionDuty(currentSlot),
+			core.NewPayloadAttestationDuty(currentSlot),
+			core.NewExecutionPayloadEnvelopeDuty(currentSlot),
+			core.NewVoluntaryExit(currentSlot),
+		} {
+			retained, retainedOK := retentionFunc(duty)
+			deadline, deadlineOK := deadlineFunc(duty)
+			require.Equal(t, deadlineOK, retainedOK, duty.String())
+			require.Equal(t, deadline, retained, duty.String())
+		}
+	})
+
+	t.Run("proposer and randao deadline post gloas", func(t *testing.T) {
+		gloasBmock, err := beaconmock.New(t.Context(),
+			beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+			beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+		)
+		require.NoError(t, err)
+
+		gloasSchedule, err := eth2wrap.FetchForkConfig(t.Context(), gloasBmock)
+		require.NoError(t, err)
+
+		gloasDeadlineFunc, err := core.NewDutyDeadlineFunc(t.Context(), gloasBmock, func() eth2wrap.ForkForkSchedule { return gloasSchedule })
+		require.NoError(t, err)
+
+		// The proposal deadline follows the attestation due offset, a quarter of the slot post-gloas.
+		for _, duty := range []core.Duty{core.NewProposerDuty(currentSlot), core.NewRandaoDuty(currentSlot)} {
+			end, ok := gloasDeadlineFunc(duty)
+			require.True(t, ok)
+			require.Equal(t, now.Add(slotDuration/4+margin), end)
+		}
+	})
 }
 
 // addDuties runs a goroutine which adds the duties to the deadliner channel.

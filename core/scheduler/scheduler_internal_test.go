@@ -9,13 +9,63 @@ import (
 
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/testutil"
 	"github.com/obolnetwork/charon/testutil/beaconmock"
 )
+
+func TestDelaySlotOffset(t *testing.T) {
+	slot := core.Slot{Slot: 100, Time: time.Now(), SlotDuration: 12 * time.Second}
+
+	tests := []struct {
+		name        string
+		offset      time.Duration
+		expectDelay bool
+	}{
+		{
+			name:        "duty with a deadline is delayed to its offset",
+			offset:      3 * time.Second, // Attestations are due 1/4 into the slot from the gloas fork.
+			expectDelay: true,
+		},
+		{
+			name:        "duty without a deadline is triggered at the start of the slot",
+			offset:      0,
+			expectDelay: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var delayed []time.Time
+
+			delayFunc := func(_ core.Duty, deadline time.Time) <-chan time.Time {
+				delayed = append(delayed, deadline)
+
+				resp := make(chan time.Time, 1)
+				resp <- deadline
+
+				return resp
+			}
+
+			offsetFunc := func(core.Duty) time.Duration { return test.offset }
+
+			require.True(t, delaySlotOffset(t.Context(), slot, core.NewAttesterDuty(slot.Slot), delayFunc, offsetFunc))
+
+			if !test.expectDelay {
+				require.Empty(t, delayed)
+
+				return
+			}
+
+			require.Equal(t, []time.Time{slot.Time.Add(test.offset)}, delayed)
+		})
+	}
+}
 
 func setupScheduler(t *testing.T) (*Scheduler, validators) {
 	t.Helper()
@@ -231,4 +281,117 @@ func TestResolvingEpoch(t *testing.T) {
 	sched.setResolvingEpoch(11)
 	require.False(t, sched.isResolvingEpoch(10))
 	require.True(t, sched.isResolvingEpoch(11))
+}
+
+func TestReachedGloasFork(t *testing.T) {
+	var t0 time.Time
+
+	tests := []struct {
+		name string
+		opts []beaconmock.Option
+		want bool
+	}{
+		{
+			name: "gloas not scheduled",
+			want: false,
+		},
+		{
+			name: "gloas fork in the future",
+			opts: []beaconmock.Option{
+				beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+				beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "100"),
+			},
+			want: false,
+		},
+		{
+			name: "gloas fork active from genesis",
+			opts: []beaconmock.Option{
+				beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+				beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"),
+			},
+			want: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts := append([]beaconmock.Option{beaconmock.WithGenesisTime(t0)}, test.opts...)
+
+			eth2Cl, err := beaconmock.New(t.Context(), opts...)
+			require.NoError(t, err)
+
+			forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+			require.NoError(t, err)
+
+			sched := &Scheduler{eth2Cl: eth2Cl, clock: clockwork.NewFakeClockAt(t0), forkSchedule: func() eth2wrap.ForkForkSchedule { return forkSchedule }}
+
+			require.Equal(t, test.want, sched.reachedGloasFork(t.Context()))
+		})
+	}
+}
+
+func TestHandleHeadEventGloas(t *testing.T) {
+	featureset.EnableForT(t, featureset.FetchAttOnBlock)
+
+	tests := []struct {
+		name          string
+		gloasEpoch    string
+		wantFetchOnly bool
+	}{
+		{
+			name:          "pre-gloas head events prefetch attestation data",
+			gloasEpoch:    "100",
+			wantFetchOnly: true,
+		},
+		{
+			name:          "gloas head events are left to the fetcher",
+			gloasEpoch:    "0",
+			wantFetchOnly: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			eth2Cl, err := beaconmock.New(t.Context(),
+				beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+				beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", test.gloasEpoch),
+			)
+			require.NoError(t, err)
+
+			forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+			require.NoError(t, err)
+
+			const slot = 1
+
+			duty := core.NewAttesterDuty(slot)
+			sched := &Scheduler{
+				eth2Cl:       eth2Cl,
+				forkSchedule: func() eth2wrap.ForkForkSchedule { return forkSchedule },
+				duties: map[core.Duty]core.DutyDefinitionSet{
+					duty: {testutil.RandomCorePubKey(t): core.NewAttesterDefinition(&eth2v1.AttesterDuty{Slot: slot, CommitteeLength: 1, CommitteesAtSlot: 1})},
+				},
+			}
+
+			fetched := make(chan core.Duty, 1)
+
+			sched.RegisterFetcherFetchOnly(func(_ context.Context, duty core.Duty, _ core.DutyDefinitionSet, _ string, _ eth2p0.Root) error {
+				fetched <- duty
+				return nil
+			})
+
+			sched.HandleHeadEvent(t.Context(), slot, testutil.RandomRoot(), "bn")
+
+			_, triggered := sched.eventTriggeredAttestations.Load(uint64(slot))
+			require.Equal(t, test.wantFetchOnly, triggered)
+
+			if test.wantFetchOnly {
+				select {
+				case got := <-fetched:
+					require.Equal(t, duty, got)
+				case <-time.After(time.Second):
+					require.Fail(t, "early attestation data fetch not triggered")
+				}
+			}
+		})
+	}
 }
