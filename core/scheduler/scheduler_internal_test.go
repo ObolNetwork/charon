@@ -52,9 +52,7 @@ func TestDelaySlotOffset(t *testing.T) {
 				return resp
 			}
 
-			offsetFunc := func(core.Duty) time.Duration { return test.offset }
-
-			require.True(t, delaySlotOffset(t.Context(), slot, core.NewAttesterDuty(slot.Slot), delayFunc, offsetFunc))
+			require.True(t, delaySlotOffset(t.Context(), slot, core.NewAttesterDuty(slot.Slot), delayFunc, test.offset))
 
 			if !test.expectDelay {
 				require.Empty(t, delayed)
@@ -190,6 +188,21 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 	}
 
 	return sched, schedVals
+}
+
+// TestTriggerOffset asserts that payload attestation duties are triggered once the payload is due,
+// ahead of their own due time, while other duties are triggered at their slot offset.
+func TestTriggerOffset(t *testing.T) {
+	offsets := map[core.DutyType]time.Duration{
+		core.DutyAttester:                 3 * time.Second,
+		core.DutyExecutionPayloadEnvelope: 6 * time.Second,
+		core.DutyPayloadAttestation:       9 * time.Second,
+	}
+
+	sched := &Scheduler{slotOffsetFunc: func(duty core.Duty) time.Duration { return offsets[duty.Type] }}
+
+	require.Equal(t, 3*time.Second, sched.triggerOffset(core.NewAttesterDuty(1)))
+	require.Equal(t, 6*time.Second, sched.triggerOffset(core.NewPayloadAttestationDuty(1)))
 }
 
 func TestResolveAttDuties(t *testing.T) {

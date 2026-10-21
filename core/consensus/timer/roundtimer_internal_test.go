@@ -310,18 +310,21 @@ func TestTimerSelection(t *testing.T) {
 	var (
 		genesisTime = time.Unix(1_000_000, 0)
 		slotStart   = genesisTime.Add(slot * slotDuration)
-		// timingFor returns the slot timing with attestations due at the offset into the slot, and
-		// proposals at its start.
+		// timingFor returns the slot timing with attestations due at the offset into the slot, payload
+		// attestations 3/4 into the slot, and proposals at its start.
 		timingFor = func(attestationDue time.Duration) slotTiming {
 			return slotTiming{
 				genesisTime:  genesisTime,
 				slotDuration: slotDuration,
 				slotOffset: func(duty core.Duty) time.Duration {
-					if duty.Type == core.DutyAttester {
+					switch duty.Type {
+					case core.DutyAttester:
 						return attestationDue
+					case core.DutyPayloadAttestation:
+						return 9 * time.Second
+					default:
+						return 0
 					}
-
-					return 0
 				},
 			}
 		}
@@ -380,6 +383,24 @@ func TestTimerSelection(t *testing.T) {
 			wantType:       TimerEagerAheadSplit,
 			wantExtensions: []string{"double_round_on_rearm_min_1s"},
 			want:           []roundArming{{ms(4000), ms(5000)}, {ms(5000), ms(6000)}, {ms(6000), ms(7000)}, {ms(8000), ms(10000)}, {ms(11000), ms(14000)}},
+		},
+		{
+			name:           "payload attestation, defaults",
+			duty:           core.NewPayloadAttestationDuty(slot),
+			gloas:          true,
+			wantType:       TimerEagerAheadSplit,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(10000), ms(11000)}, {ms(11000), ms(12000)}, {ms(12000), ms(13000)}, {ms(14000), ms(16000)}, {ms(17000), ms(20000)}},
+		},
+		{
+			name:           "payload attestation, eager double linear disabled and linear enabled",
+			enable:         []featureset.Feature{featureset.Linear},
+			disable:        []featureset.Feature{featureset.EagerDoubleLinear},
+			duty:           core.NewPayloadAttestationDuty(slot),
+			gloas:          true,
+			wantType:       TimerEagerAheadSplit,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(10000), ms(11000)}, {ms(11000), ms(12000)}, {ms(12000), ms(13000)}, {ms(14000), ms(16000)}, {ms(17000), ms(20000)}},
 		},
 		{
 			name:           "gloas proposer, defaults",

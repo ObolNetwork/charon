@@ -396,7 +396,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !gloasAttester && !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
+			} else if !gloasAttester && !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.triggerOffset(duty)) {
 				return // context cancelled
 			}
 
@@ -424,10 +424,20 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	}
 }
 
-// delaySlotOffset blocks until the slot offset for the duty has been reached and return true.
+// triggerOffset returns the offset into the slot at which the duty is triggered, its slot offset.
+// Payload attestation duties are triggered once the payload is due instead, an interval ahead of their
+// due time, for consensus to start while the fetcher waits for the payload's blob data until then.
+func (s *Scheduler) triggerOffset(duty core.Duty) time.Duration {
+	if duty.Type == core.DutyPayloadAttestation {
+		return s.slotOffsetFunc(core.Duty{Slot: duty.Slot, Type: core.DutyExecutionPayloadEnvelope})
+	}
+
+	return s.slotOffsetFunc(duty)
+}
+
+// delaySlotOffset blocks until the offset into the slot has been reached and return true.
 // It returns false if the context is cancelled.
-func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc, slotOffsetFunc core.SlotOffsetFunc) bool {
-	offset := slotOffsetFunc(duty)
+func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc, offset time.Duration) bool {
 	if offset == 0 {
 		// Duty is triggered at the start of the slot.
 		return true
