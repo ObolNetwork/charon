@@ -116,6 +116,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().Uint64Var(&config.BuilderMinBid, "builder-min-bid", 0, "Minimum builder bid value in gwei, bids below it lose to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
 	cmd.Flags().Uint64Var(&config.BuilderBoostFactor, "builder-boost-factor", 100, "Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
 	cmd.Flags().Uint64Var(&config.BuilderMaxExecutionPayment, "builder-max-execution-payment", 0, "Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
+	cmd.Flags().Uint64Var(&config.ProposerGasLimit, "proposer-gas-limit", 200_000_000, "Preferred target gas limit for proposed execution payloads, seeding the generated validator client proposer config. Applies from the gloas fork onwards. Must be identical on all nodes in the cluster.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -167,6 +168,10 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 			if len(u) > core.MaxBuilderURLSize {
 				return errors.New("builder-urls entry is longer than the maximum", z.Int("max", core.MaxBuilderURLSize))
 			}
+		}
+
+		if config.ProposerGasLimit == 0 {
+			return errors.New("proposer-gas-limit must be greater than 0")
 		}
 
 		if config.BuilderBoostFactor == 0 {

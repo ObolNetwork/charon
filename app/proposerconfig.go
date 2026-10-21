@@ -16,7 +16,6 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/registration"
 )
 
 // proposerConfigDir and proposerConfigFilename locate the generated validator client
@@ -94,11 +93,12 @@ type builderEntryJSON struct {
 }
 
 // writeProposerConfigFile generates the validator client proposer configuration file
-// if it doesn't already exist, mirroring what charon registers with builders: the
-// effective builder registrations including operator overrides, falling back to the
-// cluster lock. An existing file is never modified.
+// if it doesn't already exist. Fee recipients mirror what charon registers with builders:
+// the effective builder registrations including operator overrides, falling back to the
+// cluster lock. The gas limit is the configured proposer gas limit. An existing file is
+// never modified.
 func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.NodeIdx,
-	feeRecipientFunc func(core.PubKey) string, gasLimitFunc func(core.PubKey) uint64,
+	feeRecipientFunc func(core.PubKey) string,
 ) (bool, error) {
 	dir := filepath.Join(filepath.Dir(conf.LockFile), proposerConfigDir)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -124,13 +124,11 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 	type valSettings struct {
 		pubshareHex  string
 		feeRecipient string
-		gasLimit     uint64
 	}
 
 	var (
 		all       []valSettings
 		feeCounts = make(map[string]int)
-		gasCounts = make(map[uint64]int)
 	)
 
 	for vi, val := range lock.Validators {
@@ -149,36 +147,22 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 			feeRecipient = feeRecipients[vi]
 		}
 
-		gasLimit := gasLimitFunc(corePubkey)
-		if gasLimit == 0 {
-			gasLimit = registration.DefaultGasLimit
-		}
-
 		vs := valSettings{
 			pubshareHex:  fmt.Sprintf("%#x", pubshare),
 			feeRecipient: feeRecipient,
-			gasLimit:     gasLimit,
 		}
 
 		all = append(all, vs)
 		feeCounts[vs.feeRecipient]++
-		gasCounts[vs.gasLimit]++
 	}
 
-	// The default config holds the per-field majority values, ties broken by the
-	// first validator holding them, so the common uniform cluster emits no entries.
-	var (
-		defaultFee string
-		defaultGas uint64
-	)
+	// The default config holds the majority fee recipient, ties broken by the first
+	// validator holding it, so the common uniform cluster emits no entries.
+	var defaultFee string
 
 	for _, vs := range all {
 		if feeCounts[vs.feeRecipient] > feeCounts[defaultFee] {
 			defaultFee = vs.feeRecipient
-		}
-
-		if gasCounts[vs.gasLimit] > gasCounts[defaultGas] {
-			defaultGas = vs.gasLimit
 		}
 	}
 
@@ -187,28 +171,18 @@ func writeProposerConfigFile(conf Config, lock *cluster.Lock, nodeIdx cluster.No
 		ProposerConfig: make(map[string]proposerSettingsJSON),
 		DefaultConfig: proposerSettingsJSON{
 			FeeRecipient: defaultFee,
-			GasLimit:     strconv.FormatUint(defaultGas, 10),
+			GasLimit:     strconv.FormatUint(conf.ProposerGasLimit, 10),
 			Builder:      builderSettings(conf),
 		},
 	}
 
 	// Entries only carry the fields diverging from the default config.
 	for _, vs := range all {
-		var entry proposerSettingsJSON
-
-		if vs.feeRecipient != defaultFee {
-			entry.FeeRecipient = vs.feeRecipient
-		}
-
-		if vs.gasLimit != defaultGas {
-			entry.GasLimit = strconv.FormatUint(vs.gasLimit, 10)
-		}
-
-		if entry == (proposerSettingsJSON{}) {
+		if vs.feeRecipient == defaultFee {
 			continue // Covered by the default config.
 		}
 
-		config.ProposerConfig[vs.pubshareHex] = entry
+		config.ProposerConfig[vs.pubshareHex] = proposerSettingsJSON{FeeRecipient: vs.feeRecipient}
 	}
 
 	b, err := json.Marshal(config)
@@ -244,20 +218,29 @@ func builderSettings(conf Config) *builderSettingsJSON {
 	}
 }
 
-// proposerConfigBuilderMatches returns whether the builder settings of the existing proposer
-// config file match the configured builder flags.
-func proposerConfigBuilderMatches(conf Config, path string) (bool, error) {
+// proposerConfigMatches returns whether the builder settings and the gas limits of the
+// existing proposer config file match the configured builder and proposer gas limit flags.
+func proposerConfigMatches(conf Config, path string) (builderMatches bool, gasMatches bool, err error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return false, errors.Wrap(err, "read proposer config file", z.Str("path", path))
+		return false, false, errors.Wrap(err, "read proposer config file", z.Str("path", path))
 	}
 
 	var config proposerConfigJSON
 	if err := json.Unmarshal(b, &config); err != nil {
-		return false, errors.Wrap(err, "decode proposer config file", z.Str("path", path))
+		return false, false, errors.Wrap(err, "decode proposer config file", z.Str("path", path))
 	}
 
-	return builderSettingsEqual(config.DefaultConfig.Builder, builderSettings(conf)), nil
+	gasLimit := strconv.FormatUint(conf.ProposerGasLimit, 10)
+
+	gasMatches = config.DefaultConfig.GasLimit == gasLimit
+	for _, entry := range config.ProposerConfig {
+		if entry.GasLimit != "" && entry.GasLimit != gasLimit {
+			gasMatches = false
+		}
+	}
+
+	return builderSettingsEqual(config.DefaultConfig.Builder, builderSettings(conf)), gasMatches, nil
 }
 
 // builderSettingsEqual returns whether both builder settings are absent, or equal.
@@ -272,18 +255,18 @@ func builderSettingsEqual(a, b *builderSettingsJSON) bool {
 		slices.Equal(a.Builders, b.Builders)
 }
 
-// wireProposerConfigFile generates the proposer config file, or warns if the builder settings of
-// an existing one differ from the builder flags, logging failures instead of returning them so
-// generation never prevents duties.
+// wireProposerConfigFile generates the proposer config file, or warns if the builder settings or
+// gas limits of an existing one differ from the flags, logging failures instead of returning them
+// so generation never prevents duties.
 func wireProposerConfigFile(ctx context.Context, conf Config, lock *cluster.Lock, nodeIdx cluster.NodeIdx,
-	feeRecipientFunc func(core.PubKey) string, gasLimitFunc func(core.PubKey) uint64,
+	feeRecipientFunc func(core.PubKey) string,
 ) {
 	if conf.TestConfig.Lock != nil {
 		// In-memory test lock, there is no cluster directory to write the file into.
 		return
 	}
 
-	created, err := writeProposerConfigFile(conf, lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	created, err := writeProposerConfigFile(conf, lock, nodeIdx, feeRecipientFunc)
 	if err != nil {
 		log.Error(ctx, "Failed generating proposer config file, VC proposer settings must be configured manually", err)
 		return
@@ -296,12 +279,20 @@ func wireProposerConfigFile(ctx context.Context, conf Config, lock *cluster.Lock
 		return
 	}
 
-	// The builder flags only seed a new file, the cluster changes builders together.
-	matches, err := proposerConfigBuilderMatches(conf, path)
+	// The flags only seed a new file, the cluster changes builders and gas limits together.
+	builderMatches, gasMatches, err := proposerConfigMatches(conf, path)
 	if err != nil {
-		log.Warn(ctx, "Failed checking builder settings of the proposer config file", err)
-	} else if !matches {
+		log.Warn(ctx, "Failed checking the proposer config file against the flags", err)
+		return
+	}
+
+	if !builderMatches {
 		log.Warn(ctx, "Builder flags differ from the proposer config file and only apply to a new file, "+
 			"change its builders with `charon proposerconfig edit` in sync with the other peers", nil, z.Str("path", path))
+	}
+
+	if !gasMatches {
+		log.Warn(ctx, "Proposer gas limit flag differs from the proposer config file and only applies to a new file, "+
+			"change its gas limits in sync with the other peers", nil, z.Str("path", path), z.U64("proposer_gas_limit", conf.ProposerGasLimit))
 	}
 }

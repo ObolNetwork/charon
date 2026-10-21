@@ -193,7 +193,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 
 	t.Run("no overrides", func(t *testing.T) {
 		feeMap := maps.Clone(feeRecipientByPubkey)
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, nil, feeMap, map[core.PubKey]uint64{})
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, nil, feeMap)
 		require.Equal(t, baseRegs, result)
 	})
 
@@ -213,7 +213,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 			},
 		}
 
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap, map[core.PubKey]uint64{})
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap)
 
 		require.Equal(t, override, result[0])
 
@@ -237,7 +237,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 			},
 		}
 
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap, map[core.PubKey]uint64{})
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap)
 
 		require.Equal(t, baseRegs[0], result[0])
 	})
@@ -257,7 +257,7 @@ func Test_applyBuilderRegistrationOverrides(t *testing.T) {
 			},
 		}
 
-		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap, map[core.PubKey]uint64{})
+		result := applyBuilderRegistrationOverrides(ctx, baseRegs, []*eth2api.VersionedSignedValidatorRegistration{override}, feeMap)
 
 		for i := range baseRegs {
 			require.Equal(t, baseRegs[i], result[i])

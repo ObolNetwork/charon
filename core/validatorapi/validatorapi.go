@@ -93,7 +93,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tbls.PublicKey,
-	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint, opts ...Option,
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint64, opts ...Option,
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -199,7 +199,7 @@ type Component struct {
 	insecureTest     bool
 	feeRecipientFunc func(core.PubKey) string
 	builderEnabled   bool
-	targetGasLimit   uint
+	targetGasLimit   uint64
 	builderHosts     []string
 	swallowRegFilter z.Field
 
@@ -1708,11 +1708,11 @@ func (c Component) warnProposerPreferencesMismatch(ctx context.Context, pubkey c
 		incProposerPrefMismatch("fee_recipient")
 	}
 
-	// TargetGasLimit is only enforced for cluster-lock versions that support it (non-zero).
-	if c.targetGasLimit != 0 && msg.TargetGasLimit != uint64(c.targetGasLimit) {
+	// TargetGasLimit is only checked when configured (non-zero).
+	if c.targetGasLimit != 0 && msg.TargetGasLimit != c.targetGasLimit {
 		log.Warn(ctx, "Proposer preferences with unexpected target gas limit", nil,
 			z.Any("pubkey", pubkey),
-			z.U64("expected", uint64(c.targetGasLimit)),
+			z.U64("expected", c.targetGasLimit),
 			z.U64("actual", msg.TargetGasLimit))
 		incProposerPrefMismatch("gas_limit")
 	}
