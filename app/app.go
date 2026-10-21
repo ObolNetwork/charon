@@ -556,7 +556,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	// Setup duties cache, refreshing it every epoch.
 	var dutiesCache *eth2wrap.DutiesCache
 	if !featureset.Enabled(featureset.DisableDutiesCache) {
-		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{})
+		dutiesCache = eth2wrap.NewDutiesCache(eth2Cl, []eth2p0.ValidatorIndex{}, forkSchedule)
 		eth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 		sseListener.SubscribeChainReorgEvent(dutiesCache.InvalidateCache)
 		sseListener.SetDutiesDependentRootFunc(dutiesCache.AttesterDutiesDependentRoot)
@@ -598,15 +598,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		valCache.Trim()
 
 		if !featureset.Enabled(featureset.DisableDutiesCache) {
-			epoch := eth2p0.Epoch(slot.Epoch())
-			dutiesCache.Trim(epoch)
-
-			// VCs prefetching the epoch before the gloas fork get its v1 proposer duties cached with a provisional
-			// dependent root, which they sign into the first gloas epoch's proposer preferences. Drop them on
-			// entering that epoch, once its dependent root is known.
-			if fs := forkSchedule(); fs.Active(eth2wrap.Gloas, epoch+1) && !fs.Active(eth2wrap.Gloas, epoch) {
-				dutiesCache.InvalidateProposerDuties(ctx, epoch)
-			}
+			dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
 		}
 
 		activeValidators, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)

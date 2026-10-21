@@ -105,7 +105,7 @@ func epochCached(c *DutiesCache, epoch eth2p0.Epoch) bool {
 // TestDutiesCacheTrimCleansOldEpochs verifies that Trim removes cached entries for epochs
 // older than (current - dutiesCacheTrimThreshold), preventing unbounded memory growth.
 func TestDutiesCacheTrimCleansOldEpochs(t *testing.T) {
-	cache := NewDutiesCache(nil, nil)
+	cache := NewDutiesCache(nil, nil, nil)
 
 	// Seed epochs 0 through 4.
 	populateDutiesCache(t, cache, []eth2p0.Epoch{0, 1, 2, 3, 4})
@@ -137,7 +137,7 @@ func TestDutiesCacheTrimCleansOldEpochs(t *testing.T) {
 // TestDutiesCacheTrimBelowThresholdIsNoop verifies that calling Trim with an epoch smaller
 // than dutiesCacheTrimThreshold is a no-op and does not clear any cached entries.
 func TestDutiesCacheTrimBelowThresholdIsNoop(t *testing.T) {
-	cache := NewDutiesCache(nil, nil)
+	cache := NewDutiesCache(nil, nil, nil)
 
 	populateDutiesCache(t, cache, []eth2p0.Epoch{0, 1, 2})
 
@@ -150,48 +150,10 @@ func TestDutiesCacheTrimBelowThresholdIsNoop(t *testing.T) {
 	require.Equal(t, 3, sync, "no entries should be trimmed when epoch < threshold")
 }
 
-// TestDutiesCacheInvalidateProposerDuties verifies that InvalidateProposerDuties drops the v1 proposer
-// duties of the epoch and later ones, keeping earlier epochs and the other duties.
-func TestDutiesCacheInvalidateProposerDuties(t *testing.T) {
-	cache := NewDutiesCache(nil, nil)
-
-	populateDutiesCache(t, cache, []eth2p0.Epoch{4, 5, 6})
-
-	for _, epoch := range []eth2p0.Epoch{4, 5, 6} {
-		stored, ok := cache.storeOrAmendProposerDutiesV2(epoch, ProposerDutiesForEpoch{
-			duties:   []eth2v1.ProposerDuty{{ValidatorIndex: 1}},
-			metadata: map[string]any{"epoch": epoch},
-		})
-		require.True(t, ok)
-		require.Len(t, stored, 1)
-	}
-
-	cache.InvalidateProposerDuties(t.Context(), 5)
-
-	_, ok := cache.fetchProposerDuties(4)
-	require.True(t, ok, "past epoch v1 proposer duties should be kept")
-
-	for _, epoch := range []eth2p0.Epoch{5, 6} {
-		_, ok := cache.fetchProposerDuties(epoch)
-		require.False(t, ok, "epoch %d v1 proposer duties should be invalidated", epoch)
-	}
-
-	for _, epoch := range []eth2p0.Epoch{4, 5, 6} {
-		_, ok := cache.fetchProposerDutiesV2(epoch)
-		require.True(t, ok, "epoch %d v2 proposer duties should be kept", epoch)
-
-		_, ok = cache.fetchAttesterDuties(epoch)
-		require.True(t, ok, "epoch %d attester duties should be kept", epoch)
-
-		_, ok = cache.fetchSyncDuties(epoch)
-		require.True(t, ok, "epoch %d sync duties should be kept", epoch)
-	}
-}
-
 // TestDutiesCacheTrimSequential verifies that successive Trim calls at advancing epochs
 // progressively clean older entries, leaving only the most recent epochs.
 func TestDutiesCacheTrimSequential(t *testing.T) {
-	cache := NewDutiesCache(nil, nil)
+	cache := NewDutiesCache(nil, nil, nil)
 
 	populateDutiesCache(t, cache, []eth2p0.Epoch{0, 1, 2, 3, 4, 5})
 
@@ -220,7 +182,7 @@ func TestDutiesCacheRequestedIdxsNoDuplicates(t *testing.T) {
 	const epoch = eth2p0.Epoch(5)
 
 	t.Run("proposer", func(t *testing.T) {
-		cache := NewDutiesCache(nil, nil)
+		cache := NewDutiesCache(nil, nil, nil)
 
 		// Only validator 1 has a proposer duty; validators 2,3 have none.
 		cache.storeOrAmendProposerDuties(epoch, ProposerDutiesForEpoch{
@@ -244,7 +206,7 @@ func TestDutiesCacheRequestedIdxsNoDuplicates(t *testing.T) {
 	})
 
 	t.Run("attester", func(t *testing.T) {
-		cache := NewDutiesCache(nil, nil)
+		cache := NewDutiesCache(nil, nil, nil)
 
 		cache.storeOrAmendAttesterDuties(epoch, AttesterDutiesForEpoch{
 			duties:        []eth2v1.AttesterDuty{{ValidatorIndex: 1}},
@@ -266,7 +228,7 @@ func TestDutiesCacheRequestedIdxsNoDuplicates(t *testing.T) {
 	})
 
 	t.Run("sync", func(t *testing.T) {
-		cache := NewDutiesCache(nil, nil)
+		cache := NewDutiesCache(nil, nil, nil)
 
 		cache.storeOrAmendSyncDuties(epoch, SyncDutiesForEpoch{
 			duties:        []eth2v1.SyncCommitteeDuty{{ValidatorIndex: 1}},
@@ -291,7 +253,7 @@ func TestDutiesCacheRequestedIdxsNoDuplicates(t *testing.T) {
 func TestDutiesCacheTrimThousandEpochs(t *testing.T) {
 	const total = 1000
 
-	cache := NewDutiesCache(nil, nil)
+	cache := NewDutiesCache(nil, nil, nil)
 
 	epochs := make([]eth2p0.Epoch, total)
 	for i := range total {
