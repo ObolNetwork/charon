@@ -275,10 +275,11 @@ type CachedDutiesProvider interface {
 	SyncCommDutiesCache(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (SyncDutyWithMeta, error)
 }
 
-// NewDutiesCache creates a new validator cache.
-func NewDutiesCache(eth2Cl Client, valIdxs []eth2p0.ValidatorIndex) *DutiesCache {
+// NewDutiesCache creates a new duties cache. The fork schedule function returns the schedule charon currently applies.
+func NewDutiesCache(eth2Cl Client, valIdxs []eth2p0.ValidatorIndex, forkSchedule func() ForkForkSchedule) *DutiesCache {
 	return &DutiesCache{
 		eth2Cl:        eth2Cl,
+		forkSchedule:  forkSchedule,
 		activeValIdxs: ValIdxs{valIdxs: valIdxs},
 
 		proposerDuties: ProposerDuties{
@@ -307,6 +308,7 @@ func NewDutiesCache(eth2Cl Client, valIdxs []eth2p0.ValidatorIndex) *DutiesCache
 // DutiesCache caches active duties.
 type DutiesCache struct {
 	eth2Cl        Client
+	forkSchedule  func() ForkForkSchedule
 	activeValIdxs ValIdxs
 
 	// proposerDuties and proposerDutiesV2 are cached separately: the endpoints return the
@@ -387,8 +389,6 @@ func (c *DutiesCache) UpdateActiveValIndices(vidxs []eth2p0.ValidatorIndex) {
 }
 
 // ProposerDutiesCache returns the cached proposer duties, or fetches them if not available, populating the cache with the newly fetched ones.
-//
-//nolint:dupl // The logic is very similar between proposer, attester and sync duties, but the code is not easily reusable without adding complexity, hence the duplication.
 func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
 	cacheUsed := false
 
@@ -471,12 +471,19 @@ func (c *DutiesCache) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoc
 		dutiesDeref = append(dutiesDeref, d)
 	}
 
+	dutiesResult = append(dutiesResult, eth2Resp.Data...)
+
+	// The v1 dependent root is the block root preceding the epoch, so duties fetched ahead of their epoch hold a
+	// provisional one, which VCs sign into the first gloas epoch's proposer preferences. Don't cache v1 duties from
+	// the epoch before the fork onwards, from which VCs resolve their duties via v2.
+	if c.forkSchedule().Active(Gloas, epoch+1) {
+		return ProposerDutyWithMeta{Duties: dutiesResult, Metadata: eth2Resp.Metadata}, nil
+	}
+
 	_, ok = c.storeOrAmendProposerDuties(epoch, ProposerDutiesForEpoch{duties: dutiesDeref, metadata: eth2Resp.Metadata, requestedIdxs: requestVidxs})
 	if !ok {
 		log.Debug(ctx, "Failed to cache proposer duties - another routine already cached duties for this epoch, skipping", z.U64("epoch", uint64(epoch)))
 	}
-
-	dutiesResult = append(dutiesResult, eth2Resp.Data...)
 
 	return ProposerDutyWithMeta{Duties: dutiesResult, Metadata: eth2Resp.Metadata}, nil
 }

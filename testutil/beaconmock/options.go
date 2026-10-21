@@ -414,12 +414,15 @@ func WithDeterministicAttesterDuties(factor int) Option {
 	}
 }
 
-// WithDeterministicProposerDuties configures the mock to provide deterministic duties based on provided arguments and config.
+// WithDeterministicProposerDuties configures the mock to provide deterministic v1 and v2 duties based on provided
+// arguments and config, the two returning the same duties as under the fulu proposer lookahead.
 // Note it depends on ValidatorsFunc being populated, e.g. via WithValidatorSet.
 func WithDeterministicProposerDuties(factor int) Option {
 	return func(mock *Mock) {
 		mock.ProposerDutiesFunc = deterministicProposerDuties(mock, factor)
 		mock.CachedProposerDutiesFunc = wrapDutiesWithMeta(mock.ProposerDutiesFunc)
+		mock.ProposerDutiesV2Func = mock.ProposerDutiesFunc
+		mock.CachedProposerDutiesV2Func = mock.CachedProposerDutiesFunc
 	}
 }
 
@@ -490,7 +493,7 @@ func wrapDutiesWithMeta(fn func(context.Context, eth2p0.Epoch, []eth2p0.Validato
 	}
 }
 
-// WithNoProposerDuties configures the mock to override ProposerDutiesFunc to return nothing.
+// WithNoProposerDuties configures the mock to override the v1 and v2 proposer duties funcs to return nothing.
 func WithNoProposerDuties() Option {
 	return func(mock *Mock) {
 		mock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
@@ -499,6 +502,8 @@ func WithNoProposerDuties() Option {
 		mock.CachedProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 			return eth2wrap.ProposerDutyWithMeta{}, nil
 		}
+		mock.ProposerDutiesV2Func = mock.ProposerDutiesFunc
+		mock.CachedProposerDutiesV2Func = mock.CachedProposerDutiesFunc
 	}
 }
 

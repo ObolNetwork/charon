@@ -43,7 +43,9 @@ func TestBuilderPreferences(t *testing.T) {
 	newMock := func(t *testing.T) beaconmock.Mock {
 		t.Helper()
 
-		bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet))
+		bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet),
+			beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+			beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "0"))
 		require.NoError(t, err)
 
 		bmock.ProposerDutiesV2Func = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {

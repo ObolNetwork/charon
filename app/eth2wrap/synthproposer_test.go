@@ -477,3 +477,44 @@ func TestSynthProposerBlockNotFound(t *testing.T) {
 		require.Equal(t, timesCalled, int(duty.Slot)-1)
 	}
 }
+
+// TestSynthProposerDutiesV2Metadata verifies that synthetic v2 proposer duties carry the upstream v2 metadata,
+// whose dependent root validator clients sign into their gloas proposer preferences.
+func TestSynthProposerDutiesV2Metadata(t *testing.T) {
+	ctx := context.Background()
+
+	var (
+		set                        = beaconmock.ValidatorSetA
+		slotsPerEpoch              = 3
+		epoch         eth2p0.Epoch = 1
+		realSlot                   = eth2p0.Slot(slotsPerEpoch) * eth2p0.Slot(epoch)
+		metadata                   = map[string]any{"execution_optimistic": false, "dependent_root": testutil.RandomRoot()}
+	)
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(set), beaconmock.WithSlotsPerEpoch(slotsPerEpoch))
+	require.NoError(t, err)
+
+	realDuties := []*eth2v1.ProposerDuty{{PubKey: set[1].Validator.PublicKey, Slot: realSlot, ValidatorIndex: set[1].Index}}
+
+	bmock.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		return realDuties, nil
+	}
+	// The mock wraps the v2 response with a zero dependent root, so the cached variant below is the one carrying it.
+	bmock.ProposerDutiesV2Func = bmock.ProposerDutiesFunc
+	bmock.CachedProposerDutiesV2Func = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		return eth2wrap.ProposerDutyWithMeta{Duties: realDuties, Metadata: metadata}, nil
+	}
+
+	eth2Cl := eth2wrap.WithSyntheticDuties(bmock)
+
+	cached, err := eth2Cl.ProposerDutiesV2Cache(ctx, epoch, nil)
+	require.NoError(t, err)
+	require.Equal(t, metadata, cached.Metadata)
+	require.Len(t, cached.Duties, slotsPerEpoch, "real duty plus synthetic duties for the other slots")
+
+	resp, err := eth2Cl.ProposerDutiesV2(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Metadata)
+	require.Contains(t, resp.Metadata, "dependent_root")
+	require.Len(t, resp.Data, slotsPerEpoch)
+}
