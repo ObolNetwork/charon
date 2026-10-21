@@ -384,9 +384,6 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			defer span.End()
 
-			// From gloas the fetcher waits for the block itself, so attester duties are triggered at
-			// the start of the block proposal interval, the start of the slot, for consensus to start
-			// one interval ahead of the attestation due time.
 			gloasAttester := duty.Type == core.DutyAttester && s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch()))
 
 			// Special handling for attester duties when FetchAttOnBlock features are enabled
@@ -396,7 +393,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !gloasAttester && !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.slotOffsetFunc) {
+			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.triggerOffset(slot, duty)) {
 				return // context cancelled
 			}
 
@@ -424,10 +421,28 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 	}
 }
 
-// delaySlotOffset blocks until the slot offset for the duty has been reached and return true.
+// triggerOffset returns the offset into the slot at which the duty is triggered, its slot offset.
+// Duties the fetcher waits for data of are triggered an interval ahead of their due time instead, for
+// consensus to start meanwhile: from gloas attester duties at the start of the slot, as the fetcher
+// waits for the block itself, and payload attestation duties once the payload is due, as the fetcher
+// waits for the payload's blob data.
+func (s *Scheduler) triggerOffset(slot core.Slot, duty core.Duty) time.Duration {
+	switch duty.Type {
+	case core.DutyAttester:
+		if s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
+			return 0
+		}
+	case core.DutyPayloadAttestation:
+		return s.slotOffsetFunc(core.Duty{Slot: duty.Slot, Type: core.DutyExecutionPayloadEnvelope})
+	default:
+	}
+
+	return s.slotOffsetFunc(duty)
+}
+
+// delaySlotOffset blocks until the offset into the slot has been reached and return true.
 // It returns false if the context is cancelled.
-func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc, slotOffsetFunc core.SlotOffsetFunc) bool {
-	offset := slotOffsetFunc(duty)
+func delaySlotOffset(ctx context.Context, slot core.Slot, duty core.Duty, delayFunc delayFunc, offset time.Duration) bool {
 	if offset == 0 {
 		// Duty is triggered at the start of the slot.
 		return true
@@ -613,19 +628,28 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 	return nil
 }
 
-// resolveProDuties resolves proposer duties for the given validators.
+// resolveProDuties resolves proposer duties for the given validators. From the gloas fork it uses the v2 endpoint,
+// whose dependent root is already known when the next epoch's duties are resolved at the epoch's last slot, and
+// which only gloas-ready beacon nodes serve.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var proDuties []*eth2v1.ProposerDuty
 
+	epoch := eth2p0.Epoch(slot.Epoch())
+
+	proposerDuties, proposerDutiesCache := s.eth2Cl.ProposerDuties, s.eth2Cl.ProposerDutiesCache
+	if s.forkSchedule().Active(eth2wrap.Gloas, epoch) {
+		proposerDuties, proposerDutiesCache = s.eth2Cl.ProposerDutiesV2, s.eth2Cl.ProposerDutiesV2Cache
+	}
+
 	if featureset.Enabled(featureset.DisableDutiesCache) {
-		eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
+		eth2Resp, err := proposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vals.Indexes()})
 		if err != nil {
 			return err
 		}
 
 		proDuties = eth2Resp.Data
 	} else {
-		cachedResp, err := s.eth2Cl.ProposerDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		cachedResp, err := proposerDutiesCache(ctx, epoch, vals.Indexes())
 		if err != nil {
 			return err
 		}

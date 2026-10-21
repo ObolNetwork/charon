@@ -269,7 +269,7 @@ func TestDutiesCache(t *testing.T) {
 	}
 
 	// Create a cache.
-	valCache := eth2wrap.NewDutiesCache(eth2Cl, slices.Collect(maps.Keys(valSet)))
+	valCache := newDutiesCache(t, eth2Cl, slices.Collect(maps.Keys(valSet)))
 	ctx := t.Context()
 
 	// First call should populate the cache
@@ -440,7 +440,7 @@ func newCacheHarness(t *testing.T, a cacheAdapter) (*eth2wrap.DutiesCache, []eth
 		bnCalls = append(bnCalls, slices.Clone(vidxs))
 	}, valSet)
 
-	return eth2wrap.NewDutiesCache(eth2Cl, allIdxs), allIdxs, &bnCalls
+	return newDutiesCache(t, eth2Cl, allIdxs), allIdxs, &bnCalls
 }
 
 func sortedIdxs(idxs []eth2p0.ValidatorIndex) []eth2p0.ValidatorIndex {
@@ -631,7 +631,7 @@ func TestProposerDutiesV2Cache_IndependentOfV1(t *testing.T) {
 		v2Calls = append(v2Calls, slices.Clone(vidxs))
 	}, valSet)
 
-	cache := eth2wrap.NewDutiesCache(eth2Cl, allIdxs)
+	cache := newDutiesCache(t, eth2Cl, allIdxs)
 	ctx := t.Context()
 
 	// Populate the v1 cache with all validators.
@@ -721,7 +721,7 @@ func TestAttesterDutiesDependentRoot(t *testing.T) {
 	idxs := []eth2p0.ValidatorIndex{1, 2}
 
 	t.Run("cached root", func(t *testing.T) {
-		cache := eth2wrap.NewDutiesCache(rootedAttesterClient{Mock: bmock, root: eth2p0.Root{0x01}}, idxs)
+		cache := newDutiesCache(t, rootedAttesterClient{Mock: bmock, root: eth2p0.Root{0x01}}, idxs)
 
 		_, err := cache.AttesterDutiesCache(t.Context(), 11, idxs)
 		require.NoError(t, err)
@@ -732,7 +732,7 @@ func TestAttesterDutiesDependentRoot(t *testing.T) {
 	})
 
 	t.Run("uncached epoch", func(t *testing.T) {
-		cache := eth2wrap.NewDutiesCache(rootedAttesterClient{Mock: bmock, root: eth2p0.Root{0x01}}, idxs)
+		cache := newDutiesCache(t, rootedAttesterClient{Mock: bmock, root: eth2p0.Root{0x01}}, idxs)
 
 		_, ok := cache.AttesterDutiesDependentRoot(11)
 		require.False(t, ok)
@@ -740,7 +740,7 @@ func TestAttesterDutiesDependentRoot(t *testing.T) {
 
 	t.Run("zero root is unknown", func(t *testing.T) {
 		// beaconmock returns a zero dependent root.
-		cache := eth2wrap.NewDutiesCache(bmock, idxs)
+		cache := newDutiesCache(t, bmock, idxs)
 
 		_, err := cache.AttesterDutiesCache(t.Context(), 11, idxs)
 		require.NoError(t, err)
@@ -748,4 +748,55 @@ func TestAttesterDutiesDependentRoot(t *testing.T) {
 		_, ok := cache.AttesterDutiesDependentRoot(11)
 		require.False(t, ok)
 	})
+}
+
+// newDutiesCache returns a duties cache applying the client's fork schedule.
+func newDutiesCache(t *testing.T, eth2Cl eth2wrap.Client, vidxs []eth2p0.ValidatorIndex) *eth2wrap.DutiesCache {
+	t.Helper()
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	return eth2wrap.NewDutiesCache(eth2Cl, vidxs, func() eth2wrap.ForkForkSchedule { return forkSchedule })
+}
+
+// TestProposerDutiesCache_NotCachedFromEpochBeforeGloas verifies that v1 proposer duties are cached up to two epochs
+// before the gloas fork and not from the epoch before it onwards, since ones fetched ahead of their epoch hold a
+// provisional dependent root which VCs sign into the first gloas epoch's proposer preferences.
+func TestProposerDutiesCache_NotCachedFromEpochBeforeGloas(t *testing.T) {
+	ctx := context.Background()
+	valSet := beaconmock.ValidatorSetA
+
+	eth2Cl, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(valSet),
+		beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "5"))
+	require.NoError(t, err)
+
+	var calls int
+
+	eth2Cl.ProposerDutiesFunc = func(context.Context, eth2p0.Epoch, []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+		calls++
+
+		return []*eth2v1.ProposerDuty{}, nil
+	}
+
+	cache := newDutiesCache(t, eth2Cl, slices.Collect(maps.Keys(valSet)))
+
+	tests := []struct {
+		epoch     eth2p0.Epoch
+		wantCalls int
+	}{
+		{epoch: 3, wantCalls: 1}, // Cached.
+		{epoch: 4, wantCalls: 3}, // Epoch before gloas, not cached.
+		{epoch: 5, wantCalls: 5}, // Gloas, not cached.
+	}
+
+	for _, test := range tests {
+		for range 2 {
+			_, err := cache.ProposerDutiesCache(ctx, test.epoch, nil)
+			require.NoError(t, err)
+		}
+
+		require.Equal(t, test.wantCalls, calls, "epoch %d", test.epoch)
+	}
 }

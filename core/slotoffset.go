@@ -44,8 +44,8 @@ func newSlotOffsetFunc(slotDuration time.Duration, slotsPerEpoch uint64, timing 
 		DutyAggregator:         timing.Aggregate,
 		DutySyncMessage:        timing.SyncMessage,
 		DutySyncContribution:   timing.Contribution,
-		DutyPayloadAttestation: timing.Payload,
-		// A self-built payload envelope is due at the same payload deadline the PTC attests against.
+		DutyPayloadAttestation: timing.PayloadAttestation,
+		// A self-built payload envelope is due at the payload deadline the PTC attests its timeliness against.
 		DutyExecutionPayloadEnvelope: timing.Payload,
 	}
 

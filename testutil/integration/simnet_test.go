@@ -99,7 +99,8 @@ func TestSimnetDuties(t *testing.T) {
 		{
 			name:          "gloas epbs proposer with mock VCs",
 			scheduledType: core.DutyProposer,
-			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao, core.DutyExecutionPayloadEnvelope},
+			// The mock VCs also sign proposer preferences for their gloas proposals.
+			duties:        []core.DutyType{core.DutyProposer, core.DutyRandao, core.DutyExecutionPayloadEnvelope, core.DutyProposerPreferences},
 			vcType:        vcVmock,
 			gloasProposer: true,
 		},

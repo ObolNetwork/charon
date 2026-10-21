@@ -74,7 +74,7 @@ A timer is a named configuration of round timing, defined by:
 
 Timers are selected per duty by the fork and feature set flags:
 
-- `eager_ahead_split` is used for attester duties from the gloas fork, regardless of feature set flags, since round end times must be identical across the cluster (see [Gloas attester timer](#gloas-attester-timer)).
+- `eager_ahead_split` is used for attester duties from the gloas fork and for payload attestation duties, regardless of feature set flags, since round end times must be identical across the cluster (see [Gloas attester and payload attestation timer](#gloas-attester-and-payload-attestation-timer)).
 - `eager_dlinear` is the default, enabled by the stable `eager_double_linear` feature.
 - `inc` is used when `eager_double_linear` is disabled (`--feature-set-disable "eager_double_linear"`).
 - `linear` is used for proposer duties when the alpha `linear` feature is enabled (`--feature-set-enable "linear"`), taking precedence over the other timers. Its first round includes fetching the proposal. Peers already have their proposal in later rounds, which start shorter, skipping underperforming leaders quicker.
@@ -98,7 +98,7 @@ Each extension states when it acts, under what condition and what it changes:
 
 The timer and extensions of each consensus instance are logged when it starts, e.g. `timer=eager_dlinear timer_extensions=[double_total_on_rearm proposal_timeout]`.
 
-### Gloas attester timer
+### Gloas attester and payload attestation timer
 
 An Ethereum slot is split into consecutive intervals, each the timeframe of one kind of duty, starting at the duty's due time, its offset into the slot. From the gloas fork a 12s slot has four 3s intervals: the block proposal interval (0-3s), the attestation interval (3-6s), the aggregation interval (6-9s) and the payload attestation interval (9-12s).
 
@@ -116,6 +116,14 @@ For gloas attester duties the previous interval is the block proposal interval, 
 | A beacon node reports a new head of the slot (SSE head event) | | Fetches the attestation data from that beacon node, as the consensus input | |
 | Attestation due time (3s), if no block arrived | | Fetches the attestation data from all beacon nodes | |
 | End of each attempt (4s, 5s, 6s, then 8s, 11s, ...) | | | Round deadlines |
+
+Payload attestation duties use the same timer. Their previous interval is the aggregation interval, which starts once the payload is due, and the payload attestation interval is split into 3 attempts, so rounds end at 10s, 11s, 12s, then 14s, 17s, etc. Payload timeliness committee members attest as soon as they have seen the payload and its blob data, but only report either as missing once the payload attestation due time has elapsed, since they may still arrive:
+
+| When | Scheduler | Fetcher | Round timer |
+|------|-----------|---------|-------------|
+| Payload due time (6s) | Triggers the duty | Fetches the payload attestation data, as the consensus input if it reports both the payload and its blob data as seen | Starts round 1 |
+| Payload attestation due time (9s), if either wasn't seen | | Fetches the payload attestation data again, as the consensus input | |
+| End of each attempt (10s, 11s, 12s, then 14s, 17s, ...) | | | Round deadlines |
 
 ## Observability
 
