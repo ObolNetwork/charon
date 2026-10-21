@@ -317,9 +317,15 @@ type DutiesCache struct {
 	syncDuties       SyncDuties
 }
 
-// Trim trims the cache of 3 epochs older than the current.
-// This should be called on epoch boundary.
+// Trim trims the cache of 3 epochs older than the current and invalidates the v1 proposer duties
+// of the current and later epochs. This should be called on epoch boundary.
 func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
+	// The v1 proposer duties dependent root is the block root of the epoch's preceding slot, which
+	// isn't known before the epoch starts: duties cached earlier carry the head root at fetch time.
+	if epoch > 0 {
+		c.trimAfterProposerDuties(epoch - 1)
+	}
+
 	if epoch < dutiesCacheTrimThreshold {
 		return
 	}

@@ -139,15 +139,53 @@ func TestDutiesCacheTrimCleansOldEpochs(t *testing.T) {
 func TestDutiesCacheTrimBelowThresholdIsNoop(t *testing.T) {
 	cache := NewDutiesCache(nil, nil)
 
-	populateDutiesCache(t, cache, []eth2p0.Epoch{0, 1, 2})
+	populateDutiesCache(t, cache, []eth2p0.Epoch{0, 1})
 
-	// epoch=2 < dutiesCacheTrimThreshold(3), so Trim must be a no-op.
+	// epoch=2 < dutiesCacheTrimThreshold(3), so Trim must not trim the past epochs.
 	cache.Trim(2)
 
 	proposer, attester, sync := dutiesCacheLen(cache)
-	require.Equal(t, 3, proposer, "no entries should be trimmed when epoch < threshold")
-	require.Equal(t, 3, attester, "no entries should be trimmed when epoch < threshold")
-	require.Equal(t, 3, sync, "no entries should be trimmed when epoch < threshold")
+	require.Equal(t, 2, proposer, "no entries should be trimmed when epoch < threshold")
+	require.Equal(t, 2, attester, "no entries should be trimmed when epoch < threshold")
+	require.Equal(t, 2, sync, "no entries should be trimmed when epoch < threshold")
+}
+
+// TestDutiesCacheTrimInvalidatesProposerDuties verifies that Trim invalidates the v1 proposer duties
+// of the current and later epochs, cached before their dependent root was known, keeping the rest.
+func TestDutiesCacheTrimInvalidatesProposerDuties(t *testing.T) {
+	cache := NewDutiesCache(nil, nil)
+
+	populateDutiesCache(t, cache, []eth2p0.Epoch{4, 5, 6})
+
+	for _, epoch := range []eth2p0.Epoch{4, 5, 6} {
+		stored, ok := cache.storeOrAmendProposerDutiesV2(epoch, ProposerDutiesForEpoch{
+			duties:   []eth2v1.ProposerDuty{{ValidatorIndex: 1}},
+			metadata: map[string]any{"epoch": epoch},
+		})
+		require.True(t, ok)
+		require.Len(t, stored, 1)
+	}
+
+	cache.Trim(5)
+
+	_, ok := cache.fetchProposerDuties(4)
+	require.True(t, ok, "past epoch v1 proposer duties should be kept")
+
+	for _, epoch := range []eth2p0.Epoch{5, 6} {
+		_, ok := cache.fetchProposerDuties(epoch)
+		require.False(t, ok, "epoch %d v1 proposer duties should be invalidated", epoch)
+	}
+
+	for _, epoch := range []eth2p0.Epoch{4, 5, 6} {
+		_, ok := cache.fetchProposerDutiesV2(epoch)
+		require.True(t, ok, "epoch %d v2 proposer duties should be kept", epoch)
+
+		_, ok = cache.fetchAttesterDuties(epoch)
+		require.True(t, ok, "epoch %d attester duties should be kept", epoch)
+
+		_, ok = cache.fetchSyncDuties(epoch)
+		require.True(t, ok, "epoch %d sync duties should be kept", epoch)
+	}
 }
 
 // TestDutiesCacheTrimSequential verifies that successive Trim calls at advancing epochs
