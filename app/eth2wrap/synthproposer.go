@@ -94,6 +94,16 @@ func (h *synthWrapper) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epo
 	return ProposerDutyWithMeta{Duties: eth2Resp.Data, Metadata: eth2Resp.Metadata}, nil
 }
 
+// ProposerDutiesV2 returns the same duties as ProposerDuties, the two matching under the fulu proposer lookahead.
+func (h *synthWrapper) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+	return h.ProposerDuties(ctx, opts)
+}
+
+// ProposerDutiesV2Cache wraps ProposerDutiesV2. We are not using cache for synthproposer.
+func (h *synthWrapper) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
+	return h.ProposerDutiesCache(ctx, epoch, vidxs)
+}
+
 func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
 	h.setFeeRecipients(preparations)
 

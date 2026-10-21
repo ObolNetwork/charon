@@ -259,8 +259,8 @@ func TestSchedulerDuties(t *testing.T) {
 			require.NoError(t, err)
 
 			// Instrument ProposerDuties to returns some errors
-			origFunc := eth2Cl.ProposerDutiesFunc
-			eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+			origFunc := eth2Cl.ProposerDutiesV2Func
+			eth2Cl.ProposerDutiesV2Func = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 				if test.PropErrs > 0 {
 					test.PropErrs--
 					return nil, errors.New("test error")
@@ -269,7 +269,7 @@ func TestSchedulerDuties(t *testing.T) {
 				return origFunc(ctx, epoch, indices)
 			}
 
-			eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+			eth2Cl.CachedProposerDutiesV2Func = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 				if test.PropErrs > 0 {
 					test.PropErrs--
 					return eth2wrap.ProposerDutyWithMeta{}, errors.New("test error")

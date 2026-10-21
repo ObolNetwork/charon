@@ -39,6 +39,16 @@ func BuilderPreferences(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 
 	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
 
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	// Preferences only exist from the gloas fork onwards.
+	if !forkSchedule.Active(eth2wrap.Gloas, epoch) {
+		return nil
+	}
+
 	var indexes []eth2p0.ValidatorIndex
 	for index := range valMap {
 		indexes = append(indexes, index)

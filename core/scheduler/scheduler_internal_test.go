@@ -92,7 +92,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 	// Randomize duty pubkeys
 	oldAttesterFunc := eth2Cl.AttesterDutiesFunc
 	oldSyncFunc := eth2Cl.SyncCommitteeDutiesFunc
-	oldProposerFunc := eth2Cl.ProposerDutiesFunc
+	oldProposerFunc := eth2Cl.ProposerDutiesV2Func
 
 	eth2Cl.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 		res, err := oldAttesterFunc(ctx, epoch, indices)
@@ -146,7 +146,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return eth2wrap.SyncDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
-	eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	eth2Cl.ProposerDutiesV2Func = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		res, err := oldProposerFunc(ctx, epoch, indices)
 		if err != nil {
 			return nil, err
@@ -159,7 +159,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return res, nil
 	}
 
-	eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+	eth2Cl.CachedProposerDutiesV2Func = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 		res, err := oldProposerFunc(ctx, epoch, indices)
 		if err != nil {
 			return eth2wrap.ProposerDutyWithMeta{}, err

@@ -613,19 +613,20 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 	return nil
 }
 
-// resolveProDuties resolves proposer duties for the given validators.
+// resolveProDuties resolves proposer duties for the given validators. It uses the v2 endpoint since, unlike v1's,
+// its dependent root is already known when the next epoch's duties are resolved, at the epoch's last slot.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var proDuties []*eth2v1.ProposerDuty
 
 	if featureset.Enabled(featureset.DisableDutiesCache) {
-		eth2Resp, err := s.eth2Cl.ProposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
+		eth2Resp, err := s.eth2Cl.ProposerDutiesV2(ctx, &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
 		if err != nil {
 			return err
 		}
 
 		proDuties = eth2Resp.Data
 	} else {
-		cachedResp, err := s.eth2Cl.ProposerDutiesCache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		cachedResp, err := s.eth2Cl.ProposerDutiesV2Cache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
 		if err != nil {
 			return err
 		}
