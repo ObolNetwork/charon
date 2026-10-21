@@ -104,7 +104,7 @@ type Config struct {
 	ConsensusProtocol           string
 	Nickname                    string
 	BeaconNodeHeaders           []string
-	TargetGasLimit              uint
+	ProposerGasLimit            uint64
 	FallbackBeaconNodeAddrs     []string
 	ExecutionEngineAddr         string
 	Graffiti                    []string
@@ -511,7 +511,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartBuilderRegWatcher,
 		lifecycle.HookFuncCtx(builderRegSvc.Run))
 
-	wireProposerConfigFile(ctx, conf, lock, nodeIdx, builderRegSvc.FeeRecipient, builderRegSvc.GasLimit)
+	wireProposerConfigFile(ctx, conf, lock, nodeIdx, builderRegSvc.FeeRecipient)
 
 	peers, err := lock.Peers()
 	if err != nil {
@@ -655,7 +655,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(retainerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, lock.TargetGasLimit,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, conf.ProposerGasLimit,
 		validatorapi.WithBuilderHosts(hosts))
 	if err != nil {
 		return err
