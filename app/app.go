@@ -544,7 +544,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	sseListener.SubscribeChainReorgEvent(sched.HandleChainReorgEvent)
 	sseListener.SubscribeHeadEvent(sched.HandleHeadEvent)
 
-	sched.SubscribeSlots(setFeeRecipient(eth2Cl, builderRegSvc.FeeRecipient))
+	sched.SubscribeSlots(setFeeRecipient(eth2Cl, forkSchedule, builderRegSvc.FeeRecipient))
 
 	// Setup validator cache, refreshing it every epoch.
 	valCache := eth2wrap.NewValidatorCache(eth2Cl, eth2Pubkeys)
@@ -1201,12 +1201,17 @@ func wireTracing(life *lifecycle.Manager, conf Config, clusterHash []byte) error
 }
 
 // setFeeRecipient returns a slot subscriber for scheduler which calls prepare_beacon_proposer endpoint at start of each epoch.
-func setFeeRecipient(eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
+// It stops from the gloas fork, which deprecates the endpoint in favour of proposer preferences carrying the fee recipient.
+func setFeeRecipient(eth2Cl eth2wrap.Client, forkSchedule func() eth2wrap.ForkForkSchedule, feeRecipientFunc func(core.PubKey) string) func(ctx context.Context, slot core.Slot) error {
 	onStartup := true
 
 	var osMutex sync.Mutex
 
 	return func(ctx context.Context, slot core.Slot) error {
+		if forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
+			return nil
+		}
+
 		osMutex.Lock()
 		// Either call if it is first slot in epoch or on charon startup.
 		if !onStartup && !slot.FirstInEpoch() {

@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/lifecycle"
 	"github.com/obolnetwork/charon/core"
 	vapimocks "github.com/obolnetwork/charon/core/validatorapi/mocks"
@@ -164,7 +165,7 @@ func TestSetFeeRecipient(t *testing.T) {
 			return nil
 		}
 
-		fn := setFeeRecipient(bmock, func(core.PubKey) string {
+		fn := setFeeRecipient(bmock, func() eth2wrap.ForkForkSchedule { return nil }, func(core.PubKey) string {
 			return "0xdead"
 		})
 		err = fn(context.Background(), core.Slot{SlotsPerEpoch: 1})
@@ -172,6 +173,38 @@ func TestSetFeeRecipient(t *testing.T) {
 
 		require.Equal(t, active, len(clone)-(i+1))
 	}
+}
+
+func TestSetFeeRecipientGloas(t *testing.T) {
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithValidatorSet(beaconmock.ValidatorSetA))
+	require.NoError(t, err)
+
+	var submissions int
+
+	bmock.SubmitProposalPreparationsFunc = func(context.Context, []*eth2v1.ProposalPreparation) error {
+		submissions++
+		return nil
+	}
+
+	forkSchedule := func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 2}} }
+
+	fn := setFeeRecipient(bmock, forkSchedule, func(core.PubKey) string {
+		return "0xdead"
+	})
+
+	// Preparations are submitted before the gloas fork, at startup and at the first slot of each epoch.
+	for slot := range uint64(4) {
+		require.NoError(t, fn(t.Context(), core.Slot{Slot: slot, SlotsPerEpoch: 2}))
+	}
+
+	require.Equal(t, 2, submissions)
+
+	// But no longer from the gloas fork.
+	for slot := uint64(4); slot < 8; slot++ {
+		require.NoError(t, fn(t.Context(), core.Slot{Slot: slot, SlotsPerEpoch: 2}))
+	}
+
+	require.Equal(t, 2, submissions)
 }
 
 func createTLSClient(t *testing.T, certPath, keyPath string) *http.Client {
