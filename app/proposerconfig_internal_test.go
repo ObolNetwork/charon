@@ -8,17 +8,12 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"strconv"
 	"testing"
 
-	eth2api "github.com/attestantio/go-eth2-client/api"
-	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
-	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
-	"github.com/obolnetwork/charon/eth2util/registration"
 )
 
 func TestWriteProposerConfigFile(t *testing.T) {
@@ -32,16 +27,17 @@ func TestWriteProposerConfigFile(t *testing.T) {
 
 	dir := t.TempDir()
 	conf := Config{
-		LockFile:   filepath.Join(dir, "cluster-lock.json"),
-		BuilderAPI: true,
+		LockFile:         filepath.Join(dir, "cluster-lock.json"),
+		BuilderAPI:       true,
+		ProposerGasLimit: 200_000_000,
 	}
 	nodeIdx := cluster.NodeIdx{PeerIdx: peerIdx, ShareIdx: peerIdx + 1}
 
 	path := filepath.Join(dir, proposerConfigDir, proposerConfigFilename)
 
-	// Override the first validator's fee recipient and gas limit (mimicking builder
-	// registration overrides), let the second fall back to its lock address, and
-	// give the remaining two identical settings so they form the majority.
+	// Override the first validator's fee recipient (mimicking builder registration
+	// overrides), let the second fall back to its lock address, and give the
+	// remaining two identical fee recipients so they form the majority.
 	overridePubkey, err := core.PubKeyFromBytes(lock.Validators[0].PubKey)
 	require.NoError(t, err)
 
@@ -64,17 +60,7 @@ func TestWriteProposerConfigFile(t *testing.T) {
 		}
 	}
 
-	const overrideGasLimit = 42_000_000
-
-	gasLimitFunc := func(pubkey core.PubKey) uint64 {
-		if pubkey == overridePubkey {
-			return overrideGasLimit
-		}
-
-		return 0 // Exercise the default fallback for the rest.
-	}
-
-	created, err := writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	created, err := writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc)
 	require.NoError(t, err)
 	require.True(t, created)
 
@@ -86,7 +72,6 @@ func TestWriteProposerConfigFile(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &config))
 	require.EqualValues(t, 1, config.Version)
 
-	defaultGasLimit := strconv.FormatUint(registration.DefaultGasLimit, 10)
 	feeRecipients := lock.FeeRecipientAddresses()
 
 	pubshare := func(vi int) string {
@@ -96,15 +81,15 @@ func TestWriteProposerConfigFile(t *testing.T) {
 		return fmt.Sprintf("%#x", share)
 	}
 
-	// The default config holds the majority settings (validators 2 and 3).
+	// The default config holds the majority fee recipient (validators 2 and 3) and the
+	// configured proposer gas limit.
 	require.Equal(t, majorityAddr, config.DefaultConfig.FeeRecipient)
-	require.Equal(t, defaultGasLimit, config.DefaultConfig.GasLimit)
+	require.Equal(t, "200000000", config.DefaultConfig.GasLimit)
 	require.Nil(t, config.DefaultConfig.Builder) // No builder URLs configured.
 
-	// The two diverging validators get entries carrying only the diverging fields:
-	// validator 0 diverges in both, validator 1 only in its fee recipient.
+	// The two diverging validators get entries carrying only their fee recipient.
 	require.Len(t, config.ProposerConfig, 2)
-	require.Equal(t, proposerSettingsJSON{FeeRecipient: overrideAddr, GasLimit: strconv.FormatUint(overrideGasLimit, 10)}, config.ProposerConfig[pubshare(0)])
+	require.Equal(t, proposerSettingsJSON{FeeRecipient: overrideAddr}, config.ProposerConfig[pubshare(0)])
 	require.Equal(t, proposerSettingsJSON{FeeRecipient: feeRecipients[1]}, config.ProposerConfig[pubshare(1)])
 
 	// No pre-gloas legacy fields in the charon schema.
@@ -114,7 +99,7 @@ func TestWriteProposerConfigFile(t *testing.T) {
 	// An existing file is never modified.
 	require.NoError(t, os.WriteFile(path, []byte("operator managed"), 0o644))
 
-	created, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	created, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc)
 	require.NoError(t, err)
 	require.False(t, created)
 
@@ -126,7 +111,7 @@ func TestWriteProposerConfigFile(t *testing.T) {
 	require.NoError(t, os.Remove(path))
 	require.NoError(t, os.Mkdir(path, 0o755))
 
-	_, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc, gasLimitFunc)
+	_, err = writeProposerConfigFile(conf, &lock, nodeIdx, feeRecipientFunc)
 	require.ErrorContains(t, err, "is a directory")
 }
 
@@ -135,7 +120,6 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 
 	nodeIdx := cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1}
 	noOverrides := func(core.PubKey) string { return "" }
-	noGasOverrides := func(core.PubKey) uint64 { return 0 }
 
 	t.Run("builder urls", func(t *testing.T) {
 		dir := t.TempDir()
@@ -146,9 +130,10 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 			BuilderMinBid:              1_000_000_000,
 			BuilderBoostFactor:         90,
 			BuilderMaxExecutionPayment: 2_000_000_000,
+			ProposerGasLimit:           200_000_000,
 		}
 
-		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides)
 		require.NoError(t, err)
 		require.True(t, created)
 
@@ -162,7 +147,7 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 
 		// A uniform cluster emits no per-validator entries, the default covers all.
 		require.Empty(t, config.ProposerConfig)
-		require.Equal(t, strconv.FormatUint(registration.DefaultGasLimit, 10), config.DefaultConfig.GasLimit)
+		require.Equal(t, "200000000", config.DefaultConfig.GasLimit)
 
 		// The builder configuration is only emitted on the default config, with the
 		// shared values at the builder level and entries carrying no overrides.
@@ -183,7 +168,7 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 			BuilderMinBid: 1, // Inert without builder URLs (the flags reject this combination).
 		}
 
-		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+		created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides)
 		require.NoError(t, err)
 		require.True(t, created)
 
@@ -199,12 +184,11 @@ func TestWriteProposerConfigFileBuilder(t *testing.T) {
 	})
 }
 
-func TestProposerConfigBuilderMatches(t *testing.T) {
+func TestProposerConfigMatches(t *testing.T) {
 	lock, _, _ := cluster.NewForT(t, 1, 4, 4, 0, rand.New(rand.NewSource(0)))
 
 	nodeIdx := cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1}
 	noOverrides := func(core.PubKey) string { return "" }
-	noGasOverrides := func(core.PubKey) uint64 { return 0 }
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, proposerConfigDir, proposerConfigFilename)
@@ -215,35 +199,51 @@ func TestProposerConfigBuilderMatches(t *testing.T) {
 			BuilderAPI:         true,
 			BuilderURLs:        builderURLs,
 			BuilderBoostFactor: 90,
+			ProposerGasLimit:   200_000_000,
 		}
 	}
 
 	conf := newConf("https://builder1.example.com")
 
-	created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides, noGasOverrides)
+	created, err := writeProposerConfigFile(conf, &lock, nodeIdx, noOverrides)
 	require.NoError(t, err)
 	require.True(t, created)
 
 	b, err := os.ReadFile(path)
 	require.NoError(t, err)
 
-	matches, err := proposerConfigBuilderMatches(conf, path)
+	builderMatches, gasMatches, err := proposerConfigMatches(conf, path)
 	require.NoError(t, err)
-	require.True(t, matches)
+	require.True(t, builderMatches)
+	require.True(t, gasMatches)
 
 	// Changed builder URLs, builder flags or no builder URLs differ, and leave the file as it is.
 	changedBoost := conf
 	changedBoost.BuilderBoostFactor = 100
 
 	for _, changed := range []Config{newConf("https://builder2.example.com"), changedBoost, newConf()} {
-		created, err = writeProposerConfigFile(changed, &lock, nodeIdx, noOverrides, noGasOverrides)
+		created, err = writeProposerConfigFile(changed, &lock, nodeIdx, noOverrides)
 		require.NoError(t, err)
 		require.False(t, created)
 
-		matches, err = proposerConfigBuilderMatches(changed, path)
+		builderMatches, gasMatches, err = proposerConfigMatches(changed, path)
 		require.NoError(t, err)
-		require.False(t, matches)
+		require.False(t, builderMatches)
+		require.True(t, gasMatches)
 	}
+
+	// A changed proposer gas limit differs, and leaves the file as it is.
+	changedGas := conf
+	changedGas.ProposerGasLimit = 60_000_000
+
+	created, err = writeProposerConfigFile(changedGas, &lock, nodeIdx, noOverrides)
+	require.NoError(t, err)
+	require.False(t, created)
+
+	builderMatches, gasMatches, err = proposerConfigMatches(changedGas, path)
+	require.NoError(t, err)
+	require.True(t, builderMatches)
+	require.False(t, gasMatches)
 
 	unchanged, err := os.ReadFile(path)
 	require.NoError(t, err)
@@ -252,27 +252,6 @@ func TestProposerConfigBuilderMatches(t *testing.T) {
 	// A file that isn't a proposer config is an error.
 	require.NoError(t, os.WriteFile(path, []byte("operator managed"), 0o644))
 
-	_, err = proposerConfigBuilderMatches(conf, path)
+	_, _, err = proposerConfigMatches(conf, path)
 	require.ErrorContains(t, err, "decode proposer config file")
-}
-
-func TestGasLimitsByPubkey(t *testing.T) {
-	lock, _, _ := cluster.NewForT(t, 1, 3, 3, 0, rand.New(rand.NewSource(0)))
-
-	pubkey := eth2p0.BLSPubKey(lock.Validators[0].PubKey)
-
-	corePubkey, err := core.PubKeyFromBytes(pubkey[:])
-	require.NoError(t, err)
-
-	regs := []*eth2api.VersionedSignedValidatorRegistration{
-		{V1: &eth2v1.SignedValidatorRegistration{Message: &eth2v1.ValidatorRegistration{
-			Pubkey:   pubkey,
-			GasLimit: 50_000_000,
-		}}},
-		nil, // Nil and zero gas limit entries are skipped.
-		{V1: &eth2v1.SignedValidatorRegistration{Message: &eth2v1.ValidatorRegistration{}}},
-	}
-
-	require.Equal(t, map[core.PubKey]uint64{corePubkey: 50_000_000}, gasLimitsByPubkey(regs))
-	require.Empty(t, gasLimitsByPubkey(nil))
 }

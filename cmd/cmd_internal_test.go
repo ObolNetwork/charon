@@ -87,6 +87,7 @@ func TestCmdFlags(t *testing.T) {
 				PublishAddress:              "https://api.obol.tech/v1",
 				PublishTimeout:              5 * time.Minute,
 				BuilderBoostFactor:          100,
+				ProposerGasLimit:            200_000_000,
 			},
 		},
 		{
@@ -142,6 +143,7 @@ func TestCmdFlags(t *testing.T) {
 				PublishAddress:              "https://api.obol.tech/v1",
 				PublishTimeout:              5 * time.Minute,
 				BuilderBoostFactor:          100,
+				ProposerGasLimit:            200_000_000,
 				TestConfig: app.TestConfig{
 					P2PFuzz: true,
 				},
