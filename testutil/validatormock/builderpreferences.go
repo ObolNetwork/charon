@@ -32,20 +32,13 @@ func BuilderPreferences(ctx context.Context, eth2Cl eth2wrap.Client, signFunc Si
 		return err
 	}
 
-	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	epoch, active, err := preferencesEpoch(ctx, eth2Cl, slot)
 	if err != nil {
 		return err
 	}
 
 	// Preferences only exist from the gloas fork onwards.
-	if !forkSchedule.Active(eth2wrap.Gloas, epoch) {
+	if !active {
 		return nil
 	}
 

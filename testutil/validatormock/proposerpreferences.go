@@ -31,20 +31,13 @@ func ProposerPreferences(ctx context.Context, eth2Cl eth2wrap.Client, signFunc S
 		return err
 	}
 
-	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
-
-	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	epoch, active, err := preferencesEpoch(ctx, eth2Cl, slot)
 	if err != nil {
 		return err
 	}
 
 	// Preferences only exist from the gloas fork onwards.
-	if !forkSchedule.Active(eth2wrap.Gloas, epoch) {
+	if !active {
 		return nil
 	}
 
@@ -119,4 +112,21 @@ func dependentRoot(metadata map[string]any) eth2p0.Root {
 	}
 
 	return root
+}
+
+// preferencesEpoch returns the epoch of the proposal slot and whether the gloas fork is active at it.
+func preferencesEpoch(ctx context.Context, eth2Cl eth2wrap.Client, slot eth2p0.Slot) (eth2p0.Epoch, bool, error) {
+	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return 0, false, err
+	}
+
+	epoch := eth2p0.Epoch(uint64(slot) / slotsPerEpoch)
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	if err != nil {
+		return 0, false, err
+	}
+
+	return epoch, forkSchedule.Active(eth2wrap.Gloas, epoch), nil
 }
