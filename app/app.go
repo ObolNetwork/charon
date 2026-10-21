@@ -598,7 +598,15 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		valCache.Trim()
 
 		if !featureset.Enabled(featureset.DisableDutiesCache) {
-			dutiesCache.Trim(eth2p0.Epoch(slot.Epoch()))
+			epoch := eth2p0.Epoch(slot.Epoch())
+			dutiesCache.Trim(epoch)
+
+			// VCs prefetching the epoch before the gloas fork get its v1 proposer duties cached with a provisional
+			// dependent root, which they sign into the first gloas epoch's proposer preferences. Drop them on
+			// entering that epoch, once its dependent root is known.
+			if fs := forkSchedule(); fs.Active(eth2wrap.Gloas, epoch+1) && !fs.Active(eth2wrap.Gloas, epoch) {
+				dutiesCache.InvalidateProposerDuties(ctx, epoch)
+			}
 		}
 
 		activeValidators, _, refresh, err := valCache.GetBySlot(ctx, slotToFetch)

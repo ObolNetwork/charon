@@ -139,20 +139,20 @@ func TestDutiesCacheTrimCleansOldEpochs(t *testing.T) {
 func TestDutiesCacheTrimBelowThresholdIsNoop(t *testing.T) {
 	cache := NewDutiesCache(nil, nil)
 
-	populateDutiesCache(t, cache, []eth2p0.Epoch{0, 1})
+	populateDutiesCache(t, cache, []eth2p0.Epoch{0, 1, 2})
 
-	// epoch=2 < dutiesCacheTrimThreshold(3), so Trim must not trim the past epochs.
+	// epoch=2 < dutiesCacheTrimThreshold(3), so Trim must be a no-op.
 	cache.Trim(2)
 
 	proposer, attester, sync := dutiesCacheLen(cache)
-	require.Equal(t, 2, proposer, "no entries should be trimmed when epoch < threshold")
-	require.Equal(t, 2, attester, "no entries should be trimmed when epoch < threshold")
-	require.Equal(t, 2, sync, "no entries should be trimmed when epoch < threshold")
+	require.Equal(t, 3, proposer, "no entries should be trimmed when epoch < threshold")
+	require.Equal(t, 3, attester, "no entries should be trimmed when epoch < threshold")
+	require.Equal(t, 3, sync, "no entries should be trimmed when epoch < threshold")
 }
 
-// TestDutiesCacheTrimInvalidatesProposerDuties verifies that Trim invalidates the v1 proposer duties
-// of the current and later epochs, cached before their dependent root was known, keeping the rest.
-func TestDutiesCacheTrimInvalidatesProposerDuties(t *testing.T) {
+// TestDutiesCacheInvalidateProposerDuties verifies that InvalidateProposerDuties drops the v1 proposer
+// duties of the epoch and later ones, keeping earlier epochs and the other duties.
+func TestDutiesCacheInvalidateProposerDuties(t *testing.T) {
 	cache := NewDutiesCache(nil, nil)
 
 	populateDutiesCache(t, cache, []eth2p0.Epoch{4, 5, 6})
@@ -166,7 +166,7 @@ func TestDutiesCacheTrimInvalidatesProposerDuties(t *testing.T) {
 		require.Len(t, stored, 1)
 	}
 
-	cache.Trim(5)
+	cache.InvalidateProposerDuties(t.Context(), 5)
 
 	_, ok := cache.fetchProposerDuties(4)
 	require.True(t, ok, "past epoch v1 proposer duties should be kept")

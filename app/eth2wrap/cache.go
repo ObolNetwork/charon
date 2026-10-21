@@ -317,15 +317,9 @@ type DutiesCache struct {
 	syncDuties       SyncDuties
 }
 
-// Trim trims the cache of 3 epochs older than the current and invalidates the v1 proposer duties
-// of the current and later epochs. This should be called on epoch boundary.
+// Trim trims the cache of 3 epochs older than the current.
+// This should be called on epoch boundary.
 func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
-	// The v1 proposer duties dependent root is the block root of the epoch's preceding slot, which
-	// isn't known before the epoch starts: duties cached earlier carry the head root at fetch time.
-	if epoch > 0 {
-		c.trimAfterProposerDuties(epoch - 1)
-	}
-
 	if epoch < dutiesCacheTrimThreshold {
 		return
 	}
@@ -334,6 +328,19 @@ func (c *DutiesCache) Trim(epoch eth2p0.Epoch) {
 	c.trimBeforeProposerDutiesV2(epoch - dutiesCacheTrimThreshold)
 	c.trimBeforeAttesterDuties(epoch - dutiesCacheTrimThreshold)
 	c.trimBeforeSyncDuties(epoch - dutiesCacheTrimThreshold)
+}
+
+// InvalidateProposerDuties invalidates the cached v1 proposer duties of the epoch and later ones. Their dependent
+// root is the block root of the epoch's preceding slot, so duties cached before the epoch started hold the head
+// root at fetch time instead.
+func (c *DutiesCache) InvalidateProposerDuties(ctx context.Context, epoch eth2p0.Epoch) {
+	if epoch == 0 {
+		return
+	}
+
+	if c.trimAfterProposerDuties(epoch - 1) {
+		log.Debug(ctx, "Invalidated cached v1 proposer duties", z.U64("from_epoch", uint64(epoch)))
+	}
 }
 
 // InvalidateCache handles chain reorg, invalidating cached duties.
