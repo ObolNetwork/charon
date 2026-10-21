@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	eth2client "github.com/attestantio/go-eth2-client"
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
@@ -332,6 +334,183 @@ func (c metadataClient) EPBSProposal(ctx context.Context, opts *eth2api.EPBSProp
 	resp.Metadata = c.metadata
 
 	return resp, nil
+}
+
+func TestFetchPayloadAttestationDue(t *testing.T) {
+	const slot = 1
+
+	var (
+		t0          = time.Unix(1_000_000, 0)
+		slotStart   = t0.Add(12 * time.Second)
+		payloadDue  = slotStart.Add(6 * time.Second) // The duty starts once the payload is due, half way into the slot.
+		dueTime     = slotStart.Add(9 * time.Second) // Payload attestations are due 3/4 into the slot.
+		errFetch    = errors.New("payload attestation data not yet final")
+		pubkey      = testutil.RandomCorePubKey(t)
+		duty        = core.NewPayloadAttestationDuty(slot)
+		defSet      = core.DutyDefinitionSet{pubkey: core.NewPTCDefinition(&eth2v1.PTCDuty{Slot: slot, ValidatorIndex: 2})}
+		root        = eth2p0.Root{0x01}
+		seen        = &gloas.PayloadAttestationData{BeaconBlockRoot: root, Slot: slot, PayloadPresent: true, BlobDataAvailable: true}
+		blobMissing = &gloas.PayloadAttestationData{BeaconBlockRoot: root, Slot: slot, PayloadPresent: true}
+	)
+
+	// response is a beacon node response to a payload attestation data request.
+	type response struct {
+		data *gloas.PayloadAttestationData
+		err  error
+	}
+
+	// setup returns a gloas fetcher at the time into the slot whose beacon node returns the responses
+	// in order, along with a channel of fetched data sets and the number of beacon node calls.
+	setup := func(t *testing.T, now time.Time, responses ...response) (*Fetcher, *clockwork.FakeClock, <-chan core.UnsignedDataSet, *atomic.Int64) {
+		t.Helper()
+
+		bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(t0), beaconmock.WithSlotsPerEpoch(1))
+		require.NoError(t, err)
+
+		var calls atomic.Int64
+
+		bmock.PayloadAttestationDataFunc = func(context.Context, eth2p0.Slot) (*eth2spec.VersionedPayloadAttestationData, error) {
+			resp := responses[calls.Add(1)-1]
+			if resp.err != nil {
+				return nil, resp.err
+			}
+
+			return &eth2spec.VersionedPayloadAttestationData{Version: eth2spec.DataVersionGloas, Gloas: resp.data}, nil
+		}
+
+		fetch, err := New(t.Context(), bmock, nil, false, &GraffitiBuilder{},
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+		require.NoError(t, err)
+
+		clock := clockwork.NewFakeClockAt(now)
+		fetch.clock = clock
+
+		fetched := make(chan core.UnsignedDataSet, 1)
+
+		fetch.Subscribe(func(_ context.Context, _ core.Duty, set core.UnsignedDataSet) error {
+			fetched <- set
+			return nil
+		})
+
+		return fetch, clock, fetched, &calls
+	}
+
+	// fetchAsync runs Fetch in the background, returning its error channel.
+	fetchAsync := func(ctx context.Context, fetch *Fetcher) <-chan error {
+		errCh := make(chan error, 1)
+
+		go func() {
+			errCh <- fetch.Fetch(ctx, duty, defSet)
+		}()
+
+		return errCh
+	}
+
+	requireFetched := func(t *testing.T, fetched <-chan core.UnsignedDataSet, errCh <-chan error, expected *gloas.PayloadAttestationData) {
+		t.Helper()
+
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			require.Fail(t, "payload attestation data not fetched")
+		}
+
+		set := <-fetched
+		require.Equal(t, expected, set[pubkey].(core.VersionedPayloadAttestationData).Gloas)
+	}
+
+	// requireRefetchedAtDue asserts that the fetcher waits for the due time before fetching again.
+	requireRefetchedAtDue := func(t *testing.T, clock *clockwork.FakeClock, fetched <-chan core.UnsignedDataSet) {
+		t.Helper()
+
+		require.NoError(t, clock.BlockUntilContext(t.Context(), 1))
+		clock.Advance(dueTime.Sub(payloadDue) - time.Millisecond)
+
+		select {
+		case <-fetched:
+			require.Fail(t, "fetched again before the due time")
+		case <-time.After(10 * time.Millisecond):
+		}
+
+		clock.Advance(time.Millisecond)
+	}
+
+	t.Run("payload and blob data seen", func(t *testing.T) {
+		fetch, _, fetched, calls := setup(t, payloadDue, response{data: seen})
+
+		requireFetched(t, fetched, fetchAsync(t.Context(), fetch), seen)
+		require.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("blob data seen by the due time", func(t *testing.T) {
+		fetch, clock, fetched, calls := setup(t, payloadDue, response{data: blobMissing}, response{data: seen})
+
+		errCh := fetchAsync(t.Context(), fetch)
+
+		requireRefetchedAtDue(t, clock, fetched)
+
+		requireFetched(t, fetched, errCh, seen)
+		require.EqualValues(t, 2, calls.Load())
+	})
+
+	t.Run("blob data missing at the due time", func(t *testing.T) {
+		fetch, clock, fetched, calls := setup(t, payloadDue, response{data: blobMissing}, response{data: blobMissing})
+
+		errCh := fetchAsync(t.Context(), fetch)
+
+		requireRefetchedAtDue(t, clock, fetched)
+
+		requireFetched(t, fetched, errCh, blobMissing)
+		require.EqualValues(t, 2, calls.Load())
+	})
+
+	t.Run("block seen by the due time", func(t *testing.T) {
+		late := &gloas.PayloadAttestationData{BeaconBlockRoot: root, Slot: slot}
+		fetch, clock, fetched, calls := setup(t, payloadDue, response{err: eth2client.ErrNoPayloadAttestationData}, response{data: late})
+
+		errCh := fetchAsync(t.Context(), fetch)
+
+		requireRefetchedAtDue(t, clock, fetched)
+
+		requireFetched(t, fetched, errCh, late)
+		require.EqualValues(t, 2, calls.Load())
+	})
+
+	t.Run("fetch error before the due time", func(t *testing.T) {
+		fetch, clock, fetched, calls := setup(t, payloadDue, response{err: errFetch}, response{data: blobMissing})
+
+		errCh := fetchAsync(t.Context(), fetch)
+
+		requireRefetchedAtDue(t, clock, fetched)
+
+		requireFetched(t, fetched, errCh, blobMissing)
+		require.EqualValues(t, 2, calls.Load())
+	})
+
+	t.Run("fetch error at the due time", func(t *testing.T) {
+		fetch, clock, _, _ := setup(t, payloadDue, response{err: errFetch}, response{err: errFetch})
+
+		errCh := fetchAsync(t.Context(), fetch)
+
+		require.NoError(t, clock.BlockUntilContext(t.Context(), 1))
+		clock.Advance(dueTime.Sub(payloadDue))
+
+		select {
+		case err := <-errCh:
+			require.ErrorContains(t, err, "not yet final")
+		case <-time.After(time.Second):
+			require.Fail(t, "fetch did not return")
+		}
+	})
+
+	t.Run("due time already passed", func(t *testing.T) {
+		// Fetch starts after the due time, e.g. upon a retry, and fetches once.
+		fetch, _, fetched, calls := setup(t, dueTime.Add(time.Second), response{data: blobMissing})
+
+		requireFetched(t, fetched, fetchAsync(t.Context(), fetch), blobMissing)
+		require.EqualValues(t, 1, calls.Load())
+	})
 }
 
 func TestFetchEPBSBuilderSource(t *testing.T) {

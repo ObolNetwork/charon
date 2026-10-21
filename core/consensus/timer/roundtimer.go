@@ -43,9 +43,9 @@ func selectTimer(duty core.Duty, gloas bool) timerDef {
 	var def timerDef
 
 	switch {
-	case duty.Type == core.DutyAttester && gloas:
-		// From gloas, attester duties use the eager ahead split timer regardless of the feature set,
-		// since round end times must be identical across the cluster.
+	case duty.Type == core.DutyAttester && gloas, duty.Type == core.DutyPayloadAttestation:
+		// From gloas, attester and payload attestation duties use the eager ahead split timer regardless
+		// of the feature set, since round end times must be identical across the cluster.
 		// TODO(post-gloas): make this the default for attester duties without the gloas check, removing
 		// the fork schedule from GetRoundTimerFunc.
 		def = eagerAheadSplitTimer()
