@@ -217,8 +217,7 @@ func (f *Fetcher) fetchGloasAttesterData(ctx context.Context, slot uint64, defSe
 
 	// Fall back to fetching from all beacon nodes at the attestation due time, if no block arrived in
 	// the block proposal interval.
-	slotStart := f.genesisTime.Add(f.slotDuration * time.Duration(slot))
-	dueTime := slotStart.Add(f.slotOffsetFunc(core.NewAttesterDuty(slot)))
+	dueTime := f.dueTime(core.NewAttesterDuty(slot))
 
 	timer := f.clock.NewTimer(dueTime.Sub(f.clock.Now()))
 	defer timer.Stop()
@@ -832,45 +831,83 @@ func (f *Fetcher) forkActive(fork eth2wrap.Fork, slot uint64) bool {
 	return f.forkSchedule().Active(fork, eth2p0.Epoch(slot/f.slotsPerEpoch))
 }
 
-// fetchPayloadAttestationData returns the fetched payload attestation data for the slot.
-// The data is per-slot, not per-validator, so all payload timeliness committee members
-// in the arg set attest to the same data.
+// dueTime returns the time the duty's data is due, its slot offset into its slot.
+func (f *Fetcher) dueTime(duty core.Duty) time.Time {
+	slotStart := f.genesisTime.Add(f.slotDuration * time.Duration(duty.Slot))
+
+	return slotStart.Add(f.slotOffsetFunc(duty))
+}
+
+// fetchPayloadAttestationData returns the payload attestation data of the slot. The data is per-slot,
+// not per-validator, so all payload timeliness committee members in the arg set attest to the same data.
+//
+// The spec has members attest as soon as the payload and its blob data are seen, but only report
+// either as missing once the payload attestation due time elapsed, since they may still arrive. So
+// data that doesn't report both, or a failed fetch, is fetched again at the due time.
 func (f *Fetcher) fetchPayloadAttestationData(ctx context.Context, slot uint64, defSet core.DutyDefinitionSet) (core.UnsignedDataSet, error) {
+	dueTime := f.dueTime(core.NewPayloadAttestationDuty(slot))
+
+	if f.clock.Now().Before(dueTime) {
+		data, err := f.fetchPayloadAttestationDataOnce(ctx, slot)
+		if err != nil {
+			log.Debug(ctx, "Payload attestation data fetch failed, fetching again at due time",
+				z.U64("slot", slot), z.Any("due_time", dueTime), z.Err(err))
+		} else if data.Gloas != nil && data.Gloas.PayloadPresent && data.Gloas.BlobDataAvailable {
+			return payloadAttestationSet(data, defSet), nil
+		} else {
+			log.Debug(ctx, "Payload or blob data not seen yet, fetching payload attestation data again at due time",
+				z.U64("slot", slot), z.Bool("no_block", data.NoPayload), z.Any("due_time", dueTime))
+		}
+
+		timer := f.clock.NewTimer(dueTime.Sub(f.clock.Now()))
+		defer timer.Stop()
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.Chan():
+		}
+	}
+
+	data, err := f.fetchPayloadAttestationDataOnce(ctx, slot)
+	if err != nil {
+		return nil, err
+	}
+
+	return payloadAttestationSet(data, defSet), nil
+}
+
+// fetchPayloadAttestationDataOnce fetches the payload attestation data of the slot from the beacon node,
+// returning the no payload data if it has not seen a block for the slot.
+func (f *Fetcher) fetchPayloadAttestationDataOnce(ctx context.Context, slot uint64) (core.VersionedPayloadAttestationData, error) {
 	opts := &eth2api.PayloadAttestationDataOpts{
 		Slot: eth2p0.Slot(slot),
 	}
-
-	var data core.VersionedPayloadAttestationData
 
 	eth2Resp, err := f.eth2Cl.PayloadAttestationData(ctx, opts)
 	if errors.Is(err, eth2client.ErrNoPayloadAttestationData) {
 		// The beacon node has not seen a block for the slot. Propose the no payload data for it,
 		// so the cluster agrees on the no-block outcome like on any other value.
-		log.Debug(ctx, "No payload seen for slot's block", z.U64("slot", slot))
-
 		version := f.forkSchedule().DataVersion(eth2p0.Epoch(slot / f.slotsPerEpoch))
 
-		data, err = core.NewNoPayloadAttestationData(version, eth2p0.Slot(slot))
-		if err != nil {
-			return nil, err
-		}
+		return core.NewNoPayloadAttestationData(version, eth2p0.Slot(slot))
 	} else if err != nil {
-		return nil, err
+		return core.VersionedPayloadAttestationData{}, err
 	} else if eth2Resp.Data == nil {
-		return nil, errors.New("payload attestation data is nil")
-	} else {
-		data, err = core.NewVersionedPayloadAttestationData(eth2Resp.Data)
-		if err != nil {
-			return nil, err
-		}
+		return core.VersionedPayloadAttestationData{}, errors.New("payload attestation data is nil")
 	}
 
+	return core.NewVersionedPayloadAttestationData(eth2Resp.Data)
+}
+
+// payloadAttestationSet returns the unsigned data set attesting the data for each validator of the set.
+func payloadAttestationSet(data core.VersionedPayloadAttestationData, defSet core.DutyDefinitionSet) core.UnsignedDataSet {
 	resp := make(core.UnsignedDataSet)
 	for pubkey := range defSet {
 		resp[pubkey] = data
 	}
 
-	return resp, nil
+	return resp
 }
 
 // fetchContributionData fetches the sync committee contribution data.

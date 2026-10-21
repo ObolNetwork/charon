@@ -37,10 +37,9 @@ func TestSlotOffsetPayloadAttestation(t *testing.T) {
 
 	const gloasSlot = 64 * 16
 
-	// The payload attestation duty is triggered when the builder's payload is due (1/2 into the
-	// slot), not at its own deadline of 3/4 into the slot, so that consensus, partial signature
-	// exchange and submission can complete before the deadline.
-	require.Equal(t, 6*time.Second, offsetFunc(Duty{Slot: gloasSlot, Type: DutyPayloadAttestation}))
+	// Payload attestations are due 3/4 into the slot. Note the scheduler triggers the duty an interval
+	// ahead, once the payload is due.
+	require.Equal(t, 9*time.Second, offsetFunc(Duty{Slot: gloasSlot, Type: DutyPayloadAttestation}))
 
 	// The duty doesn't exist before the gloas fork.
 	require.Zero(t, offsetFunc(Duty{Slot: gloasSlot - 1, Type: DutyPayloadAttestation}))
@@ -51,8 +50,8 @@ func TestSlotOffsetExecutionPayloadEnvelope(t *testing.T) {
 
 	const gloasSlot = 64 * 16
 
-	// The self-built payload envelope is due at the payload deadline (1/2 into the slot), the same
-	// offset the payload attestation anchors to, so the bcast delay reads as margin-to-deadline.
+	// The self-built payload envelope is due at the payload deadline (1/2 into the slot), so the
+	// bcast delay reads as margin-to-deadline.
 	require.Equal(t, 6*time.Second, offsetFunc(Duty{Slot: gloasSlot, Type: DutyExecutionPayloadEnvelope}))
 
 	// The duty doesn't exist before the gloas fork.
