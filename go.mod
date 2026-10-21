@@ -2,6 +2,8 @@ module github.com/obolnetwork/charon
 
 go 1.27
 
+toolchain go1.27.3
+
 require (
 	github.com/OffchainLabs/go-bitfield v0.0.0-20251031151322-f427d04d8506
 	github.com/attestantio/go-builder-client v0.8.0
