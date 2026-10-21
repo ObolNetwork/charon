@@ -1,5 +1,5 @@
 # Container for building Go binary.
-FROM golang:1.26.6-trixie AS builder
+FROM golang:1.27.3-trixie AS builder
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential git
 
@@ -24,6 +24,11 @@ RUN echo "Built charon version=$(./charon version)"
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates fio wget \
   && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Distrust the emSign ECC Root CA - G3 and AAA Certificate Services roots in the
+# system store (used by wget and other non-Go tools in the image) until Debian's
+# ca-certificates drops them. Remove once the base image ships the update.
+RUN sed -i -E 's#^(mozilla/(emSign_ECC_Root_CA_-_G3|Comodo_AAA_Services_root)\.crt)$#!\1#' /etc/ca-certificates.conf \
+  && update-ca-certificates --fresh
 ARG GITHUB_SHA=local
 ENV GITHUB_SHA=${GITHUB_SHA}
 
