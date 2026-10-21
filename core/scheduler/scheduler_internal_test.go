@@ -190,19 +190,32 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 	return sched, schedVals
 }
 
-// TestTriggerOffset asserts that payload attestation duties are triggered once the payload is due,
-// ahead of their own due time, while other duties are triggered at their slot offset.
+// TestTriggerOffset asserts that gloas attester duties are triggered at the start of the slot and
+// payload attestation duties once the payload is due, ahead of their own due times, while other
+// duties are triggered at their slot offset.
 func TestTriggerOffset(t *testing.T) {
+	const gloasEpoch = 2
+
 	offsets := map[core.DutyType]time.Duration{
 		core.DutyAttester:                 3 * time.Second,
 		core.DutyExecutionPayloadEnvelope: 6 * time.Second,
 		core.DutyPayloadAttestation:       9 * time.Second,
 	}
 
-	sched := &Scheduler{slotOffsetFunc: func(duty core.Duty) time.Duration { return offsets[duty.Type] }}
+	sched := &Scheduler{
+		slotOffsetFunc: func(duty core.Duty) time.Duration { return offsets[duty.Type] },
+		forkSchedule: func() eth2wrap.ForkForkSchedule {
+			return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: gloasEpoch}}
+		},
+	}
 
-	require.Equal(t, 3*time.Second, sched.triggerOffset(core.NewAttesterDuty(1)))
-	require.Equal(t, 6*time.Second, sched.triggerOffset(core.NewPayloadAttestationDuty(1)))
+	preGloas := core.Slot{Slot: 1, SlotsPerEpoch: 32}
+	gloas := core.Slot{Slot: gloasEpoch * 32, SlotsPerEpoch: 32}
+
+	require.Equal(t, 3*time.Second, sched.triggerOffset(preGloas, core.NewAttesterDuty(preGloas.Slot)))
+	require.Equal(t, time.Duration(0), sched.triggerOffset(gloas, core.NewAttesterDuty(gloas.Slot)))
+	require.Equal(t, 6*time.Second, sched.triggerOffset(gloas, core.NewPayloadAttestationDuty(gloas.Slot)))
+	require.Equal(t, 6*time.Second, sched.triggerOffset(gloas, core.Duty{Slot: gloas.Slot, Type: core.DutyExecutionPayloadEnvelope}))
 }
 
 func TestResolveAttDuties(t *testing.T) {

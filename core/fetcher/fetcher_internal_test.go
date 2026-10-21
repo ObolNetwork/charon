@@ -395,11 +395,12 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 		return fetch, clock, fetched, &calls
 	}
 
-	fetchAsync := func(fetch *Fetcher) <-chan error {
+	// fetchAsync runs Fetch in the background, returning its error channel.
+	fetchAsync := func(ctx context.Context, fetch *Fetcher) <-chan error {
 		errCh := make(chan error, 1)
 
 		go func() {
-			errCh <- fetch.Fetch(t.Context(), duty, defSet)
+			errCh <- fetch.Fetch(ctx, duty, defSet)
 		}()
 
 		return errCh
@@ -438,14 +439,14 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 	t.Run("payload and blob data seen", func(t *testing.T) {
 		fetch, _, fetched, calls := setup(t, payloadDue, response{data: seen})
 
-		requireFetched(t, fetched, fetchAsync(fetch), seen)
+		requireFetched(t, fetched, fetchAsync(t.Context(), fetch), seen)
 		require.EqualValues(t, 1, calls.Load())
 	})
 
 	t.Run("blob data seen by the due time", func(t *testing.T) {
 		fetch, clock, fetched, calls := setup(t, payloadDue, response{data: blobMissing}, response{data: seen})
 
-		errCh := fetchAsync(fetch)
+		errCh := fetchAsync(t.Context(), fetch)
 
 		requireRefetchedAtDue(t, clock, fetched)
 
@@ -456,7 +457,7 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 	t.Run("blob data missing at the due time", func(t *testing.T) {
 		fetch, clock, fetched, calls := setup(t, payloadDue, response{data: blobMissing}, response{data: blobMissing})
 
-		errCh := fetchAsync(fetch)
+		errCh := fetchAsync(t.Context(), fetch)
 
 		requireRefetchedAtDue(t, clock, fetched)
 
@@ -468,7 +469,7 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 		late := &gloas.PayloadAttestationData{BeaconBlockRoot: root, Slot: slot}
 		fetch, clock, fetched, calls := setup(t, payloadDue, response{err: eth2client.ErrNoPayloadAttestationData}, response{data: late})
 
-		errCh := fetchAsync(fetch)
+		errCh := fetchAsync(t.Context(), fetch)
 
 		requireRefetchedAtDue(t, clock, fetched)
 
@@ -479,7 +480,7 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 	t.Run("fetch error before the due time", func(t *testing.T) {
 		fetch, clock, fetched, calls := setup(t, payloadDue, response{err: errFetch}, response{data: blobMissing})
 
-		errCh := fetchAsync(fetch)
+		errCh := fetchAsync(t.Context(), fetch)
 
 		requireRefetchedAtDue(t, clock, fetched)
 
@@ -490,7 +491,7 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 	t.Run("fetch error at the due time", func(t *testing.T) {
 		fetch, clock, _, _ := setup(t, payloadDue, response{err: errFetch}, response{err: errFetch})
 
-		errCh := fetchAsync(fetch)
+		errCh := fetchAsync(t.Context(), fetch)
 
 		require.NoError(t, clock.BlockUntilContext(t.Context(), 1))
 		clock.Advance(dueTime.Sub(payloadDue))
@@ -507,7 +508,7 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 		// Fetch starts after the due time, e.g. upon a retry, and fetches once.
 		fetch, _, fetched, calls := setup(t, dueTime.Add(time.Second), response{data: blobMissing})
 
-		requireFetched(t, fetched, fetchAsync(fetch), blobMissing)
+		requireFetched(t, fetched, fetchAsync(t.Context(), fetch), blobMissing)
 		require.EqualValues(t, 1, calls.Load())
 	})
 }

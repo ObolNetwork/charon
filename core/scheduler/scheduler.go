@@ -384,9 +384,6 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 		go func(duty core.Duty, defSet core.DutyDefinitionSet) {
 			defer span.End()
 
-			// From gloas the fetcher waits for the block itself, so attester duties are triggered at
-			// the start of the block proposal interval, the start of the slot, for consensus to start
-			// one interval ahead of the attestation due time.
 			gloasAttester := duty.Type == core.DutyAttester && s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch()))
 
 			// Special handling for attester duties when FetchAttOnBlock features are enabled
@@ -396,7 +393,7 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 				}
 
 				s.eventTriggeredAttestations.Store(slot.Slot, true)
-			} else if !gloasAttester && !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.triggerOffset(duty)) {
+			} else if !delaySlotOffset(dutyCtx, slot, duty, s.delayFunc, s.triggerOffset(slot, duty)) {
 				return // context cancelled
 			}
 
@@ -425,11 +422,19 @@ func (s *Scheduler) scheduleSlot(ctx context.Context, slot core.Slot) {
 }
 
 // triggerOffset returns the offset into the slot at which the duty is triggered, its slot offset.
-// Payload attestation duties are triggered once the payload is due instead, an interval ahead of their
-// due time, for consensus to start while the fetcher waits for the payload's blob data until then.
-func (s *Scheduler) triggerOffset(duty core.Duty) time.Duration {
-	if duty.Type == core.DutyPayloadAttestation {
+// Duties the fetcher waits for data of are triggered an interval ahead of their due time instead, for
+// consensus to start meanwhile: from gloas attester duties at the start of the slot, as the fetcher
+// waits for the block itself, and payload attestation duties once the payload is due, as the fetcher
+// waits for the payload's blob data.
+func (s *Scheduler) triggerOffset(slot core.Slot, duty core.Duty) time.Duration {
+	switch duty.Type {
+	case core.DutyAttester:
+		if s.forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(slot.Epoch())) {
+			return 0
+		}
+	case core.DutyPayloadAttestation:
 		return s.slotOffsetFunc(core.Duty{Slot: duty.Slot, Type: core.DutyExecutionPayloadEnvelope})
+	default:
 	}
 
 	return s.slotOffsetFunc(duty)
