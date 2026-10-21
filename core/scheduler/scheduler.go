@@ -613,20 +613,28 @@ func (s *Scheduler) resolveAttDuties(ctx context.Context, slot core.Slot, vals v
 	return nil
 }
 
-// resolveProDuties resolves proposer duties for the given validators. It uses the v2 endpoint since, unlike v1's,
-// its dependent root is already known when the next epoch's duties are resolved, at the epoch's last slot.
+// resolveProDuties resolves proposer duties for the given validators. From the gloas fork it uses the v2 endpoint,
+// whose dependent root is already known when the next epoch's duties are resolved at the epoch's last slot, and
+// which only gloas-ready beacon nodes serve.
 func (s *Scheduler) resolveProDuties(ctx context.Context, slot core.Slot, vals validators) error {
 	var proDuties []*eth2v1.ProposerDuty
 
+	epoch := eth2p0.Epoch(slot.Epoch())
+
+	proposerDuties, proposerDutiesCache := s.eth2Cl.ProposerDuties, s.eth2Cl.ProposerDutiesCache
+	if s.forkSchedule().Active(eth2wrap.Gloas, epoch) {
+		proposerDuties, proposerDutiesCache = s.eth2Cl.ProposerDutiesV2, s.eth2Cl.ProposerDutiesV2Cache
+	}
+
 	if featureset.Enabled(featureset.DisableDutiesCache) {
-		eth2Resp, err := s.eth2Cl.ProposerDutiesV2(ctx, &eth2api.ProposerDutiesOpts{Epoch: eth2p0.Epoch(slot.Epoch()), Indices: vals.Indexes()})
+		eth2Resp, err := proposerDuties(ctx, &eth2api.ProposerDutiesOpts{Epoch: epoch, Indices: vals.Indexes()})
 		if err != nil {
 			return err
 		}
 
 		proDuties = eth2Resp.Data
 	} else {
-		cachedResp, err := s.eth2Cl.ProposerDutiesV2Cache(ctx, eth2p0.Epoch(slot.Epoch()), vals.Indexes())
+		cachedResp, err := proposerDutiesCache(ctx, epoch, vals.Indexes())
 		if err != nil {
 			return err
 		}

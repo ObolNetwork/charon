@@ -92,7 +92,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 	// Randomize duty pubkeys
 	oldAttesterFunc := eth2Cl.AttesterDutiesFunc
 	oldSyncFunc := eth2Cl.SyncCommitteeDutiesFunc
-	oldProposerFunc := eth2Cl.ProposerDutiesV2Func
+	oldProposerFunc := eth2Cl.ProposerDutiesFunc
 
 	eth2Cl.AttesterDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.AttesterDuty, error) {
 		res, err := oldAttesterFunc(ctx, epoch, indices)
@@ -146,7 +146,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return eth2wrap.SyncDutyWithMeta{Duties: res, Metadata: nil}, nil
 	}
 
-	eth2Cl.ProposerDutiesV2Func = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
+	eth2Cl.ProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) ([]*eth2v1.ProposerDuty, error) {
 		res, err := oldProposerFunc(ctx, epoch, indices)
 		if err != nil {
 			return nil, err
@@ -159,7 +159,7 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		return res, nil
 	}
 
-	eth2Cl.CachedProposerDutiesV2Func = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+	eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, indices []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
 		res, err := oldProposerFunc(ctx, epoch, indices)
 		if err != nil {
 			return eth2wrap.ProposerDutyWithMeta{}, err
@@ -184,8 +184,12 @@ func setupScheduler(t *testing.T) (*Scheduler, validators) {
 		})
 	}
 
+	forkSchedule, err := eth2wrap.FetchForkConfig(ctx, eth2Cl)
+	require.NoError(t, err)
+
 	sched := &Scheduler{
 		eth2Cl:         eth2Cl,
+		forkSchedule:   func() eth2wrap.ForkForkSchedule { return forkSchedule },
 		builderEnabled: false,
 	}
 
@@ -394,4 +398,51 @@ func TestHandleHeadEventGloas(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestResolveProDutiesVersion verifies that proposer duties are resolved via v1 before the gloas fork and
+// via v2 from it, since v2 is only served by gloas-ready beacon nodes.
+func TestResolveProDutiesVersion(t *testing.T) {
+	var t0 time.Time
+
+	eth2Cl, err := beaconmock.New(
+		t.Context(),
+		beaconmock.WithValidatorSet(beaconmock.ValidatorSetA),
+		beaconmock.WithGenesisTime(t0),
+		beaconmock.WithDeterministicAttesterDuties(0),
+		beaconmock.WithDeterministicProposerDuties(0),
+		beaconmock.WithDeterministicSyncCommDuties(2, 2),
+		beaconmock.WithSlotsPerEpoch(1),
+		beaconmock.WithSpecOverride("GLOAS_FORK_VERSION", "0x07000000"),
+		beaconmock.WithSpecOverride("GLOAS_FORK_EPOCH", "2"),
+	)
+	require.NoError(t, err)
+
+	var v1Epochs, v2Epochs []eth2p0.Epoch
+
+	v1Func, v2Func := eth2Cl.CachedProposerDutiesFunc, eth2Cl.CachedProposerDutiesV2Func
+	eth2Cl.CachedProposerDutiesFunc = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		v1Epochs = append(v1Epochs, epoch)
+
+		return v1Func(ctx, epoch, vidxs)
+	}
+	eth2Cl.CachedProposerDutiesV2Func = func(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (eth2wrap.ProposerDutyWithMeta, error) {
+		v2Epochs = append(v2Epochs, epoch)
+
+		return v2Func(ctx, epoch, vidxs)
+	}
+
+	forkSchedule, err := eth2wrap.FetchForkConfig(t.Context(), eth2Cl)
+	require.NoError(t, err)
+
+	sched, err := New(t.Context(), nil, eth2Cl, func() eth2wrap.ForkForkSchedule { return forkSchedule }, false)
+	require.NoError(t, err)
+
+	for epoch := range uint64(3) {
+		slot := core.Slot{Slot: epoch, Time: t0.Add(time.Duration(epoch) * time.Second), SlotDuration: time.Second, SlotsPerEpoch: 1}
+		require.NoError(t, sched.resolveDuties(t.Context(), slot))
+	}
+
+	require.Equal(t, []eth2p0.Epoch{0, 1}, v1Epochs)
+	require.Equal(t, []eth2p0.Epoch{2}, v2Epochs)
 }
