@@ -121,6 +121,8 @@ func WithBeaconMockFuzzer() Option {
 
 			return eth2wrap.ProposerDutyWithMeta{Duties: duties, Metadata: nil}, nil
 		}
+		mock.ProposerDutiesV2Func = mock.ProposerDutiesFunc
+		mock.CachedProposerDutiesV2Func = mock.CachedProposerDutiesFunc
 
 		mock.AttestationDataFunc = func(context.Context, eth2p0.Slot, eth2p0.CommitteeIndex) (*eth2p0.AttestationData, error) {
 			var attData *eth2p0.AttestationData

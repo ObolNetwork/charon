@@ -94,6 +94,37 @@ func (h *synthWrapper) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epo
 	return ProposerDutyWithMeta{Duties: eth2Resp.Data, Metadata: eth2Resp.Metadata}, nil
 }
 
+// ProposerDutiesV2 returns the same duties as ProposerDuties, the two matching under the fulu proposer lookahead,
+// with the upstream v2 metadata, whose dependent root validator clients sign into their proposer preferences.
+func (h *synthWrapper) ProposerDutiesV2(ctx context.Context, opts *eth2api.ProposerDutiesOpts) (*eth2api.Response[[]*eth2v1.ProposerDuty], error) {
+	duties, err := h.synthProposerCache.Duties(ctx, h.Client, opts.Epoch)
+	if err != nil {
+		return nil, err
+	}
+
+	eth2Resp, err := h.Client.ProposerDutiesV2(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eth2api.Response[[]*eth2v1.ProposerDuty]{Data: duties, Metadata: eth2Resp.Metadata}, nil
+}
+
+// ProposerDutiesV2Cache returns the same duties as ProposerDutiesV2, with the metadata from the wrapped client's cache.
+func (h *synthWrapper) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vidxs []eth2p0.ValidatorIndex) (ProposerDutyWithMeta, error) {
+	duties, err := h.synthProposerCache.Duties(ctx, h.Client, epoch)
+	if err != nil {
+		return ProposerDutyWithMeta{}, err
+	}
+
+	cached, err := h.Client.ProposerDutiesV2Cache(ctx, epoch, vidxs)
+	if err != nil {
+		return ProposerDutyWithMeta{}, err
+	}
+
+	return ProposerDutyWithMeta{Duties: duties, Metadata: cached.Metadata}, nil
+}
+
 func (h *synthWrapper) SubmitProposalPreparations(ctx context.Context, preparations []*eth2v1.ProposalPreparation) error {
 	h.setFeeRecipients(preparations)
 

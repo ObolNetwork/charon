@@ -47,14 +47,14 @@ func wireValidatorMock(ctx context.Context, conf Config, eth2Cl eth2wrap.Client,
 		return err
 	}
 
-	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, pubshares), signer, pubshares, genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, conf.BuilderAPI, conf.BuilderURLs)
+	vmock := validatormock.New(ctx, newVMockEth2Provider(conf, forkSchedule, pubshares), signer, pubshares, genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, conf.BuilderAPI, conf.BuilderURLs)
 	sched.SubscribeSlots(vmock.SlotTicked)
 
 	return nil
 }
 
 // newVMockEth2Provider returns a function that returns a cached validator mock eth2 client.
-func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth2wrap.Client, error) {
+func newVMockEth2Provider(conf Config, forkSchedule func() eth2wrap.ForkForkSchedule, pubshares []eth2p0.BLSPubKey) func() (eth2wrap.Client, error) {
 	var (
 		cached eth2wrap.Client
 		mu     sync.Mutex
@@ -96,7 +96,7 @@ func newVMockEth2Provider(conf Config, pubshares []eth2p0.BLSPubKey) func() (eth
 			valCache := eth2wrap.NewValidatorCache(cached, pubshares)
 			cached.SetValidatorCache(valCache.GetByHead)
 
-			dutiesCache := eth2wrap.NewDutiesCache(cached, []eth2p0.ValidatorIndex{})
+			dutiesCache := eth2wrap.NewDutiesCache(cached, []eth2p0.ValidatorIndex{}, forkSchedule)
 			cached.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 
 			break
