@@ -9,6 +9,9 @@ on:
 name: Build and Publish Docker Image
 jobs:
   build-docker:
+    permissions:
+      contents: read
+      packages: write
     runs-on: charon-ci
     name: Build Docker Image
     steps:
