@@ -24,7 +24,7 @@ func (c Client) PostTestResult(ctx context.Context, jsonTestResult []byte) error
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, u, jsonTestResult, nil)
+	err = c.httpPost(ctx, u, jsonTestResult, nil)
 	if err != nil {
 		return errors.Wrap(err, "http Obol API POST request")
 	}
