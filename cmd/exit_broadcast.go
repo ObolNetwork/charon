@@ -57,6 +57,7 @@ func newBcastFullExitCmd(runFunc func(context.Context, exitConfig) error) *cobra
 		{publishAddress, false},
 		{privateKeyPath, false},
 		{lockFilePath, false},
+		{noVerify, false},
 		{executionClientRPCEndpoint, false},
 		{validatorKeysDir, false},
 		{exitEpoch, false},
@@ -126,7 +127,7 @@ func runBcastFullExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key")
 	}
 
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
+	cl, err := loadExitLock(ctx, config)
 	if err != nil {
 		return err
 	}
