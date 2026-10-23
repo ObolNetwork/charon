@@ -167,11 +167,11 @@ func TestCreateDkgAddresses(t *testing.T) {
 			expectedErr:  "invalid fee recipient address",
 		},
 		{
+			// A zero fee recipient only warns.
 			name:         "zero fee recipient on mainnet",
 			network:      eth2util.Mainnet.Name,
 			feeRecipient: zeroAddress,
 			withdrawal:   validEthAddr,
-			expectedErr:  "zero fee recipient address forbidden on this network",
 		},
 		{
 			name:         "zero fee recipient on testnet",
@@ -357,7 +357,7 @@ func TestChecksumAddrs(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := checksumAddrs(test.addrs, "withdrawal", test.network)
+			got, err := checksumAddrs(t.Context(), test.addrs, "withdrawal", test.network, true)
 			if test.expectedErr != "" {
 				require.ErrorContains(t, err, test.expectedErr)
 				return
@@ -372,15 +372,27 @@ func TestChecksumAddrs(t *testing.T) {
 func TestChecksumValidatorAddrs(t *testing.T) {
 	const checksummed = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
 
-	fee, wd, err := checksumValidatorAddrs([]string{strings.ToLower(checksummed)}, []string{strings.ToLower(checksummed)}, eth2util.Mainnet.Name)
+	ctx := t.Context()
+
+	fee, wd, err := checksumValidatorAddrs(ctx, []string{strings.ToLower(checksummed)}, []string{strings.ToLower(checksummed)}, eth2util.Mainnet.Name, true)
 	require.NoError(t, err)
 	require.Equal(t, []string{checksummed}, fee)
 	require.Equal(t, []string{checksummed}, wd)
 
-	_, _, err = checksumValidatorAddrs([]string{zeroAddress}, []string{checksummed}, eth2util.Mainnet.Name)
-	require.ErrorContains(t, err, "zero fee recipient address forbidden on this network")
+	// A zero fee recipient only warns.
+	fee, _, err = checksumValidatorAddrs(ctx, []string{zeroAddress}, []string{checksummed}, eth2util.Mainnet.Name, true)
+	require.NoError(t, err)
+	require.Equal(t, []string{zeroAddress}, fee)
 
-	_, _, err = checksumValidatorAddrs([]string{checksummed}, []string{"0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"}, eth2util.Mainnet.Name)
+	// A zero withdrawal address is rejected only when asked to.
+	_, _, err = checksumValidatorAddrs(ctx, []string{checksummed}, []string{zeroAddress}, eth2util.Mainnet.Name, true)
+	require.ErrorContains(t, err, "zero withdrawal address forbidden on this network")
+
+	_, wd, err = checksumValidatorAddrs(ctx, []string{checksummed}, []string{zeroAddress}, eth2util.Gnosis.Name, false)
+	require.NoError(t, err)
+	require.Equal(t, []string{zeroAddress}, wd)
+
+	_, _, err = checksumValidatorAddrs(ctx, []string{checksummed}, []string{"0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"}, eth2util.Mainnet.Name, true)
 	require.ErrorContains(t, err, "invalid withdrawal address")
 }
 

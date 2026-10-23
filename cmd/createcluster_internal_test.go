@@ -599,18 +599,17 @@ func TestNewDefFromConfigValidation(t *testing.T) {
 			withdrawal:   zeroAddress,
 		},
 		{
+			// Zero addresses only warn: split existing keys of active validators never use deposit data.
 			name:         "mainnet zero withdrawal",
 			network:      eth2util.Mainnet.Name,
 			feeRecipient: validEthAddr,
 			withdrawal:   zeroAddress,
-			expectedErr:  "zero withdrawal address forbidden on this network",
 		},
 		{
 			name:         "mainnet zero fee recipient",
 			network:      eth2util.Mainnet.Name,
 			feeRecipient: zeroAddress,
 			withdrawal:   validEthAddr,
-			expectedErr:  "zero fee recipient address forbidden on this network",
 		},
 		{
 			name:         "bad withdrawal checksum",

@@ -143,7 +143,7 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return err
 	}
 
-	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = checksumValidatorAddrs(conf.FeeRecipientAddrs, conf.WithdrawalAddrs, conf.Network)
+	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = checksumValidatorAddrs(ctx, conf.FeeRecipientAddrs, conf.WithdrawalAddrs, conf.Network, true)
 	if err != nil {
 		return err
 	}
@@ -298,8 +298,10 @@ func checksumAddress(addr string) (string, error) {
 
 // checksumAddrs validates the provided addresses (see checksumAddress) of the given kind
 // (e.g. "withdrawal" or "fee recipient") and returns their EIP-55 checksummed forms.
-// The zero address is forbidden on mainnet and gnosis.
-func checksumAddrs(addrs []string, kind string, network string) ([]string, error) {
+// The zero address on mainnet or gnosis is an error if rejectZero is set, otherwise a warning:
+// it is legitimate when the generated deposit data is never used, e.g. split existing keys of
+// validators that are already active.
+func checksumAddrs(ctx context.Context, addrs []string, kind string, network string, rejectZero bool) ([]string, error) {
 	resp := make([]string, 0, len(addrs))
 	for _, addr := range addrs {
 		checksummed, err := checksumAddress(addr)
@@ -308,7 +310,11 @@ func checksumAddrs(addrs []string, kind string, network string) ([]string, error
 		}
 
 		if isMainOrGnosis(network) && checksummed == zeroAddress {
-			return nil, errors.New("zero "+kind+" address forbidden on this network", z.Str("network", network))
+			if rejectZero {
+				return nil, errors.New("zero "+kind+" address forbidden on this network", z.Str("network", network))
+			}
+
+			log.Warn(ctx, "Zero "+kind+" address on "+network+": only continue if the generated deposit data and registrations will never be used", nil, z.Str("network", network))
 		}
 
 		resp = append(resp, checksummed)
@@ -318,13 +324,15 @@ func checksumAddrs(addrs []string, kind string, network string) ([]string, error
 }
 
 // checksumValidatorAddrs validates and checksums both fee recipient and withdrawal addresses.
-func checksumValidatorAddrs(feeRecipientAddrs, withdrawalAddrs []string, network string) (checksummedFeeRecipients []string, checksummedWithdrawals []string, err error) {
-	checksummedFeeRecipients, err = checksumAddrs(feeRecipientAddrs, "fee recipient", network)
+// A zero fee recipient only warns; a zero withdrawal address on mainnet or gnosis is an error
+// if rejectZeroWithdrawal is set, otherwise a warning.
+func checksumValidatorAddrs(ctx context.Context, feeRecipientAddrs, withdrawalAddrs []string, network string, rejectZeroWithdrawal bool) (checksummedFeeRecipients []string, checksummedWithdrawals []string, err error) {
+	checksummedFeeRecipients, err = checksumAddrs(ctx, feeRecipientAddrs, "fee recipient", network, false)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	checksummedWithdrawals, err = checksumAddrs(withdrawalAddrs, "withdrawal", network)
+	checksummedWithdrawals, err = checksumAddrs(ctx, withdrawalAddrs, "withdrawal", network, rejectZeroWithdrawal)
 	if err != nil {
 		return nil, nil, err
 	}

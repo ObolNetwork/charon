@@ -464,18 +464,7 @@ func TestRunAddValidatorsAddressValidation(t *testing.T) {
 		withdrawal   string
 		expectedErr  string
 	}{
-		{
-			name:         "zero withdrawal on mainnet",
-			feeRecipient: validEthAddr,
-			withdrawal:   zeroAddress,
-			expectedErr:  "zero withdrawal address forbidden on this network",
-		},
-		{
-			name:         "zero fee recipient on mainnet",
-			feeRecipient: zeroAddress,
-			withdrawal:   validEthAddr,
-			expectedErr:  "zero fee recipient address forbidden on this network",
-		},
+		// Zero addresses only warn here (see TestChecksumValidatorAddrs), so they would proceed to a DKG.
 		{
 			name:         "bad withdrawal checksum",
 			feeRecipient: validEthAddr,

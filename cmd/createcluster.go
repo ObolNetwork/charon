@@ -940,7 +940,7 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 
 	// Validate and normalise addresses to their EIP-55 checksummed form before writing them into the definition.
-	feeRecipientAddrs, withdrawalAddrs, err = checksumValidatorAddrs(feeRecipientAddrs, withdrawalAddrs, network)
+	feeRecipientAddrs, withdrawalAddrs, err = checksumValidatorAddrs(ctx, feeRecipientAddrs, withdrawalAddrs, network, false)
 	if err != nil {
 		return cluster.Definition{}, err
 	}
@@ -1070,7 +1070,7 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 
 	// Addresses in an existing definition are covered by its hashes and signatures, so they are
 	// only validated here, not normalised.
-	_, _, err = checksumValidatorAddrs(def.FeeRecipientAddresses(), def.WithdrawalAddresses(), network)
+	_, _, err = checksumValidatorAddrs(ctx, def.FeeRecipientAddresses(), def.WithdrawalAddresses(), network, true)
 
 	return err
 }

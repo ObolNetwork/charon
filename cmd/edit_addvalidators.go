@@ -109,7 +109,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	// Validate and normalise new addresses to their EIP-55 checksummed form, so that all operators
 	// produce the same cluster lock regardless of the address case they provided.
-	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = checksumValidatorAddrs(conf.FeeRecipientAddrs, conf.WithdrawalAddrs, network)
+	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = checksumValidatorAddrs(ctx, conf.FeeRecipientAddrs, conf.WithdrawalAddrs, network, false)
 	if err != nil {
 		return err
 	}
