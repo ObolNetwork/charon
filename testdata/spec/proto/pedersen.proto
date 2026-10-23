@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package dkg.dkgpb.v1;
+
+// NodePubKeyMessage wraps the ephemeral node public key sent during the first broadcast.
+message NodePubKeyMessage {
+  bytes session_id = 1;
+  bytes public_key = 2;
+  optional NodePubKeyShares shares = 3;
+}
+
+// NodePubKeyShares contains public key shares for resharing ceremonies.
+message NodePubKeyShares {
+  repeated bytes public_key_shares = 1;
+}
+
+// ValidatorPubKeyShareMessage contains a validator public key share.
+message ValidatorPubKeyShareMessage {
+  bytes session_id = 1;
+  bytes public_key_share = 2;
+}
+
+// PedersenDealBundle contains the dealer's encrypted shares.
+message PedersenDealBundle {
+  uint32 dealer_index = 1;
+  repeated PedersenDeal deals = 2;
+  repeated bytes public = 3;
+  bytes session_id = 4;
+  bytes signature = 5;
+}
+
+// PedersenDeal contains an encrypted share for a single recipient.
+message PedersenDeal {
+  uint32 share_index = 1;
+  bytes encrypted_share = 2;
+}
+
+// PedersenResponseBundle contains responses to deals.
+message PedersenResponseBundle {
+  uint32 share_index = 1;
+  repeated PedersenResponse responses = 2;
+  bytes session_id = 3;
+  bytes signature = 4;
+}
+
+// PedersenResponse indicates acceptance/rejection of a deal.
+message PedersenResponse {
+  uint32 dealer_index = 1;
+  bool status = 2;
+}
+
+// PedersenJustificationBundle contains justifications for rejected deals.
+message PedersenJustificationBundle {
+  uint32 dealer_index = 1;
+  repeated PedersenJustification justifications = 2;
+  bytes session_id = 3;
+  bytes signature = 4;
+}
+
+// PedersenJustification reveals a share to resolve disputes.
+message PedersenJustification {
+  uint32 share_index = 1;
+  bytes share = 2;
+}

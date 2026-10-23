@@ -1,0 +1,3036 @@
+{
+  "suite": "timer_deadlines",
+  "description": "First-expiry deadlines of the eager double linear consensus round timer. deadline_nanos = genesis + slot_duration * slot + duty_start_delay + round_timeout, all in integer nanoseconds.",
+  "provenance": {
+    "source": "spec",
+    "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+    "generated_by": "scripts/generate_test_vectors.py",
+    "note": "Computed by this spec from Charon's core/consensus/timer/roundtimer.go. Integer nanoseconds are normative: Charon uses time.Duration, and a float cannot hold a unix timestamp to nanosecond resolution."
+  },
+  "cases": [
+    {
+      "name": "proposer_slot0_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606824024500000000
+    },
+    {
+      "name": "proposer_slot0_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "proposer_slot0_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "proposer_slot0_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "proposer_slot1_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606824036500000000
+    },
+    {
+      "name": "proposer_slot1_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824037000000000
+    },
+    {
+      "name": "proposer_slot1_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824038000000000
+    },
+    {
+      "name": "proposer_slot1_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824045000000000
+    },
+    {
+      "name": "proposer_slot7231_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606910796500000000
+    },
+    {
+      "name": "proposer_slot7231_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606910797000000000
+    },
+    {
+      "name": "proposer_slot7231_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606910798000000000
+    },
+    {
+      "name": "proposer_slot7231_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606910805000000000
+    },
+    {
+      "name": "attester_slot0_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824028000000000
+    },
+    {
+      "name": "attester_slot0_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824029000000000
+    },
+    {
+      "name": "attester_slot0_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824030000000000
+    },
+    {
+      "name": "attester_slot0_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824037000000000
+    },
+    {
+      "name": "attester_slot1_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824040000000000
+    },
+    {
+      "name": "attester_slot1_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824041000000000
+    },
+    {
+      "name": "attester_slot1_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824042000000000
+    },
+    {
+      "name": "attester_slot1_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824049000000000
+    },
+    {
+      "name": "attester_slot7231_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606910800000000000
+    },
+    {
+      "name": "attester_slot7231_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606910801000000000
+    },
+    {
+      "name": "attester_slot7231_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606910802000000000
+    },
+    {
+      "name": "attester_slot7231_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 4000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606910809000000000
+    },
+    {
+      "name": "aggregator_slot0_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824032000000000
+    },
+    {
+      "name": "aggregator_slot0_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "aggregator_slot0_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824034000000000
+    },
+    {
+      "name": "aggregator_slot0_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824041000000000
+    },
+    {
+      "name": "aggregator_slot1_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824044000000000
+    },
+    {
+      "name": "aggregator_slot1_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824045000000000
+    },
+    {
+      "name": "aggregator_slot1_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824046000000000
+    },
+    {
+      "name": "aggregator_slot1_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824053000000000
+    },
+    {
+      "name": "aggregator_slot7231_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606910804000000000
+    },
+    {
+      "name": "aggregator_slot7231_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606910805000000000
+    },
+    {
+      "name": "aggregator_slot7231_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606910806000000000
+    },
+    {
+      "name": "aggregator_slot7231_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606910813000000000
+    },
+    {
+      "name": "sync_contribution_slot0_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824032000000000
+    },
+    {
+      "name": "sync_contribution_slot0_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "sync_contribution_slot0_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824034000000000
+    },
+    {
+      "name": "sync_contribution_slot0_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824041000000000
+    },
+    {
+      "name": "sync_contribution_slot1_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824044000000000
+    },
+    {
+      "name": "sync_contribution_slot1_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824045000000000
+    },
+    {
+      "name": "sync_contribution_slot1_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824046000000000
+    },
+    {
+      "name": "sync_contribution_slot1_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824053000000000
+    },
+    {
+      "name": "sync_contribution_slot7231_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606910804000000000
+    },
+    {
+      "name": "sync_contribution_slot7231_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606910805000000000
+    },
+    {
+      "name": "sync_contribution_slot7231_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606910806000000000
+    },
+    {
+      "name": "sync_contribution_slot7231_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 8000000000,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606910813000000000
+    },
+    {
+      "name": "sync_message_slot0_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024000000000
+    },
+    {
+      "name": "sync_message_slot0_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "sync_message_slot0_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "sync_message_slot0_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "sync_message_slot1_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824036000000000
+    },
+    {
+      "name": "sync_message_slot1_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824037000000000
+    },
+    {
+      "name": "sync_message_slot1_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824038000000000
+    },
+    {
+      "name": "sync_message_slot1_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824045000000000
+    },
+    {
+      "name": "sync_message_slot7231_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606910796000000000
+    },
+    {
+      "name": "sync_message_slot7231_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606910797000000000
+    },
+    {
+      "name": "sync_message_slot7231_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606910798000000000
+    },
+    {
+      "name": "sync_message_slot7231_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606910805000000000
+    },
+    {
+      "name": "randao_slot0_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024000000000
+    },
+    {
+      "name": "randao_slot0_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "randao_slot0_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "randao_slot0_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "randao_slot1_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824036000000000
+    },
+    {
+      "name": "randao_slot1_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824037000000000
+    },
+    {
+      "name": "randao_slot1_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824038000000000
+    },
+    {
+      "name": "randao_slot1_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824045000000000
+    },
+    {
+      "name": "randao_slot7231_round1_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606910796000000000
+    },
+    {
+      "name": "randao_slot7231_round2_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606910797000000000
+    },
+    {
+      "name": "randao_slot7231_round3_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606910798000000000
+    },
+    {
+      "name": "randao_slot7231_round10_slotdur12s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 12000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606910805000000000
+    },
+    {
+      "name": "proposer_slot0_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606824024500000000
+    },
+    {
+      "name": "proposer_slot0_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "proposer_slot0_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "proposer_slot0_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "proposer_slot1_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606824029500000000
+    },
+    {
+      "name": "proposer_slot1_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824030000000000
+    },
+    {
+      "name": "proposer_slot1_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824031000000000
+    },
+    {
+      "name": "proposer_slot1_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824038000000000
+    },
+    {
+      "name": "proposer_slot7231_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606860179500000000
+    },
+    {
+      "name": "proposer_slot7231_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606860180000000000
+    },
+    {
+      "name": "proposer_slot7231_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606860181000000000
+    },
+    {
+      "name": "proposer_slot7231_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606860188000000000
+    },
+    {
+      "name": "attester_slot0_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824025666666666
+    },
+    {
+      "name": "attester_slot0_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824026666666666
+    },
+    {
+      "name": "attester_slot0_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824027666666666
+    },
+    {
+      "name": "attester_slot0_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824034666666666
+    },
+    {
+      "name": "attester_slot1_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824030666666666
+    },
+    {
+      "name": "attester_slot1_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824031666666666
+    },
+    {
+      "name": "attester_slot1_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824032666666666
+    },
+    {
+      "name": "attester_slot1_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824039666666666
+    },
+    {
+      "name": "attester_slot7231_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606860180666666666
+    },
+    {
+      "name": "attester_slot7231_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606860181666666666
+    },
+    {
+      "name": "attester_slot7231_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606860182666666666
+    },
+    {
+      "name": "attester_slot7231_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 1666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606860189666666666
+    },
+    {
+      "name": "aggregator_slot0_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824027333333333
+    },
+    {
+      "name": "aggregator_slot0_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824028333333333
+    },
+    {
+      "name": "aggregator_slot0_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824029333333333
+    },
+    {
+      "name": "aggregator_slot0_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824036333333333
+    },
+    {
+      "name": "aggregator_slot1_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824032333333333
+    },
+    {
+      "name": "aggregator_slot1_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824033333333333
+    },
+    {
+      "name": "aggregator_slot1_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824034333333333
+    },
+    {
+      "name": "aggregator_slot1_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824041333333333
+    },
+    {
+      "name": "aggregator_slot7231_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606860182333333333
+    },
+    {
+      "name": "aggregator_slot7231_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606860183333333333
+    },
+    {
+      "name": "aggregator_slot7231_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606860184333333333
+    },
+    {
+      "name": "aggregator_slot7231_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606860191333333333
+    },
+    {
+      "name": "sync_contribution_slot0_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824027333333333
+    },
+    {
+      "name": "sync_contribution_slot0_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824028333333333
+    },
+    {
+      "name": "sync_contribution_slot0_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824029333333333
+    },
+    {
+      "name": "sync_contribution_slot0_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824036333333333
+    },
+    {
+      "name": "sync_contribution_slot1_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824032333333333
+    },
+    {
+      "name": "sync_contribution_slot1_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824033333333333
+    },
+    {
+      "name": "sync_contribution_slot1_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824034333333333
+    },
+    {
+      "name": "sync_contribution_slot1_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824041333333333
+    },
+    {
+      "name": "sync_contribution_slot7231_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606860182333333333
+    },
+    {
+      "name": "sync_contribution_slot7231_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606860183333333333
+    },
+    {
+      "name": "sync_contribution_slot7231_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606860184333333333
+    },
+    {
+      "name": "sync_contribution_slot7231_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 3333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606860191333333333
+    },
+    {
+      "name": "sync_message_slot0_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024000000000
+    },
+    {
+      "name": "sync_message_slot0_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "sync_message_slot0_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "sync_message_slot0_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "sync_message_slot1_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824029000000000
+    },
+    {
+      "name": "sync_message_slot1_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824030000000000
+    },
+    {
+      "name": "sync_message_slot1_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824031000000000
+    },
+    {
+      "name": "sync_message_slot1_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824038000000000
+    },
+    {
+      "name": "sync_message_slot7231_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606860179000000000
+    },
+    {
+      "name": "sync_message_slot7231_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606860180000000000
+    },
+    {
+      "name": "sync_message_slot7231_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606860181000000000
+    },
+    {
+      "name": "sync_message_slot7231_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606860188000000000
+    },
+    {
+      "name": "randao_slot0_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024000000000
+    },
+    {
+      "name": "randao_slot0_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "randao_slot0_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "randao_slot0_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "randao_slot1_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824029000000000
+    },
+    {
+      "name": "randao_slot1_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824030000000000
+    },
+    {
+      "name": "randao_slot1_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824031000000000
+    },
+    {
+      "name": "randao_slot1_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824038000000000
+    },
+    {
+      "name": "randao_slot7231_round1_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606860179000000000
+    },
+    {
+      "name": "randao_slot7231_round2_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606860180000000000
+    },
+    {
+      "name": "randao_slot7231_round3_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606860181000000000
+    },
+    {
+      "name": "randao_slot7231_round10_slotdur5s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 5000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606860188000000000
+    },
+    {
+      "name": "proposer_slot0_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606824024500000000
+    },
+    {
+      "name": "proposer_slot0_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "proposer_slot0_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "proposer_slot0_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "proposer_slot1_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606824025500000000
+    },
+    {
+      "name": "proposer_slot1_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "proposer_slot1_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824027000000000
+    },
+    {
+      "name": "proposer_slot1_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824034000000000
+    },
+    {
+      "name": "proposer_slot7231_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1500000000,
+      "deadline_nanos": 1606831255500000000
+    },
+    {
+      "name": "proposer_slot7231_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606831256000000000
+    },
+    {
+      "name": "proposer_slot7231_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606831257000000000
+    },
+    {
+      "name": "proposer_slot7231_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 1,
+        "duty_type_name": "PROPOSER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606831264000000000
+    },
+    {
+      "name": "attester_slot0_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024333333333
+    },
+    {
+      "name": "attester_slot0_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025333333333
+    },
+    {
+      "name": "attester_slot0_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026333333333
+    },
+    {
+      "name": "attester_slot0_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033333333333
+    },
+    {
+      "name": "attester_slot1_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824025333333333
+    },
+    {
+      "name": "attester_slot1_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824026333333333
+    },
+    {
+      "name": "attester_slot1_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824027333333333
+    },
+    {
+      "name": "attester_slot1_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824034333333333
+    },
+    {
+      "name": "attester_slot7231_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606831255333333333
+    },
+    {
+      "name": "attester_slot7231_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606831256333333333
+    },
+    {
+      "name": "attester_slot7231_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606831257333333333
+    },
+    {
+      "name": "attester_slot7231_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 2,
+        "duty_type_name": "ATTESTER",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 333333333,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606831264333333333
+    },
+    {
+      "name": "aggregator_slot0_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024666666666
+    },
+    {
+      "name": "aggregator_slot0_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025666666666
+    },
+    {
+      "name": "aggregator_slot0_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026666666666
+    },
+    {
+      "name": "aggregator_slot0_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033666666666
+    },
+    {
+      "name": "aggregator_slot1_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824025666666666
+    },
+    {
+      "name": "aggregator_slot1_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824026666666666
+    },
+    {
+      "name": "aggregator_slot1_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824027666666666
+    },
+    {
+      "name": "aggregator_slot1_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824034666666666
+    },
+    {
+      "name": "aggregator_slot7231_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606831255666666666
+    },
+    {
+      "name": "aggregator_slot7231_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606831256666666666
+    },
+    {
+      "name": "aggregator_slot7231_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606831257666666666
+    },
+    {
+      "name": "aggregator_slot7231_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 9,
+        "duty_type_name": "AGGREGATOR",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606831264666666666
+    },
+    {
+      "name": "sync_contribution_slot0_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024666666666
+    },
+    {
+      "name": "sync_contribution_slot0_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025666666666
+    },
+    {
+      "name": "sync_contribution_slot0_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026666666666
+    },
+    {
+      "name": "sync_contribution_slot0_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033666666666
+    },
+    {
+      "name": "sync_contribution_slot1_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824025666666666
+    },
+    {
+      "name": "sync_contribution_slot1_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824026666666666
+    },
+    {
+      "name": "sync_contribution_slot1_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824027666666666
+    },
+    {
+      "name": "sync_contribution_slot1_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824034666666666
+    },
+    {
+      "name": "sync_contribution_slot7231_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606831255666666666
+    },
+    {
+      "name": "sync_contribution_slot7231_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606831256666666666
+    },
+    {
+      "name": "sync_contribution_slot7231_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606831257666666666
+    },
+    {
+      "name": "sync_contribution_slot7231_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 12,
+        "duty_type_name": "SYNC_CONTRIBUTION",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 666666666,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606831264666666666
+    },
+    {
+      "name": "sync_message_slot0_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024000000000
+    },
+    {
+      "name": "sync_message_slot0_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "sync_message_slot0_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "sync_message_slot0_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "sync_message_slot1_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "sync_message_slot1_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "sync_message_slot1_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824027000000000
+    },
+    {
+      "name": "sync_message_slot1_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824034000000000
+    },
+    {
+      "name": "sync_message_slot7231_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606831255000000000
+    },
+    {
+      "name": "sync_message_slot7231_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606831256000000000
+    },
+    {
+      "name": "sync_message_slot7231_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606831257000000000
+    },
+    {
+      "name": "sync_message_slot7231_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 10,
+        "duty_type_name": "SYNC_MESSAGE",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606831264000000000
+    },
+    {
+      "name": "randao_slot0_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824024000000000
+    },
+    {
+      "name": "randao_slot0_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "randao_slot0_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "randao_slot0_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 0,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824033000000000
+    },
+    {
+      "name": "randao_slot1_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606824025000000000
+    },
+    {
+      "name": "randao_slot1_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606824026000000000
+    },
+    {
+      "name": "randao_slot1_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606824027000000000
+    },
+    {
+      "name": "randao_slot1_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 1,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606824034000000000
+    },
+    {
+      "name": "randao_slot7231_round1_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 1
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 1000000000,
+      "deadline_nanos": 1606831255000000000
+    },
+    {
+      "name": "randao_slot7231_round2_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 2
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 2000000000,
+      "deadline_nanos": 1606831256000000000
+    },
+    {
+      "name": "randao_slot7231_round3_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 3
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 3000000000,
+      "deadline_nanos": 1606831257000000000
+    },
+    {
+      "name": "randao_slot7231_round10_slotdur1s",
+      "input": {
+        "genesis_time_nanos": 1606824023000000000,
+        "slot_duration_nanos": 1000000000,
+        "slot": 7231,
+        "duty_type": 7,
+        "duty_type_name": "RANDAO",
+        "round": 10
+      },
+      "duty_start_delay_nanos": 0,
+      "round_timeout_nanos": 10000000000,
+      "deadline_nanos": 1606831264000000000
+    }
+  ]
+}

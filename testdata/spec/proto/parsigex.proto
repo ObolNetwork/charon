@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package core.corepb.v1;
+
+import "core.proto";
+
+message ParSigExMsg {
+  core.corepb.v1.Duty duty = 1;
+  core.corepb.v1.ParSignedDataSet data_set = 2;
+}

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"strings"
 	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -14,6 +15,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
@@ -569,13 +571,137 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 		return errors.New("unsupported version")
 	}
 
+	if err := verifyDefinitionFieldLengths(def); err != nil {
+		return err
+	}
+
 	*d = def
 
 	return nil
 }
 
+// verifyDefinitionFieldLengths returns an error if any fixed size field of the definition has an invalid length.
+// Empty values are allowed since they represent absent values (e.g. unsigned operators), see checkBytesN.
+// Presence of required values is checked by VerifyHashes and VerifySignatures.
+func verifyDefinitionFieldLengths(d Definition) error {
+	if err := checkBytesN(d.ForkVersion, sszLenForkVersion, "fork_version"); err != nil {
+		return err
+	}
+
+	if err := checkBytesN(d.ConfigHash, sszLenHash, "config_hash"); err != nil {
+		return err
+	}
+
+	if err := checkBytesN(d.DefinitionHash, sszLenHash, "definition_hash"); err != nil {
+		return err
+	}
+
+	if err := checkAddressLength(d.Creator.Address, "creator_address"); err != nil {
+		return err
+	}
+
+	if err := validateSignatureLength(d.Version, d.Creator.ConfigSignature, "creator_config_signature"); err != nil {
+		return err
+	}
+
+	for i, o := range d.Operators {
+		if err := checkAddressLength(o.Address, "operator_address"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+
+		if err := validateSignatureLength(d.Version, o.ConfigSignature, "operator_config_signature"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+
+		if err := validateSignatureLength(d.Version, o.ENRSignature, "operator_enr_signature"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+	}
+
+	for i, v := range d.ValidatorAddresses {
+		if err := checkAddressLength(v.FeeRecipientAddress, "fee_recipient_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+
+		if err := checkAddressLength(v.WithdrawalAddress, "withdrawal_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+	}
+
+	return nil
+}
+
+// verifyAddresses returns an error if any address isn't a 0x prefixed 20 byte hex address with a valid
+// EIP-55 checksum if mixed case. Validator addresses are required from v1.5 (per-validator addresses),
+// operator and creator addresses are optional (unsigned definitions).
+// Note that the zero address is allowed since clusters in the wild use it (e.g. as withdrawal address
+// for deposits made by staking protocols with separately generated deposit data).
+func (d Definition) verifyAddresses() error {
+	if err := verifyAddress(d.Creator.Address, true, "creator_address"); err != nil {
+		return err
+	}
+
+	for i, o := range d.Operators {
+		if err := verifyAddress(o.Address, true, "operator_address"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+	}
+
+	optional := isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3, v1_4)
+
+	for i, v := range d.ValidatorAddresses {
+		if err := verifyAddress(v.FeeRecipientAddress, optional, "fee_recipient_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+
+		if err := verifyAddress(v.WithdrawalAddress, optional, "withdrawal_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+	}
+
+	return nil
+}
+
+// verifyAddress returns an error if the address isn't a 0x prefixed 20 byte hex address,
+// or if it is mixed case with an invalid EIP-55 checksum. All lower or all upper case addresses are valid.
+func verifyAddress(addr string, optional bool, field string) error {
+	if addr == "" {
+		if optional {
+			return nil
+		}
+
+		return errors.New("missing address", z.Str("field", field))
+	}
+
+	checksummed, err := eth2util.ChecksumAddress(addr)
+	if err != nil {
+		return errors.Wrap(err, "invalid address", z.Str("field", field))
+	}
+
+	digits := addr[2:]
+	if digits != strings.ToLower(digits) && digits != strings.ToUpper(digits) && addr != checksummed {
+		return errors.New("invalid address checksum", z.Str("field", field), z.Str("address", addr))
+	}
+
+	return nil
+}
+
+// checkAddressLength returns an error if the address is neither empty nor a 20 byte hex address.
+func checkAddressLength(addr string, field string) error {
+	if _, err := from0xHex(addr, addressLen); err != nil {
+		return errors.Wrap(err, "invalid address", z.Str("field", field))
+	}
+
+	return nil
+}
+
 // VerifyHashes returns an error if hashes populated from json object doesn't matches actual hashes.
+// It also verifies the addresses, see verifyAddresses.
 func (d Definition) VerifyHashes() error {
+	if err := d.verifyAddresses(); err != nil {
+		return err
+	}
+
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
 		return errors.Wrap(err, "config hash")

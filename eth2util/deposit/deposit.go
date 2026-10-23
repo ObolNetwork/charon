@@ -184,11 +184,6 @@ func getDepositDomain(forkVersion eth2p0.Version) (eth2p0.Domain, error) {
 
 // GetMessageSigningRoot returns the deposit message signing root created by the provided parameters.
 func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte, error) {
-	msgRoot, err := msg.HashTreeRoot()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "deposit message root")
-	}
-
 	fv, err := eth2util.NetworkToForkVersionBytes(network)
 	if err != nil {
 		return [32]byte{}, err
@@ -196,6 +191,17 @@ func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte,
 
 	var forkVersion eth2p0.Version
 	copy(forkVersion[:], fv)
+
+	return GetMessageSigningRootByForkVersion(msg, forkVersion)
+}
+
+// GetMessageSigningRootByForkVersion returns the deposit message signing root for the provided genesis fork version.
+// Unlike GetMessageSigningRoot, it also supports networks unknown to charon.
+func GetMessageSigningRootByForkVersion(msg eth2p0.DepositMessage, forkVersion eth2p0.Version) ([32]byte, error) {
+	msgRoot, err := msg.HashTreeRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "deposit message root")
+	}
 
 	domain, err := getDepositDomain(forkVersion)
 	if err != nil {

@@ -1,0 +1,139 @@
+{
+  "suite": "parsigex_sender_binding",
+  "description": "A peer may only contribute a partial signature under the share index the cluster assigned it, resolved through a peer map rather than the peer's position: removing an operator leaves survivors with gapped indices, which is what breaks a position-derived implementation. Construction rejects a participant with no assigned index, since otherwise its signatures are dropped as unknown and the exchange silently times out.",
+  "provenance": {
+    "source": "charon",
+    "charon_ref": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+    "generated_by": "scripts/generate_test_vectors.py",
+    "note": "The sender cases are transcribed from charon's dkg/exchanger_internal_test.go TestVerifyPeerShareIdx table, and the peer map cases from TestNewExchangerRejectsIncompletePeerMap; this script fails if the spec does not reproduce them."
+  },
+  "cases": [
+    {
+      "name": "own_share_index_accepted",
+      "input": {
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 4
+        },
+        "sender": "self",
+        "share_idx": 1
+      },
+      "accepted": true,
+      "reason": null
+    },
+    {
+      "name": "assigned_non_contiguous_share_index_accepted",
+      "input": {
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 4
+        },
+        "sender": "other",
+        "share_idx": 4
+      },
+      "accepted": true,
+      "reason": null
+    },
+    {
+      "name": "mismatched_share_index_rejected",
+      "input": {
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 4
+        },
+        "sender": "other",
+        "share_idx": 2
+      },
+      "accepted": false,
+      "reason": "share_idx_mismatch"
+    },
+    {
+      "name": "another_peers_share_index_rejected",
+      "input": {
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 4
+        },
+        "sender": "self",
+        "share_idx": 4
+      },
+      "accepted": false,
+      "reason": "share_idx_mismatch"
+    },
+    {
+      "name": "non_positive_share_index_rejected",
+      "input": {
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 4
+        },
+        "sender": "self",
+        "share_idx": 0
+      },
+      "accepted": false,
+      "reason": "share_idx_mismatch"
+    },
+    {
+      "name": "unknown_sender_rejected",
+      "input": {
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 4
+        },
+        "sender": "unknown",
+        "share_idx": 1
+      },
+      "accepted": false,
+      "reason": "unknown_peer"
+    }
+  ],
+  "peer_map": [
+    {
+      "name": "complete_peer_map_accepted",
+      "input": {
+        "peers": [
+          "self",
+          "other"
+        ],
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 4
+        },
+        "peer_idx": 0
+      },
+      "accepted": true,
+      "reason": null
+    },
+    {
+      "name": "peer_missing_from_map_rejected",
+      "input": {
+        "peers": [
+          "self",
+          "missing"
+        ],
+        "share_idx_by_peer": {
+          "self": 1
+        },
+        "peer_idx": 0
+      },
+      "accepted": false,
+      "reason": "missing_share_idx"
+    },
+    {
+      "name": "peer_with_non_positive_index_rejected",
+      "input": {
+        "peers": [
+          "self",
+          "other"
+        ],
+        "share_idx_by_peer": {
+          "self": 1,
+          "other": 0
+        },
+        "peer_idx": 0
+      },
+      "accepted": false,
+      "reason": "missing_share_idx"
+    }
+  ]
+}

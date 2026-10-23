@@ -150,20 +150,9 @@ func TestPutBytesN(t *testing.T) {
 			n:    4,
 		},
 		{
-			name: "short_n32",
-			b:    []byte{0xab, 0xcd},
-			n:    32,
-		},
-		{
 			name: "full_n4",
 			b:    []byte{0xde, 0xad, 0xbe, 0xef},
 			n:    4,
-		},
-		{
-			name:  "after_uint64_1",
-			setup: func(hh sszutils.HashWalker) { hh.PutUint64(1) },
-			b:     []byte{0xab, 0xcd},
-			n:     32,
 		},
 		{
 			name:  "after_bytes20",
@@ -177,7 +166,7 @@ func TestPutBytesN(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fn := func(hh sszutils.HashWalker) error { return putBytesN(hh, tt.b, tt.n) }
+			fn := func(hh sszutils.HashWalker) error { return putBytesN(hh, tt.b, tt.n, "test") }
 
 			var got string
 			if tt.setup != nil {
@@ -191,6 +180,31 @@ func TestPutBytesN(t *testing.T) {
 	}
 
 	testutil.RequireGoldenJSON(t, roots)
+}
+
+// TestPutBytesNInvalidLength ensures values that are neither empty nor exactly n bytes are rejected
+// instead of being padded, since padding would result in the same hash as the padded value.
+func TestPutBytesNInvalidLength(t *testing.T) {
+	tests := []struct {
+		name string
+		b    []byte
+		n    int
+	}{
+		{name: "short_n32", b: []byte{0xab, 0xcd}, n: 32},
+		{name: "address_as_creds", b: bytes.Repeat([]byte{0x11}, 20), n: 32},
+		{name: "long_n4", b: []byte{0x01, 0x02, 0x03, 0x04, 0x05}, n: 4},
+		{name: "short_pubkey", b: make([]byte, 47), n: 48},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hh := hasher.DefaultHasherPool.Get()
+			defer hasher.DefaultHasherPool.Put(hh)
+
+			require.ErrorContains(t, putBytesN(hh, tt.b, tt.n, "test"), "invalid fixed size bytes length")
+			require.ErrorContains(t, putBytesRaw(hh, tt.b, tt.n, "test"), "invalid fixed size bytes length")
+		})
+	}
 }
 
 func TestPutHexBytes20(t *testing.T) {
