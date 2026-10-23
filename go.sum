@@ -67,8 +67,8 @@ github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYW
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
-github.com/attestantio/go-builder-client v0.8.0 h1:paYTXZLtpCBG/9/Y99f9OjPNh4C+ZuIavRs07WWgjYc=
-github.com/attestantio/go-builder-client v0.8.0/go.mod h1:M3rNO3ntGg+CE7aBDl+MVlwnEStZCiSRUzADG2ZoL+s=
+github.com/attestantio/go-builder-client v0.9.1 h1:Ziz3Ya91sksmV4S65HBQt+ZmNvS2ptMB0snSf4B9edc=
+github.com/attestantio/go-builder-client v0.9.1/go.mod h1:IcPQk0AICP5kxt6OOmYIKXgkueBacL0iQ6iKzD9WMks=
 github.com/benbjohnson/clock v1.3.5 h1:VvXlSJBzZpA/zum6Sj74hxwYI2DIxRWuNIoXAzHZz5o=
 github.com/benbjohnson/clock v1.3.5/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=

@@ -6,8 +6,8 @@ toolchain go1.27.3
 
 require (
 	github.com/OffchainLabs/go-bitfield v0.0.0-20251031151322-f427d04d8506
-	github.com/attestantio/go-builder-client v0.8.0
-	github.com/attestantio/go-eth2-client v0.29.0
+	github.com/attestantio/go-builder-client v0.9.1
+	github.com/attestantio/go-eth2-client v0.30.2
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/drand/kyber v1.3.3
