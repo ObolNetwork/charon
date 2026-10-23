@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -121,6 +123,110 @@ func TestCreateDkgInvalid(t *testing.T) {
 	}
 }
 
+func TestCreateDkgAddresses(t *testing.T) {
+	enrs := []string{
+		"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+		"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+		"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+		"enr:-JG4QKu734_MXQklKrNHe9beXIsIV5bqv58OOmsjWmp6CF5vJSHNinYReykn7-IIkc5-YsoF8Hva1Q3pl7_gUj5P9cOGAYGv0jBLgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMM3AvPhXGCUIzBl9VFOw7VQ6_m8dGifVfJ1YXrvZsaZoN0Y3CCDhqDdWRwgg4u",
+	}
+
+	badChecksum := "0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
+
+	tests := []struct {
+		name         string
+		network      string
+		feeRecipient string
+		withdrawal   string
+		expectedErr  string
+	}{
+		{
+			name:         "checksummed",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   validEthAddr,
+		},
+		{
+			name:         "lowercase normalised",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: strings.ToLower(validEthAddr),
+			withdrawal:   strings.ToLower(validEthAddr),
+		},
+		{
+			name:         "invalid fee recipient checksum",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: badChecksum,
+			withdrawal:   validEthAddr,
+			expectedErr:  "invalid fee recipient address",
+		},
+		{
+			name:         "malformed fee recipient",
+			network:      eth2util.Hoodi.Name,
+			feeRecipient: "0x1234",
+			withdrawal:   validEthAddr,
+			expectedErr:  "invalid fee recipient address",
+		},
+		{
+			name:         "zero fee recipient on mainnet",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: zeroAddress,
+			withdrawal:   validEthAddr,
+			expectedErr:  "zero fee recipient address forbidden on this network",
+		},
+		{
+			name:         "zero fee recipient on testnet",
+			network:      eth2util.Hoodi.Name,
+			feeRecipient: zeroAddress,
+			withdrawal:   validEthAddr,
+		},
+		{
+			name:         "zero withdrawal on gnosis",
+			network:      eth2util.Gnosis.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   zeroAddress,
+			expectedErr:  "zero withdrawal address forbidden on this network",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			conf := createDKGConfig{
+				OutputDir:         dir,
+				NumValidators:     1,
+				FeeRecipientAddrs: []string{test.feeRecipient},
+				WithdrawalAddrs:   []string{test.withdrawal},
+				Network:           test.network,
+				DKGAlgo:           "default",
+				TargetGasLimit:    30000000,
+				OperatorENRs:      enrs,
+			}
+
+			err := runCreateDKG(context.Background(), conf)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+
+			b, err := os.ReadFile(path.Join(dir, "cluster-definition.json"))
+			require.NoError(t, err)
+
+			var def cluster.Definition
+			require.NoError(t, json.Unmarshal(b, &def))
+
+			wantFee, err := eth2util.ChecksumAddress(test.feeRecipient)
+			require.NoError(t, err)
+			wantWd, err := eth2util.ChecksumAddress(test.withdrawal)
+			require.NoError(t, err)
+
+			require.Equal(t, []string{wantFee}, def.FeeRecipientAddresses())
+			require.Equal(t, []string{wantWd}, def.WithdrawalAddresses())
+		})
+	}
+}
+
 func TestRequireOperatorENRFlag(t *testing.T) {
 	tests := []struct {
 		name string
@@ -170,29 +276,112 @@ func TestExistingClusterDefinition(t *testing.T) {
 	require.EqualError(t, cmd.Execute(), "existing cluster-definition.json found. Try again after deleting it")
 }
 
-func TestValidateWithdrawalAddr(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		addrs := []string{validEthAddr}
-		err := validateWithdrawalAddrs(addrs, eth2util.Goerli.Name)
-		require.NoError(t, err)
-	})
+func TestChecksumAddrs(t *testing.T) {
+	// EIP-55 test vector address.
+	const checksummed = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
 
-	t.Run("invalid network", func(t *testing.T) {
-		err := validateWithdrawalAddrs([]string{zeroAddress}, eth2util.Mainnet.Name)
-		require.ErrorContains(t, err, "zero address forbidden on this network")
-	})
+	tests := []struct {
+		name        string
+		addrs       []string
+		network     string
+		expected    []string
+		expectedErr string
+	}{
+		{
+			name:     "checksummed",
+			addrs:    []string{checksummed},
+			network:  eth2util.Mainnet.Name,
+			expected: []string{checksummed},
+		},
+		{
+			name:     "lowercase normalised",
+			addrs:    []string{strings.ToLower(checksummed)},
+			network:  eth2util.Mainnet.Name,
+			expected: []string{checksummed},
+		},
+		{
+			name:     "uppercase normalised",
+			addrs:    []string{"0x" + strings.ToUpper(checksummed[2:])},
+			network:  eth2util.Gnosis.Name,
+			expected: []string{checksummed},
+		},
+		{
+			name:        "mixed case bad checksum",
+			addrs:       []string{"0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"},
+			network:     eth2util.Hoodi.Name,
+			expectedErr: "does not match its EIP-55 checksum",
+		},
+		{
+			name:        "too short",
+			addrs:       []string{"0xBAD000BAD000BAD"},
+			network:     eth2util.Hoodi.Name,
+			expectedErr: "invalid withdrawal address",
+		},
+		{
+			name:        "no 0x prefix",
+			addrs:       []string{checksummed[2:] + "00"},
+			network:     eth2util.Hoodi.Name,
+			expectedErr: "invalid withdrawal address",
+		},
+		{
+			name:        "non hex",
+			addrs:       []string{"0x" + strings.Repeat("zz", 20)},
+			network:     eth2util.Hoodi.Name,
+			expectedErr: "invalid withdrawal address",
+		},
+		{
+			name:        "zero address mainnet",
+			addrs:       []string{zeroAddress},
+			network:     eth2util.Mainnet.Name,
+			expectedErr: "zero withdrawal address forbidden on this network",
+		},
+		{
+			name:        "zero address gnosis",
+			addrs:       []string{checksummed, zeroAddress},
+			network:     eth2util.Gnosis.Name,
+			expectedErr: "zero withdrawal address forbidden on this network",
+		},
+		{
+			name:     "zero address testnet",
+			addrs:    []string{zeroAddress},
+			network:  eth2util.Hoodi.Name,
+			expected: []string{zeroAddress},
+		},
+		{
+			name:     "zero address custom testnet",
+			addrs:    []string{zeroAddress},
+			network:  "",
+			expected: []string{zeroAddress},
+		},
+	}
 
-	t.Run("invalid withdrawal address", func(t *testing.T) {
-		addrs := []string{"0xBAD000BAD000BAD"}
-		err := validateWithdrawalAddrs(addrs, eth2util.Gnosis.Name)
-		require.ErrorContains(t, err, "invalid withdrawal address")
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := checksumAddrs(test.addrs, "withdrawal", test.network)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+				return
+			}
 
-	t.Run("invalid checksum", func(t *testing.T) {
-		addrs := []string{"0x000BAD0000000BAD0000000BAD0000000BAD0000"}
-		err := validateWithdrawalAddrs(addrs, eth2util.Gnosis.Name)
-		require.ErrorContains(t, err, "invalid checksummed address")
-	})
+			require.NoError(t, err)
+			require.Equal(t, test.expected, got)
+		})
+	}
+}
+
+func TestChecksumValidatorAddrs(t *testing.T) {
+	const checksummed = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+
+	fee, wd, err := checksumValidatorAddrs([]string{strings.ToLower(checksummed)}, []string{strings.ToLower(checksummed)}, eth2util.Mainnet.Name)
+	require.NoError(t, err)
+	require.Equal(t, []string{checksummed}, fee)
+	require.Equal(t, []string{checksummed}, wd)
+
+	_, _, err = checksumValidatorAddrs([]string{zeroAddress}, []string{checksummed}, eth2util.Mainnet.Name)
+	require.ErrorContains(t, err, "zero fee recipient address forbidden on this network")
+
+	_, _, err = checksumValidatorAddrs([]string{checksummed}, []string{"0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"}, eth2util.Mainnet.Name)
+	require.ErrorContains(t, err, "invalid withdrawal address")
 }
 
 func TestValidateDKGConfig(t *testing.T) {

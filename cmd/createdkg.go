@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -142,7 +143,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return err
 	}
 
-	if err = validateWithdrawalAddrs(conf.WithdrawalAddrs, conf.Network); err != nil {
+	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = checksumValidatorAddrs(conf.FeeRecipientAddrs, conf.WithdrawalAddrs, conf.Network)
+	if err != nil {
 		return err
 	}
 
@@ -276,23 +278,58 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	return nil
 }
 
-// validateWithdrawalAddrs returns an error if any of the provided withdrawal addresses is invalid.
-func validateWithdrawalAddrs(addrs []string, network string) error {
-	for _, addr := range addrs {
-		checksumAddr, err := eth2util.ChecksumAddress(addr)
-		if err != nil {
-			return errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
-		} else if checksumAddr != addr {
-			return errors.New("invalid checksummed address", z.Str("addr", addr))
-		}
-
-		// We cannot allow a zero withdrawal address on mainnet or gnosis.
-		if isMainOrGnosis(network) && addr == zeroAddress {
-			return errors.New("zero address forbidden on this network", z.Str("network", network))
-		}
+// checksumAddress validates an Ethereum address and returns its EIP-55 checksummed form.
+// The address must be "0x" followed by 40 hex characters. All-lowercase and all-uppercase hex
+// is accepted (no checksum); mixed case must match the EIP-55 checksum exactly.
+func checksumAddress(addr string) (string, error) {
+	checksummed, err := eth2util.ChecksumAddress(addr)
+	if err != nil {
+		return "", err
 	}
 
-	return nil
+	hexPart := strings.TrimPrefix(addr, "0x")
+	if hexPart != strings.ToLower(hexPart) && hexPart != strings.ToUpper(hexPart) && addr != checksummed {
+		return "", errors.New("address does not match its EIP-55 checksum; use all-lowercase or the checksummed form",
+			z.Str("addr", addr), z.Str("checksummed", checksummed))
+	}
+
+	return checksummed, nil
+}
+
+// checksumAddrs validates the provided addresses (see checksumAddress) of the given kind
+// (e.g. "withdrawal" or "fee recipient") and returns their EIP-55 checksummed forms.
+// The zero address is forbidden on mainnet and gnosis.
+func checksumAddrs(addrs []string, kind string, network string) ([]string, error) {
+	resp := make([]string, 0, len(addrs))
+	for _, addr := range addrs {
+		checksummed, err := checksumAddress(addr)
+		if err != nil {
+			return nil, errors.Wrap(err, "invalid "+kind+" address", z.Str("addr", addr))
+		}
+
+		if isMainOrGnosis(network) && checksummed == zeroAddress {
+			return nil, errors.New("zero "+kind+" address forbidden on this network", z.Str("network", network))
+		}
+
+		resp = append(resp, checksummed)
+	}
+
+	return resp, nil
+}
+
+// checksumValidatorAddrs validates and checksums both fee recipient and withdrawal addresses.
+func checksumValidatorAddrs(feeRecipientAddrs, withdrawalAddrs []string, network string) (checksummedFeeRecipients []string, checksummedWithdrawals []string, err error) {
+	checksummedFeeRecipients, err = checksumAddrs(feeRecipientAddrs, "fee recipient", network)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	checksummedWithdrawals, err = checksumAddrs(withdrawalAddrs, "withdrawal", network)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return checksummedFeeRecipients, checksummedWithdrawals, nil
 }
 
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.

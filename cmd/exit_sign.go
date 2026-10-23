@@ -151,7 +151,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	}
 
 	if config.SkipBeaconNodeCheck {
-		log.Info(ctx, "Both public key and index are specified, beacon node won't be checked for validator existence/liveness")
+		log.Info(ctx, "Both public key and index are specified, beacon node won't be checked for validator liveness, only that the index matches the public key")
 	}
 
 	var exitBlobs []obolapi.ExitBlob
@@ -190,6 +190,12 @@ func signSingleValidatorExit(ctx context.Context, config exitConfig, eth2Cl eth2
 	valIndex, err := fetchValidatorIndex(ctx, config, eth2Cl)
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch validator index")
+	}
+
+	if config.SkipBeaconNodeCheck {
+		if err := crossCheckValidatorIndex(ctx, eth2Cl, valEth2, valIndex); err != nil {
+			return nil, err
+		}
 	}
 
 	log.Info(ctx, "Signing partial exit message for validator", z.Str("validator_public_key", valEth2.String()), z.U64("validator_index", uint64(valIndex)))
@@ -351,6 +357,41 @@ func fetchValidatorBLSPubKey(ctx context.Context, config exitConfig, eth2Cl eth2
 	}
 
 	return eth2p0.BLSPubKey{}, errors.New("validator index not found in beacon node response", z.Str("beacon_address", eth2Cl.Address()), z.U64("validator_index", config.ValidatorIndex), z.Any("raw_response", rawValData))
+}
+
+// crossCheckValidatorIndex verifies, when both --validator-public-key and --validator-index are provided,
+// that the beacon node reports the given index as belonging to the given public key. A mismatch is an
+// error. If the beacon node cannot be queried or does not know the index yet, a warning is logged and
+// signing proceeds, preserving the existing behaviour of not requiring the validator to be on chain.
+func crossCheckValidatorIndex(ctx context.Context, eth2Cl eth2wrap.Client, pubkey eth2p0.BLSPubKey, index eth2p0.ValidatorIndex) error {
+	rawValData, err := queryBeaconForValidator(ctx, eth2Cl, nil, []eth2p0.ValidatorIndex{index}, nil)
+	if err != nil {
+		log.Warn(ctx, "Could not cross-check validator index against public key on beacon node, proceeding", err)
+		return nil
+	}
+
+	var val *eth2v1.Validator
+
+	for _, v := range rawValData.Data {
+		if v != nil && v.Validator != nil && v.Index == index {
+			val = v
+			break
+		}
+	}
+
+	if val == nil {
+		log.Warn(ctx, "Validator index not found on beacon node, could not cross-check it against the public key, proceeding", nil)
+		return nil
+	}
+
+	if val.Validator.PublicKey != pubkey {
+		return errors.New("validator index belongs to a different public key on the beacon node",
+			z.U64("validator_index", uint64(index)),
+			z.Str("validator_public_key", pubkey.String()),
+			z.Str("beacon_public_key", val.Validator.PublicKey.String()))
+	}
+
+	return nil
 }
 
 func fetchValidatorIndex(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client) (eth2p0.ValidatorIndex, error) {
