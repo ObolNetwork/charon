@@ -243,3 +243,17 @@ func TestGetFullDeposit_NotEnoughSignatures(t *testing.T) {
 	_, err = cl.GetFullDeposit(t.Context(), f.lock.Validators[0].PublicKeyHex(), f.lock.LockHash, f.lock.Threshold, f.lock.Validators[0].PubShares, f.network)
 	require.ErrorContains(t, err, "not enough partial signatures to meet threshold")
 }
+
+func TestGetFullDeposit_ShortWithdrawalCredentials(t *testing.T) {
+	f := newDepositFixture(t)
+	// A bare 20 byte address, as older charon deposit sign versions submitted.
+	f.response.WithdrawalCredentials = "0x000000000000000000000000000000000000dead"
+
+	srv := serveCannedDeposit(t, f.response)
+
+	cl, err := obolapi.New(srv.URL)
+	require.NoError(t, err)
+
+	_, err = cl.GetFullDeposit(t.Context(), f.lock.Validators[0].PublicKeyHex(), f.lock.LockHash, f.lock.Threshold, f.lock.Validators[0].PubShares, f.network)
+	require.ErrorContains(t, err, "withdrawal credentials must be 32 bytes")
+}
