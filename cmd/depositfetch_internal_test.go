@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -16,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil/obolapimock"
 )
@@ -74,8 +76,9 @@ func TestDepositFetchValid(t *testing.T) {
 		}
 
 		signConfig := depositSignConfig{
-			depositConfig:       config,
-			WithdrawalAddresses: []string{"0x0100000000000000000000000000000000000000000000000000000000001234", "0x0100000000000000000000000000000000000000000000000000000000001235"},
+			depositConfig: config,
+			// One plain (checksummed) address and one full 0x01 withdrawal credential.
+			WithdrawalAddresses: []string{"0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", "0x0100000000000000000000000000000000000000000000000000000000001235"},
 			DepositAmounts:      []uint{32, 1},
 		}
 
@@ -100,6 +103,23 @@ func TestDepositFetchValid(t *testing.T) {
 
 	err = runDepositFetch(ctx, fetchConfig)
 	require.NoError(t, err)
+
+	depositDatas, err := deposit.ReadDepositDataFiles(fetchConfig.DepositDataDir)
+	require.NoError(t, err)
+	require.Len(t, depositDatas, 2)
+
+	expectedCreds := map[string]string{
+		lock.Validators[0].PublicKeyHex(): "0100000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed",
+		lock.Validators[1].PublicKeyHex(): "0100000000000000000000000000000000000000000000000000000000001235",
+	}
+
+	for _, dds := range depositDatas {
+		require.Len(t, dds, 2)
+
+		for _, dd := range dds {
+			require.Equal(t, expectedCreds[dd.PublicKey.String()], hex.EncodeToString(dd.WithdrawalCredentials))
+		}
+	}
 }
 
 func TestDepositFetchCLI(t *testing.T) {

@@ -59,7 +59,7 @@ func newDepositSignCmd(runFunc func(context.Context, depositSignConfig) error) *
 }
 
 func bindDepositSignFlags(cmd *cobra.Command, config *depositSignConfig) {
-	cmd.Flags().StringSliceVar(&config.WithdrawalAddresses, "withdrawal-addresses", []string{}, "[REQUIRED] Withdrawal addresses for which the new deposits will be signed. Either a single address for all specified validator-public-keys or one address per key should be specified.")
+	cmd.Flags().StringSliceVar(&config.WithdrawalAddresses, "withdrawal-addresses", []string{}, "[REQUIRED] Withdrawal addresses for which the new deposits will be signed, converted to 0x01 or 0x02 (compounding clusters) withdrawal credentials. Full 32 byte withdrawal credentials are also accepted. Either a single address for all specified validator-public-keys or one address per key should be specified.")
 	cmd.Flags().UintSliceVar(&config.DepositAmounts, "deposit-amounts", []uint{32}, "Comma separated list of partial deposit amounts (integers) in ETH.")
 	cmd.Flags().BoolVar(&config.AllowIncompleteKeystores, "allow-incomplete-keystores", false, "Allow the validator keys directory to contain key shares for only a subset of the cluster's validators. The command operates on the validators whose key shares are present.")
 }
@@ -111,23 +111,28 @@ func runDepositSign(ctx context.Context, config depositSignConfig) error {
 		pubkeys = append(pubkeys, blsPK)
 	}
 
-	withdrawalAddrs := [][]byte{}
-
-	for _, wAddr := range config.WithdrawalAddresses {
-		withdrawalAddr, err := hex.DecodeString(strings.TrimPrefix(wAddr, "0x"))
-		if err != nil {
-			return errors.Wrap(err, "decode withdrawal address", z.Str("withdrawal_address", wAddr))
-		}
-
-		withdrawalAddrs = append(withdrawalAddrs, withdrawalAddr)
-	}
-
-	depositDatas := []eth2p0.DepositData{}
-
 	network, err := eth2util.ForkVersionToNetwork(cl.ForkVersion)
 	if err != nil {
 		return err
 	}
+
+	withdrawalAddrs := [][]byte{}
+
+	for _, wAddr := range config.WithdrawalAddresses {
+		creds, err := deposit.WithdrawalCredsFromAddrOrCreds(wAddr, cl.Compounding)
+		if err != nil {
+			return err
+		}
+
+		// We cannot allow a zero withdrawal address on mainnet or gnosis.
+		if isMainOrGnosis(network) && [20]byte(creds[12:]) == [20]byte{} {
+			return errors.New("zero withdrawal address forbidden on this network", z.Str("network", network))
+		}
+
+		withdrawalAddrs = append(withdrawalAddrs, creds[:])
+	}
+
+	depositDatas := []eth2p0.DepositData{}
 
 	for i, pubkey := range pubkeys {
 		for _, amount := range config.DepositAmounts {

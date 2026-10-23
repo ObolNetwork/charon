@@ -75,7 +75,7 @@ func TestDepositSignValid(t *testing.T) {
 
 	signConfig := depositSignConfig{
 		depositConfig:       config,
-		WithdrawalAddresses: []string{"0x0100000000000000000000000000000000000000000000000000000000001234"},
+		WithdrawalAddresses: []string{"0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"},
 		DepositAmounts:      []uint{32},
 	}
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -472,4 +473,48 @@ func TestDedupAmounts(t *testing.T) {
 	amounts = deposit.DedupAmounts(amounts)
 
 	require.Equal(t, []eth2p0.Gwei{0, 100, 300, 500}, amounts)
+}
+
+func TestWithdrawalCredsFromAddrOrCreds(t *testing.T) {
+	const (
+		checksummed = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+		lower       = "5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+	)
+
+	tests := []struct {
+		name        string
+		input       string
+		compounding bool
+		expected    string
+		expectedErr string
+	}{
+		{name: "checksummed address", input: checksummed, expected: "010000000000000000000000" + lower},
+		{name: "lowercase address", input: "0x" + lower, expected: "010000000000000000000000" + lower},
+		{name: "uppercase address", input: "0x" + strings.ToUpper(lower), expected: "010000000000000000000000" + lower},
+		{name: "compounding address", input: checksummed, compounding: true, expected: "020000000000000000000000" + lower},
+		{name: "bad checksum", input: "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", expectedErr: "does not match its EIP-55 checksum"},
+		{name: "0x01 credentials", input: "0x010000000000000000000000" + lower, expected: "010000000000000000000000" + lower},
+		{name: "0x02 credentials", input: "0x020000000000000000000000" + strings.ToUpper(lower), compounding: true, expected: "020000000000000000000000" + lower},
+		{name: "0x01 credentials compounding", input: "0x010000000000000000000000" + lower, compounding: true, expectedErr: "prefix does not match"},
+		{name: "0x02 credentials not compounding", input: "0x020000000000000000000000" + lower, expectedErr: "prefix does not match"},
+		{name: "0x00 credentials", input: "0x000000000000000000000000" + lower, expectedErr: "prefix does not match"},
+		{name: "bad padding", input: "0x010000000000000000000001" + lower, expectedErr: "bytes 1 to 11 must be zero"},
+		{name: "no 0x prefix", input: lower, expectedErr: "must be 0x-prefixed"},
+		{name: "19 bytes", input: "0x" + lower[2:], expectedErr: "must be 20 bytes"},
+		{name: "33 bytes", input: "0x00010000000000000000000000" + lower, expectedErr: "must be 20 bytes"},
+		{name: "not hex", input: "0x" + strings.Repeat("z", 40), expectedErr: "invalid withdrawal address"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			creds, err := deposit.WithdrawalCredsFromAddrOrCreds(test.input, test.compounding)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, test.expected, hex.EncodeToString(creds[:]))
+		})
+	}
 }
