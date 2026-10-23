@@ -926,6 +926,25 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 		return cluster.Definition{}, errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
 
+	forkVersionBytes, err := hex.DecodeString(strings.TrimPrefix(forkVersion, "0x"))
+	if err != nil {
+		return cluster.Definition{}, errors.Wrap(err, "decode fork version", z.Str("fork_version", forkVersion))
+	}
+
+	// Unknown (unregistered custom testnet) fork versions resolve to an empty network name, which is
+	// never mainnet or gnosis, so the mainnet-only checks below are still applied correctly.
+	network, _ := eth2util.ForkVersionToNetwork(forkVersionBytes)
+
+	if err := validateInsecureKeys(ctx, conf.InsecureKeys, network); err != nil {
+		return cluster.Definition{}, err
+	}
+
+	// Validate and normalise addresses to their EIP-55 checksummed form before writing them into the definition.
+	feeRecipientAddrs, withdrawalAddrs, err = checksumValidatorAddrs(ctx, feeRecipientAddrs, withdrawalAddrs, network, false)
+	if err != nil {
+		return cluster.Definition{}, err
+	}
+
 	var ops []cluster.Operator
 	for range conf.NumNodes {
 		ops = append(ops, cluster.Operator{})
@@ -1025,10 +1044,8 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return err
 	}
 
-	if insecureKeys && isMainOrGnosis(network) {
-		return errors.New("insecure keys not supported on mainnet")
-	} else if insecureKeys {
-		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
+	if err := validateInsecureKeys(ctx, insecureKeys, network); err != nil {
+		return err
 	}
 
 	if def.Name == "" {
@@ -1051,7 +1068,27 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("unsupported consensus protocol", z.Str("protocol", def.ConsensusProtocol))
 	}
 
-	return validateWithdrawalAddrs(def.WithdrawalAddresses(), network)
+	// Addresses in an existing definition are covered by its hashes and signatures, so they are
+	// only validated here, not normalised.
+	_, _, err = checksumValidatorAddrs(ctx, def.FeeRecipientAddresses(), def.WithdrawalAddresses(), network, true)
+
+	return err
+}
+
+// validateInsecureKeys returns an error if insecure keys are requested on mainnet or gnosis,
+// otherwise it logs a warning when insecure keys are requested.
+func validateInsecureKeys(ctx context.Context, insecureKeys bool, network string) error {
+	if !insecureKeys {
+		return nil
+	}
+
+	if isMainOrGnosis(network) {
+		return errors.New("insecure keys not supported on mainnet")
+	}
+
+	log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
+
+	return nil
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.

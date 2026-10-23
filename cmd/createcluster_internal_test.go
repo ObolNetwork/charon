@@ -549,6 +549,117 @@ func TestValidateDef(t *testing.T) {
 	})
 }
 
+// TestNewDefFromConfigValidation verifies that creating a cluster from flags (no --definition-file)
+// applies the same address and insecure keys checks as a definition file.
+func TestNewDefFromConfigValidation(t *testing.T) {
+	ctx := t.Context()
+	badChecksum := "0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
+
+	tests := []struct {
+		name         string
+		network      string
+		insecureKeys bool
+		feeRecipient string
+		withdrawal   string
+		expectedErr  string
+	}{
+		{
+			name:         "mainnet valid",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   validEthAddr,
+		},
+		{
+			name:         "mainnet lowercase normalised",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: strings.ToLower(validEthAddr),
+			withdrawal:   strings.ToLower(validEthAddr),
+		},
+		{
+			name:         "mainnet insecure keys",
+			network:      eth2util.Mainnet.Name,
+			insecureKeys: true,
+			feeRecipient: validEthAddr,
+			withdrawal:   validEthAddr,
+			expectedErr:  "insecure keys not supported on mainnet",
+		},
+		{
+			name:         "gnosis insecure keys",
+			network:      eth2util.Gnosis.Name,
+			insecureKeys: true,
+			feeRecipient: validEthAddr,
+			withdrawal:   validEthAddr,
+			expectedErr:  "insecure keys not supported on mainnet",
+		},
+		{
+			name:         "testnet insecure keys",
+			network:      eth2util.Hoodi.Name,
+			insecureKeys: true,
+			feeRecipient: zeroAddress,
+			withdrawal:   zeroAddress,
+		},
+		{
+			// Zero addresses only warn: split existing keys of active validators never use deposit data.
+			name:         "mainnet zero withdrawal",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   zeroAddress,
+		},
+		{
+			name:         "mainnet zero fee recipient",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: zeroAddress,
+			withdrawal:   validEthAddr,
+		},
+		{
+			name:         "bad withdrawal checksum",
+			network:      eth2util.Hoodi.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   badChecksum,
+			expectedErr:  "invalid withdrawal address",
+		},
+		{
+			name:         "malformed fee recipient",
+			network:      eth2util.Hoodi.Name,
+			feeRecipient: "0xabc",
+			withdrawal:   validEthAddr,
+			expectedErr:  "invalid fee recipient address",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf := clusterConfig{
+				Name:              "test",
+				NumNodes:          4,
+				NumDVs:            2,
+				Threshold:         3,
+				TargetGasLimit:    30000000,
+				Network:           test.network,
+				InsecureKeys:      test.insecureKeys,
+				FeeRecipientAddrs: []string{test.feeRecipient},
+				WithdrawalAddrs:   []string{test.withdrawal},
+			}
+
+			def, err := newDefFromConfig(ctx, conf)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+
+			wantFee, err := eth2util.ChecksumAddress(test.feeRecipient)
+			require.NoError(t, err)
+			wantWd, err := eth2util.ChecksumAddress(test.withdrawal)
+			require.NoError(t, err)
+
+			require.Equal(t, []string{wantFee, wantFee}, def.FeeRecipientAddresses())
+			require.Equal(t, []string{wantWd, wantWd}, def.WithdrawalAddresses())
+		})
+	}
+}
+
 func TestSplitKeys(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -733,7 +844,7 @@ func TestTargetGasLimit(t *testing.T) {
 				NumNodes:          4,
 				Threshold:         3,
 				NumDVs:            1,
-				Network:           defaultNetwork,
+				Network:           eth2util.Hoodi.Name,
 				WithdrawalAddrs:   []string{zeroAddress},
 				FeeRecipientAddrs: []string{zeroAddress},
 				InsecureKeys:      true,
@@ -749,7 +860,7 @@ func TestTargetGasLimit(t *testing.T) {
 				NumNodes:          4,
 				Threshold:         3,
 				NumDVs:            1,
-				Network:           defaultNetwork,
+				Network:           eth2util.Hoodi.Name,
 				WithdrawalAddrs:   []string{zeroAddress},
 				FeeRecipientAddrs: []string{zeroAddress},
 				InsecureKeys:      true,
