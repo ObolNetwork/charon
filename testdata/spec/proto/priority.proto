@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package core.corepb.v1;
+
+import "core.proto";
+import "google/protobuf/any.proto";
+
+message PriorityTopicProposal {
+  google.protobuf.Any topic = 1;
+  repeated google.protobuf.Any priorities = 2;
+}
+
+message PriorityMsg {
+  core.corepb.v1.Duty duty = 1;
+  repeated PriorityTopicProposal topics = 2;
+  string peer_id = 3;
+  bytes signature = 4;
+}
+
+message PriorityScoredResult {
+  google.protobuf.Any priority = 1;
+  int64 score = 2;
+}
+
+message PriorityTopicResult {
+  google.protobuf.Any topic = 1;
+  repeated PriorityScoredResult priorities = 2;
+}
+
+message PriorityResult {
+  repeated PriorityMsg msgs = 1;
+  repeated PriorityTopicResult topics = 2;
+}

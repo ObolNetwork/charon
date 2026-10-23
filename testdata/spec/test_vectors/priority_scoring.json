@@ -1,0 +1,825 @@
+{
+  "suite": "priority_scoring",
+  "description": "Cluster-wide priority results for a topic, given each peer's proposed order. Every peer also proposes an empty 'ignored' topic, which must appear in the result with no priorities.",
+  "provenance": {
+    "source": "charon",
+    "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+    "generated_by": "scripts/generate_test_vectors.py",
+    "note": "Expected orders and scores are transcribed from charon's core/priority/calculate_internal_test.go TestCalculateResults table; this script fails if the spec does not reproduce them."
+  },
+  "cases": [
+    {
+      "name": "1*v1",
+      "input": {
+        "slot": 0,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": []
+    },
+    {
+      "name": "Q-1*v1",
+      "input": {
+        "slot": 1,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": []
+    },
+    {
+      "name": "Q*v1",
+      "input": {
+        "slot": 2,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 3000
+        }
+      ]
+    },
+    {
+      "name": "N*v1",
+      "input": {
+        "slot": 3,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 5000
+        }
+      ]
+    },
+    {
+      "name": "N-1*v1,1*v2",
+      "input": {
+        "slot": 4,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 4999
+        }
+      ]
+    },
+    {
+      "name": "N-Q*v1,Q*v2",
+      "input": {
+        "slot": 5,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 4997
+        },
+        {
+          "priority": "v2",
+          "score": 3000
+        }
+      ]
+    },
+    {
+      "name": "N*v2",
+      "input": {
+        "slot": 6,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v2",
+          "score": 5000
+        },
+        {
+          "priority": "v1",
+          "score": 4995
+        }
+      ]
+    },
+    {
+      "name": "N-1*v2,1*down",
+      "input": {
+        "slot": 7,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v2",
+          "score": 4000
+        },
+        {
+          "priority": "v1",
+          "score": 3996
+        }
+      ]
+    },
+    {
+      "name": "Q-1*v2,3*down",
+      "input": {
+        "slot": 8,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": []
+    },
+    {
+      "name": "1*v1,N-1*v2",
+      "input": {
+        "slot": 9,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 4996
+        },
+        {
+          "priority": "v2",
+          "score": 4000
+        }
+      ]
+    },
+    {
+      "name": "1*v1,N-2*v2,1*down",
+      "input": {
+        "slot": 10,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 3997
+        },
+        {
+          "priority": "v2",
+          "score": 3000
+        }
+      ]
+    },
+    {
+      "name": "1*v1,Q-1*v2,2*down",
+      "input": {
+        "slot": 11,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 2998
+        }
+      ]
+    },
+    {
+      "name": "1*v1,N-2*v2,1*v3",
+      "input": {
+        "slot": 12,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v2",
+          "score": 3999
+        },
+        {
+          "priority": "v1",
+          "score": 3997
+        }
+      ]
+    },
+    {
+      "name": "2*v1,N-3*v2,1*v3",
+      "input": {
+        "slot": 13,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v1",
+          "score": 3998
+        },
+        {
+          "priority": "v2",
+          "score": 2999
+        }
+      ]
+    },
+    {
+      "name": "1*v1,1*v2,Q*v3",
+      "input": {
+        "slot": 14,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v2",
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v2",
+          "score": 3997
+        },
+        {
+          "priority": "v3",
+          "score": 3000
+        }
+      ]
+    },
+    {
+      "name": "2*v1,Q*v3",
+      "input": {
+        "slot": 15,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "v1"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          },
+          {
+            "peer_id": "4",
+            "priorities": [
+              "v3",
+              "v2"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "v3",
+          "score": 3000
+        },
+        {
+          "priority": "v2",
+          "score": 2997
+        }
+      ]
+    },
+    {
+      "name": "deterministic ordering instance 1",
+      "input": {
+        "slot": 1,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "x",
+              "y"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "x",
+              "y"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "y",
+              "x"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "y",
+              "x"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "x",
+          "score": 3998
+        },
+        {
+          "priority": "y",
+          "score": 3998
+        }
+      ]
+    },
+    {
+      "name": "deterministic ordering instance 9",
+      "input": {
+        "slot": 9,
+        "min_required": 3,
+        "topic": "versions",
+        "ignored_topic": "ignored",
+        "peers": [
+          {
+            "peer_id": "0",
+            "priorities": [
+              "x",
+              "y"
+            ]
+          },
+          {
+            "peer_id": "1",
+            "priorities": [
+              "x",
+              "y"
+            ]
+          },
+          {
+            "peer_id": "2",
+            "priorities": [
+              "y",
+              "x"
+            ]
+          },
+          {
+            "peer_id": "3",
+            "priorities": [
+              "y",
+              "x"
+            ]
+          }
+        ]
+      },
+      "result": [
+        {
+          "priority": "x",
+          "score": 3998
+        },
+        {
+          "priority": "y",
+          "score": 3998
+        }
+      ]
+    }
+  ]
+}

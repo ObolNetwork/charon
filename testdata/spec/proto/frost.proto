@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package dkg.dkgpb.v1;
+
+// FrostMsgKey identifies the validator instance, sender, and recipient of a
+// FROST message. A target_id of 0 marks an outgoing broadcast.
+message FrostMsgKey {
+  uint32 val_idx = 1;    // Distributed validator index, 0-indexed.
+  uint32 source_id = 2;  // Sender share index, 1-indexed.
+  uint32 target_id = 3;  // Recipient share index, 1-indexed; 0 for broadcast.
+}
+
+// FrostRound1Casts is reliably broadcast under message ID
+// /charon/dkg/frost/2.0.0/round1/cast, with one cast per validator.
+message FrostRound1Casts {
+  repeated FrostRound1Cast casts = 1;
+}
+
+message FrostRound1Cast {
+  FrostMsgKey key = 1;
+  bytes wi = 2;                   // Schnorr proof scalar, 32 bytes.
+  bytes ci = 3;                   // Schnorr challenge scalar, 32 bytes.
+  repeated bytes commitments = 4; // Feldman commitments, `threshold` compressed G1 points.
+}
+
+// FrostRound1P2P is sent directly to a single peer under libp2p protocol ID
+// /charon/dkg/frost/2.0.0/round1/p2p, with one share per validator.
+message FrostRound1P2P {
+  repeated FrostRound1ShamirShare shares = 1;
+}
+
+message FrostRound1ShamirShare {
+  FrostMsgKey key = 1;
+  uint32 id = 2;   // Recipient participant ID as produced by FROST secret sharing.
+  bytes value = 3; // Shamir share scalar, 32 bytes.
+}
+
+// FrostRound2Casts is reliably broadcast under message ID
+// /charon/dkg/frost/2.0.0/round2/cast, with one cast per validator.
+message FrostRound2Casts {
+  repeated FrostRound2Cast casts = 1;
+}
+
+message FrostRound2Cast {
+  FrostMsgKey key = 1;
+  bytes verification_key = 2; // Aggregate validator public key, compressed G1.
+  bytes vk_share = 3;         // This node's public key share, compressed G1.
+}

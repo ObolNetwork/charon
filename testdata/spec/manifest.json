@@ -1,0 +1,253 @@
+{
+  "spec_version": "0.1.0",
+  "tag": "spec-v0.1.0",
+  "charon_anchor": {
+    "repo": "https://github.com/ObolNetwork/charon",
+    "branch": "main",
+    "commit": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+    "date": "2026-07-29"
+  },
+  "compatibility": {
+    "note": "The spec tracks Charon main, so it can specify behaviour no final Charon release carries. A behaviour with a null first_charon_release is in no final release \u2014 only on main or in release candidates; its note says which. Compare against your Charon using first_charon_release_semver, the [major, minor, patch] triple: Charon's tags are not ordered by string comparison, so \"v1.11.0\" sorts below \"v1.9.0\".",
+    "behaviours": [
+      {
+        "name": "MsgSync.nickname field (DKG sync)",
+        "first_charon_release": "v1.9.0",
+        "first_charon_release_semver": [
+          1,
+          9,
+          0
+        ],
+        "spec": "docs/dv-spec/dkg-sync.md"
+      },
+      {
+        "name": "Deterministic (genesis-derived) eager double linear round deadlines",
+        "first_charon_release": "v1.9.0",
+        "first_charon_release_semver": [
+          1,
+          9,
+          0
+        ],
+        "spec": "docs/dv-spec/consensus.md"
+      },
+      {
+        "name": "Extended 1.5s proposer round-1 timeout (proposal_timeout)",
+        "first_charon_release": "v1.9.0",
+        "first_charon_release_semver": [
+          1,
+          9,
+          0
+        ],
+        "spec": "docs/dv-spec/consensus.md",
+        "note": "The behaviour itself is older (charon #3739) but sat behind the alpha proposal_timeout feature flag; v1.9.0 (charon #4296) enabled it by default. The timer_deadlines vectors assume it is enabled."
+      },
+      {
+        "name": "Linear round timer subsequent-round timeout fix",
+        "first_charon_release": null,
+        "first_charon_release_semver": null,
+        "spec": "docs/dv-spec/consensus.md",
+        "note": "No final Charon release carries this; it shipped in the v1.11.0 release candidates (first in v1.11.0-rc1). Timing-only, no wire change: against an older peer, its rounds 2+ simply time out on the uncorrected schedule."
+      },
+      {
+        "name": "QBFT DECIDED-resend rate limit and message size/count limits",
+        "first_charon_release": null,
+        "first_charon_release_semver": null,
+        "spec": "docs/dv-spec/consensus.md",
+        "note": "No final Charon release carries this; it shipped in the v1.11.0 release candidates (first in v1.11.0-rc1). The limits only reject messages no honest peer sends, so enforcing them interoperates with every release."
+      },
+      {
+        "name": "Preferred priority protocol ID /charon/priority/2.0.0",
+        "first_charon_release": null,
+        "first_charon_release_semver": null,
+        "spec": "docs/dv-spec/priority.md",
+        "note": "Unreleased on Charon main. The legacy no-slash ID is the only one every released Charon speaks and must still be served; Charon targets v1.12 for the preferred ID and v1.14 for removing the alias."
+      },
+      {
+        "name": "Stable sort of scored priorities",
+        "first_charon_release": null,
+        "first_charon_release_semver": null,
+        "spec": "docs/dv-spec/priority.md",
+        "note": "Unreleased on Charon main. Only changes results for a tie among thirteen or more priorities in a topic, which no released Charon produces."
+      },
+      {
+        "name": "Sender-bound share indices in the DKG lock-hash exchange",
+        "first_charon_release": null,
+        "first_charon_release_semver": null,
+        "spec": "docs/dv-spec/parsigex.md",
+        "note": "Unreleased on Charon main. Rejects only partial signatures no honest peer sends."
+      },
+      {
+        "name": "Strict cluster file validation (fixed-length fields, address checksums, lock deposit data and builder registrations)",
+        "first_charon_release": null,
+        "first_charon_release_semver": null,
+        "spec": "docs/dv-spec/cluster-files.md",
+        "note": "Not in Charon main at this anchor; Charon accepts most of the cluster_validation suite's rejected cases. Rejects only files Charon's DKG never writes."
+      }
+    ]
+  },
+  "proto": [
+    {
+      "file": "proto/bcast.proto",
+      "mirrors": "dkg/dkgpb/v1/bcast.proto"
+    },
+    {
+      "file": "proto/consensus.proto",
+      "mirrors": "core/corepb/v1/consensus.proto"
+    },
+    {
+      "file": "proto/core.proto",
+      "mirrors": "core/corepb/v1/core.proto"
+    },
+    {
+      "file": "proto/dkg_sync.proto",
+      "mirrors": "dkg/dkgpb/v1/sync.proto"
+    },
+    {
+      "file": "proto/frost.proto",
+      "mirrors": "dkg/dkgpb/v1/frost.proto"
+    },
+    {
+      "file": "proto/nodesigs.proto",
+      "mirrors": "dkg/dkgpb/v1/nodesigs.proto"
+    },
+    {
+      "file": "proto/parsigex.proto",
+      "mirrors": "core/corepb/v1/parsigex.proto"
+    },
+    {
+      "file": "proto/pedersen.proto",
+      "mirrors": "dkg/dkgpb/v1/pedersen.proto"
+    },
+    {
+      "file": "proto/peerinfo.proto",
+      "mirrors": "app/peerinfo/peerinfopb/v1/peerinfo.proto"
+    },
+    {
+      "file": "proto/priority.proto",
+      "mirrors": "core/corepb/v1/priority.proto"
+    }
+  ],
+  "test_vectors": [
+    {
+      "file": "test_vectors/bls_threshold.json",
+      "suite": "bls_threshold",
+      "description": "BLS12-381 key derivation, signing, and both aggregations, over a fixed threshold-3-of-4 sharing. The shares are the evaluations of one degree-2 polynomial at x=1..4, so any three of them reconstruct the group key: threshold_aggregates therefore all equal group_signature, which is what distinguishes correct Lagrange coefficients from plausible ones. The scheme is BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_ (Ethereum, minimal-pubkey-size).",
+      "source": "charon",
+      "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+      "cases": 12,
+      "groups": {
+        "keys": 2,
+        "partials": 4,
+        "threshold_aggregates": 4,
+        "recovery": 1,
+        "plain_aggregate": 1
+      }
+    },
+    {
+      "file": "test_vectors/cluster_hashing.json",
+      "suite": "cluster_hashing",
+      "description": "Config, definition and lock hashes of cluster configuration files at version v1.10.0. Each case's input is a verbatim charon cluster file, so 0x-prefixed hex inside input is charon's encoding; the expected hashes follow this directory's convention of bare lower-case hex. The definition group also pins the property the config hash exists for: adding signatures must not change it.",
+      "source": "charon",
+      "charon_ref": "adddef75502793fcb2172f12ef0c700114736492",
+      "cases": 10,
+      "groups": {
+        "definition": 6,
+        "lock": 4
+      }
+    },
+    {
+      "file": "test_vectors/cluster_validation.json",
+      "suite": "cluster_validation",
+      "description": "Which v1.10.0 cluster definitions and locks a reader MUST accept or reject. A definition is accepted if it parses under the field rules (fixed lengths, addresses, deposit amount bounds and sum) and its stored hashes match. A lock is accepted if it parses and passes the full verification sequence: hashes, public shares, deposit data, builder registrations, signature aggregate, node signatures (against node_pubkeys). Every rejected case breaks exactly one rule and is otherwise fully valid; length and address cases are hashed and signed over the value a lenient reader would decode (short fields left-padded as Charon pads them, the registration fee recipient right-padded, long fields truncated, addresses case-insensitive), so a reader that pads instead of rejecting finds every hash and signature valid.",
+      "source": "spec",
+      "charon_ref": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+      "cases": 49,
+      "groups": {
+        "definition": 23,
+        "lock": 26
+      }
+    },
+    {
+      "file": "test_vectors/parsigex_sender_binding.json",
+      "suite": "parsigex_sender_binding",
+      "description": "A peer may only contribute a partial signature under the share index the cluster assigned it, resolved through a peer map rather than the peer's position: removing an operator leaves survivors with gapped indices, which is what breaks a position-derived implementation. Construction rejects a participant with no assigned index, since otherwise its signatures are dropped as unknown and the exchange silently times out.",
+      "source": "charon",
+      "charon_ref": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+      "cases": 9,
+      "groups": {
+        "cases": 6,
+        "peer_map": 3
+      }
+    },
+    {
+      "file": "test_vectors/priority_scoring.json",
+      "suite": "priority_scoring",
+      "description": "Cluster-wide priority results for a topic, given each peer's proposed order. Every peer also proposes an empty 'ignored' topic, which must appear in the result with no priorities.",
+      "source": "charon",
+      "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+      "cases": 18,
+      "groups": {
+        "cases": 18
+      }
+    },
+    {
+      "file": "test_vectors/qbft_decided_resends.json",
+      "suite": "qbft_decided_resends",
+      "description": "Once an instance has decided, a post-decision ROUND-CHANGE triggers at most one DECIDED rebroadcast per source per strictly-increasing round, capped at 16 per source. `rebroadcast[i]` is whether event i triggers one. Counted as rebroadcast events, not messages, since a rebroadcast reaches every peer.",
+      "source": "charon",
+      "charon_ref": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+      "cases": 2,
+      "groups": {
+        "cases": 2
+      }
+    },
+    {
+      "file": "test_vectors/qbft_hashing.json",
+      "suite": "qbft_hashing",
+      "description": "Deterministic protobuf encodings and SSZ hash roots for the messages a Distributed Validator hashes: consensus values, duties, QBFT message signing roots, and the Any-wrapped strings the priority protocol uses.",
+      "source": "charon",
+      "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+      "cases": 25,
+      "groups": {
+        "duty": 3,
+        "unsigned_data_set": 12,
+        "qbft_signing_root": 6,
+        "any_string": 4
+      }
+    },
+    {
+      "file": "test_vectors/qbft_msg_limits.json",
+      "suite": "qbft_msg_limits",
+      "description": "Limits a receiver MUST apply to an incoming QBFT consensus message before any per-element work: justifications <= 2*nodes, values <= 2*(justifications+1), and a wire size of at most 33554432 bytes (32 MiB). Every case names the rejection reason, because agreeing on which limit fired is what makes the two checks distinguishable.",
+      "source": "spec",
+      "charon_ref": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+      "cases": 15,
+      "groups": {
+        "counts": 11,
+        "wire_size": 4
+      }
+    },
+    {
+      "file": "test_vectors/secp256k1_signatures.json",
+      "suite": "secp256k1_signatures",
+      "description": "secp256k1 signatures in the 65-byte R || S || V form used for QBFT consensus messages, node signatures over the cluster lock hash, and cluster definition operator signatures. The nonce is RFC 6979 deterministic, so these bytes are reproducible exactly.",
+      "source": "charon",
+      "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+      "cases": 2,
+      "groups": {
+        "cases": 2
+      }
+    },
+    {
+      "file": "test_vectors/timer_deadlines.json",
+      "suite": "timer_deadlines",
+      "description": "First-expiry deadlines of the eager double linear consensus round timer. deadline_nanos = genesis + slot_duration * slot + duty_start_delay + round_timeout, all in integer nanoseconds.",
+      "source": "spec",
+      "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+      "cases": 216,
+      "groups": {
+        "cases": 216
+      }
+    }
+  ]
+}

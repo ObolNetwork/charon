@@ -1,0 +1,701 @@
+{
+  "suite": "cluster_hashing",
+  "description": "Config, definition and lock hashes of cluster configuration files at version v1.10.0. Each case's input is a verbatim charon cluster file, so 0x-prefixed hex inside input is charon's encoding; the expected hashes follow this directory's convention of bare lower-case hex. The definition group also pins the property the config hash exists for: adding signatures must not change it.",
+  "provenance": {
+    "source": "charon",
+    "charon_ref": "adddef75502793fcb2172f12ef0c700114736492",
+    "generated_by": "test_vectors/charon/cluster_generator/main.go",
+    "note": "Hashes produced by charon's exported Definition.SetDefinitionHashes and Lock.SetLockHash, and the inputs by charon's own JSON writer. The charon_testdata_golden cases are charon's regression fixtures cluster/testdata/cluster_definition_v1_10_0.json and cluster_lock_v1_10_0.json unmodified, which charon's TestEncode asserts. charon_ref is one commit ahead of the 2eb6798e anchor the other suites use; that commit touches only p2p/sender_test.go, so cluster/ is identical at both."
+  },
+  "definition": [
+    {
+      "name": "charon_testdata_golden",
+      "input": {
+        "name": "test definition",
+        "creator": {
+          "address": "0x6325253fec448615bbda08313f6a8eb668d20bf5",
+          "config_signature": "0x844592d2572bcd0668d2d6c52f5054e2d0836bf84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9fff094279db1944ebd7a19d0f7bba1b"
+        },
+        "operators": [
+          {
+            "address": "0xe0255aa5b7d44bec40f84c892b9bffd43629b022",
+            "enr": "enr:-HW4QNHE5aL5CrfBtTF9Hi2VrssawbiC4xuTUzuk0Mu3wRQSL2mA-XQtlmSQ7brloyZAZKKagpag6KJHOa124gXyklOAgmlkgnY0iXNlY3AyNTZrMaECdAJRmH_MYH0n6WfA_wtyIp3jHSHnNAivFMYGZJlY9Hk",
+            "config_signature": "0x4294040374f6924b98cbf8713f8d962d7c8d019192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea6f5b3af6de0374366c4719e43a00",
+            "enr_signature": "0x067d89bc7f01f1f573981659a44ff17a4c7215a3b539eb1e5849c6077dbb5722f5717a289a266f97647981998ebea89c0b4b373970115e82ed6f4125c8fa73111b"
+          },
+          {
+            "address": "0xd7defa922daae7786667f7e936cd4f24abf7df86",
+            "enr": "enr:-HW4QHWdfdJ6sz5b0NUvnc8gVkv-uBLNhKmPK-uh2CzWzcnFP-TZZoGZkJj9Aavr47GinAQTrOTdvXKYe_0dkvkXnYmAgmlkgnY0iXNlY3AyNTZrMaECRm1_yuVj5csJoNGHC7WANEgEYXh5oUlJzyIoXxuuPyc",
+            "config_signature": "0xf4a8b0993ebdf8883a0ad8be9c3978b04883e56a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4da6430105220d0b29688b734b8ea000",
+            "enr_signature": "0xca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b39f32b7c7822ba64f84ab43ca0c6e61b"
+          }
+        ],
+        "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+        "version": "v1.10.0",
+        "timestamp": "2022-07-19T18:19:58+02:00",
+        "num_validators": 2,
+        "threshold": 3,
+        "validators": [
+          {
+            "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
+            "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
+          },
+          {
+            "fee_recipient_address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
+            "withdrawal_address": "0x5fb90badb37c5821b6d95526a41a9504680b4e7c"
+          }
+        ],
+        "dkg_algorithm": "default",
+        "fork_version": "0x90000069",
+        "deposit_amounts": [
+          "16000000000",
+          "16000000000"
+        ],
+        "consensus_protocol": "abft",
+        "target_gas_limit": 30000000,
+        "compounding": false,
+        "config_hash": "0x225c67b648abd8b459265cd84b18b86265e2c5da8e352c488ac6f0e63b2422bc",
+        "definition_hash": "0x77084e268288dd34970af16f55b8dcbbe26dce196e0e91be193450f24726e76e"
+      },
+      "config_hash": "225c67b648abd8b459265cd84b18b86265e2c5da8e352c488ac6f0e63b2422bc",
+      "definition_hash": "77084e268288dd34970af16f55b8dcbbe26dce196e0e91be193450f24726e76e",
+      "notes": "Charon's own v1.10.0 regression fixture, cluster/testdata/cluster_definition_v1_10_0.json, unmodified. Two operators, two validators, two partial deposit amounts."
+    },
+    {
+      "name": "all_empty_lists",
+      "input": {
+        "creator": {
+          "address": "",
+          "config_signature": ""
+        },
+        "operators": null,
+        "uuid": "00000000-0000-0000-0000-000000000000",
+        "version": "v1.10.0",
+        "num_validators": 0,
+        "threshold": 0,
+        "validators": null,
+        "dkg_algorithm": "",
+        "fork_version": "0x00000000",
+        "deposit_amounts": null,
+        "consensus_protocol": "",
+        "target_gas_limit": 30000000,
+        "compounding": false,
+        "config_hash": "0x644ecd55b935e08d421dacc5f2dd9055baf01a8a657eb18f82ed03ae60a0ed1c",
+        "definition_hash": "0x7542d0f115175f0dfd51c1b941af5c99dd579cc44f627ab55a61fa0b9cf07d54"
+      },
+      "config_hash": "644ecd55b935e08d421dacc5f2dd9055baf01a8a657eb18f82ed03ae60a0ed1c",
+      "definition_hash": "7542d0f115175f0dfd51c1b941af5c99dd579cc44f627ab55a61fa0b9cf07d54",
+      "notes": "Empty name, timestamp, consensus protocol, operators, validators and deposit amounts. Pins the empty-list hashes: a byte list whose capacity is one chunk hashes to sha256(zero chunk || zero length), while deposit_amounts spans 64 chunks and so hashes its depth-6 zero subtree with a zero length mixed in."
+    },
+    {
+      "name": "unsigned_single_operator",
+      "input": {
+        "name": "signature collection",
+        "creator": {
+          "address": "0x0000000000000000000000000000000000c0ffee",
+          "config_signature": ""
+        },
+        "operators": [
+          {
+            "address": "0x0000000000000000000000000000000000000001",
+            "enr": "enr:-HW4QKQucUpfyYqAJduZ-Q5wkmEUcgAdm0frB-xX98VPs-OGU-OW0O5-dfyf3CLKuEOaoWUvQ3ClKv6RKLSnf1Hig86AgmlkgnY0iXNlY3AyNTZrMaED5orPwCU6EGIN_3BrChsfH1gz6jvrO94iUNXycfNWNgY",
+            "config_signature": "",
+            "enr_signature": ""
+          }
+        ],
+        "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+        "version": "v1.10.0",
+        "timestamp": "2026-07-29T12:00:00+00:00",
+        "num_validators": 1,
+        "threshold": 1,
+        "validators": [
+          {
+            "fee_recipient_address": "0x000000000000000000000000000000000000fee0",
+            "withdrawal_address": "0x00000000000000000000000000000000000dead0"
+          }
+        ],
+        "dkg_algorithm": "default",
+        "fork_version": "0x90000069",
+        "deposit_amounts": null,
+        "consensus_protocol": "qbft",
+        "target_gas_limit": 30000000,
+        "compounding": false,
+        "config_hash": "0xad61a42a19a6eb0ae9745e187cdb77ffeea7aa8c8074e77f9316a2bd1c2ac64e",
+        "definition_hash": "0x52c387fbaee0914180f447e3a4c669d9257927f451cd8833f10d7bd25101af3d"
+      },
+      "config_hash": "ad61a42a19a6eb0ae9745e187cdb77ffeea7aa8c8074e77f9316a2bd1c2ac64e",
+      "definition_hash": "52c387fbaee0914180f447e3a4c669d9257927f451cd8833f10d7bd25101af3d",
+      "notes": "A definition as it looks while signatures are still being collected. Absent signatures are left-padded to 65 zero bytes, so this hashes identically to a definition carrying all-zero signatures."
+    },
+    {
+      "name": "signed_single_operator",
+      "input": {
+        "name": "signature collection",
+        "creator": {
+          "address": "0x0000000000000000000000000000000000c0ffee",
+          "config_signature": "0x3030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030"
+        },
+        "operators": [
+          {
+            "address": "0x0000000000000000000000000000000000000001",
+            "enr": "enr:-HW4QKQucUpfyYqAJduZ-Q5wkmEUcgAdm0frB-xX98VPs-OGU-OW0O5-dfyf3CLKuEOaoWUvQ3ClKv6RKLSnf1Hig86AgmlkgnY0iXNlY3AyNTZrMaED5orPwCU6EGIN_3BrChsfH1gz6jvrO94iUNXycfNWNgY",
+            "config_signature": "0x1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010",
+            "enr_signature": "0x2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
+          }
+        ],
+        "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+        "version": "v1.10.0",
+        "timestamp": "2026-07-29T12:00:00+00:00",
+        "num_validators": 1,
+        "threshold": 1,
+        "validators": [
+          {
+            "fee_recipient_address": "0x000000000000000000000000000000000000fee0",
+            "withdrawal_address": "0x00000000000000000000000000000000000dead0"
+          }
+        ],
+        "dkg_algorithm": "default",
+        "fork_version": "0x90000069",
+        "deposit_amounts": null,
+        "consensus_protocol": "qbft",
+        "target_gas_limit": 30000000,
+        "compounding": false,
+        "config_hash": "0xad61a42a19a6eb0ae9745e187cdb77ffeea7aa8c8074e77f9316a2bd1c2ac64e",
+        "definition_hash": "0x22d967c8f542363442ac60654c25e2f8f39f41bbe1d55beb96c3a8085b1e8f22"
+      },
+      "config_hash": "ad61a42a19a6eb0ae9745e187cdb77ffeea7aa8c8074e77f9316a2bd1c2ac64e",
+      "definition_hash": "22d967c8f542363442ac60654c25e2f8f39f41bbe1d55beb96c3a8085b1e8f22",
+      "notes": "The unsigned_single_operator definition with operator and creator signatures added, and nothing else changed. Its config_hash MUST equal that case's config_hash and its definition_hash MUST differ: an implementation whose config hash moves when a signature arrives makes every already-collected signature invalid."
+    },
+    {
+      "name": "three_operators_compounding",
+      "input": {
+        "name": "three operators",
+        "creator": {
+          "address": "0x0000000000000000000000000000000000c0ffee",
+          "config_signature": "0x3030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030"
+        },
+        "operators": [
+          {
+            "address": "0x0000000000000000000000000000000000000001",
+            "enr": "enr:-HW4QKQucUpfyYqAJduZ-Q5wkmEUcgAdm0frB-xX98VPs-OGU-OW0O5-dfyf3CLKuEOaoWUvQ3ClKv6RKLSnf1Hig86AgmlkgnY0iXNlY3AyNTZrMaED5orPwCU6EGIN_3BrChsfH1gz6jvrO94iUNXycfNWNgY",
+            "config_signature": "0x1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010",
+            "enr_signature": "0x2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
+          },
+          {
+            "address": "0x0000000000000000000000000000000000000002",
+            "enr": "enr:-HW4QPBnzD2BIzCGr2VYgA-Iadn-L-kY-ZprR3n3jBVd949VSRyY4ZcCtxBaFdTyUaVrU94gUCCJ0Mz8lFw_RRjcl02AgmlkgnY0iXNlY3AyNTZrMaEDWUF9GvwcCI-Yo3B6YzY88ivxhnNgrvG9LZl6nv0GKHs",
+            "config_signature": "0x1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+            "enr_signature": "0x2121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121"
+          },
+          {
+            "address": "0x0000000000000000000000000000000000000003",
+            "enr": "enr:-HW4QG-c29LX2p6EMZ8BtQh4hNAa9K37506yA-D_1m495yrZMZLsJND4cQbswunsa8HqFkc5sARx1HSww-1fBNioqB6AgmlkgnY0iXNlY3AyNTZrMaEDxV1B1WNre-2YaVVkF_yWsAYJhxCy7L7cczeQ19bU3UI",
+            "config_signature": "0x1212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212",
+            "enr_signature": "0x2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+        "version": "v1.10.0",
+        "timestamp": "2026-07-29T12:00:00+00:00",
+        "num_validators": 2,
+        "threshold": 2,
+        "validators": [
+          {
+            "fee_recipient_address": "0x000000000000000000000000000000000000fee0",
+            "withdrawal_address": "0x00000000000000000000000000000000000dead0"
+          },
+          {
+            "fee_recipient_address": "0x000000000000000000000000000000000000fee1",
+            "withdrawal_address": "0x00000000000000000000000000000000000dead1"
+          }
+        ],
+        "dkg_algorithm": "default",
+        "fork_version": "0x90000069",
+        "deposit_amounts": [
+          "1000000000",
+          "31000000000"
+        ],
+        "consensus_protocol": "abft",
+        "target_gas_limit": 36000000,
+        "compounding": true,
+        "config_hash": "0x21a94ad346fb7bf4696d4488a3bbfbd73780f20ef69db76edf9aa826c076b783",
+        "definition_hash": "0xb3531e6c81f8d540b158d99c41dcfef006eabd81fdd3bcecfeac4afbf6922383"
+      },
+      "config_hash": "21a94ad346fb7bf4696d4488a3bbfbd73780f20ef69db76edf9aa826c076b783",
+      "definition_hash": "b3531e6c81f8d540b158d99c41dcfef006eabd81fdd3bcecfeac4afbf6922383",
+      "notes": "Three operators, an odd list length: the leaf layer completes with a zero chunk, and the odd node it propagates pairs with each higher level's zero-subtree hash. Also the only case with compounding set."
+    },
+    {
+      "name": "gas_limit_above_2_32",
+      "input": {
+        "name": "wide gas limit",
+        "creator": {
+          "address": "0x0000000000000000000000000000000000c0ffee",
+          "config_signature": ""
+        },
+        "operators": [
+          {
+            "address": "0x0000000000000000000000000000000000000001",
+            "enr": "enr:-HW4QKQucUpfyYqAJduZ-Q5wkmEUcgAdm0frB-xX98VPs-OGU-OW0O5-dfyf3CLKuEOaoWUvQ3ClKv6RKLSnf1Hig86AgmlkgnY0iXNlY3AyNTZrMaED5orPwCU6EGIN_3BrChsfH1gz6jvrO94iUNXycfNWNgY",
+            "config_signature": "0x1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010",
+            "enr_signature": "0x2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
+          }
+        ],
+        "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+        "version": "v1.10.0",
+        "timestamp": "2026-07-29T12:00:00+00:00",
+        "num_validators": 1,
+        "threshold": 1,
+        "validators": [
+          {
+            "fee_recipient_address": "0x000000000000000000000000000000000000fee0",
+            "withdrawal_address": "0x00000000000000000000000000000000000dead0"
+          }
+        ],
+        "dkg_algorithm": "default",
+        "fork_version": "0x90000069",
+        "deposit_amounts": [
+          "32000000000"
+        ],
+        "consensus_protocol": "",
+        "target_gas_limit": 4294967296,
+        "compounding": false,
+        "config_hash": "0x40c6bfa059224f725b078eae71aa0736af82e6e1289b39e73f3ac22d6fc8b53d",
+        "definition_hash": "0x910555584b48574754fd367ba879c0b07db319b0faf0f734306c9e41d73e5ea4"
+      },
+      "config_hash": "40c6bfa059224f725b078eae71aa0736af82e6e1289b39e73f3ac22d6fc8b53d",
+      "definition_hash": "910555584b48574754fd367ba879c0b07db319b0faf0f734306c9e41d73e5ea4",
+      "notes": "target_gas_limit is 2^32, which a hasher writing a 32-bit integer would truncate to zero. Deposit amounts hold one element, so the uint64 list is a partly filled chunk."
+    }
+  ],
+  "lock": [
+    {
+      "name": "charon_testdata_golden",
+      "input": {
+        "cluster_definition": {
+          "name": "test definition",
+          "creator": {
+            "address": "0x6325253fec448615bbda08313f6a8eb668d20bf5",
+            "config_signature": "0x844592d2572bcd0668d2d6c52f5054e2d0836bf84c7174cb7476364cc3dbd968b0f7172ed85794bb358b0c3b525da1786f9fff094279db1944ebd7a19d0f7bba1b"
+          },
+          "operators": [
+            {
+              "address": "0xe0255aa5b7d44bec40f84c892b9bffd43629b022",
+              "enr": "enr:-HW4QNHE5aL5CrfBtTF9Hi2VrssawbiC4xuTUzuk0Mu3wRQSL2mA-XQtlmSQ7brloyZAZKKagpag6KJHOa124gXyklOAgmlkgnY0iXNlY3AyNTZrMaECdAJRmH_MYH0n6WfA_wtyIp3jHSHnNAivFMYGZJlY9Hk",
+              "config_signature": "0x4294040374f6924b98cbf8713f8d962d7c8d019192c24224e2cafccae3a61fb586b14323a6bc8f9e7df1d929333ff993933bea6f5b3af6de0374366c4719e43a00",
+              "enr_signature": "0x067d89bc7f01f1f573981659a44ff17a4c7215a3b539eb1e5849c6077dbb5722f5717a289a266f97647981998ebea89c0b4b373970115e82ed6f4125c8fa73111b"
+            },
+            {
+              "address": "0xd7defa922daae7786667f7e936cd4f24abf7df86",
+              "enr": "enr:-HW4QHWdfdJ6sz5b0NUvnc8gVkv-uBLNhKmPK-uh2CzWzcnFP-TZZoGZkJj9Aavr47GinAQTrOTdvXKYe_0dkvkXnYmAgmlkgnY0iXNlY3AyNTZrMaECRm1_yuVj5csJoNGHC7WANEgEYXh5oUlJzyIoXxuuPyc",
+              "config_signature": "0xf4a8b0993ebdf8883a0ad8be9c3978b04883e56a156a8de563afa467d49dec6a40e9a1d007f033c2823061bdd0eaa59f8e4da6430105220d0b29688b734b8ea000",
+              "enr_signature": "0xca9936e8461f10d77c96ea80a7a665f606f6a63b7f3dfd2567c18979e4d60f26686d9bf2fb26c901ff354cde1607ee294b39f32b7c7822ba64f84ab43ca0c6e61b"
+            }
+          ],
+          "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+          "version": "v1.10.0",
+          "timestamp": "2022-07-19T18:19:58+02:00",
+          "num_validators": 2,
+          "threshold": 3,
+          "validators": [
+            {
+              "fee_recipient_address": "0x52fdfc072182654f163f5f0f9a621d729566c74d",
+              "withdrawal_address": "0x81855ad8681d0d86d1e91e00167939cb6694d2c4"
+            },
+            {
+              "fee_recipient_address": "0xeb9d18a44784045d87f3c67cf22746e995af5a25",
+              "withdrawal_address": "0x5fb90badb37c5821b6d95526a41a9504680b4e7c"
+            }
+          ],
+          "dkg_algorithm": "default",
+          "fork_version": "0x90000069",
+          "deposit_amounts": [
+            "16000000000",
+            "16000000000"
+          ],
+          "consensus_protocol": "abft",
+          "target_gas_limit": 30000000,
+          "compounding": false,
+          "config_hash": "0x225c67b648abd8b459265cd84b18b86265e2c5da8e352c488ac6f0e63b2422bc",
+          "definition_hash": "0x77084e268288dd34970af16f55b8dcbbe26dce196e0e91be193450f24726e76e"
+        },
+        "distributed_validators": [
+          {
+            "distributed_public_key": "0x6865fcf92b0c3a17c9028be9914eb7649c6c9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818",
+            "public_shares": [
+              "0x526f1814be823350eab13935f31d84484517e924aef78ae151c00755925836b7075885650c30ec29a3703934bf50a28d",
+              "0xa102975deda77e758579ea3dfe4136abf752b3b8271d03e944b3c9db366b75045f8efd69d22ae5411947cb553d769426"
+            ],
+            "builder_registration": {
+              "message": {
+                "fee_recipient": "0x9be1072fb63c35d6042c4160f38ee9e2a9f3fb4f",
+                "gas_limit": 30000000,
+                "timestamp": 1655733600,
+                "pubkey": "0x6865fcf92b0c3a17c9028be9914eb7649c6c9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818"
+              },
+              "signature": "0x15d9afbcbf7f7da41ab0408e3969c2e2cdcf233438bf1774ace7709a4f091e9a83fdeae0ec55eb233a9b5394cb3c7856b546d313c8a3b4c1c0e05447f4ba370eb36dbcfdec90b302dcdc3b9ef522e2a6f1ed0afec1f8e20faabedf6b162e717d"
+            },
+            "partial_deposit_data": [
+              {
+                "pubkey": "0x6865fcf92b0c3a17c9028be9914eb7649c6c9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818",
+                "withdrawal_credentials": "0x5abf44ccde263b5606633e2bf0006f28295d7d39069f01a239c4365854c3af7f",
+                "amount": "5159484672389300587",
+                "signature": "0x8d12f41257325fff332f7576b0620556304a3e3eae14c28d0cea39d2901a52720da85ca1e4b38eaf3f44c6c6ef8362f2f54fc00e09d6fc25640854c15dfcacaa8a2cecce5a3aba53ab705b18db94b4d338a5143e63408d8724b0cf3fae17a3f7"
+              },
+              {
+                "pubkey": "0x6865fcf92b0c3a17c9028be9914eb7649c6c9347800979d1830356f2a54c3deab2a4b4475d63afbe8fb56987c77f5818",
+                "withdrawal_credentials": "0xf08dfcbd02b80809398585928a0f7de50be1a6dc1d5768e8537988fddce562e9",
+                "amount": "634163968188082595",
+                "signature": "0xb948c918bbe5e60c5ead6fc7ae77ba1d259b188a4b21c86fbc23d728b45347eada650af24c56d0800a8691332088a805bd55c446e25eb07590bafcccbec6177536401d9a2b7f512b54bfc9d00532adf5aaa7c3a96bc59b489f77d9042c5bce26"
+              }
+            ]
+          },
+          {
+            "distributed_public_key": "0x3a748a58677a0c56348f8921a266b11d0f334c62fe52ba53af19779cb2948b6570ffa0b773963c130ad797ddeafe4e3a",
+            "public_shares": [
+              "0xd29b5125210f0ef1c314090f07c79a6f571c246f3e9ac0b7413ef110bd58b00ce73bff706f7ff4b6f44090a32711f320",
+              "0x8e4e4b89cb5165ce64002cbd9c2887aa113df2468928d5a23b9ca740f80c9382d9c6034ad2960c796503e1ce221725f5"
+            ],
+            "builder_registration": {
+              "message": {
+                "fee_recipient": "0x09277b92cef9046efa18500944cbe800a0b1527e",
+                "gas_limit": 30000000,
+                "timestamp": 1655733600,
+                "pubkey": "0x3a748a58677a0c56348f8921a266b11d0f334c62fe52ba53af19779cb2948b6570ffa0b773963c130ad797ddeafe4e3a"
+              },
+              "signature": "0x8857b799acb18e4affabe3037ffe7fa68aa8af5e39cc416e734d373c5ebebc9cdcc595bcce3c7bd3d8df93fab7e125ddebafe65a31bd5d41e2d2ce9c2b17892f0fea1931a290220777a93143dfdcbfa68406e877073ff08834e197a4034aa48a"
+            },
+            "partial_deposit_data": [
+              {
+                "pubkey": "0x3a748a58677a0c56348f8921a266b11d0f334c62fe52ba53af19779cb2948b6570ffa0b773963c130ad797ddeafe4e3a",
+                "withdrawal_credentials": "0x6c9fb03fc9228fbae88fd580663a0454b68312207f0a3b584c62316492b49753",
+                "amount": "5118991178208641749",
+                "signature": "0xb558250d8fb50e77f2bf4f0152e5d49435807f9d4b97be6fb77970466a5626fe33408cf9e88e2c797408a32d29416baf206a329cfffd4a75e498320982c85aad70384859c05a4b13a1d5b2f5bfef5a6ed92da482caa9568e5b6fe9d8a9ddd9eb"
+              },
+              {
+                "pubkey": "0x3a748a58677a0c56348f8921a266b11d0f334c62fe52ba53af19779cb2948b6570ffa0b773963c130ad797ddeafe4e3a",
+                "withdrawal_credentials": "0x5580ff560760fd36514ca197c875f1d02d9216eba7627e2398322eb5cf43d72b",
+                "amount": "395882274225087444",
+                "signature": "0xd2e5b887ad6eb82acd1c5b078143ee26a586ad23139d5041723470bf24a865837c9123461c41f5ff99aa99ce24eb4d788576e3336e65491622558fdf297b9fa007864bafd7cd4ca1b2fb5766ab431a032b72b9a7e937ed648d0801f29055d309"
+              }
+            ]
+          }
+        ],
+        "signature_aggregate": "0x1c1fd3be8990434179d3af4491a369012db92d184fc39d1734ff5716428953bb",
+        "lock_hash": "0xb1613824b71f57f877be2cdf230e0baa8ab2cc886f57171157be5180961764f0",
+        "node_signatures": [
+          "0xfa3f85b8a62708caebbac880b5b89b93da53810164402104e648b6226a1b7802",
+          "0x1851f5d9ac0f313a89ddfc454c5f8f72ac89b38b19f53784c19e9beac03c875a"
+        ]
+      },
+      "lock_hash": "b1613824b71f57f877be2cdf230e0baa8ab2cc886f57171157be5180961764f0",
+      "notes": "Charon's own v1.10.0 regression fixture, cluster/testdata/cluster_lock_v1_10_0.json, unmodified. Its signatures are random test bytes, so only the lock hash is meaningful here."
+    },
+    {
+      "name": "validator_without_deposit_data",
+      "input": {
+        "cluster_definition": {
+          "name": "no deposits",
+          "creator": {
+            "address": "0x0000000000000000000000000000000000c0ffee",
+            "config_signature": ""
+          },
+          "operators": [
+            {
+              "address": "0x0000000000000000000000000000000000000001",
+              "enr": "enr:-HW4QKQucUpfyYqAJduZ-Q5wkmEUcgAdm0frB-xX98VPs-OGU-OW0O5-dfyf3CLKuEOaoWUvQ3ClKv6RKLSnf1Hig86AgmlkgnY0iXNlY3AyNTZrMaED5orPwCU6EGIN_3BrChsfH1gz6jvrO94iUNXycfNWNgY",
+              "config_signature": "0x1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010",
+              "enr_signature": "0x2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
+            },
+            {
+              "address": "0x0000000000000000000000000000000000000002",
+              "enr": "enr:-HW4QPBnzD2BIzCGr2VYgA-Iadn-L-kY-ZprR3n3jBVd949VSRyY4ZcCtxBaFdTyUaVrU94gUCCJ0Mz8lFw_RRjcl02AgmlkgnY0iXNlY3AyNTZrMaEDWUF9GvwcCI-Yo3B6YzY88ivxhnNgrvG9LZl6nv0GKHs",
+              "config_signature": "0x1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+              "enr_signature": "0x2121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121"
+            }
+          ],
+          "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+          "version": "v1.10.0",
+          "timestamp": "2026-07-29T12:00:00+00:00",
+          "num_validators": 1,
+          "threshold": 2,
+          "validators": [
+            {
+              "fee_recipient_address": "0x000000000000000000000000000000000000fee0",
+              "withdrawal_address": "0x00000000000000000000000000000000000dead0"
+            }
+          ],
+          "dkg_algorithm": "default",
+          "fork_version": "0x90000069",
+          "deposit_amounts": null,
+          "consensus_protocol": "qbft",
+          "target_gas_limit": 30000000,
+          "compounding": false,
+          "config_hash": "0xda254455a838ef75d8ac9533c00ab055ca3199fd0259f6638db80da57815d0f0",
+          "definition_hash": "0x20c6965c8a8a7a18dc87739b77fcb95398527f5dbe9988fffb17cf8badeaa6b5"
+        },
+        "distributed_validators": [
+          {
+            "distributed_public_key": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "public_shares": [
+              "0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+              "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+            ],
+            "builder_registration": {
+              "message": {
+                "fee_recipient": "0x9be1072fb63c35d6042c4160f38ee9e2a9f3fb4f",
+                "gas_limit": 30000000,
+                "timestamp": 1655733600,
+                "pubkey": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+              },
+              "signature": "0x555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+            }
+          }
+        ],
+        "signature_aggregate": "",
+        "lock_hash": "0x0044ddf511e99b25406d11c1898c76473e93f4d366895daf7ca1c6d9ebf44331",
+        "node_signatures": []
+      },
+      "lock_hash": "0044ddf511e99b25406d11c1898c76473e93f4d366895daf7ca1c6d9ebf44331",
+      "notes": "One validator whose partial_deposit_data is empty, so the deposit list hashes its zero subtree with a zero length mixed in. The pubkeys here are not real BLS keys; only the hash is meaningful."
+    },
+    {
+      "name": "three_validators",
+      "input": {
+        "cluster_definition": {
+          "name": "three validators",
+          "creator": {
+            "address": "0x0000000000000000000000000000000000c0ffee",
+            "config_signature": ""
+          },
+          "operators": [
+            {
+              "address": "0x0000000000000000000000000000000000000001",
+              "enr": "enr:-HW4QKQucUpfyYqAJduZ-Q5wkmEUcgAdm0frB-xX98VPs-OGU-OW0O5-dfyf3CLKuEOaoWUvQ3ClKv6RKLSnf1Hig86AgmlkgnY0iXNlY3AyNTZrMaED5orPwCU6EGIN_3BrChsfH1gz6jvrO94iUNXycfNWNgY",
+              "config_signature": "0x1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010",
+              "enr_signature": "0x2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
+            },
+            {
+              "address": "0x0000000000000000000000000000000000000002",
+              "enr": "enr:-HW4QPBnzD2BIzCGr2VYgA-Iadn-L-kY-ZprR3n3jBVd949VSRyY4ZcCtxBaFdTyUaVrU94gUCCJ0Mz8lFw_RRjcl02AgmlkgnY0iXNlY3AyNTZrMaEDWUF9GvwcCI-Yo3B6YzY88ivxhnNgrvG9LZl6nv0GKHs",
+              "config_signature": "0x1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+              "enr_signature": "0x2121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121"
+            }
+          ],
+          "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+          "version": "v1.10.0",
+          "timestamp": "2026-07-29T12:00:00+00:00",
+          "num_validators": 3,
+          "threshold": 2,
+          "validators": [
+            {
+              "fee_recipient_address": "0x000000000000000000000000000000000000fee0",
+              "withdrawal_address": "0x00000000000000000000000000000000000dead0"
+            },
+            {
+              "fee_recipient_address": "0x000000000000000000000000000000000000fee1",
+              "withdrawal_address": "0x00000000000000000000000000000000000dead1"
+            },
+            {
+              "fee_recipient_address": "0x000000000000000000000000000000000000fee2",
+              "withdrawal_address": "0x00000000000000000000000000000000000dead2"
+            }
+          ],
+          "dkg_algorithm": "default",
+          "fork_version": "0x90000069",
+          "deposit_amounts": [
+            "32000000000"
+          ],
+          "consensus_protocol": "qbft",
+          "target_gas_limit": 30000000,
+          "compounding": false,
+          "config_hash": "0xd7c21f1b7ad689fbc11089f56ef7ee89ad68b9453ab75b52da810c50640e4642",
+          "definition_hash": "0xd8c00ff706f6cfbd9b003c79773091cad8bf78a9ba1a45dfc356d6bda4bde4ec"
+        },
+        "distributed_validators": [
+          {
+            "distributed_public_key": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "public_shares": [
+              "0xb1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+              "0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+            ],
+            "builder_registration": {
+              "message": {
+                "fee_recipient": "0x9be1072fb63c35d6042c4160f38ee9e2a9f3fb4f",
+                "gas_limit": 30000000,
+                "timestamp": 1655733600,
+                "pubkey": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+              },
+              "signature": "0x555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+            },
+            "partial_deposit_data": [
+              {
+                "pubkey": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+                "withdrawal_credentials": "0xd1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+                "amount": "32000000000",
+                "signature": "0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+              }
+            ]
+          },
+          {
+            "distributed_public_key": "0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+            "public_shares": [
+              "0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+              "0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2"
+            ],
+            "builder_registration": {
+              "message": {
+                "fee_recipient": "0x9be1072fb63c35d6042c4160f38ee9e2a9f3fb4f",
+                "gas_limit": 30000000,
+                "timestamp": 1655733600,
+                "pubkey": "0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+              },
+              "signature": "0x555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+            },
+            "partial_deposit_data": [
+              {
+                "pubkey": "0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+                "withdrawal_credentials": "0xd2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2",
+                "amount": "32000000000",
+                "signature": "0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2"
+              }
+            ]
+          },
+          {
+            "distributed_public_key": "0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+            "public_shares": [
+              "0xb3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3",
+              "0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+            ],
+            "builder_registration": {
+              "message": {
+                "fee_recipient": "0x9be1072fb63c35d6042c4160f38ee9e2a9f3fb4f",
+                "gas_limit": 30000000,
+                "timestamp": 1655733600,
+                "pubkey": "0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3"
+              },
+              "signature": "0x555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+            },
+            "partial_deposit_data": [
+              {
+                "pubkey": "0xa3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+                "withdrawal_credentials": "0xd3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3",
+                "amount": "32000000000",
+                "signature": "0xe3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3"
+              }
+            ]
+          }
+        ],
+        "signature_aggregate": "",
+        "lock_hash": "0x2e5db48533646b43984fd25a2151f896329f948e8e1364b8b8e4c22442da3a4f",
+        "node_signatures": []
+      },
+      "lock_hash": "2e5db48533646b43984fd25a2151f896329f948e8e1364b8b8e4c22442da3a4f",
+      "notes": "Three validators, so the validator list's bottom layer is odd. Each has exactly one partial deposit, the shape a full single deposit takes at v1.8 and later."
+    },
+    {
+      "name": "real_keys_3_of_4",
+      "input": {
+        "cluster_definition": {
+          "name": "real keys",
+          "creator": {
+            "address": "0x0000000000000000000000000000000000c0ffee",
+            "config_signature": "0x3030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030"
+          },
+          "operators": [
+            {
+              "address": "0x0000000000000000000000000000000000000001",
+              "enr": "enr:-HW4QKQucUpfyYqAJduZ-Q5wkmEUcgAdm0frB-xX98VPs-OGU-OW0O5-dfyf3CLKuEOaoWUvQ3ClKv6RKLSnf1Hig86AgmlkgnY0iXNlY3AyNTZrMaED5orPwCU6EGIN_3BrChsfH1gz6jvrO94iUNXycfNWNgY",
+              "config_signature": "0x1010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010",
+              "enr_signature": "0x2020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020"
+            },
+            {
+              "address": "0x0000000000000000000000000000000000000002",
+              "enr": "enr:-HW4QPBnzD2BIzCGr2VYgA-Iadn-L-kY-ZprR3n3jBVd949VSRyY4ZcCtxBaFdTyUaVrU94gUCCJ0Mz8lFw_RRjcl02AgmlkgnY0iXNlY3AyNTZrMaEDWUF9GvwcCI-Yo3B6YzY88ivxhnNgrvG9LZl6nv0GKHs",
+              "config_signature": "0x1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+              "enr_signature": "0x2121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121"
+            },
+            {
+              "address": "0x0000000000000000000000000000000000000003",
+              "enr": "enr:-HW4QG-c29LX2p6EMZ8BtQh4hNAa9K37506yA-D_1m495yrZMZLsJND4cQbswunsa8HqFkc5sARx1HSww-1fBNioqB6AgmlkgnY0iXNlY3AyNTZrMaEDxV1B1WNre-2YaVVkF_yWsAYJhxCy7L7cczeQ19bU3UI",
+              "config_signature": "0x1212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212121212",
+              "enr_signature": "0x2222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222"
+            },
+            {
+              "address": "0x0000000000000000000000000000000000000004",
+              "enr": "enr:-HW4QHuj_PVXnRbd9aAqGom5HMB6bTIWAupfyVzJgMz0qSbVaCIFOxHJ5oZKUR5ve2qKKbFWOj7fui7bBecr0FrTLbSAgmlkgnY0iXNlY3AyNTZrMaECqfCONSukiAF8A6TMNUNHyJwhmCWt777b9UtLMXAAEVc",
+              "config_signature": "0x1313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313131313",
+              "enr_signature": "0x2323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323232323"
+            }
+          ],
+          "uuid": "0194FDC2-FA2F-4CC0-81D3-FF12045B73C8",
+          "version": "v1.10.0",
+          "timestamp": "2026-07-29T12:00:00+00:00",
+          "num_validators": 1,
+          "threshold": 3,
+          "validators": [
+            {
+              "fee_recipient_address": "0x000000000000000000000000000000000000fee0",
+              "withdrawal_address": "0x00000000000000000000000000000000000dead0"
+            }
+          ],
+          "dkg_algorithm": "default",
+          "fork_version": "0x90000069",
+          "deposit_amounts": [
+            "32000000000"
+          ],
+          "consensus_protocol": "qbft",
+          "target_gas_limit": 30000000,
+          "compounding": false,
+          "config_hash": "0x3bead12c9c4818e31889a7f4f6a744d4f2550976c81db9c4b364f499a46ec05e",
+          "definition_hash": "0xcb0fe68e52d1c4a8156c49b8563c694b6a5b43fb8d4e543afb1add6a6c053c15"
+        },
+        "distributed_validators": [
+          {
+            "distributed_public_key": "0x84a6f81ad08d3491604f6eac59a23a8122545bbb09aa5221b0b9b3b31d4f2a802c31257dcb30a9dbc48116d5097dc99c",
+            "public_shares": [
+              "0xa60fed59bf34aef87bc3936e29ed73dbb7eb1752706d5e479e96e1f40502a08d79dd0e9e81e685223bfcce53dd3f6718",
+              "0x88720d6738df12cfd0446ed19381f3140f1722a72aefa7752893fbf0fda262777cf1f24bbb6bd5cbe965ca522787c918",
+              "0xa6cdd5e776f805a3878ee5e7d867f4a8c94c8ecce81289b64e7f3cb55640d005559d48b5c5008f6a83dd75b228e2b9d5",
+              "0xb2743d817a54a2cf4953543648556fa44620ff8fbe927c6ed229d3500095002a1a0ab99a900c16116a860225ec506282"
+            ],
+            "builder_registration": {
+              "message": {
+                "fee_recipient": "0x9be1072fb63c35d6042c4160f38ee9e2a9f3fb4f",
+                "gas_limit": 30000000,
+                "timestamp": 1655733600,
+                "pubkey": "0x84a6f81ad08d3491604f6eac59a23a8122545bbb09aa5221b0b9b3b31d4f2a802c31257dcb30a9dbc48116d5097dc99c"
+              },
+              "signature": "0x555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+            },
+            "partial_deposit_data": [
+              {
+                "pubkey": "0x84a6f81ad08d3491604f6eac59a23a8122545bbb09aa5221b0b9b3b31d4f2a802c31257dcb30a9dbc48116d5097dc99c",
+                "withdrawal_credentials": "0x010000000000000000000000000000000000000000000000000000000000dead",
+                "amount": "32000000000",
+                "signature": "0x555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555"
+              }
+            ]
+          }
+        ],
+        "signature_aggregate": "0xb1e98dfe0c4b6009b4e2f0ae50431df5f154eabf3181e5a389c9543be4ea9abf0f762955799ed515c064d64f64d23a210ae10a5408923373e2a8d1f416a9ab5f39a159c4f7f2ee1ee8e55d89bfbaf9329fdc3a0512c758793c7c4ce0b12426c8",
+        "lock_hash": "0xbea9a6627a8723a4038de4cb74b0e8b6b2e855a5023f6f79f2e41e067d7db9ee",
+        "node_signatures": [
+          "0x29d23e758587dbbf33a18cd9f532947c0b9f62ced9300eff0a21c9f23e8129a26161e98d1966f6f69a8932475f76d511be9b27934181268cd2173cfc94751d8300",
+          "0x7a90169062106c1be6651b32919a0bb5e7a906df471ed2e3331575160fccd51a6bf7d2f82e803278de271afa0e7f79e336707da325747f6445190fb652674e9700",
+          "0x74d9e1515f8944092a718d44aa740139e6b3869e841e2d2ebeee5b89a903299e302aa76763cfd90b3178ecf0cc1aa713ba1ebdc4b49513ef3bc75b6dcf74602901",
+          "0x32c666c5eeb1ba5ac8f9f5d531d0b8e7f94760e961566c0e28b31dec0018efcc24eae18e7c749ea2e533e8375840a134a54a54f179a09d4810d90010a60a463000"
+        ]
+      },
+      "lock_hash": "bea9a6627a8723a4038de4cb74b0e8b6b2e855a5023f6f79f2e41e067d7db9ee",
+      "node_pubkeys": [
+        "03e68acfc0253a10620dff706b0a1b1f1f5833ea3beb3bde2250d5f271f3563606",
+        "0359417d1afc1c088f98a3707a63363cf22bf1867360aef1bd2d997a9efd06287b",
+        "03c55d41d5636b7bed9869556417fc96b006098710b2ecbedc733790d7d6d4dd42",
+        "02a9f08e352ba488017c03a4cc354347c89c219825adefbedbf54b4b3170001157"
+      ],
+      "notes": "One validator with the 3-of-4 BLS sharing from bls_threshold.json. signature_aggregate is a plain aggregate of the lock hash signed by all four private shares, and charon's VerifyAggregate accepts it against the four public shares. node_signatures are secp256k1 signatures of the same lock hash by each operator's node key, and each operator's ENR really carries that key, so charon verifies them from the ENRs alone. node_pubkeys repeats those keys so an implementation that does not decode ENRs can still check the signatures. The operator and creator EIP-712 signatures are placeholder bytes: they are covered by the hashes but charon's signing helpers for them are not exported."
+    }
+  ]
+}
