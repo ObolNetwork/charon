@@ -246,6 +246,7 @@ func (d Definition) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 
 	for _, o := range d.Operators {
 		// Completely unsigned operators are also fine, assuming a single cluster-wide operator.
+		// Intentional operator-signature trust model, see KNOWN_ISSUES.md.
 		if o.Address == "" && len(o.ENRSignature) == 0 && len(o.ConfigSignature) == 0 {
 			noOpSigs++
 			continue

@@ -1118,6 +1118,7 @@ func syncSubcommittees(def core.DutyDefinition, subcommSize uint64) ([]core.Subc
 // verifyFeeRecipient logs a warning when the fee recipient is not correctly populated in
 // a locally built proposal carrying its execution payload. Blinded proposals and EPBS
 // builder bids are skipped since builders commit to their own payments.
+// Warn-only is intentional, see KNOWN_ISSUES.md.
 func verifyFeeRecipient(ctx context.Context, proposal core.VersionedProposal, feeRecipientAddress string) {
 	if proposal.Blinded {
 		return
