@@ -93,7 +93,7 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 
 		if attData.Data.BeaconBlockRoot != headBlockRoot {
 			log.Debug(ctx, "Skipping early attestation cache: fetched head differs from head event",
-				z.U64("slot", duty.Slot), z.Str("bn_addr", bnAddr),
+				z.U64("slot", duty.Slot), z.Str("bn_addr", log.RedactURL(bnAddr, true)),
 				z.Str("head_event_root", headBlockRoot.String()),
 				z.Str("fetched_root", attData.Data.BeaconBlockRoot.String()))
 
@@ -102,7 +102,7 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 	}
 
 	f.attDataCache.Store(duty.Slot, unsignedSet)
-	log.Debug(ctx, "Early attestation data fetched and cached", z.U64("slot", duty.Slot), z.Str("bn_addr", bnAddr))
+	log.Debug(ctx, "Early attestation data fetched and cached", z.U64("slot", duty.Slot), z.Str("bn_addr", log.RedactURL(bnAddr, true)))
 
 	return nil
 }
