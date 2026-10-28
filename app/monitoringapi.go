@@ -291,7 +291,7 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 			identityResp, err := scopedClient.NodeIdentity(ctx, &eth2api.NodeIdentityOpts{})
 			if err != nil {
 				log.Warn(ctx, "Failed to fetch beacon node identity", err,
-					z.Str("beacon_node_address", addr))
+					z.Str("beacon_node_address", log.RedactURL(addr, true)))
 
 				continue
 			}
@@ -364,13 +364,13 @@ func fetchBeaconAndExecutionVersion(ctx context.Context, scopedClient eth2wrap.C
 
 	if err != nil {
 		log.Debug(ctx, "Beacon node version V2 unavailable, falling back to V1",
-			z.Str("beacon_node_address", addr), z.Err(err))
+			z.Str("beacon_node_address", log.RedactURL(addr, true)), z.Err(err))
 	}
 
 	versionResp, err := scopedClient.NodeVersion(ctx, &eth2api.NodeVersionOpts{})
 	if err != nil {
 		log.Warn(ctx, "Failed to fetch beacon node version", err,
-			z.Str("beacon_node_address", addr))
+			z.Str("beacon_node_address", log.RedactURL(addr, true)))
 
 		return "", "", false
 	}
