@@ -5,6 +5,7 @@ package app
 import (
 	"crypto/sha256"
 	"fmt"
+	"net/url"
 	"slices"
 
 	"github.com/attestantio/go-eth2-client/spec/gloas"
@@ -91,10 +92,23 @@ func initBuilderConfigMetrics(conf Config) {
 	}
 
 	for _, u := range conf.BuilderURLs {
-		builderURLGauge.WithLabelValues(u).Set(1)
+		builderURLGauge.WithLabelValues(withoutUserInfo(u)).Set(1)
 	}
 
 	builderMinBidGauge.WithLabelValues().Set(float64(conf.BuilderMinBid))
 	builderBoostFactorGauge.WithLabelValues().Set(float64(conf.BuilderBoostFactor))
 	builderMaxExecutionPaymentGauge.WithLabelValues().Set(float64(conf.BuilderMaxExecutionPayment))
+}
+
+// withoutUserInfo returns the URL without its user info. Relay URLs carry the relay's public key as the
+// username, which only lengthens the label, and private builders may carry a password.
+func withoutUserInfo(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.User == nil {
+		return raw
+	}
+
+	u.User = nil
+
+	return u.String()
 }

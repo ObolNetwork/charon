@@ -6,7 +6,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strings"
 
 	libp2plog "github.com/ipfs/go-log/v2"
@@ -236,7 +235,9 @@ func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 // redact returns a redacted version of the given flag value. It supports:
 //   - Full redaction of auth token flags (e.g., keymanager-auth-token)
 //   - Value redaction of header flags (e.g., beacon-node-headers, otlp-headers) keeping keys visible
-//   - Password redaction in URLs for address flags (e.g., loki-addresses)
+//   - Password and query value redaction in URLs for address flags (e.g., loki-addresses)
+//   - Password, query value and path redaction in URLs for endpoint and URL flags (e.g., beacon-node-endpoints),
+//     since hosted beacon and execution providers put API keys in the path
 func redact(flag, val string) string {
 	if strings.Contains(flag, "auth-token") {
 		return "xxxxx"
@@ -246,16 +247,15 @@ func redact(flag, val string) string {
 		return redactHeaderValue(val)
 	}
 
-	if !strings.Contains(flag, "address") {
-		return val
+	if strings.Contains(flag, "endpoint") || strings.Contains(flag, "url") {
+		return log.RedactURL(val, true)
 	}
 
-	u, err := url.ParseRequestURI(val)
-	if err != nil {
-		return val
+	if strings.Contains(flag, "address") {
+		return log.RedactURL(val, false)
 	}
 
-	return u.Redacted()
+	return val
 }
 
 // redactHeaderValue redacts the value portion of a "key=value" header string,

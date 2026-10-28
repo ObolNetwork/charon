@@ -156,7 +156,7 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 
 		if attData.Data.BeaconBlockRoot != headBlockRoot {
 			log.Debug(ctx, "Skipping early attestation cache: fetched head differs from head event",
-				z.U64("slot", duty.Slot), z.Str("bn_addr", bnAddr),
+				z.U64("slot", duty.Slot), z.Str("bn_addr", log.RedactURL(bnAddr, true)),
 				z.Str("head_event_root", headBlockRoot.String()),
 				z.Str("fetched_root", attData.Data.BeaconBlockRoot.String()))
 
@@ -165,7 +165,7 @@ func (f *Fetcher) FetchOnly(ctx context.Context, duty core.Duty, defSet core.Dut
 	}
 
 	f.attDataCache.Store(duty.Slot, unsignedSet)
-	log.Debug(ctx, "Early attestation data fetched and cached", z.U64("slot", duty.Slot), z.Str("bn_addr", bnAddr))
+	log.Debug(ctx, "Early attestation data fetched and cached", z.U64("slot", duty.Slot), z.Str("bn_addr", log.RedactURL(bnAddr, true)))
 
 	return nil
 }
@@ -193,7 +193,7 @@ func (f *Fetcher) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, root et
 	select {
 	case events <- headEvent{root: root, bnAddr: bnAddr}:
 	default:
-		log.Debug(ctx, "Dropping head event, buffer full", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+		log.Debug(ctx, "Dropping head event, buffer full", z.U64("slot", uint64(slot)), z.Str("bn_addr", log.RedactURL(bnAddr, true)))
 	}
 }
 
@@ -236,14 +236,14 @@ func (f *Fetcher) fetchGloasAttesterData(ctx context.Context, slot uint64, defSe
 		unsignedSet, err := f.fetchAttesterDataFrom(ctx, slot, defSet, event.bnAddr)
 		if err != nil {
 			log.Warn(ctx, "Attestation data fetch upon head event failed, waiting for next head event", err,
-				z.U64("slot", slot), z.Str("bn_addr", event.bnAddr))
+				z.U64("slot", slot), z.Str("bn_addr", log.RedactURL(event.bnAddr, true)))
 
 			continue
 		}
 
 		if !votesFor(unsignedSet, event.root) {
 			log.Debug(ctx, "Attestation data fetched upon head event votes for another head, waiting for next head event",
-				z.U64("slot", slot), z.Str("bn_addr", event.bnAddr), z.Str("head_event_root", event.root.String()))
+				z.U64("slot", slot), z.Str("bn_addr", log.RedactURL(event.bnAddr, true)), z.Str("head_event_root", event.root.String()))
 
 			continue
 		}

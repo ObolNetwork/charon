@@ -102,7 +102,7 @@ func listActiveVals(ctx context.Context, config exitConfig) ([]string, error) {
 
 	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte{}) // fine to avoid initializing a fork version, we're just querying the BN
 	if err != nil {
-		return nil, errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
+		return nil, errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", log.RedactURLs(config.BeaconNodeEndpoints, true)))
 	}
 
 	var allVals []eth2p0.BLSPubKey
