@@ -49,6 +49,7 @@ type listener struct {
 	blockGossipTimes map[uint64]map[string]time.Time
 
 	// immutable fields
+	labels        map[string]string // Redacted beacon node addresses, used in logs and metric labels.
 	genesisTime   time.Time
 	slotDuration  time.Duration
 	slotsPerEpoch uint64
@@ -73,6 +74,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 		chainReorgSubs:   make([]ChainReorgEventHandlerFunc, 0),
 		headSubs:         make([]HeadEventHandlerFunc, 0),
 		blockGossipTimes: make(map[uint64]map[string]time.Time),
+		labels:           make(map[string]string),
 		genesisTime:      genesisTime,
 		slotDuration:     slotDuration,
 		slotsPerEpoch:    slotsPerEpoch,
@@ -88,15 +90,19 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, addresses, heade
 		httpHeader.Add(k, v)
 	}
 
+	for _, addr := range addresses {
+		l.labels[addr] = log.RedactURL(addr, true)
+	}
+
 	// Open connections for each beacon node.
 	for _, addr := range addresses {
 		go func(addr string) {
 			client, err := newClient(addr, httpHeader)
 			if err != nil {
-				log.Warn(ctx, "Failed to create SSE client", err, z.Str("addr", addr))
+				log.Warn(ctx, "Failed to create SSE client", err, z.Str("addr", l.label(addr)))
 			} else {
 				if err := client.start(ctx, l.eventHandler); err != nil {
-					log.Warn(ctx, "Failed to start SSE client", err, z.Str("addr", addr))
+					log.Warn(ctx, "Failed to start SSE client", err, z.Str("addr", l.label(addr)))
 				}
 			}
 		}(addr)
@@ -126,6 +132,15 @@ func (p *listener) SetDutiesDependentRootFunc(fn DutiesDependentRootFunc) {
 	p.dutiesDependentRootFunc = fn
 }
 
+// label returns the beacon node address without credentials, for logs and metric labels.
+func (p *listener) label(addr string) string {
+	if label, ok := p.labels[addr]; ok {
+		return label
+	}
+
+	return log.RedactURL(addr, true)
+}
+
 func (p *listener) eventHandler(ctx context.Context, event *event, addr string) error {
 	switch event.Event {
 	case sseHeadEvent:
@@ -146,16 +161,16 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 
 	err := json.Unmarshal(event.Data, &head)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal SSE head event", z.Str("addr", addr))
+		return errors.Wrap(err, "unmarshal SSE head event", z.Str("addr", p.label(addr)))
 	}
 
 	slot, err := strconv.ParseUint(head.Slot, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
+		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", p.label(addr)))
 	}
 
 	if slot > math.MaxInt64 {
-		return errors.New("slot value exceeds int64 range", z.Str("addr", addr), z.U64("slot", slot))
+		return errors.New("slot value exceeds int64 range", z.Str("addr", p.label(addr)), z.U64("slot", slot))
 	}
 
 	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
@@ -166,10 +181,10 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 	if !ok {
 		log.Debug(ctx, "Beacon node received head event too late", z.U64("slot", slot), z.Str("delay", delay.String()))
 	} else {
-		sseHeadDelayHistogram.WithLabelValues(addr).Observe(delay.Seconds())
+		sseHeadDelayHistogram.WithLabelValues(p.label(addr)).Observe(delay.Seconds())
 	}
 
-	sseHeadSlotGauge.WithLabelValues(addr).Set(float64(slot))
+	sseHeadSlotGauge.WithLabelValues(p.label(addr)).Set(float64(slot))
 
 	// Calculate and record block processing time
 	p.recordBlockProcessingTime(slot, addr, event.Timestamp)
@@ -183,7 +198,7 @@ func (p *listener) handleHeadEvent(ctx context.Context, event *event, addr strin
 
 	blockRoot, err := parseRoot(head.Block)
 	if err != nil {
-		return errors.Wrap(err, "parse head block root", z.Str("addr", addr))
+		return errors.Wrap(err, "parse head block root", z.Str("addr", p.label(addr)))
 	}
 
 	// Invalidate stale duties before head subscribers start an early fetch from them.
@@ -213,12 +228,12 @@ func (p *listener) checkDutiesDependentRoots(ctx context.Context, slot uint64, h
 
 	previous, err := parseRoot(head.PreviousDutyDependentRoot)
 	if err != nil {
-		return errors.Wrap(err, "parse head previous duty dependent root", z.Str("addr", addr))
+		return errors.Wrap(err, "parse head previous duty dependent root", z.Str("addr", p.label(addr)))
 	}
 
 	current, err := parseRoot(head.CurrentDutyDependentRoot)
 	if err != nil {
-		return errors.Wrap(err, "parse head current duty dependent root", z.Str("addr", addr))
+		return errors.Wrap(err, "parse head current duty dependent root", z.Str("addr", p.label(addr)))
 	}
 
 	epoch := eth2p0.Epoch(slot / p.slotsPerEpoch)
@@ -244,8 +259,8 @@ func (p *listener) checkDutiesDependentRoots(ctx context.Context, slot uint64, h
 			z.Str("cached_dependent_root", cachedRoot.String()),
 			z.Str("head_dependent_root", check.headRoot.String()),
 			z.U64("head_slot", slot),
-			z.Str("addr", addr))
-		sseDependentRootMismatchCounter.WithLabelValues(addr).Inc()
+			z.Str("addr", p.label(addr)))
+		sseDependentRootMismatchCounter.WithLabelValues(p.label(addr)).Inc()
 
 		// Not deduplicated by epoch like chain_reorg: the refetch may be answered by the lagging node again,
 		// in which case the next head event must trigger again.
@@ -260,17 +275,17 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 
 	err := json.Unmarshal(event.Data, &chainReorg)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal SSE chain_reorg event", z.Str("addr", addr))
+		return errors.Wrap(err, "unmarshal SSE chain_reorg event", z.Str("addr", p.label(addr)))
 	}
 
 	slot, err := strconv.ParseUint(chainReorg.Slot, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
+		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", p.label(addr)))
 	}
 
 	depth, err := strconv.ParseUint(chainReorg.Depth, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "parse depth to uint64", z.Str("addr", addr))
+		return errors.Wrap(err, "parse depth to uint64", z.Str("addr", p.label(addr)))
 	}
 
 	if slot < depth {
@@ -289,7 +304,7 @@ func (p *listener) handleChainReorgEvent(ctx context.Context, event *event, addr
 		z.Str("old_head_block", chainReorg.OldHeadBlock),
 		z.Str("new_head_block", chainReorg.NewHeadBlock))
 
-	sseChainReorgDepthHistogram.WithLabelValues(addr).Observe(float64(depth))
+	sseChainReorgDepthHistogram.WithLabelValues(p.label(addr)).Observe(float64(depth))
 
 	return nil
 }
@@ -299,12 +314,12 @@ func (p *listener) handleBlockGossipEvent(ctx context.Context, event *event, add
 
 	err := json.Unmarshal(event.Data, &blockGossip)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal SSE block_gossip event", z.Str("addr", addr))
+		return errors.Wrap(err, "unmarshal SSE block_gossip event", z.Str("addr", p.label(addr)))
 	}
 
 	slot, err := strconv.ParseUint(blockGossip.Slot, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
+		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", p.label(addr)))
 	}
 
 	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
@@ -320,7 +335,7 @@ func (p *listener) handleBlockGossipEvent(ctx context.Context, event *event, add
 		z.Str("delay", delay.String()),
 		z.Str("block", blockGossip.Block))
 
-	sseBlockGossipHistogram.WithLabelValues(addr).Observe(delay.Seconds())
+	sseBlockGossipHistogram.WithLabelValues(p.label(addr)).Observe(delay.Seconds())
 
 	p.storeBlockGossipTime(slot, addr, event.Timestamp)
 
@@ -332,12 +347,12 @@ func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr stri
 
 	err := json.Unmarshal(event.Data, &block)
 	if err != nil {
-		return errors.Wrap(err, "unmarshal SSE block event", z.Str("addr", addr))
+		return errors.Wrap(err, "unmarshal SSE block event", z.Str("addr", p.label(addr)))
 	}
 
 	slot, err := strconv.ParseUint(block.Slot, 10, 64)
 	if err != nil {
-		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", addr))
+		return errors.Wrap(err, "parse slot to uint64", z.Str("addr", p.label(addr)))
 	}
 
 	delay, ok := p.computeDelay(slot, event.Timestamp, func(delay time.Duration) bool {
@@ -353,7 +368,7 @@ func (p *listener) handleBlockEvent(ctx context.Context, event *event, addr stri
 		z.Str("delay", delay.String()),
 		z.Str("block", block.Block))
 
-	sseBlockHistogram.WithLabelValues(addr).Observe(delay.Seconds())
+	sseBlockHistogram.WithLabelValues(p.label(addr)).Observe(delay.Seconds())
 
 	return nil
 }
@@ -442,7 +457,7 @@ func (p *listener) recordBlockProcessingTime(slot uint64, addr string, headTimes
 
 	processingTime := headTimestamp.Sub(gossipTime)
 	if processingTime > 0 {
-		sseBlockProcessingTimeHistogram.WithLabelValues(addr).Observe(processingTime.Seconds())
+		sseBlockProcessingTimeHistogram.WithLabelValues(p.label(addr)).Observe(processingTime.Seconds())
 	}
 
 	// Clean up this entry as it's no longer needed
