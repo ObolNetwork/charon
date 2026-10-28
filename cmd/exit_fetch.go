@@ -132,7 +132,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 	// signatures can be matched back to their share index via BLS verification.
 	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.ForkVersion))
 	if err != nil {
-		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", config.BeaconNodeEndpoints))
+		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", log.RedactURLs(config.BeaconNodeEndpoints, true)))
 	}
 
 	if config.All {

@@ -179,6 +179,7 @@ func TestMaybeReconnectNonBlockingWhenFull(t *testing.T) {
 	require.Len(t, cl.reconnectCh, 1)
 
 	done := make(chan struct{})
+
 	go func() {
 		cl.maybeReconnect()
 		close(done)
@@ -209,6 +210,7 @@ func TestClientVersionDeadlocksOnFullReconnectCh(t *testing.T) {
 
 	t.Cleanup(func() {
 		ethCl.Close()
+
 		srv.CloseClientConnections()
 		go srv.Close()
 	})
@@ -223,8 +225,10 @@ func TestClientVersionDeadlocksOnFullReconnectCh(t *testing.T) {
 	defer cancel()
 
 	done := make(chan struct{})
+
 	go func() {
 		_, _ = cl.ClientVersion(ctx)
+
 		close(done)
 	}()
 
