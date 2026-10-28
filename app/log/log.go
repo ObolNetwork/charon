@@ -88,7 +88,7 @@ func Debug(ctx context.Context, msg string, fields ...z.Field) {
 	}
 
 	trace.SpanFromContext(ctx).AddEvent("log.Debug: "+msg, toAttributes(zfl))
-	getLogger(ctx).Debug(redactURLs(msg), zfl...)
+	getLogger(ctx).Debug(msg, zfl...)
 }
 
 // Info logs the message and fields (incl fields in the context) at Info level.
@@ -100,7 +100,7 @@ func Info(ctx context.Context, msg string, fields ...z.Field) {
 	}
 
 	trace.SpanFromContext(ctx).AddEvent("log.Info: "+msg, toAttributes(zfl))
-	getLogger(ctx).Info(redactURLs(msg), zfl...)
+	getLogger(ctx).Info(msg, zfl...)
 }
 
 // Warn wraps err with msg and fields and logs it (incl fields in the context) at Warn level.
@@ -116,7 +116,7 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 		}
 
 		trace.SpanFromContext(ctx).AddEvent("log.Warn: "+msg, toAttributes(zfl))
-		getLogger(ctx).Warn(redactURLs(msg), zfl...)
+		getLogger(ctx).Warn(msg, zfl...)
 
 		return
 	}
@@ -129,7 +129,7 @@ func Warn(ctx context.Context, msg string, err error, fields ...z.Field) {
 	}
 
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
-	getLogger(ctx).Warn(redactURLs(err.Error()), zfl...)
+	getLogger(ctx).Warn(err.Error(), zfl...)
 }
 
 // Error wraps err with msg and fields and logs it (incl fields in the context) at Error level.
@@ -145,7 +145,7 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 		}
 
 		trace.SpanFromContext(ctx).AddEvent("log.Error: "+msg, toAttributes(zfl))
-		getLogger(ctx).Error(redactURLs(msg), zfl...)
+		getLogger(ctx).Error(msg, zfl...)
 
 		return
 	}
@@ -158,7 +158,7 @@ func Error(ctx context.Context, msg string, err error, fields ...z.Field) {
 	}
 
 	trace.SpanFromContext(ctx).RecordError(err, trace.WithStackTrace(true), toAttributes(zfl))
-	getLogger(ctx).Error(redactURLs(err.Error()), zfl...)
+	getLogger(ctx).Error(err.Error(), zfl...)
 }
 
 // unwrapDedup returns true and the wrapped zap fields from the slice and from the context. Duplicate fields are dropped.
@@ -181,7 +181,7 @@ func unwrapDedup(ctx context.Context, fields ...z.Field) ([]zap.Field, bool) {
 		}
 
 		dups[f.Key] = true
-		resp = append(resp, redactField(f))
+		resp = append(resp, f)
 	}
 
 	for _, field := range fields {

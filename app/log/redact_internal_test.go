@@ -3,25 +3,21 @@
 package log
 
 import (
-	"context"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/z"
 )
 
-func TestRedactURLs(t *testing.T) {
+func TestRedactURL(t *testing.T) {
 	tests := []struct {
 		in   string
 		want string
 	}{
 		{"https://user:secret@bn.example.com:5052", "https://user:xxxxx@bn.example.com:5052"},
 		{"http://:secret@lighthouse:5052/eth/v1?x=1", "http://:xxxxx@lighthouse:5052/eth/v1?x=1"},
-		{"[http://a:b@one,https://c:d@two]", "[http://a:xxxxx@one,https://c:xxxxx@two]"},
-		{`Get "https://user:secret@bn:5052/eth/v1/node/version": EOF`, `Get "https://user:xxxxx@bn:5052/eth/v1/node/version": EOF`},
 		{"https://eth-mainnet.g.alchemy.com/v2/abcDEF123ghiJKL456mnoPQR789", "https://eth-mainnet.g.alchemy.com/v2/xxxxx"},
 		{"https://bn.example.com/eth/v1/beacon?apikey=secret&x=1", "https://bn.example.com/eth/v1/beacon?apikey=xxxxx&x=1"},
 		{"http://bn:5052/eth/v1/validator/attestation_data?slot=12345678&committee_index=3", "http://bn:5052/eth/v1/validator/attestation_data?slot=12345678&committee_index=3"},
@@ -35,7 +31,7 @@ func TestRedactURLs(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.in, func(t *testing.T) {
-			require.Equal(t, test.want, redactURLs(test.in))
+			require.Equal(t, test.want, RedactURL(test.in, false))
 		})
 	}
 }
@@ -57,21 +53,17 @@ func TestRedactURLMaskPath(t *testing.T) {
 			require.Equal(t, test.want, RedactURL(test.in, true))
 		})
 	}
+
+	require.Equal(t, []string{"https://a.example.com/xxxxx", "http://lighthouse:5052"},
+		RedactURLs([]string{"https://a.example.com/v2/key", "http://lighthouse:5052"}, true))
 }
 
-func TestLogRedactsURLPasswords(t *testing.T) {
-	var buf zaptest.Buffer
+func TestRedactURLError(t *testing.T) {
+	uerr := &url.Error{Op: "Post", URL: "https://el.example.com/v2/abcDEF123ghiJKL456mnoPQR789", Err: errors.New("timeout")}
+	err := errors.Wrap(RedactURLError(uerr), "call")
 
-	ctx := WithLogger(context.Background(), NewConsoleForT(t, &buf))
-	ctx = WithCtx(ctx, z.Str("ctx_url", "https://ctx:secret@bn"))
-	url := "https://user:secret@bn.example.com"
-
-	Debug(ctx, "debug "+url, z.Str("url", url))
-	Info(ctx, "info", z.Any("urls", []string{url}))
-	Warn(ctx, "warn", errors.New("dial "+url, z.Str("addr", url)))
-	Error(ctx, "error", nil, z.Err(errors.New("dial "+url)))
-
-	require.NotContains(t, buf.String(), "secret")
-	require.Contains(t, buf.String(), "https://user:xxxxx@bn.example.com")
-	require.Contains(t, buf.String(), "https://ctx:xxxxx@bn")
+	require.NotContains(t, err.Error(), "abcDEF123")
+	require.Contains(t, err.Error(), "https://el.example.com/v2/xxxxx")
+	require.ErrorIs(t, err, uerr)
+	require.NoError(t, RedactURLError(nil))
 }

@@ -7,15 +7,12 @@ import (
 	"regexp"
 	"strings"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/obolnetwork/charon/app/errors"
 )
 
 const redacted = "xxxxx"
 
 var (
-	// urlPattern matches URLs embedded in free text, stopping at whitespace, quotes, brackets and commas.
-	urlPattern = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"'<>\[\](),]+`)
 	// apiKeySegment matches path segments that look like API keys, e.g. "/v2/<key>" of hosted node providers:
 	// at least 20 characters, mixing letters and digits. Beacon API names like "prepare_beacon_proposer" have
 	// no digits, and hex values with a 0x prefix (roots, pubkeys, lock hashes) are skipped by the caller.
@@ -31,6 +28,9 @@ var (
 // If maskPath is true, a non-empty path is replaced too, since hosted beacon and execution
 // providers put API keys in it. Otherwise only path segments that look like API keys are.
 // Values that aren't absolute URLs are returned unchanged.
+//
+// Beacon node, execution and other endpoint URLs may contain credentials, so redact them
+// wherever they are logged or used as metric labels.
 func RedactURL(raw string, maskPath bool) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme == "" || u.Host == "" {
@@ -46,19 +46,20 @@ func RedactURL(raw string, maskPath bool) string {
 
 	if u.RawQuery != "" {
 		q := u.Query()
-		for k, vals := range q {
+		queryChanged := false
+
+		for _, vals := range q {
 			for i, v := range vals {
 				if !publicQueryValue.MatchString(v) {
 					vals[i] = redacted
-					changed = true
+					queryChanged = true
 				}
 			}
-
-			q[k] = vals
 		}
 
-		if changed {
+		if queryChanged {
 			u.RawQuery = q.Encode()
+			changed = true
 		}
 	}
 
@@ -84,39 +85,28 @@ func RedactURL(raw string, maskPath bool) string {
 	return u.String()
 }
 
+// RedactURLs returns the URLs redacted with RedactURL.
+func RedactURLs(raws []string, maskPath bool) []string {
+	resp := make([]string, 0, len(raws))
+	for _, raw := range raws {
+		resp = append(resp, RedactURL(raw, maskPath))
+	}
+
+	return resp
+}
+
+// RedactURLError redacts the URL of the first *url.Error in err's chain in place, keeping its path
+// for debugging, and returns err. Go's HTTP client strips passwords from it, but not API keys
+// in the path or query. Call it before wrapping err, since wrapping captures the message.
+func RedactURLError(err error) error {
+	if uerr := new(url.Error); errors.As(err, &uerr) {
+		uerr.URL = RedactURL(uerr.URL, false)
+	}
+
+	return err
+}
+
 func looksLikeAPIKey(segment string) bool {
 	return !strings.HasPrefix(segment, "0x") && apiKeySegment.MatchString(segment) &&
 		digit.MatchString(segment) && letter.MatchString(segment)
-}
-
-// redactURLs redacts the credentials, query values and API-key-like path segments of any URLs in s.
-// Beacon node, execution, builder and other URLs may contain credentials, and logs may be shared.
-func redactURLs(s string) string {
-	if !strings.Contains(s, "://") {
-		return s
-	}
-
-	return urlPattern.ReplaceAllStringFunc(s, func(m string) string {
-		return RedactURL(m, false)
-	})
-}
-
-// redactField returns the field with any URLs in its string or error value redacted.
-func redactField(f zap.Field) zap.Field {
-	switch f.Type {
-	case zapcore.StringType:
-		f.String = redactURLs(f.String)
-	case zapcore.ErrorType:
-		err, ok := f.Interface.(error)
-		if !ok {
-			return f
-		}
-
-		if msg := redactURLs(err.Error()); msg != err.Error() {
-			return zap.String(f.Key, msg)
-		}
-	default:
-	}
-
-	return f
 }
