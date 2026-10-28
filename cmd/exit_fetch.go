@@ -135,61 +135,80 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", log.RedactURLs(config.BeaconNodeEndpoints, true)))
 	}
 
+	fetch := func(ctx context.Context, valPubKey string, pubShares [][]byte) (obolapi.ExitBlob, error) {
+		return oAPI.GetFullExit(ctx, valPubKey, cl.LockHash, shareIdx, identityKey, pubShares, eth2Cl)
+	}
+
 	if config.All {
-		for _, validator := range cl.Validators {
-			validatorPubKeyHex := validator.PublicKeyHex()
+		return fetchAllExits(ctx, config, cl, fetch)
+	}
 
-			valCtx := log.WithCtx(ctx, z.Str("validator", validatorPubKeyHex))
+	return fetchExit(ctx, config, cl, fetch)
+}
 
-			log.Info(valCtx, "Retrieving full exit message")
+// fullExitFetcher fetches the full exit of the validator with the given public key and public key shares.
+type fullExitFetcher func(ctx context.Context, valPubKey string, pubShares [][]byte) (obolapi.ExitBlob, error)
 
-			fullExit, err := oAPI.GetFullExit(valCtx, validatorPubKeyHex, cl.LockHash, shareIdx, identityKey, validator.PubShares, eth2Cl)
-			if err != nil {
-				if errors.Is(err, obolapi.ErrNoValue) {
-					log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
-					continue
-				}
+// fetchAllExits fetches and writes the full exits of all validators in the cluster that have one.
+func fetchAllExits(ctx context.Context, config exitConfig, cl *cluster.Lock, fetch fullExitFetcher) error {
+	for _, validator := range cl.Validators {
+		validatorPubKeyHex := validator.PublicKeyHex()
 
-				return errors.Wrap(err, "broadcast full exit for all validators from public key")
-			}
+		valCtx := log.WithCtx(ctx, z.Str("validator", validatorPubKeyHex))
 
-			err = writeExitToFile(valCtx, validatorPubKeyHex, config.FetchedExitPath, fullExit)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		validator := core.PubKey(config.ValidatorPubkey)
-		if _, err := validator.Bytes(); err != nil {
-			return errors.Wrap(err, "convert validator pubkey to bytes", z.Str("validator_public_key", config.ValidatorPubkey))
-		}
+		log.Info(valCtx, "Retrieving full exit message")
 
-		ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
-
-		log.Info(ctx, "Retrieving full exit message")
-
-		var pubShares [][]byte
-
-		for _, v := range cl.Validators {
-			if strings.EqualFold(v.PublicKeyHex(), config.ValidatorPubkey) {
-				pubShares = v.PubShares
-				break
-			}
-		}
-
-		if len(pubShares) == 0 {
-			return errors.New("validator public key not found in cluster lock", z.Str("validator_public_key", config.ValidatorPubkey))
-		}
-
-		fullExit, err := oAPI.GetFullExit(ctx, config.ValidatorPubkey, cl.LockHash, shareIdx, identityKey, pubShares, eth2Cl)
+		fullExit, err := fetch(valCtx, validatorPubKeyHex, validator.PubShares)
 		if err != nil {
-			return errors.Wrap(err, "load full exit data from Obol API", z.Str("validator_public_key", config.ValidatorPubkey))
+			if errors.Is(err, obolapi.ErrNoValue) {
+				log.Warn(ctx, fmt.Sprintf("full exit data from Obol API for validator %v not available (validator may not be activated)", validatorPubKeyHex), nil)
+				continue
+			}
+
+			return errors.Wrap(err, "broadcast full exit for all validators from public key")
 		}
 
-		err = writeExitToFile(ctx, config.ValidatorPubkey, config.FetchedExitPath, fullExit)
+		err = writeExitToFile(valCtx, validatorPubKeyHex, config.FetchedExitPath, fullExit)
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// fetchExit fetches and writes the full exit of the validator in config.
+func fetchExit(ctx context.Context, config exitConfig, cl *cluster.Lock, fetch fullExitFetcher) error {
+	validator := core.PubKey(config.ValidatorPubkey)
+	if _, err := validator.Bytes(); err != nil {
+		return errors.Wrap(err, "convert validator pubkey to bytes", z.Str("validator_public_key", config.ValidatorPubkey))
+	}
+
+	ctx = log.WithCtx(ctx, z.Str("validator", validator.String()))
+
+	log.Info(ctx, "Retrieving full exit message")
+
+	var pubShares [][]byte
+
+	for _, v := range cl.Validators {
+		if strings.EqualFold(v.PublicKeyHex(), config.ValidatorPubkey) {
+			pubShares = v.PubShares
+			break
+		}
+	}
+
+	if len(pubShares) == 0 {
+		return errors.New("validator public key not found in cluster lock", z.Str("validator_public_key", config.ValidatorPubkey))
+	}
+
+	fullExit, err := fetch(ctx, config.ValidatorPubkey, pubShares)
+	if err != nil {
+		return errors.Wrap(err, "load full exit data from Obol API", z.Str("validator_public_key", config.ValidatorPubkey))
+	}
+
+	err = writeExitToFile(ctx, config.ValidatorPubkey, config.FetchedExitPath, fullExit)
+	if err != nil {
+		return err
 	}
 
 	return nil
