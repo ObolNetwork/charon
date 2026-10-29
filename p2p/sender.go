@@ -32,7 +32,7 @@ const (
 
 var (
 	defaultWriterFunc = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
-	defaultReaderFunc = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
+	defaultReaderFunc = func(s network.Stream) pbio.Reader { return newDelimitedReader(s, maxMsgSize) }
 )
 
 // SendFunc is an abstract function responsible for sending libp2p messages.
@@ -255,7 +255,7 @@ func WithDelimitedProtocol(pID protocol.ID) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		opts.protocols = append([]protocol.ID{pID}, opts.protocols...) // Add to front
 		opts.writersByProtocol[pID] = func(s network.Stream) pbio.Writer { return pbio.NewDelimitedWriter(s) }
-		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return pbio.NewDelimitedReader(s, maxMsgSize) }
+		opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader { return newDelimitedReader(s, maxMsgSize) }
 	}
 }
 
@@ -268,7 +268,7 @@ func WithReadLimit(limit int) func(*sendRecvOpts) {
 	return func(opts *sendRecvOpts) {
 		for _, pID := range opts.protocols {
 			opts.readersByProtocol[pID] = func(s network.Stream) pbio.Reader {
-				return pbio.NewDelimitedReader(s, limit)
+				return newDelimitedReader(s, limit)
 			}
 		}
 	}
