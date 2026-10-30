@@ -437,3 +437,66 @@ func mustLoadTestLockFile(t *testing.T, path string) cluster.Lock {
 
 	return lock
 }
+
+func TestRunAddValidatorsAddressValidation(t *testing.T) {
+	conf := clusterConfig{
+		ClusterDir:        t.TempDir(),
+		Name:              "test_cluster",
+		NumNodes:          4,
+		Threshold:         3,
+		NumDVs:            1,
+		Network:           eth2util.Mainnet.Name,
+		TargetGasLimit:    36000000,
+		FeeRecipientAddrs: []string{validEthAddr},
+		WithdrawalAddrs:   []string{validEthAddr},
+	}
+
+	var buf bytes.Buffer
+
+	require.NoError(t, runCreateCluster(t.Context(), &buf, conf))
+
+	ddir := nodeDir(conf.ClusterDir, 0)
+	badChecksum := "0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
+
+	tests := []struct {
+		name         string
+		feeRecipient string
+		withdrawal   string
+		expectedErr  string
+	}{
+		// Zero addresses only warn here (see TestChecksumValidatorAddrs), so they would proceed to a DKG.
+		{
+			name:         "bad withdrawal checksum",
+			feeRecipient: validEthAddr,
+			withdrawal:   badChecksum,
+			expectedErr:  "invalid withdrawal address",
+		},
+		{
+			name:         "malformed fee recipient",
+			feeRecipient: "0x1234",
+			withdrawal:   validEthAddr,
+			expectedErr:  "invalid fee recipient address",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			addConf := addValidatorsConfig{
+				PrivateKeyPath:    path.Join(ddir, enrPrivateKeyFile),
+				LockFilePath:      path.Join(ddir, clusterLockFile),
+				ValidatorKeysDir:  path.Join(ddir, validatorKeysSubDir),
+				OutputDir:         nodeDir(t.TempDir(), 0),
+				NumValidators:     1,
+				WithdrawalAddrs:   []string{test.withdrawal},
+				FeeRecipientAddrs: []string{test.feeRecipient},
+				DKG: dkg.Config{
+					Log:     log.DefaultConfig(),
+					Timeout: time.Second,
+				},
+			}
+
+			err := runAddValidators(t.Context(), addConf)
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}

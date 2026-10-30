@@ -49,9 +49,6 @@ import (
 )
 
 const (
-	// zeroAddress is not owned by any user, is often associated with token burn & mint/genesis events and used as a generic null address.
-	// See https://etherscan.io/address/0x0000000000000000000000000000000000000000.
-	zeroAddress    = "0x0000000000000000000000000000000000000000"
 	defaultNetwork = "mainnet"
 	minNodes       = 3
 	minThreshold   = 2
@@ -191,6 +188,22 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return err
 	}
 
+	var network string
+	if conf.DefFile != "" {
+		network, err = eth2util.ForkVersionToNetwork(def.ForkVersion)
+	} else {
+		_, network, err = networkFromConfig(conf)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// Reject insecure keys as soon as the network is known, before any keys are read or generated.
+	if err := validateInsecureKeysFlag(ctx, conf.InsecureKeys, network); err != nil {
+		return err
+	}
+
 	var secrets []tbls.PrivateKey
 
 	// If we're splitting keys, read them from SplitKeysDir and set conf.NumDVs to the amount of
@@ -228,12 +241,7 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		}
 
 		// Validate the provided definition.
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, eth1Cl)
-		if err != nil {
-			return err
-		}
-
-		network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, network, eth1Cl)
 		if err != nil {
 			return err
 		}
@@ -297,11 +305,6 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		if err = writeKeysToKeymanager(ctx, conf, numNodes, shareSets); err != nil {
 			return err
 		}
-	}
-
-	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
-	if err != nil {
-		return err
 	}
 
 	depositDatas, err := createDepositDatas(def.WithdrawalAddresses(), network, secrets, depositAmounts, def.Compounding)
@@ -913,17 +916,15 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 		return cluster.Definition{}, err
 	}
 
-	var forkVersion string
-	if conf.testnetConfig.IsNonZero() {
-		// Custom testnet config takes precedence (already registered in validateCreateConfig via validateNetworkConfig).
-		forkVersion = conf.testnetConfig.GenesisForkVersionHex
-	} else if conf.Network != "" {
-		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
-		if err != nil {
-			return cluster.Definition{}, err
-		}
-	} else {
-		return cluster.Definition{}, errors.New("network not specified, missing --network or --testnet-fork-version")
+	forkVersion, network, err := networkFromConfig(conf)
+	if err != nil {
+		return cluster.Definition{}, err
+	}
+
+	// Validate and normalise addresses to their EIP-55 checksummed form before writing them into the definition.
+	feeRecipientAddrs, withdrawalAddrs, err = checksumValidatorAddrs(ctx, feeRecipientAddrs, withdrawalAddrs, network, false)
+	if err != nil {
+		return cluster.Definition{}, err
 	}
 
 	var ops []cluster.Operator
@@ -943,6 +944,30 @@ func newDefFromConfig(ctx context.Context, conf clusterConfig) (cluster.Definiti
 	}
 
 	return def, nil
+}
+
+// networkFromConfig returns the fork version and network name from the network flags.
+func networkFromConfig(conf clusterConfig) (forkVersion string, network string, err error) {
+	if conf.testnetConfig.IsNonZero() {
+		// Custom testnet config takes precedence (already registered in validateCreateConfig via validateNetworkConfig).
+		forkVersion = conf.testnetConfig.GenesisForkVersionHex
+	} else {
+		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
+	forkVersionBytes, err := hex.DecodeString(strings.TrimPrefix(forkVersion, "0x"))
+	if err != nil {
+		return "", "", errors.Wrap(err, "decode fork version", z.Str("fork_version", forkVersion))
+	}
+
+	// Unknown (unregistered custom testnet) fork versions resolve to an empty network name, which is
+	// never mainnet or gnosis, so the mainnet-only checks are still applied correctly.
+	network, _ = eth2util.ForkVersionToNetwork(forkVersionBytes)
+
+	return forkVersion, network, nil
 }
 
 // newPeer returns a new peer ENR, generating a p2pkey in node directory.
@@ -1001,7 +1026,8 @@ func nodeDir(clusterDir string, i int) string {
 }
 
 // validateDef returns an error if the provided cluster definition is invalid.
-func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []string, def cluster.Definition, eth1Cl eth1wrap.EthClientRunner) error {
+// The network is the one resolved from the definition's fork version.
+func validateDef(ctx context.Context, keymanagerAddrs []string, def cluster.Definition, network string, eth1Cl eth1wrap.EthClientRunner) error {
 	if def.NumValidators == 0 {
 		return errors.New("--num-validators not set, specify at least one")
 	}
@@ -1020,26 +1046,17 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		}
 	}
 
-	network, err := eth2util.ForkVersionToNetwork(def.ForkVersion)
-	if err != nil {
-		return err
-	}
-
-	if insecureKeys && isMainOrGnosis(network) {
-		return errors.New("insecure keys not supported on mainnet")
-	} else if insecureKeys {
-		log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
-	}
-
 	if def.Name == "" {
 		return errors.New("name not provided")
 	}
 
-	if err = def.VerifyHashes(); err != nil {
+	err := def.VerifyHashes()
+	if err != nil {
 		return err
 	}
 
-	if err = def.VerifySignatures(eth1Cl); err != nil {
+	err = def.VerifySignatures(eth1Cl)
+	if err != nil {
 		return err
 	}
 
@@ -1051,7 +1068,27 @@ func validateDef(ctx context.Context, insecureKeys bool, keymanagerAddrs []strin
 		return errors.New("unsupported consensus protocol", z.Str("protocol", def.ConsensusProtocol))
 	}
 
-	return validateWithdrawalAddrs(def.WithdrawalAddresses(), network)
+	// Addresses in an existing definition are covered by its hashes and signatures, so they are
+	// only validated here, not normalised.
+	_, _, err = checksumValidatorAddrs(ctx, def.FeeRecipientAddresses(), def.WithdrawalAddresses(), network, true)
+
+	return err
+}
+
+// validateInsecureKeysFlag returns an error if insecure keys are requested on mainnet or gnosis,
+// otherwise it logs a warning when insecure keys are requested.
+func validateInsecureKeysFlag(ctx context.Context, insecureKeys bool, network string) error {
+	if !insecureKeys {
+		return nil
+	}
+
+	if isMainOrGnosis(network) {
+		return errors.New("insecure keys not supported on mainnet")
+	}
+
+	log.Warn(ctx, "Insecure keystores configured. ONLY DO THIS DURING TESTING", nil)
+
+	return nil
 }
 
 // aggSign returns a bls aggregate signatures of the message signed by all the shares.
@@ -1188,35 +1225,6 @@ func hasDistinctAddrs(addrs []string) bool {
 	return false
 }
 
-// validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
-//
-//nolint:revive // Not really confusing here as they are passed as arguments as well.
-func validateAddresses(numVals int, feeRecipientAddrs []string, withdrawalAddrs []string) ([]string, []string, error) {
-	if len(feeRecipientAddrs) != numVals && len(feeRecipientAddrs) != 1 {
-		return nil, nil, errors.New("mismatching --num-validators and --fee-recipient-addresses",
-			z.Int("num_validators", numVals), z.Int("addresses", len(feeRecipientAddrs)))
-	}
-
-	if len(withdrawalAddrs) != numVals && len(withdrawalAddrs) != 1 {
-		return nil, nil, errors.New("mismatching --num-validators and --withdrawal-addresses",
-			z.Int("num_validators", numVals), z.Int("addresses", len(withdrawalAddrs)))
-	}
-
-	if len(feeRecipientAddrs) == 1 {
-		for i := 1; i < numVals; i++ {
-			feeRecipientAddrs = append(feeRecipientAddrs, feeRecipientAddrs[0])
-		}
-	}
-
-	if len(withdrawalAddrs) == 1 {
-		for i := 1; i < numVals; i++ {
-			withdrawalAddrs = append(withdrawalAddrs, withdrawalAddrs[0])
-		}
-	}
-
-	return feeRecipientAddrs, withdrawalAddrs, nil
-}
-
 func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) (cluster.BuilderRegistration, error) {
 	feeRecipient, err := reg.FeeRecipient()
 	if err != nil {
@@ -1247,25 +1255,4 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 		},
 		Signature: reg.Signature(),
 	}, nil
-}
-
-// validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
-func validateNetworkConfig(network string, testnet eth2util.Network) error {
-	// Check if custom testnet configuration is provided first (takes precedence over default network).
-	if testnet.IsNonZero() {
-		// Add testnet config to supported networks.
-		eth2util.AddTestNetwork(testnet)
-
-		return nil
-	}
-
-	if network != "" {
-		if eth2util.ValidNetwork(network) {
-			return nil
-		}
-
-		return errors.New("invalid network specified", z.Str("network", network))
-	}
-
-	return errors.New("missing --network flag or testnet config flags")
 }

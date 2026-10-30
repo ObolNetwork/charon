@@ -472,13 +472,13 @@ func TestValidateDef(t *testing.T) {
 
 		def.ForkVersion = gnosis
 
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Gnosis.Name, nil)
 		require.Error(t, err, "zero address")
 	})
 
 	t.Run("fork versions", func(t *testing.T) {
 		def := definition
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Goerli.Name, nil)
 		require.NoError(t, err)
 
 		mainnet, err := hex.DecodeString(strings.TrimPrefix(eth2util.Mainnet.GenesisForkVersionHex, "0x"))
@@ -486,7 +486,7 @@ func TestValidateDef(t *testing.T) {
 
 		def.ForkVersion = mainnet
 
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Mainnet.Name, nil)
 		require.Error(t, err, "zero address")
 	})
 
@@ -494,41 +494,35 @@ func TestValidateDef(t *testing.T) {
 		conf := conf
 		conf.KeymanagerAddrs = []string{"127.0.0.1:1234"}
 
-		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, definition, eth2util.Goerli.Name, nil)
 		require.Error(t, err)
-	})
-
-	t.Run("insecure keys", func(t *testing.T) {
-		conf := conf
-		err = validateDef(ctx, true, conf.KeymanagerAddrs, definition, nil) // Validate with insecure keys set to true
-		require.NoError(t, err)
 	})
 
 	t.Run("insufficient number of nodes", func(t *testing.T) {
 		def := definition
 		def.Operators = nil
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Goerli.Name, nil)
 		require.ErrorContains(t, err, "insufficient number of nodes")
 	})
 
 	t.Run("name not provided", func(t *testing.T) {
 		def := definition
 		def.Name = ""
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Goerli.Name, nil)
 		require.ErrorContains(t, err, "name not provided")
 	})
 
 	t.Run("zero validators provided", func(t *testing.T) {
 		def := definition
 		def.NumValidators = 0
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Goerli.Name, nil)
 		require.ErrorContains(t, err, "--num-validators not set, specify at least one")
 	})
 
 	t.Run("invalid hash", func(t *testing.T) {
 		def := remoteDef
 		def.NumValidators = 3
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Sepolia.Name, nil)
 		require.ErrorContains(t, err, "invalid config hash")
 	})
 
@@ -537,16 +531,158 @@ func TestValidateDef(t *testing.T) {
 		def.NumValidators = 3
 		def, err = def.SetDefinitionHashes()
 		require.NoError(t, err)
-		err = validateDef(ctx, conf.InsecureKeys, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Sepolia.Name, nil)
 		require.ErrorContains(t, err, "invalid creator config signature")
 	})
 
 	t.Run("unsupported consensus protocol", func(t *testing.T) {
 		def := definition
 		def.ConsensusProtocol = "unreal"
-		err = validateDef(ctx, false, conf.KeymanagerAddrs, def, nil)
+		err = validateDef(ctx, conf.KeymanagerAddrs, def, eth2util.Goerli.Name, nil)
 		require.Error(t, err, "unsupported consensus protocol")
 	})
+}
+
+// TestNewDefFromConfigValidation verifies that creating a cluster from flags (no --definition-file)
+// applies the same address checks as a definition file.
+func TestNewDefFromConfigValidation(t *testing.T) {
+	ctx := t.Context()
+	badChecksum := "0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
+
+	tests := []struct {
+		name         string
+		network      string
+		feeRecipient string
+		withdrawal   string
+		expectedErr  string
+	}{
+		{
+			name:         "mainnet valid",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   validEthAddr,
+		},
+		{
+			name:         "mainnet lowercase normalised",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: strings.ToLower(validEthAddr),
+			withdrawal:   strings.ToLower(validEthAddr),
+		},
+		{
+			name:         "testnet zero addresses",
+			network:      eth2util.Hoodi.Name,
+			feeRecipient: zeroAddress,
+			withdrawal:   zeroAddress,
+		},
+		{
+			// Zero addresses only warn: split existing keys of active validators never use deposit data.
+			name:         "mainnet zero withdrawal",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   zeroAddress,
+		},
+		{
+			name:         "mainnet zero fee recipient",
+			network:      eth2util.Mainnet.Name,
+			feeRecipient: zeroAddress,
+			withdrawal:   validEthAddr,
+		},
+		{
+			name:         "bad withdrawal checksum",
+			network:      eth2util.Hoodi.Name,
+			feeRecipient: validEthAddr,
+			withdrawal:   badChecksum,
+			expectedErr:  "invalid withdrawal address",
+		},
+		{
+			name:         "malformed fee recipient",
+			network:      eth2util.Hoodi.Name,
+			feeRecipient: "0xabc",
+			withdrawal:   validEthAddr,
+			expectedErr:  "invalid fee recipient address",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf := clusterConfig{
+				Name:              "test",
+				NumNodes:          4,
+				NumDVs:            2,
+				Threshold:         3,
+				TargetGasLimit:    30000000,
+				Network:           test.network,
+				FeeRecipientAddrs: []string{test.feeRecipient},
+				WithdrawalAddrs:   []string{test.withdrawal},
+			}
+
+			def, err := newDefFromConfig(ctx, conf)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+
+			wantFee, err := eth2util.ChecksumAddress(test.feeRecipient)
+			require.NoError(t, err)
+			wantWd, err := eth2util.ChecksumAddress(test.withdrawal)
+			require.NoError(t, err)
+
+			require.Equal(t, []string{wantFee, wantFee}, def.FeeRecipientAddresses())
+			require.Equal(t, []string{wantWd, wantWd}, def.WithdrawalAddresses())
+		})
+	}
+}
+
+// TestCreateClusterInsecureKeys verifies insecure keys are rejected on mainnet and gnosis before any keys are read.
+func TestCreateClusterInsecureKeys(t *testing.T) {
+	mainnetForkVersion, err := eth2util.NetworkToForkVersionBytes(eth2util.Mainnet.Name)
+	require.NoError(t, err)
+
+	lock, _, _ := cluster.NewForT(t, 1, 3, 4, 0, rand.New(rand.NewSource(0)), func(d *cluster.Definition) {
+		d.ForkVersion = mainnetForkVersion
+	})
+
+	defBytes, err := json.Marshal(lock.Definition)
+	require.NoError(t, err)
+
+	mainnetDefFile := filepath.Join(t.TempDir(), "cluster-definition.json")
+	require.NoError(t, os.WriteFile(mainnetDefFile, defBytes, 0o644))
+
+	tests := []struct {
+		name    string
+		network string
+		defFile string
+	}{
+		{name: "mainnet flag", network: eth2util.Mainnet.Name},
+		{name: "gnosis flag", network: eth2util.Gnosis.Name},
+		// The definition file's network takes precedence over the network flag.
+		{name: "mainnet definition file", network: eth2util.Hoodi.Name, defFile: mainnetDefFile},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf := clusterConfig{
+				Name:              t.Name(),
+				ClusterDir:        t.TempDir(),
+				DefFile:           test.defFile,
+				NumNodes:          4,
+				Threshold:         3,
+				Network:           test.network,
+				FeeRecipientAddrs: []string{validEthAddr},
+				WithdrawalAddrs:   []string{validEthAddr},
+				TargetGasLimit:    30000000,
+				InsecureKeys:      true,
+				// A missing keys dir proves the check runs before any keys are read.
+				SplitKeys:    true,
+				SplitKeysDir: filepath.Join(t.TempDir(), "missing"),
+			}
+
+			err := runCreateCluster(t.Context(), io.Discard, conf)
+			require.ErrorContains(t, err, "insecure keys not supported")
+		})
+	}
 }
 
 func TestSplitKeys(t *testing.T) {
@@ -733,7 +869,7 @@ func TestTargetGasLimit(t *testing.T) {
 				NumNodes:          4,
 				Threshold:         3,
 				NumDVs:            1,
-				Network:           defaultNetwork,
+				Network:           eth2util.Hoodi.Name,
 				WithdrawalAddrs:   []string{zeroAddress},
 				FeeRecipientAddrs: []string{zeroAddress},
 				InsecureKeys:      true,
@@ -749,7 +885,7 @@ func TestTargetGasLimit(t *testing.T) {
 				NumNodes:          4,
 				Threshold:         3,
 				NumDVs:            1,
-				Network:           defaultNetwork,
+				Network:           eth2util.Hoodi.Name,
 				WithdrawalAddrs:   []string{zeroAddress},
 				FeeRecipientAddrs: []string{zeroAddress},
 				InsecureKeys:      true,

@@ -120,6 +120,22 @@ func Test_runSubmitPartialExit(t *testing.T) {
 		)
 	})
 
+	t.Run("main flow with skipBeaconNodeCheck mode with index of another validator", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(
+			t,
+			true,
+			true,
+			"",
+			1, // Index 1 belongs to lock.Validators[1], not the default lock.Validators[0] pubkey.
+			"validator index belongs to a different public key on the beacon node",
+			false,
+		)
+	})
+
+	t.Run("main flow with skipBeaconNodeCheck mode with index unknown to beacon node", func(t *testing.T) {
+		runSubmitPartialExitFlowTest(t, true, true, "", 9999, "", false)
+	})
+
 	t.Run("main flow with pubkey", func(t *testing.T) {
 		runSubmitPartialExitFlowTest(t, false, false, "", 0, "", false)
 	})

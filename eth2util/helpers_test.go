@@ -14,6 +14,38 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 )
 
+func TestValidateChecksumAddress(t *testing.T) {
+	const checksummed = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+
+	tests := []struct {
+		name        string
+		addr        string
+		expectedErr string
+	}{
+		{name: "checksummed", addr: checksummed},
+		{name: "lowercase", addr: strings.ToLower(checksummed)},
+		{name: "uppercase", addr: "0x" + strings.ToUpper(checksummed[2:])},
+		{name: "bad checksum", addr: "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", expectedErr: "does not match its EIP-55 checksum"},
+		{name: "uppercase 0X prefix", addr: "0X" + checksummed[2:], expectedErr: "invalid ethereum address"},
+		{name: "no 0x prefix", addr: checksummed[2:], expectedErr: "invalid ethereum address"},
+		{name: "too short", addr: checksummed[:40], expectedErr: "invalid ethereum address"},
+		{name: "not hex", addr: "0x" + strings.Repeat("z", 40), expectedErr: "invalid ethereum hex address"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp, err := eth2util.ValidateChecksumAddress(test.addr)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, checksummed, resp)
+		})
+	}
+}
+
 func TestChecksummedAddress(t *testing.T) {
 	// Test examples from https://eips.ethereum.org/EIPS/eip-55.
 	addrs := []string{
