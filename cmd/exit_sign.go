@@ -370,16 +370,8 @@ func crossCheckValidatorIndex(ctx context.Context, eth2Cl eth2wrap.Client, pubke
 		return nil
 	}
 
-	var val *eth2v1.Validator
-
-	for _, v := range rawValData.Data {
-		if v != nil && v.Validator != nil && v.Index == index {
-			val = v
-			break
-		}
-	}
-
-	if val == nil {
+	val, ok := rawValData.Data[index]
+	if !ok {
 		log.Warn(ctx, "Validator index not found on beacon node, could not cross-check it against the public key, proceeding", nil)
 		return nil
 	}

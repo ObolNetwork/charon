@@ -195,13 +195,11 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if conf.testnetConfig.IsNonZero() {
 		// Custom testnet config takes precedence (already registered in validateDKGConfig via validateNetworkConfig).
 		forkVersion = conf.testnetConfig.GenesisForkVersionHex
-	} else if conf.Network != "" {
+	} else {
 		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
 		if err != nil {
 			return err
 		}
-	} else {
-		return errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
 
 	var privKey *k1.PrivateKey
