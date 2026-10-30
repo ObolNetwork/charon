@@ -1,0 +1,31 @@
+{
+  "suite": "secp256k1_signatures",
+  "description": "secp256k1 signatures in the 65-byte R || S || V form used for QBFT consensus messages, node signatures over the cluster lock hash, and cluster definition operator signatures. The nonce is RFC 6979 deterministic, so these bytes are reproducible exactly.",
+  "provenance": {
+    "source": "charon",
+    "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+    "generated_by": "test_vectors/charon/crypto_generator/main.go",
+    "note": "Signatures produced by charon's app/k1util Sign and Recover."
+  },
+  "secret_hex": "4f3edf983ac636a65a842ce7c78d9aa706d3b113bce9c46f30d7d21715b23b1d",
+  "pubkey_hex": "03e68acfc0253a10620dff706b0a1b1f1f5833ea3beb3bde2250d5f271f3563606",
+  "cases": [
+    {
+      "name": "qbft_attester_pre_prepare",
+      "input": {
+        "hash_hex": "3a08c29e25a343e6e5a15c629a9b8ffa4f2b39294544f4ccea75dfe659e77f60"
+      },
+      "signature_hex": "b837444477501e41f9ef0a8aa90e949c813ffe654d03769c15d8d6f84a160da155c6001e7ba0871d93cfcfb8ac20532dad8eaab35b960fc2d8f89b0c2840dc5d00",
+      "recovered_pubkey_hex": "03e68acfc0253a10620dff706b0a1b1f1f5833ea3beb3bde2250d5f271f3563606",
+      "notes": "The signing root of the attester_pre_prepare case in qbft_hashing.json, so the two suites chain."
+    },
+    {
+      "name": "zero_hash",
+      "input": {
+        "hash_hex": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "signature_hex": "8d5afa353751d581b45c9b94d2cc57d1856b2da7648619bbdab4bc573cbb78ce3f94d958a7afd097b40ce2311b85a9edfd25b385ce6a7f79625faf0c1723c0bd00",
+      "recovered_pubkey_hex": "03e68acfc0253a10620dff706b0a1b1f1f5833ea3beb3bde2250d5f271f3563606"
+    }
+  ]
+}

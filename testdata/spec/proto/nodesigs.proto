@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package dkg.dkgpb.v1;
+
+// MsgNodeSig is reliably broadcast under message ID /charon/dkg/node_sig and
+// carries one node's secp256k1 signature over the cluster lock hash.
+message MsgNodeSig {
+  bytes signature = 1;   // 65-byte R||S||V signature, or the 0xdeadbeef sentinel.
+  uint32 peer_index = 2; // Sender peer index, 0-based.
+}

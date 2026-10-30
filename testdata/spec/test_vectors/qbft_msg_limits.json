@@ -1,0 +1,178 @@
+{
+  "suite": "qbft_msg_limits",
+  "description": "Limits a receiver MUST apply to an incoming QBFT consensus message before any per-element work: justifications <= 2*nodes, values <= 2*(justifications+1), and a wire size of at most 33554432 bytes (32 MiB). Every case names the rejection reason, because agreeing on which limit fired is what makes the two checks distinguishable.",
+  "provenance": {
+    "source": "spec",
+    "charon_ref": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+    "generated_by": "scripts/generate_test_vectors.py",
+    "note": "Derived from charon's core/consensus/qbft/qbft.go: verifyMsgLimits for the counts and maxConsensusMsgSize for the wire size. The cases are the spec's boundary pairs around charon's formulas \u2014 charon's own TestQBFTConsensusHandleAmplificationLimits pins the same at/over boundaries for a one-node cluster \u2014 and this script fails if the spec's verdict differs from the table."
+  },
+  "counts": [
+    {
+      "name": "no_justifications_two_values",
+      "input": {
+        "nodes": 4,
+        "justification_count": 0,
+        "value_count": 2
+      },
+      "accepted": true,
+      "reason": null,
+      "max_justifications": 8,
+      "max_values": 2
+    },
+    {
+      "name": "no_justifications_three_values",
+      "input": {
+        "nodes": 4,
+        "justification_count": 0,
+        "value_count": 3
+      },
+      "accepted": false,
+      "reason": "too_many_values",
+      "max_justifications": 8,
+      "max_values": 2
+    },
+    {
+      "name": "justifications_at_limit",
+      "input": {
+        "nodes": 4,
+        "justification_count": 8,
+        "value_count": 0
+      },
+      "accepted": true,
+      "reason": null,
+      "max_justifications": 8,
+      "max_values": 18
+    },
+    {
+      "name": "justifications_one_over_limit",
+      "input": {
+        "nodes": 4,
+        "justification_count": 9,
+        "value_count": 0
+      },
+      "accepted": false,
+      "reason": "too_many_justifications",
+      "max_justifications": 8,
+      "max_values": 20
+    },
+    {
+      "name": "values_at_limit_for_full_justification_set",
+      "input": {
+        "nodes": 4,
+        "justification_count": 8,
+        "value_count": 18
+      },
+      "accepted": true,
+      "reason": null,
+      "max_justifications": 8,
+      "max_values": 18
+    },
+    {
+      "name": "values_one_over_limit_for_full_justification_set",
+      "input": {
+        "nodes": 4,
+        "justification_count": 8,
+        "value_count": 19
+      },
+      "accepted": false,
+      "reason": "too_many_values",
+      "max_justifications": 8,
+      "max_values": 18
+    },
+    {
+      "name": "both_limits_exceeded_reports_justifications",
+      "input": {
+        "nodes": 4,
+        "justification_count": 9,
+        "value_count": 100
+      },
+      "accepted": false,
+      "reason": "too_many_justifications",
+      "max_justifications": 8,
+      "max_values": 20
+    },
+    {
+      "name": "three_node_cluster_at_limit",
+      "input": {
+        "nodes": 3,
+        "justification_count": 6,
+        "value_count": 0
+      },
+      "accepted": true,
+      "reason": null,
+      "max_justifications": 6,
+      "max_values": 14
+    },
+    {
+      "name": "three_node_cluster_over_limit",
+      "input": {
+        "nodes": 3,
+        "justification_count": 7,
+        "value_count": 0
+      },
+      "accepted": false,
+      "reason": "too_many_justifications",
+      "max_justifications": 6,
+      "max_values": 16
+    },
+    {
+      "name": "seven_node_cluster_at_limit",
+      "input": {
+        "nodes": 7,
+        "justification_count": 14,
+        "value_count": 0
+      },
+      "accepted": true,
+      "reason": null,
+      "max_justifications": 14,
+      "max_values": 30
+    },
+    {
+      "name": "seven_node_cluster_over_limit",
+      "input": {
+        "nodes": 7,
+        "justification_count": 15,
+        "value_count": 0
+      },
+      "accepted": false,
+      "reason": "too_many_justifications",
+      "max_justifications": 14,
+      "max_values": 32
+    }
+  ],
+  "wire_size": [
+    {
+      "name": "small_message",
+      "input": {
+        "wire_size_bytes": 1024
+      },
+      "accepted": true,
+      "reason": null
+    },
+    {
+      "name": "at_limit",
+      "input": {
+        "wire_size_bytes": 33554432
+      },
+      "accepted": true,
+      "reason": null
+    },
+    {
+      "name": "one_byte_over_limit",
+      "input": {
+        "wire_size_bytes": 33554433
+      },
+      "accepted": false,
+      "reason": "msg_too_large"
+    },
+    {
+      "name": "p2p_default_read_limit",
+      "input": {
+        "wire_size_bytes": 134217728
+      },
+      "accepted": false,
+      "reason": "msg_too_large"
+    }
+  ]
+}

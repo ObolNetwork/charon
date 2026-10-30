@@ -1,0 +1,176 @@
+{
+  "suite": "qbft_decided_resends",
+  "description": "Once an instance has decided, a post-decision ROUND-CHANGE triggers at most one DECIDED rebroadcast per source per strictly-increasing round, capped at 16 per source. `rebroadcast[i]` is whether event i triggers one. Counted as rebroadcast events, not messages, since a rebroadcast reaches every peer.",
+  "provenance": {
+    "source": "charon",
+    "charon_ref": "6054bcb2dc9be9a2d4244564ffdd0f2d1b7a09fd",
+    "generated_by": "scripts/generate_test_vectors.py",
+    "note": "Event sequences and expected counts are transcribed from charon's core/qbft/qbft_internal_test.go TestDecidedRebroadcastLimits subtests; this script fails if the spec does not reproduce them."
+  },
+  "cases": [
+    {
+      "name": "dedup_duplicates_and_stale_rounds",
+      "input": {
+        "nodes": 4,
+        "decided_round": 1,
+        "events": [
+          {
+            "source": 2,
+            "round": 2
+          },
+          {
+            "source": 2,
+            "round": 2
+          },
+          {
+            "source": 2,
+            "round": 2
+          },
+          {
+            "source": 3,
+            "round": 2
+          },
+          {
+            "source": 3,
+            "round": 2
+          },
+          {
+            "source": 2,
+            "round": 1
+          },
+          {
+            "source": 2,
+            "round": 3
+          }
+        ]
+      },
+      "rebroadcast": [
+        true,
+        false,
+        false,
+        true,
+        false,
+        false,
+        true
+      ],
+      "total_rebroadcasts": 3
+    },
+    {
+      "name": "resend_cap_per_source",
+      "input": {
+        "nodes": 4,
+        "decided_round": 1,
+        "events": [
+          {
+            "source": 2,
+            "round": 2
+          },
+          {
+            "source": 2,
+            "round": 3
+          },
+          {
+            "source": 2,
+            "round": 4
+          },
+          {
+            "source": 2,
+            "round": 5
+          },
+          {
+            "source": 2,
+            "round": 6
+          },
+          {
+            "source": 2,
+            "round": 7
+          },
+          {
+            "source": 2,
+            "round": 8
+          },
+          {
+            "source": 2,
+            "round": 9
+          },
+          {
+            "source": 2,
+            "round": 10
+          },
+          {
+            "source": 2,
+            "round": 11
+          },
+          {
+            "source": 2,
+            "round": 12
+          },
+          {
+            "source": 2,
+            "round": 13
+          },
+          {
+            "source": 2,
+            "round": 14
+          },
+          {
+            "source": 2,
+            "round": 15
+          },
+          {
+            "source": 2,
+            "round": 16
+          },
+          {
+            "source": 2,
+            "round": 17
+          },
+          {
+            "source": 2,
+            "round": 18
+          },
+          {
+            "source": 2,
+            "round": 19
+          },
+          {
+            "source": 2,
+            "round": 20
+          },
+          {
+            "source": 2,
+            "round": 21
+          },
+          {
+            "source": 2,
+            "round": 22
+          }
+        ]
+      },
+      "rebroadcast": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "total_rebroadcasts": 16
+    }
+  ]
+}

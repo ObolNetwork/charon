@@ -1,0 +1,147 @@
+{
+  "suite": "bls_threshold",
+  "description": "BLS12-381 key derivation, signing, and both aggregations, over a fixed threshold-3-of-4 sharing. The shares are the evaluations of one degree-2 polynomial at x=1..4, so any three of them reconstruct the group key: threshold_aggregates therefore all equal group_signature, which is what distinguishes correct Lagrange coefficients from plausible ones. The scheme is BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_ (Ethereum, minimal-pubkey-size).",
+  "provenance": {
+    "source": "charon",
+    "charon_ref": "2eb6798e3091b09f3eb659076e044dfe404e46d7",
+    "generated_by": "test_vectors/charon/crypto_generator/main.go",
+    "note": "Public keys, signatures and aggregates were produced by charon's tbls package (Herumi with SetETHmode(EthModeLatest)). The share scalars are spec-chosen inputs, and charon's RecoverSecret over shares 1-3 returning group_secret_hex confirms they form a valid sharing and that secret keys are big-endian."
+  },
+  "message_hex": "64697374726962757465642d76616c696461746f722d7370656373207465737420766563746f72",
+  "group_secret_hex": "598d4150de5b558716e1ca4df2853d696c1cc47f3af380d9ac3db876ebd038c5",
+  "group_pubkey_hex": "84a6f81ad08d3491604f6eac59a23a8122545bbb09aa5221b0b9b3b31d4f2a802c31257dcb30a9dbc48116d5097dc99c",
+  "group_signature_hex": "801768d4f0352c5ba204ede60cfa70bc6888f71ff8f73bd27429f5a5d92d2a001db38caa59975fe729dd35c5319f9fee0792b67f912ba478a20f8f8af2b502aa934e7284d025debbaec6e3c6afea0fcd5ea0b2006135c88bf8388d43bb6af19d",
+  "keys": [
+    {
+      "name": "small_scalar",
+      "input": {
+        "secret_hex": "0000000000000000000000000000000000000000000000000000000000000042"
+      },
+      "pubkey_hex": "a4e8f4a4f81f855f46512af8cdcbc9ae8a7eb395a75f135e5569b758a8d92349681a0358500f2d41f4578d3f7ffaa90f",
+      "notes": "Secret 0x42 as a big-endian 32-byte scalar. A little-endian reading gives a different key, so this case pins the byte order."
+    },
+    {
+      "name": "group_secret",
+      "input": {
+        "secret_hex": "598d4150de5b558716e1ca4df2853d696c1cc47f3af380d9ac3db876ebd038c5"
+      },
+      "pubkey_hex": "84a6f81ad08d3491604f6eac59a23a8122545bbb09aa5221b0b9b3b31d4f2a802c31257dcb30a9dbc48116d5097dc99c"
+    }
+  ],
+  "partials": [
+    {
+      "name": "share_1",
+      "input": {
+        "share_idx": 1,
+        "secret_hex": "7113350cf92900d71d73cab886f244c12b589bfa98d2fd116e0d25265b82fedb"
+      },
+      "pubshare_hex": "a60fed59bf34aef87bc3936e29ed73dbb7eb1752706d5e479e96e1f40502a08d79dd0e9e81e685223bfcce53dd3f6718",
+      "signature_hex": "906341bc7b715c2de4b5723ed77f31521c9902938977e7d619295e35ff4d216f3ae437d235d632e592f9140fb6137bcc09b828999f9799de1af6bb3e5da77e148b65b988e068a3aa34dd95fc4f625cfd03f3cac748eceff9da8f74954248872c"
+    },
+    {
+      "name": "share_2",
+      "input": {
+        "share_idx": 2,
+        "secret_hex": "2a14b99e273adba1640ac3ea6be7ab097b50c6f7e04292598513ebc615f2b4c8"
+      },
+      "pubshare_hex": "88720d6738df12cfd0446ed19381f3140f1722a72aefa7752893fbf0fda262777cf1f24bbb6bd5cbe965ca522787c918",
+      "signature_hex": "89b7078f9f9101a8002f884604bbea18f35025d1e81747c5b5c097194de80ca92273aca0469e459151e2047b919ccba610efd8c474fa2c54e451db0592b5f93d689efa58f69cd7c35016d10e9a391b430bfd3f8ba9a1f229ad62f965efb4431e"
+    },
+    {
+      "name": "share_3",
+      "input": {
+        "share_idx": 3,
+        "secret_hex": "6c6d1daabbcbe076511a65f3b4a9204d03808d7d113ef8aff1520c541b1f5a8e"
+      },
+      "pubshare_hex": "a6cdd5e776f805a3878ee5e7d867f4a8c94c8ecce81289b64e7f3cb55640d005559d48b5c5008f6a83dd75b228e2b9d5",
+      "signature_hex": "a34ece44c629645fda7f2e74681c26987ddbefcf8b3e60a14344ddd0e21f599753ac992e81d4840afff3fa15faac510014caf21dc26ef0b707d8c376195d4b46dfb03e31d8f97b04ae1dfb68304ff3776e84c29fd9c123b22d4497a8539f6799"
+    },
+    {
+      "name": "share_4",
+      "input": {
+        "share_idx": 4,
+        "secret_hex": "5041128c63a114c57e2f00c44df2f4811c6ca7842bcb7816b2c786d26b08f02b"
+      },
+      "pubshare_hex": "b2743d817a54a2cf4953543648556fa44620ff8fbe927c6ed229d3500095002a1a0ab99a900c16116a860225ec506282",
+      "signature_hex": "88e913f6169be5936405ecff2fafba8ff5eec6953e2a4a6846c81d28aad7d54e316d2e12d1de2727c11aad5854bcd7e00695fc8ad93b9aab63072d4455c27a224fa6e143743cd460bd7b3658464d2f00bc5d99a2cdd7fcf32cdfdc8ce0afaa67"
+    }
+  ],
+  "threshold_aggregates": [
+    {
+      "name": "quorum_1_2_3",
+      "input": {
+        "share_indices": [
+          1,
+          2,
+          3
+        ]
+      },
+      "signature_hex": "801768d4f0352c5ba204ede60cfa70bc6888f71ff8f73bd27429f5a5d92d2a001db38caa59975fe729dd35c5319f9fee0792b67f912ba478a20f8f8af2b502aa934e7284d025debbaec6e3c6afea0fcd5ea0b2006135c88bf8388d43bb6af19d",
+      "notes": "Equals group_signature_hex; every quorum interpolates the same polynomial."
+    },
+    {
+      "name": "quorum_1_2_4",
+      "input": {
+        "share_indices": [
+          1,
+          2,
+          4
+        ]
+      },
+      "signature_hex": "801768d4f0352c5ba204ede60cfa70bc6888f71ff8f73bd27429f5a5d92d2a001db38caa59975fe729dd35c5319f9fee0792b67f912ba478a20f8f8af2b502aa934e7284d025debbaec6e3c6afea0fcd5ea0b2006135c88bf8388d43bb6af19d",
+      "notes": "Equals group_signature_hex; every quorum interpolates the same polynomial."
+    },
+    {
+      "name": "quorum_1_3_4",
+      "input": {
+        "share_indices": [
+          1,
+          3,
+          4
+        ]
+      },
+      "signature_hex": "801768d4f0352c5ba204ede60cfa70bc6888f71ff8f73bd27429f5a5d92d2a001db38caa59975fe729dd35c5319f9fee0792b67f912ba478a20f8f8af2b502aa934e7284d025debbaec6e3c6afea0fcd5ea0b2006135c88bf8388d43bb6af19d",
+      "notes": "Equals group_signature_hex; every quorum interpolates the same polynomial."
+    },
+    {
+      "name": "quorum_2_3_4",
+      "input": {
+        "share_indices": [
+          2,
+          3,
+          4
+        ]
+      },
+      "signature_hex": "801768d4f0352c5ba204ede60cfa70bc6888f71ff8f73bd27429f5a5d92d2a001db38caa59975fe729dd35c5319f9fee0792b67f912ba478a20f8f8af2b502aa934e7284d025debbaec6e3c6afea0fcd5ea0b2006135c88bf8388d43bb6af19d",
+      "notes": "Equals group_signature_hex; every quorum interpolates the same polynomial."
+    }
+  ],
+  "recovery": [
+    {
+      "name": "recover_pubkey_from_shares_1_2_3",
+      "input": {
+        "share_indices": [
+          1,
+          2,
+          3
+        ]
+      },
+      "pubkey_hex": "84a6f81ad08d3491604f6eac59a23a8122545bbb09aa5221b0b9b3b31d4f2a802c31257dcb30a9dbc48116d5097dc99c"
+    }
+  ],
+  "plain_aggregate": [
+    {
+      "name": "all_four_shares",
+      "input": {
+        "share_indices": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      "signature_hex": "aa87923abb4a288568e1d52053d077dcfeaf775c10260daed963c995bcc6eb82c1b25b19683800ad2af1fc0477a59d570524d1e58eb185514031f74a10408dcf7c1321bd54f59c5e2fdd3c5419adc48afaec3599f78f75e4fb9441682b56ef62",
+      "notes": "No coefficients. Verifies against the four public shares as a multi-signature, and NOT against group_pubkey_hex. This is the aggregation used for the cluster lock hash."
+    }
+  ]
+}

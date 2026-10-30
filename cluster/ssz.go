@@ -108,6 +108,10 @@ func hashDefinitionLegacy(d Definition, hh sszutils.HashWalker, configOnly bool)
 	hh.PutBytes([]byte(d.DKGAlgorithm))
 
 	// Field (8) 'forkVersion'
+	if err := checkBytesN(d.ForkVersion, sszLenForkVersion, "fork_version"); err != nil {
+		return err
+	}
+
 	hh.PutBytes([]byte(to0xHex(d.ForkVersion)))
 
 	// Field (9) 'addresses'
@@ -136,10 +140,14 @@ func hashDefinitionLegacy(d Definition, hh sszutils.HashWalker, configOnly bool)
 			}
 
 			// Field (2 or 3) 'ConfigSignature'
-			hh.PutBytes(o.ConfigSignature)
+			if err := putBytesRaw(hh, o.ConfigSignature, sszLenK1Sig, "config_signature"); err != nil {
+				return err
+			}
 
 			// Field (3 or 4) 'ENRSignature'
-			hh.PutBytes(o.ENRSignature)
+			if err := putBytesRaw(hh, o.ENRSignature, sszLenK1Sig, "enr_signature"); err != nil {
+				return err
+			}
 
 			hh.Merkleize(subIdx)
 		}
@@ -220,7 +228,9 @@ func hashDefinitionV1x3or4(d Definition, hh sszutils.HashWalker, configOnly bool
 	}
 
 	// Field (9) 'ForkVersion' Bytes4
-	hh.PutBytes(d.ForkVersion)
+	if err := putBytesRaw(hh, d.ForkVersion, sszLenForkVersion, "fork_version"); err != nil {
+		return err
+	}
 
 	// Field (10) 'Operators' CompositeList[256]
 	{
@@ -245,10 +255,14 @@ func hashDefinitionV1x3or4(d Definition, hh sszutils.HashWalker, configOnly bool
 				}
 
 				// Field (2) 'ConfigSignature' Bytes65
-				hh.PutBytes(o.ConfigSignature)
+				if err := putBytesRaw(hh, o.ConfigSignature, sszLenK1Sig, "config_signature"); err != nil {
+					return err
+				}
 
 				// Field (3) 'ENRSignature' Bytes65
-				hh.PutBytes(o.ENRSignature)
+				if err := putBytesRaw(hh, o.ENRSignature, sszLenK1Sig, "enr_signature"); err != nil {
+					return err
+				}
 			}
 
 			hh.Merkleize(operatorIdx)
@@ -271,7 +285,9 @@ func hashDefinitionV1x3or4(d Definition, hh sszutils.HashWalker, configOnly bool
 
 		if !configOnly {
 			// Field (1) 'ConfigSignature' Bytes65
-			hh.PutBytes(d.Creator.ConfigSignature)
+			if err := putBytesRaw(hh, d.Creator.ConfigSignature, sszLenK1Sig, "creator_config_signature"); err != nil {
+				return err
+			}
 		}
 
 		hh.Merkleize(creatorIdx)
@@ -279,7 +295,9 @@ func hashDefinitionV1x3or4(d Definition, hh sszutils.HashWalker, configOnly bool
 
 	if !configOnly {
 		// Field (12) 'ConfigHash' Bytes32
-		hh.PutBytes(d.ConfigHash)
+		if err := putBytesRaw(hh, d.ConfigHash, sszLenHash, "config_hash"); err != nil {
+			return err
+		}
 	}
 
 	hh.Merkleize(indx)
@@ -326,7 +344,7 @@ func hashDefinitionV1x5to9(d Definition, hh sszutils.HashWalker, configOnly bool
 	}
 
 	// Field (7) 'ForkVersion' Bytes4
-	if err := putBytesN(hh, d.ForkVersion, sszLenForkVersion); err != nil {
+	if err := putBytesN(hh, d.ForkVersion, sszLenForkVersion, "fork_version"); err != nil {
 		return err
 	}
 
@@ -350,12 +368,12 @@ func hashDefinitionV1x5to9(d Definition, hh sszutils.HashWalker, configOnly bool
 				}
 
 				// Field (2) 'ConfigSignature' Bytes65
-				if err := putBytesN(hh, o.ConfigSignature, sszLenK1Sig); err != nil {
+				if err := putBytesN(hh, o.ConfigSignature, sszLenK1Sig, "config_signature"); err != nil {
 					return err
 				}
 
 				// Field (3) 'ENRSignature' Bytes65
-				if err := putBytesN(hh, o.ENRSignature, sszLenK1Sig); err != nil {
+				if err := putBytesN(hh, o.ENRSignature, sszLenK1Sig, "enr_signature"); err != nil {
 					return err
 				}
 			}
@@ -377,7 +395,7 @@ func hashDefinitionV1x5to9(d Definition, hh sszutils.HashWalker, configOnly bool
 
 		if !configOnly {
 			// Field (1) 'ConfigSignature' Bytes65
-			if err := putBytesN(hh, d.Creator.ConfigSignature, sszLenK1Sig); err != nil {
+			if err := putBytesN(hh, d.Creator.ConfigSignature, sszLenK1Sig, "creator_config_signature"); err != nil {
 				return err
 			}
 		}
@@ -418,7 +436,7 @@ func hashDefinitionV1x5to9(d Definition, hh sszutils.HashWalker, configOnly bool
 
 	if !configOnly {
 		// Field (last) 'ConfigHash' Bytes32
-		if err := putBytesN(hh, d.ConfigHash, sszLenHash); err != nil {
+		if err := putBytesN(hh, d.ConfigHash, sszLenHash, "config_hash"); err != nil {
 			return err
 		}
 	}
@@ -526,7 +544,7 @@ func hashDefinitionV1x11(d Definition, hh sszutils.HashWalker, configOnly bool) 
 	}
 
 	// Field (7) 'ForkVersion' Bytes4
-	if err := putBytesN(hh, d.ForkVersion, sszLenForkVersion); err != nil {
+	if err := putBytesN(hh, d.ForkVersion, sszLenForkVersion, "fork_version"); err != nil {
 		return err
 	}
 
@@ -630,7 +648,9 @@ func hashDefinitionV1x11(d Definition, hh sszutils.HashWalker, configOnly bool) 
 
 	// Field (15) 'ConfigHash' Bytes32 (only for full definition hash)
 	if !configOnly {
-		hh.PutBytes(d.ConfigHash)
+		if err := putBytesRaw(hh, d.ConfigHash, sszLenHash, "config_hash"); err != nil {
+			return err
+		}
 	}
 
 	hh.Merkleize(indx)
@@ -720,7 +740,7 @@ func hashValidatorPubsharesField(v DistValidator, hh sszutils.HashWalker) error 
 	num := uint64(len(v.PubShares))
 
 	for _, pubshare := range v.PubShares {
-		if err := putBytesN(hh, pubshare, sszLenPubKey); err != nil {
+		if err := putBytesN(hh, pubshare, sszLenPubKey, "public_shares"); err != nil {
 			return err
 		}
 	}
@@ -735,7 +755,9 @@ func hashValidatorV1x3Or4(v DistValidator, hh sszutils.HashWalker, _ string) err
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
-	hh.PutBytes(v.PubKey)
+	if err := putBytesRaw(hh, v.PubKey, sszLenPubKey, "distributed_public_key"); err != nil {
+		return err
+	}
 
 	// Field (1) 'Pubshares' CompositeList[256]
 	if err := hashValidatorPubsharesField(v, hh); err != nil {
@@ -755,7 +777,7 @@ func hashValidatorV1x5to7(v DistValidator, hh sszutils.HashWalker, version strin
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
-	if err := putBytesN(hh, v.PubKey, sszLenPubKey); err != nil {
+	if err := putBytesN(hh, v.PubKey, sszLenPubKey, "distributed_public_key"); err != nil {
 		return err
 	}
 
@@ -799,7 +821,7 @@ func hashValidatorV1x8OrLater(v DistValidator, hh sszutils.HashWalker, version s
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
-	if err := putBytesN(hh, v.PubKey, sszLenPubKey); err != nil {
+	if err := putBytesN(hh, v.PubKey, sszLenPubKey, "distributed_public_key"); err != nil {
 		return err
 	}
 
@@ -878,6 +900,10 @@ func hashValidatorLegacy(v DistValidator, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey'
+	if err := checkBytesN(v.PubKey, sszLenPubKey, "distributed_public_key"); err != nil {
+		return err
+	}
+
 	hh.PutBytes([]byte(to0xHex(v.PubKey)))
 
 	// Field (1) 'Pubshares'
@@ -886,7 +912,9 @@ func hashValidatorLegacy(v DistValidator, hh sszutils.HashWalker) error {
 
 		num := uint64(len(v.PubShares))
 		for _, pubshare := range v.PubShares {
-			hh.PutBytes(pubshare)
+			if err := putBytesRaw(hh, pubshare, sszLenPubKey, "public_shares"); err != nil {
+				return err
+			}
 		}
 
 		hh.MerkleizeWithMixin(subIndx, num, num)
@@ -930,12 +958,12 @@ func getRegistrationHashFunc(version string) (func(BuilderRegistration, sszutils
 // Note: There is a bug in this function where we missed merkleize step of DepositData.
 func hashDepositDataV1x6(d DepositData, hh sszutils.HashWalker) error {
 	// Field (0) 'PubKey' Bytes48
-	if err := putBytesN(hh, d.PubKey, sszLenPubKey); err != nil {
+	if err := putBytesN(hh, d.PubKey, sszLenPubKey, "deposit_pubkey"); err != nil {
 		return err
 	}
 
 	// Field (1) 'WithdrawalCredentials' Bytes32
-	if err := putBytesN(hh, d.WithdrawalCredentials, sszLenWithdrawCreds); err != nil {
+	if err := putBytesN(hh, d.WithdrawalCredentials, sszLenWithdrawCreds, "withdrawal_credentials"); err != nil {
 		return err
 	}
 
@@ -943,7 +971,7 @@ func hashDepositDataV1x6(d DepositData, hh sszutils.HashWalker) error {
 	hh.PutUint64(uint64(d.Amount))
 
 	// Field (3) 'Signature' Bytes96
-	return putBytesN(hh, d.Signature, sszLenBLSSig)
+	return putBytesN(hh, d.Signature, sszLenBLSSig, "deposit_signature")
 }
 
 // hashDepositDataV1x7OrLater hashes the latest deposit data.
@@ -951,12 +979,12 @@ func hashDepositDataV1x7OrLater(d DepositData, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
 	// Field (0) 'PubKey' Bytes48
-	if err := putBytesN(hh, d.PubKey, sszLenPubKey); err != nil {
+	if err := putBytesN(hh, d.PubKey, sszLenPubKey, "deposit_pubkey"); err != nil {
 		return err
 	}
 
 	// Field (1) 'WithdrawalCredentials' Bytes32
-	if err := putBytesN(hh, d.WithdrawalCredentials, sszLenWithdrawCreds); err != nil {
+	if err := putBytesN(hh, d.WithdrawalCredentials, sszLenWithdrawCreds, "withdrawal_credentials"); err != nil {
 		return err
 	}
 
@@ -964,7 +992,7 @@ func hashDepositDataV1x7OrLater(d DepositData, hh sszutils.HashWalker) error {
 	hh.PutUint64(uint64(d.Amount))
 
 	// Field (3) 'Signature' Bytes96
-	if err := putBytesN(hh, d.Signature, sszLenBLSSig); err != nil {
+	if err := putBytesN(hh, d.Signature, sszLenBLSSig, "deposit_signature"); err != nil {
 		return err
 	}
 
@@ -983,7 +1011,7 @@ func hashBuilderRegistration(b BuilderRegistration, hh sszutils.HashWalker) erro
 	}
 
 	// Field (1) 'Signature' Bytes96
-	if err := putBytesN(hh, b.Signature, sszLenBLSSig); err != nil {
+	if err := putBytesN(hh, b.Signature, sszLenBLSSig, "registration_signature"); err != nil {
 		return err
 	}
 
@@ -996,8 +1024,10 @@ func hashBuilderRegistration(b BuilderRegistration, hh sszutils.HashWalker) erro
 func hashRegistration(r Registration, hh sszutils.HashWalker) error {
 	indx := hh.Index()
 
-	// Field (0) 'FeeRecipient'
-	hh.PutBytes(r.FeeRecipient)
+	// Field (0) 'FeeRecipient' Bytes20
+	if err := putBytesRaw(hh, r.FeeRecipient, addressLen, "fee_recipient"); err != nil {
+		return err
+	}
 
 	// Field (1) 'GasLimit' uint64
 	hh.PutUint64(uint64(r.GasLimit))
@@ -1006,7 +1036,7 @@ func hashRegistration(r Registration, hh sszutils.HashWalker) error {
 	hh.PutUint64(uint64(r.Timestamp.Unix()))
 
 	// Field (3) 'PubKey' Bytes48
-	if err := putBytesN(hh, r.PubKey, sszLenPubKey); err != nil {
+	if err := putBytesN(hh, r.PubKey, sszLenPubKey, "registration_pubkey"); err != nil {
 		return err
 	}
 

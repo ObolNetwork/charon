@@ -17,7 +17,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -48,6 +47,7 @@ func newFetchExitCmd(runFunc func(context.Context, exitConfig) error) *cobra.Com
 		{publishAddress, false},
 		{privateKeyPath, false},
 		{lockFilePath, false},
+		{noVerify, false},
 		{executionClientRPCEndpoint, false},
 		{validatorPubkey, false},
 		{all, false},
@@ -108,7 +108,7 @@ func runFetchExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
+	cl, err := loadExitLock(ctx, config)
 	if err != nil {
 		return err
 	}
