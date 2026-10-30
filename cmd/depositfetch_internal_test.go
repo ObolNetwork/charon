@@ -23,6 +23,16 @@ import (
 )
 
 func TestDepositFetchValid(t *testing.T) {
+	for _, compounding := range []bool{false, true} {
+		t.Run(fmt.Sprintf("compounding=%v", compounding), func(t *testing.T) {
+			testDepositFetchValid(t, compounding)
+		})
+	}
+}
+
+func testDepositFetchValid(t *testing.T, compounding bool) {
+	t.Helper()
+
 	ctx := t.Context()
 	ctx = log.WithCtx(ctx, z.Str("test_case", t.Name()))
 
@@ -38,7 +48,14 @@ func TestDepositFetchValid(t *testing.T) {
 		operatorAmt,
 		0,
 		random,
+		func(d *cluster.Definition) { d.Compounding = compounding },
 	)
+
+	// Withdrawal credentials prefix, 0x02 for compounding clusters.
+	prefix := "01"
+	if compounding {
+		prefix = "02"
+	}
 
 	root := t.TempDir()
 
@@ -77,8 +94,8 @@ func TestDepositFetchValid(t *testing.T) {
 
 		signConfig := depositSignConfig{
 			depositConfig: config,
-			// One plain (checksummed) address and one full 0x01 withdrawal credential.
-			WithdrawalAddresses: []string{"0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", "0x0100000000000000000000000000000000000000000000000000000000001235"},
+			// One plain (checksummed) address and one full withdrawal credential.
+			WithdrawalAddresses: []string{"0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", "0x" + prefix + "00000000000000000000000000000000000000000000000000000000001235"},
 			DepositAmounts:      []uint{32, 1},
 		}
 
@@ -109,8 +126,8 @@ func TestDepositFetchValid(t *testing.T) {
 	require.Len(t, depositDatas, 2)
 
 	expectedCreds := map[string]string{
-		lock.Validators[0].PublicKeyHex(): "0100000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed",
-		lock.Validators[1].PublicKeyHex(): "0100000000000000000000000000000000000000000000000000000000001235",
+		lock.Validators[0].PublicKeyHex(): prefix + "00000000000000000000005aaeb6053f3e94c9b9a09f33669435e7ef1beaed",
+		lock.Validators[1].PublicKeyHex(): prefix + "00000000000000000000000000000000000000000000000000000000001235",
 	}
 
 	for _, dds := range depositDatas {

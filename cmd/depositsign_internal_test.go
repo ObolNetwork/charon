@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil/obolapimock"
 )
@@ -80,6 +82,83 @@ func TestDepositSignValid(t *testing.T) {
 	}
 
 	require.NoError(t, runDepositSign(ctx, signConfig), "operator index submit deposit sign: %v", idx)
+}
+
+func TestDepositSignWithdrawalAddresses(t *testing.T) {
+	const zeroAddr = "0x0000000000000000000000000000000000000000"
+
+	tests := []struct {
+		name        string
+		mainnet     bool
+		compounding bool
+		addr        string
+		expectedErr string
+	}{
+		{name: "mainnet zero address", mainnet: true, addr: zeroAddr, expectedErr: "zero withdrawal address forbidden"},
+		{name: "mainnet zero credentials", mainnet: true, addr: "0x01" + strings.Repeat("00", 31), expectedErr: "zero withdrawal address forbidden"},
+		{name: "mainnet address", mainnet: true, addr: "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"},
+		{name: "testnet zero address", addr: zeroAddr},
+		{name: "compounding address", compounding: true, addr: "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"},
+		{name: "compounding 0x02 credentials", compounding: true, addr: "0x02" + strings.Repeat("00", 11) + "5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"},
+		{name: "compounding 0x01 credentials", compounding: true, addr: "0x01" + strings.Repeat("00", 11) + "5aaeb6053f3e94c9b9a09f33669435e7ef1beaed", expectedErr: "prefix does not match"},
+		{name: "bad checksum", addr: "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed", expectedErr: "does not match its EIP-55 checksum"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := log.WithCtx(t.Context(), z.Str("test_case", t.Name()))
+
+			const operatorAmt = 4
+
+			lock, enrs, keyShares := cluster.NewForT(t, 1, operatorAmt, operatorAmt, 0, rand.New(rand.NewSource(0)), func(d *cluster.Definition) {
+				d.Compounding = test.compounding
+				if test.mainnet {
+					forkVersion, err := eth2util.NetworkToForkVersionBytes(eth2util.Mainnet.Name)
+					require.NoError(t, err)
+
+					d.ForkVersion = forkVersion
+				}
+			})
+
+			operatorShares := make([][]tbls.PrivateKey, operatorAmt)
+			for opIdx := range operatorAmt {
+				operatorShares[opIdx] = append(operatorShares[opIdx], keyShares[0][opIdx])
+			}
+
+			lockJSON, err := json.Marshal(lock)
+			require.NoError(t, err)
+
+			root := t.TempDir()
+			writeAllLockData(t, root, enrs, operatorShares, lockJSON)
+
+			handler, addLockFiles := obolapimock.MockServer(false, nil)
+
+			srv := httptest.NewServer(handler)
+			defer srv.Close()
+
+			addLockFiles(lock)
+
+			baseDir := filepath.Join(root, "op0")
+			signConfig := depositSignConfig{
+				ValidatorPublicKeys: []string{lock.Validators[0].PublicKeyHex()},
+				PrivateKeyPath:      filepath.Join(baseDir, "charon-enr-private-key"),
+				ValidatorKeysDir:    filepath.Join(baseDir, "validator_keys"),
+				LockFilePath:        filepath.Join(baseDir, "cluster-lock.json"),
+				PublishAddress:      srv.URL,
+				PublishTimeout:      10 * time.Second,
+				WithdrawalAddresses: []string{test.addr},
+				DepositAmounts:      []uint{32},
+			}
+
+			err = runDepositSign(ctx, signConfig)
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestDepositSignCLI(t *testing.T) {
