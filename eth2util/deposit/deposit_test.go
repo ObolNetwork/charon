@@ -503,6 +503,7 @@ func TestWithdrawalCredsFromAddrOrCreds(t *testing.T) {
 		{name: "19 bytes", input: "0x" + lower[2:], expectedErr: "must be 20 bytes"},
 		{name: "33 bytes", input: "0x00010000000000000000000000" + lower, expectedErr: "must be 20 bytes"},
 		{name: "not hex", input: "0x" + strings.Repeat("z", 40), expectedErr: "invalid withdrawal address"},
+		{name: "credentials not hex", input: "0x" + strings.Repeat("z", 64), expectedErr: "decode withdrawal credentials"},
 	}
 
 	for _, test := range tests {

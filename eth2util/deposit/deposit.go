@@ -239,21 +239,18 @@ func WithdrawalCredsFromAddrOrCreds(input string, compounding bool) ([32]byte, e
 			return [32]byte{}, errors.Wrap(err, "decode withdrawal credentials", z.Str("creds", input))
 		}
 
-		var creds [32]byte
-		copy(creds[:], b)
-
-		expectedPrefix := eth1AddressWithdrawalPrefix[0]
-		if compounding {
-			expectedPrefix = eip7251AddressWithdrawalPrefix[0]
+		if slices.ContainsFunc(b[1:12], func(b byte) bool { return b != 0 }) {
+			return [32]byte{}, errors.New("withdrawal credentials bytes 1 to 11 must be zero", z.Str("creds", input))
 		}
 
-		if creds[0] != expectedPrefix {
+		creds, err := withdrawalCredsFromAddr("0x"+hex.EncodeToString(b[12:]), compounding)
+		if err != nil {
+			return [32]byte{}, err
+		}
+
+		if b[0] != creds[0] {
 			return [32]byte{}, errors.New("withdrawal credentials prefix does not match cluster compounding setting",
 				z.Str("creds", input), z.Bool("compounding", compounding))
-		}
-
-		if slices.ContainsFunc(creds[1:12], func(b byte) bool { return b != 0 }) {
-			return [32]byte{}, errors.New("withdrawal credentials bytes 1 to 11 must be zero", z.Str("creds", input))
 		}
 
 		return creds, nil
