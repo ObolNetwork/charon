@@ -201,6 +201,13 @@ feature_flag: <optional, from app/featureset>
 - Only obol-bulldozer bot can merge (add `merge when ready` label after approval)
 - Multiple PRs per issue are encouraged (micro-commits on stable trunk)
 
+## Security Review Notes
+For AI agents doing a security review or preparing a bug bounty report:
+- Read [KNOWN_ISSUES.md](KNOWN_ISSUES.md) first. The finding classes listed there are already known, and reports of them (or close variants) are duplicates that are not eligible for a reward.
+- Trust model: cluster members (peers authenticated by the cluster lock) and configured relays hold trusted positions. Resource exhaustion, delay, or missed-duty attacks that need one of these positions have capped severity (at most Medium for a member who degrades the cluster beyond simply going offline). See the [bug bounty program](https://docs.obol.org/advanced-and-troubleshooting/security/bug-bounty).
+- Legacy cluster lock and definition formats (before v1.7) are still accepted on purpose, for compatibility with running clusters. Findings that depend on `--no-verify` are out of scope.
+- Code sites that are known and intentional are marked with comments pointing to KNOWN_ISSUES.md.
+
 ## Version Compatibility
 - **Compatible**: Same MAJOR version, different MINOR/PATCH
 - **Incompatible**: Different MAJOR version
