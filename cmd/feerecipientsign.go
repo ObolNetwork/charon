@@ -20,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
@@ -374,10 +375,10 @@ func filterPubkeysByStatus(
 	return pubkeysToSign, nil
 }
 
-// validateFeeRecipient checks that the fee recipient address is well-formed (see checksumAddress)
+// validateFeeRecipient checks that the fee recipient address is well-formed (see eth2util.ValidateChecksumAddress)
 // and is not the zero (burn) address on any network.
 func validateFeeRecipient(address string) error {
-	checksummed, err := checksumAddress(address)
+	checksummed, err := eth2util.ValidateChecksumAddress(address)
 	if err != nil {
 		return errors.Wrap(err, "invalid fee recipient address", z.Str("fee_recipient", address))
 	}

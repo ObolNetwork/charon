@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"strings"
 	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -276,68 +275,6 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	return nil
 }
 
-// checksumAddress validates an Ethereum address and returns its EIP-55 checksummed form.
-// The address must be "0x" followed by 40 hex characters. All-lowercase and all-uppercase hex
-// is accepted (no checksum); mixed case must match the EIP-55 checksum exactly.
-func checksumAddress(addr string) (string, error) {
-	checksummed, err := eth2util.ChecksumAddress(addr)
-	if err != nil {
-		return "", err
-	}
-
-	hexPart := strings.TrimPrefix(addr, "0x")
-	if hexPart != strings.ToLower(hexPart) && hexPart != strings.ToUpper(hexPart) && addr != checksummed {
-		return "", errors.New("address does not match its EIP-55 checksum; use all-lowercase or the checksummed form",
-			z.Str("addr", addr), z.Str("checksummed", checksummed))
-	}
-
-	return checksummed, nil
-}
-
-// checksumAddrs validates the provided addresses (see checksumAddress) of the given kind
-// (e.g. "withdrawal" or "fee recipient") and returns their EIP-55 checksummed forms.
-// The zero address on mainnet or gnosis is an error if rejectZero is set, otherwise a warning:
-// it is legitimate when the generated deposit data is never used, e.g. split existing keys of
-// validators that are already active.
-func checksumAddrs(ctx context.Context, addrs []string, kind string, network string, rejectZero bool) ([]string, error) {
-	resp := make([]string, 0, len(addrs))
-	for _, addr := range addrs {
-		checksummed, err := checksumAddress(addr)
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid "+kind+" address", z.Str("addr", addr))
-		}
-
-		if isMainOrGnosis(network) && checksummed == zeroAddress {
-			if rejectZero {
-				return nil, errors.New("zero "+kind+" address forbidden on this network", z.Str("network", network))
-			}
-
-			log.Warn(ctx, "Zero "+kind+" address on "+network+": only continue if the generated deposit data and registrations will never be used", nil, z.Str("network", network))
-		}
-
-		resp = append(resp, checksummed)
-	}
-
-	return resp, nil
-}
-
-// checksumValidatorAddrs validates and checksums both fee recipient and withdrawal addresses.
-// A zero fee recipient only warns; a zero withdrawal address on mainnet or gnosis is an error
-// if rejectZeroWithdrawal is set, otherwise a warning.
-func checksumValidatorAddrs(ctx context.Context, feeRecipientAddrs, withdrawalAddrs []string, network string, rejectZeroWithdrawal bool) (checksummedFeeRecipients []string, checksummedWithdrawals []string, err error) {
-	checksummedFeeRecipients, err = checksumAddrs(ctx, feeRecipientAddrs, "fee recipient", network, false)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	checksummedWithdrawals, err = checksumAddrs(ctx, withdrawalAddrs, "withdrawal", network, rejectZeroWithdrawal)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return checksummedFeeRecipients, checksummedWithdrawals, nil
-}
-
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
 func validateDKGConfig(numOperators int, network string, testnet eth2util.Network, depositAmounts []int, consensusProtocol string, compounding bool) error {
 	// Don't allow cluster size to be less than 3.
@@ -362,11 +299,6 @@ func validateDKGConfig(numOperators int, network string, testnet eth2util.Networ
 	}
 
 	return nil
-}
-
-// isMainOrGnosis returns true if the network is either mainnet or gnosis.
-func isMainOrGnosis(network string) bool {
-	return network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name
 }
 
 func generateLaunchpadLink(configHash []byte, network string) string {

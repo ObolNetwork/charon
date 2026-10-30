@@ -87,6 +87,24 @@ func ChecksumAddress(address string) (string, error) {
 	return checksumAddressBytes(b), nil
 }
 
+// ValidateChecksumAddress validates an Ethereum address and returns its EIP-55 checksummed form.
+// The address must be "0x" followed by 40 hex characters. All-lowercase and all-uppercase hex
+// is accepted (no checksum); mixed case must match the EIP-55 checksum exactly.
+func ValidateChecksumAddress(addr string) (string, error) {
+	checksummed, err := ChecksumAddress(addr)
+	if err != nil {
+		return "", err
+	}
+
+	hexPart := strings.TrimPrefix(addr, "0x")
+	if hexPart != strings.ToLower(hexPart) && hexPart != strings.ToUpper(hexPart) && addr != checksummed {
+		return "", errors.New("address does not match its EIP-55 checksum; use all-lowercase or the checksummed form",
+			z.Str("addr", addr), z.Str("checksummed", checksummed))
+	}
+
+	return checksummed, nil
+}
+
 // checksumAddressBytes returns an EIP55-compliant 0xhex representation of the binary ethereum address.
 func checksumAddressBytes(addressBytes []byte) string {
 	hexAddr := hex.EncodeToString(addressBytes)

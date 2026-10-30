@@ -49,9 +49,6 @@ import (
 )
 
 const (
-	// zeroAddress is not owned by any user, is often associated with token burn & mint/genesis events and used as a generic null address.
-	// See https://etherscan.io/address/0x0000000000000000000000000000000000000000.
-	zeroAddress    = "0x0000000000000000000000000000000000000000"
 	defaultNetwork = "mainnet"
 	minNodes       = 3
 	minThreshold   = 2
@@ -1228,35 +1225,6 @@ func hasDistinctAddrs(addrs []string) bool {
 	return false
 }
 
-// validateAddresses checks if we have sufficient addresses. It also fills addresses slices if only one is provided.
-//
-//nolint:revive // Not really confusing here as they are passed as arguments as well.
-func validateAddresses(numVals int, feeRecipientAddrs []string, withdrawalAddrs []string) ([]string, []string, error) {
-	if len(feeRecipientAddrs) != numVals && len(feeRecipientAddrs) != 1 {
-		return nil, nil, errors.New("mismatching --num-validators and --fee-recipient-addresses",
-			z.Int("num_validators", numVals), z.Int("addresses", len(feeRecipientAddrs)))
-	}
-
-	if len(withdrawalAddrs) != numVals && len(withdrawalAddrs) != 1 {
-		return nil, nil, errors.New("mismatching --num-validators and --withdrawal-addresses",
-			z.Int("num_validators", numVals), z.Int("addresses", len(withdrawalAddrs)))
-	}
-
-	if len(feeRecipientAddrs) == 1 {
-		for i := 1; i < numVals; i++ {
-			feeRecipientAddrs = append(feeRecipientAddrs, feeRecipientAddrs[0])
-		}
-	}
-
-	if len(withdrawalAddrs) == 1 {
-		for i := 1; i < numVals; i++ {
-			withdrawalAddrs = append(withdrawalAddrs, withdrawalAddrs[0])
-		}
-	}
-
-	return feeRecipientAddrs, withdrawalAddrs, nil
-}
-
 func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) (cluster.BuilderRegistration, error) {
 	feeRecipient, err := reg.FeeRecipient()
 	if err != nil {
@@ -1287,25 +1255,4 @@ func builderRegistrationFromETH2(reg core.VersionedSignedValidatorRegistration) 
 		},
 		Signature: reg.Signature(),
 	}, nil
-}
-
-// validateNetworkConfig returns an error if the network configuration is invalid in the given cluster configuration.
-func validateNetworkConfig(network string, testnet eth2util.Network) error {
-	// Check if custom testnet configuration is provided first (takes precedence over default network).
-	if testnet.IsNonZero() {
-		// Add testnet config to supported networks.
-		eth2util.AddTestNetwork(testnet)
-
-		return nil
-	}
-
-	if network != "" {
-		if eth2util.ValidNetwork(network) {
-			return nil
-		}
-
-		return errors.New("invalid network specified", z.Str("network", network))
-	}
-
-	return errors.New("missing --network flag or testnet config flags")
 }
