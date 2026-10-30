@@ -24,7 +24,7 @@ COPY . .
 # Populate GO_BUILD_FLAG with a build arg to provide an optional go build flag.
 ARG GO_BUILD_FLAG
 ENV GO_BUILD_FLAG=${GO_BUILD_FLAG}
-RUN echo "Building with GO_BUILD_FLAG='${GO_BUILD_FLAG}'"
+RUN echo "Building for ${TARGETOS}/${TARGETARCH} on ${BUILDARCH} with GO_BUILD_FLAG='${GO_BUILD_FLAG}'"
 
 # Build with Go module and Go build caches (the build cache keys entries by
 # GOARCH, so both target arches can share it).
