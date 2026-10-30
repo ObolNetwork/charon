@@ -240,12 +240,12 @@ func TestUserAgent(t *testing.T) {
 			want: charonUA,
 		},
 		{
-			name:    "with product",
+			name:    "custom user agent",
 			options: []func(*Client){WithUserAgent("lido-dv-exit/v0.7.0")},
-			want:    "lido-dv-exit/v0.7.0 " + charonUA,
+			want:    "lido-dv-exit/v0.7.0",
 		},
 		{
-			name:    "empty product",
+			name:    "empty user agent",
 			options: []func(*Client){WithUserAgent("")},
 			want:    charonUA,
 		},

@@ -66,15 +66,15 @@ func WithTimeout(timeout time.Duration) func(*Client) {
 	}
 }
 
-// WithUserAgent prefixes the User-Agent header of all Client calls with the provided product,
-// e.g. "lido-dv-exit/v0.7.0" sends "lido-dv-exit/v0.7.0 charon/v1.12.0".
-func WithUserAgent(product string) func(*Client) {
+// WithUserAgent sets the User-Agent header of all Client calls, overriding the charon default.
+// An empty user agent keeps the default.
+func WithUserAgent(userAgent string) func(*Client) {
 	return func(client *Client) {
-		if product == "" {
+		if userAgent == "" {
 			return
 		}
 
-		client.userAgent = product + " " + charonUserAgent()
+		client.userAgent = userAgent
 	}
 }
 
