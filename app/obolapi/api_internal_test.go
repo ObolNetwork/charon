@@ -11,7 +11,11 @@ import (
 	"testing"
 	"time"
 
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/app/version"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 func TestWithTimeout(t *testing.T) {
@@ -35,6 +39,7 @@ func TestHttpPost(t *testing.T) {
 		server        *httptest.Server
 		endpoint      string
 		expectedError string
+		expectedIs    error
 	}{
 		{
 			name:     "default scenario",
@@ -90,6 +95,19 @@ func TestHttpPost(t *testing.T) {
 			expectedError: "POST failed",
 		},
 		{
+			name:     "status code 404 Not Found",
+			body:     nil,
+			headers:  nil,
+			endpoint: "/post-request",
+			server: httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				_, err := w.Write([]byte(`{"message":"cluster lock is not found"}`))
+				require.NoError(t, err)
+			})),
+			expectedError: "POST failed",
+			expectedIs:    ErrLockNotFound,
+		},
+		{
 			name:     "status code 409 Conflict (duplicate ignored)",
 			body:     nil,
 			headers:  nil,
@@ -111,10 +129,20 @@ func TestHttpPost(t *testing.T) {
 			testServerURL, err := url.ParseRequestURI(test.server.URL)
 			require.NoError(t, err)
 
-			err = httpPost(context.Background(), testServerURL.JoinPath(test.endpoint), test.body, test.headers)
+			cl, err := New(test.server.URL)
+			require.NoError(t, err)
+
+			err = cl.httpPost(context.Background(), testServerURL.JoinPath(test.endpoint), test.body, test.headers)
 			if test.expectedError != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, test.expectedError)
+
+				if test.expectedIs != nil {
+					require.ErrorIs(t, err, test.expectedIs)
+					require.True(t, z.ContainsField(err, z.Int("status", http.StatusNotFound)))
+				} else {
+					require.NotErrorIs(t, err, ErrLockNotFound)
+				}
 			} else {
 				require.NoError(t, err)
 			}
@@ -179,7 +207,10 @@ func TestHttpGet(t *testing.T) {
 			testServerURL, err := url.ParseRequestURI(test.server.URL)
 			require.NoError(t, err)
 
-			respBody, err := httpGet(context.Background(), testServerURL.JoinPath(test.endpoint), test.headers)
+			cl, err := New(test.server.URL)
+			require.NoError(t, err)
+
+			respBody, err := cl.httpGet(context.Background(), testServerURL.JoinPath(test.endpoint), test.headers)
 			if test.expectedError != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, test.expectedError)
@@ -194,4 +225,78 @@ func TestHttpGet(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUserAgent(t *testing.T) {
+	charonUA := "charon/" + version.Version.String()
+
+	tests := []struct {
+		name    string
+		options []func(*Client)
+		want    string
+	}{
+		{
+			name: "default",
+			want: charonUA,
+		},
+		{
+			name:    "custom user agent",
+			options: []func(*Client){WithUserAgent("lido-dv-exit/v0.7.0")},
+			want:    "lido-dv-exit/v0.7.0",
+		},
+		{
+			name:    "empty user agent",
+			options: []func(*Client){WithUserAgent("")},
+			want:    charonUA,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var got []string
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				got = append(got, r.Header.Get("User-Agent"))
+
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+
+			cl, err := New(srv.URL, test.options...)
+			require.NoError(t, err)
+
+			u, err := url.ParseRequestURI(srv.URL)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+
+			require.NoError(t, cl.httpPost(ctx, u, nil, nil))
+
+			body, err := cl.httpGet(ctx, u, nil)
+			require.NoError(t, err)
+			require.NoError(t, body.Close())
+
+			require.NoError(t, cl.httpDelete(ctx, u, nil))
+
+			require.Equal(t, []string{test.want, test.want, test.want}, got)
+		})
+	}
+}
+
+func TestPostPartialExitsLockNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"statusCode":404,"message":"cluster lock is not found"}`))
+	}))
+	defer srv.Close()
+
+	cl, err := New(srv.URL)
+	require.NoError(t, err)
+
+	key, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	err = cl.PostPartialExits(context.Background(), make([]byte, 32), 1, key)
+	require.ErrorIs(t, err, ErrLockNotFound)
+	require.NotErrorIs(t, err, ErrNoValue)
 }
