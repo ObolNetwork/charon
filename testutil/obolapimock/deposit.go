@@ -78,6 +78,11 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 	}
 
 	for _, depositData := range data.PartialDepositData {
+		if len(depositData.WithdrawalCredentials) != 32 {
+			writeErr(writer, http.StatusBadRequest, "invalid withdrawal credentials length")
+			return
+		}
+
 		signedDepositsRoot, err := deposit.GetMessageSigningRoot(eth2p0.DepositMessage{
 			PublicKey:             depositData.PublicKey,
 			WithdrawalCredentials: depositData.WithdrawalCredentials,
