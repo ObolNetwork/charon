@@ -5,6 +5,7 @@ package priority
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -321,4 +322,66 @@ func mustAnyString(t *testing.T, s string) *anypb.Any {
 	require.NoError(t, err)
 
 	return a
+}
+
+// TestProposerTimerThreshold asserts the proposer timer a cluster agrees on when a mixed number of peers
+// enable the linear feature: the proposed timer of at least a threshold of peers, else none.
+func TestProposerTimerThreshold(t *testing.T) {
+	const (
+		linear       = "linear/1.5s/300ms"
+		eagerDLinear = "eager_dlinear/1.5s"
+	)
+
+	tests := []struct {
+		nodes     int
+		threshold int
+		linear    int // Number of peers proposing the linear timer.
+		want      []string
+	}{
+		{nodes: 7, threshold: 5, linear: 0, want: []string{eagerDLinear}},
+		{nodes: 7, threshold: 5, linear: 1, want: []string{eagerDLinear}},
+		{nodes: 7, threshold: 5, linear: 3, want: nil},
+		{nodes: 7, threshold: 5, linear: 4, want: nil},
+		{nodes: 7, threshold: 5, linear: 5, want: []string{linear}},
+		{nodes: 7, threshold: 5, linear: 7, want: []string{linear}},
+		{nodes: 4, threshold: 3, linear: 1, want: []string{eagerDLinear}},
+		{nodes: 4, threshold: 3, linear: 2, want: nil},
+		{nodes: 4, threshold: 3, linear: 3, want: []string{linear}},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%d of %d linear, threshold %d", test.linear, test.nodes, test.threshold), func(t *testing.T) {
+			duty := core.NewInfoSyncDuty(7)
+
+			var msgs []*pbv1.PriorityMsg
+
+			for i := range test.nodes {
+				timer := eagerDLinear
+				if i < test.linear {
+					timer = linear
+				}
+
+				msgs = append(msgs, &pbv1.PriorityMsg{
+					Duty:   core.DutyToProto(duty),
+					PeerId: fmt.Sprintf("peer%d", i),
+					Topics: []*pbv1.PriorityTopicProposal{{Topic: mustAnyString(t, "proposer_timer"), Priorities: []*anypb.Any{mustAnyString(t, timer)}}},
+				})
+			}
+
+			result, err := calculateResult(msgs, test.threshold)
+			require.NoError(t, err)
+			require.Len(t, result.GetTopics(), 1)
+
+			var got []string
+
+			for _, prio := range result.GetTopics()[0].GetPriorities() {
+				value, err := prio.GetPriority().UnmarshalNew()
+				require.NoError(t, err)
+
+				got = append(got, value.(*structpb.Value).GetStringValue())
+			}
+
+			require.Equal(t, test.want, got)
+		})
+	}
 }
