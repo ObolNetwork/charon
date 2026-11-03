@@ -22,7 +22,7 @@ const (
 	fetchFeeRecipientTmpl         = "/fee_recipient/" + lockHashPath
 
 	errNoPartialsRegistrations = "no partial registrations found"
-	errLockNotFound            = "lock not found"
+	lockNotFoundBody           = "lock not found"
 )
 
 // submitPartialFeeRecipientURL returns the partial fee recipient Obol API URL for a given lock hash.
@@ -65,7 +65,7 @@ func (c Client) PostPartialFeeRecipients(ctx context.Context, lockHash []byte, s
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, u, data, nil)
+	err = c.httpPost(ctx, u, data, nil)
 	if err != nil {
 		return errors.Wrap(err, "http Obol API POST request")
 	}
@@ -101,6 +101,7 @@ func (c Client) PostFeeRecipientsFetch(ctx context.Context, lockHash []byte, pub
 	}
 
 	httpReq.Header.Add("Content-Type", "application/json")
+	httpReq.Header.Set("User-Agent", c.userAgent)
 
 	httpResp, err := new(http.Client).Do(httpReq)
 	if err != nil {
@@ -119,8 +120,8 @@ func (c Client) PostFeeRecipientsFetch(ctx context.Context, lockHash []byte, pub
 				return FeeRecipientFetchResponse{}, nil
 			}
 
-			if strings.Contains(string(body), errLockNotFound) {
-				return FeeRecipientFetchResponse{}, errors.New("cluster is unknown to the API, publish the lock file first")
+			if strings.Contains(string(body), lockNotFoundBody) {
+				return FeeRecipientFetchResponse{}, errors.Wrap(ErrLockNotFound, "cluster is unknown to the API, publish the lock file first")
 			}
 		}
 
