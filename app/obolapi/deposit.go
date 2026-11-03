@@ -120,6 +120,12 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 		return []eth2p0.DepositData{}, errors.Wrap(err, "withdrawal credentials to bytes")
 	}
 
+	// SSZ hashing zero-pads short credentials, so a malformed value would otherwise verify.
+	if len(withdrawalCredentialsBytes) != 32 {
+		return []eth2p0.DepositData{}, errors.New("withdrawal credentials must be 32 bytes",
+			z.Str("withdrawal_credentials", dr.WithdrawalCredentials))
+	}
+
 	// Build a hex-encoded public-share -> 1-based share-index lookup so we can resolve the correct index.
 	partialPubKeyToIdx := make(map[string]int, len(partialPubKeys))
 	for i, parPubKey := range partialPubKeys {

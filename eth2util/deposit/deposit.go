@@ -210,6 +210,55 @@ func GetMessageSigningRoot(msg eth2p0.DepositMessage, network string) ([32]byte,
 	return resp, nil
 }
 
+// WithdrawalCredsFromAddrOrCreds returns withdrawal credentials for either a 0x-prefixed 20 byte
+// execution address or 0x-prefixed 32 byte 0x01/0x02 withdrawal credentials.
+// Mixed case addresses must match their EIP-55 checksum, all lower or all upper case addresses are accepted.
+// The credentials prefix must match the compounding flag.
+func WithdrawalCredsFromAddrOrCreds(input string, compounding bool) ([32]byte, error) {
+	hexPart, ok := strings.CutPrefix(input, "0x")
+	if !ok {
+		return [32]byte{}, errors.New("withdrawal address or credentials must be 0x-prefixed", z.Str("input", input))
+	}
+
+	switch len(hexPart) {
+	case 20 * 2:
+		if hexPart != strings.ToLower(hexPart) && hexPart != strings.ToUpper(hexPart) {
+			checksummed, err := eth2util.ChecksumAddress(input)
+			if err != nil {
+				return [32]byte{}, errors.Wrap(err, "invalid withdrawal address", z.Str("addr", input))
+			} else if checksummed != input {
+				return [32]byte{}, errors.New("withdrawal address does not match its EIP-55 checksum; use all-lowercase or the checksummed form",
+					z.Str("addr", input), z.Str("checksummed", checksummed))
+			}
+		}
+
+		return withdrawalCredsFromAddr("0x"+strings.ToLower(hexPart), compounding)
+	case 32 * 2:
+		b, err := hex.DecodeString(hexPart)
+		if err != nil {
+			return [32]byte{}, errors.Wrap(err, "decode withdrawal credentials", z.Str("creds", input))
+		}
+
+		if slices.ContainsFunc(b[1:12], func(b byte) bool { return b != 0 }) {
+			return [32]byte{}, errors.New("withdrawal credentials bytes 1 to 11 must be zero", z.Str("creds", input))
+		}
+
+		creds, err := withdrawalCredsFromAddr("0x"+hex.EncodeToString(b[12:]), compounding)
+		if err != nil {
+			return [32]byte{}, err
+		}
+
+		if b[0] != creds[0] {
+			return [32]byte{}, errors.New("withdrawal credentials prefix does not match cluster compounding setting",
+				z.Str("creds", input), z.Bool("compounding", compounding))
+		}
+
+		return creds, nil
+	default:
+		return [32]byte{}, errors.New("withdrawal address must be 20 bytes or withdrawal credentials 32 bytes", z.Str("input", input))
+	}
+}
+
 // withdrawalCredsFromAddr returns the Withdrawal Credentials.
 func withdrawalCredsFromAddr(addr string, compounding bool) ([32]byte, error) {
 	// Check for validity of address.
