@@ -113,7 +113,7 @@ func TestRoundTimersFirstLeaderDown(t *testing.T) {
 				}
 
 				slotOffset := func(core.Duty) time.Duration { return test.dutyOffset }
-				timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffset, forkSchedule)
+				timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffset, forkSchedule, noLinearProposerTimer)
 
 				duty := core.Duty{Slot: slot, Type: test.dutyType}
 				require.Equal(t, test.wantType, timerFunc(duty).Type())

@@ -18,11 +18,13 @@ import (
 // RoundTimerFunc is a function that returns a round timer.
 type RoundTimerFunc func(core.Duty) RoundTimer
 
-// GetRoundTimerFunc returns a timer function based on the fork schedule and the enabled features.
-// Genesis time and slot duration are required to calculate deterministic slot start times, while
-// the slot offset function provides the duty's offset into the slot at which consensus starts.
+// GetRoundTimerFunc returns a timer function based on the fork schedule, the enabled features and
+// the cluster agreement on the linear proposer timer as of a slot, applied from gloas. Genesis time
+// and slot duration are required to calculate deterministic slot start times, while the slot offset
+// function provides the duty's offset into the slot at which consensus starts.
 func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotsPerEpoch uint64,
 	slotOffsetFunc core.SlotOffsetFunc, forkSchedule func() eth2wrap.ForkForkSchedule,
+	linearProposerFunc func(slot uint64) bool,
 ) RoundTimerFunc {
 	timing := slotTiming{
 		genesisTime:  genesisTime,
@@ -33,13 +35,14 @@ func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotsP
 	return func(duty core.Duty) RoundTimer {
 		gloas := forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(duty.Slot/slotsPerEpoch))
 
-		return newRoundTimer(duty, selectTimer(duty, gloas), timing, clockwork.NewRealClock())
+		return newRoundTimer(duty, selectTimer(duty, gloas, linearProposerFunc), timing, clockwork.NewRealClock())
 	}
 }
 
 // selectTimer returns the timer for the duty, as selected by the fork, whether gloas is active at the
-// duty's slot, and the feature set, with its extensions.
-func selectTimer(duty core.Duty, gloas bool) timerDef {
+// duty's slot, and the feature set, with its extensions. From gloas, the cluster agreement on the
+// linear proposer timer as of the duty's slot replaces the linear feature, only consulted then.
+func selectTimer(duty core.Duty, gloas bool, linearProposerFunc func(slot uint64) bool) timerDef {
 	var def timerDef
 
 	switch {
@@ -49,11 +52,12 @@ func selectTimer(duty core.Duty, gloas bool) timerDef {
 		// TODO(post-gloas): make this the default for attester duties without the gloas check, removing
 		// the fork schedule from GetRoundTimerFunc.
 		def = eagerAheadSplitTimer()
-	case duty.Type == core.DutyProposer && gloas && featureset.Enabled(featureset.Linear):
+	case duty.Type == core.DutyProposer && gloas && linearProposerFunc(duty.Slot):
 		// From gloas, proposer duties use 1.5s first rounds anchored at the duty start, aligned across
 		// peers, extended by their duration, at least 1s, when armed again. The first round allows for
 		// fetching the proposal, so the feature extensions, i.e. proposal_timeout, don't apply.
-		// The linear feature selects quicker rotating later rounds: 600ms, 900ms, 1.2s, etc.
+		// The cluster agreeing on the linear proposer timer, at least a threshold of peers enabling the
+		// linear feature, selects quicker rotating later rounds: 600ms, 900ms, 1.2s, etc.
 		return linearTimer(gloasProposerRound, gloasProposerStep, anchorDutyStart{}, doubleRoundOnRearm{minimum: time.Second})
 	case duty.Type == core.DutyProposer && gloas:
 		// Otherwise all rounds last 1.5s, regardless of the stable features.

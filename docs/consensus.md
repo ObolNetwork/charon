@@ -77,7 +77,7 @@ The `linear` and `eager_dlinear` values above are those before the gloas fork. F
 Timers are selected per duty by the fork and feature set flags:
 
 - `eager_ahead_split` is used for attester duties from the gloas fork and for payload attestation duties, regardless of feature set flags, since round end times must be identical across the cluster (see [Gloas attester and payload attestation timer](#gloas-attester-and-payload-attestation-timer)).
-- From the gloas fork, proposer duties use the gloas proposer timer regardless of `eager_double_linear` and `proposal_timeout`: `eager_dlinear` by default, `linear` when the alpha `linear` feature is enabled (see [Gloas proposer timer](#gloas-proposer-timer)).
+- From the gloas fork, proposer duties use the gloas proposer timer regardless of `eager_double_linear` and `proposal_timeout`: `eager_dlinear` by default, `linear` when the cluster agrees on it, at least a threshold of peers enabling the alpha `linear` feature (see [Gloas proposer timer](#gloas-proposer-timer)).
 - `eager_dlinear` is the default, enabled by the stable `eager_double_linear` feature.
 - `inc` is used when `eager_double_linear` is disabled (`--feature-set-disable "eager_double_linear"`).
 - `linear` is used for proposer duties before the gloas fork when the alpha `linear` feature is enabled (`--feature-set-enable "linear"`), taking precedence over the other timers. Its first round includes fetching the proposal. Peers already have their proposal in later rounds, which start shorter, skipping underperforming leaders quicker.
@@ -103,16 +103,16 @@ The timer and extensions of each consensus instance are logged when it starts, e
 
 ### Gloas proposer timer
 
-From the gloas fork, proposer duties use rounds anchored at the duty start, the start of the slot, aligned across peers, with `double_round_on_rearm_min_1s`. The `linear` feature selects between two shapes:
+From the gloas fork, proposer duties use rounds anchored at the duty start, the start of the slot, aligned across peers, with `double_round_on_rearm_min_1s`. The cluster agreement on the `linear` feature selects between two shapes:
 
 | Feature | Timer | Round durations | Round ends | Re-armed round ends |
 |---|---|---|---|---|
 | defaults | `eager_dlinear` | 1.5s, 1.5s, 1.5s, ... | 1.5s, 3.0s, 4.5s, ... | 3.0s, 4.5s, 6.0s, ... |
-| `linear` enabled | `linear` | 1.5s, 600ms, 900ms, 1.2s, ... | 1.5s, 2.1s, 3.0s, 4.2s, ... | 3.0s, 3.1s, 4.0s, 5.4s, ... |
+| `linear` agreed | `linear` | 1.5s, 600ms, 900ms, 1.2s, ... | 1.5s, 2.1s, 3.0s, 4.2s, ... | 3.0s, 3.1s, 4.0s, 5.4s, ... |
 
 The first round covers fetching the proposal, so `proposal_timeout` doesn't apply. The proposal must be agreed by about 2.7s, leaving time for partial signature exchange and broadcast before the 3s end of the block proposal interval. The default thus relies on two rounds, while `linear` tries three leaders in that time, skipping unresponsive leaders quicker.
 
-`linear` is set per node, so every node in the cluster must enable it (`--feature-set-enable "linear"`), as mismatched round ends break leader rotation. A mismatch shows in the `timer` field of each node's debug consensus instance starting log and in the `timer` label of the consensus metrics. Consensus is cancelled at the proposer duty deadline, the attestation due offset (3s from gloas) plus a 1s margin, so rounds ending between 3s and 4s can still decide, though late.
+Since mismatched round ends break leader rotation, all peers must use the same shape, while the `linear` feature is set per node (`--feature-set-enable "linear"`). The cluster thus agrees on it with the priority protocol: once per epoch, in its last slot, each peer proposes `linear` if it enabled the feature, else `eager_dlinear`, as the `proposer_timer` topic. Every peer uses `linear` from the next slot if at least a threshold of peers proposed it, regardless of its own feature, and `eager_dlinear` otherwise. Until its first agreement, after startup, a peer uses `eager_dlinear`. Peers without this topic ignore it and don't count towards the threshold. Enable the feature on all nodes: with exactly a threshold of them, one missing a sync switches the cluster back to `eager_dlinear` for an epoch. The shape in use shows in the `timer` field of each node's debug consensus instance starting log and in the `timer` label of the consensus metrics. Consensus is cancelled at the proposer duty deadline, the attestation due offset (3s from gloas) plus a 1s margin, so rounds ending between 3s and 4s can still decide, though late.
 
 ### Gloas attester and payload attestation timer
 

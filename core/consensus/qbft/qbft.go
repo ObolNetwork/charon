@@ -313,13 +313,34 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func
 		snifferFunc:         snifferFunc,
 		gaterFunc:           gaterFunc,
 		dropFilter:          log.Filter(),
-		timerFunc:           timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, forkSchedule),
+		linearProposerFunc:  noLinearProposerTimer,
 		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 		compareAttestations: compareAttestations,
 	}
+	c.timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, forkSchedule, c.linearProposerTimer)
 	c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 
 	return c, nil
+}
+
+// noLinearProposerTimer never selects the linear proposer timer, used until the cluster agreement on
+// it is registered.
+func noLinearProposerTimer(uint64) bool {
+	return false
+}
+
+// RegisterLinearProposerTimer registers a function returning whether the cluster agreed on the
+// linear proposer timer as of a slot, applied from gloas.
+// Note: This is not thread safe and should only be called *before* Start.
+func (c *Consensus) RegisterLinearProposerTimer(fn func(slot uint64) bool) {
+	c.linearProposerFunc = fn
+}
+
+// linearProposerTimer returns whether the linear proposer timer applies as of the slot. The timer
+// function calls it rather than linearProposerFunc directly, so a function registered after
+// NewConsensus takes effect.
+func (c *Consensus) linearProposerTimer(slot uint64) bool {
+	return c.linearProposerFunc(slot)
 }
 
 // Consensus implements core.Consensus & priority.coreConsensus.
@@ -337,6 +358,7 @@ type Consensus struct {
 	gaterFunc           core.DutyGaterFunc
 	dropFilter          z.Field // Filter buffer overflow errors (possible DDoS)
 	timerFunc           timer.RoundTimerFunc
+	linearProposerFunc  func(slot uint64) bool
 	metrics             metrics.ConsensusMetrics
 	compareAttestations bool
 
@@ -473,9 +495,8 @@ func (c *Consensus) propose(ctx context.Context, duty core.Duty, value proto.Mes
 	defer func() {
 		select {
 		case decidedAt := <-inst.DecidedAtCh:
-			timerType := c.timerFunc(duty).Type()
 			duration := decidedAt.Sub(proposedAt)
-			c.metrics.ObserveConsensusDuration(duty.Type.String(), string(timerType), duration.Seconds())
+			c.metrics.ObserveConsensusDuration(duty.Type.String(), inst.TimerType, duration.Seconds())
 		default:
 		}
 	}()
@@ -550,6 +571,7 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	)
 
 	inst := c.getInstanceIO(duty)
+	inst.TimerType = string(roundTimer.Type())
 
 	defer func() {
 		inst.ErrCh <- err // Send resulting error to errCh.

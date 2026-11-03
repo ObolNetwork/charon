@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 
 	"github.com/obolnetwork/charon/app/eth2wrap"
+	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
@@ -889,7 +890,7 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 		// Use zero values for tests to use default clock.Now() behavior
 		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0, 32, func(core.Duty) time.Duration { return 0 },
-			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{} })
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{} }, noLinearProposerTimer)
 
 		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
@@ -1440,4 +1441,46 @@ func signConsensusMsg(t *testing.T, msg *pbv1.QBFTConsensusMsg, privKey *k1.Priv
 	msg.Justification[0].Signature = justSign
 
 	return msg
+}
+
+func TestRegisterLinearProposerTimer(t *testing.T) {
+	const nodes = 4
+
+	random := rand.New(rand.NewSource(0))
+	lock, p2pkeys, _ := cluster.NewForT(t, 1, 3, nodes, 0, random)
+
+	var peers []p2p.Peer
+
+	for i := range nodes {
+		record, err := enr.Parse(lock.Operators[i].ENR)
+		require.NoError(t, err)
+
+		p, err := p2p.NewPeerFromENR(record, i)
+		require.NoError(t, err)
+
+		peers = append(peers, p)
+	}
+
+	deadliner := coremocks.NewDeadliner(t)
+
+	bmock, err := beaconmock.New(t.Context(), beaconmock.WithGenesisTime(time.Time{}))
+	require.NoError(t, err)
+
+	// Gloas active from genesis, so the proposer timer follows the linear proposer timer function.
+	forkSchedule := func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }
+
+	c, err := NewConsensus(t.Context(), bmock, forkSchedule, testutil.CreateHost(t, testutil.AvailableAddr(t)), new(p2p.Sender), peers, p2pkeys[0],
+		deadliner, func(core.Duty) bool { return true }, func(*pbv1.SniffedConsensusInstance) {}, false)
+	require.NoError(t, err)
+
+	duty := core.NewProposerDuty(1)
+
+	// Defaults to the default proposer timer, regardless of the local linear feature.
+	featureset.EnableForT(t, featureset.Linear)
+	require.Equal(t, timer.TimerEagerDoubleLinear, c.timerFunc(duty).Type())
+
+	// The registered cluster agreement replaces it, also for the timer function built before.
+	c.RegisterLinearProposerTimer(func(slot uint64) bool { return slot >= 10 })
+	require.Equal(t, timer.TimerEagerDoubleLinear, c.timerFunc(core.NewProposerDuty(9)).Type())
+	require.Equal(t, timer.TimerLinear, c.timerFunc(core.NewProposerDuty(10)).Type())
 }

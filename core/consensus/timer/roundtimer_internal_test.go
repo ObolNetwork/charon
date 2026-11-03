@@ -340,6 +340,7 @@ func TestTimerSelection(t *testing.T) {
 		disable        []featureset.Feature
 		duty           core.Duty
 		gloas          bool // Whether gloas is active at the duty's slot.
+		linearProposer bool // Whether the cluster agreed on the linear proposer timer.
 		wantType       Type
 		wantExtensions []string
 		want           []roundArming // Rounds 1 onwards, relative to the start of the slot.
@@ -421,23 +422,40 @@ func TestTimerSelection(t *testing.T) {
 			want:           []roundArming{{ms(1500), ms(3000)}, {ms(3000), ms(4500)}, {ms(4500), ms(6000)}},
 		},
 		{
-			name:           "gloas proposer, linear enabled",
-			enable:         []featureset.Feature{featureset.Linear},
+			name:           "gloas proposer, linear agreed",
 			duty:           core.NewProposerDuty(slot),
 			gloas:          true,
+			linearProposer: true,
 			wantType:       TimerLinear,
 			wantExtensions: []string{"double_round_on_rearm_min_1s"},
 			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2100), ms(3100)}, {ms(3000), ms(4000)}, {ms(4200), ms(5400)}},
 		},
 		{
-			name:           "gloas proposer, linear enabled and proposal timeout disabled",
-			enable:         []featureset.Feature{featureset.Linear},
+			name:           "gloas proposer, linear agreed and proposal timeout disabled",
 			disable:        []featureset.Feature{featureset.ProposalTimeout},
 			duty:           core.NewProposerDuty(slot),
 			gloas:          true,
+			linearProposer: true,
 			wantType:       TimerLinear,
 			wantExtensions: []string{"double_round_on_rearm_min_1s"},
 			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2100), ms(3100)}, {ms(3000), ms(4000)}, {ms(4200), ms(5400)}},
+		},
+		{
+			name:           "gloas proposer, linear enabled but not agreed",
+			enable:         []featureset.Feature{featureset.Linear},
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			wantType:       TimerEagerDoubleLinear,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(3000), ms(4500)}, {ms(4500), ms(6000)}},
+		},
+		{
+			name:           "proposer, linear agreed but not enabled",
+			duty:           core.NewProposerDuty(slot),
+			linearProposer: true,
+			wantType:       TimerEagerDoubleLinear,
+			wantExtensions: []string{"double_total_on_rearm", "proposal_timeout"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2500), ms(5000)}, {ms(3500), ms(7000)}},
 		},
 		{
 			name:           "proposer, defaults",
@@ -515,7 +533,7 @@ func TestTimerSelection(t *testing.T) {
 			}
 
 			clock := &recordingClock{FakeClock: clockwork.NewFakeClockAt(slotStart)}
-			roundTimer := newRoundTimer(test.duty, selectTimer(test.duty, test.gloas), timing, clock)
+			roundTimer := newRoundTimer(test.duty, selectTimer(test.duty, test.gloas, func(uint64) bool { return test.linearProposer }), timing, clock)
 
 			require.Equal(t, test.wantType, roundTimer.Type())
 			require.Equal(t, test.wantExtensions, roundTimer.Extensions())
