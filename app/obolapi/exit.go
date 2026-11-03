@@ -126,7 +126,7 @@ func (c Client) PostPartialExits(ctx context.Context, lockHash []byte, shareInde
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, u, data, nil)
+	err = c.httpPost(ctx, u, data, nil)
 	if err != nil {
 		return errors.Wrap(err, "http Obol API POST request")
 	}
@@ -175,7 +175,7 @@ func (c Client) GetFullExit(ctx context.Context, valPubkey string, lockHash []by
 		return ExitBlob{}, errors.Wrap(err, "k1 sign")
 	}
 
-	respBody, err := httpGet(ctx, u, map[string]string{"Authorization": bearerString(lockHashSignature)})
+	respBody, err := c.httpGet(ctx, u, map[string]string{"Authorization": bearerString(lockHashSignature)})
 	if err != nil {
 		return ExitBlob{}, errors.Wrap(err, "http Obol API GET request")
 	}
@@ -320,7 +320,7 @@ func (c Client) DeletePartialExit(ctx context.Context, valPubkey string, lockHas
 		return errors.Wrap(err, "k1 sign")
 	}
 
-	err = httpDelete(ctx, u, map[string]string{"Authorization": bearerString(lockHashSignature)})
+	err = c.httpDelete(ctx, u, map[string]string{"Authorization": bearerString(lockHashSignature)})
 	if err != nil {
 		return errors.Wrap(err, "http Obol API DELETE request")
 	}
