@@ -1691,7 +1691,7 @@ func (c Component) warnBuilderPreferencesMismatch(ctx context.Context, slot eth2
 // warnProposerPreferencesMismatch logs a warning and increments a metric when the VC-submitted fee
 // recipient or target gas limit differs from the cluster-lock value. It does not reject the
 // preference: aggregation proceeds on whatever value reaches threshold (so a staggered gas-limit
-// change self-heals); the warning surfaces operator misconfiguration.
+// change self-heals); the warning surfaces operator misconfiguration. Warn-only is intentional, see KNOWN_ISSUES.md.
 func (c Component) warnProposerPreferencesMismatch(ctx context.Context, pubkey core.PubKey, msg *gloas.ProposerPreferences) {
 	if c.feeRecipientFunc == nil {
 		return
