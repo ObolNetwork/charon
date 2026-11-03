@@ -112,8 +112,13 @@ func newInternal(p2pNode host.Host, peers []peer.ID, minRequired int,
 		reqBuffers:       make(map[core.Duty]chan request),
 	}
 
-	// Wire consensus output to Prioritiser subscribers.
+	// Wire consensus output to Prioritiser subscribers, verifying the decided result first, since
+	// consensus accepts the leader's proposed value as is.
 	consensus.SubscribePriority(func(ctx context.Context, duty core.Duty, result *pbv1.PriorityResult) error {
+		if err := verifyResult(duty, result, p.msgValidator, p.minRequired); err != nil {
+			return errors.Wrap(err, "verify priority result")
+		}
+
 		for _, sub := range p.subs {
 			if err := sub(ctx, duty, result); err != nil {
 				return err
@@ -391,6 +396,40 @@ func exchange(ctx context.Context, p2pNode host.Host, peers []peer.ID, msgValida
 			}
 		}(pID)
 	}
+}
+
+// verifyResult returns an error if the decided result's topics weren't calculated from its messages,
+// the valid signed proposals of the duty's peers. A faulty leader may otherwise decide arbitrary
+// priorities, while omitting messages can only drop priorities below the minimum required peers.
+func verifyResult(duty core.Duty, result *pbv1.PriorityResult, msgValidator msgValidator, minRequired int) error {
+	dutyProto := core.DutyToProto(duty)
+
+	for _, msg := range result.GetMsgs() {
+		if err := msgValidator(msg); err != nil {
+			return errors.Wrap(err, "invalid result message")
+		}
+
+		if !proto.Equal(msg.GetDuty(), dutyProto) {
+			return errors.New("result message duty mismatch")
+		}
+	}
+
+	expected, err := calculateResult(result.GetMsgs(), minRequired)
+	if err != nil {
+		return err
+	}
+
+	if len(expected.GetTopics()) != len(result.GetTopics()) {
+		return errors.New("result topics mismatch")
+	}
+
+	for i, topic := range expected.GetTopics() {
+		if !proto.Equal(topic, result.GetTopics()[i]) {
+			return errors.New("result topics mismatch")
+		}
+	}
+
+	return nil
 }
 
 // startConsensus starts a consensus round.
