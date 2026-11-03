@@ -1,14 +1,23 @@
-FROM golang:1.27.3-alpine AS builder
+# Build on the build platform and cross-compile for the target platform, so
+# multi-platform builds don't compile under QEMU emulation. promrated has no cgo
+# dependencies, so a pure Go build cross-compiles without a C toolchain.
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS builder
 
-# Install dependencies
-RUN apk add --no-cache build-base git
+# Install dependencies (git for VCS build info)
+RUN apk add --no-cache git
 
 WORKDIR /app
 
 COPY . .
 
-# Build with Go module and Go build caches.
-RUN go build -o promrated github.com/obolnetwork/charon/testutil/promrated/promrated
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" \
+  go build -o promrated github.com/obolnetwork/charon/testutil/promrated/promrated
+
+FROM alpine:3.24
+
+COPY --from=builder /app/promrated /app/promrated
 
 # Don't run container as root
 ENV USER=promrated
