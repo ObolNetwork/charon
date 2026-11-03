@@ -889,8 +889,9 @@ func TestInstanceIO_MaybeStart(t *testing.T) {
 		c.gaterFunc = func(core.Duty) bool { return true }
 		c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 		// Use zero values for tests to use default clock.Now() behavior
+		c.proposerTimerFunc = noProposerTimer
 		c.timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0, 32, func(core.Duty) time.Duration { return 0 },
-			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{} }, noLinearProposerTimer)
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{} }, c.proposerTimer)
 
 		// Generate a p2p private key pair.
 		p2pKey := testutil.GenerateInsecureK1Key(t, 0)
@@ -1443,7 +1444,7 @@ func signConsensusMsg(t *testing.T, msg *pbv1.QBFTConsensusMsg, privKey *k1.Priv
 	return msg
 }
 
-func TestRegisterLinearProposerTimer(t *testing.T) {
+func TestRegisterProposerTimer(t *testing.T) {
 	const nodes = 4
 
 	random := rand.New(rand.NewSource(0))
@@ -1480,7 +1481,13 @@ func TestRegisterLinearProposerTimer(t *testing.T) {
 	require.Equal(t, timer.TimerEagerDoubleLinear, c.timerFunc(duty).Type())
 
 	// The registered cluster agreement replaces it, also for the timer function built before.
-	c.RegisterLinearProposerTimer(func(slot uint64) bool { return slot >= 10 })
+	c.RegisterProposerTimer(func(slot uint64) string {
+		if slot < 10 {
+			return ""
+		}
+
+		return timer.ProposerTimerProposal(true)
+	})
 	require.Equal(t, timer.TimerEagerDoubleLinear, c.timerFunc(core.NewProposerDuty(9)).Type())
 	require.Equal(t, timer.TimerLinear, c.timerFunc(core.NewProposerDuty(10)).Type())
 }

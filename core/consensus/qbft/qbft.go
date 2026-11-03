@@ -313,34 +313,33 @@ func NewConsensus(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func
 		snifferFunc:         snifferFunc,
 		gaterFunc:           gaterFunc,
 		dropFilter:          log.Filter(),
-		linearProposerFunc:  noLinearProposerTimer,
+		proposerTimerFunc:   noProposerTimer,
 		metrics:             metrics.NewConsensusMetrics(protocols.QBFTv2ProtocolID),
 		compareAttestations: compareAttestations,
 	}
-	c.timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, forkSchedule, c.linearProposerTimer)
+	c.timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, slotOffsetFunc, forkSchedule, c.proposerTimer)
 	c.mutable.instances = make(map[core.Duty]*instance.IO[Msg])
 
 	return c, nil
 }
 
-// noLinearProposerTimer never selects the linear proposer timer, used until the cluster agreement on
-// it is registered.
-func noLinearProposerTimer(uint64) bool {
-	return false
+// noProposerTimer never returns an agreed proposer timer, so the default applies, used until the
+// cluster agreement on it is registered.
+func noProposerTimer(uint64) string {
+	return ""
 }
 
-// RegisterLinearProposerTimer registers a function returning whether the cluster agreed on the
-// linear proposer timer as of a slot, applied from gloas.
+// RegisterProposerTimer registers a function returning the proposer timer the cluster agreed on as of
+// a slot, applied from gloas, or empty if none.
 // Note: This is not thread safe and should only be called *before* Start.
-func (c *Consensus) RegisterLinearProposerTimer(fn func(slot uint64) bool) {
-	c.linearProposerFunc = fn
+func (c *Consensus) RegisterProposerTimer(fn func(slot uint64) string) {
+	c.proposerTimerFunc = fn
 }
 
-// linearProposerTimer returns whether the linear proposer timer applies as of the slot. The timer
-// function calls it rather than linearProposerFunc directly, so a function registered after
-// NewConsensus takes effect.
-func (c *Consensus) linearProposerTimer(slot uint64) bool {
-	return c.linearProposerFunc(slot)
+// proposerTimer returns the proposer timer agreed on as of the slot. The timer function calls it
+// rather than proposerTimerFunc directly, so a function registered after NewConsensus takes effect.
+func (c *Consensus) proposerTimer(slot uint64) string {
+	return c.proposerTimerFunc(slot)
 }
 
 // Consensus implements core.Consensus & priority.coreConsensus.
@@ -358,7 +357,7 @@ type Consensus struct {
 	gaterFunc           core.DutyGaterFunc
 	dropFilter          z.Field // Filter buffer overflow errors (possible DDoS)
 	timerFunc           timer.RoundTimerFunc
-	linearProposerFunc  func(slot uint64) bool
+	proposerTimerFunc   func(slot uint64) string
 	metrics             metrics.ConsensusMetrics
 	compareAttestations bool
 
@@ -563,12 +562,20 @@ func (c *Consensus) runInstance(parent context.Context, duty core.Duty) (err err
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	log.Debug(ctx, "QBFT consensus instance starting",
+	fields := []z.Field{
 		z.Any("peer", p2p.PeerName(c.p2pNode.ID())),
 		z.Any("peers", c.peerLabels),
 		z.Any("timer", string(roundTimer.Type())),
 		z.Any("timer_extensions", roundTimer.Extensions()),
-	)
+	}
+
+	if duty.Type == core.DutyProposer {
+		// The proposer timer the cluster agreed on, applied from gloas: the timer in use shows whether
+		// this node honoured it or fell back to the default, not supporting it.
+		fields = append(fields, z.Str("agreed_proposer_timer", c.proposerTimerFunc(duty.Slot)))
+	}
+
+	log.Debug(ctx, "QBFT consensus instance starting", fields...)
 
 	inst := c.getInstanceIO(duty)
 	inst.TimerType = string(roundTimer.Type())

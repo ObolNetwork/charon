@@ -108,7 +108,7 @@ func (a *priorityAsserter) Callback(t *testing.T, i int) func(ctx context.Contex
 		expect := map[string]string{
 			"version":        fmt.Sprint(version.Supported()),
 			"protocol":       fmt.Sprint(app.Protocols()),
-			"proposer_timer": "[eager_dlinear]",
+			"proposer_timer": "[eager_dlinear/1.5s]",
 		}
 
 		if !assert.Len(t, results, len(expect)) {

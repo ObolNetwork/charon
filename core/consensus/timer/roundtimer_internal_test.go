@@ -339,8 +339,8 @@ func TestTimerSelection(t *testing.T) {
 		enable         []featureset.Feature
 		disable        []featureset.Feature
 		duty           core.Duty
-		gloas          bool // Whether gloas is active at the duty's slot.
-		linearProposer bool // Whether the cluster agreed on the linear proposer timer.
+		gloas          bool   // Whether gloas is active at the duty's slot.
+		proposerTimer  string // The proposer timer the cluster agreed on, if any.
 		wantType       Type
 		wantExtensions []string
 		want           []roundArming // Rounds 1 onwards, relative to the start of the slot.
@@ -425,7 +425,7 @@ func TestTimerSelection(t *testing.T) {
 			name:           "gloas proposer, linear agreed",
 			duty:           core.NewProposerDuty(slot),
 			gloas:          true,
-			linearProposer: true,
+			proposerTimer:  "linear/1.5s/300ms",
 			wantType:       TimerLinear,
 			wantExtensions: []string{"double_round_on_rearm_min_1s"},
 			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2100), ms(3100)}, {ms(3000), ms(4000)}, {ms(4200), ms(5400)}},
@@ -435,10 +435,37 @@ func TestTimerSelection(t *testing.T) {
 			disable:        []featureset.Feature{featureset.ProposalTimeout},
 			duty:           core.NewProposerDuty(slot),
 			gloas:          true,
-			linearProposer: true,
+			proposerTimer:  "linear/1.5s/300ms",
 			wantType:       TimerLinear,
 			wantExtensions: []string{"double_round_on_rearm_min_1s"},
 			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2100), ms(3100)}, {ms(3000), ms(4000)}, {ms(4200), ms(5400)}},
+		},
+		{
+			name:           "gloas proposer, other linear inputs agreed",
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			proposerTimer:  "linear/1.2s/400ms",
+			wantType:       TimerLinear,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1200), ms(2400)}, {ms(2000), ms(3000)}, {ms(3200), ms(4400)}, {ms(4800), ms(6400)}},
+		},
+		{
+			name:           "gloas proposer, other eager double linear inputs agreed",
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			proposerTimer:  "eager_dlinear/1s",
+			wantType:       TimerEagerDoubleLinear,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1000), ms(2000)}, {ms(2000), ms(3000)}, {ms(3000), ms(4000)}},
+		},
+		{
+			name:           "gloas proposer, invalid agreement",
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			proposerTimer:  "linear/1.5s",
+			wantType:       TimerEagerDoubleLinear,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(3000), ms(4500)}, {ms(4500), ms(6000)}},
 		},
 		{
 			name:           "gloas proposer, linear enabled but not agreed",
@@ -452,7 +479,7 @@ func TestTimerSelection(t *testing.T) {
 		{
 			name:           "proposer, linear agreed but not enabled",
 			duty:           core.NewProposerDuty(slot),
-			linearProposer: true,
+			proposerTimer:  "linear/1.5s/300ms",
 			wantType:       TimerEagerDoubleLinear,
 			wantExtensions: []string{"double_total_on_rearm", "proposal_timeout"},
 			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2500), ms(5000)}, {ms(3500), ms(7000)}},
@@ -533,11 +560,54 @@ func TestTimerSelection(t *testing.T) {
 			}
 
 			clock := &recordingClock{FakeClock: clockwork.NewFakeClockAt(slotStart)}
-			roundTimer := newRoundTimer(test.duty, selectTimer(test.duty, test.gloas, func(uint64) bool { return test.linearProposer }), timing, clock)
+			roundTimer := newRoundTimer(test.duty, selectTimer(test.duty, test.gloas, func(uint64) string { return test.proposerTimer }), timing, clock)
 
 			require.Equal(t, test.wantType, roundTimer.Type())
 			require.Equal(t, test.wantExtensions, roundTimer.Extensions())
 			require.Equal(t, test.want, armRounds(clock, roundTimer, slotStart, int64(len(test.want))))
+		})
+	}
+}
+
+func TestProposerTimerProposal(t *testing.T) {
+	require.Equal(t, "eager_dlinear/1.5s", ProposerTimerProposal(false))
+	require.Equal(t, "linear/1.5s/300ms", ProposerTimerProposal(true))
+}
+
+func TestParseProposerTimer(t *testing.T) {
+	ms := func(ms ...int64) []time.Duration {
+		var resp []time.Duration
+		for _, m := range ms {
+			resp = append(resp, time.Duration(m)*time.Millisecond)
+		}
+
+		return resp
+	}
+
+	tests := []struct {
+		name       string
+		input      string
+		wantType   Type
+		wantInputs []time.Duration
+	}{
+		{name: "proposed default", input: ProposerTimerProposal(false), wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "proposed linear", input: ProposerTimerProposal(true), wantType: TimerLinear, wantInputs: ms(1500, 300)},
+		{name: "other linear inputs", input: "linear/1.2s/400ms", wantType: TimerLinear, wantInputs: ms(1200, 400)},
+		{name: "other eager dlinear inputs", input: "eager_dlinear/1s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1000)},
+		{name: "none agreed", input: "", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "unknown type", input: "bogus/1s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "too few inputs", input: "linear/1.5s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "too many inputs", input: "eager_dlinear/1s/2s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "invalid duration", input: "linear/1.5s/abc", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "zero duration", input: "linear/1.5s/0s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "negative duration", input: "eager_dlinear/-1s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			typ, inputs := parseProposerTimer(test.input)
+			require.Equal(t, test.wantType, typ)
+			require.Equal(t, test.wantInputs, inputs)
 		})
 	}
 }

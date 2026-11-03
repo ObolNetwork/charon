@@ -20,8 +20,8 @@ var zeroOffsetFunc core.SlotOffsetFunc = func(core.Duty) time.Duration { return 
 // noForkSchedule is a fork schedule function without any scheduled forks.
 var noForkSchedule = func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{} }
 
-// notLinearProposer is a cluster agreement function never agreeing on the linear proposer timer.
-var notLinearProposer = func(uint64) bool { return false }
+// noProposerTimer is a cluster agreement function never agreeing on a proposer timer.
+var noProposerTimer = func(uint64) string { return "" }
 
 const slotsPerEpoch = 32
 
@@ -30,21 +30,21 @@ func TestGetTimerFunc(t *testing.T) {
 	genesisTime := time.Time{}
 	slotDuration := time.Duration(0)
 
-	timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, zeroOffsetFunc, noForkSchedule, notLinearProposer)
+	timerFunc := timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, zeroOffsetFunc, noForkSchedule, noProposerTimer)
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
 
-	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, zeroOffsetFunc, noForkSchedule, notLinearProposer)
+	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, zeroOffsetFunc, noForkSchedule, noProposerTimer)
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(2)).Type())
 
 	featureset.EnableForT(t, featureset.Linear)
 
-	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, zeroOffsetFunc, noForkSchedule, notLinearProposer)
+	timerFunc = timer.GetRoundTimerFunc(genesisTime, slotDuration, slotsPerEpoch, zeroOffsetFunc, noForkSchedule, noProposerTimer)
 	// non proposer duty, defaults to increasing
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(0)).Type())
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(1)).Type())
@@ -68,14 +68,14 @@ func TestGetTimerFuncGloas(t *testing.T) {
 	gloasSlot := uint64(gloasEpoch * slotsPerEpoch)
 
 	var (
-		schedule       eth2wrap.ForkForkSchedule
-		linearProposer bool
+		schedule      eth2wrap.ForkForkSchedule
+		proposerTimer string
 	)
 
 	forkSchedule := func() eth2wrap.ForkForkSchedule { return schedule }
-	linearProposerFunc := func(uint64) bool { return linearProposer }
+	proposerTimerFunc := func(uint64) string { return proposerTimer }
 
-	timerFunc := timer.GetRoundTimerFunc(time.Time{}, 0, slotsPerEpoch, zeroOffsetFunc, forkSchedule, linearProposerFunc)
+	timerFunc := timer.GetRoundTimerFunc(time.Time{}, 0, slotsPerEpoch, zeroOffsetFunc, forkSchedule, proposerTimerFunc)
 
 	// Without gloas scheduled, attester duties keep the eager double linear timer.
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAttesterDuty(gloasSlot)).Type())
@@ -101,15 +101,15 @@ func TestGetTimerFuncGloas(t *testing.T) {
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
 	featureset.EnableForT(t, featureset.Linear)
 
-	timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0, slotsPerEpoch, zeroOffsetFunc, forkSchedule, linearProposerFunc)
+	timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0, slotsPerEpoch, zeroOffsetFunc, forkSchedule, proposerTimerFunc)
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(gloasSlot-1)).Type())
 	require.Equal(t, timer.TimerEagerAheadSplit, timerFunc(core.NewAttesterDuty(gloasSlot)).Type())
 	require.Equal(t, timer.TimerLinear, timerFunc(core.NewProposerDuty(gloasSlot-1)).Type())
 	require.Equal(t, []string{"reset_on_rearm", "proposal_timeout"}, timerFunc(core.NewProposerDuty(gloasSlot-1)).Extensions())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewProposerDuty(gloasSlot)).Type())
 
-	// The cluster agreeing on the linear proposer timer selects it from gloas only.
-	linearProposer = true
+	// The cluster agreeing on the linear proposer timer selects it, with its agreed inputs, from gloas only.
+	proposerTimer = "linear/1.5s/300ms"
 
 	require.Equal(t, []string{"reset_on_rearm", "proposal_timeout"}, timerFunc(core.NewProposerDuty(gloasSlot-1)).Extensions())
 	require.Equal(t, timer.TimerLinear, timerFunc(core.NewProposerDuty(gloasSlot)).Type())

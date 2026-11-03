@@ -82,18 +82,17 @@ func TestSyncContributionsSupported(t *testing.T) {
 }
 
 func TestProposerTimerProposal(t *testing.T) {
-	proposerTimer := func(c *Component) []string {
-		for _, proposal := range c.proposals() {
-			if proposal.Topic == topicProposerTimer {
-				return proposal.Priorities
-			}
-		}
+	c := &Component{proposerTimer: "linear/1.5s/300ms"}
 
-		return nil
+	var got []string
+
+	for _, proposal := range c.proposals() {
+		if proposal.Topic == topicProposerTimer {
+			got = proposal.Priorities
+		}
 	}
 
-	require.Equal(t, []string{"linear"}, proposerTimer(&Component{localLinear: true}))
-	require.Equal(t, []string{"eager_dlinear"}, proposerTimer(&Component{localLinear: false}))
+	require.Equal(t, []string{"linear/1.5s/300ms"}, got)
 }
 
 func TestNewResult(t *testing.T) {
@@ -112,21 +111,13 @@ func TestNewResult(t *testing.T) {
 		want    result
 	}{
 		{
-			name: "linear agreed",
+			name: "proposer timer agreed",
 			results: []priority.TopicResult{
 				topicResult(topicVersion, "v2.0"),
 				topicResult(topicProtocol, "/charon/consensus/qbft/2.0.0"),
-				topicResult(topicProposerTimer, "linear"),
+				topicResult(topicProposerTimer, "linear/1.5s/300ms"),
 			},
-			want: result{slot: 7, versions: []string{"v2.0"}, protocols: []protocol.ID{"/charon/consensus/qbft/2.0.0"}, linearProposerTimer: true},
-		},
-		{
-			name: "default agreed",
-			results: []priority.TopicResult{
-				topicResult(topicVersion, "v2.0"),
-				topicResult(topicProposerTimer, "eager_dlinear"),
-			},
-			want: result{slot: 7, versions: []string{"v2.0"}},
+			want: result{slot: 7, versions: []string{"v2.0"}, protocols: []protocol.ID{"/charon/consensus/qbft/2.0.0"}, proposerTimer: "linear/1.5s/300ms"},
 		},
 		{
 			name: "below threshold, nothing agreed",
@@ -147,7 +138,7 @@ func TestNewResult(t *testing.T) {
 			name: "unknown topic ignored",
 			results: []priority.TopicResult{
 				topicResult(topicVersion, "v2.0"),
-				topicResult("unknown", "linear"),
+				topicResult("unknown", "linear/1.5s/300ms"),
 			},
 			want: result{slot: 7, versions: []string{"v2.0"}},
 		},
@@ -160,22 +151,22 @@ func TestNewResult(t *testing.T) {
 	}
 }
 
-func TestLinearProposerTimer(t *testing.T) {
-	c := &Component{localLinear: true}
+func TestProposerTimer(t *testing.T) {
+	c := &Component{proposerTimer: "linear/1.5s/300ms"}
 
-	// Defaults to the default proposer timer before any round, regardless of the local feature.
-	require.False(t, c.LinearProposerTimer(10))
+	// None agreed before any round, regardless of the local proposal.
+	require.Empty(t, c.ProposerTimer(10))
 
 	// Results apply from the slot after their sync slot.
-	c.addResult(result{slot: 5, versions: []string{"v2.0"}, linearProposerTimer: true})
-	require.False(t, c.LinearProposerTimer(5)) // Sync slot.
-	require.True(t, c.LinearProposerTimer(6))
-	require.True(t, c.LinearProposerTimer(100))
+	c.addResult(result{slot: 5, versions: []string{"v2.0"}, proposerTimer: "linear/1.5s/300ms"})
+	require.Empty(t, c.ProposerTimer(5)) // Sync slot.
+	require.Equal(t, "linear/1.5s/300ms", c.ProposerTimer(6))
+	require.Equal(t, "linear/1.5s/300ms", c.ProposerTimer(100))
 
-	// A later round switches back to the default timer.
-	c.addResult(result{slot: 8, versions: []string{"v2.0"}, linearProposerTimer: false})
-	require.True(t, c.LinearProposerTimer(8))
-	require.False(t, c.LinearProposerTimer(9))
+	// A later round agrees on other inputs.
+	c.addResult(result{slot: 8, versions: []string{"v2.0"}, proposerTimer: "linear/1.2s/400ms"})
+	require.Equal(t, "linear/1.5s/300ms", c.ProposerTimer(8))
+	require.Equal(t, "linear/1.2s/400ms", c.ProposerTimer(9))
 }
 
 func TestAddResultKeepsChangesOnly(t *testing.T) {
@@ -183,8 +174,8 @@ func TestAddResultKeepsChangesOnly(t *testing.T) {
 
 	c.addResult(result{slot: 5, versions: []string{"v2.0"}, protocols: []protocol.ID{"a"}})
 	c.addResult(result{slot: 37, versions: []string{"v2.0"}, protocols: []protocol.ID{"a"}}) // Same as previous.
-	c.addResult(result{slot: 69, versions: []string{"v2.0"}, protocols: []protocol.ID{"a"}, linearProposerTimer: true})
-	c.addResult(result{slot: 101, versions: []string{"v2.0", "v2.1"}, protocols: []protocol.ID{"a"}, linearProposerTimer: true})
+	c.addResult(result{slot: 69, versions: []string{"v2.0"}, protocols: []protocol.ID{"a"}, proposerTimer: "linear/1.5s/300ms"})
+	c.addResult(result{slot: 101, versions: []string{"v2.0", "v2.1"}, protocols: []protocol.ID{"a"}, proposerTimer: "linear/1.5s/300ms"})
 
 	require.Len(t, c.results, 3)
 	require.Equal(t, []uint64{5, 69, 101}, []uint64{c.results[0].slot, c.results[1].slot, c.results[2].slot})

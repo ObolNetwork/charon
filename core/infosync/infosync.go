@@ -23,11 +23,6 @@ const (
 	topicProtocol      = "protocol"
 	topicProposerTimer = "proposer_timer"
 
-	// proposerTimerLinear and proposerTimerDefault are the proposer timers peers propose, the
-	// quicker rotating linear one if they enabled the linear feature, else the default one.
-	proposerTimerLinear  = "linear"
-	proposerTimerDefault = "eager_dlinear"
-
 	// maxResults limits the number of results to keep.
 	maxResults = 100
 
@@ -40,8 +35,8 @@ const (
 	minSyncContributionV2Version = "v1.11"
 )
 
-// New returns a new infosync component, proposing the linear proposer timer if localLinear.
-func New(prioritiser *priority.Component, versions []version.SemVer, protocols []protocol.ID, localLinear bool) *Component {
+// New returns a new infosync component, proposing the proposer timer, encoded as its type and inputs.
+func New(prioritiser *priority.Component, versions []version.SemVer, protocols []protocol.ID, proposerTimer string) *Component {
 	// Add a mock alpha protocol if alpha features enabled in order to test infosync in prod.
 	// TODO(corver): Remove this once we have an actual use case.
 	if featureset.Enabled(featureset.MockAlpha) {
@@ -49,10 +44,10 @@ func New(prioritiser *priority.Component, versions []version.SemVer, protocols [
 	}
 
 	c := &Component{
-		prioritiser: prioritiser,
-		versions:    versions,
-		protocols:   protocols,
-		localLinear: localLinear,
+		prioritiser:   prioritiser,
+		versions:      versions,
+		protocols:     protocols,
+		proposerTimer: proposerTimer,
 	}
 
 	prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
@@ -89,10 +84,10 @@ func New(prioritiser *priority.Component, versions []version.SemVer, protocols [
 }
 
 type Component struct {
-	prioritiser *priority.Component
-	versions    []version.SemVer
-	protocols   []protocol.ID
-	localLinear bool // Whether the linear feature is enabled locally.
+	prioritiser   *priority.Component
+	versions      []version.SemVer
+	protocols     []protocol.ID
+	proposerTimer string // The proposer timer this peer proposes.
 
 	mu                 sync.Mutex
 	results            []result
@@ -113,26 +108,26 @@ func (c *Component) Protocols(slot uint64) []protocol.ID {
 	return result.protocols
 }
 
-// LinearProposerTimer returns whether the latest cluster wide result before the slot agreed on the
-// linear proposer timer, i.e. whether at least a threshold of peers proposed it. Results apply
-// from the slot after their sync slot, since the proposer duty of the sync slot may start its round
-// timer before the agreement, which is decided within the slot unless multiple peers fail. It
-// returns false, the default proposer timer, if no such result is available, regardless of the
-// local linear feature, so a restarted peer runs the default until the cluster agrees again.
-func (c *Component) LinearProposerTimer(slot uint64) bool {
+// ProposerTimer returns the proposer timer the latest cluster wide result before the slot agreed on,
+// i.e. that at least a threshold of peers proposed, or empty if none. Results apply from the slot
+// after their sync slot, since the proposer duty of the sync slot may start its round timer before
+// the agreement, which is decided within the slot unless multiple peers fail. It returns empty if no
+// such result is available, regardless of the local proposal, so a restarted peer runs the default
+// proposer timer until the cluster agrees again.
+func (c *Component) ProposerTimer(slot uint64) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if slot == 0 {
-		return false
+		return ""
 	}
 
 	result, ok := c.latestResult(slot - 1)
 	if !ok {
-		return false
+		return ""
 	}
 
-	return result.linearProposerTimer
+	return result.proposerTimer
 }
 
 // latestResult returns the latest result at or before the slot, if any. It requires the lock.
@@ -221,11 +216,6 @@ func (c *Component) Trigger(ctx context.Context, slot uint64) error {
 
 // proposals returns the topics this peer proposes: its versions, protocols and proposer timer.
 func (c *Component) proposals() []priority.TopicProposal {
-	proposerTimer := proposerTimerDefault
-	if c.localLinear {
-		proposerTimer = proposerTimerLinear
-	}
-
 	return []priority.TopicProposal{
 		{
 			Topic:      topicVersion,
@@ -237,7 +227,7 @@ func (c *Component) proposals() []priority.TopicProposal {
 		},
 		{
 			Topic:      topicProposerTimer,
-			Priorities: []string{proposerTimer},
+			Priorities: []string{c.proposerTimer},
 		},
 	}
 }
@@ -254,7 +244,8 @@ func newResult(slot uint64, results []priority.TopicResult) result {
 			case topicProtocol:
 				res.protocols = append(res.protocols, protocol.ID(prio))
 			case topicProposerTimer:
-				res.linearProposerTimer = res.linearProposerTimer || prio == proposerTimerLinear
+				// Peers propose a single proposer timer, so at most one reaches the threshold.
+				res.proposerTimer = prio
 			default:
 			}
 		}
@@ -320,13 +311,13 @@ type result struct {
 	slot      uint64
 	versions  []string
 	protocols []protocol.ID
-	// linearProposerTimer is whether at least a threshold of peers proposed the linear proposer timer.
-	linearProposerTimer bool
+	// proposerTimer is the proposer timer at least a threshold of peers proposed, or empty if none.
+	proposerTimer string
 }
 
 // Equal returns true if the results have equal values, regardless of their slots.
 func (x result) Equal(y result) bool {
 	return fmt.Sprint(x.versions) == fmt.Sprint(y.versions) &&
 		fmt.Sprint(x.protocols) == fmt.Sprint(y.protocols) &&
-		x.linearProposerTimer == y.linearProposerTimer
+		x.proposerTimer == y.proposerTimer
 }

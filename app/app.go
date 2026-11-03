@@ -52,6 +52,7 @@ import (
 	"github.com/obolnetwork/charon/core/consensus"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/core/consensus/qbft"
+	"github.com/obolnetwork/charon/core/consensus/timer"
 	"github.com/obolnetwork/charon/core/dutydb"
 	"github.com/obolnetwork/charon/core/fetcher"
 	"github.com/obolnetwork/charon/core/infosync"
@@ -855,11 +856,11 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 	isync := infosync.New(prio,
 		version.Supported(),
 		allProtocols,
-		featureset.Enabled(featureset.Linear),
+		timer.ProposerTimerProposal(featureset.Enabled(featureset.Linear)),
 	)
 
-	// From gloas, proposer duties use the linear proposer timer as agreed cluster wide.
-	cons.RegisterLinearProposerTimer(isync.LinearProposerTimer)
+	// From gloas, proposer duties use the proposer timer as agreed cluster wide.
+	cons.RegisterProposerTimer(isync.ProposerTimer)
 
 	// Trigger info syncs in last slot of the epoch (for the next epoch).
 	sched.SubscribeSlots(func(ctx context.Context, slot core.Slot) error {
