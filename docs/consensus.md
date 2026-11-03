@@ -72,12 +72,15 @@ A timer is a named configuration of round timing, defined by:
 | `eager_dlinear` | 1s | 1s | 0 | 0 | 1s, 1s, 1s, ... | duty start | `double_total_on_rearm` |
 | `eager_ahead_split` | 4s | 1s | 2 | 1s | 4s, 1s, 1s, 2s, 3s, ... | previous interval | `double_round_on_rearm_min_1s` |
 
+The `linear` and `eager_dlinear` values above are those before the gloas fork. From the gloas fork, proposer duties use them with longer rounds, the duty start anchor and `double_round_on_rearm_min_1s` (see [Gloas proposer timer](#gloas-proposer-timer)).
+
 Timers are selected per duty by the fork and feature set flags:
 
 - `eager_ahead_split` is used for attester duties from the gloas fork and for payload attestation duties, regardless of feature set flags, since round end times must be identical across the cluster (see [Gloas attester and payload attestation timer](#gloas-attester-and-payload-attestation-timer)).
+- From the gloas fork, proposer duties use the gloas proposer timer regardless of `eager_double_linear` and `proposal_timeout`: `eager_dlinear` by default, `linear` when the alpha `linear` feature is enabled (see [Gloas proposer timer](#gloas-proposer-timer)).
 - `eager_dlinear` is the default, enabled by the stable `eager_double_linear` feature.
 - `inc` is used when `eager_double_linear` is disabled (`--feature-set-disable "eager_double_linear"`).
-- `linear` is used for proposer duties when the alpha `linear` feature is enabled (`--feature-set-enable "linear"`), taking precedence over the other timers. Its first round includes fetching the proposal. Peers already have their proposal in later rounds, which start shorter, skipping underperforming leaders quicker.
+- `linear` is used for proposer duties before the gloas fork when the alpha `linear` feature is enabled (`--feature-set-enable "linear"`), taking precedence over the other timers. Its first round includes fetching the proposal. Peers already have their proposal in later rounds, which start shorter, skipping underperforming leaders quicker.
 
 ### Extensions
 
@@ -87,16 +90,29 @@ Each extension states when it acts, under what condition and what it changes:
 
 | Extension | Acts | Condition | Changes | In practice |
 |---|---|---|---|---|
-| `proposal_timeout` | When the first round is armed | Proposer duties, enabled by default as the `proposal_timeout` feature is stable | Adds 500ms to the first round's duration | Applicable to every timer by default |
-| `reset_on_rearm` | When a round is re-armed | Always on for the `inc` and `linear` timers | The round's timer resets | Only clusters that disabled `eager_double_linear` or enabled the alpha `linear` timer (proposer duties only). Only used whenever a node receives the round leader's justified pre-prepare |
-| `double_total_on_rearm` | When a round is re-armed | Always on for the `eager_dlinear` timer | Extends the round by the time from the first round's start to its deadline, doubling the total | Every duty by default, as `eager_dlinear` is the default timer. Only used whenever a node receives the round leader's justified pre-prepare |
-| `double_round_on_rearm_min_1s` | When a round is re-armed | Always on for the `eager_ahead_split` timer | Extends the round from its deadline by its duration after the duty start, at least 1s, doubling the round. The first round's span of the previous interval doesn't count | Every attester duty from the gloas fork. Only used whenever a node receives the round leader's justified pre-prepare |
+| `proposal_timeout` | When the first round is armed | Proposer duties before the gloas fork, enabled by default as the `proposal_timeout` feature is stable | Adds 500ms to the first round's duration | Applicable to every timer by default |
+| `reset_on_rearm` | When a round is re-armed | Always on for the `inc` and `linear` timers, except the gloas proposer timer | The round's timer resets | Only clusters that disabled `eager_double_linear` or enabled the alpha `linear` timer (proposer duties before the gloas fork only). Only used whenever a node receives the round leader's justified pre-prepare |
+| `double_total_on_rearm` | When a round is re-armed | Always on for the `eager_dlinear` timer, except the gloas proposer timer | Extends the round by the time from the first round's start to its deadline, doubling the total | Every duty by default, as `eager_dlinear` is the default timer, except attester, payload attestation and proposer duties from the gloas fork. Only used whenever a node receives the round leader's justified pre-prepare |
+| `double_round_on_rearm_min_1s` | When a round is re-armed | Always on for the `eager_ahead_split` and the gloas proposer timers | Extends the round from its deadline by its duration after the duty start, at least 1s, doubling the round. The first round's span of the previous interval doesn't count | Every attester and proposer duty from the gloas fork. Only used whenever a node receives the round leader's justified pre-prepare |
 
-`proposal_timeout` applies to whichever timer is selected for a proposer duty. On `eager_dlinear`, since its rounds follow on, the longer first round moves every round end 500ms later (1.5s, 2.5s, 3.5s, ...).
+Before the gloas fork, `proposal_timeout` applies to whichever timer is selected for a proposer duty. On `eager_dlinear`, since its rounds follow on, the longer first round moves every round end 500ms later (1.5s, 2.5s, 3.5s, ...).
 
 `double_total_on_rearm` keeps round end times aligned across peers. Resetting the round's timer instead has no effect on the leader, who resets at the start of the round, while it has a large effect on the other peers, who reset when they receive the justified pre-prepare.
 
 The timer and extensions of each consensus instance are logged when it starts, e.g. `timer=eager_dlinear timer_extensions=[double_total_on_rearm proposal_timeout]`.
+
+### Gloas proposer timer
+
+From the gloas fork, proposer duties use rounds anchored at the duty start, the start of the slot, aligned across peers, with `double_round_on_rearm_min_1s`. The `linear` feature selects between two shapes:
+
+| Feature | Timer | Round durations | Round ends | Re-armed round ends |
+|---|---|---|---|---|
+| defaults | `eager_dlinear` | 1.5s, 1.5s, 1.5s, ... | 1.5s, 3.0s, 4.5s, ... | 3.0s, 4.5s, 6.0s, ... |
+| `linear` enabled | `linear` | 1.5s, 600ms, 900ms, 1.2s, ... | 1.5s, 2.1s, 3.0s, 4.2s, ... | 3.0s, 3.1s, 4.0s, 5.4s, ... |
+
+The first round covers fetching the proposal, so `proposal_timeout` doesn't apply. The proposal must be agreed by about 2.7s, leaving time for partial signature exchange and broadcast before the 3s end of the block proposal interval. The default thus relies on two rounds, while `linear` tries three leaders in that time, skipping unresponsive leaders quicker.
+
+`linear` is set per node, so every node in the cluster must enable it (`--feature-set-enable "linear"`), as mismatched round ends break leader rotation. A mismatch shows in the `timer` field of each node's debug consensus instance starting log and in the `timer` label of the consensus metrics. Consensus is cancelled at the proposer duty deadline, the attestation due offset (3s from gloas) plus a 1s margin, so rounds ending between 3s and 4s can still decide, though late.
 
 ### Gloas attester and payload attestation timer
 

@@ -49,11 +49,20 @@ func selectTimer(duty core.Duty, gloas bool) timerDef {
 		// TODO(post-gloas): make this the default for attester duties without the gloas check, removing
 		// the fork schedule from GetRoundTimerFunc.
 		def = eagerAheadSplitTimer()
+	case duty.Type == core.DutyProposer && gloas && featureset.Enabled(featureset.Linear):
+		// From gloas, proposer duties use 1.5s first rounds anchored at the duty start, aligned across
+		// peers, extended by their duration, at least 1s, when armed again. The first round allows for
+		// fetching the proposal, so the feature extensions, i.e. proposal_timeout, don't apply.
+		// The linear feature selects quicker rotating later rounds: 600ms, 900ms, 1.2s, etc.
+		return linearTimer(gloasProposerRound, gloasProposerStep, anchorDutyStart{}, doubleRoundOnRearm{minimum: time.Second})
+	case duty.Type == core.DutyProposer && gloas:
+		// Otherwise all rounds last 1.5s, regardless of the stable features.
+		return eagerDLinearTimer(gloasProposerRound, doubleRoundOnRearm{minimum: time.Second})
 	case duty.Type == core.DutyProposer && featureset.Enabled(featureset.Linear):
 		// The linear timer has precedence over the eager double linear timer, but only for proposer duties.
-		def = linearTimer()
+		def = linearTimer(linearRoundFirst, linearRoundStep, anchorLocalDutyStart{}, resetOnRearm{})
 	case featureset.Enabled(featureset.EagerDoubleLinear):
-		def = eagerDLinearTimer()
+		def = eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{})
 	default:
 		def = incTimer()
 	}
@@ -276,7 +285,7 @@ func (t *roundTimer) Timer(round int64) (<-chan time.Time, func()) {
 // acting upon it, or its deadline if none does. In practice, QBFT rearms the current round
 // upon a justified pre-prepare for it. Three extensions currently act upon this rearming, declared
 // by the timers: resetOnRearm by inc and linear, doubleTotalOnRearm by eager_dlinear, and
-// doubleRoundOnRearm by eager_ahead_split.
+// doubleRoundOnRearm by eager_ahead_split and, from gloas, eager_dlinear and linear for proposer duties.
 func (t *roundTimer) rearmDeadline(round int64, currentDeadline, now time.Time) time.Time {
 	for _, ext := range t.def.extensions {
 		adjustedDeadline, ok := ext.onRearm(t.duration(round), t.end(round), t.def.anchor.lead(), currentDeadline, now)

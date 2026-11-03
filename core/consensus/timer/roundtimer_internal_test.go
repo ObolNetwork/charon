@@ -90,8 +90,8 @@ func timerForT(duty core.Duty, typ Type, genesisTime time.Time, slotDuration tim
 ) RoundTimer {
 	defs := map[Type]timerDef{
 		TimerIncreasing:        incTimer(),
-		TimerLinear:            linearTimer(),
-		TimerEagerDoubleLinear: eagerDLinearTimer(),
+		TimerLinear:            linearTimer(linearRoundFirst, linearRoundStep, anchorLocalDutyStart{}, resetOnRearm{}),
+		TimerEagerDoubleLinear: eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{}),
 	}
 
 	timing := slotTiming{
@@ -162,7 +162,7 @@ func TestRoundDurations(t *testing.T) {
 	}{
 		{
 			name:      "flat",
-			durations: eagerDLinearTimer().durations,
+			durations: eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{}).durations,
 			want:      []time.Duration{time.Second, time.Second, time.Second, time.Second},
 		},
 		{
@@ -172,7 +172,7 @@ func TestRoundDurations(t *testing.T) {
 		},
 		{
 			name:      "linear",
-			durations: linearTimer().durations,
+			durations: linearTimer(linearRoundFirst, linearRoundStep, anchorLocalDutyStart{}, resetOnRearm{}).durations,
 			want:      []time.Duration{time.Second, 400 * time.Millisecond, 600 * time.Millisecond, 800 * time.Millisecond},
 		},
 		{
@@ -216,20 +216,20 @@ func TestProposalTimeout(t *testing.T) {
 	require.Equal(t, 500*time.Millisecond, proposalTimeout{}.onArm(1))
 	require.Zero(t, proposalTimeout{}.onArm(2))
 
-	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(), proposalTimeout{})
+	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{}), proposalTimeout{})
 	require.Equal(t, []extension{doubleTotalOnRearm{}, proposalTimeout{}}, def.extensions)
 
-	def = withExtensions(core.NewAttesterDuty(1), eagerDLinearTimer(), proposalTimeout{})
+	def = withExtensions(core.NewAttesterDuty(1), eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{}), proposalTimeout{})
 	require.Equal(t, []extension{doubleTotalOnRearm{}}, def.extensions)
 
 	// Extensions leave the timer's round durations unchanged.
-	require.Equal(t, eagerDLinearTimer().durations, def.durations)
+	require.Equal(t, eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{}).durations, def.durations)
 }
 
 func TestWithExtensionsDeduplicates(t *testing.T) {
 	// Extensions declared by the timer and added again, or added twice, are only kept once, in the
 	// order of their first occurrence.
-	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(), doubleTotalOnRearm{}, proposalTimeout{}, proposalTimeout{})
+	def := withExtensions(core.NewProposerDuty(1), eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{}), doubleTotalOnRearm{}, proposalTimeout{}, proposalTimeout{})
 	require.Equal(t, []extension{doubleTotalOnRearm{}, proposalTimeout{}}, def.extensions)
 }
 
@@ -333,6 +333,7 @@ func TestTimerSelection(t *testing.T) {
 
 	// Each case is a configuration users can set with feature flags, on top of the defaults: the
 	// stable eager_double_linear and proposal_timeout features enabled, the alpha linear feature disabled.
+	// From gloas, attester, payload attestation and proposer duties ignore the stable features.
 	tests := []struct {
 		name           string
 		enable         []featureset.Feature
@@ -407,8 +408,36 @@ func TestTimerSelection(t *testing.T) {
 			duty:           core.NewProposerDuty(slot),
 			gloas:          true,
 			wantType:       TimerEagerDoubleLinear,
-			wantExtensions: []string{"double_total_on_rearm", "proposal_timeout"},
-			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2500), ms(5000)}, {ms(3500), ms(7000)}},
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(3000), ms(4500)}, {ms(4500), ms(6000)}},
+		},
+		{
+			name:           "gloas proposer, legacy features disabled",
+			disable:        []featureset.Feature{featureset.EagerDoubleLinear, featureset.ProposalTimeout},
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			wantType:       TimerEagerDoubleLinear,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(3000), ms(4500)}, {ms(4500), ms(6000)}},
+		},
+		{
+			name:           "gloas proposer, linear enabled",
+			enable:         []featureset.Feature{featureset.Linear},
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			wantType:       TimerLinear,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2100), ms(3100)}, {ms(3000), ms(4000)}, {ms(4200), ms(5400)}},
+		},
+		{
+			name:           "gloas proposer, linear enabled and proposal timeout disabled",
+			enable:         []featureset.Feature{featureset.Linear},
+			disable:        []featureset.Feature{featureset.ProposalTimeout},
+			duty:           core.NewProposerDuty(slot),
+			gloas:          true,
+			wantType:       TimerLinear,
+			wantExtensions: []string{"double_round_on_rearm_min_1s"},
+			want:           []roundArming{{ms(1500), ms(3000)}, {ms(2100), ms(3100)}, {ms(3000), ms(4000)}, {ms(4200), ms(5400)}},
 		},
 		{
 			name:           "proposer, defaults",

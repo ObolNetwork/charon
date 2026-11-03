@@ -43,8 +43,8 @@ const (
 	// unless the user disabled this feature explicitly.
 	GnosisBlockHotfix Feature = "gnosis_block_hotfix"
 
-	// Linear enables Linear round timer for consensus rounds.
-	// When active has precedence over EagerDoubleLinear round timer.
+	// Linear enables the linear round timer for proposer duties, taking precedence over EagerDoubleLinear.
+	// From the gloas fork, it selects the quicker rotating gloas proposer timer. Must be enabled cluster-wide.
 	Linear Feature = "linear"
 
 	// SSEReorgDuties enables Scheduler to refresh duties when reorg occurs.
@@ -55,7 +55,8 @@ const (
 	// The extra load that Charon puts the beacon node is deemed so high that it can throttle the completion of other duties.
 	AttestationInclusion Feature = "attestation_inclusion"
 
-	// ProposalTimeout enables a longer first consensus round timeout of 1.5 seconds for proposal duty.
+	// ProposalTimeout enables a longer first consensus round timeout of 1.5 seconds for proposal duty
+	// before the gloas fork.
 	ProposalTimeout = "proposal_timeout"
 
 	// QUIC enables the QUIC transport protocol in libp2p.

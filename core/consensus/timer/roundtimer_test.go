@@ -59,7 +59,7 @@ func TestGetTimerFunc(t *testing.T) {
 	require.Equal(t, timer.TimerLinear, timerFunc(core.NewProposerDuty(2)).Type())
 }
 
-func TestGetTimerFuncGloasAttester(t *testing.T) {
+func TestGetTimerFuncGloas(t *testing.T) {
 	const gloasEpoch = 2
 
 	gloasSlot := uint64(gloasEpoch * slotsPerEpoch)
@@ -80,16 +80,24 @@ func TestGetTimerFuncGloasAttester(t *testing.T) {
 	require.Equal(t, timer.TimerEagerAheadSplit, timerFunc(core.NewAttesterDuty(gloasSlot)).Type())
 	require.Equal(t, timer.TimerEagerAheadSplit, timerFunc(core.NewAttesterDuty(gloasSlot+1)).Type())
 
-	// Other duties are unaffected by gloas.
+	// Gloas proposer duties keep the timer type, with the gloas re-arm extension and no proposal timeout.
+	require.Equal(t, []string{"double_total_on_rearm", "proposal_timeout"}, timerFunc(core.NewProposerDuty(gloasSlot-1)).Extensions())
 	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewProposerDuty(gloasSlot)).Type())
-	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAggregatorDuty(gloasSlot)).Type())
+	require.Equal(t, []string{"double_round_on_rearm_min_1s"}, timerFunc(core.NewProposerDuty(gloasSlot)).Extensions())
 
-	// The gloas attester timer doesn't depend on the legacy timer features.
+	// Other duties are unaffected by gloas.
+	require.Equal(t, timer.TimerEagerDoubleLinear, timerFunc(core.NewAggregatorDuty(gloasSlot)).Type())
+	require.Equal(t, []string{"double_total_on_rearm"}, timerFunc(core.NewAggregatorDuty(gloasSlot)).Extensions())
+
+	// The gloas attester and proposer timers don't depend on the legacy timer features, while the
+	// linear feature selects the quicker rotating gloas proposer timer.
 	featureset.DisableForT(t, featureset.EagerDoubleLinear)
 	featureset.EnableForT(t, featureset.Linear)
 
 	timerFunc = timer.GetRoundTimerFunc(time.Time{}, 0, slotsPerEpoch, zeroOffsetFunc, forkSchedule)
 	require.Equal(t, timer.TimerIncreasing, timerFunc(core.NewAttesterDuty(gloasSlot-1)).Type())
 	require.Equal(t, timer.TimerEagerAheadSplit, timerFunc(core.NewAttesterDuty(gloasSlot)).Type())
+	require.Equal(t, []string{"reset_on_rearm", "proposal_timeout"}, timerFunc(core.NewProposerDuty(gloasSlot-1)).Extensions())
 	require.Equal(t, timer.TimerLinear, timerFunc(core.NewProposerDuty(gloasSlot)).Type())
+	require.Equal(t, []string{"double_round_on_rearm_min_1s"}, timerFunc(core.NewProposerDuty(gloasSlot)).Extensions())
 }
