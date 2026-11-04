@@ -15,6 +15,7 @@ import (
 	"github.com/pk910/dynamic-ssz/treeproof"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 )
 
 // CapellaFork maps generic fork hashes to their specific Capella hardfork
@@ -144,4 +145,24 @@ func CapellaDomain(
 	}
 
 	return domain, nil
+}
+
+// ExitDomain returns the voluntary exit signature domain of the known network with the given genesis fork version.
+// Since EIP-7044 the exit domain is fixed to the Capella fork version, so it can be computed without a beacon node.
+func ExitDomain(forkVersion [4]byte) (eth2p0.Domain, error) {
+	forkHash := "0x" + hex.EncodeToString(forkVersion[:])
+
+	network, err := networkFromForkVersion(forkHash)
+	if err != nil {
+		return eth2p0.Domain{}, err
+	} else if network.GenesisValidatorsRootHex == "" {
+		return eth2p0.Domain{}, errors.New("genesis validators root unknown for network", z.Str("network", network.Name))
+	}
+
+	root, err := hex.DecodeString(strings.TrimPrefix(network.GenesisValidatorsRootHex, "0x"))
+	if err != nil || len(root) != len(eth2p0.Root{}) {
+		return eth2p0.Domain{}, errors.New("invalid genesis validators root", z.Str("network", network.Name))
+	}
+
+	return ComputeDomain(forkHash, eth2p0.DomainType{0x04, 0x00, 0x00, 0x00}, eth2p0.Root(root))
 }

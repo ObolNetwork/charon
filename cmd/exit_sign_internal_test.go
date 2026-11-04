@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/testutil"
@@ -693,7 +696,7 @@ func Test_signAllValidatorsExits_signsPendingInitialized(t *testing.T) {
 
 	config := exitConfig{ExitEpoch: 194048}
 
-	exitBlobs, err := signAllValidatorsExits(ctx, config, beaconMock, shares)
+	exitBlobs, err := signAllValidatorsExits(ctx, config, beaconMock, eth2p0.Domain{}, shares)
 	require.NoError(t, err)
 
 	// active_ongoing and pending_initialized are signed; the no-index validator is not.
@@ -762,7 +765,70 @@ func Test_signAllValidatorsExits_pendingDepositsCheckIsBestEffort(t *testing.T) 
 
 	config := exitConfig{ExitEpoch: 194048}
 
-	exitBlobs, err := signAllValidatorsExits(ctx, config, beaconMock, shares)
+	exitBlobs, err := signAllValidatorsExits(ctx, config, beaconMock, eth2p0.Domain{}, shares)
 	require.NoError(t, err)
 	require.Len(t, exitBlobs, 2)
+}
+
+// TestSignPartialExitWithoutBeaconNode signs an exit for a known network with both the validator public key and
+// index but no beacon node. The mock Obol API verifies the partial signature with the exit domain fetched from a
+// beacon node of the same network, so this also checks the locally computed domain matches.
+func TestSignPartialExitWithoutBeaconNode(t *testing.T) {
+	ctx := t.Context()
+
+	const operatorAmt = 4
+
+	hoodiForkVersion, err := eth2util.NetworkToForkVersionBytes(eth2util.Hoodi.Name)
+	require.NoError(t, err)
+
+	lock, enrs, keyShares := cluster.NewForT(t, 2, operatorAmt, operatorAmt, 0, rand.New(rand.NewSource(0)),
+		func(d *cluster.Definition) { d.ForkVersion = hoodiForkVersion })
+
+	operatorShares := make([][]tbls.PrivateKey, operatorAmt)
+	for opIdx := range operatorAmt {
+		for _, share := range keyShares {
+			operatorShares[opIdx] = append(operatorShares[opIdx], share[opIdx])
+		}
+	}
+
+	mBytes, err := json.Marshal(lock)
+	require.NoError(t, err)
+
+	gvr, err := hex.DecodeString(strings.TrimPrefix(eth2util.Hoodi.GenesisValidatorsRootHex, "0x"))
+	require.NoError(t, err)
+
+	// The beacon node is only used by the mock Obol API to verify the partial exit signature.
+	beaconMock, err := beaconmock.New(ctx, beaconmock.WithGenesisValidatorsRoot([32]byte(gvr)))
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, beaconMock.Close()) })
+
+	eth2Cl, err := eth2Client(ctx, nil, nil, []string{beaconMock.Address()}, 10*time.Second, [4]byte(lock.ForkVersion))
+	require.NoError(t, err)
+
+	handler, addLockFiles := obolapimock.MockServer(false, eth2Cl)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	addLockFiles(lock)
+
+	root := t.TempDir()
+	writeAllLockData(t, root, enrs, operatorShares, mBytes)
+
+	baseDir := filepath.Join(root, "op0")
+
+	config := exitConfig{
+		PrivateKeyPath:        filepath.Join(baseDir, "charon-enr-private-key"),
+		ValidatorKeysDir:      filepath.Join(baseDir, "validator_keys"),
+		LockFilePath:          filepath.Join(baseDir, "cluster-lock.json"),
+		PublishAddress:        srv.URL,
+		ExitEpoch:             194048,
+		PublishTimeout:        10 * time.Second,
+		ValidatorIndex:        1,
+		ValidatorIndexPresent: true,
+		ValidatorPubkey:       lock.Validators[0].PublicKeyHex(),
+		SkipBeaconNodeCheck:   true,
+	}
+
+	require.NoError(t, runSignPartialExit(ctx, config))
 }
