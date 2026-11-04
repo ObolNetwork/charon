@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/dkg"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/tbls"
@@ -99,6 +100,16 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	// Loading the existing cluster lock file.
 	lock, err := dkg.LoadAndVerifyClusterLock(ctx, conf.LockFilePath, conf.DKG.ExecutionEngineAddr, conf.DKG.NoVerify)
+	if err != nil {
+		return err
+	}
+
+	// Unknown (custom testnet) fork versions resolve to an empty network, which is never mainnet or gnosis.
+	network, _ := eth2util.ForkVersionToNetwork(lock.ForkVersion)
+
+	// Validate and normalise new addresses to their EIP-55 checksummed form, so that all operators
+	// produce the same cluster lock regardless of the address case they provided.
+	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = checksumValidatorAddrs(ctx, conf.FeeRecipientAddrs, conf.WithdrawalAddrs, network, false)
 	if err != nil {
 		return err
 	}

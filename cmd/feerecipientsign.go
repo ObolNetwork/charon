@@ -366,24 +366,16 @@ func filterPubkeysByStatus(
 	return pubkeysToSign, nil
 }
 
-// validateFeeRecipient checks that the fee recipient address is well-formed, is not the zero
-// (burn) address, and, when supplied in mixed case, matches its EIP-55 checksum.
+// validateFeeRecipient checks that the fee recipient address is well-formed (see eth2util.ValidateChecksumAddress)
+// and is not the zero (burn) address.
 func validateFeeRecipient(address string) error {
-	checksummed, err := eth2util.ChecksumAddress(address)
+	checksummed, err := eth2util.ValidateChecksumAddress(address)
 	if err != nil {
 		return errors.Wrap(err, "invalid fee recipient address", z.Str("fee_recipient", address))
 	}
 
-	if checksummed == "0x0000000000000000000000000000000000000000" {
+	if checksummed == zeroAddress {
 		return errors.New("fee recipient address must not be the zero address", z.Str("fee_recipient", address))
-	}
-
-	hexPart := strings.TrimPrefix(address, "0x")
-	if hexPart != strings.ToLower(hexPart) && address != checksummed {
-		return errors.New("fee recipient address does not match its EIP-55 checksum; use all-lowercase or the checksummed form",
-			z.Str("fee_recipient", address),
-			z.Str("checksummed", checksummed),
-		)
 	}
 
 	return nil

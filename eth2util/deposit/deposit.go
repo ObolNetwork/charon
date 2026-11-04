@@ -222,14 +222,8 @@ func WithdrawalCredsFromAddrOrCreds(input string, compounding bool) ([32]byte, e
 
 	switch len(hexPart) {
 	case 20 * 2:
-		if hexPart != strings.ToLower(hexPart) && hexPart != strings.ToUpper(hexPart) {
-			checksummed, err := eth2util.ChecksumAddress(input)
-			if err != nil {
-				return [32]byte{}, errors.Wrap(err, "invalid withdrawal address", z.Str("addr", input))
-			} else if checksummed != input {
-				return [32]byte{}, errors.New("withdrawal address does not match its EIP-55 checksum; use all-lowercase or the checksummed form",
-					z.Str("addr", input), z.Str("checksummed", checksummed))
-			}
+		if _, err := eth2util.ValidateChecksumAddress(input); err != nil {
+			return [32]byte{}, errors.Wrap(err, "invalid withdrawal address")
 		}
 
 		return withdrawalCredsFromAddr("0x"+strings.ToLower(hexPart), compounding)
