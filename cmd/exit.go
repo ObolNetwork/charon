@@ -11,8 +11,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/eth2wrap"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/signing"
 	"github.com/obolnetwork/charon/tbls"
@@ -39,6 +41,7 @@ type exitConfig struct {
 	Log                      log.Config
 	All                      bool
 	AllowIncompleteKeystores bool
+	NoVerify                 bool
 	testnetConfig            eth2util.Network
 	BeaconNodeHeaders        []string
 	FallbackBeaconNodeAddrs  []string
@@ -82,6 +85,7 @@ const (
 	fallbackBeaconNodeAddrs
 	executionClientRPCEndpoint
 	allowIncompleteKeystores
+	noVerify
 )
 
 func (ef exitFlag) String() string {
@@ -132,6 +136,8 @@ func (ef exitFlag) String() string {
 		return "execution-client-rpc-endpoint"
 	case allowIncompleteKeystores:
 		return "allow-incomplete-keystores"
+	case noVerify:
+		return "no-verify"
 	default:
 		return "unknown"
 	}
@@ -202,6 +208,8 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 			cmd.Flags().StringVar(&config.ExecutionEngineAddr, executionClientRPCEndpoint.String(), "", maybeRequired("The address of the execution engine JSON-RPC API, used to verify ERC-1271 (e.g. Safe multisig) cluster signatures."))
 		case allowIncompleteKeystores:
 			cmd.Flags().BoolVar(&config.AllowIncompleteKeystores, allowIncompleteKeystores.String(), false, "Allow the validator keys directory to contain key shares for only a subset of the cluster's validators. The command operates on the validators whose key shares are present.")
+		case noVerify:
+			cmd.Flags().BoolVar(&config.NoVerify, noVerify.String(), false, "Disables cluster lock file verification. Exit messages are still verified by the Obol API and the beacon chain.")
 		}
 
 		if f.required {
@@ -264,4 +272,17 @@ func sigDataForExit(ctx context.Context, exit eth2p0.VoluntaryExit, eth2Cl eth2w
 	}
 
 	return sigData, nil
+}
+
+// loadExitLock loads the cluster lock, verifying it unless --no-verify is set.
+// Exits are safe to sign and broadcast without lock verification: the Obol API verifies partial
+// exits against its own copy of the lock, and the beacon chain verifies the aggregate signature
+// against the validator's public key.
+func loadExitLock(ctx context.Context, config exitConfig) (*cluster.Lock, error) {
+	eth1Cl := eth1wrap.NewDefaultEthClientRunner(config.ExecutionEngineAddr)
+	if err := eth1wrap.RunAndWait(ctx, eth1Cl); err != nil {
+		return nil, err
+	}
+
+	return cluster.LoadClusterLock(ctx, config.LockFilePath, config.NoVerify, eth1Cl)
 }
