@@ -97,7 +97,7 @@ type exchanger struct {
 	timeout       time.Duration
 }
 
-func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[peer.ID]cluster.NodeIdx, sigTypes []sigType, timeout time.Duration) (*exchanger, error) {
+func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[peer.ID]cluster.NodeIdx, sigTypes []sigType, timeout time.Duration, numVals int) (*exchanger, error) {
 	if peerIdx < 0 || peerIdx >= len(peers) {
 		return nil, errors.New("peer index out of range", z.Int("peer_idx", peerIdx), z.Int("num_peers", len(peers)))
 	}
@@ -139,7 +139,7 @@ func newExchanger(p2pNode host.Host, peerIdx int, peers []peer.ID, peerMap map[p
 	ex := &exchanger{
 		// threshold is len(peers) to wait until we get all the partial sigs from all the peers per DV
 		sigdb:    parsigdb.NewMemDB(len(peers), noopDeadliner{}, parsigdb.NewMemDBMetadata(0, time.Now())), // metadata timestamps are used for metrics, irrelevant for DKG
-		sigex:    parsigex.NewParSigEx(p2pNode, newRetryingSendFunc(timeout), peerIdx, peers, verifyShareIdx, dutyGaterFunc, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
+		sigex:    parsigex.NewParSigEx(p2pNode, newRetryingSendFunc(timeout), peerIdx, peers, verifyShareIdx, dutyGaterFunc, numVals, p2p.WithSendTimeout(timeout), p2p.WithReceiveTimeout(timeout)),
 		sigTypes: st,
 		sigData: dataByPubkey{
 			store: sigTypeStore{},

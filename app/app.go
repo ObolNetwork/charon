@@ -721,7 +721,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 			return err
 		}
 
-		parSigEx = parsigex.NewParSigEx(p2pNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc, gaterFunc)
+		parSigEx = parsigex.NewParSigEx(p2pNode, sender.SendAsync, nodeIdx.PeerIdx, peerIDs, verifyFunc, gaterFunc, len(lock.Validators))
 	}
 
 	sigAgg, err := sigagg.New(lock.Threshold, sigagg.NewVerifier(eth2Cl))
