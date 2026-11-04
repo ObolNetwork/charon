@@ -5,13 +5,17 @@ package cluster
 import (
 	"bytes"
 	"encoding/json"
+	"runtime"
+	"slices"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/eth2util/registration"
 	"github.com/obolnetwork/charon/tbls"
@@ -444,6 +448,165 @@ func (l Lock) verifyBuilderRegistrations() error {
 		if err != nil {
 			return errors.Wrap(err, "verify builder registration signature")
 		}
+	}
+
+	return nil
+}
+
+// VerifyContents returns an error if the lock contents are inconsistent with its definition: invalid addresses
+// (see Definition.VerifyAddresses), builder registrations for another pubkey or fee recipient, or invalid deposit data.
+// Note these aren't covered by VerifySignatures, since charon has historically accepted such locks. It is only
+// called where charon creates a lock, since BLS verifying every deposit signature is too slow for each startup.
+func (l Lock) VerifyContents() error {
+	if err := l.VerifyAddresses(); err != nil {
+		return err
+	}
+
+	if err := l.verifyBuilderRegistrationContents(); err != nil {
+		return errors.Wrap(err, "verify builder registrations")
+	}
+
+	if err := l.verifyDepositData(); err != nil {
+		return errors.Wrap(err, "verify deposit data")
+	}
+
+	return nil
+}
+
+// verifyBuilderRegistrationContents returns an error if any populated builder registration
+// is for another pubkey or fee recipient than the distributed validator's.
+func (l Lock) verifyBuilderRegistrationContents() error {
+	if !SupportPregenRegistrations(l.Version) {
+		return nil
+	}
+
+	feeRecipientAddrs := l.FeeRecipientAddresses()
+
+	for i, val := range l.Validators {
+		if val.ZeroRegistration() {
+			continue
+		}
+
+		if !bytes.Equal(val.BuilderRegistration.Message.PubKey, val.PubKey) {
+			return errors.New("builder registration pubkey doesn't match distributed validator pubkey", z.Int("i", i))
+		}
+
+		feeRecipient, err := from0xHex(feeRecipientAddrs[i], addressLen)
+		if err != nil {
+			return err
+		}
+
+		if !bytes.Equal(val.BuilderRegistration.Message.FeeRecipient, feeRecipient) {
+			return errors.New("builder registration fee recipient doesn't match definition fee recipient", z.Int("i", i))
+		}
+	}
+
+	return nil
+}
+
+// verifyDepositData returns an error if any populated validator deposit data is invalid.
+// Absent deposit data is allowed: v1.6 and v1.7 locks in the wild contain zero valued deposit data
+// and v1.8 or later locks may contain an empty partial deposit data list.
+func (l Lock) verifyDepositData() error {
+	if isAnyVersion(l.Version, v1_0, v1_1, v1_2, v1_3, v1_4, v1_5) {
+		return nil // Deposit data is not supported (and not hashed) before v1.6.
+	}
+
+	allowedAmounts := l.depositAmountsOrDefault()
+	withdrawalAddrs := l.WithdrawalAddresses()
+
+	if len(withdrawalAddrs) != len(l.Validators) {
+		return errors.New("withdrawal addresses count mismatch",
+			z.Int("withdrawal_addresses", len(withdrawalAddrs)),
+			z.Int("validators", len(l.Validators)),
+		)
+	}
+
+	// Verify validators concurrently since BLS signature verification is slow and large clusters
+	// contain thousands of deposit data entries, all verified on startup.
+	var eg errgroup.Group
+	eg.SetLimit(runtime.GOMAXPROCS(0))
+
+	for i, val := range l.Validators {
+		eg.Go(func() error {
+			for _, dd := range val.PartialDepositData {
+				if !SupportPartialDeposits(l.Version) && isZeroDepositData(dd) {
+					continue
+				}
+
+				err := verifyDepositData(dd, val.PubKey, withdrawalAddrs[i], allowedAmounts, l.Compounding, l.ForkVersion)
+				if err != nil {
+					return errors.Wrap(err, "invalid deposit data", z.Int("dv_index", i), z.Int("amount", dd.Amount))
+				}
+			}
+
+			return nil
+		})
+	}
+
+	return eg.Wait() //nolint:wrapcheck // Errors are already wrapped.
+}
+
+// depositAmountsOrDefault returns the definition's deposit amounts or the default amounts if not set.
+// Note that the defaults also apply to versions prior to v1.8 (that don't support partial deposits):
+// while DKG only creates 32ETH deposits for them, `charon create cluster` creates the default amounts
+// and stores the first (1ETH) in v1.6 and v1.7 locks.
+func (d Definition) depositAmountsOrDefault() []eth2p0.Gwei {
+	if len(d.DepositAmounts) > 0 {
+		return d.DepositAmounts
+	}
+
+	return deposit.DefaultDepositAmounts(d.Compounding)
+}
+
+// isZeroDepositData returns true if the deposit data is zero valued (absent).
+func isZeroDepositData(dd DepositData) bool {
+	return len(dd.PubKey) == 0 && len(dd.WithdrawalCredentials) == 0 && dd.Amount == 0 && len(dd.Signature) == 0
+}
+
+// verifyDepositData returns an error if the deposit data isn't a valid deposit
+// for the distributed validator public key and withdrawal address.
+func verifyDepositData(dd DepositData, dvPubKey []byte, withdrawalAddr string, allowedAmounts []eth2p0.Gwei, compounding bool, forkVersion []byte) error {
+	pubkey, err := tblsconv.PubkeyFromBytes(dvPubKey)
+	if err != nil {
+		return errors.Wrap(err, "pubkey from bytes")
+	}
+
+	if !bytes.Equal(dd.PubKey, dvPubKey) {
+		return errors.New("deposit data pubkey doesn't match distributed validator pubkey")
+	}
+
+	if len(forkVersion) != len(eth2p0.Version{}) {
+		return errors.New("invalid fork version length")
+	}
+
+	if dd.Amount <= 0 || !slices.Contains(allowedAmounts, eth2p0.Gwei(dd.Amount)) {
+		return errors.New("deposit amount not in definition deposit amounts")
+	}
+
+	// NewMessage also verifies the amount bounds for the withdrawal credentials type.
+	msg, err := deposit.NewMessage(eth2p0.BLSPubKey(pubkey), withdrawalAddr, eth2p0.Gwei(dd.Amount), compounding)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(dd.WithdrawalCredentials, msg.WithdrawalCredentials) {
+		return errors.New("deposit withdrawal credentials don't match definition withdrawal address",
+			z.Bool("compounding", compounding))
+	}
+
+	sigRoot, err := deposit.GetMessageSigningRootByForkVersion(msg, eth2p0.Version(forkVersion))
+	if err != nil {
+		return err
+	}
+
+	sig, err := tblsconv.SignatureFromBytes(dd.Signature)
+	if err != nil {
+		return errors.Wrap(err, "signature from bytes")
+	}
+
+	if err := tbls.Verify(pubkey, sigRoot[:], sig); err != nil {
+		return errors.Wrap(err, "verify deposit data signature")
 	}
 
 	return nil

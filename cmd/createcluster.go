@@ -348,6 +348,10 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		lock.NodeSignatures = append(lock.NodeSignatures, nodeSig)
 	}
 
+	if err := lock.VerifyContents(); err != nil {
+		return errors.Wrap(err, "invalid cluster lock contents")
+	}
+
 	// dashboardURL is the Launchpad dashboard url for a given lock file.
 	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
 	// the generated lock file.
