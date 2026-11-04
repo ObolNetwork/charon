@@ -27,6 +27,9 @@ type Network struct {
 	GenesisTimestamp int64
 	// CapellaHardFork represents capella fork version, used for computing domains for signatures
 	CapellaHardFork string
+	// GenesisValidatorsRootHex represents the genesis validators root of the network in hex, used for
+	// computing the voluntary exit domain without a beacon node. Empty when unknown.
+	GenesisValidatorsRootHex string
 	// SlotDuration represents slot duration in seconds
 	SlotDuration uint64
 	// GloasHardForkTimestamp represents the wall-clock time at which the gloas hard fork
@@ -42,12 +45,13 @@ func (n Network) IsNonZero() bool {
 // Pre-defined network configurations.
 var (
 	Mainnet = Network{
-		ChainID:               1,
-		Name:                  "mainnet",
-		GenesisForkVersionHex: "0x00000000",
-		GenesisTimestamp:      1606824023,
-		CapellaHardFork:       "0x03000000",
-		SlotDuration:          12,
+		ChainID:                  1,
+		Name:                     "mainnet",
+		GenesisForkVersionHex:    "0x00000000",
+		GenesisTimestamp:         1606824023,
+		CapellaHardFork:          "0x03000000",
+		GenesisValidatorsRootHex: "0x4b363db94e286120d76eb905340fdd4e54bfe9f06bf33ff6cf5ad27f511bfe95",
+		SlotDuration:             12,
 	}
 	Goerli = Network{
 		ChainID:               5,
@@ -58,37 +62,41 @@ var (
 		SlotDuration:          12,
 	}
 	Gnosis = Network{
-		ChainID:               100,
-		Name:                  "gnosis",
-		GenesisForkVersionHex: "0x00000064",
-		GenesisTimestamp:      1638993340,
-		CapellaHardFork:       "0x03000064",
-		SlotDuration:          5,
+		ChainID:                  100,
+		Name:                     "gnosis",
+		GenesisForkVersionHex:    "0x00000064",
+		GenesisTimestamp:         1638993340,
+		CapellaHardFork:          "0x03000064",
+		GenesisValidatorsRootHex: "0xf5dcb5564e829aab27264b9becd5dfaa017085611224cb3036f573368dbb9d47",
+		SlotDuration:             5,
 	}
 	Chiado = Network{
-		ChainID:               10200,
-		Name:                  "chiado",
-		GenesisForkVersionHex: "0x0000006f",
-		GenesisTimestamp:      1665396300,
-		CapellaHardFork:       "0x0300006f",
-		SlotDuration:          5,
+		ChainID:                  10200,
+		Name:                     "chiado",
+		GenesisForkVersionHex:    "0x0000006f",
+		GenesisTimestamp:         1665396300,
+		CapellaHardFork:          "0x0300006f",
+		GenesisValidatorsRootHex: "0x9d642dac73058fbf39c0ae41ab1e34e4d889043cb199851ded7095bc99eb4c1e",
+		SlotDuration:             5,
 	}
 	Sepolia = Network{
-		ChainID:               11155111,
-		Name:                  "sepolia",
-		GenesisForkVersionHex: "0x90000069",
-		GenesisTimestamp:      1655733600,
-		CapellaHardFork:       "0x90000072",
-		SlotDuration:          12,
+		ChainID:                  11155111,
+		Name:                     "sepolia",
+		GenesisForkVersionHex:    "0x90000069",
+		GenesisTimestamp:         1655733600,
+		CapellaHardFork:          "0x90000072",
+		GenesisValidatorsRootHex: "0xd8ea171f3c94aea21ebc42a1ed61052acf3f9209c00e4efbaaddac09ed9b8078",
+		SlotDuration:             12,
 	}
 	// Hoodi metadata taken from https://github.com/eth-clients/hoodi/#metadata.
 	Hoodi = Network{
-		ChainID:               560048,
-		Name:                  "hoodi",
-		GenesisForkVersionHex: "0x10000910",
-		GenesisTimestamp:      1742213400,
-		CapellaHardFork:       "0x40000910",
-		SlotDuration:          12,
+		ChainID:                  560048,
+		Name:                     "hoodi",
+		GenesisForkVersionHex:    "0x10000910",
+		GenesisTimestamp:         1742213400,
+		CapellaHardFork:          "0x40000910",
+		GenesisValidatorsRootHex: "0x212f13fc4df078b6cb7db228f1c8307566dcecf900867401a92023d7ba99cb5f",
+		SlotDuration:             12,
 	}
 )
 

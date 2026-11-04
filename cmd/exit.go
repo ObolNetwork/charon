@@ -167,7 +167,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case validatorKeysDir:
 			cmd.Flags().StringVar(&config.ValidatorKeysDir, validatorKeysDir.String(), ".charon/validator_keys", maybeRequired("Path to the directory containing the validator private key share files and passwords."))
 		case validatorPubkey:
-			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", maybeRequired("Public key of the validator to exit, must be present in the cluster lock manifest. If --validator-index is also provided, validator liveliness won't be checked on the beacon chain, but the index is cross-checked against the public key if the beacon node knows it."))
+			cmd.Flags().StringVar(&config.ValidatorPubkey, validatorPubkey.String(), "", maybeRequired("Public key of the validator to exit, must be present in the cluster lock manifest. If --validator-index is also provided, validator liveliness won't be checked on the beacon chain and no beacon node is required, but the index is cross-checked against the public key if a beacon node is configured."))
 		case exitEpoch:
 			cmd.Flags().Uint64Var(&config.ExitEpoch, exitEpoch.String(), 194048, maybeRequired("Exit epoch at which the validator will exit, must be the same across all the partial exits."))
 		case exitFromFile:
@@ -181,7 +181,7 @@ func bindExitFlags(cmd *cobra.Command, config *exitConfig, flags []exitCLIFlag) 
 		case publishTimeout:
 			cmd.Flags().DurationVar(&config.PublishTimeout, publishTimeout.String(), 5*time.Minute, "Timeout for publishing a signed exit to the publish-address API.")
 		case validatorIndex:
-			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-public-key is also provided, validator existence won't be checked on the beacon chain, but the index is cross-checked against the public key if the beacon node knows it.")
+			cmd.Flags().Uint64Var(&config.ValidatorIndex, validatorIndex.String(), 0, "Validator index of the validator to exit, the associated public key must be present in the cluster lock manifest. If --validator-public-key is also provided, validator existence won't be checked on the beacon chain and no beacon node is required, but the index is cross-checked against the public key if a beacon node is configured.")
 		case all:
 			cmd.Flags().BoolVar(&config.All, all.String(), false, "Exit all currently active validators in the cluster.")
 		case testnetName:
@@ -223,14 +223,14 @@ func eth2Client(ctx context.Context, fallbackAddresses []string, headers map[str
 	return cl, nil
 }
 
-// signExit signs a voluntary exit message for valIdx with the given keyShare.
-func signExit(ctx context.Context, eth2Cl eth2wrap.Client, valIdx eth2p0.ValidatorIndex, keyShare tbls.PrivateKey, exitEpoch eth2p0.Epoch) (eth2p0.SignedVoluntaryExit, error) {
+// signExit signs a voluntary exit message for valIdx with the given keyShare and exit domain.
+func signExit(domain eth2p0.Domain, valIdx eth2p0.ValidatorIndex, keyShare tbls.PrivateKey, exitEpoch eth2p0.Epoch) (eth2p0.SignedVoluntaryExit, error) {
 	exit := &eth2p0.VoluntaryExit{
 		Epoch:          exitEpoch,
 		ValidatorIndex: valIdx,
 	}
 
-	sigData, err := sigDataForExit(ctx, *exit, eth2Cl, exitEpoch)
+	sigData, err := exitSigningRoot(*exit, domain)
 	if err != nil {
 		return eth2p0.SignedVoluntaryExit{}, errors.Wrap(err, "exit hash tree root")
 	}
@@ -246,16 +246,34 @@ func signExit(ctx context.Context, eth2Cl eth2wrap.Client, valIdx eth2p0.Validat
 	}, nil
 }
 
-// sigDataForExit returns the hash tree root for the given exit message, at the given exit epoch.
-func sigDataForExit(ctx context.Context, exit eth2p0.VoluntaryExit, eth2Cl eth2wrap.Client, exitEpoch eth2p0.Epoch) ([32]byte, error) {
-	sigRoot, err := exit.HashTreeRoot()
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "exit hash tree root")
+// exitDomain returns the voluntary exit domain. It is computed locally for known networks (see eth2util.ExitDomain),
+// otherwise it is fetched from the beacon node, which is then required.
+func exitDomain(ctx context.Context, eth2Cl eth2wrap.Client, forkVersion [4]byte, exitEpoch eth2p0.Epoch) (eth2p0.Domain, error) {
+	domain, err := eth2util.ExitDomain(forkVersion)
+	if err == nil {
+		return domain, nil
+	} else if eth2Cl == nil {
+		return eth2p0.Domain{}, errors.Wrap(err, "beacon node endpoints required to compute the exit domain for this network")
 	}
 
+	return signing.GetDomain(ctx, eth2Cl, signing.DomainExit, exitEpoch)
+}
+
+// sigDataForExit returns the hash tree root for the given exit message, at the given exit epoch.
+func sigDataForExit(ctx context.Context, exit eth2p0.VoluntaryExit, eth2Cl eth2wrap.Client, exitEpoch eth2p0.Epoch) ([32]byte, error) {
 	domain, err := signing.GetDomain(ctx, eth2Cl, signing.DomainExit, exitEpoch)
 	if err != nil {
 		return [32]byte{}, errors.Wrap(err, "get domain")
+	}
+
+	return exitSigningRoot(exit, domain)
+}
+
+// exitSigningRoot returns the signing root of the given exit message with the given domain.
+func exitSigningRoot(exit eth2p0.VoluntaryExit, domain eth2p0.Domain) ([32]byte, error) {
+	sigRoot, err := exit.HashTreeRoot()
+	if err != nil {
+		return [32]byte{}, errors.Wrap(err, "exit hash tree root")
 	}
 
 	sigData, err := (&eth2p0.SigningData{ObjectRoot: sigRoot, Domain: domain}).HashTreeRoot()

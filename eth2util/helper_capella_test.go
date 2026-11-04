@@ -4,6 +4,9 @@ package eth2util_test
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
+	"strings"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -191,4 +194,40 @@ func TestCapellaDomain(t *testing.T) {
 			tt.resFunc(t, res)
 		})
 	}
+}
+
+func TestExitDomain(t *testing.T) {
+	for _, network := range []eth2util.Network{eth2util.Mainnet, eth2util.Gnosis, eth2util.Chiado, eth2util.Sepolia, eth2util.Hoodi} {
+		t.Run(network.Name, func(t *testing.T) {
+			genesisForkVersion, err := hex.DecodeString(strings.TrimPrefix(network.GenesisForkVersionHex, "0x"))
+			require.NoError(t, err)
+			capellaForkVersion, err := hex.DecodeString(strings.TrimPrefix(network.CapellaHardFork, "0x"))
+			require.NoError(t, err)
+			gvr, err := hex.DecodeString(strings.TrimPrefix(network.GenesisValidatorsRootHex, "0x"))
+			require.NoError(t, err)
+
+			// Independently compute compute_domain(DOMAIN_VOLUNTARY_EXIT, CAPELLA_FORK_VERSION, genesis_validators_root).
+			forkDataRoot, err := (&eth2p0.ForkData{CurrentVersion: eth2p0.Version(capellaForkVersion), GenesisValidatorsRoot: eth2p0.Root(gvr)}).HashTreeRoot()
+			require.NoError(t, err)
+
+			var expected eth2p0.Domain
+			copy(expected[:], []byte{0x04, 0x00, 0x00, 0x00})
+			copy(expected[4:], forkDataRoot[:28])
+
+			domain, err := eth2util.ExitDomain([4]byte(genesisForkVersion))
+			require.NoError(t, err)
+			require.Equal(t, expected, domain)
+		})
+	}
+
+	// Well known mainnet exit domain, as used by other offline exit tooling.
+	domain, err := eth2util.ExitDomain([4]byte{})
+	require.NoError(t, err)
+	require.Equal(t, "0x04000000bba4da96354c9f25476cf1bc69bf583a7f9e0af049305b62de676640", fmt.Sprintf("%#x", domain))
+
+	_, err = eth2util.ExitDomain([4]byte{0x00, 0x00, 0x10, 0x20}) // Goerli, genesis validators root unknown.
+	require.ErrorContains(t, err, "genesis validators root unknown")
+
+	_, err = eth2util.ExitDomain([4]byte{0x12, 0x34, 0x56, 0x78})
+	require.ErrorContains(t, err, "invalid fork version")
 }
