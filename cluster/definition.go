@@ -14,6 +14,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/enr"
 	"github.com/obolnetwork/charon/p2p"
@@ -621,6 +622,54 @@ func verifyDefinitionFieldLengths(d Definition) error {
 		if err := checkAddressLength(v.WithdrawalAddress, "withdrawal_address"); err != nil {
 			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
 		}
+	}
+
+	return nil
+}
+
+// VerifyAddresses returns an error if any address isn't a 0x prefixed 20 byte hex address with a valid
+// EIP-55 checksum if mixed case, see eth2util.ValidateChecksumAddress. Validator addresses are required from v1.5
+// (per-validator addresses), operator and creator addresses are optional (unsigned definitions).
+// Note that the zero address is allowed since clusters in the wild use it (e.g. as withdrawal address
+// for deposits made by staking protocols with separately generated deposit data).
+func (d Definition) VerifyAddresses() error {
+	if err := verifyAddress(d.Creator.Address, true, "creator_address"); err != nil {
+		return err
+	}
+
+	for i, o := range d.Operators {
+		if err := verifyAddress(o.Address, true, "operator_address"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+	}
+
+	optional := isAnyVersion(d.Version, v1_0, v1_1, v1_2, v1_3, v1_4)
+
+	for i, v := range d.ValidatorAddresses {
+		if err := verifyAddress(v.FeeRecipientAddress, optional, "fee_recipient_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+
+		if err := verifyAddress(v.WithdrawalAddress, optional, "withdrawal_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+	}
+
+	return nil
+}
+
+// verifyAddress returns an error if the address is invalid, see eth2util.ValidateChecksumAddress.
+func verifyAddress(addr string, optional bool, field string) error {
+	if addr == "" {
+		if optional {
+			return nil
+		}
+
+		return errors.New("missing address", z.Str("field", field))
+	}
+
+	if _, err := eth2util.ValidateChecksumAddress(addr); err != nil {
+		return errors.Wrap(err, "invalid address", z.Str("field", field))
 	}
 
 	return nil
