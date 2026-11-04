@@ -165,6 +165,10 @@ func TestValidateFeeRecipient(t *testing.T) {
 			address: checksummed,
 		},
 		{
+			name:    "valid uppercase",
+			address: "0x" + strings.ToUpper(checksummed[2:]),
+		},
+		{
 			name:        "invalid checksum",
 			address:     "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
 			expectedErr: "does not match its EIP-55 checksum",

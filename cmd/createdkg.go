@@ -142,7 +142,8 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return err
 	}
 
-	if err = validateWithdrawalAddrs(conf.WithdrawalAddrs, conf.Network); err != nil {
+	conf.FeeRecipientAddrs, conf.WithdrawalAddrs, err = checksumValidatorAddrs(ctx, conf.FeeRecipientAddrs, conf.WithdrawalAddrs, conf.Network, true)
+	if err != nil {
 		return err
 	}
 
@@ -193,13 +194,11 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	if conf.testnetConfig.IsNonZero() {
 		// Custom testnet config takes precedence (already registered in validateDKGConfig via validateNetworkConfig).
 		forkVersion = conf.testnetConfig.GenesisForkVersionHex
-	} else if conf.Network != "" {
+	} else {
 		forkVersion, err = eth2util.NetworkToForkVersion(conf.Network)
 		if err != nil {
 			return err
 		}
-	} else {
-		return errors.New("network not specified, missing --network or --testnet-fork-version")
 	}
 
 	var privKey *k1.PrivateKey
@@ -276,25 +275,6 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	return nil
 }
 
-// validateWithdrawalAddrs returns an error if any of the provided withdrawal addresses is invalid.
-func validateWithdrawalAddrs(addrs []string, network string) error {
-	for _, addr := range addrs {
-		checksumAddr, err := eth2util.ChecksumAddress(addr)
-		if err != nil {
-			return errors.Wrap(err, "invalid withdrawal address", z.Str("addr", addr))
-		} else if checksumAddr != addr {
-			return errors.New("invalid checksummed address", z.Str("addr", addr))
-		}
-
-		// We cannot allow a zero withdrawal address on mainnet or gnosis.
-		if isMainOrGnosis(network) && addr == zeroAddress {
-			return errors.New("zero address forbidden on this network", z.Str("network", network))
-		}
-	}
-
-	return nil
-}
-
 // validateDKGConfig returns an error if any of the provided config parameter is invalid.
 func validateDKGConfig(numOperators int, network string, testnet eth2util.Network, depositAmounts []int, consensusProtocol string, compounding bool) error {
 	// Don't allow cluster size to be less than 3.
@@ -319,11 +299,6 @@ func validateDKGConfig(numOperators int, network string, testnet eth2util.Networ
 	}
 
 	return nil
-}
-
-// isMainOrGnosis returns true if the network is either mainnet or gnosis.
-func isMainOrGnosis(network string) bool {
-	return network == eth2util.Mainnet.Name || network == eth2util.Gnosis.Name
 }
 
 func generateLaunchpadLink(configHash []byte, network string) string {
