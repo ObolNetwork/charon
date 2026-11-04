@@ -163,6 +163,7 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 
 	if len(l.SignatureAggregate) == 0 {
 		if isAnyVersion(l.Version, v1_0, v1_1) {
+			// Intentional: legacy locks are still loaded for running clusters, see KNOWN_ISSUES.md.
 			return nil // Earlier versions of `charon create cluster` didn't populate SignatureAggregate.
 		}
 

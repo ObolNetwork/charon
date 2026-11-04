@@ -361,7 +361,7 @@ func wrapError(ctx context.Context, err error, label string, fields ...z.Field) 
 		}
 
 		err = errors.Wrap(uerr.Err, msg,
-			z.Str("url", uerr.URL),
+			z.Str("url", log.RedactURL(uerr.URL, false)),
 			z.Str("method", uerr.Op),
 		)
 	}

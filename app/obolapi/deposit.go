@@ -68,7 +68,7 @@ func (c Client) PostPartialDeposits(ctx context.Context, lockHash []byte, shareI
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, u, data, nil)
+	err = c.httpPost(ctx, u, data, nil)
 	if err != nil {
 		return errors.Wrap(err, "http Obol API POST request")
 	}
@@ -103,7 +103,7 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	respBody, err := httpGet(ctx, u, map[string]string{})
+	respBody, err := c.httpGet(ctx, u, map[string]string{})
 	if err != nil {
 		return []eth2p0.DepositData{}, errors.Wrap(err, "http Obol API GET request")
 	}
@@ -118,6 +118,12 @@ func (c Client) GetFullDeposit(ctx context.Context, valPubkey string, lockHash [
 	withdrawalCredentialsBytes, err := hex.DecodeString(strings.TrimPrefix(dr.WithdrawalCredentials, "0x"))
 	if err != nil {
 		return []eth2p0.DepositData{}, errors.Wrap(err, "withdrawal credentials to bytes")
+	}
+
+	// SSZ hashing zero-pads short credentials, so a malformed value would otherwise verify.
+	if len(withdrawalCredentialsBytes) != 32 {
+		return []eth2p0.DepositData{}, errors.New("withdrawal credentials must be 32 bytes",
+			z.Str("withdrawal_credentials", dr.WithdrawalCredentials))
 	}
 
 	// Build a hex-encoded public-share -> 1-based share-index lookup so we can resolve the correct index.

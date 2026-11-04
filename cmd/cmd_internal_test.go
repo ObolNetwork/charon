@@ -268,6 +268,30 @@ func TestRedact(t *testing.T) {
 			expected: "https://user:xxxxx@example.com/foo/bar",
 		},
 		{
+			name:     "redact API keys in endpoint paths",
+			flag:     "beacon-node-endpoints",
+			value:    "https://eth-mainnet.example.com/v2/secret-key",
+			expected: "https://eth-mainnet.example.com/xxxxx",
+		},
+		{
+			name:     "redact query values in execution endpoints",
+			flag:     "execution-client-rpc-endpoint",
+			value:    "https://el.example.com?apikey=secret",
+			expected: "https://el.example.com?apikey=xxxxx",
+		},
+		{
+			name:     "keep local endpoints",
+			flag:     "beacon-node-endpoints",
+			value:    "http://lighthouse:5052",
+			expected: "http://lighthouse:5052",
+		},
+		{
+			name:     "redact builder URL passwords",
+			flag:     "builder-urls",
+			value:    "https://0xabc:secret@relay.example.com",
+			expected: "https://0xabc:xxxxx@relay.example.com",
+		},
+		{
 			name:     "no redact",
 			flag:     "definition-file",
 			value:    "https://obol.obol.tech/dv/0x0f481bbd06a596cb3ba569b9de0cbfcf822b209c2d6877c98173df986dd3c0ec",

@@ -224,7 +224,7 @@ func (s *Scheduler) HandleChainReorgEvent(ctx context.Context, epoch eth2p0.Epoc
 // networks then fetch attestation data at the deadline, while the gloas fork checks must remain.
 func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, blockRoot eth2p0.Root, bnAddr string) {
 	if s.fetcherFetchOnly == nil {
-		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+		log.Warn(ctx, "Early attestation data fetch skipped, fetcher fetch-only function not registered", nil, z.U64("slot", uint64(slot)), z.Str("bn_addr", log.RedactURL(bnAddr, true)))
 		return
 	}
 
@@ -267,7 +267,7 @@ func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, block
 		return
 	}
 
-	log.Debug(ctx, "Early attestation data fetch triggered by SSE head event", z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+	log.Debug(ctx, "Early attestation data fetch triggered by SSE head event", z.U64("slot", uint64(slot)), z.Str("bn_addr", log.RedactURL(bnAddr, true)))
 
 	// Fetch attestation data early without triggering consensus
 	// Use background context to prevent cancellation if SSE connection drops
@@ -275,7 +275,7 @@ func (s *Scheduler) HandleHeadEvent(ctx context.Context, slot eth2p0.Slot, block
 	go func() {
 		fetchCtx := log.CopyFields(context.Background(), ctx)
 		if err := s.fetcherFetchOnly(fetchCtx, duty, clonedDefSet, bnAddr, blockRoot); err != nil {
-			log.Warn(fetchCtx, "Early attestation data fetch failed", err, z.U64("slot", uint64(slot)), z.Str("bn_addr", bnAddr))
+			log.Warn(fetchCtx, "Early attestation data fetch failed", err, z.U64("slot", uint64(slot)), z.Str("bn_addr", log.RedactURL(bnAddr, true)))
 		}
 	}()
 }

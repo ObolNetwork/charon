@@ -51,7 +51,7 @@ func newClient(addr string, header http.Header) (*client, error) {
 
 	u, err := url.Parse(prefixedAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse beacon node address", z.Str("addr", addr))
+		return nil, errors.Wrap(err, "parse beacon node address", z.Str("addr", log.RedactURL(addr, true)))
 	}
 
 	u.Path = "/eth/v1/events"
@@ -79,7 +79,7 @@ func newClientForT(addr, path string) (*client, error) {
 
 	u, err := url.Parse(prefixedAddr)
 	if err != nil {
-		return nil, errors.Wrap(err, "parse beacon node address", z.Str("addr", addr))
+		return nil, errors.Wrap(err, "parse beacon node address", z.Str("addr", log.RedactURL(addr, true)))
 	}
 
 	u.Path = path
@@ -115,7 +115,7 @@ func (c *client) start(ctx context.Context, eventFn EventHandler) error {
 		default:
 			// If error is not stream-related error, do not attempt retries and return the error.
 			if !errors.Is(err, errStreamConn) {
-				return errors.Wrap(err, "handle SSE payload", z.Str("url", c.sseURL.String()))
+				return errors.Wrap(err, "handle SSE payload", z.Str("url", log.RedactURL(c.sseURL.String(), false)))
 			}
 
 			if !backoffSet {
@@ -135,7 +135,7 @@ func (c *client) start(ctx context.Context, eventFn EventHandler) error {
 }
 
 func (c *client) connect(ctx context.Context, eventFn EventHandler) error {
-	log.Debug(ctx, "Connecting to SSE stream", z.Str("url", c.sseURL.String()))
+	log.Debug(ctx, "Connecting to SSE stream", z.Str("url", log.RedactURL(c.sseURL.String(), false)))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.sseURL.String(), nil)
 	if err != nil {

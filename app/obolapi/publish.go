@@ -39,7 +39,7 @@ func (c Client) PublishLock(ctx context.Context, lock cluster.Lock) error {
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	err = httpPost(ctx, addr, b, nil)
+	err = c.httpPost(ctx, addr, b, nil)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (c Client) PublishDefinition(ctx context.Context, def cluster.Definition, s
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	return httpPost(ctx, addr, b, headers)
+	return c.httpPost(ctx, addr, b, headers)
 }
 
 type RequestSignTermsAndConditions struct {
@@ -99,5 +99,5 @@ func (c Client) SignTermsAndConditions(ctx context.Context, userAddr string, for
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	return httpPost(ctx, addr, r, headers)
+	return c.httpPost(ctx, addr, r, headers)
 }

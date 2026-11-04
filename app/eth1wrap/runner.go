@@ -83,7 +83,7 @@ func NewDefaultEthClientRunner(addr string) EthClientRunner {
 		func(ctx context.Context, url string) (EthClient, error) {
 			cl, err := ethclient.DialContext(ctx, url)
 			if err != nil {
-				return nil, errors.Wrap(err, "connect to eth1 client")
+				return nil, errors.Wrap(log.RedactURLError(err), "connect to eth1 client")
 			}
 
 			return cl, nil
@@ -168,7 +168,7 @@ func (cl *client) VerifySmartContractBasedSignature(contractAddress string, hash
 	result, err := erc1271.IsValidSignature(nil, hash, sig)
 	if err != nil {
 		cl.maybeReconnect()
-		return false, err
+		return false, log.RedactURLError(err)
 	}
 
 	return result == erc1271MagicValue, nil
@@ -202,7 +202,7 @@ func (cl *client) ClientVersion(ctx context.Context) (string, error) {
 	var ver string
 	if err := eth1client.Client().CallContext(ctx, &ver, "web3_clientVersion"); err != nil {
 		cl.maybeReconnect()
-		return "", errors.Wrap(err, "get execution layer client version")
+		return "", errors.Wrap(log.RedactURLError(err), "get execution layer client version")
 	}
 
 	return ver, nil

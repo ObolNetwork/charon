@@ -19,8 +19,10 @@ import (
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -1765,6 +1767,22 @@ func TestReportParSigsBuilderPreferences(t *testing.T) {
 	reportParSigs(context.Background(), duty, parsigsByMsg{"pk": {rootFrom(0x0a): syncSigs(1, 2), rootFrom(0x0b): syncSigs(3)}})
 
 	require.InDelta(t, before, inconsistentVal(), 0)
+}
+
+// TestReportParSigsSyncSubcommittees verifies that a validator's sync contributions and selection proofs
+// for different subcommittees aren't warned about as inconsistent, since their message roots differ.
+func TestReportParSigsSyncSubcommittees(t *testing.T) {
+	for _, duty := range []core.Duty{core.NewSyncContributionDuty(123), core.NewPrepareSyncContributionDuty(123)} {
+		t.Run(duty.Type.String(), func(t *testing.T) {
+			var buf zaptest.Buffer
+			log.InitConsoleForT(t, &buf)
+
+			reportParSigs(context.Background(), duty, parsigsByMsg{"pk": {rootFrom(0x0a): syncSigs(1, 2), rootFrom(0x0b): syncSigs(3)}})
+
+			require.Contains(t, buf.String(), "Inconsistent sync committee partial signed data")
+			require.NotContains(t, buf.String(), "Inconsistent partial signed data")
+		})
+	}
 }
 
 func TestBuilderAuthReporter(t *testing.T) {

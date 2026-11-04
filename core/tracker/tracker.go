@@ -1082,9 +1082,9 @@ func reportParSigs(ctx context.Context, duty core.Duty, parsigMsgs parsigsByMsg)
 			entriesJSON = json.RawMessage(fmt.Sprintf("%q", err.Error()))
 		}
 
-		// DutySyncMessage is handled earlier via reportSyncMessageCohorts. Sync contribution
-		// inconsistency is expected (per-validator, per-subcommittee) so log at debug.
-		if duty.Type == core.DutySyncContribution {
+		// DutySyncMessage is handled earlier via reportSyncMessageCohorts. Sync contribution and
+		// selection proof inconsistency is expected (per-validator, per-subcommittee) so log at debug.
+		if duty.Type == core.DutySyncContribution || duty.Type == core.DutyPrepareSyncContribution {
 			log.Debug(ctx, "Inconsistent sync committee partial signed data",
 				z.Any("pubkey", pubkey),
 				z.Any("duty", duty),
