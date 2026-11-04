@@ -295,6 +295,10 @@ func filterPubkeysByStatus(
 		}
 
 		if matchingIncomplete != nil {
+			if err := checkAdoptableRegistration(matchingIncomplete.Message, explicitTimestamp); err != nil {
+				return nil, errors.Wrap(err, "refusing to adopt in-progress registration", z.Str("pubkey", valPubKey))
+			}
+
 			// Adopt the timestamp and gas limit from the in-progress group so all operators sign the same message.
 			if explicitTimestamp != 0 && !matchingIncomplete.Message.Timestamp.Equal(time.Unix(explicitTimestamp, 0)) {
 				log.Warn(ctx, "Ignoring --timestamp flag, adopting the in-progress registration timestamp so partial signatures aggregate", nil,
@@ -325,6 +329,11 @@ func filterPubkeysByStatus(
 					z.I64("quorum_timestamp", quorumGroup.Message.Timestamp.Unix()))
 			}
 		} else {
+			if gasLimit == 0 {
+				return nil, errors.New("could not determine gas limit for validator from cluster lock, overrides file or remote API; pass --gas-limit explicitly",
+					z.Str("pubkey", valPubKey))
+			}
+
 			if quorumGroup == nil && ok {
 				// Check if there's any incomplete group (with a different fee recipient) and no quorum yet.
 				// This means another operator started a fee change that hasn't completed — block.
@@ -384,6 +393,32 @@ func validateFeeRecipient(address string) error {
 			z.Str("fee_recipient", address),
 			z.Str("checksummed", checksummed),
 		)
+	}
+
+	return nil
+}
+
+// maxAdoptedTimestampSkew is the maximum amount a timestamp adopted from an in-progress registration
+// may be ahead of the local clock without explicit operator confirmation via --timestamp.
+const maxAdoptedTimestampSkew = 5 * time.Minute
+
+// checkAdoptableRegistration returns an error if the in-progress registration message has values that
+// must not be adopted implicitly: a zero gas limit (never valid), or a timestamp too far in the future
+// (which would block later registrations) unless the operator explicitly confirmed it via --timestamp.
+func checkAdoptableRegistration(msg *eth2v1.ValidatorRegistration, explicitTimestamp int64) error {
+	if msg == nil {
+		return errors.New("in-progress registration has no message")
+	}
+
+	if msg.GasLimit == 0 {
+		return errors.New("in-progress registration has gas limit 0; coordinate with your cluster operators to start a new registration with a valid --gas-limit and --timestamp")
+	}
+
+	if msg.Timestamp.After(time.Now().Add(maxAdoptedTimestampSkew)) && explicitTimestamp != msg.Timestamp.Unix() {
+		return errors.New("in-progress registration timestamp is too far in the future; verify it with your cluster operators and pass the same timestamp explicitly via --timestamp to confirm it",
+			z.I64("in_progress_timestamp", msg.Timestamp.Unix()),
+			z.U64("in_progress_gas_limit", msg.GasLimit),
+			z.Str("max_skew", maxAdoptedTimestampSkew.String()))
 	}
 
 	return nil
