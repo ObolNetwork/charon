@@ -80,6 +80,12 @@ func loadDefinition(ctx context.Context, conf Config, eth1Cl eth1wrap.EthClientR
 		log.Warn(ctx, "Ignoring failed cluster definition signature verification due to --no-verify flag", err)
 	}
 
+	if err := def.VerifyAddresses(); err != nil && !conf.NoVerify {
+		return cluster.Definition{}, errors.Wrap(err, "verify cluster definition addresses (run with --no-verify to bypass at own risk)")
+	} else if err != nil && conf.NoVerify {
+		log.Warn(ctx, "Ignoring failed cluster definition address verification due to --no-verify flag", err)
+	}
+
 	// Ensure we have a definition hash in case of no-verify.
 	if len(def.DefinitionHash) == 0 {
 		var err error

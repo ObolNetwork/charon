@@ -433,6 +433,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 		if err := lock.VerifySignatures(eth1Cl); err != nil {
 			return errors.Wrap(err, "invalid lock file signatures")
 		}
+
+		// Appended locks inherit the contents of the existing lock, so only check fresh ones.
+		if conf.AppendConfig == nil {
+			if err := lock.VerifyContents(); err != nil {
+				return errors.Wrap(err, "invalid lock file contents")
+			}
+		}
 	}
 
 	// Write keystores, deposit data and cluster lock files after exchange of partial signatures in order
