@@ -575,8 +575,72 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// verifyDefinitionFieldLengths returns an error if any fixed size field of the definition has an invalid length.
+// Empty values are allowed since they represent absent values (e.g. unsigned operators), see checkBytesN.
+// Presence of required values is checked by VerifyHashes and VerifySignatures.
+func verifyDefinitionFieldLengths(d Definition) error {
+	if err := checkBytesN(d.ForkVersion, sszLenForkVersion, "fork_version"); err != nil {
+		return err
+	}
+
+	if err := checkBytesN(d.ConfigHash, sszLenHash, "config_hash"); err != nil {
+		return err
+	}
+
+	if err := checkBytesN(d.DefinitionHash, sszLenHash, "definition_hash"); err != nil {
+		return err
+	}
+
+	if err := checkAddressLength(d.Creator.Address, "creator_address"); err != nil {
+		return err
+	}
+
+	if err := validateSignatureLength(d.Version, d.Creator.ConfigSignature, "creator_config_signature"); err != nil {
+		return err
+	}
+
+	for i, o := range d.Operators {
+		if err := checkAddressLength(o.Address, "operator_address"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+
+		if err := validateSignatureLength(d.Version, o.ConfigSignature, "operator_config_signature"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+
+		if err := validateSignatureLength(d.Version, o.ENRSignature, "operator_enr_signature"); err != nil {
+			return errors.Wrap(err, "invalid operator", z.Int("operator_index", i))
+		}
+	}
+
+	for i, v := range d.ValidatorAddresses {
+		if err := checkAddressLength(v.FeeRecipientAddress, "fee_recipient_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+
+		if err := checkAddressLength(v.WithdrawalAddress, "withdrawal_address"); err != nil {
+			return errors.Wrap(err, "invalid validator addresses", z.Int("validator_index", i))
+		}
+	}
+
+	return nil
+}
+
+// checkAddressLength returns an error if the address is neither empty nor a 20 byte hex address.
+func checkAddressLength(addr string, field string) error {
+	if _, err := from0xHex(addr, addressLen); err != nil {
+		return errors.Wrap(err, "invalid address", z.Str("field", field))
+	}
+
+	return nil
+}
+
 // VerifyHashes returns an error if hashes populated from json object doesn't matches actual hashes.
 func (d Definition) VerifyHashes() error {
+	if err := verifyDefinitionFieldLengths(d); err != nil {
+		return err
+	}
+
 	configHash, err := hashDefinition(d, true)
 	if err != nil {
 		return errors.Wrap(err, "config hash")

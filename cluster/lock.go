@@ -118,6 +118,63 @@ func (l *Lock) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// verifyLockFieldLengths returns an error if any fixed size field included in the lock hash has an invalid length.
+// Empty values are allowed since they represent absent values (e.g. missing deposit data), see checkBytesN.
+// Presence of required values is checked by VerifyHashes and VerifySignatures.
+// The definition fields are checked by Definition.VerifyHashes.
+//
+// Note that SignatureAggregate and NodeSignatures are not included in the lock hash
+// and their lengths are checked by VerifySignatures.
+func verifyLockFieldLengths(l Lock) error {
+	if err := checkBytesN(l.LockHash, sszLenHash, "lock_hash"); err != nil {
+		return err
+	}
+
+	for i, val := range l.Validators {
+		if err := verifyDistValidatorFieldLengths(val); err != nil {
+			return errors.Wrap(err, "invalid distributed validator", z.Int("dv_index", i))
+		}
+	}
+
+	return nil
+}
+
+// verifyDistValidatorFieldLengths returns an error if any fixed size field of the distributed validator has an invalid length.
+func verifyDistValidatorFieldLengths(val DistValidator) error {
+	type fixedField struct {
+		b     []byte
+		n     int
+		field string
+	}
+
+	fields := []fixedField{
+		{val.PubKey, sszLenPubKey, "distributed_public_key"},
+		{val.BuilderRegistration.Message.FeeRecipient, addressLen, "builder_registration_fee_recipient"},
+		{val.BuilderRegistration.Message.PubKey, sszLenPubKey, "builder_registration_pubkey"},
+		{val.BuilderRegistration.Signature, sszLenBLSSig, "builder_registration_signature"},
+	}
+
+	for _, share := range val.PubShares {
+		fields = append(fields, fixedField{share, sszLenPubKey, "public_shares"})
+	}
+
+	for _, dd := range val.PartialDepositData {
+		fields = append(fields,
+			fixedField{dd.PubKey, sszLenPubKey, "deposit_data_pubkey"},
+			fixedField{dd.WithdrawalCredentials, sszLenWithdrawCreds, "deposit_data_withdrawal_credentials"},
+			fixedField{dd.Signature, sszLenBLSSig, "deposit_data_signature"},
+		)
+	}
+
+	for _, f := range fields {
+		if err := checkBytesN(f.b, f.n, f.field); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // SetLockHash returns a copy of the lock with the lock hash populated.
 func (l Lock) SetLockHash() (Lock, error) {
 	lockHash, err := hashLock(l)
@@ -134,6 +191,10 @@ func (l Lock) SetLockHash() (Lock, error) {
 func (l Lock) VerifyHashes() error {
 	if err := l.Definition.VerifyHashes(); err != nil {
 		return errors.Wrap(err, "invalid definition")
+	}
+
+	if err := verifyLockFieldLengths(l); err != nil {
+		return err
 	}
 
 	if len(l.Validators) != l.NumValidators {
@@ -168,6 +229,10 @@ func (l Lock) VerifySignatures(eth1 eth1wrap.EthClientRunner) error {
 		}
 
 		return errors.New("empty lock aggregate signature")
+	}
+
+	if len(l.SignatureAggregate) != sszLenBLSSig {
+		return errors.New("invalid lock aggregate signature length", z.Int("length", len(l.SignatureAggregate)))
 	}
 
 	sig, err := tblsconv.SignatureFromBytes(l.SignatureAggregate)
@@ -249,6 +314,10 @@ func (l Lock) verifyNodeSignatures() error {
 
 	// Verify the node signatures
 	for idx := range len(l.Operators) {
+		if len(l.NodeSignatures[idx]) != sszLenK1Sig {
+			return errors.New("invalid node signature length", z.Int("peer_index", idx), z.Int("length", len(l.NodeSignatures[idx])))
+		}
+
 		record, err := enr.Parse(l.Operators[idx].ENR)
 		if err != nil {
 			return errors.Wrap(err, "operator ENR")

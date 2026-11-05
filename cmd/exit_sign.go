@@ -20,7 +20,6 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -51,6 +50,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 		{publishAddress, false},
 		{privateKeyPath, false},
 		{lockFilePath, false},
+		{noVerify, false},
 		{executionClientRPCEndpoint, false},
 		{validatorKeysDir, false},
 		{exitEpoch, false},
@@ -112,7 +112,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return errors.Wrap(err, "load identity key", z.Str("private_key_path", config.PrivateKeyPath))
 	}
 
-	cl, err := cluster.LoadClusterLockAndVerify(ctx, config.LockFilePath, config.ExecutionEngineAddr)
+	cl, err := loadExitLock(ctx, config)
 	if err != nil {
 		return err
 	}
