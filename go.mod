@@ -6,13 +6,13 @@ toolchain go1.27.3
 
 require (
 	github.com/OffchainLabs/go-bitfield v0.0.0-20251031151322-f427d04d8506
-	github.com/attestantio/go-builder-client v0.8.0
-	github.com/attestantio/go-eth2-client v0.29.0
+	github.com/attestantio/go-builder-client v0.9.1
+	github.com/attestantio/go-eth2-client v0.30.2
 	github.com/coinbase/kryptology v1.5.6-0.20220316191335-269410e1b06b
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/drand/kyber v1.3.3
 	github.com/drand/kyber-bls12381 v0.3.5
-	github.com/ethereum/go-ethereum v1.17.8
+	github.com/ethereum/go-ethereum v1.17.10
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/golang/snappy v1.0.1-0.20260716114414-9ae09f520e93
 	github.com/google/gofuzz v1.2.0
@@ -48,7 +48,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.28.0
 	golang.org/x/crypto v0.58.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sync v0.24.0
 	golang.org/x/term v0.47.0
 	golang.org/x/text v0.43.0
