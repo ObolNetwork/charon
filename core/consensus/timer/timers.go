@@ -19,6 +19,18 @@ const (
 	incRoundIncrease = 250 * time.Millisecond
 )
 
+const (
+	// linearRoundFirst and linearRoundStep are the first round and the step of the linear timer.
+	linearRoundFirst = time.Second
+	linearRoundStep  = 200 * time.Millisecond
+	// eagerDLinearRound is the round duration of the eager double linear timer.
+	eagerDLinearRound = time.Second
+	// gloasProposerRound is the first round of the gloas proposer timers and the round duration of
+	// the eager double linear one, gloasProposerStep the step of the linear one.
+	gloasProposerRound = 1500 * time.Millisecond
+	gloasProposerStep  = 300 * time.Millisecond
+)
+
 // timerDef defines a timer: its round durations, the start of its first round and its extensions.
 type timerDef struct {
 	typ        Type
@@ -45,34 +57,35 @@ func incTimer() timerDef {
 	}
 }
 
-// linearTimer has a 1s first round, since all peers fetch their value at its start. Peers already
-// have their value in later rounds, which start shorter and grow linearly: 400ms, 600ms, etc.,
-// skipping underperforming leaders quicker. Rounds start when armed and reset when armed again.
-func linearTimer() timerDef {
+// linearTimer has a long first round, since all peers fetch their value at its start. Peers already
+// have their value in later rounds, which start at twice the step and grow by it, skipping
+// underperforming leaders quicker: with a 1s first round and 200ms steps, 1s, 400ms, 600ms, etc.
+// Rounds start as anchored and are extended as the extensions define when armed again.
+func linearTimer(first, step time.Duration, anchor anchor, extensions ...extension) timerDef {
 	return timerDef{
 		typ: TimerLinear,
 		durations: roundDurations{
-			first:  time.Second,
-			step:   200 * time.Millisecond,
-			growth: 200 * time.Millisecond,
+			first:  first,
+			step:   step,
+			growth: step,
 		},
-		anchor:     anchorLocalDutyStart{},
-		extensions: []extension{resetOnRearm{}},
+		anchor:     anchor,
+		extensions: extensions,
 	}
 }
 
-// eagerDLinearTimer rounds last 1s each, starting at the duty's offset into the slot, before values
-// are present. This aligns the round start times of all peers, which is important for the leader
-// election. Arming a round again extends it by its end, doubling it.
-func eagerDLinearTimer() timerDef {
+// eagerDLinearTimer rounds last the round duration each, starting at the duty's offset into the slot,
+// before values are present. This aligns the round start times of all peers, which is important for
+// the leader election. Arming a round again extends it as the extensions define.
+func eagerDLinearTimer(round time.Duration, extensions ...extension) timerDef {
 	return timerDef{
 		typ: TimerEagerDoubleLinear,
 		durations: roundDurations{
-			first: time.Second,
-			step:  time.Second,
+			first: round,
+			step:  round,
 		},
 		anchor:     anchorDutyStart{},
-		extensions: []extension{doubleTotalOnRearm{}},
+		extensions: extensions,
 	}
 }
 

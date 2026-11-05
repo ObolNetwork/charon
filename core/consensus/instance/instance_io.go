@@ -47,6 +47,7 @@ type IO[T any] struct {
 	VerifyCh     chan proto.Message // Async input value channel used for comparing local value to leader value during consensus.
 	ErrCh        chan error         // Async output error channel.
 	DecidedAtCh  chan time.Time     // Async output decided timestamp channel.
+	TimerType    string             // Type of the round timer in use, set before the instance runs.
 }
 
 // MarkParticipated marks the instance as participated.

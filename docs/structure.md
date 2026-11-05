@@ -64,7 +64,7 @@ charon/                # project root
 │  ├─ bcast/           # broadcast
 │  ├─ tracker/         # duty failure tracker and inclusion checker
 │  ├─ priority/        # priority protocol, cluster wide preference negotiation
-│  ├─ infosync/        # peer version/protocol info sync (uses priority protocol)
+│  ├─ infosync/        # peer version/protocol/proposer timer info sync (uses priority protocol)
 │
 ├─ p2p/                # p2p networking services
 │  ├─ p2p.go           # libp2p tcp service, provides inter node communication

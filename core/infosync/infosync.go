@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	topicVersion  = "version"
-	topicProtocol = "protocol"
+	topicVersion       = "version"
+	topicProtocol      = "protocol"
+	topicProposerTimer = "proposer_timer"
 
 	// maxResults limits the number of results to keep.
 	maxResults = 100
@@ -34,8 +35,8 @@ const (
 	minSyncContributionV2Version = "v1.11"
 )
 
-// New returns a new infosync component.
-func New(prioritiser *priority.Component, versions []version.SemVer, protocols []protocol.ID) *Component {
+// New returns a new infosync component, proposing the proposer timer, encoded as its type and inputs.
+func New(prioritiser *priority.Component, versions []version.SemVer, protocols []protocol.ID, proposerTimer string) *Component {
 	// Add a mock alpha protocol if alpha features enabled in order to test infosync in prod.
 	// TODO(corver): Remove this once we have an actual use case.
 	if featureset.Enabled(featureset.MockAlpha) {
@@ -43,27 +44,18 @@ func New(prioritiser *priority.Component, versions []version.SemVer, protocols [
 	}
 
 	c := &Component{
-		prioritiser: prioritiser,
-		versions:    versions,
-		protocols:   protocols,
+		prioritiser:   prioritiser,
+		versions:      versions,
+		protocols:     protocols,
+		proposerTimer: proposerTimer,
 	}
 
 	prioritiser.Subscribe(func(ctx context.Context, duty core.Duty, results []priority.TopicResult) error {
-		res := result{slot: duty.Slot}
+		res := newResult(duty.Slot, results)
 
 		var fields []z.Field
 		for _, result := range results {
 			fields = append(fields, z.Any(result.Topic, result.Priorities))
-
-			for _, prio := range result.PrioritiesOnly() {
-				switch result.Topic {
-				case topicVersion:
-					res.versions = append(res.versions, prio)
-				case topicProtocol:
-					res.protocols = append(res.protocols, protocol.ID(prio))
-				default:
-				}
-			}
 		}
 
 		log.Debug(ctx, "Infosync completed", fields...)
@@ -92,9 +84,10 @@ func New(prioritiser *priority.Component, versions []version.SemVer, protocols [
 }
 
 type Component struct {
-	prioritiser *priority.Component
-	versions    []version.SemVer
-	protocols   []protocol.ID
+	prioritiser   *priority.Component
+	versions      []version.SemVer
+	protocols     []protocol.ID
+	proposerTimer string // The proposer timer this peer proposes.
 
 	mu                 sync.Mutex
 	results            []result
@@ -107,17 +100,52 @@ func (c *Component) Protocols(slot uint64) []protocol.ID {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	resp := c.protocols // Start with local protocols.
+	result, ok := c.latestResult(slot)
+	if !ok {
+		return c.protocols // Start with local protocols.
+	}
+
+	return result.protocols
+}
+
+// ProposerTimer returns the proposer timer the latest cluster wide result before the slot agreed on,
+// i.e. that at least a threshold of peers proposed, or empty if none. Results apply from the slot
+// after their sync slot, since the proposer duty of the sync slot may start its round timer before
+// the agreement, which is decided within the slot unless multiple peers fail. It returns empty if no
+// such result is available, regardless of the local proposal, so a restarted peer runs the default
+// proposer timer until the cluster agrees again.
+func (c *Component) ProposerTimer(slot uint64) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if slot == 0 {
+		return ""
+	}
+
+	result, ok := c.latestResult(slot - 1)
+	if !ok {
+		return ""
+	}
+
+	return result.proposerTimer
+}
+
+// latestResult returns the latest result at or before the slot, if any. It requires the lock.
+func (c *Component) latestResult(slot uint64) (result, bool) {
+	var (
+		resp result
+		ok   bool
+	)
 
 	for _, result := range c.results {
 		if result.slot > slot {
 			break
 		}
 
-		resp = result.protocols
+		resp, ok = result, true
 	}
 
-	return resp
+	return resp, ok
 }
 
 // SyncContributionsSupported reports whether, per the latest info-sync round at
@@ -163,14 +191,15 @@ func (c *Component) addSyncContribResult(result syncContribResult) {
 	}
 }
 
-// addResult adds the result to the results if it is different from the last result.
+// addResult adds the result to the results if it is different from the last result, so results
+// are kept from the slot their values first applied.
 func (c *Component) addResult(result result) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	last := len(c.results) - 1
 	if last >= 0 && c.results[last].Equal(result) {
-		// Identical to previous, so don't add.
+		// Same values as previous, so don't add.
 		return
 	}
 
@@ -182,15 +211,47 @@ func (c *Component) addResult(result result) {
 }
 
 func (c *Component) Trigger(ctx context.Context, slot uint64) error {
-	return c.prioritiser.Prioritise(ctx, core.NewInfoSyncDuty(slot),
-		priority.TopicProposal{
+	return c.prioritiser.Prioritise(ctx, core.NewInfoSyncDuty(slot), c.proposals()...)
+}
+
+// proposals returns the topics this peer proposes: its versions, protocols and proposer timer.
+func (c *Component) proposals() []priority.TopicProposal {
+	return []priority.TopicProposal{
+		{
 			Topic:      topicVersion,
 			Priorities: versionsToStrings(c.versions),
 		},
-		priority.TopicProposal{
+		{
 			Topic:      topicProtocol,
 			Priorities: protocolsToStrings(c.protocols),
-		})
+		},
+		{
+			Topic:      topicProposerTimer,
+			Priorities: []string{c.proposerTimer},
+		},
+	}
+}
+
+// newResult returns the cluster-wide result of the slot from the topic results, ignoring unknown topics.
+func newResult(slot uint64, results []priority.TopicResult) result {
+	res := result{slot: slot}
+
+	for _, result := range results {
+		for _, prio := range result.PrioritiesOnly() {
+			switch result.Topic {
+			case topicVersion:
+				res.versions = append(res.versions, prio)
+			case topicProtocol:
+				res.protocols = append(res.protocols, protocol.ID(prio))
+			case topicProposerTimer:
+				// Peers propose a single proposer timer, so at most one reaches the threshold.
+				res.proposerTimer = prio
+			default:
+			}
+		}
+	}
+
+	return res
 }
 
 // versionsToStrings returns the versions as strings.
@@ -250,11 +311,13 @@ type result struct {
 	slot      uint64
 	versions  []string
 	protocols []protocol.ID
+	// proposerTimer is the proposer timer at least a threshold of peers proposed, or empty if none.
+	proposerTimer string
 }
 
-// Equal returns true if the results are equal.
+// Equal returns true if the results have equal values, regardless of their slots.
 func (x result) Equal(y result) bool {
-	return x.slot == y.slot &&
-		fmt.Sprint(x.versions) == fmt.Sprint(y.versions) &&
-		fmt.Sprint(x.protocols) == fmt.Sprint(y.protocols)
+	return fmt.Sprint(x.versions) == fmt.Sprint(y.versions) &&
+		fmt.Sprint(x.protocols) == fmt.Sprint(y.protocols) &&
+		x.proposerTimer == y.proposerTimer
 }
