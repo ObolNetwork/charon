@@ -85,7 +85,7 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 
 	p.allENRs = append(p.allENRs, p.newENRs...)
 
-	sigEx, err := newExchanger(pctx.ThisNode, pctx.ThisNodeIdx.PeerIdx, pctx.PeerIDs, pctx.PeerMap, []sigType{sigLock}, pctx.Config.Timeout)
+	sigEx, err := newExchanger(pctx.ThisNode, pctx.ThisNodeIdx.PeerIdx, pctx.PeerIDs, pctx.PeerMap, []sigType{sigLock}, pctx.Config.Timeout, len(pctx.Lock.Validators))
 	if err != nil {
 		return err
 	}
