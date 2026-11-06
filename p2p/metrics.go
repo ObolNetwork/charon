@@ -122,6 +122,12 @@ var (
 		Help:      "Total number of failures reading a libp2p message by protocol and sending peer. Includes messages exceeding the protocol read limit.",
 	}, []string{"protocol", "peer"})
 
+	msgHandlerPanicCounter = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "p2p",
+		Name:      "message_handler_panics_total",
+		Help:      "Total number of panics recovered while handling an inbound libp2p message by protocol and sending peer. A non-zero value indicates a handler bug or malformed peer message.",
+	}, []string{"protocol", "peer"})
+
 	inflightGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "p2p",
 		Name:      "inflight_requests",
@@ -209,6 +215,11 @@ func observeSentMessage(pID protocol.ID, msg proto.Message) {
 // incMessageReadError increments the read error counter for the protocol and sending peer.
 func incMessageReadError(pID protocol.ID, peerID peer.ID) {
 	msgReadErrorCounter.WithLabelValues(string(pID), PeerName(peerID)).Inc()
+}
+
+// incMessageHandlerPanic increments the recovered handler panic counter for the protocol and sending peer.
+func incMessageHandlerPanic(pID protocol.ID, peerID peer.ID) {
+	msgHandlerPanicCounter.WithLabelValues(string(pID), PeerName(peerID)).Inc()
 }
 
 func observePing(p peer.ID, d time.Duration) {

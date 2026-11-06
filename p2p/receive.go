@@ -70,6 +70,7 @@ func RegisterHandler(logTopic string, p2pNode host.Host, pID protocol.ID,
 		// Recover any panic in this stream handler goroutine.
 		defer func() {
 			if r := recover(); r != nil {
+				incMessageHandlerPanic(streamProtocol, s.Conn().RemotePeer())
 				log.Error(ctx, "Recovered from panic handling p2p message; stream dropped and process kept alive", nil,
 					z.Any("recover", r),
 					z.Str("stacktrace", string(debug.Stack())),
