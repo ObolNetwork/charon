@@ -277,9 +277,7 @@ func TestMEVTestTimeoutAlwaysProducesResults(t *testing.T) {
 		var buf bytes.Buffer
 
 		res, err := runTestMEV(context.Background(), &buf, testMEVConfig{
-			testConfig: testConfig{
-				Timeout: time.Nanosecond,
-			},
+			Timeout:   time.Nanosecond,
 			Endpoints: endpoints,
 		})
 		require.NoError(t, err)

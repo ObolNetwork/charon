@@ -194,6 +194,68 @@ func TestExchanger(t *testing.T) {
 	require.Len(t, actual, len(expectedSigTypes))
 }
 
+// TestExchangerRetriesTransientSendFailures ensures the DKG signature exchange survives
+// transient p2p send failures instead of aborting the whole ceremony on the first one.
+func TestExchangerRetriesTransientSendFailures(t *testing.T) {
+	ctx := context.Background()
+
+	const nodes = 3
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	var (
+		peers     []peer.ID
+		hosts     []host.Host
+		hostsInfo []peer.AddrInfo
+	)
+
+	for range nodes {
+		h := testutil.CreateHost(t, testutil.AvailableAddr(t))
+		hostsInfo = append(hostsInfo, peer.AddrInfo{ID: h.ID(), Addrs: h.Addrs()})
+		peers = append(peers, h.ID())
+		hosts = append(hosts, h)
+	}
+
+	for i := range nodes {
+		for j := range nodes {
+			if i == j {
+				continue
+			}
+
+			hosts[i].Peerstore().AddAddrs(hostsInfo[j].ID, hostsInfo[j].Addrs, peerstore.PermanentAddrTTL)
+		}
+	}
+
+	// Node 0's first send to each peer fails transiently.
+	hosts[0] = testutil.NewFlakyHost(hosts[0], nodes-1)
+
+	var exchangers []*exchanger
+
+	for i := range nodes {
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 8*time.Second)
+		require.NoError(t, err)
+
+		exchangers = append(exchangers, ex)
+	}
+
+	errChan := make(chan error, nodes)
+
+	for i := range nodes {
+		go func(node int) {
+			set := core.ParSignedDataSet{
+				pubkey: core.NewPartialSignature(testutil.RandomCoreSignature(), node+1),
+			}
+
+			_, err := exchangers[node].exchange(ctx, sigLock, set)
+			errChan <- err
+		}(i)
+	}
+
+	for range nodes {
+		require.NoError(t, <-errChan)
+	}
+}
+
 // TestExchangerPushPsigsNeverBlocks fires pushPsigs repeatedly with no exchange call draining
 // results, which must not block. A previous implementation used a shared size-1 channel that
 // deadlocked once full, especially when pushPsigs ran synchronously on the exchange goroutine.

@@ -55,7 +55,7 @@ func TestIntegration(t *testing.T) {
 		t.Fatal("BEACON_URL env var not set")
 	}
 
-	eth2Cl, err := eth2wrap.NewMultiHTTP(time.Second*2, [4]byte{}, map[string]string{}, []string{beaconURL}, []string{})
+	eth2Cl, err := eth2wrap.NewMultiHTTP(t.Context(), time.Second*2, [4]byte{}, map[string]string{}, []string{beaconURL}, []string{})
 	require.NoError(t, err)
 
 	// Builder registrations for mainnet validators
@@ -727,6 +727,13 @@ func (c *testClock) After(d time.Duration) <-chan time.Time {
 }
 
 func (c *testClock) Sleep(d time.Duration) {
+	// A non-positive duration fires immediately on a real clock and must never move time
+	// backwards. The slot ticker legitimately calls After with a non-positive duration for the
+	// current slot, which would otherwise rewind the fake clock and race with the test.
+	if d <= 0 {
+		return
+	}
+
 	for c.paused.Load() {
 		runtime.Gosched()
 	}

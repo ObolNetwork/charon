@@ -78,6 +78,11 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 	}
 
 	for _, depositData := range data.PartialDepositData {
+		if len(depositData.WithdrawalCredentials) != 32 {
+			writeErr(writer, http.StatusBadRequest, "invalid withdrawal credentials length")
+			return
+		}
+
 		signedDepositsRoot, err := deposit.GetMessageSigningRoot(eth2p0.DepositMessage{
 			PublicKey:             depositData.PublicKey,
 			WithdrawalCredentials: depositData.WithdrawalCredentials,
@@ -140,11 +145,9 @@ func (ts *testServer) HandleSubmitPartialDeposit(writer http.ResponseWriter, req
 		}
 
 		ts.partialDeposits[depositData.PublicKey.String()] = depositBlob{
-			FullDepositResponse: obolapi.FullDepositResponse{
-				PublicKey:             depositData.PublicKey.String(),
-				WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
-				Amounts:               amounts,
-			},
+			PublicKey:             depositData.PublicKey.String(),
+			WithdrawalCredentials: hex.EncodeToString(depositData.WithdrawalCredentials),
+			Amounts:               amounts,
 		}
 	}
 

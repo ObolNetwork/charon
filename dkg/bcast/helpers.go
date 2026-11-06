@@ -20,6 +20,11 @@ const (
 	protocolIDMsg    = protocolIDPrefix + "/msg"
 	receiveTimeout   = time.Minute                    // Allow for peers to be out of sync, with some sending messages much earlier and having to wait.
 	sendTimeout      = receiveTimeout + 2*time.Second // Allow for server to timeout first.
+
+	// sendRetries is the number of additional p2p send attempts. A DKG ceremony aborts on the
+	// first failed exchange, so transient failures (e.g. a stalled relay connection) are retried
+	// instead of failing the whole ceremony. Receivers deduplicate re-delivered messages.
+	sendRetries = 5
 )
 
 // hashFunc is a function that hashes a message ID and a any-wrapped protobuf message.

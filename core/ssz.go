@@ -835,7 +835,7 @@ func sizeSSZValIdxVersioned(value sszType) int {
 }
 
 // VersionedBlindedSSZValueForT exposes the value method of a type for testing purposes.
-func VersionedBlindedSSZValueForT(t *testing.T, value any, version eth2util.DataVersion, blinded bool) sszType {
+func VersionedBlindedSSZValueForT(t *testing.T, value any, version eth2util.DataVersion, blinded bool) any {
 	t.Helper()
 
 	resp, err := value.(interface {
@@ -847,7 +847,7 @@ func VersionedBlindedSSZValueForT(t *testing.T, value any, version eth2util.Data
 }
 
 // VersionedSSZValueForT exposes the value method of a type for testing purposes.
-func VersionedSSZValueForT(t *testing.T, value any, version eth2util.DataVersion) sszType {
+func VersionedSSZValueForT(t *testing.T, value any, version eth2util.DataVersion) any {
 	t.Helper()
 
 	resp, err := value.(interface {

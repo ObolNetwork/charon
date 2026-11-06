@@ -199,7 +199,7 @@ Flags:
       --p2p-udp-address strings                  Comma-separated list of listening UDP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
       --private-key-file string                  The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
       --private-key-file-lock                    Enables private key locking to prevent multiple instances using the same key.
-      --proc-directory string                    Directory to look into in order to detect other stack components running on the host.
+      --proc-directory string                    Directory to look into in order to detect other stack components running on the host. Enabling this exports the command lines of detected validator clients to the monitoring endpoint and debug logs, with the values of secret-shaped flags redacted.
       --publish-address string                   The URL of the remote API for background fee recipient fetching. (default "https://api.obol.tech/v1")
       --publish-timeout duration                 Timeout for accessing the remote API. (default 5m0s)
       --simnet-beacon-mock                       Enables an internal mock beacon node for running a simnet.

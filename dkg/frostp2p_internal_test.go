@@ -5,16 +5,102 @@ package dkg
 import (
 	"context"
 	"testing"
+	"time"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/dkg/bcast"
 	pb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/testutil"
 )
+
+// TestFrostRound1RetriesTransientSendFailures ensures the frost round-1 p2p transport
+// survives transient send failures instead of aborting the whole ceremony on the first one.
+func TestFrostRound1RetriesTransientSendFailures(t *testing.T) {
+	const (
+		nodes     = 3
+		threshold = 2
+		numVals   = 2
+		dkgCtx    = "test round 1 retries"
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var (
+		secrets []*k1.PrivateKey
+		hosts   []host.Host
+		peers   []peer.ID
+		peerMap = make(map[peer.ID]cluster.NodeIdx)
+	)
+
+	for i := range nodes {
+		secret, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		secrets = append(secrets, secret)
+
+		h := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), secret)
+		hosts = append(hosts, h)
+		peers = append(peers, h.ID())
+		peerMap[h.ID()] = cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1}
+	}
+
+	for i := range nodes {
+		for j := range nodes {
+			if i == j {
+				continue
+			}
+
+			hosts[i].Peerstore().AddAddrs(peers[j], hosts[j].Addrs(), peerstore.PermanentAddrTTL)
+		}
+	}
+
+	// Node 0's first round-1 p2p send to each peer fails transiently,
+	// leaving the reliable-broadcast phase untouched.
+	hosts[0] = testutil.NewFlakyHost(hosts[0], nodes-1, round1P2PID)
+
+	var transports []*frostP2P
+
+	for i := range nodes {
+		bcastComp := bcast.New(hosts[i], peers, secrets[i], []byte("session hash"))
+
+		tp, err := newFrostP2P(hosts[i], peerMap, bcastComp, threshold, numVals)
+		require.NoError(t, err)
+
+		transports = append(transports, tp)
+	}
+
+	errChan := make(chan error, nodes)
+
+	for i := range nodes {
+		go func(node int) {
+			validators, err := newFrostParticipants(numVals, nodes, threshold, uint32(node+1), dkgCtx)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			castR1, p2pR1, err := round1(validators)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			_, _, err = transports[node].Round1(ctx, castR1, p2pR1)
+			errChan <- err
+		}(i)
+	}
+
+	for range nodes {
+		require.NoError(t, <-errChan)
+	}
+}
 
 func TestBcastCallback(t *testing.T) {
 	const (

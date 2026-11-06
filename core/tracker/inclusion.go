@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -589,7 +590,9 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 	}
 
 	var (
-		checkedSlot    uint64
+		// MaxUint64 sentinel so the first computed slot (0 at chain start)
+		// is not skipped as already-checked.
+		checkedSlot    = uint64(math.MaxUint64)
 		attesterDuties []*eth2v1.AttesterDuty
 	)
 
@@ -598,7 +601,15 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			slot := uint64(time.Since(a.genesis)/a.slotDuration) - InclCheckLag
+			// Skip until a slot is old enough to check: the unsigned
+			// arithmetic below underflows before genesis (negative elapsed
+			// time) and during the first InclCheckLag slots.
+			sinceGenesis := time.Since(a.genesis)
+			if sinceGenesis < a.slotDuration*InclCheckLag {
+				continue
+			}
+
+			slot := uint64(sinceGenesis/a.slotDuration) - InclCheckLag
 			if checkedSlot == slot {
 				continue
 			}
@@ -656,7 +667,13 @@ func (a *InclusionChecker) Run(ctx context.Context) {
 			}
 
 			checkedSlot = slot
-			a.core.Trim(ctx, slot-InclMissedLag)
+
+			// Only trim once a slot is old enough to be declared missed:
+			// slot-InclMissedLag underflows otherwise, and Trim would then
+			// report every pending submission as not included on-chain.
+			if slot >= InclMissedLag {
+				a.core.Trim(ctx, slot-InclMissedLag)
+			}
 		}
 	}
 }

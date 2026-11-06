@@ -4,13 +4,16 @@
 package testutil
 
 import (
+	"context"
 	"crypto/ecdsa"
 	crand "crypto/rand"
 	"fmt"
 	"math"
 	"math/rand"
 	"net"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,11 +37,15 @@ import (
 	"github.com/libp2p/go-libp2p"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	quic "github.com/libp2p/go-libp2p/p2p/transport/quic" //nolint:revive // Must be imported with alias
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -144,11 +151,9 @@ func RandomDenebCoreVersionedAttestation() core.VersionedAttestation {
 	vIdx := eth2p0.ValidatorIndex(0)
 
 	return core.VersionedAttestation{
-		VersionedAttestation: eth2spec.VersionedAttestation{
-			Version:        eth2spec.DataVersionDeneb,
-			ValidatorIndex: &vIdx,
-			Deneb:          RandomPhase0Attestation(),
-		},
+		Version:        eth2spec.DataVersionDeneb,
+		ValidatorIndex: &vIdx,
+		Deneb:          RandomPhase0Attestation(),
 	}
 }
 
@@ -156,11 +161,9 @@ func RandomElectraCoreVersionedAttestation() core.VersionedAttestation {
 	vIdx := RandomVIdx()
 
 	return core.VersionedAttestation{
-		VersionedAttestation: eth2spec.VersionedAttestation{
-			Version:        eth2spec.DataVersionElectra,
-			ValidatorIndex: &vIdx,
-			Electra:        RandomElectraAttestation(),
-		},
+		Version:        eth2spec.DataVersionElectra,
+		ValidatorIndex: &vIdx,
+		Electra:        RandomElectraAttestation(),
 	}
 }
 
@@ -168,11 +171,9 @@ func RandomFuluCoreVersionedAttestation() core.VersionedAttestation {
 	vIdx := RandomVIdx()
 
 	return core.VersionedAttestation{
-		VersionedAttestation: eth2spec.VersionedAttestation{
-			Version:        eth2spec.DataVersionFulu,
-			ValidatorIndex: &vIdx,
-			Fulu:           RandomElectraAttestation(),
-		},
+		Version:        eth2spec.DataVersionFulu,
+		ValidatorIndex: &vIdx,
+		Fulu:           RandomElectraAttestation(),
 	}
 }
 
@@ -207,13 +208,11 @@ func RandomAggregateAttestation() *eth2p0.Attestation {
 
 func RandomDenebCoreVersionedAggregateAttestation() core.VersionedAggregatedAttestation {
 	return core.VersionedAggregatedAttestation{
-		VersionedAttestation: eth2spec.VersionedAttestation{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb: &eth2p0.Attestation{
-				AggregationBits: RandomBitList(64),
-				Data:            RandomAttestationDataPhase0(),
-				Signature:       RandomEth2Signature(),
-			},
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2p0.Attestation{
+			AggregationBits: RandomBitList(64),
+			Data:            RandomAttestationDataPhase0(),
+			Signature:       RandomEth2Signature(),
 		},
 	}
 }
@@ -380,90 +379,76 @@ func RandomCapellaExecutionPayload() *capella.ExecutionPayload {
 
 func RandomBellatrixCoreVersionedProposal() core.VersionedProposal {
 	return core.VersionedProposal{
-		VersionedProposal: eth2api.VersionedProposal{
-			Version:   eth2spec.DataVersionBellatrix,
-			Bellatrix: RandomBellatrixBeaconBlock(),
-		},
+		Version:   eth2spec.DataVersionBellatrix,
+		Bellatrix: RandomBellatrixBeaconBlock(),
 	}
 }
 
 func RandomCapellaCoreVersionedProposal() core.VersionedProposal {
 	return core.VersionedProposal{
-		VersionedProposal: eth2api.VersionedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: RandomCapellaBeaconBlock(),
-		},
+		Version: eth2spec.DataVersionCapella,
+		Capella: RandomCapellaBeaconBlock(),
 	}
 }
 
 func RandomBellatrixCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Version: eth2spec.DataVersionBellatrix,
-			Bellatrix: &bellatrix.SignedBeaconBlock{
-				Message:   RandomBellatrixBeaconBlock(),
-				Signature: RandomEth2Signature(),
-			},
+		Version: eth2spec.DataVersionBellatrix,
+		Bellatrix: &bellatrix.SignedBeaconBlock{
+			Message:   RandomBellatrixBeaconBlock(),
+			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
 func RandomCapellaCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Version: eth2spec.DataVersionCapella,
-			Capella: &capella.SignedBeaconBlock{
-				Message:   RandomCapellaBeaconBlock(),
-				Signature: RandomEth2Signature(),
-			},
+		Version: eth2spec.DataVersionCapella,
+		Capella: &capella.SignedBeaconBlock{
+			Message:   RandomCapellaBeaconBlock(),
+			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
 func RandomDenebCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Version: eth2spec.DataVersionDeneb,
-			Deneb: &eth2deneb.SignedBlockContents{
-				SignedBlock: &deneb.SignedBeaconBlock{
-					Message:   RandomDenebBeaconBlock(),
-					Signature: RandomEth2Signature(),
-				},
-				KZGProofs: []deneb.KZGProof{},
-				Blobs:     []deneb.Blob{},
+		Version: eth2spec.DataVersionDeneb,
+		Deneb: &eth2deneb.SignedBlockContents{
+			SignedBlock: &deneb.SignedBeaconBlock{
+				Message:   RandomDenebBeaconBlock(),
+				Signature: RandomEth2Signature(),
 			},
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
 		},
 	}
 }
 
 func RandomElectraCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Version: eth2spec.DataVersionElectra,
-			Electra: &eth2electra.SignedBlockContents{
-				SignedBlock: &electra.SignedBeaconBlock{
-					Message:   RandomElectraBeaconBlock(),
-					Signature: RandomEth2Signature(),
-				},
-				KZGProofs: []deneb.KZGProof{},
-				Blobs:     []deneb.Blob{},
+		Version: eth2spec.DataVersionElectra,
+		Electra: &eth2electra.SignedBlockContents{
+			SignedBlock: &electra.SignedBeaconBlock{
+				Message:   RandomElectraBeaconBlock(),
+				Signature: RandomEth2Signature(),
 			},
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
 		},
 	}
 }
 
 func RandomFuluCoreVersionedSignedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Version: eth2spec.DataVersionFulu,
-			Fulu: &eth2fulu.SignedBlockContents{
-				SignedBlock: &electra.SignedBeaconBlock{
-					Message:   RandomElectraBeaconBlock(),
-					Signature: RandomEth2Signature(),
-				},
-				KZGProofs: []deneb.KZGProof{},
-				Blobs:     []deneb.Blob{},
+		Version: eth2spec.DataVersionFulu,
+		Fulu: &eth2fulu.SignedBlockContents{
+			SignedBlock: &electra.SignedBeaconBlock{
+				Message:   RandomElectraBeaconBlock(),
+				Signature: RandomEth2Signature(),
 			},
+			KZGProofs: []deneb.KZGProof{},
+			Blobs:     []deneb.Blob{},
 		},
 	}
 }
@@ -673,85 +658,71 @@ func RandomCapellaBlindedBeaconBlockBody() *eth2capella.BlindedBeaconBlockBody {
 
 func RandomBellatrixVersionedBlindedProposal() core.VersionedProposal {
 	return core.VersionedProposal{
-		VersionedProposal: eth2api.VersionedProposal{
-			Version:          eth2spec.DataVersionBellatrix,
-			Blinded:          true,
-			BellatrixBlinded: RandomBellatrixBlindedBeaconBlock(),
-		},
+		Version:          eth2spec.DataVersionBellatrix,
+		Blinded:          true,
+		BellatrixBlinded: RandomBellatrixBlindedBeaconBlock(),
 	}
 }
 
 func RandomCapellaVersionedBlindedProposal() core.VersionedProposal {
 	return core.VersionedProposal{
-		VersionedProposal: eth2api.VersionedProposal{
-			Version:        eth2spec.DataVersionCapella,
-			Blinded:        true,
-			CapellaBlinded: RandomCapellaBlindedBeaconBlock(),
-		},
+		Version:        eth2spec.DataVersionCapella,
+		Blinded:        true,
+		CapellaBlinded: RandomCapellaBlindedBeaconBlock(),
 	}
 }
 
 func RandomBellatrixVersionedSignedBlindedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Blinded: true,
-			Version: eth2spec.DataVersionBellatrix,
-			BellatrixBlinded: &eth2bellatrix.SignedBlindedBeaconBlock{
-				Message:   RandomBellatrixBlindedBeaconBlock(),
-				Signature: RandomEth2Signature(),
-			},
+		Blinded: true,
+		Version: eth2spec.DataVersionBellatrix,
+		BellatrixBlinded: &eth2bellatrix.SignedBlindedBeaconBlock{
+			Message:   RandomBellatrixBlindedBeaconBlock(),
+			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
 func RandomCapellaVersionedSignedBlindedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Blinded: true,
-			Version: eth2spec.DataVersionCapella,
-			CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
-				Message:   RandomCapellaBlindedBeaconBlock(),
-				Signature: RandomEth2Signature(),
-			},
+		Blinded: true,
+		Version: eth2spec.DataVersionCapella,
+		CapellaBlinded: &eth2capella.SignedBlindedBeaconBlock{
+			Message:   RandomCapellaBlindedBeaconBlock(),
+			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
 func RandomDenebVersionedSignedBlindedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Blinded: true,
-			Version: eth2spec.DataVersionDeneb,
-			DenebBlinded: &eth2deneb.SignedBlindedBeaconBlock{
-				Message:   RandomDenebBlindedBeaconBlock(),
-				Signature: RandomEth2Signature(),
-			},
+		Blinded: true,
+		Version: eth2spec.DataVersionDeneb,
+		DenebBlinded: &eth2deneb.SignedBlindedBeaconBlock{
+			Message:   RandomDenebBlindedBeaconBlock(),
+			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
 func RandomElectraVersionedSignedBlindedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Blinded: true,
-			Version: eth2spec.DataVersionElectra,
-			ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
-				Message:   RandomElectraBlindedBeaconBlock(),
-				Signature: RandomEth2Signature(),
-			},
+		Blinded: true,
+		Version: eth2spec.DataVersionElectra,
+		ElectraBlinded: &eth2electra.SignedBlindedBeaconBlock{
+			Message:   RandomElectraBlindedBeaconBlock(),
+			Signature: RandomEth2Signature(),
 		},
 	}
 }
 
 func RandomFuluVersionedSignedBlindedProposal() core.VersionedSignedProposal {
 	return core.VersionedSignedProposal{
-		VersionedSignedProposal: eth2api.VersionedSignedProposal{
-			Blinded: true,
-			Version: eth2spec.DataVersionFulu,
-			FuluBlinded: &eth2electra.SignedBlindedBeaconBlock{
-				Message:   RandomElectraBlindedBeaconBlock(),
-				Signature: RandomEth2Signature(),
-			},
+		Blinded: true,
+		Version: eth2spec.DataVersionFulu,
+		FuluBlinded: &eth2electra.SignedBlindedBeaconBlock{
+			Message:   RandomElectraBlindedBeaconBlock(),
+			Signature: RandomEth2Signature(),
 		},
 	}
 }
@@ -918,10 +889,8 @@ func RandomCoreVersionedSignedValidatorRegistration(t *testing.T) core.Versioned
 	t.Helper()
 
 	return core.VersionedSignedValidatorRegistration{
-		VersionedSignedValidatorRegistration: eth2api.VersionedSignedValidatorRegistration{
-			Version: eth2spec.BuilderVersionV1,
-			V1:      RandomSignedValidatorRegistration(t),
-		},
+		Version: eth2spec.BuilderVersionV1,
+		V1:      RandomSignedValidatorRegistration(t),
 	}
 }
 
@@ -1563,6 +1532,56 @@ func CreateHost(t *testing.T, addr *net.TCPAddr, opts ...libp2p.Option) host.Hos
 	require.NoError(t, err)
 
 	return CreateHostWithIdentity(t, addr, pkey, opts...)
+}
+
+// NewFlakyHost wraps a host, failing the first `failures` outbound NewStream calls
+// with a transient error. If protocols are provided, only NewStream calls for those
+// protocols fail; other calls pass through. It is used to test p2p send retry behavior.
+func NewFlakyHost(h host.Host, failures int, protocols ...protocol.ID) *FlakyHost {
+	return &FlakyHost{Host: h, failures: failures, protocols: protocols}
+}
+
+// FlakyHost is a host whose first outbound NewStream calls fail with a transient error.
+type FlakyHost struct {
+	host.Host
+
+	protocols []protocol.ID
+
+	mu       sync.Mutex
+	failures int
+	calls    int
+}
+
+func (h *FlakyHost) NewStream(ctx context.Context, peerID peer.ID, pIDs ...protocol.ID) (network.Stream, error) {
+	match := len(h.protocols) == 0
+	for _, pID := range pIDs {
+		if slices.Contains(h.protocols, pID) {
+			match = true
+		}
+	}
+
+	h.mu.Lock()
+	h.calls++
+	fail := match && h.failures > 0
+
+	if fail {
+		h.failures--
+	}
+	h.mu.Unlock()
+
+	if fail {
+		return nil, errors.New("transient stream failure")
+	}
+
+	return h.Host.NewStream(ctx, peerID, pIDs...)
+}
+
+// Calls returns the number of NewStream calls made on the host.
+func (h *FlakyHost) Calls() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.calls
 }
 
 func CreateHostWithIdentity(t *testing.T, addr *net.TCPAddr, secret *k1.PrivateKey, opts ...libp2p.Option) host.Host {

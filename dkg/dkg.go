@@ -526,7 +526,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 ) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, fatalFunc func() error, err error) {
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
-	hashSig, err := ((*libp2pcrypto.Secp256k1PrivateKey)(key)).Sign(defHash)
+	hashSig, err := (*libp2pcrypto.Secp256k1PrivateKey)(key).Sign(defHash)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "sign definition hash")
 	}

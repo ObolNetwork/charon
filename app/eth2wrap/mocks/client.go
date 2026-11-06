@@ -20,6 +20,8 @@ import (
 
 	spec "github.com/attestantio/go-eth2-client/spec"
 
+	electra "github.com/attestantio/go-eth2-client/spec/electra"
+
 	time "time"
 
 	v1 "github.com/attestantio/go-eth2-client/api/v1"
@@ -762,6 +764,36 @@ func (_m *Client) NodeVersionV2(ctx context.Context, opts *api.NodeVersionV2Opts
 	}
 
 	if rf, ok := ret.Get(1).(func(context.Context, *api.NodeVersionV2Opts) error); ok {
+		r1 = rf(ctx, opts)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// PendingDeposits provides a mock function with given fields: ctx, opts
+func (_m *Client) PendingDeposits(ctx context.Context, opts *api.PendingDepositsOpts) (*api.Response[[]*electra.PendingDeposit], error) {
+	ret := _m.Called(ctx, opts)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PendingDeposits")
+	}
+
+	var r0 *api.Response[[]*electra.PendingDeposit]
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PendingDepositsOpts) (*api.Response[[]*electra.PendingDeposit], error)); ok {
+		return rf(ctx, opts)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *api.PendingDepositsOpts) *api.Response[[]*electra.PendingDeposit]); ok {
+		r0 = rf(ctx, opts)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.Response[[]*electra.PendingDeposit])
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *api.PendingDepositsOpts) error); ok {
 		r1 = rf(ctx, opts)
 	} else {
 		r1 = ret.Error(1)

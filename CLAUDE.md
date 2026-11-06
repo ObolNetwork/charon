@@ -127,7 +127,7 @@ testutil/     # Test utilities, mocks, golden files
 ## Code Style and Guidelines
 
 ### Go Version
-Requires Go 1.26 (enforced by pre-commit hooks)
+Requires Go 1.27 (enforced by pre-commit hooks)
 
 ### Core Principles (from [docs/goguidelines.md](docs/goguidelines.md))
 1. **Functions over methods**: Prefer stateless functions over stateful objects

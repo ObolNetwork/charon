@@ -163,10 +163,13 @@ func TestStartChecker(t *testing.T) {
 					return true
 				}, waitFor, tickInterval)
 			} else {
+				// Don't advance the clock further: only one vapi call was sent, so the checker
+				// observing two more epoch rollovers would swap it out and permanently flip
+				// readiness to errReadyVCNotConnected. The ticks already fired above are enough
+				// for the checker to evaluate readiness as nil, which is then stable.
 				require.Eventually(t, func() bool {
-					advanceClock(t, ctx, clock, slotDuration)
 					return readyErrFunc() == nil
-				}, waitFor, tickInterval)
+				}, 5*time.Second, tickInterval)
 			}
 		})
 	}
