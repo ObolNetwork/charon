@@ -19,6 +19,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/parsigex"
 	"github.com/obolnetwork/charon/p2p"
@@ -378,7 +379,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 				Relays:   []string{relayAddr},
 			},
 			BuilderAPI:              args.BuilderAPI,
-			BuilderURLs:             args.BuilderURLs,
+			ProposerConfigSeed:      proposerconfig.Seed{BuilderURLs: args.BuilderURLs},
 			SyntheticBlockProposals: args.SyntheticProposals,
 		}
 
