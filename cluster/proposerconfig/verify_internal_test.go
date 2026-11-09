@@ -152,6 +152,51 @@ func TestVerify(t *testing.T) {
 			errIs: ErrLockHashMismatch,
 		},
 		{
+			name: "entry gas limit",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig["0xabcd"] = Settings{GasLimit: "1"}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "proposer_config entry sets more than fee_recipient",
+		},
+		{
+			name: "entry builder",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig["0xabcd"] = Settings{Builder: &Builder{}}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "proposer_config entry sets more than fee_recipient",
+		},
+		{
+			name: "entry fee recipient",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig["0xabcd"] = Settings{FeeRecipient: addrB}
+
+				return doc
+			},
+		},
+		{
+			name: "builder entry override",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.DefaultConfig.Builder = &Builder{
+					MinBid: "0", BuilderBoostFactor: "100", MaxExecutionPayment: "0",
+					Builders: []BuilderEntry{{URL: "https://b1.example"}, {URL: "https://b2.example", MinBid: "5"}},
+				}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "builder entry sets more than url",
+		},
+		{
 			name: "unknown version",
 			doc: func() Document {
 				doc := newDoc(0)
