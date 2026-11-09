@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -171,10 +172,11 @@ func warnSignedProposerConfigOverridesFlags(ctx context.Context, doc proposercon
 	fileVals := proposerconfig.FlagValues(doc.Config.DefaultConfig)
 	flagVals := proposerconfig.FlagValues(proposerconfig.Settings{GasLimit: strconv.FormatUint(seed.GasLimit, 10), Builder: seed.Builder()})
 
-	show := func(flag, val string) string {
-		// Builder URLs may carry credentials, shown redacted as the URL flags are logged.
+	show := func(flag string, vals []string) string {
+		val := strings.Join(vals, ",")
 		if flag == "proposer-config-builder-urls" {
-			val = proposerconfig.RedactURLs(val)
+			// Builder URLs may carry credentials, shown redacted as the URL flags are logged.
+			val = proposerconfig.RedactURLs(vals)
 		}
 
 		if val == "" {
@@ -187,7 +189,7 @@ func warnSignedProposerConfigOverridesFlags(ctx context.Context, doc proposercon
 	var ignored []string
 
 	for _, flag := range seed.NonDefault {
-		if fileVals[flag] != flagVals[flag] {
+		if !slices.Equal(fileVals[flag], flagVals[flag]) {
 			ignored = append(ignored, flag+": file "+show(flag, fileVals[flag])+", flag "+show(flag, flagVals[flag]))
 		}
 	}

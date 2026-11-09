@@ -215,7 +215,7 @@ func TestLoadProposerConfigRevision0Drift(t *testing.T) {
 
 func TestLoadProposerConfigSigned(t *testing.T) {
 	f := newPCFixture(t)
-	f.conf.ProposerConfigSeed.BuilderURLs = []string{"https://user:secret@a.example.com"}
+	f.conf.ProposerConfigSeed.BuilderURLs = []string{"https://user:secret@a.example.com", "https://user:pa,ss@b.example.com"}
 	f.conf.ProposerConfigSeed.BuilderMinBid = 0 // Set to its default, equal to nothing in a signed file without builders.
 	f.conf.ProposerConfigSeed.NonDefault = []string{"proposer-config-builder-urls", "proposer-config-builder-min-bid"}
 
@@ -232,8 +232,9 @@ func TestLoadProposerConfigSigned(t *testing.T) {
 	// Only explicitly set flags are compared: the default gas limit differs from the file but is not reported.
 	logs := f.logs.String()
 	require.Equal(t, 1, strings.Count(logs, "level=warn"), logs)
-	require.Contains(t, logs, `flags="proposer-config-builder-urls: file none, flag https://user:xxxxx@a.example.com; proposer-config-builder-min-bid: file none, flag 0"`)
+	require.Contains(t, logs, `flags="proposer-config-builder-urls: file none, flag https://user:xxxxx@a.example.com,https://user:xxxxx@b.example.com; proposer-config-builder-min-bid: file none, flag 0"`)
 	require.NotContains(t, logs, "secret")
+	require.NotContains(t, logs, "pa,ss")
 	require.NotContains(t, logs, "proposer-config-gas-limit")
 	require.Contains(t, logs, editCmd)
 	require.NotContains(t, logs, "level=error")
