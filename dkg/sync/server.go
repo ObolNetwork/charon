@@ -40,34 +40,103 @@ func Protocols() []protocol.ID {
 	return []protocol.ID{protocolID}
 }
 
-// NewServer returns a new Server instance.
-func NewServer(p2pNode host.Host, allCount int, defHash []byte, version version.SemVer) *Server {
-	return &Server{
-		defHash:   defHash,
-		p2pNode:   p2pNode,
-		allCount:  allCount,
-		shutdown:  make(map[peer.ID]struct{}),
-		connected: make(map[peer.ID]struct{}),
-		steps:     make(map[peer.ID]int),
-		version:   version,
+// errNotParticipant is returned to peers connecting after the participant set was frozen.
+const errNotParticipant = "ceremony already in progress, you were not part of it"
+
+// ServerOption configures a Server.
+type ServerOption func(*Server)
+
+// WithMinConnected sets the number of connected peers AwaitMinConnected waits for, defaults to all peers.
+func WithMinConnected(n int) ServerOption {
+	return func(s *Server) {
+		s.minConnected = n
 	}
+}
+
+// NewServer returns a new Server instance.
+func NewServer(p2pNode host.Host, allCount int, defHash []byte, version version.SemVer, opts ...ServerOption) *Server {
+	s := &Server{
+		defHash:      defHash,
+		p2pNode:      p2pNode,
+		allCount:     allCount,
+		minConnected: allCount,
+		shutdown:     make(map[peer.ID]struct{}),
+		connected:    make(map[peer.ID]struct{}),
+		steps:        make(map[peer.ID]int),
+		version:      version,
+	}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s
 }
 
 // Server implements the server side of the sync protocol. It accepts connections from clients, verifies
 // definition hash signatures, and supports waiting for shutdown by all clients.
 type Server struct {
 	// Immutable state
-	p2pNode  host.Host
-	defHash  []byte
-	version  version.SemVer
-	allCount int // Excluding self
+	p2pNode      host.Host
+	defHash      []byte
+	version      version.SemVer
+	allCount     int // Excluding self
+	minConnected int // Excluding self
 
 	// Mutable state
 	mu        sync.RWMutex
 	shutdown  map[peer.ID]struct{}
 	connected map[peer.ID]struct{}
 	steps     map[peer.ID]int
-	err       error // To return error and exit anywhere in the server flow
+	frozen    map[peer.ID]struct{} // Participant set once frozen, nil before
+	err       error                // To return error and exit anywhere in the server flow
+}
+
+// AwaitMinConnected blocks until the minimum number of peers (see WithMinConnected) have
+// established a connection with this server or returns an error.
+func (s *Server) AwaitMinConnected(ctx context.Context) error {
+	timer := time.NewTicker(time.Millisecond)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			if err := s.Err(); err != nil {
+				return err
+			}
+
+			if s.isMinConnected() {
+				return nil
+			}
+		}
+	}
+}
+
+// Freeze fixes the participant set: step and shutdown checks only consider these peers from now on,
+// and any other peer is rejected with an explicit error without failing the ceremony.
+func (s *Server) Freeze(peers []peer.ID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.frozen = make(map[peer.ID]struct{}, len(peers))
+	for _, pID := range peers {
+		s.frozen[pID] = struct{}{}
+	}
+}
+
+// Connected returns the peers currently connected to this server.
+func (s *Server) Connected() []peer.ID {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	resp := make([]peer.ID, 0, len(s.connected))
+	for pID := range s.connected {
+		resp = append(resp, pID)
+	}
+
+	return resp
 }
 
 // AwaitAllConnected blocks until all peers have established a connection with this server or returns an error.
@@ -107,8 +176,8 @@ func (s *Server) Err() error {
 	return s.err
 }
 
-// AwaitAllShutdown blocks until all peers have successfully shutdown or returns an error.
-// It may only be called after AwaitAllConnected.
+// AwaitAllShutdown blocks until all peers (the frozen set if any) have successfully shutdown or returns an error.
+// It may only be called after AwaitAllConnected, or after Freeze in the minimum participant mode.
 func (s *Server) AwaitAllShutdown(ctx context.Context) error {
 	timer := time.NewTicker(time.Millisecond)
 	defer timer.Stop()
@@ -201,6 +270,28 @@ func (s *Server) updateStep(pID peer.ID, step int) error {
 	return nil
 }
 
+// isMinConnected returns if at least the minimum number of peers are connected.
+func (s *Server) isMinConnected() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return len(s.connected) >= s.minConnected
+}
+
+// isExcluded returns true if the participant set is frozen without the peer.
+func (s *Server) isExcluded(pID peer.ID) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.frozen == nil {
+		return false
+	}
+
+	_, ok := s.frozen[pID]
+
+	return !ok
+}
+
 // isAllConnected returns if all expected peers are connected.
 func (s *Server) isAllConnected() bool {
 	s.mu.RLock()
@@ -209,15 +300,60 @@ func (s *Server) isAllConnected() bool {
 	return len(s.connected) == s.allCount
 }
 
-// isAllShutdown returns if all expected peers are shutdown.
+// isAllShutdown returns if all expected peers (the frozen set if any) are shutdown.
 func (s *Server) isAllShutdown() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return len(s.shutdown) == s.allCount
+	if s.frozen == nil {
+		return len(s.shutdown) == s.allCount
+	}
+
+	for pID := range s.frozen {
+		_, ok := s.shutdown[pID]
+		if !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
-// isAllAtStep returns if all peers are reporting to be at the given or the next step.
+// NotAtStep returns the frozen peers that have not reported the given (or a later) step, nil if not frozen.
+func (s *Server) NotAtStep(step int) []peer.ID {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var resp []peer.ID
+
+	for pID := range s.frozen {
+		actual, ok := s.steps[pID]
+		if !ok || actual < step {
+			resp = append(resp, pID)
+		}
+	}
+
+	return resp
+}
+
+// NotShutdown returns the frozen peers that have not shut down, nil if not frozen.
+func (s *Server) NotShutdown() []peer.ID {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var resp []peer.ID
+
+	for pID := range s.frozen {
+		_, ok := s.shutdown[pID]
+		if !ok {
+			resp = append(resp, pID)
+		}
+	}
+
+	return resp
+}
+
+// isAllAtStep returns if all peers (the frozen set if any) are reporting to be at the given or the next step.
 // Allowing next step is required since atomic step increases are impossible in distributed systems
 // so one peer will always increment first putting it ahead of the others. At least we know all peers
 // are or were at the given step.
@@ -225,11 +361,23 @@ func (s *Server) isAllAtStep(step int) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if len(s.steps) != s.allCount {
+	steps := s.steps
+	if s.frozen != nil {
+		steps = make(map[peer.ID]int, len(s.frozen))
+
+		for pID := range s.frozen {
+			actual, ok := s.steps[pID]
+			if !ok {
+				return false, nil
+			}
+
+			steps[pID] = actual
+		}
+	} else if len(steps) != s.allCount {
 		return false, nil
 	}
 
-	for _, actual := range s.steps {
+	for _, actual := range steps {
 		if actual >= step+2 {
 			return false, errors.New("peer step is too far ahead", z.Int("peer_step", actual), z.Int("local_step", step))
 		}
@@ -281,6 +429,20 @@ func (s *Server) handleStream(ctx context.Context, stream network.Stream) error 
 		logOpts := []z.Field{z.Str("peer", p2p.PeerName(pID))}
 		if msg.GetNickname() != "" {
 			logOpts = append(logOpts, z.Str("nickname", msg.GetNickname()))
+		}
+
+		// Reject peers outside the frozen participant set without failing the ceremony.
+		if s.isExcluded(pID) {
+			resp.Error = errNotParticipant
+
+			err := writeSizedProto(stream, resp)
+			if err != nil {
+				return err
+			}
+
+			log.Info(ctx, "Rejected peer not part of the ceremony", logOpts...)
+
+			return nil
 		}
 
 		if err := s.validReq(pubkey, msg); err != nil {

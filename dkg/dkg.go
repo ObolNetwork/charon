@@ -9,7 +9,10 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +35,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
@@ -46,9 +50,24 @@ import (
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 )
 
+// proposerConfigSeedMsgID is the message ID of the proposer config content agreement before key generation.
+const proposerConfigSeedMsgID = "/charon/dkg/proposer_config_seed"
+
+// Remedies ending a proposer config mismatch error.
+const (
+	proposerConfigSeedHint    = "Align the --proposer-config-* flags across all operators and retry."
+	proposerConfigCarriedHint = "Converge the current proposer config first with charon alpha edit proposer-config, then retry."
+)
+
 // shutdownSyncTimeout bounds the final shutdown synchronization between peers. All protocol
 // steps are complete and artifacts are stored by then, so waiting longer serves no purpose.
 const shutdownSyncTimeout = 2 * time.Minute
+
+// defaultStragglerWait is how long the minimum participant mode waits for absent peers once enough are connected.
+const defaultStragglerWait = 10 * time.Second
+
+// defaultPostFreezeTimeout bounds each sync barrier after the freeze in the minimum participant mode.
+const defaultPostFreezeTimeout = time.Minute
 
 type Config struct {
 	DefFile       string
@@ -74,6 +93,9 @@ type Config struct {
 
 	Zipped   bool
 	Nickname string
+
+	// ProposerConfigSeed seeds the gas limit and builder of the proposer config signed at revision 1.
+	ProposerConfigSeed proposerconfig.Seed
 }
 
 // TestConfig defines additional test-only config for DKG.
@@ -87,6 +109,10 @@ type TestConfig struct {
 	P2PNodeCallback  func(host.Host)
 	ShutdownCallback func()
 	SyncOpts         []func(*sync.Client)
+	// StragglerWait overrides the straggler window of the minimum participant mode, 0 means 10s.
+	StragglerWait time.Duration
+	// PostFreezeTimeout overrides the bound on each sync barrier after the freeze in the minimum participant mode, 0 means 1m.
+	PostFreezeTimeout time.Duration
 }
 
 // HasTestConfig returns true if any of the test config fields are set.
@@ -108,6 +134,10 @@ type AppendConfig struct {
 	ValidatorAddresses []cluster.ValidatorAddresses
 	// DepositData is the deposit data from the existing cluster.
 	DepositData [][]eth2p0.DepositData
+	// ProposerConfigFile is the existing cluster's proposer config file, its content is carried over.
+	ProposerConfigFile string
+	// OverridesFile is the builder registration overrides file feeding genesis when ProposerConfigFile is absent.
+	OverridesFile string
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -249,6 +279,44 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.Wrap(err, "get peer IDs")
 	}
 
+	// The new validators' fee recipients go into the signed proposer config after key generation.
+	for i, addr := range newFeeRecipientAddrs {
+		_, err := eth2util.ValidateChecksumAddress(addr)
+		if err != nil {
+			return errors.Wrap(err, "invalid fee recipient address", z.Int("validator", i), z.Str("address", addr))
+		}
+	}
+
+	// The proposer config content all operators must agree on before key generation, the lock describing a
+	// mismatch and its remedy.
+	var (
+		localProposerConfig proposerconfig.Content
+		proposerConfigLock  = cluster.Lock{Definition: def}
+		proposerConfigHint  = proposerConfigSeedHint
+	)
+
+	if conf.AppendConfig != nil {
+		proposerConfigLock = *conf.AppendConfig.ClusterLock
+		proposerConfigHint = proposerConfigCarriedHint
+
+		localProposerConfig, err = loadCarriedProposerConfig(ctx, proposerConfigLock, nodeIdx, conf.AppendConfig.ProposerConfigFile, conf.AppendConfig.OverridesFile)
+		if err != nil {
+			return err
+		}
+	} else {
+		seed := conf.ProposerConfigSeed
+
+		err = seed.Validate()
+		if err != nil {
+			return err
+		}
+
+		localProposerConfig.DefaultConfig = proposerconfig.Settings{
+			GasLimit: strconv.FormatUint(seed.GasLimit, 10),
+			Builder:  seed.Builder(),
+		}
+	}
+
 	peerMap := make(map[peer.ID]cluster.NodeIdx)
 
 	for _, p := range peers {
@@ -279,7 +347,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// register bcast callbacks: node signatures and public shares
-	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
+	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster, nodeSigMsgID)
+	proposerConfigSigCaster := newNodeSigBcast(peers, nodeIdx, caster, proposerConfigSigMsgID)
+	proposerConfigAgreement := newContentAgreement(peers, nodeIdx, caster, proposerConfigSeedMsgID)
 
 	// register pedersen protocol messages
 	phaseDuration := conf.Timeout / time.Duration(6) // 10 seconds per phase for default 1 minute DKG timeout
@@ -291,7 +361,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	// Improve UX of "context cancelled" errors when sync fails.
 	ctx = errors.WithCtxErr(ctx, "p2p connection failed, please retry DKG")
 
-	nextStepSyncRaw, stopSync, fatalErr, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, cancel, conf.TestConfig, conf.Nickname)
+	nextStepSyncRaw, stopSync, fatalErr, _, err := startSyncProtocol(ctx, p2pNode, key, def.DefinitionHash, peerIDs, 0, cancel, conf.TestConfig, conf.Nickname)
 	if err != nil {
 		log.Error(ctx, "Failed to start sync protocol, please make sure you don't have any other long-running charon or dkg processes running", err)
 
@@ -317,6 +387,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
+
+	// Fail on differing proposer config seeding flags (or carried files) before generating keys.
+	agreedProposerConfig, err := proposerConfigAgreement.agree(ctx, proposerConfigLock, &localProposerConfig, proposerConfigHint)
+	if err != nil {
+		return fatalOr(errors.Wrap(err, "agree proposer config"))
+	}
 
 	var shares []share.Share
 
@@ -424,6 +500,17 @@ func Run(ctx context.Context, conf Config) (err error) {
 		lock.NodeSignatures = nil
 	}
 
+	// Sign, exchange K1 signatures over the revision 1 proposer config of the lock
+	proposerConfigContent, err := newLockProposerConfigContent(lock, agreedProposerConfig, len(proposerConfigLock.Validators), newFeeRecipientAddrs)
+	if err != nil {
+		return err
+	}
+
+	proposerConfig, err := exchangeProposerConfig(ctx, proposerConfigSigCaster, key, lock, proposerConfigContent)
+	if err != nil {
+		return err
+	}
+
 	// Node signatures was step 5, advance to step 6
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -471,6 +558,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Debug(ctx, "Saved lock file to disk")
+
+	err = proposerconfig.Write(filepath.Join(conf.DataDir, "vc-config", "proposer-config.json"), proposerConfig, lock, nodeIdx)
+	if err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Saved proposer config file to disk")
 
 	if conf.AppendConfig != nil && conf.AppendConfig.DepositData != nil {
 		// Merging existing deposit data files with the new ones (append mode).
@@ -520,25 +614,38 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // startSyncProtocol sets up a sync protocol server and clients for each peer and returns a step sync and shutdown functions
-// when all peers are connected.
+// when all peers are connected. With minConnected > 0 it proceeds once that many other peers are connected, waits a
+// straggler window, freezes the participant set and drops the absent peers. It also returns the participants (excluding self).
 func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKey, defHash []byte,
-	peerIDs []peer.ID, onFailure func(), testConfig TestConfig, nickname string,
-) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, fatalFunc func() error, err error) {
+	peerIDs []peer.ID, minConnected int, onFailure func(), testConfig TestConfig, nickname string,
+) (stepSyncFunc func(context.Context) error, shutdownFunc func(context.Context) error, fatalFunc func() error, participants []peer.ID, err error) {
+	allCount := len(peerIDs) - 1
+	if minConnected < 0 || minConnected > allCount {
+		return nil, nil, nil, nil, errors.New("invalid minimum connected peers", z.Int("min_connected", minConnected), z.Int("peers", allCount))
+	}
+
+	minMode := minConnected > 0
+
 	// Sign definition hash with charon-enr-private-key
 	// Note: libp2p signing does another hash of the defHash.
 	hashSig, err := (*libp2pcrypto.Secp256k1PrivateKey)(key).Sign(defHash)
 	if err != nil {
-		return nil, nil, nil, errors.Wrap(err, "sign definition hash")
+		return nil, nil, nil, nil, errors.Wrap(err, "sign definition hash")
 	}
 
 	// DKG compatibility is minor version dependent.
 	minorVersion := version.Version.Minor()
 
-	server := sync.NewServer(p2pNode, len(peerIDs)-1, defHash, minorVersion)
+	var serverOpts []sync.ServerOption
+	if minMode {
+		serverOpts = append(serverOpts, sync.WithMinConnected(minConnected))
+	}
+
+	server := sync.NewServer(p2pNode, allCount, defHash, minorVersion, serverOpts...)
 	server.Start(ctx)
 
 	var (
-		clients         []*sync.Client
+		clients         []*syncPeer
 		shutdownStarted atomic.Bool
 		fatal           atomic.Pointer[error]
 	)
@@ -563,15 +670,22 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		}
 
 		ctx := log.WithCtx(ctx, z.Str("peer", p2p.PeerName(pID)))
+		clientCtx, cancel := context.WithCancel(ctx)
 
-		client := sync.NewClient(p2pNode, pID, hashSig, minorVersion, nickname, testConfig.SyncOpts...)
+		client := &syncPeer{
+			id:     pID,
+			client: sync.NewClient(p2pNode, pID, hashSig, minorVersion, nickname, testConfig.SyncOpts...),
+			cancel: cancel,
+		}
 		clients = append(clients, client)
 
 		go func() {
-			err := client.Run(ctx)
-			// Only log and fail if this peer errored and shutdown hasn't started.
+			err := client.client.Run(clientCtx)
+			// Only log and fail if this peer errored, shutdown hasn't started and the peer wasn't dropped.
 			// During shutdown, connection errors are expected and should not fail the protocol.
-			if err != nil && !errors.Is(err, context.Canceled) && !shutdownStarted.Load() {
+			// In the minimum participant mode the ceremony context ending is reported by the caller instead.
+			ceremonyEnded := minMode && ctx.Err() != nil
+			if err != nil && !errors.Is(err, context.Canceled) && !shutdownStarted.Load() && !client.dropped.Load() && !ceremonyEnded {
 				log.Error(ctx, "Failed to sync with peer during DKG. Check network connectivity and peer availability", err)
 				recordFatal(errors.Wrap(err, "sync failed with peer", z.Str("peer", p2p.PeerName(pID))))
 				onFailure()
@@ -579,35 +693,61 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		}()
 	}
 
-	// Check if all clients are connected.
+	connectTarget := len(clients)
+	if minMode {
+		connectTarget = minConnected
+	}
+
+	// joinErr returns the recorded fatal failure if any, else err listing the peers missing from connected.
+	joinErr := func(err error, connected []peer.ID) error {
+		fatal := fatalFunc()
+		if fatal != nil {
+			return fatal
+		}
+
+		var missing []peer.ID
+
+		for _, client := range clients {
+			if !slices.Contains(connected, client.id) {
+				missing = append(missing, client.id)
+			}
+		}
+
+		return errors.Wrap(err, "not enough peers connected", z.Int("connected", len(connected)),
+			z.Int("required", minConnected), z.Str("missing_peers", peerNames(missing)))
+	}
+
+	// Clients disconnect as soon as the context ends, so join errors report the last snapshot.
+	var lastConnected []peer.ID
+
+	// Check if all (or the minimum number of) clients are connected.
 	for {
 		// Return if there is a context error.
 		if ctx.Err() != nil {
-			if fatal := fatalFunc(); fatal != nil {
-				return nil, nil, nil, fatal
+			if minMode {
+				return nil, nil, nil, nil, joinErr(ctx.Err(), lastConnected)
 			}
 
-			return nil, nil, nil, ctx.Err()
+			if fatal := fatalFunc(); fatal != nil {
+				return nil, nil, nil, nil, fatal
+			}
+
+			return nil, nil, nil, nil, ctx.Err()
 		}
 
 		if err := server.Err(); err != nil {
-			return nil, nil, nil, errors.Wrap(err, "sync server error")
+			return nil, nil, nil, nil, errors.Wrap(err, "sync server error")
 		}
 
-		var connectedCount int
-
-		for _, client := range clients {
-			if client.IsConnected() {
-				connectedCount++
-			}
-		}
+		lastConnected = connectedPeers(clients)
+		connectedCount := len(lastConnected)
 
 		if testConfig.SyncCallback != nil {
 			testConfig.SyncCallback(connectedCount, p2pNode.ID())
 		}
 
-		// Break if all clients are connected
-		if len(clients) == connectedCount {
+		// Break if all (or the minimum number of) clients are connected
+		if connectedCount >= connectTarget {
 			break
 		}
 
@@ -619,9 +759,44 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 	// Note: We no longer disable reconnect here. Reconnect is disabled in shutdownFunc
 	// to allow recovery from transient connection drops during the protocol.
 
-	err = server.AwaitAllConnected(ctx)
-	if err != nil {
-		return nil, nil, nil, err
+	active := clients
+
+	if minMode {
+		err = server.AwaitMinConnected(ctx)
+		if err != nil && ctx.Err() != nil {
+			return nil, nil, nil, nil, joinErr(err, server.Connected())
+		} else if err != nil {
+			return nil, nil, nil, nil, fatalOrErr(fatalFunc, err)
+		}
+
+		active, err = awaitStragglers(ctx, clients, minConnected, stragglerWait(testConfig), server)
+		if err != nil && ctx.Err() != nil {
+			return nil, nil, nil, nil, joinErr(err, syncPeerIDs(active))
+		} else if err != nil {
+			return nil, nil, nil, nil, fatalOrErr(fatalFunc, err)
+		}
+
+		frozen := syncPeerIDs(active)
+		server.Freeze(frozen)
+
+		// Drop absent peers from the steps, the shutdown and failure handling, and reject their late connections.
+		// Their clients keep running silently until the ceremony ends: when only this node can dial a late peer
+		// (e.g. relay dial direction), the connection lets the late peer reach this server and get its error.
+		for _, client := range clients {
+			if slices.Contains(frozen, client.id) {
+				continue
+			}
+
+			client.dropped.Store(true)
+			log.Info(ctx, "Proceeding without absent peer", z.Str("peer", p2p.PeerName(client.id)))
+		}
+
+		log.Info(ctx, fmt.Sprintf("Participant set frozen with %d of %d peers", len(frozen), allCount))
+	} else {
+		err = server.AwaitAllConnected(ctx)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
 	}
 
 	// Monitor the sync server for fatal errors (e.g. a peer restarting mid-ceremony)
@@ -650,18 +825,35 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		}
 	}()
 
+	// boundWait bounds a barrier after the freeze in the minimum participant mode, so diverging
+	// frozen sets fail promptly instead of waiting for the ceremony timeout.
+	boundWait := func(ctx context.Context) (context.Context, context.CancelFunc) {
+		if !minMode {
+			return ctx, func() {}
+		}
+
+		return context.WithTimeout(ctx, postFreezeTimeout(testConfig))
+	}
+
 	var step int
 
 	stepSyncFunc = func(ctx context.Context) error {
 		// Start next step ourselves by incrementing our step client side
 		step++
-		for _, client := range clients {
-			client.SetStep(step)
+		for _, client := range active {
+			client.client.SetStep(step)
 		}
 
 		log.Debug(ctx, "Waiting for peers to start next step", z.Int("step", step))
 
-		if err := server.AwaitAllAtStep(ctx, step); err != nil {
+		awaitCtx, cancel := boundWait(ctx)
+		defer cancel()
+
+		err := server.AwaitAllAtStep(awaitCtx, step)
+		if err != nil && minMode && errors.Is(err, context.DeadlineExceeded) {
+			return errors.Wrap(err, "peers did not reach sync step in time", z.Int("step", step),
+				z.Str("missing_peers", peerNames(server.NotAtStep(step))))
+		} else if err != nil {
 			return errors.Wrap(err, "sync step", z.Int("step", step))
 		}
 
@@ -669,12 +861,9 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 	}
 
 	// All peer start on step 0, so advance to step 1.
-	if err := stepSyncFunc(ctx); err != nil {
-		if fatal := fatalFunc(); fatal != nil {
-			return nil, nil, nil, fatal
-		}
-
-		return nil, nil, nil, err
+	err = stepSyncFunc(ctx)
+	if err != nil {
+		return nil, nil, nil, nil, fatalOrErr(fatalFunc, err)
 	}
 
 	// Shutdown function stops all clients and server
@@ -695,21 +884,137 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		}
 
 		// Now disable reconnect - we're about to shut down intentionally.
-		for _, client := range clients {
-			client.DisableReconnect()
+		for _, client := range active {
+			client.client.DisableReconnect()
 		}
 
-		for _, client := range clients {
-			err := client.Shutdown(ctx)
+		ctx, cancelBound := boundWait(ctx)
+		defer cancelBound()
+
+		for _, client := range active {
+			err := client.client.Shutdown(ctx)
+			client.cancel()
+
 			if err != nil {
 				return err
 			}
 		}
 
-		return server.AwaitAllShutdown(ctx)
+		err := server.AwaitAllShutdown(ctx)
+		if err != nil && minMode && errors.Is(err, context.DeadlineExceeded) {
+			return errors.Wrap(err, "peers did not shut down in time", z.Str("missing_peers", peerNames(server.NotShutdown())))
+		}
+
+		return err
 	}
 
-	return stepSyncFunc, shutdownFunc, fatalFunc, nil
+	return stepSyncFunc, shutdownFunc, fatalFunc, syncPeerIDs(active), nil
+}
+
+// syncPeer is a sync client to a peer, running under its own cancellable context.
+type syncPeer struct {
+	id      peer.ID
+	client  *sync.Client
+	cancel  context.CancelFunc
+	dropped atomic.Bool // Set when the peer is excluded from the frozen participant set, its errors are then ignored.
+}
+
+// syncPeerIDs returns the peer IDs of the clients.
+func syncPeerIDs(clients []*syncPeer) []peer.ID {
+	var resp []peer.ID
+	for _, client := range clients {
+		resp = append(resp, client.id)
+	}
+
+	return resp
+}
+
+// connectedPeers returns the peers of the connected clients.
+func connectedPeers(clients []*syncPeer) []peer.ID {
+	var resp []peer.ID
+
+	for _, client := range clients {
+		if client.client.IsConnected() {
+			resp = append(resp, client.id)
+		}
+	}
+
+	return resp
+}
+
+// awaitStragglers waits up to the straggler window for the remaining peers, returning early once all are
+// connected, and returns the connected clients once at least minConnected are connected after the window.
+// On context errors it returns the last connected clients observed.
+func awaitStragglers(ctx context.Context, clients []*syncPeer, minConnected int, wait time.Duration, server *sync.Server) ([]*syncPeer, error) {
+	deadline := time.Now().Add(wait)
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		err := server.Err()
+		if err != nil {
+			return nil, errors.Wrap(err, "sync server error")
+		}
+
+		var connected []*syncPeer
+
+		for _, client := range clients {
+			if client.client.IsConnected() {
+				connected = append(connected, client)
+			}
+		}
+
+		if len(connected) == len(clients) || (len(connected) >= minConnected && !time.Now().Before(deadline)) {
+			return connected, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return connected, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+// postFreezeTimeout returns the bound on each sync barrier after the freeze in the minimum participant mode.
+func postFreezeTimeout(testConfig TestConfig) time.Duration {
+	if testConfig.PostFreezeTimeout == 0 {
+		return defaultPostFreezeTimeout
+	}
+
+	return testConfig.PostFreezeTimeout
+}
+
+// stragglerWait returns the straggler window of the minimum participant mode.
+func stragglerWait(testConfig TestConfig) time.Duration {
+	if testConfig.StragglerWait == 0 {
+		return defaultStragglerWait
+	}
+
+	return testConfig.StragglerWait
+}
+
+// peerNames returns the sorted, comma-separated names of the peers.
+func peerNames(peers []peer.ID) string {
+	var names []string
+	for _, pID := range peers {
+		names = append(names, p2p.PeerName(pID))
+	}
+
+	slices.Sort(names)
+
+	return strings.Join(names, ", ")
+}
+
+// fatalOrErr returns the recorded fatal sync failure if any, else err.
+func fatalOrErr(fatalFunc func() error, err error) error {
+	fatal := fatalFunc()
+	if fatal != nil {
+		return fatal
+	}
+
+	return err
 }
 
 // signAndAggLockHash returns cluster lock file with aggregated signature after signing, exchange and aggregation of partial signatures.
@@ -1426,7 +1731,10 @@ func setupP2P(ctx context.Context, key *k1.PrivateKey, conf Config, peers []p2p.
 	// Register peerinfo server handler for identification to relays (but do not run peerinfo client).
 	gitHash, _ := version.GitCommit()
 
-	_ = peerinfo.New(p2pNode, peerIDs, version.Version, defHash, gitHash, nil, false, "", nil)
+	// Ceremony hosts have no proposer config to report: an empty hash means nothing to compare.
+	noProposerConfigHash := func() []byte { return nil }
+
+	_ = peerinfo.New(p2pNode, peerIDs, version.Version, defHash, gitHash, nil, false, "", noProposerConfigHash)
 
 	return p2pNode, func() {
 		_ = p2pNode.Close()

@@ -44,6 +44,8 @@ func newAddOperatorsCmd(runFunc func(context.Context, dkg.AddOperatorsConfig, dk
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty.")
 	cmd.Flags().StringSliceVar(&config.NewENRs, "new-operator-enrs", nil, "Comma-separated list of the new operators to be added (Charon ENR addresses).")
+	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the current proposer config file, its content is carried over into the new cluster's signed one.")
+	cmd.Flags().StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
@@ -70,6 +72,7 @@ func runAddOperators(ctx context.Context, config dkg.AddOperatorsConfig, dkgConf
 	log.Info(ctx, "Successfully completed add-operators ceremony 🎉")
 	log.Info(ctx, "IMPORTANT:")
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+config.OutputDir)
+	logProposerConfigOutput(ctx, config.OutputDir)
 
 	return nil
 }

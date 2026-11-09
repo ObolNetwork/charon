@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package dkg.dkgpb.v1;
+
+option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
+
+// MsgProposerConfigEdit is one node's message of a proposer config edit round. A request only sets round.
+message MsgProposerConfigEdit {
+  uint32 round = 1;
+  bytes current = 2;
+  bytes proposal = 3;
+  bytes signature = 4;
+  repeated string participants = 5;
+}

@@ -23,13 +23,12 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
-const nodeSigMsgID = "/charon/dkg/node_sig"
+const (
+	nodeSigMsgID           = "/charon/dkg/node_sig"
+	proposerConfigSigMsgID = "/charon/dkg/proposer_config_sig"
+)
 
 var noneData = []byte{0xde, 0xad, 0xbe, 0xef}
-
-func nodeSigMsgIDs() []string {
-	return []string{nodeSigMsgID}
-}
 
 // nodeSigBcast handles broadcasting of K1 signatures over the lock hash via the bcast protocol.
 type nodeSigBcast struct {
@@ -39,6 +38,7 @@ type nodeSigBcast struct {
 	bcastFunc bcast.BroadcastFunc
 	peers     []p2p.Peer
 	nodeIdx   cluster.NodeIdx
+	msgID     string
 
 	lockHashCh   chan []byte
 	lockHashData []byte
@@ -46,23 +46,23 @@ type nodeSigBcast struct {
 }
 
 // newNodeSigBcast returns a new instance of nodeSigBcast.
-// It registers bcast handlers on bcastComp.
+// It registers bcast handlers for msgID on bcastComp.
 func newNodeSigBcast(
 	peers []p2p.Peer,
 	nodeIdx cluster.NodeIdx,
 	bcastComp *bcast.Component,
+	msgID string,
 ) *nodeSigBcast {
 	ret := &nodeSigBcast{
 		sigs:       make([][]byte, len(peers)),
 		bcastFunc:  bcastComp.Broadcast,
 		peers:      peers,
 		nodeIdx:    nodeIdx,
+		msgID:      msgID,
 		lockHashCh: make(chan []byte),
 	}
 
-	for _, k1Sig := range nodeSigMsgIDs() {
-		bcastComp.RegisterMessageIDFuncs(k1Sig, ret.broadcastCallback, ret.checkMessage)
-	}
+	bcastComp.RegisterMessageIDFuncs(msgID, ret.broadcastCallback, ret.checkMessage)
 
 	return ret
 }
@@ -218,7 +218,7 @@ func (n *nodeSigBcast) exchange(
 		PeerIndex: uint32(n.nodeIdx.PeerIdx),
 	}
 
-	if err := n.bcastFunc(ctx, nodeSigMsgID, bcastData); err != nil {
+	if err := n.bcastFunc(ctx, n.msgID, bcastData); err != nil {
 		return nil, errors.Wrap(err, "k1 lock hash signature broadcast")
 	}
 

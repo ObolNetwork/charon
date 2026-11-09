@@ -16,7 +16,7 @@ import (
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
-	"github.com/obolnetwork/charon/core"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -51,6 +51,7 @@ func newRunCmd(runFunc func(context.Context, app.Config) error, unsafe bool) *co
 
 	bindPrivKeyFlag(cmd, &conf.PrivKeyFile, &conf.PrivKeyLocking)
 	bindRunFlags(cmd, &conf)
+	bindProposerConfigSeedFlags(cmd, &conf.ProposerConfigSeed, proposerConfigSeedUsage)
 	bindDebugMonitoringFlags(cmd, &conf.MonitoringAddr, &conf.DebugAddr, "127.0.0.1:3620")
 	bindNoVerifyFlag(cmd.Flags(), &conf.NoVerify)
 	bindP2PFlags(cmd, &conf.P2P)
@@ -112,11 +113,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech/v1", "The URL of the remote API for background fee recipient fetching.")
 	cmd.Flags().DurationVar(&config.PublishTimeout, "publish-timeout", 5*time.Minute, "Timeout for accessing the remote API.")
 	cmd.Flags().BoolVar(&config.FetchFeerecipientUpdates, "fetch-feerecipient-updates", false, "Fetches updated fee recipients from a remote API.")
-	cmd.Flags().StringSliceVar(&config.BuilderURLs, "builder-urls", nil, "Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. Must be identical on all nodes in the cluster.")
-	cmd.Flags().Uint64Var(&config.BuilderMinBid, "builder-min-bid", 0, "Minimum builder bid value in gwei, bids below it lose to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
-	cmd.Flags().Uint64Var(&config.BuilderBoostFactor, "builder-boost-factor", 100, "Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
-	cmd.Flags().Uint64Var(&config.BuilderMaxExecutionPayment, "builder-max-execution-payment", 0, "Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.")
-	cmd.Flags().Uint64Var(&config.ProposerGasLimit, "proposer-gas-limit", 200_000_000, "Preferred target gas limit for proposed execution payloads, seeding the generated validator client proposer config. Applies from the gloas fork onwards. Must be identical on all nodes in the cluster.")
+	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the validator client proposer config file. Written from the cluster lock and the proposer-config seeding flags if absent, verified on start otherwise.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {
@@ -158,31 +155,6 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 			return errors.New("file vc-tls-key-file does not exist", z.Str("file", config.VCTLSKeyFile))
 		}
 
-		for _, u := range config.BuilderURLs {
-			parsed, err := url.Parse(u)
-			if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" {
-				return errors.New("builder-urls entry is not a valid http(s) URL", z.Str("url", u))
-			}
-
-			// A builder's URL is agreed with the proposals of its bids, which can't carry a longer one.
-			if len(u) > core.MaxBuilderURLSize {
-				return errors.New("builder-urls entry is longer than the maximum", z.Int("max", core.MaxBuilderURLSize))
-			}
-		}
-
-		if config.ProposerGasLimit == 0 {
-			return errors.New("proposer-gas-limit must be greater than 0")
-		}
-
-		if config.BuilderBoostFactor == 0 {
-			return errors.New("builder-boost-factor must be greater than 0")
-		}
-
-		if len(config.BuilderURLs) == 0 &&
-			(config.BuilderMinBid != 0 || cc.Flags().Changed("builder-boost-factor") || config.BuilderMaxExecutionPayment != 0) {
-			return errors.New("builder-min-bid, builder-boost-factor and builder-max-execution-payment require builder-urls")
-		}
-
 		if config.FetchFeerecipientUpdates && config.PublishAddress == "" {
 			return errors.New("--fetch-feerecipient-updates requires --publish-address to be set")
 		}
@@ -200,6 +172,43 @@ func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string, privkeyLockEnabled
 	cmd.Flags().BoolVar(privkeyLockEnabled, "private-key-file-lock", false, "Enables private key locking to prevent multiple instances using the same key.")
 }
 
+const (
+	// proposerConfigSeedUsage ends the seeding flags' usage on charon run, which writes an unsigned file.
+	proposerConfigSeedUsage = "Seeds a new proposer config file only, disregarded once the cluster signed one with charon alpha edit proposer-config. Must be identical on all nodes in the cluster."
+	// proposerConfigSignedUsage ends the seeding flags' usage on the commands signing the initial file.
+	proposerConfigSignedUsage = "Signed into the cluster's initial proposer config, must be identical on all operators. Change it later with charon alpha edit proposer-config."
+)
+
+// proposerConfigSeedFlags are the flags bound by bindProposerConfigSeedFlags.
+var proposerConfigSeedFlags = []string{
+	"proposer-config-gas-limit",
+	"proposer-config-builder-urls",
+	"proposer-config-builder-min-bid",
+	"proposer-config-builder-boost-factor",
+	"proposer-config-builder-max-execution-payment",
+}
+
+// bindProposerConfigSeedFlags binds the flags seeding the initial proposer config; note ends each usage.
+func bindProposerConfigSeedFlags(cmd *cobra.Command, seed *proposerconfig.Seed, note string) {
+	cmd.Flags().Uint64Var(&seed.GasLimit, "proposer-config-gas-limit", proposerconfig.DefaultGasLimit, "Preferred target gas limit for proposed execution payloads from the gloas fork onwards. "+note)
+	cmd.Flags().StringSliceVar(&seed.BuilderURLs, "proposer-config-builder-urls", nil, "Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. "+note)
+	cmd.Flags().Uint64Var(&seed.BuilderMinBid, "proposer-config-builder-min-bid", 0, "Minimum builder bid value in gwei, bids below it lose to the locally built payload. Requires proposer-config-builder-urls. "+note)
+	cmd.Flags().Uint64Var(&seed.BuilderBoostFactor, "proposer-config-builder-boost-factor", proposerconfig.DefaultBuilderBoostFactor, "Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Requires proposer-config-builder-urls. "+note)
+	cmd.Flags().Uint64Var(&seed.BuilderMaxExecutionPayment, "proposer-config-builder-max-execution-payment", 0, "Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Requires proposer-config-builder-urls. "+note)
+
+	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
+		seed.NonDefault = nil
+
+		for _, name := range proposerConfigSeedFlags {
+			if cc.Flags().Changed(name) {
+				seed.NonDefault = append(seed.NonDefault, name)
+			}
+		}
+
+		return seed.Validate()
+	})
+}
+
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 	flags.StringVar(&config.Format, "log-format", "console", "Log format; console, logfmt or json")
 	flags.StringVar(&config.Level, "log-level", "info", "Log level; debug, info, warn or error")
@@ -208,11 +217,7 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 }
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config, defaultRelays ...string) {
-	if len(defaultRelays) == 0 {
-		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", []string{"https://0.relay.obol.tech", "https://1.relay.obol.tech", "https://2.relay.obol.dev"}, "Comma-separated list of libp2p relay URLs or multiaddrs.")
-	} else {
-		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", defaultRelays, "Comma-separated list of libp2p relay URLs or multiaddrs.")
-	}
+	bindP2PRelaysFlag(cmd, config, defaultRelays...)
 
 	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
@@ -225,6 +230,19 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config, defaultRelays ...strin
 			return errors.Wrap(err, "invalid hostname", z.Str("hostname", config.ExternalHost))
 		}
 
+		return nil
+	})
+}
+
+// bindP2PRelaysFlag binds only the relays flag, for relay-only commands, the defaults if none given.
+func bindP2PRelaysFlag(cmd *cobra.Command, config *p2p.Config, defaultRelays ...string) {
+	if len(defaultRelays) == 0 {
+		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", []string{"https://0.relay.obol.tech", "https://1.relay.obol.tech", "https://2.relay.obol.dev"}, "Comma-separated list of libp2p relay URLs or multiaddrs.")
+	} else {
+		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", defaultRelays, "Comma-separated list of libp2p relay URLs or multiaddrs.")
+	}
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 		for _, relay := range config.Relays {
 			u, err := url.Parse(relay)
 			if err != nil {

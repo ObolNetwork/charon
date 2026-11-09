@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/obolnetwork/charon/app"
@@ -32,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg"
 	dkgsync "github.com/obolnetwork/charon/dkg/sync"
 	"github.com/obolnetwork/charon/eth2util"
@@ -58,6 +61,9 @@ const (
 	v1_1  = "v1.1.0"
 	v1_0  = "v1.0.0"
 )
+
+// testSeed is the default proposer config seed of charon dkg.
+var testSeed = proposerconfig.Seed{GasLimit: proposerconfig.DefaultGasLimit, BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor}
 
 func isAnyVersion(version string, list ...string) bool {
 	return slices.Contains(list, version)
@@ -149,6 +155,8 @@ func TestDKG(t *testing.T) {
 
 			if !test.keymanager {
 				verifyDKGResults(t, lock.Definition, dir)
+			} else {
+				verifyProposerConfigs(t, dir, len(lock.Operators))
 			}
 		})
 	}
@@ -188,8 +196,35 @@ func TestAppendDKG(t *testing.T) {
 
 	dstDir := t.TempDir()
 
+	// The existing cluster's signed proposer config carries a builder, a gas limit and a diverging fee recipient.
+	const divergingFee = "0x00000000000000000000000000000000000000aa"
+
+	builder := &proposerconfig.Builder{
+		MinBid:              "1",
+		BuilderBoostFactor:  "90",
+		MaxExecutionPayment: "2",
+		Builders:            []proposerconfig.BuilderEntry{{URL: "https://builder.example.com"}},
+	}
+
+	lockFees := lock.FeeRecipientAddresses()
+	content, err := proposerconfig.NewContent(lock, []string{divergingFee, lockFees[1]}, 60_000_000, builder)
+	require.NoError(t, err)
+
+	pcDoc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Revision: 2, Content: content}
+	for i, key := range keys {
+		sig, err := proposerconfig.Sign(pcDoc, key)
+		require.NoError(t, err)
+
+		pcDoc.Signatures = append(pcDoc.Signatures, proposerconfig.Signature{Operator: i, Signature: sig})
+	}
+
+	require.NoError(t, proposerconfig.Verify(pcDoc, lock))
+
 	appendConfigs := make([]dkg.AppendConfig, nodes)
 	for i := range nodes {
+		pcFile := path.Join(t.TempDir(), "proposer-config.json")
+		require.NoError(t, proposerconfig.Write(pcFile, pcDoc, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1}))
+
 		secretShares := make([]tbls.PrivateKey, vals)
 		for j := range vals {
 			secretShares[j] = pkShares[j][i]
@@ -217,9 +252,11 @@ func TestAppendDKG(t *testing.T) {
 					WithdrawalAddress:   "0x0000000000000000000000000000000000000002",
 				},
 			},
-			ClusterLock:  &lockCopy,
-			SecretShares: secretShares,
-			DepositData:  depositData,
+			ClusterLock:        &lockCopy,
+			SecretShares:       secretShares,
+			DepositData:        depositData,
+			ProposerConfigFile: pcFile,
+			OverridesFile:      path.Join(t.TempDir(), "absent.json"),
 		}
 	}
 
@@ -258,6 +295,21 @@ func TestAppendDKG(t *testing.T) {
 		require.Len(t, dd[0], totalVals)
 		require.Len(t, dd[1], totalVals)
 	}
+
+	// The new lock's proposer config carries the existing content and adds the new validators' fee recipients.
+	newFee := "0x0000000000000000000000000000000000000001"
+
+	for _, doc := range verifyProposerConfigs(t, dstDir, nodes) {
+		require.Equal(t, "60000000", doc.Content.DefaultConfig.GasLimit)
+		require.Equal(t, builder, doc.Content.DefaultConfig.Builder)
+
+		var newLock cluster.Lock
+
+		lockFile, err := os.ReadFile(path.Join(dstDir, "node0", "cluster-lock.json"))
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(lockFile, &newLock))
+		require.Equal(t, []string{divergingFee, strings.ToLower(lockFees[1]), newFee, newFee, newFee}, doc.Content.FeeRecipients(newLock))
+	}
 }
 
 func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.PrivateKey, keymanager bool, publish bool, addConfig []dkg.AppendConfig) {
@@ -287,9 +339,10 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 			},
 			SyncOpts: []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
 		},
-		ShutdownDelay:  1 * time.Second,
-		PublishTimeout: 30 * time.Second,
-		Timeout:        8 * time.Second,
+		ShutdownDelay:      1 * time.Second,
+		PublishTimeout:     30 * time.Second,
+		Timeout:            8 * time.Second,
+		ProposerConfigSeed: testSeed,
 	}
 
 	allReceivedKeystores := make(chan struct{}) // Receives struct{} for each `numNodes` keystore intercepted by the keymanager server
@@ -424,6 +477,12 @@ func verifyDKGResults(t *testing.T, def cluster.Definition, dir string) {
 		locks = append(locks, lock)
 
 		verifyDistValidators(t, lock, def)
+	}
+
+	docs := verifyProposerConfigs(t, dir, len(def.Operators))
+	for i, doc := range docs {
+		require.Equal(t, strconv.FormatUint(proposerconfig.DefaultGasLimit, 10), doc.Content.DefaultConfig.GasLimit)
+		require.Equal(t, lowerAll(def.FeeRecipientAddresses()), doc.Content.FeeRecipients(locks[i]))
 	}
 
 	// Ensure locks hashes are identical.
@@ -770,7 +829,8 @@ func getConfigs(t *testing.T, def cluster.Definition, keys []*k1.PrivateKey, dir
 				},
 				P2PNodeCallback: p2pNodeCallback,
 			},
-			Timeout: 10 * time.Second,
+			Timeout:            10 * time.Second,
+			ProposerConfigSeed: testSeed,
 		}
 		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
 
@@ -863,4 +923,249 @@ func clone[T any](t *testing.T, v T) T {
 	require.NoError(t, err)
 
 	return clone
+}
+
+// verifyProposerConfigs asserts each node wrote a revision 1 proposer config signed by all operators of its
+// lock, identical across nodes, and returns the documents in node order.
+func verifyProposerConfigs(t *testing.T, dir string, nodes int) []proposerconfig.Document {
+	t.Helper()
+
+	var docs []proposerconfig.Document
+
+	for i := range nodes {
+		dataDir := path.Join(dir, fmt.Sprintf("node%d", i))
+
+		lockFile, err := os.ReadFile(path.Join(dataDir, "cluster-lock.json"))
+		require.NoError(t, err)
+
+		var lock cluster.Lock
+		require.NoError(t, json.Unmarshal(lockFile, &lock))
+
+		doc, err := proposerconfig.Load(path.Join(dataDir, "vc-config", "proposer-config.json"), lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		require.NoError(t, err)
+		require.NoError(t, proposerconfig.Verify(doc, lock))
+		require.EqualValues(t, 1, doc.Revision)
+		require.Len(t, doc.Signatures, nodes)
+
+		for j, sig := range doc.Signatures {
+			require.Equal(t, j, sig.Operator)
+		}
+
+		docs = append(docs, doc)
+	}
+
+	for _, doc := range docs[1:] {
+		h0, err := docs[0].Hash()
+		require.NoError(t, err)
+		h, err := doc.Hash()
+		require.NoError(t, err)
+		require.Equal(t, h0, h)
+	}
+
+	return docs
+}
+
+func lowerAll(addrs []string) []string {
+	res := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		res = append(res, strings.ToLower(a))
+	}
+
+	return res
+}
+
+// runMismatchedNodes runs dkg.Run on all nodes of lock, letting mutate change each node's config, and returns
+// each node's error. Every node must fail before key generation.
+func runMismatchedNodes(t *testing.T, lock cluster.Lock, keys []*k1.PrivateKey, mutate func(i int, conf *dkg.Config)) []error {
+	t.Helper()
+
+	nodes := len(lock.Operators)
+	dir := t.TempDir()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	relayAddr := relay.StartRelay(ctx, t)
+
+	errs := make([]error, nodes)
+
+	var eg errgroup.Group
+
+	for i := range nodes {
+		def := clone(t, lock.Definition)
+		conf := dkg.Config{
+			DataDir: path.Join(dir, fmt.Sprintf("node%d", i)),
+			P2P: p2p.Config{
+				Relays:   []string{relayAddr},
+				TCPAddrs: []string{testutil.AvailableAddr(t).String()},
+			},
+			Log: log.DefaultConfig(),
+			TestConfig: dkg.TestConfig{
+				Def: &def,
+				StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
+					return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+				},
+				SyncOpts: []func(*dkgsync.Client){dkgsync.WithPeriod(time.Millisecond * 50)},
+			},
+			ShutdownDelay:      time.Second,
+			Timeout:            8 * time.Second,
+			ProposerConfigSeed: testSeed,
+		}
+		mutate(i, &conf)
+
+		require.NoError(t, os.MkdirAll(conf.DataDir, 0o755))
+		require.NoError(t, k1util.Save(keys[i], p2p.KeyPath(conf.DataDir)))
+
+		eg.Go(func() error {
+			errs[i] = dkg.Run(peerCtx(ctx, i), conf)
+			return nil
+		})
+	}
+
+	require.NoError(t, eg.Wait())
+
+	for i, err := range errs {
+		testutil.SkipIfBindErr(t, err)
+
+		// Fails before key generation: nothing written.
+		_, statErr := os.Stat(path.Join(dir, fmt.Sprintf("node%d", i), "validator_keys"))
+		require.ErrorIs(t, statErr, os.ErrNotExist)
+	}
+
+	return errs
+}
+
+func TestDKGSeedMismatch(t *testing.T) {
+	random := rand.New(rand.NewSource(1))
+	lock, keys, _ := cluster.NewForT(t, 2, 3, 3, 1, random)
+
+	errs := runMismatchedNodes(t, lock, keys, func(i int, conf *dkg.Config) {
+		if i == 2 {
+			conf.ProposerConfigSeed.GasLimit = 60_000_000
+		}
+	})
+
+	for i, err := range errs {
+		require.ErrorContains(t, err, "default.gas_limit: 200000000 -> 60000000", "node %d", i)
+		require.ErrorContains(t, err, "--proposer-config-*", "node %d", i)
+	}
+}
+
+func TestAppendDKGMismatch(t *testing.T) {
+	random := rand.New(rand.NewSource(1))
+	lock, keys, pkShares := cluster.NewForT(t, 2, 3, 3, 1, random)
+
+	errs := runMismatchedNodes(t, lock, keys, func(i int, conf *dkg.Config) {
+		gasLimit := proposerconfig.DefaultGasLimit
+		if i == 2 {
+			gasLimit = 60_000_000
+		}
+
+		content, err := proposerconfig.NewContent(lock, lock.FeeRecipientAddresses(), gasLimit, nil)
+		require.NoError(t, err)
+
+		// Unsigned revision 0 files may differ between nodes.
+		pcFile := path.Join(t.TempDir(), "proposer-config.json")
+		doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Content: content}
+		require.NoError(t, proposerconfig.Write(pcFile, doc, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1}))
+
+		lockCopy := clone(t, lock)
+		conf.AppendConfig = &dkg.AppendConfig{
+			ClusterLock:        &lockCopy,
+			SecretShares:       []tbls.PrivateKey{pkShares[0][i], pkShares[1][i]},
+			AddValidators:      1,
+			ValidatorAddresses: []cluster.ValidatorAddresses{{FeeRecipientAddress: lock.FeeRecipientAddresses()[0], WithdrawalAddress: lock.WithdrawalAddresses()[0]}},
+			ProposerConfigFile: pcFile,
+		}
+	})
+
+	for i, err := range errs {
+		require.ErrorContains(t, err, "default.gas_limit: 200000000 -> 60000000", "node %d", i)
+		require.ErrorContains(t, err, "charon alpha edit proposer-config", "node %d", i)
+	}
+}
+
+func TestDKGInvalidInputs(t *testing.T) {
+	const badChecksum = "0x5AAeb6053F3E94C9b9A09f33669435E7Ef1BeAed" // EIP-55 is 0x5aAeb6...
+
+	tests := []struct {
+		name    string
+		mutate  func(*dkg.Config)
+		errMsg  string
+		address string
+	}{
+		{
+			name: "bad fee recipient checksum",
+			mutate: func(conf *dkg.Config) {
+				conf.TestConfig.Def.ValidatorAddresses[1].FeeRecipientAddress = badChecksum
+			},
+			errMsg:  "invalid fee recipient address",
+			address: badChecksum,
+		},
+		{
+			name: "zero gas limit seed",
+			mutate: func(conf *dkg.Config) {
+				conf.ProposerConfigSeed.GasLimit = 0
+			},
+			errMsg: "proposer-config-gas-limit must be greater than 0",
+		},
+		{
+			name: "builder value without urls",
+			mutate: func(conf *dkg.Config) {
+				conf.ProposerConfigSeed.BuilderBoostFactor = 90
+			},
+			errMsg: "require proposer-config-builder-urls",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			random := rand.New(rand.NewSource(1))
+			lock, keys, _ := cluster.NewForT(t, 2, 3, 3, 1, random)
+			dir := t.TempDir()
+			def := clone(t, lock.Definition)
+
+			conf := dkg.Config{
+				DataDir: dir,
+				P2P:     p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}},
+				Log:     log.DefaultConfig(),
+				TestConfig: dkg.TestConfig{
+					Def: &def,
+					StoreKeysFunc: func(secrets []tbls.PrivateKey, dir string) error {
+						return keystore.StoreKeysInsecure(secrets, dir, keystore.ConfirmInsecureKeys)
+					},
+				},
+				Timeout:            8 * time.Second,
+				ProposerConfigSeed: testSeed,
+			}
+			test.mutate(&conf)
+			require.NoError(t, k1util.Save(keys[0], p2p.KeyPath(dir)))
+
+			// A single node: it must fail before waiting for peers, which would time out.
+			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+
+			err := dkg.Run(ctx, conf)
+			testutil.SkipIfBindErr(t, err)
+			require.ErrorContains(t, err, test.errMsg)
+
+			if test.address != "" {
+				require.Contains(t, fieldStrings(err), test.address)
+			}
+
+			_, statErr := os.Stat(path.Join(dir, "validator_keys"))
+			require.ErrorIs(t, statErr, os.ErrNotExist)
+		})
+	}
+}
+
+// fieldStrings returns the string values of the structured error's fields.
+func fieldStrings(err error) []string {
+	var res []string
+
+	for _, field := range z.Fields(err) {
+		field(func(f zap.Field) { res = append(res, f.String) })
+	}
+
+	return res
 }

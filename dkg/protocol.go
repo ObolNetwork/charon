@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -73,6 +74,17 @@ type ProtocolContext struct {
 	SigExchanger  *exchanger
 	Caster        *bcast.Component
 	NodeSigCaster *nodeSigBcast
+
+	// The proposer config carried into the new lock, set up in PostInit by initProposerConfig.
+	ProposerConfig          *contentAgreement
+	ProposerConfigSigCaster *nodeSigBcast
+
+	// proposerConfigLocal is this node's current content, nil when it adopts the others' content.
+	proposerConfigLocal *proposerconfig.Content
+	// proposerConfigContent is the content agreed by all remaining operators.
+	proposerConfigContent proposerconfig.Content
+	// proposerConfigDoc is the revision 1 document signed by all operators of the new lock.
+	proposerConfigDoc proposerconfig.Document
 }
 
 // RunProtocol runs the given DKG protocol with the provided configuration.
@@ -163,7 +175,7 @@ func RunProtocol(ctx context.Context, protocol Protocol, lockFilePath, privateKe
 
 	log.Info(ctx, "Waiting to connect to all peers...")
 
-	nextStepSync, stopSync, fatalErr, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, cancel, TestConfig{}, config.Nickname)
+	nextStepSync, stopSync, fatalErr, _, err := startSyncProtocol(ctx, thisNode, enrPrivateKey, lock.DefinitionHash, protocolCtx.PeerIDs, 0, cancel, TestConfig{}, config.Nickname)
 	if err != nil {
 		return err
 	}

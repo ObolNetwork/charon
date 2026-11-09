@@ -45,6 +45,8 @@ func newRemoveOperatorsCmd(runFunc func(context.Context, dkg.RemoveOperatorsConf
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty. Optional for removed operators.")
 	cmd.Flags().StringSliceVar(&config.RemovingENRs, "operator-enrs-to-remove", nil, "Comma-separated list of operators to be removed (Charon ENR addresses).")
 	cmd.Flags().IntVar(&config.NewThreshold, "new-threshold", 0, "Optional override of the new threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security. All operators must use the same value.")
+	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the current proposer config file, its content is carried over into the new cluster's signed one.")
+	cmd.Flags().StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 	cmd.Flags().StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony. Required if --operator-enrs-to-remove specifies more operators to remove than the fault tolerance of the current cluster.")
 
@@ -72,6 +74,7 @@ func runRemoveOperators(ctx context.Context, config dkg.RemoveOperatorsConfig, d
 	log.Info(ctx, "Successfully completed remove-operators ceremony 🎉")
 	log.Info(ctx, "IMPORTANT:")
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+config.OutputDir)
+	logProposerConfigOutput(ctx, config.OutputDir)
 
 	return nil
 }

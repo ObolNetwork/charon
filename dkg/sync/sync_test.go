@@ -114,6 +114,143 @@ func TestSyncRestartRejected(t *testing.T) {
 	require.ErrorContains(t, serverB.Err(), "restart the ceremony together")
 }
 
+// TestServerExactCountUnchanged verifies that without WithMinConnected the server
+// still requires every peer, including via AwaitMinConnected.
+func TestServerExactCountUnchanged(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	hash := testutil.RandomBytes32()
+
+	server, _ := newTCPNode(t, 0)
+	nodeA, keyA := newTCPNode(t, 1)
+	nodeB, keyB := newTCPNode(t, 2)
+
+	s := sync.NewServer(server, 2, hash, version.Version)
+	s.Start(ctx)
+
+	startClient(ctx, t, nodeA, keyA, server, hash)
+
+	awaitCtx, awaitCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer awaitCancel()
+
+	require.ErrorIs(t, s.AwaitMinConnected(awaitCtx), context.DeadlineExceeded)
+
+	startClient(ctx, t, nodeB, keyB, server, hash)
+
+	require.NoError(t, s.AwaitMinConnected(ctx))
+	require.NoError(t, s.AwaitAllConnected(ctx))
+	require.ElementsMatch(t, []peer.ID{nodeA.ID(), nodeB.ID()}, s.Connected())
+}
+
+// TestServerMinConnectedFreeze verifies the minimum participant mode: three of four nodes
+// proceed once frozen, and a late fourth node is rejected without failing the ceremony.
+func TestServerMinConnectedFreeze(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	const (
+		n       = 4
+		present = 3
+	)
+
+	hash := testutil.RandomBytes32()
+
+	var (
+		nodes   []host.Host
+		keys    []libp2pcrypto.PrivKey
+		servers []*sync.Server
+		clients []*sync.Client
+	)
+
+	for i := range n {
+		node, key := newTCPNode(t, int64(i))
+		nodes = append(nodes, node)
+		keys = append(keys, key)
+	}
+
+	for i := range present {
+		server := sync.NewServer(nodes[i], n-1, hash, version.Version, sync.WithMinConnected(present-1))
+		server.Start(log.WithTopic(ctx, fmt.Sprintf("server%d", i)))
+		servers = append(servers, server)
+	}
+
+	for i := range present {
+		for j := range present {
+			if i == j {
+				continue
+			}
+
+			clients = append(clients, startClient(ctx, t, nodes[i], keys[i], nodes[j], hash))
+		}
+	}
+
+	for i, server := range servers {
+		require.NoError(t, server.AwaitMinConnected(ctx))
+
+		var others []peer.ID
+
+		for j := range present {
+			if i != j {
+				others = append(others, nodes[j].ID())
+			}
+		}
+
+		require.ElementsMatch(t, others, server.Connected())
+		require.Empty(t, server.NotAtStep(1))
+
+		server.Freeze(others)
+		require.ElementsMatch(t, others, server.NotAtStep(1))
+	}
+
+	for i := range 3 {
+		assertAllAtStep(ctx, t, servers, i)
+
+		for _, client := range clients {
+			client.SetStep(i + 1)
+		}
+	}
+
+	// A late fourth node is told explicitly that the ceremony started without it.
+	hashSig, err := keys[3].Sign(hash)
+	require.NoError(t, err)
+
+	require.NoError(t, nodes[3].Connect(ctx, peer.AddrInfo{ID: nodes[0].ID(), Addrs: nodes[0].Addrs()}))
+
+	late := sync.NewClient(nodes[3], nodes[0].ID(), hashSig, version.Version, "late", sync.WithPeriod(50*time.Millisecond))
+	err = late.Run(ctx)
+	require.ErrorContains(t, err, "ceremony already in progress, you were not part of it")
+	require.NoError(t, servers[0].Err())
+
+	for _, client := range clients {
+		require.NoError(t, client.Shutdown(ctx))
+	}
+
+	for _, server := range servers {
+		require.NoError(t, server.AwaitAllShutdown(ctx))
+		require.NoError(t, server.Err())
+		require.Empty(t, server.NotShutdown())
+	}
+}
+
+// startClient connects node to server and runs a sync client against it in the background.
+func startClient(ctx context.Context, t *testing.T, node host.Host, key libp2pcrypto.PrivKey, server host.Host, hash []byte) *sync.Client {
+	t.Helper()
+
+	require.NoError(t, node.Connect(ctx, peer.AddrInfo{ID: server.ID(), Addrs: server.Addrs()}))
+
+	hashSig, err := key.Sign(hash)
+	require.NoError(t, err)
+
+	client := sync.NewClient(node, server.ID(), hashSig, version.Version, "", sync.WithPeriod(50*time.Millisecond))
+
+	go func() {
+		_ = client.Run(ctx)
+	}()
+
+	return client
+}
+
 func semver(t *testing.T, v string) version.SemVer {
 	t.Helper()
 

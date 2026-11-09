@@ -26,6 +26,10 @@ type RemoveOperatorsConfig struct {
 	RemovingENRs      []string
 	ParticipatingENRs []string
 	NewThreshold      int
+	// ProposerConfigFile is the current proposer config file, its content is carried over into the new lock.
+	ProposerConfigFile string
+	// OverridesFile is the builder registration overrides file feeding genesis when ProposerConfigFile is absent.
+	OverridesFile string
 }
 
 // RunRemoveOperatorsProtocol runs the remove-operators DKG protocol.
@@ -39,25 +43,29 @@ func RunRemoveOperatorsProtocol(ctx context.Context, config RemoveOperatorsConfi
 }
 
 type removeOperatorsProtocol struct {
-	outputDir     string
-	oldENRs       []string
-	operators     []string
-	participating []string
-	newThreshold  int
-	oldNode       bool
-	config        *pedersen.Config
-	board         *pedersen.Board
+	outputDir          string
+	proposerConfigFile string
+	overridesFile      string
+	oldENRs            []string
+	operators          []string
+	participating      []string
+	newThreshold       int
+	oldNode            bool
+	config             *pedersen.Config
+	board              *pedersen.Board
 }
 
 var _ Protocol = (*removeOperatorsProtocol)(nil)
 
 func newRemoveOperatorsProtocol(config RemoveOperatorsConfig) *removeOperatorsProtocol {
 	return &removeOperatorsProtocol{
-		outputDir:     config.OutputDir,
-		oldENRs:       config.RemovingENRs,
-		newThreshold:  config.NewThreshold,
-		participating: config.ParticipatingENRs,
-		oldNode:       false,
+		outputDir:          config.OutputDir,
+		proposerConfigFile: config.ProposerConfigFile,
+		overridesFile:      config.OverridesFile,
+		oldENRs:            config.RemovingENRs,
+		newThreshold:       config.NewThreshold,
+		participating:      config.ParticipatingENRs,
+		oldNode:            false,
 	}
 }
 
@@ -153,7 +161,22 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 	// Bind broadcasts to the lock hash since it changes with every cluster mutation,
 	// preventing replay of messages from previous ceremonies of the same cluster.
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
-	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
+	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, nodeSigMsgID)
+
+	// Checked before the proposer config agreement, which needs a remaining operator's content.
+	remaining := slices.ContainsFunc(pctx.Peers, func(peer p2p.Peer) bool {
+		return slices.Contains(newPeerIDs, peer.ID)
+	})
+	if !remaining {
+		return errors.New("remove operation would remove all nodes from original cluster, at least one original node must remain")
+	}
+
+	// Registered with the participating peer indexes, before ThisNodeIdx is renumbered below.
+	// Removed nodes adopt, their proposer config must not block their removal.
+	err = initProposerConfig(ctx, pctx, p.proposerConfigFile, p.overridesFile, p.oldNode)
+	if err != nil {
+		return err
+	}
 
 	if !p.oldNode {
 		// SigExchanger is only created for nodes remaining in the cluster, because old nodes do not participate in signing.
@@ -184,6 +207,7 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 func (p *removeOperatorsProtocol) Steps(*ProtocolContext) []ProtocolStep {
 	if p.oldNode {
 		return []ProtocolStep{
+			&agreeProposerConfigProtocolStep{},
 			&reshareProtocolStep{config: p.config, board: p.board},
 			&noopProtocolStep{},
 			&ignoreNodeSignaturesProtocolStep{},
@@ -192,6 +216,7 @@ func (p *removeOperatorsProtocol) Steps(*ProtocolContext) []ProtocolStep {
 	}
 
 	return []ProtocolStep{
+		&agreeProposerConfigProtocolStep{},
 		&reshareProtocolStep{config: p.config, board: p.board},
 		&updateLockProtocolStep{threshold: p.newThreshold, operators: p.operators},
 		&updateNodeSignaturesProtocolStep{},

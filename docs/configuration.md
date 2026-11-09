@@ -136,6 +136,66 @@ The following is the historical change log of the cluster config:
 
 This version of Charon (logic) supports the following cluster config versions (files): `v1.0.0`, `v1.1.0`, `v1.2.0`.
 
+## Proposer Config
+
+From the gloas fork onwards charon and the validator client take their fee recipients, gas limit and builder
+settings from `vc-config/proposer-config.json` (default `.charon/vc-config/proposer-config.json`, `--proposer-config-file`).
+The file is a revisioned document, signed by the cluster operators:
+
+- **Revision 0** is unsigned. With no file, `charon run` writes revision 0 from the cluster lock, the builder registration
+  overrides file (`--overrides-file`) for the fee recipients, falling back to the lock's,
+  and the `--proposer-config-*` seeding flags for the gas limit and builders. At revision 0 the file wins: seeding flags that differ
+  from it only produce a warning naming `charon alpha edit proposer-config`. After the gloas fork charon also warns that an unsigned file is in use.
+- **Revision 1 and higher** carry the signatures of at least the cluster threshold of operators over the revision hash,
+  made with their charon ENR keys and verified on start against the operator ENRs in the lock. Once the file is signed the seeding flags
+  are disregarded, with a warning if flags you set explicitly differ from it.
+
+On start, a file whose `lock_hash` belongs to another cluster stops charon. A file with invalid revision or signatures is logged as an error,
+raises `app_proposer_config_invalid` to 1 and is still used (the validator client reads it regardless), and is never rewritten. A file that cannot be loaded
+at all, or holds values charon cannot parse (e.g. a non-numeric gas limit), is left untouched, logged as an error with `app_proposer_config_invalid` at 1,
+and charon uses the content derived from the lock and flags in memory meanwhile; delete it to have charon regenerate revision 0 on the next start.
+This includes a file with `"version": 1` written by a v2.0.0 release candidate. Charon reloads the file at runtime when it is replaced,
+for example by an edit ceremony; the validator client must be restarted to pick the new file up.
+
+The first signed revision is created together with the cluster, by `charon dkg` and `charon create cluster`, and by the
+lock-changing `charon alpha edit` commands (add/remove/replace operators, add validators, recreate private keys), which carry the
+current content over into a file signed for the new lock, written to `<output-dir>/vc-config/proposer-config.json`. It replaces the current
+`vc-config/proposer-config.json`: switch to the whole output directory, including its `vc-config/`, since charon refuses to start with a
+file signed for the previous lock.
+
+### Changing the proposer config
+
+All participating operators run the same command and agree on the result in one ceremony:
+
+```sh
+charon alpha edit proposer-config \
+  --fee-recipient=0x123... --gas-limit=60000000 \
+  --builder-urls=https://a.example,https://b.example --builder-boost-factor=110
+```
+
+At least one change flag is required, the flags combine into one revision:
+
+- `--fee-recipient`, optionally limited to `--fee-recipient-validators` (DV public keys). The validator-scoped form excludes every other change flag.
+- `--gas-limit`, cluster-wide, greater than zero.
+- `--builder-urls` (replaces the list, order is the preference order, no duplicates), `--builder-min-bid`, `--builder-boost-factor`,
+  `--builder-max-execution-payment`; the last three need an existing builder block or `--builder-urls`. `--no-builders` removes the builder block.
+
+`--min-operators` is the number of operators, this one included, the ceremony proceeds with. It defaults to all operators and must be
+at least the cluster threshold. An operator that missed a ceremony shows up as `app_peerinfo_proposer_config_mismatch` on its peers and catches up by joining the next edit ceremony, where it adopts the newer signed revision from its peers.
+`--timeout` (default 24h) is how long to wait for the other operators to join, `--p2p-relays` defaults to `https://4.relay.obol.dev`.
+Use relays that do not serve your running charon node. The ceremony connects via relays only, it neither listens nor advertises addresses.
+Run inside charon's container, the command inherits charon run's environment, including the `CHARON_P2P_RELAYS` your node uses,
+so pass `--p2p-relays` explicitly:
+
+```sh
+docker compose exec charon charon alpha edit proposer-config --p2p-relays=https://4.relay.obol.dev --gas-limit=60000000
+```
+
+The ceremony prints the differences against the current revision, and on success writes revision N+1 and archives the previous
+file as `proposer-config-revision-<N>.json` next to it. Restart the validator client afterwards to apply the new file, e.g.
+`docker compose restart <vc service>`. Before the gloas fork charon's own builder registrations are unaffected, and a fee recipient
+change also needs `charon feerecipient sign` and `fetch`.
+
 ## Flag Precedence
 
 Charon uses [viper](https://github.com/spf13/viper) for configuration combined with [cobra](https://github.com/spf13/cobra)
@@ -157,70 +217,71 @@ Usage:
   charon run [flags]
 
 Flags:
-      --beacon-node-endpoints strings            Comma separated list of one or more beacon node endpoint URLs.
-      --beacon-node-headers strings              Comma separated list of headers formatted as header=value
-      --beacon-node-submit-timeout duration      Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes. (default 2s)
-      --beacon-node-timeout duration             Timeout for the HTTP requests Charon makes to the configured beacon nodes. (default 2s)
-      --builder-api                              Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
-      --builder-boost-factor uint                Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster. (default 100)
-      --builder-max-execution-payment uint       Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.
-      --builder-min-bid uint                     Minimum builder bid value in gwei, bids below it lose to the locally built payload. Applies from the gloas fork onwards. Requires builder-urls. Must be identical on all nodes in the cluster.
-      --builder-urls strings                     Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. Must be identical on all nodes in the cluster.
-      --consensus-protocol string                Preferred consensus protocol name for the node. Selected automatically when not specified.
-      --debug-address string                     Listening address (ip and port) for the pprof and QBFT debug API. It is not enabled by default.
-      --execution-client-rpc-endpoint string     The address of the execution engine JSON-RPC API.
-      --fallback-beacon-node-endpoints strings   A list of beacon nodes to use if the primary list are offline or unhealthy.
-      --feature-set string                       Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
-      --feature-set-disable strings              Comma-separated list of features to disable, overriding the default minimum feature set.
-      --feature-set-enable strings               Comma-separated list of features to enable, overriding the default minimum feature set.
-      --fetch-feerecipient-updates               Fetches updated fee recipients from a remote API.
-      --graffiti strings                         Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends "OB<CL_TYPE>" suffix to graffiti. Maximum 28 bytes per graffiti.
-      --graffiti-disable-client-append           Disables appending "OB<CL_TYPE>" suffix to graffiti. Increases maximum bytes per graffiti to 32.
-  -h, --help                                     Help for run
-      --jaeger-address string                    [DISABLED] Listening address for jaeger tracing.
-      --jaeger-service string                    [DISABLED] Service name used for jaeger tracing.
-      --lock-file string                         The path to the cluster lock file defining the distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-lock.json")
-      --log-color string                         Log color; auto, force, disable. (default "auto")
-      --log-format string                        Log format; console, logfmt or json (default "console")
-      --log-level string                         Log level; debug, info, warn or error (default "info")
-      --log-output-path string                   Path in which to write on-disk logs.
-      --loki-addresses strings                   Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.
-      --loki-service string                      Service label sent with logs to Loki. (default "charon")
-      --manifest-file string                     [DEPRECATED] The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-manifest.pb")
-      --monitoring-address string                Listening address (ip and port) for the monitoring API (prometheus). (default "127.0.0.1:3620")
-      --nickname string                          Human friendly peer nickname. Maximum 32 characters.
-      --no-verify                                Disables cluster definition and lock file verification.
-      --otlp-address string                      Listening address for OTLP gRPC tracing backend.
-      --otlp-headers strings                     Comma separated list of headers formatted as header=value, to include in OTLP requests.
-      --otlp-insecure                            Use insecure connection (no TLS) when connecting to OTLP endpoint.
-      --otlp-service-name string                 Service name used for OTLP gRPC tracing. (default "charon")
-      --overrides-file string                    Path to the builder registrations overrides file. (default ".charon/builder_registrations_overrides.json")
-      --p2p-disable-reuseport                    Disables TCP port reuse for outgoing libp2p connections.
-      --p2p-external-hostname string             The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
-      --p2p-external-ip string                   The IP address advertised by libp2p. This may be used to advertise an external IP.
-      --p2p-relays strings                       Comma-separated list of libp2p relay URLs or multiaddrs. (default [https://0.relay.obol.tech,https://1.relay.obol.tech,https://2.relay.obol.dev])
-      --p2p-tcp-address strings                  Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
-      --p2p-udp-address strings                  Comma-separated list of listening UDP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
-      --private-key-file string                  The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
-      --private-key-file-lock                    Enables private key locking to prevent multiple instances using the same key.
-      --proc-directory string                    Directory to look into in order to detect other stack components running on the host. Enabling this exports the command lines of detected validator clients to the monitoring endpoint and debug logs, with the values of secret-shaped flags redacted.
-      --proposer-gas-limit uint                  Preferred target gas limit for proposed execution payloads, seeding the generated validator client proposer config. Applies from the gloas fork onwards. Must be identical on all nodes in the cluster. (default 200000000)
-      --publish-address string                   The URL of the remote API for background fee recipient fetching. (default "https://api.obol.tech/v1")
-      --publish-timeout duration                 Timeout for accessing the remote API. (default 5m0s)
-      --simnet-beacon-mock                       Enables an internal mock beacon node for running a simnet.
-      --simnet-beacon-mock-fuzz                  Configures simnet beaconmock to return fuzzed responses.
-      --simnet-slot-duration duration            Configures slot duration in simnet beacon mock. (default 1s)
-      --simnet-validator-keys-dir string         The directory containing the simnet validator key shares. (default ".charon/validator_keys")
-      --simnet-validator-mock                    Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
-      --synthetic-block-proposals                Enables additional synthetic block proposal duties. Used for testing of rare duties.
-      --testnet-capella-hard-fork string         Capella hard fork version of the custom test network.
-      --testnet-chain-id uint                    Chain ID of the custom test network.
-      --testnet-fork-version string              Genesis fork version in hex of the custom test network.
-      --testnet-genesis-timestamp int            Genesis timestamp of the custom test network.
-      --testnet-name string                      Name of the custom test network.
-      --validator-api-address string             Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
-      --vc-tls-cert-file string                  The path to the TLS certificate file used by charon for the validator client API endpoint.
-      --vc-tls-key-file string                   The path to the TLS private key file associated with the provided TLS certificate.
+      --beacon-node-endpoints strings                        Comma separated list of one or more beacon node endpoint URLs.
+      --beacon-node-headers strings                          Comma separated list of headers formatted as header=value
+      --beacon-node-submit-timeout duration                  Timeout for the submission-related HTTP requests Charon makes to the configured beacon nodes. (default 2s)
+      --beacon-node-timeout duration                         Timeout for the HTTP requests Charon makes to the configured beacon nodes. (default 2s)
+      --builder-api                                          Enables the builder api. Will only produce builder blocks. Builder API must also be enabled on the validator client. Beacon node must be connected to a builder-relay to access the builder network.
+      --consensus-protocol string                            Preferred consensus protocol name for the node. Selected automatically when not specified.
+      --debug-address string                                 Listening address (ip and port) for the pprof and QBFT debug API. It is not enabled by default.
+      --execution-client-rpc-endpoint string                 The address of the execution engine JSON-RPC API.
+      --fallback-beacon-node-endpoints strings               A list of beacon nodes to use if the primary list are offline or unhealthy.
+      --feature-set string                                   Minimum feature set to enable by default: alpha, beta, or stable. Warning: modify at own risk. (default "stable")
+      --feature-set-disable strings                          Comma-separated list of features to disable, overriding the default minimum feature set.
+      --feature-set-enable strings                           Comma-separated list of features to enable, overriding the default minimum feature set.
+      --fetch-feerecipient-updates                           Fetches updated fee recipients from a remote API.
+      --graffiti strings                                     Comma-separated list or single graffiti string to include in block proposals. List maps to validator's public key in cluster lock. Appends "OB<CL_TYPE>" suffix to graffiti. Maximum 28 bytes per graffiti.
+      --graffiti-disable-client-append                       Disables appending "OB<CL_TYPE>" suffix to graffiti. Increases maximum bytes per graffiti to 32.
+  -h, --help                                                 Help for run
+      --jaeger-address string                                [DISABLED] Listening address for jaeger tracing.
+      --jaeger-service string                                [DISABLED] Service name used for jaeger tracing.
+      --lock-file string                                     The path to the cluster lock file defining the distributed validator cluster. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-lock.json")
+      --log-color string                                     Log color; auto, force, disable. (default "auto")
+      --log-format string                                    Log format; console, logfmt or json (default "console")
+      --log-level string                                     Log level; debug, info, warn or error (default "info")
+      --log-output-path string                               Path in which to write on-disk logs.
+      --loki-addresses strings                               Enables sending of logfmt structured logs to these Loki log aggregation server addresses. This is in addition to normal stderr logs.
+      --loki-service string                                  Service label sent with logs to Loki. (default "charon")
+      --manifest-file string                                 [DEPRECATED] The path to the cluster manifest file. If both cluster manifest and cluster lock files are provided, the cluster manifest file takes precedence. (default ".charon/cluster-manifest.pb")
+      --monitoring-address string                            Listening address (ip and port) for the monitoring API (prometheus). (default "127.0.0.1:3620")
+      --nickname string                                      Human friendly peer nickname. Maximum 32 characters.
+      --no-verify                                            Disables cluster definition and lock file verification.
+      --otlp-address string                                  Listening address for OTLP gRPC tracing backend.
+      --otlp-headers strings                                 Comma separated list of headers formatted as header=value, to include in OTLP requests.
+      --otlp-insecure                                        Use insecure connection (no TLS) when connecting to OTLP endpoint.
+      --otlp-service-name string                             Service name used for OTLP gRPC tracing. (default "charon")
+      --overrides-file string                                Path to the builder registrations overrides file. (default ".charon/builder_registrations_overrides.json")
+      --p2p-disable-reuseport                                Disables TCP port reuse for outgoing libp2p connections.
+      --p2p-external-hostname string                         The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.
+      --p2p-external-ip string                               The IP address advertised by libp2p. This may be used to advertise an external IP.
+      --p2p-relays strings                                   Comma-separated list of libp2p relay URLs or multiaddrs. (default [https://0.relay.obol.tech,https://1.relay.obol.tech,https://2.relay.obol.dev])
+      --p2p-tcp-address strings                              Comma-separated list of listening TCP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
+      --p2p-udp-address strings                              Comma-separated list of listening UDP addresses (ip and port) for libP2P traffic. Empty default doesn't bind to local port therefore only supports outgoing connections.
+      --private-key-file string                              The path to the charon enr private key file. (default ".charon/charon-enr-private-key")
+      --private-key-file-lock                                Enables private key locking to prevent multiple instances using the same key.
+      --proc-directory string                                Directory to look into in order to detect other stack components running on the host. Enabling this exports the command lines of detected validator clients to the monitoring endpoint and debug logs, with the values of secret-shaped flags redacted.
+      --proposer-config-builder-boost-factor uint            Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Requires proposer-config-builder-urls. Seeds a new proposer config file only, disregarded once the cluster signed one with charon alpha edit proposer-config. Must be identical on all nodes in the cluster. (default 100)
+      --proposer-config-builder-max-execution-payment uint   Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Requires proposer-config-builder-urls. Seeds a new proposer config file only, disregarded once the cluster signed one with charon alpha edit proposer-config. Must be identical on all nodes in the cluster.
+      --proposer-config-builder-min-bid uint                 Minimum builder bid value in gwei, bids below it lose to the locally built payload. Requires proposer-config-builder-urls. Seeds a new proposer config file only, disregarded once the cluster signed one with charon alpha edit proposer-config. Must be identical on all nodes in the cluster.
+      --proposer-config-builder-urls strings                 Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. Seeds a new proposer config file only, disregarded once the cluster signed one with charon alpha edit proposer-config. Must be identical on all nodes in the cluster.
+      --proposer-config-file string                          The path to the validator client proposer config file. Written from the cluster lock and the proposer-config seeding flags if absent, verified on start otherwise. (default ".charon/vc-config/proposer-config.json")
+      --proposer-config-gas-limit uint                       Preferred target gas limit for proposed execution payloads from the gloas fork onwards. Seeds a new proposer config file only, disregarded once the cluster signed one with charon alpha edit proposer-config. Must be identical on all nodes in the cluster. (default 200000000)
+      --publish-address string                               The URL of the remote API for background fee recipient fetching. (default "https://api.obol.tech/v1")
+      --publish-timeout duration                             Timeout for accessing the remote API. (default 5m0s)
+      --simnet-beacon-mock                                   Enables an internal mock beacon node for running a simnet.
+      --simnet-beacon-mock-fuzz                              Configures simnet beaconmock to return fuzzed responses.
+      --simnet-slot-duration duration                        Configures slot duration in simnet beacon mock. (default 1s)
+      --simnet-validator-keys-dir string                     The directory containing the simnet validator key shares. (default ".charon/validator_keys")
+      --simnet-validator-mock                                Enables an internal mock validator client when running a simnet. Requires simnet-beacon-mock.
+      --synthetic-block-proposals                            Enables additional synthetic block proposal duties. Used for testing of rare duties.
+      --testnet-capella-hard-fork string                     Capella hard fork version of the custom test network.
+      --testnet-chain-id uint                                Chain ID of the custom test network.
+      --testnet-fork-version string                          Genesis fork version in hex of the custom test network.
+      --testnet-genesis-timestamp int                        Genesis timestamp of the custom test network.
+      --testnet-name string                                  Name of the custom test network.
+      --validator-api-address string                         Listening address (ip and port) for validator-facing traffic proxying the beacon-node API. (default "127.0.0.1:3600")
+      --vc-tls-cert-file string                              The path to the TLS certificate file used by charon for the validator client API endpoint.
+      --vc-tls-key-file string                               The path to the TLS private key file associated with the provided TLS certificate.
 
 ````
 <!-- Code above generated by cmd/cmd_internal_test.go#TestConfigReference. DO NOT EDIT -->

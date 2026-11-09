@@ -4,17 +4,26 @@ package dkg
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/peerinfo"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
@@ -263,4 +272,388 @@ func TestCheckThreshold(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStartSyncProtocolThreshold verifies the minimum participant mode: three of four nodes
+// complete the step and shutdown syncs without the absent fourth, which is rejected when it
+// joins late.
+func TestStartSyncProtocolThreshold(t *testing.T) {
+	const (
+		n            = 4
+		started      = 3
+		minConnected = 2
+	)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+
+	keys, hosts, peerIDs := newSyncHosts(t, n)
+	connectSyncHosts(hosts, func(int, int) bool { return true })
+
+	defHash := testutil.RandomBytes32()
+	testConfig := TestConfig{StragglerWait: 100 * time.Millisecond}
+
+	type result struct {
+		idx          int
+		step         func(context.Context) error
+		shutdown     func(context.Context) error
+		fatal        func() error
+		participants []peer.ID
+		err          error
+	}
+
+	var failed atomic.Bool
+
+	results := make(chan result, started)
+
+	// Node 3 is never started, the others proceed once two peers are connected.
+	for i := range started {
+		go func() {
+			step, shutdown, fatal, participants, err := startSyncProtocol(ctx, hosts[i], keys[i], defHash, peerIDs, minConnected,
+				func() { failed.Store(true) }, testConfig, "")
+			results <- result{idx: i, step: step, shutdown: shutdown, fatal: fatal, participants: participants, err: err}
+		}()
+	}
+
+	nodes := make([]result, started)
+
+	for range started {
+		res := <-results
+		require.NoError(t, res.err)
+
+		var others []peer.ID
+
+		for j := range started {
+			if j != res.idx {
+				others = append(others, peerIDs[j])
+			}
+		}
+
+		require.ElementsMatch(t, others, res.participants)
+		nodes[res.idx] = res
+	}
+
+	// The fourth node joining after the freeze fails fast with an explicit error.
+	lateCtx, lateCancel := context.WithCancel(ctx)
+	defer lateCancel()
+
+	requireSyncError(t, "ceremony already in progress, you were not part of it")(
+		startSyncProtocol(lateCtx, hosts[3], keys[3], defHash, peerIDs, minConnected, lateCancel, testConfig, ""))
+
+	errs := make(chan error, started)
+
+	for _, node := range nodes {
+		go func() {
+			err := node.step(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			errs <- node.shutdown(ctx)
+		}()
+	}
+
+	for range started {
+		require.NoError(t, <-errs)
+	}
+
+	for _, node := range nodes {
+		require.NoError(t, node.fatal())
+	}
+
+	require.False(t, failed.Load())
+	require.NoError(t, ctx.Err())
+}
+
+// TestStartSyncProtocolLateJoinerDialedByFrozen verifies a late joiner that cannot dial the frozen nodes
+// still gets the explicit error: their clients to absent peers keep running after the freeze and connect to it.
+func TestStartSyncProtocolLateJoinerDialedByFrozen(t *testing.T) {
+	const (
+		n            = 4
+		minConnected = 2
+	)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+
+	keys, hosts, peerIDs := newSyncHosts(t, n-1)
+
+	// The late joiner's host only starts after the freeze, and knows no addresses: only the others can dial it.
+	lateKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	latePeerID, err := p2p.PeerIDFromKey(lateKey.PubKey())
+	require.NoError(t, err)
+
+	peerIDs = append(peerIDs, latePeerID)
+
+	connectSyncHosts(hosts, func(int, int) bool { return true })
+
+	defHash := testutil.RandomBytes32()
+	testConfig := TestConfig{StragglerWait: 100 * time.Millisecond}
+
+	var failed atomic.Bool
+
+	type result struct {
+		step     func(context.Context) error
+		shutdown func(context.Context) error
+		err      error
+	}
+
+	results := make(chan result, n-1)
+
+	for i := range n - 1 {
+		go func() {
+			step, shutdown, _, _, err := startSyncProtocol(ctx, hosts[i], keys[i], defHash, peerIDs, minConnected,
+				func() { failed.Store(true) }, testConfig, "")
+			results <- result{step: step, shutdown: shutdown, err: err}
+		}()
+	}
+
+	var nodes []result
+
+	for range n - 1 {
+		res := <-results
+		require.NoError(t, res.err)
+
+		nodes = append(nodes, res)
+	}
+
+	lateHost := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), lateKey)
+	for _, h := range hosts {
+		h.Peerstore().AddAddrs(latePeerID, lateHost.Addrs(), peerstore.PermanentAddrTTL)
+	}
+
+	lateCtx, lateCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer lateCancel()
+
+	start := time.Now()
+
+	requireSyncError(t, "ceremony already in progress, you were not part of it")(
+		startSyncProtocol(lateCtx, lateHost, lateKey, defHash, peerIDs, minConnected, lateCancel, testConfig, ""))
+	require.Less(t, time.Since(start), 8*time.Second)
+
+	errs := make(chan error, n-1)
+
+	for _, node := range nodes {
+		go func() {
+			err := node.step(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+
+			errs <- node.shutdown(ctx)
+		}()
+	}
+
+	for range n - 1 {
+		require.NoError(t, <-errs)
+	}
+
+	require.False(t, failed.Load())
+}
+
+// TestStartSyncProtocolDivergingFreeze verifies that diverging frozen sets fail every node promptly instead
+// of hanging: A and C freeze {B,C,D}/{A,B,D}, B (which cannot reach D yet) freezes {A,C}, then D reaches B,
+// is rejected and exits, so A and C time out waiting for D, and B times out waiting for A and C.
+func TestStartSyncProtocolDivergingFreeze(t *testing.T) {
+	const (
+		a, b, c, d   = 0, 1, 2, 3
+		minConnected = 2
+		postFreeze   = 2 * time.Second
+	)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+
+	keys, hosts, peerIDs := newSyncHosts(t, 4)
+	isBD := func(i, j int) bool { return (i == b && j == d) || (i == d && j == b) }
+	connectSyncHosts(hosts, func(i, j int) bool { return !isBD(i, j) })
+
+	defHash := testutil.RandomBytes32()
+	stragglerWaits := map[int]time.Duration{a: 100 * time.Millisecond, b: 200 * time.Millisecond, c: 100 * time.Millisecond, d: 30 * time.Second}
+
+	type result struct {
+		idx          int
+		step         func(context.Context) error
+		participants []peer.ID
+		err          error
+	}
+
+	results := make(chan result, len(hosts))
+	start := time.Now()
+
+	for i := range hosts {
+		nodeCtx, nodeCancel := context.WithCancel(ctx)
+		defer nodeCancel()
+
+		testConfig := TestConfig{StragglerWait: stragglerWaits[i], PostFreezeTimeout: postFreeze}
+
+		go func() {
+			step, _, _, participants, err := startSyncProtocol(nodeCtx, hosts[i], keys[i], defHash, peerIDs, minConnected, nodeCancel, testConfig, "")
+			results <- result{idx: i, step: step, participants: participants, err: err}
+		}()
+	}
+
+	errs := make(map[int]error)
+
+	for range hosts {
+		res := <-results
+		if res.idx != b {
+			errs[res.idx] = res.err
+			continue
+		}
+
+		require.NoError(t, res.err)
+		require.ElementsMatch(t, []peer.ID{peerIDs[a], peerIDs[c]}, res.participants)
+
+		// B is frozen without D: now let D reach B.
+		connectSyncHosts(hosts, isBD)
+
+		errs[b] = res.step(ctx)
+	}
+
+	require.Less(t, time.Since(start), 20*time.Second)
+
+	require.ErrorContains(t, errs[d], "ceremony already in progress, you were not part of it")
+
+	for _, idx := range []int{a, c} {
+		require.ErrorIs(t, errs[idx], context.DeadlineExceeded)
+		require.True(t, z.ContainsField(errs[idx], z.Str("missing_peers", p2p.PeerName(peerIDs[d]))), errs[idx])
+	}
+
+	require.ErrorIs(t, errs[b], context.DeadlineExceeded)
+	require.True(t, z.ContainsField(errs[b], z.Str("missing_peers", peerNames([]peer.ID{peerIDs[a], peerIDs[c]}))), errs[b])
+}
+
+// TestStartSyncProtocolJoinTimeout verifies the join timeout lists the absent peers in the minimum participant mode.
+func TestStartSyncProtocolJoinTimeout(t *testing.T) {
+	const minConnected = 2
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	keys, hosts, peerIDs := newSyncHosts(t, 4)
+	connectSyncHosts(hosts, func(int, int) bool { return true })
+
+	defHash := testutil.RandomBytes32()
+
+	// Nodes 2 and 3 never start, so nodes 0 and 1 only see each other.
+	errs := make(chan error, 2)
+
+	for i := range 2 {
+		go func() {
+			_, _, _, _, err := startSyncProtocol(ctx, hosts[i], keys[i], defHash, peerIDs, minConnected, func() {}, TestConfig{}, "")
+			errs <- err
+		}()
+	}
+
+	for range 2 {
+		err := <-errs
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.ErrorContains(t, err, "not enough peers connected")
+		require.True(t, z.ContainsField(err, z.Int("connected", 1)), err)
+		require.True(t, z.ContainsField(err, z.Int("required", minConnected)), err)
+		require.True(t, z.ContainsField(err, z.Str("missing_peers", peerNames(peerIDs[2:]))), err)
+	}
+}
+
+// newSyncHosts returns n in-process libp2p hosts with their keys and peer IDs.
+func newSyncHosts(t *testing.T, n int) ([]*k1.PrivateKey, []host.Host, []peer.ID) {
+	t.Helper()
+
+	var (
+		keys    []*k1.PrivateKey
+		hosts   []host.Host
+		peerIDs []peer.ID
+	)
+
+	for range n {
+		key, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		h := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), key)
+		keys = append(keys, key)
+		hosts = append(hosts, h)
+		peerIDs = append(peerIDs, h.ID())
+	}
+
+	return keys, hosts, peerIDs
+}
+
+// connectSyncHosts adds the addresses of host j to host i's peerstore for every pair allowed by the filter.
+func connectSyncHosts(hosts []host.Host, allow func(i, j int) bool) {
+	for i := range hosts {
+		for j := range hosts {
+			if allow(i, j) {
+				hosts[i].Peerstore().AddAddrs(hosts[j].ID(), hosts[j].Addrs(), peerstore.PermanentAddrTTL)
+			}
+		}
+	}
+}
+
+// TestStartSyncProtocolMinConnectedInvalid verifies minConnected bounds.
+func TestStartSyncProtocolMinConnectedInvalid(t *testing.T) {
+	key, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	h := testutil.CreateHostWithIdentity(t, testutil.AvailableAddr(t), key)
+	peerIDs := []peer.ID{h.ID()}
+
+	for range 2 {
+		other, err := k1.GeneratePrivateKey()
+		require.NoError(t, err)
+
+		pID, err := p2p.PeerIDFromKey(other.PubKey())
+		require.NoError(t, err)
+
+		peerIDs = append(peerIDs, pID)
+	}
+
+	for _, minConnected := range []int{-1, 3} {
+		requireSyncError(t, "invalid minimum connected peers")(
+			startSyncProtocol(t.Context(), h, key, testutil.RandomBytes32(), peerIDs, minConnected, func() {}, TestConfig{}, ""))
+	}
+}
+
+// requireSyncError returns a function asserting that startSyncProtocol failed with the given error.
+func requireSyncError(t *testing.T, contains string) func(step, shutdown func(context.Context) error, fatal func() error, participants []peer.ID, err error) {
+	t.Helper()
+
+	return func(step, shutdown func(context.Context) error, fatal func() error, participants []peer.ID, err error) {
+		t.Helper()
+		require.ErrorContains(t, err, contains)
+		require.Nil(t, step)
+		require.Nil(t, shutdown)
+		require.Nil(t, fatal)
+		require.Empty(t, participants)
+	}
+}
+
+// TestSetupP2PPeerInfo verifies the peerinfo server of a ceremony host answers, e.g. a relay identifying it.
+func TestSetupP2PPeerInfo(t *testing.T) {
+	key, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	pID, err := p2p.PeerIDFromKey(key.PubKey())
+	require.NoError(t, err)
+
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	defer client.Close()
+
+	peers := []p2p.Peer{{ID: pID, Index: 0}, {ID: client.ID(), Index: 1}}
+	conf := Config{P2P: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}}}
+
+	node, shutdown, err := setupP2P(t.Context(), key, conf, peers, testutil.RandomBytes32(), "uuid")
+	require.NoError(t, err)
+
+	defer shutdown()
+
+	client.Peerstore().AddAddrs(node.ID(), node.Addrs(), peerstore.PermanentAddrTTL)
+
+	_, _, ok, err := peerinfo.DoOnce(t.Context(), client, node.ID())
+	require.NoError(t, err)
+	require.True(t, ok)
 }

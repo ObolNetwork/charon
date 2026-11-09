@@ -21,6 +21,10 @@ type AddOperatorsConfig struct {
 	ValidatorKeysDir string
 	OutputDir        string
 	NewENRs          []string
+	// ProposerConfigFile is the current proposer config file, its content is carried over into the new lock.
+	ProposerConfigFile string
+	// OverridesFile is the builder registration overrides file feeding genesis when ProposerConfigFile is absent.
+	OverridesFile string
 }
 
 // RunAddOperatorsProtocol runs the add-operators DKG protocol.
@@ -34,19 +38,23 @@ func RunAddOperatorsProtocol(ctx context.Context, config AddOperatorsConfig, dkg
 }
 
 type addOperatorsProtocol struct {
-	outputDir string
-	newENRs   []string
-	allENRs   []string
-	config    *pedersen.Config
-	board     *pedersen.Board
+	outputDir          string
+	proposerConfigFile string
+	overridesFile      string
+	newENRs            []string
+	allENRs            []string
+	config             *pedersen.Config
+	board              *pedersen.Board
 }
 
 var _ Protocol = (*addOperatorsProtocol)(nil)
 
 func newAddOperatorsProtocol(config AddOperatorsConfig) *addOperatorsProtocol {
 	return &addOperatorsProtocol{
-		outputDir: config.OutputDir,
-		newENRs:   config.NewENRs,
+		outputDir:          config.OutputDir,
+		proposerConfigFile: config.ProposerConfigFile,
+		overridesFile:      config.OverridesFile,
+		newENRs:            config.NewENRs,
 	}
 }
 
@@ -94,7 +102,15 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 	// Bind broadcasts to the lock hash since it changes with every cluster mutation,
 	// preventing replay of messages from previous ceremonies of the same cluster.
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
-	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
+	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, nodeSigMsgID)
+
+	// New operators are appended after the existing ones and have no proposer config yet.
+	joining := pctx.ThisNodeIdx.PeerIdx >= len(pctx.Lock.Operators)
+
+	err = initProposerConfig(ctx, pctx, p.proposerConfigFile, p.overridesFile, joining)
+	if err != nil {
+		return err
+	}
 
 	newPeerIDs := pctx.PeerIDs[len(pctx.Lock.Operators):]
 	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), pctx.Lock.Threshold, newPeerIDs, nil)
@@ -106,6 +122,7 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 
 func (p *addOperatorsProtocol) Steps(pctx *ProtocolContext) []ProtocolStep {
 	return []ProtocolStep{
+		&agreeProposerConfigProtocolStep{},
 		&reshareProtocolStep{config: p.config, board: p.board},
 		&updateLockProtocolStep{threshold: pctx.Lock.Threshold, operators: p.allENRs},
 		&updateNodeSignaturesProtocolStep{},

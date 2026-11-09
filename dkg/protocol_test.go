@@ -19,9 +19,11 @@ import (
 
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/cmd"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
@@ -57,6 +59,7 @@ func TestRemoveOperatorsProtocol_BelowF(t *testing.T) {
 	}
 	oldIndices := []int{0, 3}
 	outputNodeDirs := getNodeDirs(dstClusterDir, numNodes, 0, 3)
+	wantContent := loadProposerConfigContent(t, nodeDir(srcClusterDir, 1))
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -70,11 +73,13 @@ func TestRemoveOperatorsProtocol_BelowF(t *testing.T) {
 		dkgConfig := createDKGConfig(t, relayAddr)
 		ndir := nodeDir(srcClusterDir, n)
 		removeConfig := dkg.RemoveOperatorsConfig{
-			LockFilePath:     path.Join(ndir, clusterLockFile),
-			PrivateKeyPath:   p2p.KeyPath(ndir),
-			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
-			OutputDir:        nodeDir(dstClusterDir, n),
-			RemovingENRs:     oldENRs,
+			LockFilePath:       path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:     p2p.KeyPath(ndir),
+			ValidatorKeysDir:   path.Join(ndir, validatorKeysDir),
+			OutputDir:          nodeDir(dstClusterDir, n),
+			RemovingENRs:       oldENRs,
+			ProposerConfigFile: proposerConfigPath(ndir),
+			OverridesFile:      overridesPath(ndir),
 		}
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
@@ -86,6 +91,7 @@ func TestRemoveOperatorsProtocol_BelowF(t *testing.T) {
 	})
 
 	verifyClusterValidators(t, numValidators, outputNodeDirs)
+	verifyCarriedProposerConfigs(t, outputNodeDirs, wantContent)
 }
 
 func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
@@ -108,6 +114,10 @@ func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
 		lock.Operators[4].ENR,
 	}
 	outputNodeDirs := getNodeDirs(dstClusterDir, numNodes, 0, 3, 4)
+	wantContent := loadProposerConfigContent(t, nodeDir(srcClusterDir, 1))
+
+	// The removed but participating operator's unsigned drift does not block the removal.
+	writeProposerConfigs(t, *lock, srcClusterDir, []int{0}, 0, divergingProposerConfigContent(t, *lock, "https://drift.example.com"))
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -123,11 +133,13 @@ func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
 		dkgConfig := createDKGConfig(t, relayAddr)
 		ndir := nodeDir(srcClusterDir, n)
 		removeConfig := dkg.RemoveOperatorsConfig{
-			LockFilePath:     path.Join(ndir, clusterLockFile),
-			PrivateKeyPath:   p2p.KeyPath(ndir),
-			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
-			OutputDir:        nodeDir(dstClusterDir, n),
-			RemovingENRs:     oldENRs,
+			LockFilePath:       path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:     p2p.KeyPath(ndir),
+			ValidatorKeysDir:   path.Join(ndir, validatorKeysDir),
+			OutputDir:          nodeDir(dstClusterDir, n),
+			RemovingENRs:       oldENRs,
+			ProposerConfigFile: proposerConfigPath(ndir),
+			OverridesFile:      overridesPath(ndir),
 			ParticipatingENRs: []string{
 				lock.Operators[0].ENR, // to be removed, but participating
 				lock.Operators[1].ENR, // staying
@@ -146,6 +158,11 @@ func TestRemoveOperatorsProtocol_MoreThanF(t *testing.T) {
 	})
 
 	verifyClusterValidators(t, numValidators, outputNodeDirs)
+	verifyCarriedProposerConfigs(t, outputNodeDirs, wantContent)
+
+	for _, n := range []int{0, 3, 4} {
+		require.NoFileExists(t, proposerConfigPath(nodeDir(dstClusterDir, n)))
+	}
 }
 
 func TestRemoveOperatorsProtocol_AllNodes(t *testing.T) {
@@ -225,6 +242,7 @@ func TestRemoveOperatorsProtocol_DefaultThreshold(t *testing.T) {
 	// both the ceil(2n/3) threshold default and share index compaction.
 	oldENRs := []string{lock.Operators[1].ENR}
 	outputNodeDirs := getNodeDirs(dstClusterDir, numNodes, 1)
+	wantContent := loadProposerConfigContent(t, nodeDir(srcClusterDir, 0))
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -238,11 +256,13 @@ func TestRemoveOperatorsProtocol_DefaultThreshold(t *testing.T) {
 		dkgConfig := createDKGConfig(t, relayAddr)
 		ndir := nodeDir(srcClusterDir, n)
 		removeConfig := dkg.RemoveOperatorsConfig{
-			LockFilePath:     path.Join(ndir, clusterLockFile),
-			PrivateKeyPath:   p2p.KeyPath(ndir),
-			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
-			OutputDir:        nodeDir(dstClusterDir, n),
-			RemovingENRs:     oldENRs,
+			LockFilePath:       path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:     p2p.KeyPath(ndir),
+			ValidatorKeysDir:   path.Join(ndir, validatorKeysDir),
+			OutputDir:          nodeDir(dstClusterDir, n),
+			RemovingENRs:       oldENRs,
+			ProposerConfigFile: proposerConfigPath(ndir),
+			OverridesFile:      overridesPath(ndir),
 		}
 
 		err := dkg.RunRemoveOperatorsProtocol(ctx, removeConfig, dkgConfig)
@@ -261,6 +281,7 @@ func TestRemoveOperatorsProtocol_DefaultThreshold(t *testing.T) {
 	}
 
 	verifyClusterValidators(t, numValidators, outputNodeDirs)
+	verifyCarriedProposerConfigs(t, outputNodeDirs, wantContent)
 }
 
 func TestRunAddOperatorsProtocol(t *testing.T) {
@@ -274,6 +295,12 @@ func TestRunAddOperatorsProtocol(t *testing.T) {
 	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
 	dstClusterDir := t.TempDir()
 	totalNodes := numNodes + newNodes
+
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(nodeDir(srcClusterDir, 0), clusterLockFile), "", false)
+	require.NoError(t, err)
+
+	wantContent := divergingProposerConfigContent(t, *lock, "https://builder.example.com")
+	writeProposerConfigs(t, *lock, srcClusterDir, getNodeIdxs(numNodes), 2, wantContent)
 
 	enrs := make([]string, 0, newNodes)
 
@@ -293,11 +320,13 @@ func TestRunAddOperatorsProtocol(t *testing.T) {
 		dkgConfig := createDKGConfig(t, relayAddr)
 		ndir := nodeDir(srcClusterDir, n)
 		addConfig := dkg.AddOperatorsConfig{
-			LockFilePath:     path.Join(ndir, clusterLockFile),
-			PrivateKeyPath:   p2p.KeyPath(ndir),
-			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
-			OutputDir:        nodeDir(dstClusterDir, n),
-			NewENRs:          enrs,
+			LockFilePath:       path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:     p2p.KeyPath(ndir),
+			ValidatorKeysDir:   path.Join(ndir, validatorKeysDir),
+			OutputDir:          nodeDir(dstClusterDir, n),
+			NewENRs:            enrs,
+			ProposerConfigFile: proposerConfigPath(ndir),
+			OverridesFile:      overridesPath(ndir),
 		}
 
 		err := dkg.RunAddOperatorsProtocol(ctx, addConfig, dkgConfig)
@@ -309,6 +338,7 @@ func TestRunAddOperatorsProtocol(t *testing.T) {
 	})
 
 	verifyClusterValidators(t, numValidators, getNodeDirs(dstClusterDir, totalNodes))
+	verifyCarriedProposerConfigs(t, getNodeDirs(dstClusterDir, totalNodes), wantContent)
 }
 
 func TestRunReplaceOperatorProtocol(t *testing.T) {
@@ -327,6 +357,9 @@ func TestRunReplaceOperatorProtocol(t *testing.T) {
 
 	// replacing operator at index 2
 	replacingIndex := 2
+
+	wantContent := divergingProposerConfigContent(t, *lock, "https://builder.example.com")
+	writeProposerConfigs(t, *lock, srcClusterDir, getNodeIdxs(numNodes), 2, wantContent)
 
 	// Create a separate directory for the new operator (since it's a different entity)
 	newOpNodeDir := nodeDir(srcClusterDir, numNodes) // Create directory for new operator who doesn't have existing cluster data
@@ -353,12 +386,14 @@ func TestRunReplaceOperatorProtocol(t *testing.T) {
 		}
 
 		replaceConfig := dkg.ReplaceOperatorConfig{
-			LockFilePath:     path.Join(ndir, clusterLockFile),
-			PrivateKeyPath:   p2p.KeyPath(ndir),
-			ValidatorKeysDir: path.Join(ndir, validatorKeysDir),
-			OutputDir:        nodeDir(dstClusterDir, n),
-			NewENR:           newOpEnr,
-			OldENR:           lock.Operators[replacingIndex].ENR,
+			LockFilePath:       path.Join(ndir, clusterLockFile),
+			PrivateKeyPath:     p2p.KeyPath(ndir),
+			ValidatorKeysDir:   path.Join(ndir, validatorKeysDir),
+			OutputDir:          nodeDir(dstClusterDir, n),
+			NewENR:             newOpEnr,
+			OldENR:             lock.Operators[replacingIndex].ENR,
+			ProposerConfigFile: proposerConfigPath(ndir),
+			OverridesFile:      overridesPath(ndir),
 		}
 
 		err := dkg.RunReplaceOperatorProtocol(ctx, replaceConfig, dkgConfig)
@@ -370,6 +405,7 @@ func TestRunReplaceOperatorProtocol(t *testing.T) {
 	})
 
 	verifyClusterValidators(t, numValidators, getNodeDirs(dstClusterDir, numNodes))
+	verifyCarriedProposerConfigs(t, getNodeDirs(dstClusterDir, numNodes), wantContent)
 }
 
 func TestRunReshareProtocol(t *testing.T) {
@@ -382,23 +418,17 @@ func TestRunReshareProtocol(t *testing.T) {
 	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
 	dstClusterDir := t.TempDir()
 
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(nodeDir(srcClusterDir, 0), clusterLockFile), "", false)
+	require.NoError(t, err)
+
+	wantContent := divergingProposerConfigContent(t, *lock, "https://builder.example.com")
+	writeProposerConfigs(t, *lock, srcClusterDir, getNodeIdxs(numNodes), 2, wantContent)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
 	runProtocol(t, numNodes, func(relayAddr string, n int) error {
-		dkgConfig := createDKGConfig(t, relayAddr)
-		outputDir := nodeDir(dstClusterDir, n)
-		dataDir := nodeDir(srcClusterDir, n)
-
-		reshareConfig := dkg.ReshareConfig{
-			DKGConfig:        dkgConfig,
-			PrivateKeyPath:   p2p.KeyPath(dataDir),
-			LockFilePath:     path.Join(dataDir, clusterLockFile),
-			ValidatorKeysDir: path.Join(dataDir, validatorKeysDir),
-			OutputDir:        outputDir,
-		}
-
-		err := dkg.RunReshareProtocol(ctx, reshareConfig)
+		err := dkg.RunReshareProtocol(ctx, reshareTestConfig(t, relayAddr, srcClusterDir, dstClusterDir, n))
 		if err != nil {
 			return failNode(t, cancel, n, err)
 		}
@@ -407,6 +437,56 @@ func TestRunReshareProtocol(t *testing.T) {
 	})
 
 	verifyClusterValidators(t, numValidators, getNodeDirs(dstClusterDir, numNodes))
+	verifyCarriedProposerConfigs(t, getNodeDirs(dstClusterDir, numNodes), wantContent)
+}
+
+func TestRunReshareProtocol_ProposerConfigMismatch(t *testing.T) {
+	const (
+		numValidators = 2
+		numNodes      = 4
+		threshold     = 3
+	)
+
+	srcClusterDir := createTestCluster(t, numNodes, threshold, numValidators)
+	dstClusterDir := t.TempDir()
+
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(nodeDir(srcClusterDir, 0), clusterLockFile), "", false)
+	require.NoError(t, err)
+
+	// Operator 1 has an unsigned revision 0 file with another builder list than the signed one of the others.
+	writeProposerConfigs(t, *lock, srcClusterDir, []int{1}, 0, divergingProposerConfigContent(t, *lock, "https://drift.example.com"))
+
+	errs := make([]error, numNodes)
+
+	runProtocolAllowFailures(t, numNodes, func(relayAddr string, n int) error {
+		errs[n] = dkg.RunReshareProtocol(t.Context(), reshareTestConfig(t, relayAddr, srcClusterDir, dstClusterDir, n))
+
+		return nil
+	})
+
+	for n, err := range errs {
+		require.ErrorContains(t, err, "proposer config mismatch between operators", "node %d", n)
+		require.ErrorContains(t, err, "peer 1 differs from peer 0", "node %d", n)
+		require.ErrorContains(t, err, "default.builder.urls", "node %d", n)
+		require.ErrorContains(t, err, "charon alpha edit proposer-config", "node %d", n)
+		require.NoDirExists(t, nodeDir(dstClusterDir, n))
+	}
+}
+
+func reshareTestConfig(t *testing.T, relayAddr, srcClusterDir, dstClusterDir string, n int) dkg.ReshareConfig {
+	t.Helper()
+
+	dataDir := nodeDir(srcClusterDir, n)
+
+	return dkg.ReshareConfig{
+		DKGConfig:          createDKGConfig(t, relayAddr),
+		PrivateKeyPath:     p2p.KeyPath(dataDir),
+		LockFilePath:       path.Join(dataDir, clusterLockFile),
+		ValidatorKeysDir:   path.Join(dataDir, validatorKeysDir),
+		OutputDir:          nodeDir(dstClusterDir, n),
+		ProposerConfigFile: proposerConfigPath(dataDir),
+		OverridesFile:      overridesPath(dataDir),
+	}
 }
 
 func TestRunProtocol(t *testing.T) {
@@ -710,5 +790,126 @@ func verifyClusterValidators(t *testing.T, numVals int, nodeDirs []string) {
 
 		err = tbls.Verify(validatorPubKeys[valIdx], data, aSig)
 		require.NoError(t, err)
+	}
+}
+
+func proposerConfigPath(ndir string) string {
+	return path.Join(ndir, "vc-config", "proposer-config.json")
+}
+
+func overridesPath(ndir string) string {
+	return path.Join(ndir, "builder_registrations_overrides.json")
+}
+
+func getNodeIdxs(numNodes int) []int {
+	idxs := make([]int, numNodes)
+	for i := range idxs {
+		idxs[i] = i
+	}
+
+	return idxs
+}
+
+// loadProposerConfigContent returns the content of the node's proposer config file.
+func loadProposerConfigContent(t *testing.T, ndir string) proposerconfig.Content {
+	t.Helper()
+
+	lock, nodeIdx := loadLockAndNodeIdx(t, ndir)
+
+	doc, err := proposerconfig.Load(proposerConfigPath(ndir), lock, nodeIdx)
+	require.NoError(t, err)
+
+	return doc.Content
+}
+
+// loadLockAndNodeIdx returns the node's cluster lock and its index in it.
+func loadLockAndNodeIdx(t *testing.T, ndir string) (cluster.Lock, cluster.NodeIdx) {
+	t.Helper()
+
+	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(ndir, clusterLockFile), "", false)
+	require.NoError(t, err)
+
+	key, err := k1util.Load(p2p.KeyPath(ndir))
+	require.NoError(t, err)
+
+	peerID, err := p2p.PeerIDFromKey(key.PubKey())
+	require.NoError(t, err)
+
+	nodeIdx, err := lock.NodeIdx(peerID)
+	require.NoError(t, err)
+
+	return *lock, nodeIdx
+}
+
+// divergingProposerConfigContent returns content with a builder and a fee recipient diverging from the lock's.
+func divergingProposerConfigContent(t *testing.T, lock cluster.Lock, builderURL string) proposerconfig.Content {
+	t.Helper()
+
+	fees := lock.FeeRecipientAddresses()
+	fees[1] = "0x000000000000000000000000000000000000dead"
+
+	content, err := proposerconfig.NewContent(lock, fees, 36_000_000, &proposerconfig.Builder{
+		MinBid:              "1",
+		BuilderBoostFactor:  "90",
+		MaxExecutionPayment: "2",
+		Builders:            []proposerconfig.BuilderEntry{{URL: builderURL}},
+	})
+	require.NoError(t, err)
+
+	return content
+}
+
+// writeProposerConfigs writes the content at revision to the given nodes' proposer config files,
+// signed by all operators unless revision 0.
+func writeProposerConfigs(t *testing.T, lock cluster.Lock, clusterDir string, nodes []int, revision uint64, content proposerconfig.Content) {
+	t.Helper()
+
+	doc := proposerconfig.Document{
+		Version:  proposerconfig.Version,
+		LockHash: lock.LockHash,
+		Revision: revision,
+		Content:  content,
+	}
+
+	if revision > 0 {
+		for i := range lock.Operators {
+			key, err := k1util.Load(p2p.KeyPath(nodeDir(clusterDir, i)))
+			require.NoError(t, err)
+
+			sig, err := proposerconfig.Sign(doc, key)
+			require.NoError(t, err)
+
+			doc.Signatures = append(doc.Signatures, proposerconfig.Signature{Operator: i, Signature: sig})
+		}
+	}
+
+	require.NoError(t, proposerconfig.Verify(doc, lock))
+
+	for _, n := range nodes {
+		err := proposerconfig.Write(proposerConfigPath(nodeDir(clusterDir, n)), doc, lock, cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1})
+		require.NoError(t, err)
+	}
+}
+
+// verifyCarriedProposerConfigs verifies each node's proposer config is signed by all operators of its new lock
+// at revision 1 and carries the wanted content.
+func verifyCarriedProposerConfigs(t *testing.T, nodeDirs []string, want proposerconfig.Content) {
+	t.Helper()
+
+	want, err := proposerconfig.Normalise(want)
+	require.NoError(t, err)
+
+	for _, ndir := range nodeDirs {
+		lock, nodeIdx := loadLockAndNodeIdx(t, ndir)
+
+		doc, err := proposerconfig.Load(proposerConfigPath(ndir), lock, nodeIdx)
+		require.NoError(t, err, "nodeDir: %s", ndir)
+		require.NoError(t, proposerconfig.Verify(doc, lock), "nodeDir: %s", ndir)
+		require.Equal(t, uint64(1), doc.Revision)
+		require.Equal(t, getNodeIdxs(len(lock.Operators)), doc.SignerIndexes())
+
+		got, err := proposerconfig.Normalise(doc.Content)
+		require.NoError(t, err)
+		require.Equal(t, want, got, "nodeDir: %s", ndir)
 	}
 }

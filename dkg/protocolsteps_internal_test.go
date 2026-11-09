@@ -20,6 +20,7 @@ import (
 
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
 	"github.com/obolnetwork/charon/dkg/share"
@@ -190,28 +191,42 @@ func TestUpdateNodeSignaturesProtocolStep(t *testing.T) {
 	allPeers, err := lock.Peers()
 	require.NoError(t, err)
 
+	content, err := proposerconfig.NewContent(lock, lock.FeeRecipientAddresses(), proposerconfig.DefaultGasLimit, nil)
+	require.NoError(t, err)
+
 	group, gctx := errgroup.WithContext(t.Context())
+	pctxs := make([]*ProtocolContext, numNodes)
 
 	for n := range numNodes {
 		group.Go(func() error {
+			nodeIdx := cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1}
 			caster := bcast.New(nodes[n].NodeHost, peers, nodeKeys[n], lock.DefinitionHash)
-			nodeSigCaster := newNodeSigBcast(allPeers, cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1}, caster)
 
 			step := &updateNodeSignaturesProtocolStep{}
 			lockCopy := lock
-			pctx := &ProtocolContext{
-				Lock:          &lockCopy,
-				ENRPrivateKey: nodeKeys[n],
-				ThisNodeIdx:   cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1},
-				NodeSigCaster: nodeSigCaster,
+			pctxs[n] = &ProtocolContext{
+				Lock:                    &lockCopy,
+				ENRPrivateKey:           nodeKeys[n],
+				ThisNodeIdx:             nodeIdx,
+				NodeSigCaster:           newNodeSigBcast(allPeers, nodeIdx, caster, nodeSigMsgID),
+				ProposerConfigSigCaster: newNodeSigBcast(allPeers, nodeIdx, caster, proposerConfigSigMsgID),
+				proposerConfigContent:   content,
 			}
 
-			return step.Run(gctx, pctx)
+			return step.Run(gctx, pctxs[n])
 		})
 	}
 
 	err = group.Wait()
 	require.NoError(t, err)
+
+	for _, pctx := range pctxs {
+		doc := pctx.proposerConfigDoc
+		require.NoError(t, proposerconfig.Verify(doc, lock))
+		require.Equal(t, uint64(1), doc.Revision)
+		require.Equal(t, []int{0, 1, 2, 3}, doc.SignerIndexes())
+		require.Equal(t, content, doc.Content)
+	}
 }
 
 func TestWriteArtifactsProtocolStep(t *testing.T) {
@@ -249,12 +264,22 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	}))
 	defer mockServer.Close()
 
+	peerID, err := p2p.PeerIDFromKey(nodeKeys[0].PubKey())
+	require.NoError(t, err)
+
+	content, err := proposerconfig.NewContent(lock, lock.FeeRecipientAddresses(), proposerconfig.DefaultGasLimit, nil)
+	require.NoError(t, err)
+
+	doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Revision: 1, Content: content}
+
 	pctx := &ProtocolContext{
-		Lock:           &lock,
-		PrivateKeyPath: p2p.KeyPath(dataDir),
-		ENRPrivateKey:  nodeKeys[0],
-		Shares:         shares,
-		ThisNodeIdx:    cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1},
+		Lock:              &lock,
+		PrivateKeyPath:    p2p.KeyPath(dataDir),
+		ENRPrivateKey:     nodeKeys[0],
+		Shares:            shares,
+		ThisPeerID:        peerID,
+		ThisNodeIdx:       cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1},
+		proposerConfigDoc: doc,
 		Config: Config{
 			PublishAddr:    mockServer.URL,
 			PublishTimeout: 30 * time.Second,
@@ -286,6 +311,11 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	l, err := LoadAndVerifyClusterLock(t.Context(), lockFilePath, "", false)
 	require.NoError(t, err)
 	require.Equal(t, lock, *l)
+
+	written, err := proposerconfig.Load(filepath.Join(step.outputDir, "vc-config", "proposer-config.json"), lock, cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1})
+	require.NoError(t, err)
+	require.Equal(t, doc.Content, written.Content)
+	require.Equal(t, uint64(1), written.Revision)
 }
 
 func valKeysToSharesNode0(t *testing.T, valKeys [][]tbls.PrivateKey, vals []cluster.DistValidator) []share.Share {

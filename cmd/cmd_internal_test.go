@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/featureset"
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
+	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
 )
@@ -86,8 +89,8 @@ func TestCmdFlags(t *testing.T) {
 				BuilderRegOverridesFilePath: ".charon/builder_registrations_overrides.json",
 				PublishAddress:              "https://api.obol.tech/v1",
 				PublishTimeout:              5 * time.Minute,
-				BuilderBoostFactor:          100,
-				ProposerGasLimit:            200_000_000,
+				ProposerConfigFile:          ".charon/vc-config/proposer-config.json",
+				ProposerConfigSeed:          proposerconfig.Seed{GasLimit: 200_000_000, BuilderBoostFactor: 100},
 			},
 		},
 		{
@@ -142,8 +145,8 @@ func TestCmdFlags(t *testing.T) {
 				BuilderRegOverridesFilePath: ".charon/builder_registrations_overrides.json",
 				PublishAddress:              "https://api.obol.tech/v1",
 				PublishTimeout:              5 * time.Minute,
-				BuilderBoostFactor:          100,
-				ProposerGasLimit:            200_000_000,
+				ProposerConfigFile:          ".charon/vc-config/proposer-config.json",
+				ProposerConfigSeed:          proposerconfig.Seed{GasLimit: 200_000_000, BuilderBoostFactor: 100},
 				TestConfig: app.TestConfig{
 					P2PFuzz: true,
 				},
@@ -211,6 +214,151 @@ func TestCmdFlags(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProposerConfigSeedFlags(t *testing.T) {
+	execute := func(t *testing.T, args ...string) (app.Config, error) {
+		t.Helper()
+
+		var conf app.Config
+
+		root := newRootCmd(newRunCmd(func(_ context.Context, config app.Config) error {
+			conf = config
+			return nil
+		}, false))
+		root.SetArgs(append([]string{"run", "--beacon-node-endpoints=http://beacon.node"}, args...))
+
+		return conf, root.Execute()
+	}
+
+	t.Run("new flags parse", func(t *testing.T) {
+		conf, err := execute(t,
+			"--proposer-config-file=pc.json",
+			"--proposer-config-gas-limit=60000000",
+			"--proposer-config-builder-urls=https://a.example.com,https://b.example.com",
+			"--proposer-config-builder-min-bid=1",
+			"--proposer-config-builder-boost-factor=90",
+			"--proposer-config-builder-max-execution-payment=2",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "pc.json", conf.ProposerConfigFile)
+		require.Equal(t, proposerconfig.Seed{
+			GasLimit:                   60_000_000,
+			BuilderURLs:                []string{"https://a.example.com", "https://b.example.com"},
+			BuilderMinBid:              1,
+			BuilderBoostFactor:         90,
+			BuilderMaxExecutionPayment: 2,
+			NonDefault: []string{
+				"proposer-config-gas-limit", "proposer-config-builder-urls", "proposer-config-builder-min-bid",
+				"proposer-config-builder-boost-factor", "proposer-config-builder-max-execution-payment",
+			},
+		}, conf.ProposerConfigSeed)
+	})
+
+	for _, flag := range []string{"proposer-gas-limit", "builder-urls", "builder-min-bid", "builder-boost-factor", "builder-max-execution-payment"} {
+		t.Run("old flag "+flag, func(t *testing.T) {
+			_, err := execute(t, "--"+flag+"=1")
+			require.ErrorContains(t, err, "unknown flag: --"+flag)
+		})
+	}
+
+	t.Run("builder value without urls", func(t *testing.T) {
+		_, err := execute(t, "--proposer-config-builder-min-bid=1")
+		require.ErrorContains(t, err, "require proposer-config-builder-urls")
+	})
+
+	t.Run("boost factor without urls", func(t *testing.T) {
+		_, err := execute(t, "--proposer-config-builder-boost-factor=100")
+		require.ErrorContains(t, err, "require proposer-config-builder-urls")
+	})
+
+	t.Run("zero gas limit", func(t *testing.T) {
+		_, err := execute(t, "--proposer-config-gas-limit=0")
+		require.ErrorContains(t, err, "proposer-config-gas-limit must be greater than 0")
+	})
+}
+
+func TestDKGProposerConfigSeedFlags(t *testing.T) {
+	execute := func(t *testing.T, args ...string) (dkg.Config, error) {
+		t.Helper()
+
+		var conf dkg.Config
+
+		root := newRootCmd(newDKGCmd(func(_ context.Context, config dkg.Config) error {
+			conf = config
+			return nil
+		}))
+		root.SetArgs(append([]string{"dkg"}, args...))
+
+		return conf, root.Execute()
+	}
+
+	t.Run("defaults", func(t *testing.T) {
+		conf, err := execute(t)
+		require.NoError(t, err)
+		require.Equal(t, proposerconfig.Seed{GasLimit: 200_000_000, BuilderBoostFactor: 100}, conf.ProposerConfigSeed)
+	})
+
+	t.Run("flags parse", func(t *testing.T) {
+		conf, err := execute(t,
+			"--proposer-config-gas-limit=60000000",
+			"--proposer-config-builder-urls=https://a.example.com",
+			"--proposer-config-builder-min-bid=1",
+			"--proposer-config-builder-boost-factor=90",
+			"--proposer-config-builder-max-execution-payment=2",
+		)
+		require.NoError(t, err)
+		require.Equal(t, proposerconfig.Seed{
+			GasLimit:                   60_000_000,
+			BuilderURLs:                []string{"https://a.example.com"},
+			BuilderMinBid:              1,
+			BuilderBoostFactor:         90,
+			BuilderMaxExecutionPayment: 2,
+			NonDefault: []string{
+				"proposer-config-gas-limit", "proposer-config-builder-urls", "proposer-config-builder-min-bid",
+				"proposer-config-builder-boost-factor", "proposer-config-builder-max-execution-payment",
+			},
+		}, conf.ProposerConfigSeed)
+	})
+
+	t.Run("builder value without urls", func(t *testing.T) {
+		_, err := execute(t, "--proposer-config-builder-min-bid=1")
+		require.ErrorContains(t, err, "require proposer-config-builder-urls")
+	})
+
+	t.Run("usage says the values are signed", func(t *testing.T) {
+		cmd := newDKGCmd(nil)
+		for _, flag := range []string{"proposer-config-gas-limit", "proposer-config-builder-urls", "proposer-config-builder-min-bid", "proposer-config-builder-boost-factor", "proposer-config-builder-max-execution-payment"} {
+			usage := cmd.Flags().Lookup(flag).Usage
+			require.Contains(t, usage, "Signed into the cluster's initial proposer config", flag)
+			require.Contains(t, usage, "charon alpha edit proposer-config", flag)
+			require.NotContains(t, usage, "disregarded", flag)
+		}
+	})
+
+	t.Run("nickname still validated", func(t *testing.T) {
+		_, err := execute(t, "--nickname="+strings.Repeat("a", 33))
+		require.ErrorContains(t, err, "--nickname exceeds 32 character limit")
+	})
+}
+
+func TestAddValidatorsProposerConfigFlags(t *testing.T) {
+	var conf addValidatorsConfig
+
+	root := newRootCmd(newAddValidatorsCmd(func(_ context.Context, config addValidatorsConfig) error {
+		conf = config
+		return nil
+	}))
+
+	root.SetArgs([]string{"add-validators"})
+	require.NoError(t, root.Execute())
+	require.Equal(t, ".charon/vc-config/proposer-config.json", conf.ProposerConfigFile)
+	require.Equal(t, ".charon/builder_registrations_overrides.json", conf.OverridesFile)
+
+	root.SetArgs([]string{"add-validators", "--proposer-config-file=pc.json", "--overrides-file=o.json"})
+	require.NoError(t, root.Execute())
+	require.Equal(t, "pc.json", conf.ProposerConfigFile)
+	require.Equal(t, "o.json", conf.OverridesFile)
 }
 
 func TestFlagsToLogFields(t *testing.T) {
@@ -287,7 +435,7 @@ func TestRedact(t *testing.T) {
 		},
 		{
 			name:     "redact builder URL passwords",
-			flag:     "builder-urls",
+			flag:     "proposer-config-builder-urls",
 			value:    "https://0xabc:secret@relay.example.com",
 			expected: "https://0xabc:xxxxx@relay.example.com",
 		},
