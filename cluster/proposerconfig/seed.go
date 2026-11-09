@@ -75,19 +75,19 @@ func validateBuilderURLs(flag string, urls []string) error {
 	return nil
 }
 
-// FlagValues returns the settings' gas limit and builder values keyed by the seeding flag setting them,
-// the builder values empty without a builder.
-func FlagValues(s Settings) map[string]string {
-	vals := map[string]string{"proposer-config-gas-limit": s.GasLimit}
+// FlagValues returns the settings' gas limit and builder values keyed by the seeding flag setting them: the
+// builder URLs as a list, the other values as one element, the builder flags absent without a builder.
+func FlagValues(s Settings) map[string][]string {
+	vals := map[string][]string{"proposer-config-gas-limit": {s.GasLimit}}
 	if s.Builder == nil {
 		return vals
 	}
 
 	b := flattenBuilder(s.Builder)
 	vals["proposer-config-builder-urls"] = b.urls
-	vals["proposer-config-builder-min-bid"] = b.minBid
-	vals["proposer-config-builder-boost-factor"] = b.boostFactor
-	vals["proposer-config-builder-max-execution-payment"] = b.maxExecutionPayment
+	vals["proposer-config-builder-min-bid"] = []string{b.minBid}
+	vals["proposer-config-builder-boost-factor"] = []string{b.boostFactor}
+	vals["proposer-config-builder-max-execution-payment"] = []string{b.maxExecutionPayment}
 
 	return vals
 }
