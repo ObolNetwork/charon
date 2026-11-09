@@ -138,12 +138,12 @@ func TestBindRunFlagsValidation(t *testing.T) {
 		},
 		{
 			Name: "too long builder url",
-			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--builder-urls", "https://"+strings.Repeat("a", core.MaxBuilderURLSize)),
-			Err:  "builder-urls entry is longer than the maximum",
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--proposer-config-builder-urls", "https://"+strings.Repeat("a", core.MaxBuilderURLSize)),
+			Err:  "proposer-config-builder-urls entry is longer than the maximum",
 		},
 		{
 			Name: "valid builder url",
-			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--builder-urls", "https://builder.example.com"),
+			Args: slice("run", "--beacon-node-endpoints", "http://beacon.node", "--proposer-config-builder-urls", "https://builder.example.com"),
 		},
 		{
 			Name: "invalid hostname",
@@ -169,4 +169,20 @@ func TestBindRunFlagsValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunProposerConfigSeedNonDefault(t *testing.T) {
+	t.Setenv("CHARON_PROPOSER_CONFIG_BUILDER_URLS", "https://b.example.com")
+
+	var got app.Config
+
+	root := newRootCmd(newRunCmd(func(_ context.Context, config app.Config) error {
+		got = config
+		return nil
+	}, false))
+	root.SetArgs(slice("run", "--beacon-node-endpoints", "http://beacon.node", "--proposer-config-gas-limit", "60000000"))
+	require.NoError(t, root.Execute())
+
+	// Flags set by the operator, on the command line or in the environment, but not those left at their defaults.
+	require.ElementsMatch(t, []string{"proposer-config-gas-limit", "proposer-config-builder-urls"}, got.ProposerConfigSeed.NonDefault)
 }

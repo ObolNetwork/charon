@@ -58,6 +58,8 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_peerinfo_start_time_secs` | Gauge | Constant gauge set to the peer start time of the binary in unix seconds | `peer` |
 | `app_peerinfo_version` | Gauge | Constant gauge with version label set to peer`s charon version. | `peer, version` |
 | `app_peerinfo_version_support` | Gauge | Set to 1 if the peer`s version is supported by (compatible with) the current version, else 0 if unsupported. | `peer` |
+| `app_proposer_config_invalid` | Gauge | Set to 1 while the proposer config file fails validation or cannot be loaded, 0 otherwise. |  |
+| `app_proposer_config_revision` | Gauge | The revision of the loaded proposer config document, 0 for an unsigned document derived locally from the lock and flags. |  |
 | `app_start_time_secs` | Gauge | Gauge set to the app start time of the binary in unix seconds |  |
 | `app_validator_stack_params` | Gauge | Parameters for each component of the validator stack in which this Charon instance is deployed into | `component, cli_parameters` |
 | `app_version` | Gauge | Constant gauge with label set to current app version | `version` |
