@@ -27,14 +27,20 @@ func Hex7(input []byte) string {
 }
 
 // BundleOutput archives targetDir into a gzipped tarball named filename in targetDir.
+// The archive contains private key material, so it is only readable and writable by its owner.
 // After successfully creating the archive, it deletes the original files from disk.
 func BundleOutput(targetDir string, filename string) error {
 	// Create output file
-	file, err := os.Create(filepath.Join(targetDir, filename))
+	file, err := os.OpenFile(filepath.Join(targetDir, filename), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return errors.Wrap(err, "create .tar.gz file")
 	}
 	defer file.Close()
+
+	// OpenFile only applies the mode to new files, so also restrict a pre-existing archive.
+	if err := file.Chmod(0o600); err != nil {
+		return errors.Wrap(err, "chmod .tar.gz file")
+	}
 
 	gzw := gzip.NewWriter(file)
 	defer gzw.Close()
@@ -98,6 +104,23 @@ func BundleOutput(targetDir string, filename string) error {
 	})
 	if err != nil {
 		return errors.Wrap(err, "filepath walk")
+	}
+
+	// Flush the archive to disk before deleting the originals, so a failed write never loses them.
+	if err := tw.Close(); err != nil {
+		return errors.Wrap(err, "close tar writer")
+	}
+
+	if err := gzw.Close(); err != nil {
+		return errors.Wrap(err, "close gzip writer")
+	}
+
+	if err := file.Sync(); err != nil {
+		return errors.Wrap(err, "sync .tar.gz file")
+	}
+
+	if err := file.Close(); err != nil {
+		return errors.Wrap(err, "close .tar.gz file")
 	}
 
 	// Delete files/folders

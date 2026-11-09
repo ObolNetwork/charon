@@ -67,10 +67,11 @@ func TestBundleOutput(t *testing.T) {
 	err := app.BundleOutput(testDir, archiveName)
 	require.NoError(t, err, "BundleOutput should succeed")
 
-	// Verify that the archive file exists
+	// Verify that the archive file exists and is only accessible by its owner
 	archivePath := filepath.Join(testDir, archiveName)
-	_, err = os.Stat(archivePath)
+	info, err := os.Stat(archivePath)
 	require.NoError(t, err, "Archive file should exist")
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "Archive should be owner read/write only")
 
 	// Verify that original files are deleted (except the archive)
 	entries, err := os.ReadDir(testDir)
@@ -86,6 +87,27 @@ func TestBundleOutput(t *testing.T) {
 	// Compare the extracted content with the original backup
 	err = app.CompareDirectories(backupDir, extractDir)
 	require.NoError(t, err, "Extracted content should match original")
+}
+
+func TestBundleOutputExistingArchive(t *testing.T) {
+	testDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(testDir, "charon-enr-private-key"), []byte("secret"), 0o600))
+
+	// A world-readable archive left over from a previous run must be restricted too.
+	archivePath := filepath.Join(testDir, "test_bundle.tar.gz")
+	require.NoError(t, os.WriteFile(archivePath, []byte("stale"), 0o644))
+
+	require.NoError(t, app.BundleOutput(testDir, "test_bundle.tar.gz"))
+
+	info, err := os.Stat(archivePath)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "Archive should be owner read/write only")
+
+	extractDir := t.TempDir()
+	require.NoError(t, app.ExtractArchive(archivePath, extractDir))
+	b, err := os.ReadFile(filepath.Join(extractDir, "charon-enr-private-key"))
+	require.NoError(t, err)
+	require.Equal(t, "secret", string(b))
 }
 
 func TestCompareDirectories(t *testing.T) {
