@@ -186,6 +186,10 @@ func Load(path string, lock cluster.Lock, nodeIdx cluster.NodeIdx) (Document, er
 		return Document{}, errors.Wrap(err, "load proposer config", z.Str("path", path))
 	}
 
+	if len(doc.LockHash) != len(lock.LockHash) {
+		return Document{}, errors.Wrap(invalid("malformed lock hash", z.Int("bytes", len(doc.LockHash))), "load proposer config", z.Str("path", path))
+	}
+
 	// Checked before re-keying, another cluster's pubshares would otherwise fail as unknown.
 	if !bytes.Equal(doc.LockHash, lock.LockHash) {
 		return Document{}, errors.Wrap(ErrLockHashMismatch, "proposer config file lock hash differs from lock", z.Str("path", path))

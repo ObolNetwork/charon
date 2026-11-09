@@ -178,6 +178,18 @@ func TestApplyNoChange(t *testing.T) {
 	require.Equal(t, "5", res.DefaultConfig.GasLimit)
 }
 
+func TestApplyInvalidBuilderDelta(t *testing.T) {
+	lock := testLock(t, 2)
+	c, err := NewConfig(lock, []string{addrA, addrA}, DefaultGasLimit, testBuilder())
+	require.NoError(t, err)
+
+	_, err = Apply(lock, c, Delta{BuilderURLs: []string{}})
+	require.ErrorContains(t, err, "builder urls must not be empty")
+
+	_, err = Apply(lock, c, Delta{NoBuilders: true, BuilderMinBid: new(uint64(5))})
+	require.ErrorContains(t, err, "no builders excludes")
+}
+
 func TestApplyUnknownValidator(t *testing.T) {
 	lock := testLock(t, 2)
 	c, err := NewConfig(lock, []string{addrA, addrA}, DefaultGasLimit, nil)
@@ -186,7 +198,7 @@ func TestApplyUnknownValidator(t *testing.T) {
 	unknown := "0x" + strings.Repeat("ab", 48)
 
 	_, err = Apply(lock, c, Delta{FeeRecipient: addrB, FeeRecipientValidators: []string{unknown}})
-	require.ErrorContains(t, err, unknown)
+	require.ErrorContains(t, err, "validator not in lock")
 }
 
 func TestApplyInvalidFeeRecipient(t *testing.T) {

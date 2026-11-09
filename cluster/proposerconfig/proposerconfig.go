@@ -67,7 +67,7 @@ type Config struct {
 
 // Signature is an operator's signature of the revision hash.
 type Signature struct {
-	Operator  int `json:"operator"`
+	Operator  int
 	Signature []byte
 }
 

@@ -53,17 +53,18 @@ func (s Seed) Validate() error {
 func validateBuilderURLs(flag string, urls []string) error {
 	seen := make(map[string]bool)
 
-	for _, u := range urls {
+	for i, u := range urls {
+		parsed, err := url.Parse(u)
+		if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" {
+			// The URL is left out: one that doesn't parse cannot be redacted.
+			return errors.New(flag+" entry is not a valid http(s) URL", z.Int("index", i))
+		}
+
 		if seen[u] {
 			return errors.New(flag+" entry is duplicated", z.Str("url", log.RedactURL(u, true)))
 		}
 
 		seen[u] = true
-
-		parsed, err := url.Parse(u)
-		if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" {
-			return errors.New(flag+" entry is not a valid http(s) URL", z.Str("url", log.RedactURL(u, true)))
-		}
 
 		// A builder's URL is agreed with the proposals of its bids, which can't carry a longer one.
 		if len(u) > core.MaxBuilderURLSize {
@@ -72,6 +73,23 @@ func validateBuilderURLs(flag string, urls []string) error {
 	}
 
 	return nil
+}
+
+// FlagValues returns the settings' gas limit and builder values keyed by the seeding flag setting them,
+// the builder values empty without a builder.
+func FlagValues(s Settings) map[string]string {
+	vals := map[string]string{"proposer-config-gas-limit": s.GasLimit}
+	if s.Builder == nil {
+		return vals
+	}
+
+	b := flattenBuilder(s.Builder)
+	vals["proposer-config-builder-urls"] = b.urls
+	vals["proposer-config-builder-min-bid"] = b.minBid
+	vals["proposer-config-builder-boost-factor"] = b.boostFactor
+	vals["proposer-config-builder-max-execution-payment"] = b.maxExecutionPayment
+
+	return vals
 }
 
 // Builder returns the builder settings, or nil if no builder URLs are configured.

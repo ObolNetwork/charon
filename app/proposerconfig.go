@@ -168,13 +168,13 @@ func InitialProposerConfig(lock cluster.Lock, seed proposerconfig.Seed, feeRecip
 // warnSignedProposerConfigOverridesFlags warns once if seeding flags the operator set differ from the signed file's
 // defaults, logging both values; the signed file wins.
 func warnSignedProposerConfigOverridesFlags(ctx context.Context, doc proposerconfig.Document, seed proposerconfig.Seed) {
-	fileVals := seedFlagValues(doc.Config.DefaultConfig)
-	flagVals := seedFlagValues(proposerconfig.Settings{GasLimit: strconv.FormatUint(seed.GasLimit, 10), Builder: seed.Builder()})
+	fileVals := proposerconfig.FlagValues(doc.Config.DefaultConfig)
+	flagVals := proposerconfig.FlagValues(proposerconfig.Settings{GasLimit: strconv.FormatUint(seed.GasLimit, 10), Builder: seed.Builder()})
 
 	show := func(flag, val string) string {
 		// Builder URLs may carry credentials, shown redacted as the URL flags are logged.
 		if flag == "proposer-config-builder-urls" {
-			val = strings.Join(log.RedactURLs(strings.Split(val, ","), true), ",")
+			val = proposerconfig.RedactURLs(val)
 		}
 
 		if val == "" {
@@ -198,27 +198,6 @@ func warnSignedProposerConfigOverridesFlags(ctx context.Context, doc proposercon
 
 	log.Warn(ctx, "Proposer config flags ignored, the cluster agreed on different values with "+proposerConfigEditCmd, nil,
 		z.Str("flags", strings.Join(ignored, "; ")))
-}
-
-// seedFlagValues returns the default settings' gas limit and builder values keyed by the seeding flag setting them,
-// the builder values empty without a builder.
-func seedFlagValues(s proposerconfig.Settings) map[string]string {
-	vals := map[string]string{"proposer-config-gas-limit": s.GasLimit}
-	if s.Builder == nil {
-		return vals
-	}
-
-	urls := make([]string, 0, len(s.Builder.Builders))
-	for _, b := range s.Builder.Builders {
-		urls = append(urls, b.URL)
-	}
-
-	vals["proposer-config-builder-urls"] = strings.Join(urls, ",")
-	vals["proposer-config-builder-min-bid"] = s.Builder.MinBid
-	vals["proposer-config-builder-boost-factor"] = s.Builder.BuilderBoostFactor
-	vals["proposer-config-builder-max-execution-payment"] = s.Builder.MaxExecutionPayment
-
-	return vals
 }
 
 // warnUnsignedProposerConfigAfterGloas warns post-gloas that the file is still unsigned.

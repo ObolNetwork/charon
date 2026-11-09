@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 )
 
@@ -48,6 +49,14 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 
 	if d.GasLimit != 0 {
 		gasLimit = d.GasLimit
+	}
+
+	if d.NoBuilders && (d.BuilderURLs != nil || d.BuilderMinBid != nil || d.BuilderBoostFactor != nil || d.BuilderMaxExecutionPayment != nil) {
+		return Config{}, errors.New("no builders excludes the other builder fields")
+	}
+
+	if d.BuilderURLs != nil && len(d.BuilderURLs) == 0 {
+		return Config{}, errors.New("builder urls must not be empty, set no builders to remove the builders")
 	}
 
 	var builder *Builder
@@ -109,7 +118,7 @@ func applyFeeRecipient(lock cluster.Lock, fees []string, d Delta) ([]string, err
 			return pubkeyHex(v.PubKey) == pubkey
 		})
 		if idx < 0 {
-			return nil, errors.New("validator not in lock: " + pubkey)
+			return nil, errors.New("validator not in lock", z.Str("pubkey", pubkey))
 		}
 
 		res[idx] = fee

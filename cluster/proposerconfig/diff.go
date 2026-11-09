@@ -31,15 +31,15 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 
 	add("default.gas_limit", a.DefaultConfig.GasLimit, b.DefaultConfig.GasLimit)
 
-	oldB, newB := builderFields(a.DefaultConfig.Builder), builderFields(b.DefaultConfig.Builder)
-	if oldB[0] != newB[0] {
+	oldB, newB := flattenBuilder(a.DefaultConfig.Builder), flattenBuilder(b.DefaultConfig.Builder)
+	if oldB.urls != newB.urls {
 		// Compared raw, shown redacted: builder URLs may carry credentials.
-		lines = append(lines, "default.builder.urls: "+orNone(redactURLs(oldB[0]))+" -> "+orNone(redactURLs(newB[0])))
+		lines = append(lines, "default.builder.urls: "+orNone(RedactURLs(oldB.urls))+" -> "+orNone(RedactURLs(newB.urls)))
 	}
 
-	add("default.builder.min_bid", oldB[1], newB[1])
-	add("default.builder.boost_factor", oldB[2], newB[2])
-	add("default.builder.max_execution_payment", oldB[3], newB[3])
+	add("default.builder.min_bid", oldB.minBid, newB.minBid)
+	add("default.builder.boost_factor", oldB.boostFactor, newB.boostFactor)
+	add("default.builder.max_execution_payment", oldB.maxExecutionPayment, newB.maxExecutionPayment)
 
 	oldFees, newFees := a.FeeRecipients(lock), b.FeeRecipients(lock)
 	for i, val := range lock.Validators {
@@ -49,16 +49,23 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 	return lines
 }
 
-// redactURLs returns the comma-joined URLs redacted as the URL flags are logged.
-func redactURLs(joined string) string {
+// RedactURLs returns the comma-joined URLs redacted as the URL flags are logged.
+func RedactURLs(joined string) string {
 	return strings.Join(log.RedactURLs(strings.Split(joined, ","), true), ",")
 }
 
-// builderFields returns the comma-joined urls, min bid, boost factor and max execution payment,
-// all empty for a nil builder.
-func builderFields(b *Builder) [4]string {
+// builderValues are a builder's settings as strings, the URLs comma-joined, all empty for a nil builder.
+type builderValues struct {
+	urls                string
+	minBid              string
+	boostFactor         string
+	maxExecutionPayment string
+}
+
+// flattenBuilder returns the builder's values.
+func flattenBuilder(b *Builder) builderValues {
 	if b == nil {
-		return [4]string{}
+		return builderValues{}
 	}
 
 	urls := make([]string, 0, len(b.Builders))
@@ -66,5 +73,5 @@ func builderFields(b *Builder) [4]string {
 		urls = append(urls, e.URL)
 	}
 
-	return [4]string{strings.Join(urls, ","), b.MinBid, b.BuilderBoostFactor, b.MaxExecutionPayment}
+	return builderValues{urls: strings.Join(urls, ","), minBid: b.MinBid, boostFactor: b.BuilderBoostFactor, maxExecutionPayment: b.MaxExecutionPayment}
 }

@@ -129,6 +129,17 @@ func TestLoadIntegerVersion(t *testing.T) {
 	require.NotErrorIs(t, err, ErrNotFound)
 }
 
+func TestLoadMissingLockHash(t *testing.T) {
+	lock := testLock(t, 1)
+	path := filepath.Join(t.TempDir(), "proposer-config.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"version":"v1.0.0","proposer_config":{},"default_config":{"gas_limit":"30000000"}}`), 0o644))
+
+	// A hand-written file without a lock hash is invalid, not another cluster's.
+	_, err := Load(path, lock, cluster.NodeIdx{PeerIdx: 0, ShareIdx: 1})
+	require.ErrorIs(t, err, ErrInvalid)
+	require.NotErrorIs(t, err, ErrLockHashMismatch)
+}
+
 func TestLoadForeignPubshares(t *testing.T) {
 	lock := testLock(t, 2)
 	path := filepath.Join(t.TempDir(), "proposer-config.json")

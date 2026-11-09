@@ -4,6 +4,7 @@ package proposerconfig
 
 import (
 	"math/rand"
+	"strings"
 	"testing"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -39,6 +40,8 @@ func TestVerify(t *testing.T) {
 
 	other, err := k1.GeneratePrivateKey()
 	require.NoError(t, err)
+
+	v0 := pubkeyHex(lock.Validators[0].PubKey)
 
 	tests := []struct {
 		name   string
@@ -155,7 +158,7 @@ func TestVerify(t *testing.T) {
 			name: "entry gas limit",
 			doc: func() Document {
 				doc := newDoc(0)
-				doc.Config.ProposerConfig["0xabcd"] = Settings{GasLimit: "1"}
+				doc.Config.ProposerConfig[v0] = Settings{GasLimit: "1"}
 
 				return doc
 			},
@@ -166,7 +169,7 @@ func TestVerify(t *testing.T) {
 			name: "entry builder",
 			doc: func() Document {
 				doc := newDoc(0)
-				doc.Config.ProposerConfig["0xabcd"] = Settings{Builder: &Builder{}}
+				doc.Config.ProposerConfig[v0] = Settings{Builder: &Builder{}}
 
 				return doc
 			},
@@ -177,10 +180,32 @@ func TestVerify(t *testing.T) {
 			name: "entry fee recipient",
 			doc: func() Document {
 				doc := newDoc(0)
+				doc.Config.ProposerConfig[v0] = Settings{FeeRecipient: addrB}
+
+				return doc
+			},
+		},
+		{
+			name: "unknown key",
+			doc: func() Document {
+				doc := newDoc(0)
 				doc.Config.ProposerConfig["0xabcd"] = Settings{FeeRecipient: addrB}
 
 				return doc
 			},
+			errIs:  ErrInvalid,
+			errMsg: "not a lowercase lock validator pubkey",
+		},
+		{
+			name: "uppercase key",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig["0x"+strings.ToUpper(v0[2:])] = Settings{FeeRecipient: addrB}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "not a lowercase lock validator pubkey",
 		},
 		{
 			name: "builder entry override",
@@ -197,14 +222,35 @@ func TestVerify(t *testing.T) {
 			errMsg: "builder entry sets more than url",
 		},
 		{
-			name: "unknown version",
+			name: "other major version",
 			doc: func() Document {
 				doc := newDoc(0)
 				doc.Version = "v3.0.0"
 
 				return doc
 			},
-			errIs: ErrInvalid,
+			errIs:  ErrInvalid,
+			errMsg: "unsupported version",
+		},
+		{
+			name: "same major version",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Version = "v1.1.0"
+
+				return doc
+			},
+		},
+		{
+			name: "empty lock hash",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.LockHash = nil
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "malformed lock hash",
 		},
 	}
 

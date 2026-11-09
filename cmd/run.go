@@ -172,29 +172,28 @@ func bindPrivKeyFlag(cmd *cobra.Command, privKeyFile *string, privkeyLockEnabled
 	cmd.Flags().BoolVar(privkeyLockEnabled, "private-key-file-lock", false, "Enables private key locking to prevent multiple instances using the same key.")
 }
 
-// proposerConfigSeedFlags are the flags bound by bindProposerConfigSeedFlags.
-var proposerConfigSeedFlags = []string{
-	"proposer-config-gas-limit",
-	"proposer-config-builder-urls",
-	"proposer-config-builder-min-bid",
-	"proposer-config-builder-boost-factor",
-	"proposer-config-builder-max-execution-payment",
-}
-
 // bindProposerConfigSeedFlags binds the flags seeding an unsigned (revision 0) proposer config file.
 func bindProposerConfigSeedFlags(cmd *cobra.Command, seed *proposerconfig.Seed) {
+	// seedFlag records the flag name for the PreRunE below.
+	var names []string
+
+	seedFlag := func(name string) string {
+		names = append(names, name)
+		return name
+	}
+
 	const seedOnly = "Seeds a new proposer config file only, disregarded once the cluster signed one with charon alpha edit proposer-config. Must be identical on all nodes in the cluster."
 
-	cmd.Flags().Uint64Var(&seed.GasLimit, "proposer-config-gas-limit", proposerconfig.DefaultGasLimit, "Preferred target gas limit for proposed execution payloads from the gloas fork onwards. "+seedOnly)
-	cmd.Flags().StringSliceVar(&seed.BuilderURLs, "proposer-config-builder-urls", nil, "Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. "+seedOnly)
-	cmd.Flags().Uint64Var(&seed.BuilderMinBid, "proposer-config-builder-min-bid", 0, "Minimum builder bid value in gwei, bids below it lose to the locally built payload. Requires proposer-config-builder-urls. "+seedOnly)
-	cmd.Flags().Uint64Var(&seed.BuilderBoostFactor, "proposer-config-builder-boost-factor", proposerconfig.DefaultBuilderBoostFactor, "Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Requires proposer-config-builder-urls. "+seedOnly)
-	cmd.Flags().Uint64Var(&seed.BuilderMaxExecutionPayment, "proposer-config-builder-max-execution-payment", 0, "Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Requires proposer-config-builder-urls. "+seedOnly)
+	cmd.Flags().Uint64Var(&seed.GasLimit, seedFlag("proposer-config-gas-limit"), proposerconfig.DefaultGasLimit, "Preferred target gas limit for proposed execution payloads from the gloas fork onwards. "+seedOnly)
+	cmd.Flags().StringSliceVar(&seed.BuilderURLs, seedFlag("proposer-config-builder-urls"), nil, "Comma separated list of builder API URLs to request execution payload bids from directly, from the gloas fork onwards. "+seedOnly)
+	cmd.Flags().Uint64Var(&seed.BuilderMinBid, seedFlag("proposer-config-builder-min-bid"), 0, "Minimum builder bid value in gwei, bids below it lose to the locally built payload. Requires proposer-config-builder-urls. "+seedOnly)
+	cmd.Flags().Uint64Var(&seed.BuilderBoostFactor, seedFlag("proposer-config-builder-boost-factor"), proposerconfig.DefaultBuilderBoostFactor, "Percentage multiplier applied to builder bid values when comparing them to the locally built payload. Requires proposer-config-builder-urls. "+seedOnly)
+	cmd.Flags().Uint64Var(&seed.BuilderMaxExecutionPayment, seedFlag("proposer-config-builder-max-execution-payment"), 0, "Maximum execution layer payment in gwei counted when valuing a builder bid, 0 counts no execution payment (trustless bids only). Requires proposer-config-builder-urls. "+seedOnly)
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		seed.NonDefault = nil
 
-		for _, name := range proposerConfigSeedFlags {
+		for _, name := range names {
 			if cc.Flags().Changed(name) {
 				seed.NonDefault = append(seed.NonDefault, name)
 			}
