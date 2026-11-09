@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -54,14 +55,14 @@ func validateBuilderURLs(flag string, urls []string) error {
 
 	for _, u := range urls {
 		if seen[u] {
-			return errors.New(flag+" entry is duplicated", z.Str("url", u))
+			return errors.New(flag+" entry is duplicated", z.Str("url", log.RedactURL(u, true)))
 		}
 
 		seen[u] = true
 
 		parsed, err := url.Parse(u)
 		if err != nil || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.Host == "" {
-			return errors.New(flag+" entry is not a valid http(s) URL", z.Str("url", u))
+			return errors.New(flag+" entry is not a valid http(s) URL", z.Str("url", log.RedactURL(u, true)))
 		}
 
 		// A builder's URL is agreed with the proposals of its bids, which can't carry a longer one.
