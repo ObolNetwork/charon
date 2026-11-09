@@ -5,6 +5,7 @@ package proposerconfig
 import (
 	"bytes"
 	"slices"
+	"strings"
 
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 
@@ -29,14 +30,19 @@ func invalid(reason string, fields ...z.Field) error {
 }
 
 // Verify checks the document against the lock: lock hash, version, stored hash, editable fields and signatures.
-// Revision 0 must be unsigned; later revisions need threshold distinct valid operator signatures.
+// Any version with the same major as Version is accepted. Revision 0 must be unsigned; later revisions need
+// threshold distinct valid operator signatures.
 func Verify(doc Document, lock cluster.Lock) error {
+	if len(doc.LockHash) != len(lock.LockHash) {
+		return invalid("malformed lock hash", z.Int("bytes", len(doc.LockHash)))
+	}
+
 	if !bytes.Equal(doc.LockHash, lock.LockHash) {
 		return errors.Wrap(ErrLockHashMismatch, "document lock hash differs from lock")
 	}
 
-	if doc.Version != Version {
-		return invalid("unknown version", z.Str("version", doc.Version))
+	if major(doc.Version) != major(Version) {
+		return invalid("unsupported version", z.Str("version", doc.Version), z.Str("supported", Version))
 	}
 
 	hash, err := doc.Hash()
@@ -48,7 +54,7 @@ func Verify(doc Document, lock cluster.Lock) error {
 		return invalid("content was modified, revision hash mismatch")
 	}
 
-	err = checkEditableFields(doc.Config)
+	err = checkEditableFields(doc.Config, lock)
 	if err != nil {
 		return err
 	}
@@ -130,10 +136,27 @@ func verifySignature(hash [32]byte, lock cluster.Lock, operator int, sig []byte)
 	return nil
 }
 
-// checkEditableFields rejects the fields the edit command cannot set: per-validator gas limits and builders, and
-// per-builder overrides. The proposer config is only changed through the CLI.
-func checkEditableFields(c Config) error {
+// major returns the major of a vX.Y.Z version.
+func major(version string) string {
+	m, _, _ := strings.Cut(version, ".")
+
+	return m
+}
+
+// checkEditableFields rejects what the edit command cannot write: proposer_config keys other than the lock's
+// validator pubkeys in lowercase, per-validator gas limits and builders, and per-builder overrides. The proposer
+// config is only changed through the CLI.
+func checkEditableFields(c Config, lock cluster.Lock) error {
+	pubkeys := make(map[string]bool, len(lock.Validators))
+	for _, val := range lock.Validators {
+		pubkeys[pubkeyHex(val.PubKey)] = true
+	}
+
 	for pubkey, s := range c.ProposerConfig {
+		if !pubkeys[pubkey] {
+			return invalid("proposer_config key is not a lowercase lock validator pubkey", z.Str("key", pubkey))
+		}
+
 		if s.GasLimit != "" || s.Builder != nil {
 			return invalid("proposer_config entry sets more than fee_recipient", z.Str("pubkey", pubkey))
 		}
