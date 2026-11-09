@@ -141,16 +141,7 @@ func TestCurrentEpochFunc(t *testing.T) {
 		{name: "before genesis", genesis: time.Now().Add(time.Hour), epoch: 0},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			bmock, err := beaconmock.New(t.Context(),
-				beaconmock.WithSlotDuration(slotDuration),
-				beaconmock.WithSlotsPerEpoch(16),
-				beaconmock.WithGenesisTime(test.genesis),
-			)
-			require.NoError(t, err)
-
-			currentEpoch, err := currentEpochFunc(t.Context(), bmock)
-			require.NoError(t, err)
-			require.EqualValues(t, test.epoch, currentEpoch())
+			require.EqualValues(t, test.epoch, currentEpochFunc(test.genesis, slotDuration, 16)())
 		})
 	}
 }

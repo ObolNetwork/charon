@@ -509,10 +509,17 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartBuilderRegWatcher,
 		lifecycle.HookFuncCtx(builderRegSvc.Run))
 
-	currentEpoch, err := currentEpochFunc(ctx, eth2Cl)
+	genesis, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
+
+	slotDur, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	currentEpoch := currentEpochFunc(genesis, slotDur, slotsPerEpoch)
 
 	gloasActive := func() bool { return forkSchedule().Active(eth2wrap.Gloas, currentEpoch()) }
 
@@ -640,11 +647,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	}
 
 	graffitiBuilder, err := fetcher.NewGraffitiBuilder(pubkeys, conf.Graffiti, conf.GraffitiDisableClientAppend, eth2Cl)
-	if err != nil {
-		return err
-	}
-
-	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
 		return err
 	}
@@ -964,18 +966,8 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	return maxDelayTimeSlot, nil
 }
 
-// currentEpochFunc returns a function returning the current epoch per the beacon node's genesis time and slot config.
-func currentEpochFunc(ctx context.Context, cl eth2wrap.Client) (func() eth2p0.Epoch, error) {
-	genesisTime, err := eth2wrap.FetchGenesisTime(ctx, cl)
-	if err != nil {
-		return nil, err
-	}
-
-	slotDuration, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, cl)
-	if err != nil {
-		return nil, err
-	}
-
+// currentEpochFunc returns a function returning the current epoch per the genesis time and slot config.
+func currentEpochFunc(genesisTime time.Time, slotDuration time.Duration, slotsPerEpoch uint64) func() eth2p0.Epoch {
 	return func() eth2p0.Epoch {
 		elapsed := time.Since(genesisTime)
 		if elapsed < 0 {
@@ -983,7 +975,7 @@ func currentEpochFunc(ctx context.Context, cl eth2wrap.Client) (func() eth2p0.Ep
 		}
 
 		return eth2p0.Epoch(uint64(elapsed/slotDuration) / slotsPerEpoch)
-	}, nil
+	}
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
