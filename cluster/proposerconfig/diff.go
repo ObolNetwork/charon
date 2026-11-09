@@ -3,6 +3,7 @@
 package proposerconfig
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/obolnetwork/charon/app/log"
@@ -32,7 +33,7 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 	add("default.gas_limit", a.DefaultConfig.GasLimit, b.DefaultConfig.GasLimit)
 
 	oldB, newB := flattenBuilder(a.DefaultConfig.Builder), flattenBuilder(b.DefaultConfig.Builder)
-	if oldB.urls != newB.urls {
+	if !slices.Equal(oldB.urls, newB.urls) {
 		// Compared raw, shown redacted: builder URLs may carry credentials.
 		lines = append(lines, "default.builder.urls: "+orNone(RedactURLs(oldB.urls))+" -> "+orNone(RedactURLs(newB.urls)))
 	}
@@ -49,14 +50,15 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 	return lines
 }
 
-// RedactURLs returns the comma-joined URLs redacted as the URL flags are logged.
-func RedactURLs(joined string) string {
-	return strings.Join(log.RedactURLs(strings.Split(joined, ","), true), ",")
+// RedactURLs returns the URLs redacted as the URL flags are logged, comma-joined for display. The URLs are
+// redacted one by one: a URL may itself contain a comma.
+func RedactURLs(urls []string) string {
+	return strings.Join(log.RedactURLs(urls, true), ",")
 }
 
-// builderValues are a builder's settings as strings, the URLs comma-joined, all empty for a nil builder.
+// builderValues are a builder's settings as strings, all empty for a nil builder.
 type builderValues struct {
-	urls                string
+	urls                []string
 	minBid              string
 	boostFactor         string
 	maxExecutionPayment string
@@ -73,5 +75,5 @@ func flattenBuilder(b *Builder) builderValues {
 		urls = append(urls, e.URL)
 	}
 
-	return builderValues{urls: strings.Join(urls, ","), minBid: b.MinBid, boostFactor: b.BuilderBoostFactor, maxExecutionPayment: b.MaxExecutionPayment}
+	return builderValues{urls: urls, minBid: b.MinBid, boostFactor: b.BuilderBoostFactor, maxExecutionPayment: b.MaxExecutionPayment}
 }

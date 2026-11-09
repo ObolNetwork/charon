@@ -48,12 +48,13 @@ func TestDiffRedactsBuilderURLs(t *testing.T) {
 	require.NoError(t, err)
 
 	builder := testBuilder()
-	builder.Builders = []BuilderEntry{{URL: "https://user:secret@b2.example"}, {URL: "https://b3.example/key?token=secret"}}
+	builder.Builders = []BuilderEntry{{URL: "https://user:secret@b2.example"}, {URL: "https://b3.example/key?token=secret"}, {URL: "https://user:pa,ss@b4.example"}}
 	b, err := NewConfig(lock, []string{addrA}, DefaultGasLimit, builder)
 	require.NoError(t, err)
 
+	// A comma in a URL does not split it before redaction.
 	require.Equal(t, []string{
-		"default.builder.urls: https://b1.example -> https://user:xxxxx@b2.example,https://b3.example/xxxxx?token=xxxxx",
+		"default.builder.urls: https://b1.example -> https://user:xxxxx@b2.example,https://b3.example/xxxxx?token=xxxxx,https://user:xxxxx@b4.example",
 	}, Diff(lock, a, b))
 
 	// URLs differing only in redacted parts still differ.
