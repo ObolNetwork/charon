@@ -42,6 +42,28 @@ func TestDiffBuilder(t *testing.T) {
 	}, Diff(lock, a, b))
 }
 
+func TestDiffRedactsBuilderURLs(t *testing.T) {
+	lock := testLock(t, 1)
+	a, err := NewConfig(lock, []string{addrA}, DefaultGasLimit, testBuilder())
+	require.NoError(t, err)
+
+	builder := testBuilder()
+	builder.Builders = []BuilderEntry{{URL: "https://user:secret@b2.example"}, {URL: "https://b3.example/key?token=secret"}}
+	b, err := NewConfig(lock, []string{addrA}, DefaultGasLimit, builder)
+	require.NoError(t, err)
+
+	require.Equal(t, []string{
+		"default.builder.urls: https://b1.example -> https://user:xxxxx@b2.example,https://b3.example/xxxxx?token=xxxxx",
+	}, Diff(lock, a, b))
+
+	// URLs differing only in redacted parts still differ.
+	builder = testBuilder()
+	builder.Builders = []BuilderEntry{{URL: "https://user:other@b2.example"}}
+	c, err := NewConfig(lock, []string{addrA}, DefaultGasLimit, builder)
+	require.NoError(t, err)
+	require.Len(t, Diff(lock, b, c), 1)
+}
+
 func TestDiffLargeLock(t *testing.T) {
 	const n = 5000
 

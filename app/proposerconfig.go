@@ -171,19 +171,24 @@ func warnSignedProposerConfigOverridesFlags(ctx context.Context, doc proposercon
 	fileVals := seedFlagValues(doc.Config.DefaultConfig)
 	flagVals := seedFlagValues(proposerconfig.Settings{GasLimit: strconv.FormatUint(seed.GasLimit, 10), Builder: seed.Builder()})
 
-	orNone := func(s string) string {
-		if s == "" {
+	show := func(flag, val string) string {
+		// Builder URLs may carry credentials, shown redacted as the URL flags are logged.
+		if flag == "proposer-config-builder-urls" {
+			val = strings.Join(log.RedactURLs(strings.Split(val, ","), true), ",")
+		}
+
+		if val == "" {
 			return "none"
 		}
 
-		return s
+		return val
 	}
 
 	var ignored []string
 
 	for _, flag := range seed.NonDefault {
 		if fileVals[flag] != flagVals[flag] {
-			ignored = append(ignored, flag+": file "+orNone(fileVals[flag])+", flag "+orNone(flagVals[flag]))
+			ignored = append(ignored, flag+": file "+show(flag, fileVals[flag])+", flag "+show(flag, flagVals[flag]))
 		}
 	}
 

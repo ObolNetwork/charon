@@ -5,6 +5,7 @@ package proposerconfig
 import (
 	"strings"
 
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 )
 
@@ -31,7 +32,11 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 	add("default.gas_limit", a.DefaultConfig.GasLimit, b.DefaultConfig.GasLimit)
 
 	oldB, newB := builderFields(a.DefaultConfig.Builder), builderFields(b.DefaultConfig.Builder)
-	add("default.builder.urls", oldB[0], newB[0])
+	if oldB[0] != newB[0] {
+		// Compared raw, shown redacted: builder URLs may carry credentials.
+		lines = append(lines, "default.builder.urls: "+orNone(redactURLs(oldB[0]))+" -> "+orNone(redactURLs(newB[0])))
+	}
+
 	add("default.builder.min_bid", oldB[1], newB[1])
 	add("default.builder.boost_factor", oldB[2], newB[2])
 	add("default.builder.max_execution_payment", oldB[3], newB[3])
@@ -42,6 +47,11 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 	}
 
 	return lines
+}
+
+// redactURLs returns the comma-joined URLs redacted as the URL flags are logged.
+func redactURLs(joined string) string {
+	return strings.Join(log.RedactURLs(strings.Split(joined, ","), true), ",")
 }
 
 // builderFields returns the comma-joined urls, min bid, boost factor and max execution payment,
