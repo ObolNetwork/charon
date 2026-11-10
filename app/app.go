@@ -16,6 +16,7 @@ import (
 	eth2api "github.com/attestantio/go-eth2-client/api"
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	"github.com/attestantio/go-eth2-client/spec/bellatrix"
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
 	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/libp2p/go-libp2p"
@@ -658,8 +659,11 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
+	builderCfgFunc := func() *gloas.BuilderConfig { return builderCfg }
+	hostsFunc := func() []string { return hosts }
+
 	fetch, err := fetcher.New(ctx, eth2Cl, builderRegSvc.FeeRecipient, conf.BuilderAPI, graffitiBuilder,
-		forkSchedule, slotsPerEpoch, builderCfg, featureset.Enabled(featureset.FetchOnlyCommIdx0))
+		forkSchedule, slotsPerEpoch, builderCfgFunc, builderRegSvc.FeeRecipient, featureset.Enabled(featureset.FetchOnlyCommIdx0))
 	if err != nil {
 		return err
 	}
@@ -674,8 +678,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(retainerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, conf.ProposerConfigSeed.GasLimit,
-		validatorapi.WithBuilderHosts(hosts))
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, func() uint64 { return conf.ProposerConfigSeed.GasLimit },
+		validatorapi.WithBuilderHostsFunc(hostsFunc))
 	if err != nil {
 		return err
 	}
@@ -747,7 +751,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		submissionEth2Cl.SetDutiesCache(dutiesCache.ProposerDutiesCache, dutiesCache.ProposerDutiesV2Cache, dutiesCache.AttesterDutiesCache, dutiesCache.SyncCommDutiesCache)
 	}
 
-	broadcaster, err := bcast.New(ctx, submissionEth2Cl, forkSchedule, bcast.WithBuilderConfig(builderCfg))
+	broadcaster, err := bcast.New(ctx, submissionEth2Cl, forkSchedule, bcast.WithBuilderConfigFunc(builderCfgFunc))
 	if err != nil {
 		return err
 	}
@@ -783,7 +787,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		fetch.RegisterSyncContributionV2(isync.SyncContributionsSupported)
 	}
 
-	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl, hosts)
+	track, err := newTracker(ctx, life, deadlineFunc, peers, eth2Cl, hostsFunc)
 	if err != nil {
 		return err
 	}
@@ -907,7 +911,7 @@ func wirePrioritise(ctx context.Context, conf Config, life *lifecycle.Manager, p
 
 // newTracker creates and starts a new tracker instance.
 func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(duty core.Duty) (time.Time, bool),
-	peers []p2p.Peer, eth2Cl eth2wrap.Client, builderHosts []string,
+	peers []p2p.Peer, eth2Cl eth2wrap.Client, builderHosts func() []string,
 ) (core.Tracker, error) {
 	slotDuration, _, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
 	if err != nil {
@@ -931,7 +935,7 @@ func newTracker(ctx context.Context, life *lifecycle.Manager, deadlineFunc func(
 		return nil, err
 	}
 
-	track := tracker.New(analyser, deleter, peers, trackFrom, tracker.WithBuilderHosts(builderHosts))
+	track := tracker.New(analyser, deleter, peers, trackFrom, tracker.WithBuilderHostsFunc(builderHosts))
 	life.RegisterStart(lifecycle.AsyncBackground, lifecycle.StartTracker, lifecycle.HookFunc(track.Run))
 
 	return track, nil
