@@ -94,7 +94,7 @@ func (p *addOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolConte
 	// Bind broadcasts to the lock hash since it changes with every cluster mutation,
 	// preventing replay of messages from previous ceremonies of the same cluster.
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
-	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
+	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, nodeSigMsgID)
 
 	newPeerIDs := pctx.PeerIDs[len(pctx.Lock.Operators):]
 	reshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), pctx.Lock.Threshold, newPeerIDs, nil)
