@@ -25,6 +25,7 @@ import (
 	"github.com/obolnetwork/charon/app"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -337,7 +338,7 @@ func testCreateCluster(t *testing.T, conf clusterConfig, def cluster.Definition,
 
 	var buf bytes.Buffer
 
-	err := runCreateCluster(context.Background(), &buf, conf)
+	err := createClusterT(context.Background(), &buf, conf)
 	if err != nil {
 		log.Error(context.Background(), "runCreateCluster error in test", err)
 	}
@@ -679,7 +680,7 @@ func TestCreateClusterInsecureKeys(t *testing.T) {
 				SplitKeysDir: filepath.Join(t.TempDir(), "missing"),
 			}
 
-			err := runCreateCluster(t.Context(), io.Discard, conf)
+			err := createClusterT(t.Context(), io.Discard, conf)
 			require.ErrorContains(t, err, "insecure keys not supported")
 		})
 	}
@@ -754,7 +755,7 @@ func TestSplitKeys(t *testing.T) {
 
 			var buf bytes.Buffer
 
-			err = runCreateCluster(context.Background(), &buf, test.conf)
+			err = createClusterT(context.Background(), &buf, test.conf)
 			if test.expectedErrMsg != "" {
 				require.ErrorContains(t, err, test.expectedErrMsg)
 			} else {
@@ -787,7 +788,7 @@ func TestSplitKeys(t *testing.T) {
 
 func TestMultipleAddresses(t *testing.T) {
 	t.Run("insufficient fee recipient addresses", func(t *testing.T) {
-		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
+		err := createClusterT(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            4,
 			NumNodes:          4,
 			Threshold:         3,
@@ -799,7 +800,7 @@ func TestMultipleAddresses(t *testing.T) {
 	})
 
 	t.Run("insufficient withdrawal addresses", func(t *testing.T) {
-		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
+		err := createClusterT(context.Background(), io.Discard, clusterConfig{
 			NumDVs:            1,
 			NumNodes:          4,
 			Threshold:         3,
@@ -829,7 +830,7 @@ func TestMultipleAddresses(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		err := runCreateCluster(context.Background(), io.Discard, clusterConfig{DefFile: srv.URL, NumNodes: minNodes, NumDVs: 2, Network: defaultNetwork})
+		err := createClusterT(context.Background(), io.Discard, clusterConfig{DefFile: srv.URL, NumNodes: minNodes, NumDVs: 2, Network: defaultNetwork})
 		require.ErrorContains(t, err, "num_validators does not match validators length")
 	})
 }
@@ -898,7 +899,7 @@ func TestTargetGasLimit(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 
-			err := runCreateCluster(context.Background(), &buf, test.conf)
+			err := createClusterT(context.Background(), &buf, test.conf)
 			if test.expectedErrMsg != "" {
 				require.ErrorContains(t, err, test.expectedErrMsg)
 			} else {
@@ -962,7 +963,7 @@ func TestDefinitionFileIsAuthoritative(t *testing.T) {
 		TargetGasLimit: 60000000,
 		Compounding:    false,
 	}
-	require.NoError(t, runCreateCluster(ctx, io.Discard, runConf))
+	require.NoError(t, createClusterT(ctx, io.Discard, runConf))
 
 	b, err := os.ReadFile(path.Join(nodeDir(clusterDir, 0), "cluster-lock.json"))
 	require.NoError(t, err)
@@ -1063,7 +1064,7 @@ func TestKeymanager(t *testing.T) {
 		// Run create cluster command
 		var buf bytes.Buffer
 
-		err = runCreateCluster(context.Background(), &buf, conf)
+		err = createClusterT(context.Background(), &buf, conf)
 		if err != nil {
 			log.Error(context.Background(), "runCreateCluster error in TestKeymanager/all_successful", err)
 		}
@@ -1093,7 +1094,7 @@ func TestKeymanager(t *testing.T) {
 		// Run create cluster command
 		var buf bytes.Buffer
 
-		err = runCreateCluster(context.Background(), &buf, conf)
+		err = createClusterT(context.Background(), &buf, conf)
 		if err != nil {
 			log.Error(context.Background(), "runCreateCluster error in TestKeymanager/some_unsuccessful", err)
 		}
@@ -1108,7 +1109,7 @@ func TestKeymanager(t *testing.T) {
 		incorrectConf := conf
 		incorrectConf.KeymanagerAuthTokens = incorrectConf.KeymanagerAuthTokens[1:]
 
-		err = runCreateCluster(context.Background(), nil, incorrectConf)
+		err = createClusterT(context.Background(), nil, incorrectConf)
 		require.ErrorContains(t, err, "number of --keymanager-addresses does not match number of --keymanager-auth-tokens")
 	})
 }
@@ -1147,7 +1148,7 @@ func TestPublish(t *testing.T) {
 		// Run create cluster command
 		var buf bytes.Buffer
 
-		err := runCreateCluster(context.Background(), &buf, conf)
+		err := createClusterT(context.Background(), &buf, conf)
 		if err != nil {
 			log.Error(context.Background(), "runCreateCluster error in TestPublish/upload_successful", err)
 		}
@@ -1242,7 +1243,7 @@ func TestZipped(t *testing.T) {
 	backupDir := t.TempDir()
 
 	var buf bytes.Buffer
-	require.NoError(t, runCreateCluster(ctx, &buf, conf))
+	require.NoError(t, createClusterT(ctx, &buf, conf))
 
 	// Backup cluster dir since bundleOutput is destructive
 	require.NoError(t, os.CopyFS(backupDir, os.DirFS(conf.ClusterDir)))
@@ -1347,4 +1348,87 @@ func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- struct{}
 
 func isAnyVersion(version string, versions ...string) bool {
 	return slices.Contains(versions, version)
+}
+
+// defaultSeed is the default proposer config seed of charon create cluster.
+var defaultSeed = proposerconfig.Seed{GasLimit: proposerconfig.DefaultGasLimit, BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor}
+
+// createClusterT runs runCreateCluster with the CLI's default seed if conf has none.
+func createClusterT(ctx context.Context, w io.Writer, conf clusterConfig) error {
+	if conf.ProposerConfigSeed.GasLimit == 0 && conf.ProposerConfigSeed.BuilderBoostFactor == 0 {
+		conf.ProposerConfigSeed = defaultSeed
+	}
+
+	return runCreateCluster(ctx, w, conf)
+}
+
+func TestCreateClusterZeroSeed(t *testing.T) {
+	dir := t.TempDir()
+
+	err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
+		ClusterDir:        dir,
+		NumNodes:          4,
+		Threshold:         3,
+		NumDVs:            1,
+		TargetGasLimit:    60_000_000,
+		Network:           eth2util.Goerli.Name,
+		FeeRecipientAddrs: []string{feeRecipientAddr},
+		WithdrawalAddrs:   []string{feeRecipientAddr},
+	})
+	require.ErrorContains(t, err, "proposer-config-gas-limit must be greater than 0")
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Empty(t, entries)
+}
+
+func TestCreateClusterProposerConfig(t *testing.T) {
+	dir := t.TempDir()
+	seed := proposerconfig.Seed{
+		GasLimit:           60_000_000,
+		BuilderURLs:        []string{"https://builder.example.com"},
+		BuilderBoostFactor: 90,
+	}
+
+	err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
+		ClusterDir:         dir,
+		NumNodes:           4,
+		Threshold:          3,
+		NumDVs:             2,
+		TargetGasLimit:     60_000_000,
+		Network:            eth2util.Goerli.Name,
+		FeeRecipientAddrs:  []string{feeRecipientAddr},
+		WithdrawalAddrs:    []string{feeRecipientAddr},
+		ProposerConfigSeed: seed,
+	})
+	require.NoError(t, err)
+
+	var lock cluster.Lock
+
+	b, err := os.ReadFile(nodeDir(dir, 0) + "/cluster-lock.json")
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(b, &lock))
+
+	var hashes [][32]byte
+
+	for i := range lock.Operators {
+		file := filepath.Join(nodeDir(dir, i), "vc-config", "proposer-config.json")
+		doc, err := proposerconfig.Load(file, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		require.NoError(t, err)
+		require.NoError(t, proposerconfig.Verify(doc, lock))
+		require.Equal(t, uint64(1), doc.Revision)
+		require.Len(t, doc.Signatures, len(lock.Operators))
+		require.Equal(t, "60000000", doc.Config.DefaultConfig.GasLimit)
+		require.Equal(t, "https://builder.example.com", doc.Config.DefaultConfig.Builder.Builders[0].URL)
+		require.Equal(t, "90", doc.Config.DefaultConfig.Builder.BuilderBoostFactor)
+
+		hash, err := doc.Hash()
+		require.NoError(t, err)
+
+		hashes = append(hashes, hash)
+	}
+
+	for _, h := range hashes {
+		require.Equal(t, hashes[0], h)
+	}
 }
