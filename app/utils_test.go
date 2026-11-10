@@ -103,11 +103,45 @@ func TestBundleOutputExistingArchive(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "Archive should be owner read/write only")
 
+	// Only the archive is left: no temporary file, no original.
+	entries, err := os.ReadDir(testDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+
+	// The stale archive is replaced, not archived.
 	extractDir := t.TempDir()
 	require.NoError(t, app.ExtractArchive(archivePath, extractDir))
+	entries, err = os.ReadDir(extractDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
 	b, err := os.ReadFile(filepath.Join(extractDir, "charon-enr-private-key"))
 	require.NoError(t, err)
 	require.Equal(t, "secret", string(b))
+}
+
+func TestBundleOutputFailureKeepsOriginals(t *testing.T) {
+	testDir := t.TempDir()
+	keyPath := filepath.Join(testDir, "charon-enr-private-key")
+	require.NoError(t, os.WriteFile(keyPath, []byte("secret"), 0o600))
+
+	// An unreadable file makes archiving fail part way through.
+	unreadable := filepath.Join(testDir, "unreadable")
+	require.NoError(t, os.WriteFile(unreadable, []byte("x"), 0o000))
+
+	if _, err := os.ReadFile(unreadable); err == nil {
+		t.Skip("running as a user that ignores file permissions")
+	}
+
+	require.Error(t, app.BundleOutput(testDir, "test_bundle.tar.gz"))
+
+	// The originals are kept and no partial or temporary archive is left behind.
+	b, err := os.ReadFile(keyPath)
+	require.NoError(t, err)
+	require.Equal(t, "secret", string(b))
+
+	entries, err := os.ReadDir(testDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
 }
 
 func TestCompareDirectories(t *testing.T) {

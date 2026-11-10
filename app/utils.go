@@ -28,25 +28,27 @@ func Hex7(input []byte) string {
 
 // BundleOutput archives targetDir into a gzipped tarball named filename in targetDir.
 // The archive contains private key material, so it is only readable and writable by its owner.
-// After successfully creating the archive, it deletes the original files from disk.
-func BundleOutput(targetDir string, filename string) error {
-	// Create output file
-	file, err := os.OpenFile(filepath.Join(targetDir, filename), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+// It is written to a temporary file and renamed into place once complete, so filename is
+// never a partial archive. After successfully creating the archive, it deletes the original
+// files from disk; on any failure the originals are left untouched.
+func BundleOutput(targetDir string, filename string) (err error) {
+	archivePath := filepath.Join(targetDir, filename)
+
+	// CreateTemp creates the file with mode 0600.
+	file, err := os.CreateTemp(targetDir, filename+".tmp-*")
 	if err != nil {
 		return errors.Wrap(err, "create .tar.gz file")
 	}
-	defer file.Close()
 
-	// OpenFile only applies the mode to new files, so also restrict a pre-existing archive.
-	if err := file.Chmod(0o600); err != nil {
-		return errors.Wrap(err, "chmod .tar.gz file")
-	}
+	defer func() {
+		if err != nil {
+			_ = file.Close()
+			_ = os.Remove(file.Name())
+		}
+	}()
 
 	gzw := gzip.NewWriter(file)
-	defer gzw.Close()
-
 	tw := tar.NewWriter(gzw)
-	defer tw.Close()
 
 	// Files to be deleted
 	dirsToDelete := make([]string, 0)
@@ -67,8 +69,8 @@ func BundleOutput(targetDir string, filename string) error {
 			return nil
 		}
 
-		// Don't delete output file
-		if path == file.Name() {
+		// Don't archive or delete the output file, nor an archive left by a previous run (it is replaced).
+		if path == file.Name() || path == archivePath {
 			return nil
 		}
 
@@ -106,7 +108,8 @@ func BundleOutput(targetDir string, filename string) error {
 		return errors.Wrap(err, "filepath walk")
 	}
 
-	// Flush the archive to disk before deleting the originals, so a failed write never loses them.
+	// Flush the archive to disk and move it into place before deleting the originals,
+	// so a failed write never loses them.
 	if err := tw.Close(); err != nil {
 		return errors.Wrap(err, "close tar writer")
 	}
@@ -121,6 +124,10 @@ func BundleOutput(targetDir string, filename string) error {
 
 	if err := file.Close(); err != nil {
 		return errors.Wrap(err, "close .tar.gz file")
+	}
+
+	if err := os.Rename(file.Name(), archivePath); err != nil {
+		return errors.Wrap(err, "rename .tar.gz file")
 	}
 
 	// Delete files/folders
