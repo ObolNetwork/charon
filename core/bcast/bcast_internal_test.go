@@ -150,7 +150,7 @@ func TestBroadcastGloasProposal(t *testing.T) {
 				return nil
 			}
 
-			bcaster, err := New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil }, WithBuilderConfig(builderConfig))
+			bcaster, err := New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil }, WithBuilderConfigFunc(func() *gloas.BuilderConfig { return builderConfig }))
 			require.NoError(t, err)
 
 			// The builder URL comes from this node's own agreed proposal, never from the partials.
