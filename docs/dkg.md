@@ -66,6 +66,7 @@ No user input is required, charon does the work and outputs the following files 
 ./charon/validator_keys/    # Folder of key shares to be backed up and moved to validator client [Back this up]
 ./charon/deposit_data*      # JSON files of deposit data for the distributed validators
 ./charon/exit_data          # JSON file of exit data that ethdo can broadcast
+./charon/vc-config/proposer-config.json  # Signed proposer config (fee recipients, gas limit, builders), change it with `charon alpha edit proposer-config`
 ```
 
 ### Interruptions and restarts during a ceremony
