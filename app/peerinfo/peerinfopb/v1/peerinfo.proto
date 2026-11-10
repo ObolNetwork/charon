@@ -15,7 +15,11 @@ message PeerInfo {
   bool                      builder_api_enabled = 6;
   string                               nickname = 7;
   string                              dv_client = 8;
-  bytes                     builder_config_hash = 9;
+  // Field 9 carried the builder config hash of v2.0.0 release candidates; the proposer config hash is a
+  // different digest and takes a new number so those peers compare as not reporting it.
+  reserved 9;
+  reserved "builder_config_hash";
+  bytes                    proposer_config_hash = 10;
 
   // NOTE: Always populate timestamps when sending, then make them required after subsequent release.
 }
