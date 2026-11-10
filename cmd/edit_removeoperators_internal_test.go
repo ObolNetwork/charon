@@ -38,7 +38,7 @@ func TestValidateRemoveOperatorsConfig(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	err := runCreateCluster(t.Context(), &buf, conf)
+	err := createClusterT(t.Context(), &buf, conf)
 	require.NoError(t, err)
 
 	lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(nodeDir(srcDir, 0), clusterLockFile), "", true)

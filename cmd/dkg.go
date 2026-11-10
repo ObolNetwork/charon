@@ -62,6 +62,7 @@ this command at the same time.`,
 	bindPublishFlags(cmd.Flags(), &config)
 	bindShutdownDelayFlag(cmd.Flags(), &config.ShutdownDelay)
 	bindEth1Flag(cmd.Flags(), &config.ExecutionEngineAddr)
+	bindProposerConfigSeedFlags(cmd, &config.ProposerConfigSeed, proposerConfigSignedUsage)
 
 	cmd.Flags().DurationVar(&config.Timeout, "timeout", defaultDKGTimeout, "Timeout for the DKG process, should be increased if DKG times out.")
 	cmd.Flags().BoolVar(&config.Zipped, "zipped", false, "Create a tar archive compressed with gzip of the target directory after creation.")
