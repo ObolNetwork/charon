@@ -277,13 +277,43 @@ func putK1SigList(h sszutils.HashWalker, sig []byte, maxAmountSigs int, field st
 	return nil
 }
 
+// checkBytesN returns an error if b is neither empty nor exactly n bytes long.
+// Empty is allowed since absent values (e.g. unsigned operators, missing deposit data or
+// builder registrations) are hashed as zeros. Any other length is rejected since ssz
+// would otherwise pad it, resulting in the same hash as a different (padded) value.
+func checkBytesN(b []byte, n int, field string) error {
+	if len(b) != 0 && len(b) != n {
+		return errors.New("invalid fixed size bytes length",
+			z.Str("field", field),
+			z.Int("expect", n),
+			z.Int("actual", len(b)),
+		)
+	}
+
+	return nil
+}
+
 // putBytesN appends b as a ssz fixed size byte array of length n.
-func putBytesN(h sszutils.HashWalker, b []byte, n int) error {
-	if len(b) > n {
-		return errors.New("bytes too long", z.Int("n", n), z.Int("l", len(b)))
+// b must be either empty (hashed as zeros) or exactly n bytes long.
+func putBytesN(h sszutils.HashWalker, b []byte, n int, field string) error {
+	if err := checkBytesN(b, n, field); err != nil {
+		return err
 	}
 
 	h.PutBytes(leftPad(b, n))
+
+	return nil
+}
+
+// putBytesRaw appends b as is (not padded) after checking it is either empty or exactly n bytes long.
+// It is used by older hashing versions that appended fixed size fields without padding,
+// where an empty value must still append nothing for backwards compatible hashes.
+func putBytesRaw(h sszutils.HashWalker, b []byte, n int, field string) error {
+	if err := checkBytesN(b, n, field); err != nil {
+		return err
+	}
+
+	h.PutBytes(b)
 
 	return nil
 }
@@ -328,7 +358,7 @@ func from0xHex(s string, length int) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "decode hex")
 	} else if len(b) != length {
-		return nil, errors.Wrap(err, "invalid hex length", z.Int("expect", length), z.Int("actual", len(b)))
+		return nil, errors.New("invalid hex length", z.Int("expect", length), z.Int("actual", len(b)))
 	}
 
 	return b, nil

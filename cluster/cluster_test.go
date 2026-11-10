@@ -166,9 +166,19 @@ func TestEncode(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, definition, definition2)
 
+			// Signatures aren't covered by the lock hash. Pad the 32 byte values drawn from r to real lengths
+			// using a separate random source, so r's sequence (and thereby the golden lock hashes) is unchanged.
+			sigR := rand.New(rand.NewSource(2))
+			padSig := func(b []byte, length int) []byte {
+				pad := make([]byte, length-len(b))
+				_, _ = sigR.Read(pad)
+
+				return append(b, pad...)
+			}
+
 			lock := cluster.Lock{
 				Definition:         definition,
-				SignatureAggregate: testutil.RandomBytes32Seed(r),
+				SignatureAggregate: padSig(testutil.RandomBytes32Seed(r), 96),
 				Validators: []cluster.DistValidator{
 					{
 						PubKey: testutil.RandomBytes48Seed(r),
@@ -189,8 +199,8 @@ func TestEncode(t *testing.T) {
 					},
 				},
 				NodeSignatures: [][]byte{
-					testutil.RandomBytes32Seed(r),
-					testutil.RandomBytes32Seed(r),
+					padSig(testutil.RandomBytes32Seed(r), 65),
+					padSig(testutil.RandomBytes32Seed(r), 65),
 				},
 			}
 
@@ -300,6 +310,33 @@ func TestExamples(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, def.VerifyHashes())
 			require.NoError(t, def.VerifySignatures(nil))
+		})
+	}
+}
+
+// TestTestdataStrictParsing ensures all golden testdata definitions and locks of all versions
+// still parse and verify hashes with strict fixed size field length checks.
+func TestTestdataStrictParsing(t *testing.T) {
+	files, err := filepath.Glob("testdata/cluster_*.json")
+	require.NoError(t, err)
+	require.NotEmpty(t, files)
+
+	for _, file := range files {
+		t.Run(filepath.Base(file), func(t *testing.T) {
+			b, err := os.ReadFile(file)
+			require.NoError(t, err)
+
+			if strings.HasPrefix(filepath.Base(file), "cluster_lock") {
+				var lock cluster.Lock
+				require.NoError(t, json.Unmarshal(b, &lock))
+				require.NoError(t, lock.VerifyHashes())
+
+				return
+			}
+
+			var def cluster.Definition
+			require.NoError(t, json.Unmarshal(b, &def))
+			require.NoError(t, def.VerifyHashes())
 		})
 	}
 }
