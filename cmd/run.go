@@ -113,7 +113,7 @@ func bindRunFlags(cmd *cobra.Command, config *app.Config) {
 	cmd.Flags().StringVar(&config.PublishAddress, "publish-address", "https://api.obol.tech/v1", "The URL of the remote API for background fee recipient fetching.")
 	cmd.Flags().DurationVar(&config.PublishTimeout, "publish-timeout", 5*time.Minute, "Timeout for accessing the remote API.")
 	cmd.Flags().BoolVar(&config.FetchFeerecipientUpdates, "fetch-feerecipient-updates", false, "Fetches updated fee recipients from a remote API.")
-	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the validator client proposer config file. Written from the cluster lock and the proposer-config seeding flags if absent, verified on start otherwise.")
+	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the validator client proposer config file. Written from the cluster lock and the proposer-config seeding flags if absent, verified on start and reloaded when it changes otherwise.")
 
 	wrapPreRunE(cmd, func(cc *cobra.Command, _ []string) error {
 		if len(config.BeaconNodeAddrs) == 0 && !config.SimnetBMock {

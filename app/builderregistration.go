@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"maps"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -19,7 +18,6 @@ import (
 	eth2v1 "github.com/attestantio/go-eth2-client/api/v1"
 	eth2spec "github.com/attestantio/go-eth2-client/spec"
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
-	"github.com/fsnotify/fsnotify"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -219,27 +217,15 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 		return
 	}
 
-	// Optional file watcher (nil channels if path == "").
-	var (
-		fileEvents <-chan fsnotify.Event
-		fileErrors <-chan error
-	)
+	// Optional file watcher (nil channel if path == "").
+	var fileChanges <-chan struct{}
 
 	if s.path != "" {
-		watcher, err := fsnotify.NewWatcher()
+		changes, err := watchFile(ctx, s.path)
 		if err != nil {
-			log.Warn(ctx, "Failed to create file watcher for builder registration overrides; file watching disabled", err)
+			log.Warn(ctx, "Failed to watch builder registration overrides file; file watching disabled", err)
 		} else {
-			dir := filepath.Dir(s.path)
-			if err := watcher.Add(dir); err != nil {
-				log.Warn(ctx, "Failed to watch directory for builder registration overrides; file watching disabled", err, z.Str("dir", dir))
-				watcher.Close()
-			} else {
-				defer watcher.Close()
-
-				fileEvents = watcher.Events
-				fileErrors = watcher.Errors
-			}
+			fileChanges = changes
 		}
 	}
 
@@ -256,28 +242,18 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 		fetchCh = fetchTimer.C
 	}
 
-	if fileEvents == nil && fetchCh == nil {
+	if fileChanges == nil && fetchCh == nil {
 		return
 	}
-
-	baseName := filepath.Base(s.path)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 
-		case event, ok := <-fileEvents:
+		case _, ok := <-fileChanges:
 			if !ok {
 				return
-			}
-
-			if filepath.Base(event.Name) != baseName {
-				continue
-			}
-
-			if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) {
-				continue
 			}
 
 			if err := s.reloadFromFile(ctx); err != nil {
@@ -297,13 +273,6 @@ func (s *builderRegistrationService) Run(ctx context.Context) {
 
 				fetchTimer.Reset(0)
 			}
-
-		case err, ok := <-fileErrors:
-			if !ok {
-				return
-			}
-
-			log.Warn(ctx, "File watcher error for builder registration overrides", err)
 
 		case <-fetchCh:
 			hasIncomplete, err := s.fetchFromAPI(ctx)
