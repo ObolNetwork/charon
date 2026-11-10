@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -170,14 +171,41 @@ func TestCheckClearDataDir(t *testing.T) {
 			},
 		},
 		{
-			"dataDir contains validator_keys directory",
+			"dataDir contains non-empty validator_keys directory",
 			func(rootDir string, dataDir string) {
 				require.NoError(t,
 					os.MkdirAll(filepath.Join(rootDir, dataDir, "validator_keys"), 0o755),
 				)
+
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir, "validator_keys", "keystore-0.json"),
+						[]byte{1, 2, 3},
+						0o755,
+					),
+				)
 			},
 			func(err error) {
 				require.ErrorContains(t, err, "data directory not clean, cannot continue")
+			},
+		},
+		{
+			"dataDir contains empty validator_keys directory and charon-enr-private-key file",
+			func(rootDir string, dataDir string) {
+				require.NoError(t,
+					os.MkdirAll(filepath.Join(rootDir, dataDir, "validator_keys"), 0o755),
+				)
+
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir, "charon-enr-private-key"),
+						[]byte{1, 2, 3},
+						0o755,
+					),
+				)
+			},
+			func(err error) {
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -256,6 +284,10 @@ func TestCheckClearDataDir(t *testing.T) {
 			tt.prepare(td, "data_dir")
 
 			tt.checkError(checkClearDataDir(filepath.Join(td, "data_dir")))
+
+			if strings.HasPrefix(tt.name, "dataDir contains empty validator_keys") {
+				require.NoDirExists(t, filepath.Join(td, "data_dir", "validator_keys"))
+			}
 		})
 	}
 }

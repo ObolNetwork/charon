@@ -188,6 +188,16 @@ func checkClearDataDir(dataDir string) error {
 	}
 
 	for _, entity := range dirContent {
+		// An empty validator_keys directory is often a mount point created by a container runtime
+		// (possibly root owned), so remove it and let the DKG create its own.
+		if entity.Name() == validatorKeysSubDir && entity.IsDir() {
+			if removed, err := removeEmptyDir(filepath.Join(dataDir, validatorKeysSubDir)); err != nil {
+				return err
+			} else if removed {
+				continue
+			}
+		}
+
 		isDepositData := strings.HasPrefix(entity.Name(), "deposit-data")
 
 		if _, disallowed := disallowedEntities[entity.Name()]; disallowed || isDepositData {
@@ -206,6 +216,22 @@ func checkClearDataDir(dataDir string) error {
 	}
 
 	return nil
+}
+
+// removeEmptyDir removes dir if it has no entries and returns true if it did.
+func removeEmptyDir(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, errors.Wrap(err, "list directory", z.Str("dir", dir))
+	} else if len(entries) > 0 {
+		return false, nil
+	}
+
+	if err := os.Remove(dir); err != nil {
+		return false, errors.Wrap(err, "remove empty directory, remove it manually and retry", z.Str("dir", dir))
+	}
+
+	return true, nil
 }
 
 // checkWrites writes sample files to check disk writes and removes sample files after verification.
