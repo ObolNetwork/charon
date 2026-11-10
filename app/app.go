@@ -320,8 +320,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return errors.New("nickname cannot exceed 32 characters")
 	}
 
-	wirePeerInfo(life, p2pNode, peerIDs, lock.LockHash, sender, conf.BuilderAPI, conf.Nickname, builderConfigHash(conf))
-
 	vapiCalls := make(chan struct{})
 	vapiCallsFunc := func() {
 		select {
@@ -352,9 +350,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 }
 
 // wirePeerInfo wires the peerinfo protocol.
-func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string, builderConfigHash []byte) {
+func wirePeerInfo(life *lifecycle.Manager, p2pNode host.Host, peers []peer.ID, lockHash []byte, sender *p2p.Sender, builderEnabled bool, nickname string, proposerConfigHash func() []byte) {
 	gitHash, _ := version.GitCommit()
-	peerInfo := peerinfo.New(p2pNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname, builderConfigHash)
+	peerInfo := peerinfo.New(p2pNode, peers, version.Version, lockHash, gitHash, sender.SendReceive, builderEnabled, nickname, proposerConfigHash)
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartPeerInfo, lifecycle.HookFuncCtx(peerInfo.Run))
 }
 
@@ -531,6 +529,8 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	if conf.TestConfig.Lock == nil {
 		life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartProposerConfigWatcher, lifecycle.HookFunc(pcSvc.Run))
 	}
+
+	wirePeerInfo(life, p2pNode, peerIDs, lock.LockHash, sender, conf.BuilderAPI, conf.Nickname, pcSvc.Hash)
 
 	peers, err := lock.Peers()
 	if err != nil {
