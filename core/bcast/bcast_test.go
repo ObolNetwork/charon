@@ -451,7 +451,7 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 				return test.submitErr
 			}
 
-			bcaster, err := bcast.New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil }, bcast.WithBuilderConfig(builderConfig))
+			bcaster, err := bcast.New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil }, bcast.WithBuilderConfigFunc(func() *gloas.BuilderConfig { return builderConfig }))
 			require.NoError(t, err)
 
 			err = bcaster.Broadcast(t.Context(), core.NewBuilderPreferencesDuty(1), core.SignedDataSet{pubkey: test.auth})
@@ -479,4 +479,50 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 			require.Equal(t, expected, submitted)
 		})
 	}
+}
+
+// TestBuilderPreferencesReload verifies that the builders are read from the func at each broadcast.
+func TestBuilderPreferencesReload(t *testing.T) {
+	configs := []*gloas.BuilderConfig{
+		{Builders: []*gloas.BuilderEntry{{URL: []byte("https://relay-a.example.com")}}},
+		{Builders: []*gloas.BuilderEntry{{URL: []byte("https://relay-b.example.com")}}},
+	}
+	current := configs[0]
+
+	mock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	var submitted []string
+
+	mock.SubmitBuilderPreferencesFunc = func(_ context.Context, opts *eth2api.SubmitBuilderPreferencesOpts) error {
+		for _, entry := range opts.Preferences {
+			submitted = append(submitted, string(entry.URL))
+		}
+
+		return nil
+	}
+
+	bcaster, err := bcast.New(t.Context(), mock, func() eth2wrap.ForkForkSchedule { return nil },
+		bcast.WithBuilderConfigFunc(func() *gloas.BuilderConfig { return current }))
+	require.NoError(t, err)
+
+	pubkey := testutil.RandomCorePubKey(t)
+
+	broadcast := func(host string) {
+		auth := core.NewSignedBuilderRequestAuth(&gloas.SignedBuilderRequestAuth{
+			Message:   &gloas.BuilderRequestAuth{Data: []byte(host), Slot: 1},
+			Signature: testutil.RandomEth2Signature(),
+		})
+		require.NoError(t, bcaster.Broadcast(t.Context(), core.NewBuilderPreferencesDuty(1), core.SignedDataSet{pubkey: auth}))
+	}
+
+	// The auth of the removed builder A matches nothing after the reload.
+	broadcast("relay-a.example.com")
+
+	current = configs[1]
+
+	broadcast("relay-a.example.com")
+	broadcast("relay-b.example.com")
+
+	require.Equal(t, []string{"https://relay-a.example.com", "https://relay-b.example.com"}, submitted)
 }

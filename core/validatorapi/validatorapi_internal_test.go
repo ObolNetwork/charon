@@ -41,7 +41,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 	t.Run("no mismatch", func(t *testing.T) {
 		allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}} // Maps self to self since not tbls
 
-		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, defaultGasLimit)
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, func() uint64 { return defaultGasLimit })
 		require.NoError(t, err)
 		pk, err := vapi.getPubKeyFunc(eth2Pubkey)
 		require.NoError(t, err)
@@ -57,7 +57,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 		pubshare := *(*tbls.PublicKey)(pkb)
 		allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey, shareIdx + 1: pubshare}}
 
-		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, defaultGasLimit)
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, func() uint64 { return defaultGasLimit })
 		require.NoError(t, err)
 
 		resp, err := vapi.getPubKeyFunc(eth2p0.BLSPubKey(pubshare)) // Ask for a mismatching key
@@ -76,7 +76,7 @@ func TestMismatchKeysFunc(t *testing.T) {
 		pubshare := eth2p0.BLSPubKey(pk)
 		allPubSharesByKey := map[core.PubKey]map[int]tbls.PublicKey{corePubKey: {shareIdx: pubkey}}
 
-		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, defaultGasLimit)
+		vapi, err := NewComponent(nil, allPubSharesByKey, shareIdx, nil, false, func() uint64 { return defaultGasLimit })
 		require.NoError(t, err)
 
 		_, err = vapi.getPubKeyFunc(pubshare) // Ask for a mismatching key
@@ -114,9 +114,11 @@ func TestWarnProposerPreferencesMismatch(t *testing.T) {
 
 	const gasLimit = 30000000
 
+	targetGasLimit := uint64(gasLimit)
+
 	c := Component{
-		feeRecipientFunc: func(core.PubKey) string { return feeRecipient },
-		targetGasLimit:   gasLimit,
+		feeRecipientFunc:   func(core.PubKey) string { return feeRecipient },
+		targetGasLimitFunc: func() uint64 { return targetGasLimit },
 	}
 
 	feeCount := func() float64 { return promtestutil.ToFloat64(proposerPrefMismatch.WithLabelValues("fee_recipient")) }
@@ -134,6 +136,15 @@ func TestWarnProposerPreferencesMismatch(t *testing.T) {
 	c.warnProposerPreferencesMismatch(ctx, pubkey, &gloas.ProposerPreferences{FeeRecipient: otherAddr, TargetGasLimit: gasLimit + 1})
 	require.InDelta(t, fee0+1, feeCount(), 0)
 	require.InDelta(t, gas0+1, gasCount(), 0)
+
+	// The expectation follows the gas limit func after a reload.
+	targetGasLimit = gasLimit + 1
+
+	c.warnProposerPreferencesMismatch(ctx, pubkey, &gloas.ProposerPreferences{FeeRecipient: addr, TargetGasLimit: gasLimit + 1})
+	require.InDelta(t, gas0+1, gasCount(), 0)
+
+	c.warnProposerPreferencesMismatch(ctx, pubkey, &gloas.ProposerPreferences{FeeRecipient: addr, TargetGasLimit: gasLimit})
+	require.InDelta(t, gas0+2, gasCount(), 0)
 
 	// Nil feeRecipientFunc: no panic, no increment.
 	empty := Component{}
@@ -221,7 +232,8 @@ func TestWarnBuilderPreferencesMismatch(t *testing.T) {
 
 	ctx := t.Context()
 	pubkey := testutil.RandomCorePubKey(t)
-	c := Component{builderHosts: []string{builderA, builderB, builderC}}
+	hosts := []string{builderA, builderB, builderC}
+	c := Component{builderHostsFunc: func() []string { return hosts }}
 
 	auths := func(hosts ...string) []*gloas.SignedBuilderRequestAuth {
 		var resp []*gloas.SignedBuilderRequestAuth
@@ -259,4 +271,11 @@ func TestWarnBuilderPreferencesMismatch(t *testing.T) {
 	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB, builderC, removed+"\xff", oversized))
 	require.InDelta(t, unknownRemoved+2, count(removed, "unknown"), 0)
 	require.InDelta(t, oversizedBefore+1, count(oversized[:253], "unknown"), 0)
+
+	// A reload dropping builder C stops reporting it missing.
+	hosts = []string{builderA, builderB}
+	missingC = count(builderC, "missing")
+
+	c.warnBuilderPreferencesMismatch(ctx, 1, pubkey, auths(builderA, builderB))
+	require.InDelta(t, missingC, count(builderC, "missing"), 0)
 }

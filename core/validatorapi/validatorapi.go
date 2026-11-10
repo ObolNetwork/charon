@@ -93,7 +93,7 @@ func NewComponentInsecure(_ *testing.T, eth2Cl eth2wrap.Client, shareIdx int) (*
 
 // NewComponent returns a new instance of the validator API core workflow component.
 func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[int]tbls.PublicKey,
-	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimit uint64, opts ...Option,
+	shareIdx int, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, targetGasLimitFunc func() uint64, opts ...Option,
 ) (*Component, error) {
 	var (
 		sharesByKey     = make(map[eth2p0.BLSPubKey]eth2p0.BLSPubKey)
@@ -171,7 +171,7 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 		shareIdx:           shareIdx,
 		feeRecipientFunc:   feeRecipientFunc,
 		builderEnabled:     builderEnabled,
-		targetGasLimit:     targetGasLimit,
+		targetGasLimitFunc: targetGasLimitFunc,
 		swallowRegFilter:   log.Filter(),
 	}
 
@@ -185,23 +185,23 @@ func NewComponent(eth2Cl eth2wrap.Client, allPubSharesByKey map[core.PubKey]map[
 // Option configures a Component.
 type Option func(*Component)
 
-// WithBuilderHosts sets the hosts of the builders configured on this node, which the builder
+// WithBuilderHostsFunc sets the func returning the hosts of the builders configured on this node, which the builder
 // request auths the validator client submits are compared with.
-func WithBuilderHosts(hosts []string) Option {
+func WithBuilderHostsFunc(hosts func() []string) Option {
 	return func(c *Component) {
-		c.builderHosts = hosts
+		c.builderHostsFunc = hosts
 	}
 }
 
 type Component struct {
-	eth2Cl           eth2wrap.Client
-	shareIdx         int
-	insecureTest     bool
-	feeRecipientFunc func(core.PubKey) string
-	builderEnabled   bool
-	targetGasLimit   uint64
-	builderHosts     []string
-	swallowRegFilter z.Field
+	eth2Cl             eth2wrap.Client
+	shareIdx           int
+	insecureTest       bool
+	feeRecipientFunc   func(core.PubKey) string
+	builderEnabled     bool
+	targetGasLimitFunc func() uint64
+	builderHostsFunc   func() []string
+	swallowRegFilter   z.Field
 
 	// getVerifyShareFunc maps public shares (what the VC thinks as its public key)
 	// to public keys (the DV root public key)
@@ -1664,7 +1664,12 @@ func (c Component) warnBuilderPreferencesMismatch(ctx context.Context, slot eth2
 
 	configured := make(map[string]bool)
 
-	for _, host := range c.builderHosts {
+	var hosts []string
+	if c.builderHostsFunc != nil {
+		hosts = c.builderHostsFunc()
+	}
+
+	for _, host := range hosts {
 		configured[host] = true
 
 		if !submitted[host] {
@@ -1709,10 +1714,15 @@ func (c Component) warnProposerPreferencesMismatch(ctx context.Context, pubkey c
 	}
 
 	// TargetGasLimit is only checked when configured (non-zero).
-	if c.targetGasLimit != 0 && msg.TargetGasLimit != c.targetGasLimit {
+	var targetGasLimit uint64
+	if c.targetGasLimitFunc != nil {
+		targetGasLimit = c.targetGasLimitFunc()
+	}
+
+	if targetGasLimit != 0 && msg.TargetGasLimit != targetGasLimit {
 		log.Warn(ctx, "Proposer preferences with unexpected target gas limit", nil,
 			z.Any("pubkey", pubkey),
-			z.U64("expected", c.targetGasLimit),
+			z.U64("expected", targetGasLimit),
 			z.U64("actual", msg.TargetGasLimit))
 		incProposerPrefMismatch("gas_limit")
 	}
