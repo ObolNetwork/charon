@@ -25,6 +25,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -46,20 +47,21 @@ func TestRunAddValidators(t *testing.T) {
 	// Then it runs add-validators on each node in parallel to add 2 validators per node.
 	// Two sub-tests are run: with the `--unverified` flag and without.
 	conf := clusterConfig{
-		ClusterDir:        t.TempDir(),
-		Name:              t.Name(),
-		NumNodes:          4,
-		Threshold:         3,
-		NumDVs:            3,
-		Network:           eth2util.Hoodi.Name,
-		TargetGasLimit:    36000000,
-		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+		ProposerConfigSeed: defaultSeed,
+		ClusterDir:         t.TempDir(),
+		Name:               t.Name(),
+		NumNodes:           4,
+		Threshold:          3,
+		NumDVs:             3,
+		Network:            eth2util.Hoodi.Name,
+		TargetGasLimit:     36000000,
+		FeeRecipientAddrs:  []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+		WithdrawalAddrs:    []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
 	}
 
 	var buf bytes.Buffer
 
-	err := runCreateCluster(t.Context(), &buf, conf)
+	err := createClusterT(t.Context(), &buf, conf)
 	require.NoError(t, err)
 
 	entries, err := os.ReadDir(conf.ClusterDir)
@@ -101,6 +103,9 @@ func TestRunAddValidators(t *testing.T) {
 				WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr},
 				FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr},
 				Unverified:        unverified,
+				// Neither exists: the carried config is the initial config from the lock.
+				ProposerConfigFile: filepath.Join(ddir, "vc-config", "proposer-config.json"),
+				OverridesFile:      filepath.Join(ddir, "builder_registrations_overrides.json"),
 				DKG: dkg.Config{
 					P2P: p2p.Config{
 						Relays:   []string{relayAddr},
@@ -183,6 +188,19 @@ func TestRunAddValidators(t *testing.T) {
 			require.Len(t, dd, 2) // two default amounts: 1eth and 32eth
 			require.Len(t, dd[0], lock.NumValidators)
 			require.Len(t, dd[1], lock.NumValidators)
+
+			// The proposer config is signed at revision 1 for the new lock, with --unverified too.
+			doc, err := proposerconfig.Load(filepath.Join(nd, "vc-config", "proposer-config.json"), lock, cluster.NodeIdx{PeerIdx: n, ShareIdx: n + 1})
+			require.NoError(t, err)
+			require.NoError(t, proposerconfig.Verify(doc, lock))
+			require.EqualValues(t, 1, doc.Revision)
+			require.Len(t, doc.Signatures, conf.NumNodes)
+			require.Equal(t, "200000000", doc.Config.DefaultConfig.GasLimit)
+			require.Nil(t, doc.Config.DefaultConfig.Builder)
+
+			for _, fee := range doc.Config.FeeRecipients(lock) {
+				require.Equal(t, strings.ToLower(feeRecipientAddr), fee)
+			}
 		}
 	}
 
@@ -201,15 +219,16 @@ func TestRunAddValidators(t *testing.T) {
 
 func TestRunAddValidatorsInvalidLock(t *testing.T) {
 	conf := clusterConfig{
-		ClusterDir:        t.TempDir(),
-		Name:              "test_cluster",
-		NumNodes:          4,
-		Threshold:         3,
-		NumDVs:            3,
-		Network:           eth2util.Hoodi.Name,
-		TargetGasLimit:    36000000,
-		FeeRecipientAddrs: []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
-		WithdrawalAddrs:   []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+		ProposerConfigSeed: defaultSeed,
+		ClusterDir:         t.TempDir(),
+		Name:               "test_cluster",
+		NumNodes:           4,
+		Threshold:          3,
+		NumDVs:             3,
+		Network:            eth2util.Hoodi.Name,
+		TargetGasLimit:     36000000,
+		FeeRecipientAddrs:  []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
+		WithdrawalAddrs:    []string{feeRecipientAddr, feeRecipientAddr, feeRecipientAddr},
 	}
 
 	var (
@@ -217,7 +236,7 @@ func TestRunAddValidatorsInvalidLock(t *testing.T) {
 		dstDir = t.TempDir()
 	)
 
-	err := runCreateCluster(t.Context(), &buf, conf)
+	err := createClusterT(t.Context(), &buf, conf)
 	require.NoError(t, err)
 
 	ddir := nodeDir(conf.ClusterDir, 0)
@@ -440,20 +459,21 @@ func mustLoadTestLockFile(t *testing.T, path string) cluster.Lock {
 
 func TestRunAddValidatorsAddressValidation(t *testing.T) {
 	conf := clusterConfig{
-		ClusterDir:        t.TempDir(),
-		Name:              "test_cluster",
-		NumNodes:          4,
-		Threshold:         3,
-		NumDVs:            1,
-		Network:           eth2util.Mainnet.Name,
-		TargetGasLimit:    36000000,
-		FeeRecipientAddrs: []string{validEthAddr},
-		WithdrawalAddrs:   []string{validEthAddr},
+		ProposerConfigSeed: defaultSeed,
+		ClusterDir:         t.TempDir(),
+		Name:               "test_cluster",
+		NumNodes:           4,
+		Threshold:          3,
+		NumDVs:             1,
+		Network:            eth2util.Mainnet.Name,
+		TargetGasLimit:     36000000,
+		FeeRecipientAddrs:  []string{validEthAddr},
+		WithdrawalAddrs:    []string{validEthAddr},
 	}
 
 	var buf bytes.Buffer
 
-	require.NoError(t, runCreateCluster(t.Context(), &buf, conf))
+	require.NoError(t, createClusterT(t.Context(), &buf, conf))
 
 	ddir := nodeDir(conf.ClusterDir, 0)
 	badChecksum := "0xFB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
