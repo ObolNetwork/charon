@@ -29,25 +29,29 @@ func Hex7(input []byte) string {
 // BundleOutput archives targetDir into a gzipped tarball named filename in targetDir.
 // The archive contains private key material, so it is only readable and writable by its owner.
 // It is written to a temporary file and renamed into place once complete, so filename is
-// never a partial archive. After successfully creating the archive, it deletes the original
-// files from disk; on any failure the originals are left untouched.
+// never a partial archive. The original files are deleted only once the archive is in place,
+// so a failure before that leaves them untouched.
 func BundleOutput(targetDir string, filename string) (err error) {
 	archivePath := filepath.Join(targetDir, filename)
+	tempPrefix := filename + ".tmp-"
 
-	// CreateTemp creates the file with mode 0600.
-	file, err := os.CreateTemp(targetDir, filename+".tmp-*")
+	// CreateTemp creates the tempFile with mode 0600.
+	tempFile, err := os.CreateTemp(targetDir, tempPrefix+"*")
 	if err != nil {
 		return errors.Wrap(err, "create .tar.gz file")
 	}
 
+	// CreateTemp does not clean its path while filepath.Walk does, e.g. for the default "./" directory.
+	tempPath := filepath.Clean(tempFile.Name())
+
 	defer func() {
 		if err != nil {
-			_ = file.Close()
-			_ = os.Remove(file.Name())
+			_ = tempFile.Close()
+			_ = os.Remove(tempFile.Name())
 		}
 	}()
 
-	gzw := gzip.NewWriter(file)
+	gzw := gzip.NewWriter(tempFile)
 	tw := tar.NewWriter(gzw)
 
 	// Files to be deleted
@@ -70,7 +74,14 @@ func BundleOutput(targetDir string, filename string) (err error) {
 		}
 
 		// Don't archive or delete the output file, nor an archive left by a previous run (it is replaced).
-		if path == file.Name() || path == archivePath {
+		if path == tempPath || path == archivePath {
+			return nil
+		}
+
+		// Don't archive a temporary file left by an interrupted run, but do delete it.
+		if strings.HasPrefix(info.Name(), tempPrefix) {
+			filesToDelete = append(filesToDelete, path)
+
 			return nil
 		}
 
@@ -118,15 +129,15 @@ func BundleOutput(targetDir string, filename string) (err error) {
 		return errors.Wrap(err, "close gzip writer")
 	}
 
-	if err := file.Sync(); err != nil {
+	if err := tempFile.Sync(); err != nil {
 		return errors.Wrap(err, "sync .tar.gz file")
 	}
 
-	if err := file.Close(); err != nil {
+	if err := tempFile.Close(); err != nil {
 		return errors.Wrap(err, "close .tar.gz file")
 	}
 
-	if err := os.Rename(file.Name(), archivePath); err != nil {
+	if err := os.Rename(tempFile.Name(), archivePath); err != nil {
 		return errors.Wrap(err, "rename .tar.gz file")
 	}
 
@@ -292,6 +303,27 @@ func CompareDirectories(originalDir, extractedDir string) error {
 	})
 	if err != nil {
 		return errors.Wrap(err, "walk directory tree")
+	}
+
+	// Check that the extracted content contains nothing else.
+	err = filepath.Walk(extractedDir, func(path string, _ os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(extractedDir, path)
+		if err != nil {
+			return errors.Wrap(err, "get relative path")
+		}
+
+		if _, err := os.Stat(filepath.Join(originalDir, relPath)); err != nil {
+			return errors.Wrap(err, "path should not exist in extracted content", z.Str("path", relPath))
+		}
+
+		return nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "walk extracted directory tree")
 	}
 
 	return nil

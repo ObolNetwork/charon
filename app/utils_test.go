@@ -114,9 +114,42 @@ func TestBundleOutputExistingArchive(t *testing.T) {
 	entries, err = os.ReadDir(extractDir)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
+
 	b, err := os.ReadFile(filepath.Join(extractDir, "charon-enr-private-key"))
 	require.NoError(t, err)
 	require.Equal(t, "secret", string(b))
+}
+
+func TestBundleOutputRelativeDir(t *testing.T) {
+	// The CLI defaults are relative: "./" for create cluster and ".charon" for dkg.
+	for _, dir := range []string{"./", ".", "sub", "sub/"} {
+		t.Run(dir, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			require.NoError(t, os.MkdirAll(dir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "charon-enr-private-key"), []byte("secret"), 0o600))
+
+			// A temporary file left by an interrupted run is neither archived nor kept.
+			stale := filepath.Join(dir, "test_bundle.tar.gz.tmp-123")
+			require.NoError(t, os.WriteFile(stale, []byte("partial"), 0o600))
+
+			require.NoError(t, app.BundleOutput(dir, "test_bundle.tar.gz"))
+
+			entries, err := os.ReadDir(dir)
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+			require.Equal(t, "test_bundle.tar.gz", entries[0].Name())
+
+			extractDir := t.TempDir()
+			require.NoError(t, app.ExtractArchive(filepath.Join(dir, "test_bundle.tar.gz"), extractDir))
+			entries, err = os.ReadDir(extractDir)
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+
+			b, err := os.ReadFile(filepath.Join(extractDir, "charon-enr-private-key"))
+			require.NoError(t, err)
+			require.Equal(t, "secret", string(b))
+		})
+	}
 }
 
 func TestBundleOutputFailureKeepsOriginals(t *testing.T) {
@@ -142,6 +175,28 @@ func TestBundleOutputFailureKeepsOriginals(t *testing.T) {
 	entries, err := os.ReadDir(testDir)
 	require.NoError(t, err)
 	require.Len(t, entries, 2)
+
+	// Once the cause is fixed, a rerun succeeds and bundles exactly the originals.
+	require.NoError(t, os.Chmod(unreadable, 0o600))
+	require.NoError(t, app.BundleOutput(testDir, "test_bundle.tar.gz"))
+
+	entries, err = os.ReadDir(testDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, "test_bundle.tar.gz", entries[0].Name())
+
+	extractDir := t.TempDir()
+	require.NoError(t, app.ExtractArchive(filepath.Join(testDir, "test_bundle.tar.gz"), extractDir))
+	entries, err = os.ReadDir(extractDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+
+	b, err = os.ReadFile(filepath.Join(extractDir, "charon-enr-private-key"))
+	require.NoError(t, err)
+	require.Equal(t, "secret", string(b))
+	b, err = os.ReadFile(filepath.Join(extractDir, "unreadable"))
+	require.NoError(t, err)
+	require.Equal(t, "x", string(b))
 }
 
 func TestCompareDirectories(t *testing.T) {
@@ -189,6 +244,32 @@ func TestCompareDirectories(t *testing.T) {
 			},
 			expectError: true,
 			errorMsg:    "file should exist in extracted content",
+		},
+		{
+			name: "extra_file",
+			setupDirs: func(t *testing.T) (string, string) {
+				t.Helper()
+				dir1 := t.TempDir()
+				dir2 := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(dir2, "file.txt"), []byte("content"), 0o644))
+
+				return dir1, dir2
+			},
+			expectError: true,
+			errorMsg:    "path should not exist in extracted content",
+		},
+		{
+			name: "extra_directory",
+			setupDirs: func(t *testing.T) (string, string) {
+				t.Helper()
+				dir1 := t.TempDir()
+				dir2 := t.TempDir()
+				require.NoError(t, os.Mkdir(filepath.Join(dir2, "sub"), 0o755))
+
+				return dir1, dir2
+			},
+			expectError: true,
+			errorMsg:    "path should not exist in extracted content",
 		},
 		{
 			name: "different_content",
