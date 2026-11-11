@@ -216,11 +216,7 @@ func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
 }
 
 func bindP2PFlags(cmd *cobra.Command, config *p2p.Config, defaultRelays ...string) {
-	if len(defaultRelays) == 0 {
-		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", []string{"https://0.relay.obol.tech", "https://1.relay.obol.tech", "https://2.relay.obol.dev"}, "Comma-separated list of libp2p relay URLs or multiaddrs.")
-	} else {
-		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", defaultRelays, "Comma-separated list of libp2p relay URLs or multiaddrs.")
-	}
+	bindP2PRelaysFlag(cmd, config, defaultRelays...)
 
 	cmd.Flags().StringVar(&config.ExternalIP, "p2p-external-ip", "", "The IP address advertised by libp2p. This may be used to advertise an external IP.")
 	cmd.Flags().StringVar(&config.ExternalHost, "p2p-external-hostname", "", "The DNS hostname advertised by libp2p. This may be used to advertise an external DNS.")
@@ -233,6 +229,19 @@ func bindP2PFlags(cmd *cobra.Command, config *p2p.Config, defaultRelays ...strin
 			return errors.Wrap(err, "invalid hostname", z.Str("hostname", config.ExternalHost))
 		}
 
+		return nil
+	})
+}
+
+// bindP2PRelaysFlag binds only the relays flag, for relay-only commands, the defaults if none given.
+func bindP2PRelaysFlag(cmd *cobra.Command, config *p2p.Config, defaultRelays ...string) {
+	if len(defaultRelays) == 0 {
+		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", []string{"https://0.relay.obol.tech", "https://1.relay.obol.tech", "https://2.relay.obol.dev"}, "Comma-separated list of libp2p relay URLs or multiaddrs.")
+	} else {
+		cmd.Flags().StringSliceVar(&config.Relays, "p2p-relays", defaultRelays, "Comma-separated list of libp2p relay URLs or multiaddrs.")
+	}
+
+	wrapPreRunE(cmd, func(cmd *cobra.Command, args []string) error { //nolint:revive // keep args variable name for clarity
 		for _, relay := range config.Relays {
 			u, err := url.Parse(relay)
 			if err != nil {

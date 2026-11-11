@@ -136,6 +136,66 @@ The following is the historical change log of the cluster config:
 
 This version of Charon (logic) supports the following cluster config versions (files): `v1.0.0`, `v1.1.0`, `v1.2.0`.
 
+## Proposer Config
+
+From the gloas fork onwards charon and the validator client take their fee recipients, gas limit and builder
+settings from `vc-config/proposer-config.json` (default `.charon/vc-config/proposer-config.json`, `--proposer-config-file`).
+The file is a revisioned document, signed by the cluster operators:
+
+- **Revision 0** is unsigned. With no file, `charon run` writes revision 0 from the cluster lock, the builder registration
+  overrides file (`--overrides-file`) for the fee recipients, falling back to the lock's,
+  and the `--proposer-config-*` seeding flags for the gas limit and builders. At revision 0 the file wins: seeding flags that differ
+  from it only produce a warning naming `charon alpha edit proposer-config`. After the gloas fork charon also warns that an unsigned file is in use.
+- **Revision 1 and higher** carry the signatures of at least the cluster threshold of operators over the revision hash,
+  made with their charon ENR keys and verified on start against the operator ENRs in the lock. Once the file is signed the seeding flags
+  are disregarded, with a warning if flags you set explicitly differ from it.
+
+On start, a file whose `lock_hash` belongs to another cluster stops charon. A file with invalid revision or signatures is logged as an error,
+raises `app_proposer_config_invalid` to 1 and is still used (the validator client reads it regardless). A file that cannot be loaded
+at all, or holds values charon cannot parse (e.g. a non-numeric gas limit), is left untouched, logged as an error with `app_proposer_config_invalid` at 1,
+and charon uses the content derived from the lock and flags in memory meanwhile; delete it to have charon regenerate revision 0 on the next start.
+This includes a file with `"version": 1` written by a v2.0.0 release candidate. Charon reloads the file at runtime when it is replaced,
+for example by an edit ceremony; the validator client must be restarted to pick the new file up.
+
+The first signed revision is created together with the cluster, by `charon dkg` and `charon create cluster`, and by the
+lock-changing `charon alpha edit` commands (add/remove/replace operators, add validators, recreate private keys), which carry the
+current content over into a file signed for the new lock, written to `<output-dir>/vc-config/proposer-config.json`. It replaces the current
+`vc-config/proposer-config.json`: switch to the whole output directory, including its `vc-config/`, since charon refuses to start with a
+file signed for the previous lock.
+
+### Changing the proposer config
+
+All participating operators run the same command and agree on the result in one ceremony:
+
+```sh
+charon alpha edit proposer-config \
+  --fee-recipient=0x123... --gas-limit=60000000 \
+  --builder-urls=https://a.example,https://b.example --builder-boost-factor=110
+```
+
+At least one change flag is required, the flags combine into one revision:
+
+- `--fee-recipient`, optionally limited to `--fee-recipient-validators` (DV public keys). The validator-scoped form excludes every other change flag.
+- `--gas-limit`, cluster-wide, greater than zero.
+- `--builder-urls` (replaces the list, order is the preference order, no duplicates), `--builder-min-bid`, `--builder-boost-factor`,
+  `--builder-max-execution-payment`; the last three need an existing builder block or `--builder-urls`. `--no-builders` removes the builder block.
+
+`--participating-operator-enrs` lists the operators running the ceremony, this node included, as for `remove-operators`. It defaults
+to all operators and must list at least the cluster threshold; every participant passes the same list. An operator that missed a ceremony shows up as `app_peerinfo_proposer_config_mismatch` on its peers and catches up by joining the next edit ceremony, where it adopts the newer signed revision from its peers.
+`--timeout` (default 24h) is how long to wait for the other operators to join, `--p2p-relays` defaults to `https://4.relay.obol.dev`.
+Use relays that do not serve your running charon node. The ceremony connects via relays only, it neither listens nor advertises addresses.
+Run inside charon's container, the command inherits charon run's environment, including the `CHARON_P2P_RELAYS` your node uses,
+so pass `--p2p-relays` explicitly:
+
+```sh
+docker compose exec charon charon alpha edit proposer-config --p2p-relays=https://4.relay.obol.dev --gas-limit=60000000
+```
+
+The ceremony prints the differences against the current revision, and on success writes revision N+1 and archives the previous
+file as `proposer-config-revision-<N>.json` next to it. Restart the validator client afterwards to apply the new file, e.g.
+`docker compose restart <vc service>`. Before the gloas fork charon's own builder registrations are unaffected, and a fee recipient
+change also needs `charon feerecipient sign` and `fetch`.
+
 ## Flag Precedence
 
 Charon uses [viper](https://github.com/spf13/viper) for configuration combined with [cobra](https://github.com/spf13/cobra)
