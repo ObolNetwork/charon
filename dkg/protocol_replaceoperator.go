@@ -25,6 +25,10 @@ type ReplaceOperatorConfig struct {
 	OutputDir        string
 	NewENR           string
 	OldENR           string
+	// ProposerConfigFile is the current proposer config file, its content is carried over into the new lock.
+	ProposerConfigFile string
+	// OverridesFile is the builder registration overrides file feeding the initial proposer config when ProposerConfigFile is absent.
+	OverridesFile string
 }
 
 // RunReplaceOperatorProtocol runs the replace-operator DKG protocol.
@@ -38,22 +42,26 @@ func RunReplaceOperatorProtocol(ctx context.Context, config ReplaceOperatorConfi
 }
 
 type replaceOperatorProtocol struct {
-	outputDir      string
-	newENR         string
-	oldENR         string
-	replacingIndex int
-	newLockENRs    []string
-	config         *pedersen.Config
-	board          *pedersen.Board
+	outputDir          string
+	proposerConfigFile string
+	overridesFile      string
+	newENR             string
+	oldENR             string
+	replacingIndex     int
+	newLockENRs        []string
+	config             *pedersen.Config
+	board              *pedersen.Board
 }
 
 var _ Protocol = (*replaceOperatorProtocol)(nil)
 
 func newReplaceOperatorProtocol(config ReplaceOperatorConfig) *replaceOperatorProtocol {
 	return &replaceOperatorProtocol{
-		outputDir: config.OutputDir,
-		newENR:    config.NewENR,
-		oldENR:    config.OldENR,
+		outputDir:          config.OutputDir,
+		proposerConfigFile: config.ProposerConfigFile,
+		overridesFile:      config.OverridesFile,
+		newENR:             config.NewENR,
+		oldENR:             config.OldENR,
 	}
 }
 
@@ -114,6 +122,11 @@ func (p *replaceOperatorProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, nodeSigMsgID)
 
+	err = initProposerConfig(ctx, pctx, p.proposerConfigFile, p.overridesFile, false)
+	if err != nil {
+		return err
+	}
+
 	// For replace operator: identify the old and new peer IDs at the replacement position.
 	// The old operator is being removed (OldPeers), the new operator is being added (NewPeers).
 	// Since they occupy the same index position, this is a one-for-one swap.
@@ -135,6 +148,7 @@ func (p *replaceOperatorProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 
 func (p *replaceOperatorProtocol) Steps(pctx *ProtocolContext) []ProtocolStep {
 	return []ProtocolStep{
+		&agreeProposerConfigProtocolStep{},
 		&reshareProtocolStep{config: p.config, board: p.board},
 		&updateLockProtocolStep{threshold: pctx.Lock.Threshold, operators: p.newLockENRs},
 		&updateNodeSignaturesProtocolStep{},

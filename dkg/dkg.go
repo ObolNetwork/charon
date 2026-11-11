@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/url"
 	"path"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"sync/atomic"
@@ -378,7 +377,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
 
 	// Fail on differing proposer config seeding flags (or carried files) before generating keys.
-	agreedProposerConfig, err := proposerConfigAgreement.agree(ctx, proposerConfigLock, localProposerConfig, proposerConfigHint)
+	agreedProposerConfig, err := proposerConfigAgreement.agree(ctx, proposerConfigLock, &localProposerConfig, proposerConfigHint)
 	if err != nil {
 		return fatalOr(errors.Wrap(err, "agree proposer config"))
 	}
@@ -548,7 +547,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 
 	log.Debug(ctx, "Saved lock file to disk")
 
-	err = proposerconfig.Write(filepath.Join(conf.DataDir, "vc-config", "proposer-config.json"), proposerConfig, lock, nodeIdx)
+	err = proposerconfig.Write(proposerconfig.FilePath(conf.DataDir), proposerConfig, lock, nodeIdx)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -26,8 +27,13 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 )
 
+// proposerConfigContentMsgID is the config agreement message ID of the lock-changing edits.
+// The DKG seed check uses "/charon/dkg/proposer_config_seed", declared where it is wired.
+const proposerConfigContentMsgID = "/charon/dkg/proposer_config_content"
+
 // configAgreement makes all nodes agree on one proposer config via the bcast protocol.
-// An instance is single-use per ceremony: the first config received from each peer wins.
+// Nodes without a config adopt the agreed one. An instance is single-use per ceremony: the first
+// config received from each peer wins.
 type configAgreement struct {
 	bcastFunc bcast.BroadcastFunc
 	peers     []p2p.Peer
@@ -35,7 +41,7 @@ type configAgreement struct {
 	msgID     string
 
 	mu       sync.Mutex
-	received map[int]proposerconfig.Config
+	received map[int]*proposerconfig.Config // Nil when the peer adopts.
 }
 
 // newConfigAgreement returns a new configAgreement and registers its bcast handlers for msgID on bcastComp.
@@ -51,7 +57,7 @@ func newConfigAgreement(
 		peers:     peers,
 		nodeIdx:   nodeIdx,
 		msgID:     msgID,
-		received:  make(map[int]proposerconfig.Config),
+		received:  make(map[int]*proposerconfig.Config),
 	}
 
 	bcastComp.RegisterMessageIDFuncs(msgID, ret.broadcastCallback, ret.checkMessage)
@@ -61,7 +67,7 @@ func newConfigAgreement(
 
 // set stores the peer's normalised config, first write wins: an identical repeat is ignored and a
 // differing one is an error. It is safe to use concurrently.
-func (a *configAgreement) set(peerIdx int, cfg proposerconfig.Config) error {
+func (a *configAgreement) set(peerIdx int, cfg *proposerconfig.Config) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -71,7 +77,7 @@ func (a *configAgreement) set(peerIdx int, cfg proposerconfig.Config) error {
 		return nil
 	}
 
-	same, err := proposerconfig.SameConfig(prev, cfg)
+	same, err := sameOptionalConfig(prev, cfg)
 	if err != nil {
 		return err
 	}
@@ -83,8 +89,17 @@ func (a *configAgreement) set(peerIdx int, cfg proposerconfig.Config) error {
 	return nil
 }
 
+// sameOptionalConfig returns whether a and b are both nil or have the same canonical form.
+func sameOptionalConfig(a, b *proposerconfig.Config) (bool, error) {
+	if a == nil || b == nil {
+		return a == b, nil
+	}
+
+	return proposerconfig.SameConfig(*a, *b)
+}
+
 // all returns the configs of all peers in peer order once every peer's has arrived.
-func (a *configAgreement) all() ([]proposerconfig.Config, bool) {
+func (a *configAgreement) all() ([]*proposerconfig.Config, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -92,7 +107,7 @@ func (a *configAgreement) all() ([]proposerconfig.Config, bool) {
 		return nil, false
 	}
 
-	res := make([]proposerconfig.Config, len(a.peers))
+	res := make([]*proposerconfig.Config, len(a.peers))
 	for idx, cfg := range a.received {
 		res[idx] = cfg
 	}
@@ -116,6 +131,10 @@ func (a *configAgreement) broadcastCallback(_ context.Context, senderID peer.ID,
 		return errors.New("sender peer ID does not match claimed peer index")
 	}
 
+	if m.GetAdopt() {
+		return a.set(peerIdx, nil)
+	}
+
 	var cfg proposerconfig.Config
 
 	err := json.Unmarshal(m.GetContent(), &cfg)
@@ -128,7 +147,7 @@ func (a *configAgreement) broadcastCallback(_ context.Context, senderID peer.ID,
 		return errors.Wrap(err, "normalise proposer config", z.Int("peer", peerIdx))
 	}
 
-	return a.set(peerIdx, norm)
+	return a.set(peerIdx, &norm)
 }
 
 // checkMessage is the bcast.CheckMessage of configAgreement.
@@ -143,30 +162,36 @@ func (*configAgreement) checkMessage(_ context.Context, peerID peer.ID, msgAny *
 	return nil
 }
 
-// agree broadcasts local and returns the config all peers agree on. The lock is only used to describe
-// disagreements; hint ends a disagreement error with the operators' remedy.
-func (a *configAgreement) agree(ctx context.Context, lock cluster.Lock, local proposerconfig.Config, hint string) (proposerconfig.Config, error) {
-	norm, err := proposerconfig.Normalise(local)
-	if err != nil {
-		return proposerconfig.Config{}, errors.Wrap(err, "normalise local proposer config")
-	}
-
-	b, err := json.Marshal(norm)
-	if err != nil {
-		return proposerconfig.Config{}, errors.Wrap(err, "marshal proposer config")
-	}
-
+// agree broadcasts local (nil to adopt) and returns the config all non-adopting peers agree on.
+// The lock is only used to describe disagreements; hint ends a disagreement error with the operators' remedy.
+func (a *configAgreement) agree(ctx context.Context, lock cluster.Lock, local *proposerconfig.Config, hint string) (proposerconfig.Config, error) {
 	msg := &dkgpb.MsgProposerConfigContent{
-		Content:   b,
+		Adopt:     local == nil,
 		PeerIndex: uint32(a.nodeIdx.PeerIdx),
 	}
 
-	err = a.bcastFunc(ctx, a.msgID, msg)
+	if local != nil {
+		norm, err := proposerconfig.Normalise(*local)
+		if err != nil {
+			return proposerconfig.Config{}, errors.Wrap(err, "normalise local proposer config")
+		}
+
+		local = &norm
+
+		b, err := json.Marshal(local)
+		if err != nil {
+			return proposerconfig.Config{}, errors.Wrap(err, "marshal proposer config")
+		}
+
+		msg.Content = b
+	}
+
+	err := a.bcastFunc(ctx, a.msgID, msg)
 	if err != nil {
 		return proposerconfig.Config{}, errors.Wrap(err, "proposer config broadcast")
 	}
 
-	err = a.set(a.nodeIdx.PeerIdx, norm)
+	err = a.set(a.nodeIdx.PeerIdx, local)
 	if err != nil {
 		return proposerconfig.Config{}, err
 	}
@@ -187,26 +212,35 @@ func (a *configAgreement) agree(ctx context.Context, lock cluster.Lock, local pr
 	}
 }
 
-// resolveConfigs returns the config all peers share, or an error describing each disagreement
-// relative to peer 0, ending with hint.
-func resolveConfigs(lock cluster.Lock, cfgs []proposerconfig.Config, hint string) (proposerconfig.Config, error) {
-	first := cfgs[0]
+// resolveConfigs returns the config all non-adopting peers share, or an error describing each
+// disagreement relative to the lowest-index non-adopting peer, ending with hint.
+func resolveConfigs(lock cluster.Lock, cfgs []*proposerconfig.Config, hint string) (proposerconfig.Config, error) {
+	firstIdx := slices.IndexFunc(cfgs, func(cfg *proposerconfig.Config) bool { return cfg != nil })
+	if firstIdx < 0 {
+		return proposerconfig.Config{}, errors.New("no operator has a proposer config")
+	}
+
+	first := *cfgs[firstIdx]
 
 	var lines []string
 
-	for i, cfg := range cfgs[1:] {
-		same, err := proposerconfig.SameConfig(first, cfg)
+	for i, cfg := range cfgs {
+		if cfg == nil || i == firstIdx {
+			continue
+		}
+
+		same, err := proposerconfig.SameConfig(first, *cfg)
 		if err != nil {
-			return proposerconfig.Config{}, errors.Wrap(err, "compare proposer configs", z.Int("peer", i+1))
+			return proposerconfig.Config{}, errors.Wrap(err, "compare proposer configs", z.Int("peer", i))
 		}
 
 		if same {
 			continue
 		}
 
-		lines = append(lines, fmt.Sprintf("peer %d differs from peer 0:", i+1))
+		lines = append(lines, fmt.Sprintf("peer %d differs from peer %d:", i, firstIdx))
 
-		diffs := proposerconfig.Diff(lock, first, cfg)
+		diffs := proposerconfig.Diff(lock, first, *cfg)
 		for _, line := range diffs {
 			lines = append(lines, "  "+line)
 		}
@@ -259,6 +293,12 @@ func loadCarriedProposerConfig(ctx context.Context, lock cluster.Lock, nodeIdx c
 		return proposerconfig.Config{}, errors.Wrap(err, "verify proposer config file", z.Str("path", path))
 	}
 
+	// Checked as charon run does on load, a hand-edited revision 0 file would otherwise be signed as is.
+	err = app.CheckProposerConfig(doc.Config)
+	if err != nil {
+		return proposerconfig.Config{}, errors.Wrap(err, "unusable proposer config file", z.Str("path", path))
+	}
+
 	return doc.Config, nil
 }
 
@@ -309,4 +349,29 @@ func exchangeProposerConfig(ctx context.Context, caster *nodeSigBcast, key *k1.P
 	}
 
 	return doc, nil
+}
+
+// initProposerConfig registers the proposer config agreement and signature exchange on pctx.Caster and loads this
+// node's current config to carry into the new lock, unless it adopts: operators joining have no file and removed
+// operators sign nothing, so only the remaining operators must agree. Loading here fails fast, before peers connect.
+func initProposerConfig(ctx context.Context, pctx *ProtocolContext, proposerConfigFile, overridesFile string, removed bool) error {
+	pctx.ProposerConfig = newConfigAgreement(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, proposerConfigContentMsgID)
+	pctx.ProposerConfigSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, proposerConfigSigMsgID)
+
+	// The current lock's index, it differs from ThisNodeIdx when the protocol renumbers peers. Operators the
+	// current lock does not know are joining and have no proposer config yet, so they adopt the others' one,
+	// as do removed operators, whose file must not block their removal.
+	nodeIdx, err := pctx.Lock.NodeIdx(pctx.ThisPeerID)
+	if removed || err != nil {
+		return nil //nolint:nilerr // The lookup fails only for peers the current lock does not know, which join.
+	}
+
+	cfg, err := loadCarriedProposerConfig(ctx, *pctx.Lock, nodeIdx, proposerConfigFile, overridesFile)
+	if err != nil {
+		return err
+	}
+
+	pctx.proposerConfigLocal = &cfg
+
+	return nil
 }

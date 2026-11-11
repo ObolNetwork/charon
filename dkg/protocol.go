@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -73,6 +74,17 @@ type ProtocolContext struct {
 	SigExchanger  *exchanger
 	Caster        *bcast.Component
 	NodeSigCaster *nodeSigBcast
+
+	// The proposer config carried into the new lock, set up in PostInit by initProposerConfig.
+	ProposerConfig          *configAgreement
+	ProposerConfigSigCaster *nodeSigBcast
+
+	// proposerConfigLocal is this node's current config, nil when it adopts the others' config.
+	proposerConfigLocal *proposerconfig.Config
+	// proposerConfigAgreed is the config agreed by all remaining operators.
+	proposerConfigAgreed proposerconfig.Config
+	// proposerConfigDoc is the revision 1 document signed by all operators of the new lock.
+	proposerConfigDoc proposerconfig.Document
 }
 
 // RunProtocol runs the given DKG protocol with the provided configuration.

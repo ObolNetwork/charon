@@ -279,6 +279,11 @@ func writeAtomic(path string, data []byte) error {
 	return nil
 }
 
+// FilePath returns the proposer config file's path under a charon data directory.
+func FilePath(dataDir string) string {
+	return filepath.Join(dataDir, "vc-config", "proposer-config.json")
+}
+
 // ArchivePath returns the archive path of a revision, next to the file at path.
 func ArchivePath(path string, revision uint64) string {
 	return filepath.Join(filepath.Dir(path), fmt.Sprintf("proposer-config-revision-%d.json", revision))
