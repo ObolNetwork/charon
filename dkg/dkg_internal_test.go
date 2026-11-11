@@ -7,14 +7,18 @@ import (
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/obolnetwork/charon/app/log"
+	"github.com/obolnetwork/charon/app/peerinfo"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/share"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
+	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
 	"github.com/obolnetwork/charon/testutil"
@@ -263,4 +267,29 @@ func TestCheckThreshold(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSetupP2PPeerInfo(t *testing.T) {
+	key, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	pID, err := p2p.PeerIDFromKey(key.PubKey())
+	require.NoError(t, err)
+
+	client := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	defer client.Close()
+
+	peers := []p2p.Peer{{ID: pID, Index: 0}, {ID: client.ID(), Index: 1}}
+	conf := Config{P2P: p2p.Config{TCPAddrs: []string{testutil.AvailableAddr(t).String()}}}
+
+	node, shutdown, err := setupP2P(t.Context(), key, conf, peers, testutil.RandomBytes32(), "uuid")
+	require.NoError(t, err)
+
+	defer shutdown()
+
+	client.Peerstore().AddAddrs(node.ID(), node.Addrs(), peerstore.PermanentAddrTTL)
+
+	_, _, ok, err := peerinfo.DoOnce(t.Context(), client, node.ID())
+	require.NoError(t, err)
+	require.True(t, ok)
 }

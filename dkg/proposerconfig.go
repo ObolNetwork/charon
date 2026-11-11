@@ -279,27 +279,69 @@ func initialProposerConfig(ctx context.Context, lock cluster.Lock, overridesFile
 // loadCarriedProposerConfig returns the config of this node's proposer config file to carry into a new lock,
 // or the initial config if the file is absent. An unloadable or invalid file is an error.
 func loadCarriedProposerConfig(ctx context.Context, lock cluster.Lock, nodeIdx cluster.NodeIdx, path, overridesFile string) (proposerconfig.Config, error) {
+	doc, _, err := loadProposerConfigDocument(ctx, lock, nodeIdx, path, overridesFile, "No proposer config file, carrying over one derived from the lock and overrides")
+	if err != nil {
+		return proposerconfig.Config{}, err
+	}
+
+	return doc.Config, nil
+}
+
+// loadProposerConfigDocument returns this node's proposer config document and true, or an unsigned revision 0
+// document derived from the lock and overrides and false if the file is absent (logged as absentMsg). A file must
+// verify against the lock and be usable as charon run checks on load, a hand-edited revision 0 file would otherwise
+// be signed as is; a revision 0 file's fee recipients are compared with the lock and overrides, warning if they differ.
+func loadProposerConfigDocument(ctx context.Context, lock cluster.Lock, nodeIdx cluster.NodeIdx, path, overridesFile, absentMsg string) (proposerconfig.Document, bool, error) {
 	doc, err := proposerconfig.Load(path, lock, nodeIdx)
 	if errors.Is(err, proposerconfig.ErrNotFound) {
-		log.Info(ctx, "No proposer config file, carrying over one derived from the lock and overrides", z.Str("path", path))
+		log.Info(ctx, absentMsg, z.Str("path", path))
 
-		return initialProposerConfig(ctx, lock, overridesFile)
+		cfg, err := initialProposerConfig(ctx, lock, overridesFile)
+		if err != nil {
+			return proposerconfig.Document{}, false, err
+		}
+
+		return proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Config: cfg}, false, nil
 	} else if err != nil {
-		return proposerconfig.Config{}, err
+		return proposerconfig.Document{}, false, err
 	}
 
 	err = proposerconfig.Verify(doc, lock)
 	if err != nil {
-		return proposerconfig.Config{}, errors.Wrap(err, "verify proposer config file", z.Str("path", path))
+		return proposerconfig.Document{}, false, errors.Wrap(err, "verify proposer config file", z.Str("path", path))
 	}
 
-	// Checked as charon run does on load, a hand-edited revision 0 file would otherwise be signed as is.
 	err = app.CheckProposerConfig(doc.Config)
 	if err != nil {
-		return proposerconfig.Config{}, errors.Wrap(err, "unusable proposer config file", z.Str("path", path))
+		return proposerconfig.Document{}, false, errors.Wrap(err, "unusable proposer config file", z.Str("path", path))
 	}
 
-	return doc.Config, nil
+	if doc.Revision == 0 {
+		warnFeeRecipientDrift(ctx, lock, doc, overridesFile)
+	}
+
+	return doc, true, nil
+}
+
+// warnFeeRecipientDrift warns once if fee recipients in the revision 0 file differ from the lock and overrides.
+func warnFeeRecipientDrift(ctx context.Context, lock cluster.Lock, doc proposerconfig.Document, overridesFile string) {
+	initial, err := initialProposerConfig(ctx, lock, overridesFile)
+	if err != nil {
+		log.Warn(ctx, "Skipped checking the proposer config file against the lock and overrides", err)
+		return
+	}
+
+	// Compare the fee recipients only, the file's defaults are the cluster's to change.
+	initial.DefaultConfig.GasLimit = doc.Config.DefaultConfig.GasLimit
+	initial.DefaultConfig.Builder = doc.Config.DefaultConfig.Builder
+
+	lines := proposerconfig.Diff(lock, doc.Config, initial)
+	if len(lines) == 0 {
+		return
+	}
+
+	log.Warn(ctx, "Proposer config file fee recipients differ from the lock and overrides, using the file", nil,
+		app.DiffSummaryFields(lines)...)
 }
 
 // newLockProposerConfig returns the config for the new lock with the agreed gas limit and builder:
