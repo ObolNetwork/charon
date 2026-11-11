@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package dkg.dkgpb.v1;
+
+option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
+
+// MsgProposerConfigEdit is one node's message of a proposer config edit round. A request only sets round.
+message MsgProposerConfigEdit {
+  // round is 1 for the current revision exchange and 2 for the proposal exchange.
+  uint32 round = 1;
+  // current_revision is the sender's current proposer config document (JSON), with its revision and signatures,
+  // or the unsigned revision 0 document derived from the lock without a file. Round 1 only.
+  bytes current_revision = 2;
+  // proposal is the next revision the sender proposes (JSON). Round 2 only.
+  bytes proposal = 3;
+  // signature is the sender's signature of the proposal. Round 2 only.
+  bytes signature = 4;
+  // participants are the peer IDs of the operators the sender runs the ceremony with, sorted. Round 1 only.
+  repeated string participants = 5;
+}
