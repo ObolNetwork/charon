@@ -39,6 +39,8 @@ func newRecreatePrivateKeysCmd(runFunc func(context.Context, dkg.ReshareConfig) 
 	cmd.Flags().StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file. ")
 	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
+	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the current proposer config file, its content is carried over into the new cluster's signed one.")
+	cmd.Flags().StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
 	cmd.Flags().DurationVar(&config.DKGConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 
 	bindNoVerifyFlag(cmd.Flags(), &config.DKGConfig.NoVerify)
@@ -65,6 +67,7 @@ func runRecreatePrivateKeys(ctx context.Context, config dkg.ReshareConfig) error
 	log.Info(ctx, "Successfully completed reshare ceremony 🎉")
 	log.Info(ctx, "IMPORTANT:")
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+config.OutputDir)
+	logProposerConfigOutput(ctx, config.OutputDir)
 
 	return nil
 }

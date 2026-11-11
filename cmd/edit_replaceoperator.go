@@ -47,6 +47,8 @@ func newReplaceOperatorCmd(runFunc func(context.Context, dkg.ReplaceOperatorConf
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new cluster data. Must be empty.")
 	cmd.Flags().StringVar(&config.NewENR, "new-operator-enr", "", "The new operator to be added (Charon ENR address).")
 	cmd.Flags().StringVar(&config.OldENR, "old-operator-enr", "", "The old operator to be replaced (Charon ENR address).")
+	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the current proposer config file, its content is carried over into the new cluster's signed one.")
+	cmd.Flags().StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
 	cmd.Flags().DurationVar(&dkgConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 
 	bindNoVerifyFlag(cmd.Flags(), &dkgConfig.NoVerify)
@@ -73,6 +75,7 @@ func runReplaceOperator(ctx context.Context, config dkg.ReplaceOperatorConfig, d
 	log.Info(ctx, "Successfully completed replace-operator ceremony 🎉")
 	log.Info(ctx, "IMPORTANT:")
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+config.OutputDir)
+	logProposerConfigOutput(ctx, config.OutputDir)
 
 	return nil
 }
