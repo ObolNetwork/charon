@@ -24,6 +24,7 @@ const (
 type MsgProposerConfigContent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Content       []byte                 `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
+	Adopt         bool                   `protobuf:"varint,2,opt,name=adopt,proto3" json:"adopt,omitempty"`
 	PeerIndex     uint32                 `protobuf:"varint,3,opt,name=peer_index,json=peerIndex,proto3" json:"peer_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -66,6 +67,13 @@ func (x *MsgProposerConfigContent) GetContent() []byte {
 	return nil
 }
 
+func (x *MsgProposerConfigContent) GetAdopt() bool {
+	if x != nil {
+		return x.Adopt
+	}
+	return false
+}
+
 func (x *MsgProposerConfigContent) GetPeerIndex() uint32 {
 	if x != nil {
 		return x.PeerIndex
@@ -77,9 +85,10 @@ var File_dkg_dkgpb_v1_proposerconfig_proto protoreflect.FileDescriptor
 
 const file_dkg_dkgpb_v1_proposerconfig_proto_rawDesc = "" +
 	"\n" +
-	"!dkg/dkgpb/v1/proposerconfig.proto\x12\fdkg.dkgpb.v1\"S\n" +
+	"!dkg/dkgpb/v1/proposerconfig.proto\x12\fdkg.dkgpb.v1\"i\n" +
 	"\x18MsgProposerConfigContent\x12\x18\n" +
-	"\acontent\x18\x01 \x01(\fR\acontent\x12\x1d\n" +
+	"\acontent\x18\x01 \x01(\fR\acontent\x12\x14\n" +
+	"\x05adopt\x18\x02 \x01(\bR\x05adopt\x12\x1d\n" +
 	"\n" +
 	"peer_index\x18\x03 \x01(\rR\tpeerIndexB,Z*github.com/obolnetwork/charon/dkg/dkgpb/v1b\x06proto3"
 
