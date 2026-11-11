@@ -772,9 +772,7 @@ func signProposerConfig(lock cluster.Lock, feeRecipients []string, seed proposer
 // writeProposerConfig writes the proposer config to every node's vc-config directory, keyed by its pubshares.
 func writeProposerConfig(doc proposerconfig.Document, lock cluster.Lock, clusterDir string) error {
 	for i := range lock.Operators {
-		path := filepath.Join(nodeDir(clusterDir, i), "vc-config", "proposer-config.json")
-
-		err := proposerconfig.Write(path, doc, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		err := proposerconfig.Write(proposerconfig.FilePath(nodeDir(clusterDir, i)), doc, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
 		if err != nil {
 			return errors.Wrap(err, "write proposer config", z.Int("node", i))
 		}
