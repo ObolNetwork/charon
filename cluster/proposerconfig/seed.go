@@ -27,7 +27,9 @@ type Seed struct {
 	NonDefault []string
 }
 
-// seedFile is the seed file: the version and default_config of the proposer config file, without a fee recipient.
+// seedFile is the seed file: the version and default_config of the proposer config file. It holds no fee recipient
+// and no proposer_config: fee recipients are per validator and come from the cluster definition through the lock,
+// joined with the seed's gas limit and builders when the initial config is built.
 type seedFile struct {
 	Version       string   `json:"version"`
 	DefaultConfig Settings `json:"default_config"`
