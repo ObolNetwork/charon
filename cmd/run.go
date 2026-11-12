@@ -222,31 +222,34 @@ func bindProposerConfigSeedFlags(cmd *cobra.Command, seed *proposerconfig.Seed, 
 const proposerConfigSeedFileFlag = "proposer-config-seed-file"
 
 // bindProposerConfigSeedFileFlag binds the seed file flag, the alternative to the seeding flags.
-func bindProposerConfigSeedFileFlag(cmd *cobra.Command, seed *proposerconfig.Seed) {
-	cmd.Flags().StringVar(&seed.File, proposerConfigSeedFileFlag, "", "The path to a proposer config seed file or an HTTP URL, "+
+func bindProposerConfigSeedFileFlag(cmd *cobra.Command, file *string) {
+	cmd.Flags().StringVar(file, proposerConfigSeedFileFlag, "", "The path to a proposer config seed file or an HTTP URL, "+
 		"holding the gas limit and builders signed into the cluster's initial proposer config. Excludes the proposer-config-* flags. "+
 		"Must be identical on all operators.")
 }
 
-// resolveProposerConfigSeed returns the seed loaded from its file, or the seed itself if it names no file.
-func resolveProposerConfigSeed(ctx context.Context, seed proposerconfig.Seed) (proposerconfig.Seed, error) {
-	if seed.File == "" {
-		return seed, nil
+// resolveProposerConfigSeed returns the validated seed loaded from the seed file, or the flags' seed if file is empty.
+func resolveProposerConfigSeed(ctx context.Context, file string, seed proposerconfig.Seed) (proposerconfig.Seed, error) {
+	if file != "" {
+		b, err := readFileOrURL(ctx, file)
+		if err != nil {
+			return proposerconfig.Seed{}, errors.Wrap(err, "read proposer config seed file")
+		}
+
+		seed, err = proposerconfig.ParseSeed(b)
+		if err != nil {
+			return proposerconfig.Seed{}, errors.Wrap(err, "parse proposer config seed file")
+		}
+
+		log.Info(ctx, "Proposer config seed file loaded", z.Str("source", log.RedactURL(file, false)))
 	}
 
-	b, err := readFileOrURL(ctx, seed.File)
+	err := seed.Validate()
 	if err != nil {
-		return proposerconfig.Seed{}, errors.Wrap(err, "read proposer config seed file")
+		return proposerconfig.Seed{}, err
 	}
 
-	resolved, err := proposerconfig.ParseSeed(b)
-	if err != nil {
-		return proposerconfig.Seed{}, errors.Wrap(err, "parse proposer config seed file")
-	}
-
-	log.Info(ctx, "Proposer config seed file loaded", z.Str("source", log.RedactURL(seed.File, false)))
-
-	return resolved, nil
+	return seed, nil
 }
 
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {

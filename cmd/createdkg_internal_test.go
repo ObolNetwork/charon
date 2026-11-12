@@ -5,6 +5,8 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"strings"
@@ -478,6 +480,50 @@ func TestCreateDkgProposerConfigSeed(t *testing.T) {
 		err := createDKG(t, dir, "--proposer-config-gas-limit=60000000")
 		require.EqualError(t, err, "existing proposer-config-seed.json found. Try again after deleting it")
 		require.NoFileExists(t, path.Join(dir, "cluster-definition.json"))
+	})
+
+	t.Run("stale seed file without seed flags", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(path.Join(dir, "proposer-config-seed.json"), []byte("{}"), 0o600))
+
+		err := createDKG(t, dir)
+		require.EqualError(t, err, "existing proposer-config-seed.json found. Try again after deleting it")
+	})
+
+	t.Run("publish writes the seed file", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+		defer server.Close()
+
+		dir := t.TempDir()
+		require.NoError(t, createDKG(t, dir, "--publish", "--publish-address="+server.URL, "--proposer-config-gas-limit=60000000"))
+		require.FileExists(t, path.Join(dir, "proposer-config-seed.json"))
+		require.NoFileExists(t, path.Join(dir, "cluster-definition.json"))
+	})
+
+	t.Run("failed publish leaves no seed file", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
+
+		dir := t.TempDir()
+		require.Error(t, createDKG(t, dir, "--publish", "--publish-address="+server.URL, "--proposer-config-gas-limit=60000000"))
+		require.NoFileExists(t, path.Join(dir, "proposer-config-seed.json"))
+	})
+
+	t.Run("unwritable output dir fails before publishing", func(t *testing.T) {
+		var published bool
+
+		server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { published = true }))
+		defer server.Close()
+
+		// A file in place of the output dir cannot hold the seed file.
+		dir := path.Join(t.TempDir(), "file")
+		require.NoError(t, os.WriteFile(dir, nil, 0o600))
+
+		err := createDKG(t, dir, "--publish", "--publish-address="+server.URL, "--proposer-config-gas-limit=60000000")
+		require.ErrorContains(t, err, "write proposer config seed file")
+		require.False(t, published)
 	})
 
 	t.Run("invalid seed flags", func(t *testing.T) {
