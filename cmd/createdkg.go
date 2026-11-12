@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
@@ -45,9 +46,17 @@ type createDKGConfig struct {
 	Publish             bool
 	PublishAddress      string
 	OperatorsAddresses  []string
+	ProposerConfigSeed  proposerconfig.Seed
 
 	testnetConfig eth2util.Network
 }
+
+const (
+	// proposerConfigSeedFileName is the seed file charon create dkg writes next to the definition.
+	proposerConfigSeedFileName = "proposer-config-seed.json"
+	// proposerConfigSeedFileUsage ends the seeding flags' usage on charon create dkg.
+	proposerConfigSeedFileUsage = "Written to " + proposerConfigSeedFileName + " for the operators' charon dkg --" + proposerConfigSeedFileFlag + "."
+)
 
 func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobra.Command {
 	var config createDKGConfig
@@ -64,6 +73,7 @@ func newCreateDKGCmd(runFunc func(context.Context, createDKGConfig) error) *cobr
 
 	bindCreateDKGFlags(cmd, &config)
 	bindNetworkFlags(cmd.Flags(), &config.Network, &config.testnetConfig)
+	bindProposerConfigSeedFlags(cmd, &config.ProposerConfigSeed, proposerConfigSeedFileUsage)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
@@ -151,6 +161,15 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 
 	if _, err := os.Stat(path.Join(conf.OutputDir, "cluster-definition.json")); err == nil {
 		return errors.New("existing cluster-definition.json found. Try again after deleting it")
+	}
+
+	// The seed file is written only when the creator sets seed flags, operators otherwise seed with their own.
+	writeSeed := len(conf.ProposerConfigSeed.NonDefault) > 0
+	if writeSeed {
+		_, err := os.Stat(path.Join(conf.OutputDir, proposerConfigSeedFileName))
+		if err == nil {
+			return errors.New("existing " + proposerConfigSeedFileName + " found. Try again after deleting it")
+		}
 	}
 
 	var operators []cluster.Operator
@@ -256,20 +275,54 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}
 
 	if conf.Publish {
-		return publishPartialDefinition(ctx, conf, privKey, def)
+		err = publishPartialDefinition(ctx, conf, privKey, def)
+	} else {
+		err = writeDefinition(conf.OutputDir, def)
 	}
 
+	if err != nil {
+		return err
+	}
+
+	if !writeSeed {
+		return nil
+	}
+
+	return writeProposerConfigSeed(conf.OutputDir, conf.ProposerConfigSeed)
+}
+
+// writeDefinition writes the cluster definition to the output dir.
+func writeDefinition(outputDir string, def cluster.Definition) error {
 	b, err := json.MarshalIndent(def, "", " ")
 	if err != nil {
 		return errors.Wrap(err, "marshal definition")
 	}
 
 	// Best effort creation of output dir, but error when writing the file.
-	_ = os.MkdirAll(conf.OutputDir, 0o755)
+	_ = os.MkdirAll(outputDir, 0o755)
 
 	//nolint:gosec // File needs to be read-only for everybody
-	if err := os.WriteFile(path.Join(conf.OutputDir, "cluster-definition.json"), b, 0o444); err != nil {
+	if err := os.WriteFile(path.Join(outputDir, "cluster-definition.json"), b, 0o444); err != nil {
 		return errors.Wrap(err, "write definition")
+	}
+
+	return nil
+}
+
+// writeProposerConfigSeed writes the proposer config seed file to the output dir.
+func writeProposerConfigSeed(outputDir string, seed proposerconfig.Seed) error {
+	b, err := proposerconfig.MarshalSeed(seed)
+	if err != nil {
+		return err
+	}
+
+	// Best effort creation of output dir, but error when writing the file.
+	_ = os.MkdirAll(outputDir, 0o755)
+
+	//nolint:gosec // File needs to be read-only for everybody
+	err = os.WriteFile(path.Join(outputDir, proposerConfigSeedFileName), b, 0o444)
+	if err != nil {
+		return errors.Wrap(err, "write proposer config seed file")
 	}
 
 	return nil

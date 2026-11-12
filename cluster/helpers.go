@@ -28,40 +28,15 @@ import (
 )
 
 const (
-	// maxDefinitionSize is the maximum allowed size for a cluster definition file (16MB).
+	// maxDefinitionSize is the maximum allowed size for a fetched file, such as a cluster definition (16MB).
 	maxDefinitionSize = 16 * 1024 * 1024
 )
 
 // FetchDefinition fetches cluster definition file from a remote URI.
 func FetchDefinition(ctx context.Context, url string) (Definition, error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	buf, err := FetchFile(ctx, url)
 	if err != nil {
-		return Definition{}, errors.Wrap(err, "create http request")
-	}
-
-	resp, err := new(http.Client).Do(req)
-	if err != nil {
-		return Definition{}, errors.Wrap(err, "fetch file")
-	}
-
-	if resp.StatusCode/100 != 2 {
-		return Definition{}, errors.New("http error", z.Int("status_code", resp.StatusCode))
-	}
-
-	defer resp.Body.Close()
-
-	limitedReader := io.LimitReader(resp.Body, maxDefinitionSize+1)
-
-	buf, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return Definition{}, errors.Wrap(err, "read response body")
-	}
-
-	if len(buf) > maxDefinitionSize {
-		return Definition{}, errors.New("definition file too large", z.Int("max_bytes", maxDefinitionSize))
+		return Definition{}, err
 	}
 
 	var res Definition
@@ -70,6 +45,41 @@ func FetchDefinition(ctx context.Context, url string) (Definition, error) {
 	}
 
 	return res, nil
+}
+
+// FetchFile fetches a file of at most 16MB from a remote URI.
+func FetchFile(ctx context.Context, url string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "create http request")
+	}
+
+	resp, err := new(http.Client).Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "fetch file")
+	}
+
+	if resp.StatusCode/100 != 2 {
+		return nil, errors.New("http error", z.Int("status_code", resp.StatusCode))
+	}
+
+	defer resp.Body.Close()
+
+	limitedReader := io.LimitReader(resp.Body, maxDefinitionSize+1)
+
+	buf, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, errors.Wrap(err, "read response body")
+	}
+
+	if len(buf) > maxDefinitionSize {
+		return nil, errors.New("file too large", z.Int("max_bytes", maxDefinitionSize))
+	}
+
+	return buf, nil
 }
 
 // CreateValidatorKeysDir creates a new directory for validator keys.
