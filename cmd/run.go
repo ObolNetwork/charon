@@ -205,8 +205,8 @@ func bindProposerConfigSeedFlags(cmd *cobra.Command, seed *proposerconfig.Seed, 
 		}
 
 		// The seed file is validated once resolved, see resolveProposerConfigSeed.
-		fileFlag := cc.Flags().Lookup(proposerConfigSeedFileFlag)
-		if fileFlag != nil && fileFlag.Changed {
+		proposerCfgSeedFileFlag := cc.Flags().Lookup(proposerConfigSeedFileFlag)
+		if proposerCfgSeedFileFlag != nil && proposerCfgSeedFileFlag.Changed {
 			if len(seed.NonDefault) > 0 {
 				return errors.New(proposerConfigSeedFileFlag + " excludes the proposer-config-* flags")
 			}
