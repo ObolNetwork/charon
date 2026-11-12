@@ -4,13 +4,17 @@ package cmd
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/app"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
@@ -185,4 +189,58 @@ func TestRunProposerConfigSeedNonDefault(t *testing.T) {
 
 	// Flags set by the operator, on the command line or in the environment, but not those left at their defaults.
 	require.ElementsMatch(t, []string{"proposer-config-gas-limit", "proposer-config-builder-urls"}, got.ProposerConfigSeed.NonDefault)
+}
+
+func TestResolveProposerConfigSeed(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("no file", func(t *testing.T) {
+		seed := proposerconfig.Seed{GasLimit: 1, BuilderBoostFactor: 100}
+
+		got, err := resolveProposerConfigSeed(ctx, seed)
+		require.NoError(t, err)
+		require.Equal(t, seed, got)
+	})
+
+	t.Run("from disk", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "seed.json")
+		require.NoError(t, os.WriteFile(path, []byte(testSeedFileJSON), 0o600))
+
+		got, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: path})
+		require.NoError(t, err)
+		require.Equal(t, testSeedFileSeed, got)
+	})
+
+	t.Run("from url", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(testSeedFileJSON))
+		}))
+		defer server.Close()
+
+		got, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: server.URL + "/seed.json"})
+		require.NoError(t, err)
+		require.Equal(t, testSeedFileSeed, got)
+	})
+
+	t.Run("url not found", func(t *testing.T) {
+		server := httptest.NewServer(http.NotFoundHandler())
+		defer server.Close()
+
+		_, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: server.URL + "/seed.json"})
+		require.ErrorContains(t, err, "read proposer config seed file")
+		require.ErrorContains(t, err, "http error")
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		_, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: filepath.Join(t.TempDir(), "missing.json")})
+		require.ErrorContains(t, err, "read proposer config seed file")
+	})
+
+	t.Run("invalid content", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "seed.json")
+		require.NoError(t, os.WriteFile(path, []byte(`{"version":"v2.0.0"}`), 0o600))
+
+		_, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: path})
+		require.ErrorContains(t, err, "parse proposer config seed file")
+	})
 }

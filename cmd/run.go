@@ -204,8 +204,49 @@ func bindProposerConfigSeedFlags(cmd *cobra.Command, seed *proposerconfig.Seed, 
 			}
 		}
 
+		// The seed file is validated once resolved, see resolveProposerConfigSeed.
+		fileFlag := cc.Flags().Lookup(proposerConfigSeedFileFlag)
+		if fileFlag != nil && fileFlag.Changed {
+			if len(seed.NonDefault) > 0 {
+				return errors.New(proposerConfigSeedFileFlag + " excludes the proposer-config-* flags")
+			}
+
+			return nil
+		}
+
 		return seed.Validate()
 	})
+}
+
+// proposerConfigSeedFileFlag is the flag naming the seed file, bound on the commands signing the initial proposer config.
+const proposerConfigSeedFileFlag = "proposer-config-seed-file"
+
+// bindProposerConfigSeedFileFlag binds the seed file flag, the alternative to the seeding flags.
+func bindProposerConfigSeedFileFlag(cmd *cobra.Command, seed *proposerconfig.Seed) {
+	cmd.Flags().StringVar(&seed.File, proposerConfigSeedFileFlag, "", "The path to a proposer config seed file or an HTTP URL, "+
+		"holding the gas limit and builders signed into the cluster's initial proposer config. Excludes the proposer-config-* flags. "+
+		"Must be identical on all operators.")
+}
+
+// resolveProposerConfigSeed returns the seed loaded from its file, or the seed itself if it names no file.
+func resolveProposerConfigSeed(ctx context.Context, seed proposerconfig.Seed) (proposerconfig.Seed, error) {
+	if seed.File == "" {
+		return seed, nil
+	}
+
+	b, err := readFileOrURL(ctx, seed.File)
+	if err != nil {
+		return proposerconfig.Seed{}, errors.Wrap(err, "read proposer config seed file")
+	}
+
+	resolved, err := proposerconfig.ParseSeed(b)
+	if err != nil {
+		return proposerconfig.Seed{}, errors.Wrap(err, "parse proposer config seed file")
+	}
+
+	log.Info(ctx, "Proposer config seed file loaded", z.Str("source", log.RedactURL(seed.File, false)))
+
+	return resolved, nil
 }
 
 func bindLogFlags(flags *pflag.FlagSet, config *log.Config) {
