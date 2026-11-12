@@ -27,29 +27,14 @@ type Seed struct {
 	NonDefault []string
 }
 
-// seedFile is the seed file: the default_config subset of the proposer config file, with every value set.
+// seedFile is the seed file: the version and default_config of the proposer config file, without a fee recipient.
 type seedFile struct {
-	Version       string      `json:"version"`
-	DefaultConfig seedDefault `json:"default_config"`
+	Version       string   `json:"version"`
+	DefaultConfig Settings `json:"default_config"`
 }
 
-type seedDefault struct {
-	GasLimit uint64      `json:"gas_limit,string"`
-	Builder  seedBuilder `json:"builder"`
-}
-
-type seedBuilder struct {
-	MinBid              uint64             `json:"min_bid,string"`
-	BuilderBoostFactor  uint64             `json:"builder_boost_factor,string"`
-	MaxExecutionPayment uint64             `json:"max_execution_payment,string"`
-	Builders            []seedBuilderEntry `json:"builders"`
-}
-
-type seedBuilderEntry struct {
-	URL string `json:"url"`
-}
-
-// ParseSeed returns the seed held by a seed file. Unknown fields, such as fee recipients or proposer_config, are rejected.
+// ParseSeed returns the seed held by a seed file. Fields a seed cannot set, such as fee recipients, proposer_config
+// or per-builder overrides, are rejected.
 func ParseSeed(b []byte) (Seed, error) {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
@@ -70,48 +55,76 @@ func ParseSeed(b []byte) (Seed, error) {
 		return Seed{}, errors.New("unsupported seed file version", z.Str("version", file.Version), z.Str("supported", Version))
 	}
 
-	// A value left out of the file decodes as 0.
-	if file.DefaultConfig.GasLimit == 0 {
+	settings := file.DefaultConfig
+	if settings.FeeRecipient != "" {
+		return Seed{}, errors.New("seed file default_config.fee_recipient must not be set, fee recipients come from the cluster definition")
+	}
+
+	seed := Seed{BuilderBoostFactor: DefaultBuilderBoostFactor}
+
+	seed.GasLimit, err = parseSeedUint("gas_limit", settings.GasLimit)
+	if err != nil {
+		return Seed{}, err
+	}
+
+	if seed.GasLimit == 0 {
 		return Seed{}, errors.New("seed file default_config.gas_limit must be greater than 0")
 	}
 
-	builder := file.DefaultConfig.Builder
-	if builder.BuilderBoostFactor == 0 {
+	builder := settings.Builder
+	if builder == nil {
+		return seed, nil
+	}
+
+	if len(builder.Builders) == 0 {
+		return Seed{}, errors.New("seed file default_config.builder.builders must not be empty")
+	}
+
+	for _, entry := range builder.Builders {
+		if entry != (BuilderEntry{URL: entry.URL}) {
+			return Seed{}, errors.New("seed file default_config.builder.builders entry must only set url")
+		}
+
+		seed.BuilderURLs = append(seed.BuilderURLs, entry.URL)
+	}
+
+	seed.BuilderMinBid, err = parseSeedUint("builder.min_bid", builder.MinBid)
+	if err != nil {
+		return Seed{}, err
+	}
+
+	seed.BuilderBoostFactor, err = parseSeedUint("builder.builder_boost_factor", builder.BuilderBoostFactor)
+	if err != nil {
+		return Seed{}, err
+	}
+
+	if seed.BuilderBoostFactor == 0 {
 		return Seed{}, errors.New("seed file default_config.builder.builder_boost_factor must be greater than 0")
 	}
 
-	var urls []string
-	for _, entry := range builder.Builders {
-		urls = append(urls, entry.URL)
+	seed.BuilderMaxExecutionPayment, err = parseSeedUint("builder.max_execution_payment", builder.MaxExecutionPayment)
+	if err != nil {
+		return Seed{}, err
 	}
 
-	return Seed{
-		GasLimit:                   file.DefaultConfig.GasLimit,
-		BuilderURLs:                urls,
-		BuilderMinBid:              builder.MinBid,
-		BuilderBoostFactor:         builder.BuilderBoostFactor,
-		BuilderMaxExecutionPayment: builder.MaxExecutionPayment,
-	}, nil
+	return seed, nil
 }
 
-// MarshalSeed returns the seed file holding the seed, with every value set.
-func MarshalSeed(seed Seed) ([]byte, error) {
-	entries := make([]seedBuilderEntry, 0, len(seed.BuilderURLs))
-	for _, u := range seed.BuilderURLs {
-		entries = append(entries, seedBuilderEntry{URL: u})
+// parseSeedUint parses a seed file's decimal string value; field names it in errors.
+func parseSeedUint(field, value string) (uint64, error) {
+	v, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "parse seed file default_config."+field)
 	}
 
+	return v, nil
+}
+
+// MarshalSeed returns the seed file holding the seed.
+func MarshalSeed(seed Seed) ([]byte, error) {
 	b, err := json.MarshalIndent(seedFile{
-		Version: Version,
-		DefaultConfig: seedDefault{
-			GasLimit: seed.GasLimit,
-			Builder: seedBuilder{
-				MinBid:              seed.BuilderMinBid,
-				BuilderBoostFactor:  seed.BuilderBoostFactor,
-				MaxExecutionPayment: seed.BuilderMaxExecutionPayment,
-				Builders:            entries,
-			},
-		},
+		Version:       Version,
+		DefaultConfig: Settings{GasLimit: strconv.FormatUint(seed.GasLimit, 10), Builder: seed.Builder()},
 	}, "", "  ")
 	if err != nil {
 		return nil, errors.Wrap(err, "marshal seed file")

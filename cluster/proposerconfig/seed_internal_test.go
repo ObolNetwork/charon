@@ -63,10 +63,7 @@ func TestSeedBuilder(t *testing.T) {
 }
 
 func TestParseSeed(t *testing.T) {
-	const (
-		builders   = `"builders":[{"url":"https://a.example.com"},{"url":"https://b.example.com"}]`
-		noBuilders = `"builder":{"min_bid":"0","builder_boost_factor":"100","max_execution_payment":"0","builders":[]}`
-	)
+	const builders = `"builders":[{"url":"https://a.example.com"},{"url":"https://b.example.com"}]`
 
 	tests := []struct {
 		name        string
@@ -84,36 +81,46 @@ func TestParseSeed(t *testing.T) {
 			},
 		},
 		{
-			name: "no builders",
-			json: `{"version":"v1.0.0","default_config":{"gas_limit":"60000000",` + noBuilders + `}}`,
+			name: "no builder",
+			json: `{"version":"v1.0.0","default_config":{"gas_limit":"60000000"}}`,
 			want: Seed{GasLimit: 60_000_000, BuilderBoostFactor: DefaultBuilderBoostFactor},
 		},
-		{name: "missing version", json: `{"default_config":{"gas_limit":"1",` + noBuilders + `}}`, errContains: "version"},
-		{name: "other major", json: `{"version":"v2.0.0","default_config":{"gas_limit":"1",` + noBuilders + `}}`, errContains: "version"},
-		{name: "numeric gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":60000000,` + noBuilders + `}}`, errContains: "gas_limit"},
-		{name: "unparsable gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":"60M",` + noBuilders + `}}`, errContains: "gas_limit"},
-		{name: "empty gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":"",` + noBuilders + `}}`, errContains: "gas_limit"},
+		{name: "missing version", json: `{"default_config":{"gas_limit":"1"}}`, errContains: "version"},
+		{name: "other major", json: `{"version":"v2.0.0","default_config":{"gas_limit":"1"}}`, errContains: "version"},
+		{name: "numeric gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":60000000}}`, errContains: "gas_limit"},
+		{name: "unparsable gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":"60M"}}`, errContains: "default_config.gas_limit"},
+		{name: "zero gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":"0"}}`, errContains: "default_config.gas_limit must be greater than 0"},
+		{
+			name:        "zero boost factor",
+			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1","builder":{"min_bid":"0","builder_boost_factor":"0","max_execution_payment":"0",` + builders + `}}}`,
+			errContains: "default_config.builder.builder_boost_factor must be greater than 0",
+		},
+		{name: "missing gas limit", json: `{"version":"v1.0.0","default_config":{}}`, errContains: "default_config.gas_limit"},
 		{
 			name:        "negative builder value",
 			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1","builder":{"min_bid":"-1","builder_boost_factor":"100","max_execution_payment":"0",` + builders + `}}}`,
 			errContains: "default_config.builder.min_bid",
 		},
-		{name: "fee recipient", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1","fee_recipient":"0x01",` + noBuilders + `}}`, errContains: "fee_recipient"},
-		{name: "proposer config", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1",` + noBuilders + `},"proposer_config":{}}`, errContains: "proposer_config"},
-		{name: "unknown field", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1","gas_limits":"2",` + noBuilders + `}}`, errContains: "gas_limits"},
 		{
-			name:        "builder entry override",
-			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1","builder":{"builders":[{"url":"https://a.example.com","min_bid":"1"}]}}}`,
-			errContains: "min_bid",
+			name:        "missing builder value",
+			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1","builder":{"min_bid":"0","max_execution_payment":"0",` + builders + `}}}`,
+			errContains: "default_config.builder.builder_boost_factor",
 		},
-		{name: "missing gas limit", json: `{"version":"v1.0.0","default_config":{` + noBuilders + `}}`, errContains: "default_config.gas_limit must be greater than 0"},
-		{name: "zero gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":"0",` + noBuilders + `}}`, errContains: "default_config.gas_limit must be greater than 0"},
+		{name: "fee recipient", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1","fee_recipient":"0x01"}}`, errContains: "fee_recipient"},
+		{name: "proposer config", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1"},"proposer_config":{}}`, errContains: "proposer_config"},
+		{name: "unknown field", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1","gas_limits":"2"}}`, errContains: "gas_limits"},
 		{
-			name:        "missing boost factor",
-			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1"}}`,
-			errContains: "default_config.builder.builder_boost_factor must be greater than 0",
+			name: "builder entry override",
+			json: `{"version":"v1.0.0","default_config":{"gas_limit":"1","builder":{"min_bid":"0","builder_boost_factor":"100","max_execution_payment":"0",` +
+				`"builders":[{"url":"https://a.example.com","min_bid":"1"}]}}}`,
+			errContains: "builders entry must only set url",
 		},
-		{name: "trailing data", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1",` + noBuilders + `}}{}`, errContains: "trailing"},
+		{
+			name:        "empty builders",
+			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1","builder":{"min_bid":"0","builder_boost_factor":"100","max_execution_payment":"0","builders":[]}}}`,
+			errContains: "builders must not be empty",
+		},
+		{name: "trailing data", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1"}}{}`, errContains: "trailing"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,13 +134,6 @@ func TestParseSeed(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
-
-	t.Run("builder values without builders", func(t *testing.T) {
-		seed, err := ParseSeed([]byte(`{"version":"v1.0.0","default_config":{"gas_limit":"1",` +
-			`"builder":{"min_bid":"0","builder_boost_factor":"50","max_execution_payment":"0","builders":[]}}}`))
-		require.NoError(t, err)
-		require.ErrorContains(t, seed.Validate(), "require proposer-config-builder-urls")
-	})
 }
 
 func TestMarshalSeed(t *testing.T) {
@@ -152,11 +152,15 @@ func TestMarshalSeed(t *testing.T) {
 		require.Equal(t, seed, got)
 	}
 
-	// Every value is written, the builder block included when there are no builders.
+	// The file is the proposer config file's default_config: no builder block without builders.
 	b, err := MarshalSeed(Seed{GasLimit: DefaultGasLimit, BuilderBoostFactor: DefaultBuilderBoostFactor})
 	require.NoError(t, err)
-	require.JSONEq(t, `{"version":"v1.0.0","default_config":{"gas_limit":"200000000",`+
-		`"builder":{"min_bid":"0","builder_boost_factor":"100","max_execution_payment":"0","builders":[]}}}`, string(b))
+	require.JSONEq(t, `{"version":"v1.0.0","default_config":{"gas_limit":"200000000"}}`, string(b))
+
+	b, err = MarshalSeed(Seed{GasLimit: 1, BuilderURLs: []string{"https://a.example.com"}, BuilderBoostFactor: 90})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"version":"v1.0.0","default_config":{"gas_limit":"1",`+
+		`"builder":{"min_bid":"0","builder_boost_factor":"90","max_execution_payment":"0","builders":[{"url":"https://a.example.com"}]}}}`, string(b))
 }
 
 func TestParseSeedExample(t *testing.T) {
