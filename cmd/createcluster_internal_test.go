@@ -1383,12 +1383,43 @@ func TestCreateClusterZeroSeed(t *testing.T) {
 }
 
 func TestCreateClusterProposerConfig(t *testing.T) {
-	dir := t.TempDir()
 	seed := proposerconfig.Seed{
 		GasLimit:           60_000_000,
 		BuilderURLs:        []string{"https://builder.example.com"},
 		BuilderBoostFactor: 90,
 	}
+
+	const seedJSON = `{"version":"v1.0.0","default_config":{"gas_limit":"60000000","builder":{"builder_boost_factor":"90",` +
+		`"builders":[{"url":"https://builder.example.com"}]}}}`
+
+	seedFile := filepath.Join(t.TempDir(), "seed.json")
+	require.NoError(t, os.WriteFile(seedFile, []byte(seedJSON), 0o600))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(seedJSON))
+	}))
+	defer server.Close()
+
+	tests := []struct {
+		name string
+		seed proposerconfig.Seed
+	}{
+		{"flags", seed},
+		{"seed file", proposerconfig.Seed{File: seedFile}},
+		{"seed file url", proposerconfig.Seed{File: server.URL + "/seed.json"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testCreateClusterProposerConfig(t, tt.seed)
+		})
+	}
+}
+
+// testCreateClusterProposerConfig creates a cluster seeded by seed and checks every node's signed proposer config.
+func testCreateClusterProposerConfig(t *testing.T, seed proposerconfig.Seed) {
+	t.Helper()
+
+	dir := t.TempDir()
 
 	err := runCreateCluster(context.Background(), io.Discard, clusterConfig{
 		ClusterDir:         dir,

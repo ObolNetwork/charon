@@ -493,7 +493,7 @@ func TestFetchDefinition(t *testing.T) {
 			url:     fmt.Sprintf("%s/%s", server.URL, "tooLarge"),
 			want:    invalidDef,
 			wantErr: true,
-			errMsg:  "definition file too large",
+			errMsg:  "file too large",
 		},
 	}
 
@@ -514,6 +514,30 @@ func TestFetchDefinition(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestFetchFile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/ok":
+			_, _ = w.Write([]byte(`{"a":1}`))
+		case "/tooLarge":
+			_, _ = w.Write(make([]byte, maxDefinitionSize+1))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	got, err := FetchFile(context.Background(), server.URL+"/ok")
+	require.NoError(t, err)
+	require.Equal(t, []byte(`{"a":1}`), got)
+
+	_, err = FetchFile(context.Background(), server.URL+"/missing")
+	require.ErrorContains(t, err, "http error")
+
+	_, err = FetchFile(context.Background(), server.URL+"/tooLarge")
+	require.ErrorContains(t, err, "file too large")
 }
 
 func TestCreateValidatorKeysDir(t *testing.T) {

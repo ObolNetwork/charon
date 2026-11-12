@@ -1,0 +1,15 @@
+{
+  "version": "v1.0.0",
+  "default_config": {
+    "gas_limit": "200000000",
+    "builder": {
+      "min_bid": "0",
+      "builder_boost_factor": "100",
+      "max_execution_payment": "0",
+      "builders": [
+        { "url": "https://builder-a.example" },
+        { "url": "https://builder-b.example" }
+      ]
+    }
+  }
+}

@@ -150,6 +150,27 @@ The file is a revisioned document, signed by the cluster operators:
   made with their charon ENR keys and verified on start against the operator ENRs in the lock. Once the file is signed the seeding flags
   are disregarded, with a warning if flags you set explicitly differ from it.
 
+The first signed revision takes its gas limit and builders from the `--proposer-config-*` flags of `charon dkg` and
+`charon create cluster`, or from a seed file passed to either with `--proposer-config-seed-file` (a path or an HTTP URL), never both.
+`charon create dkg` writes the seed file as `proposer-config-seed.json` next to `cluster-definition.json` when given any
+`--proposer-config-*` flag, filling the ones left out with their defaults, so whoever creates the definition sends both files
+to every operator. The file sets every value as a decimal string, and fee recipients always come from the definition:
+
+```json
+{
+  "version": "v1.0.0",
+  "default_config": {
+    "gas_limit": "200000000",
+    "builder": {
+      "min_bid": "0",
+      "builder_boost_factor": "100",
+      "max_execution_payment": "0",
+      "builders": [ { "url": "https://builder-a.example" }, { "url": "https://builder-b.example" } ]
+    }
+  }
+}
+```
+
 On start, a file whose `lock_hash` belongs to another cluster stops charon. A file with invalid revision or signatures is logged as an error,
 raises `app_proposer_config_invalid` to 1 and is still used (the validator client reads it regardless). A file that cannot be loaded
 at all, or holds values charon cannot parse (e.g. a non-numeric gas limit), is left untouched, logged as an error with `app_proposer_config_invalid` at 1,
