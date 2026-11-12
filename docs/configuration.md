@@ -155,8 +155,9 @@ The first signed revision takes its gas limit and builders from the `--proposer-
 `charon create dkg` writes the seed file as `proposer-config-seed.json` next to `cluster-definition.json` when given any
 `--proposer-config-*` flag, filling the ones left out with their defaults, so whoever creates the definition sends both files
 to every operator; with `--publish` only the definition is published, the seed file is still sent by hand. The seed's gas limit
-is `--proposer-config-gas-limit`, independent of the definition's `--target-gas-limit`. The file sets every value as a decimal
-string, and fee recipients always come from the definition:
+is `--proposer-config-gas-limit`, independent of the definition's `--target-gas-limit`. The file is the `version` and `default_config`
+of the proposer config file without a fee recipient, which always comes from the definition; the `builder` block is left out
+when there are no builders:
 
 ```json
 {
