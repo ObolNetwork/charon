@@ -197,7 +197,7 @@ func TestResolveProposerConfigSeed(t *testing.T) {
 	t.Run("no file", func(t *testing.T) {
 		seed := proposerconfig.Seed{GasLimit: 1, BuilderBoostFactor: 100}
 
-		got, err := resolveProposerConfigSeed(ctx, seed)
+		got, err := resolveProposerConfigSeed(ctx, "", seed)
 		require.NoError(t, err)
 		require.Equal(t, seed, got)
 	})
@@ -206,7 +206,7 @@ func TestResolveProposerConfigSeed(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "seed.json")
 		require.NoError(t, os.WriteFile(path, []byte(testSeedFileJSON), 0o600))
 
-		got, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: path})
+		got, err := resolveProposerConfigSeed(ctx, path, proposerconfig.Seed{})
 		require.NoError(t, err)
 		require.Equal(t, testSeedFileSeed, got)
 	})
@@ -217,7 +217,7 @@ func TestResolveProposerConfigSeed(t *testing.T) {
 		}))
 		defer server.Close()
 
-		got, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: server.URL + "/seed.json"})
+		got, err := resolveProposerConfigSeed(ctx, server.URL+"/seed.json", proposerconfig.Seed{})
 		require.NoError(t, err)
 		require.Equal(t, testSeedFileSeed, got)
 	})
@@ -226,13 +226,13 @@ func TestResolveProposerConfigSeed(t *testing.T) {
 		server := httptest.NewServer(http.NotFoundHandler())
 		defer server.Close()
 
-		_, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: server.URL + "/seed.json"})
+		_, err := resolveProposerConfigSeed(ctx, server.URL+"/seed.json", proposerconfig.Seed{})
 		require.ErrorContains(t, err, "read proposer config seed file")
 		require.ErrorContains(t, err, "http error")
 	})
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: filepath.Join(t.TempDir(), "missing.json")})
+		_, err := resolveProposerConfigSeed(ctx, filepath.Join(t.TempDir(), "missing.json"), proposerconfig.Seed{})
 		require.ErrorContains(t, err, "read proposer config seed file")
 	})
 
@@ -240,7 +240,7 @@ func TestResolveProposerConfigSeed(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "seed.json")
 		require.NoError(t, os.WriteFile(path, []byte(`{"version":"v2.0.0"}`), 0o600))
 
-		_, err := resolveProposerConfigSeed(ctx, proposerconfig.Seed{File: path})
+		_, err := resolveProposerConfigSeed(ctx, path, proposerconfig.Seed{})
 		require.ErrorContains(t, err, "parse proposer config seed file")
 	})
 }

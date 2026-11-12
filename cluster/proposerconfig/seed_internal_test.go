@@ -43,7 +43,7 @@ func TestSeedValidate(t *testing.T) {
 		{"non-http url", Seed{GasLimit: 1, BuilderBoostFactor: 100, BuilderURLs: []string{"ftp://x"}}, "proposer-config-builder-urls entry is not a valid http(s) URL"},
 		{"duplicate url", Seed{GasLimit: 1, BuilderBoostFactor: 100, BuilderURLs: []string{"https://a.example", "https://b.example", "https://a.example"}}, "proposer-config-builder-urls entry is duplicated"},
 		{"long url", Seed{GasLimit: 1, BuilderBoostFactor: 100, BuilderURLs: []string{"https://" + strings.Repeat("a", core.MaxBuilderURLSize)}}, "proposer-config-builder-urls entry is longer than the maximum"},
-		{"unresolved file", Seed{GasLimit: 1, BuilderBoostFactor: 100, File: "seed.json"}, "proposer config seed file not resolved"},
+		{"boost factor value without urls", Seed{GasLimit: 1, BuilderBoostFactor: 50}, withoutURLs},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,6 +106,13 @@ func TestParseSeed(t *testing.T) {
 			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1","builder":{"builders":[{"url":"https://a.example.com","min_bid":"1"}]}}}`,
 			errContains: "min_bid",
 		},
+		{name: "missing gas limit", json: `{"version":"v1.0.0","default_config":{` + noBuilders + `}}`, errContains: "default_config.gas_limit must be greater than 0"},
+		{name: "zero gas limit", json: `{"version":"v1.0.0","default_config":{"gas_limit":"0",` + noBuilders + `}}`, errContains: "default_config.gas_limit must be greater than 0"},
+		{
+			name:        "missing boost factor",
+			json:        `{"version":"v1.0.0","default_config":{"gas_limit":"1"}}`,
+			errContains: "default_config.builder.builder_boost_factor must be greater than 0",
+		},
 		{name: "trailing data", json: `{"version":"v1.0.0","default_config":{"gas_limit":"1",` + noBuilders + `}}{}`, errContains: "trailing"},
 	}
 	for _, tt := range tests {
@@ -121,10 +128,11 @@ func TestParseSeed(t *testing.T) {
 		})
 	}
 
-	t.Run("missing values rejected by validate", func(t *testing.T) {
-		seed, err := ParseSeed([]byte(`{"version":"v1.0.0","default_config":{"gas_limit":"1"}}`))
+	t.Run("builder values without builders", func(t *testing.T) {
+		seed, err := ParseSeed([]byte(`{"version":"v1.0.0","default_config":{"gas_limit":"1",` +
+			`"builder":{"min_bid":"0","builder_boost_factor":"50","max_execution_payment":"0","builders":[]}}}`))
 		require.NoError(t, err)
-		require.ErrorContains(t, seed.Validate(), "proposer-config-builder-boost-factor must be greater than 0")
+		require.ErrorContains(t, seed.Validate(), "require proposer-config-builder-urls")
 	})
 }
 

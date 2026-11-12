@@ -25,8 +25,6 @@ type Seed struct {
 	BuilderMaxExecutionPayment uint64
 	// NonDefault names the seed flags set explicitly rather than left at their defaults.
 	NonDefault []string
-	// File is the seed file path or URL to load the values from, empty once loaded.
-	File string
 }
 
 // seedFile is the seed file: the default_config subset of the proposer config file, with every value set.
@@ -68,11 +66,19 @@ func ParseSeed(b []byte) (Seed, error) {
 		return Seed{}, errors.New("seed file has trailing data")
 	}
 
-	if file.Version == "" || major(file.Version) != major(Version) {
+	if major(file.Version) != major(Version) {
 		return Seed{}, errors.New("unsupported seed file version", z.Str("version", file.Version), z.Str("supported", Version))
 	}
 
+	// A value left out of the file decodes as 0.
+	if file.DefaultConfig.GasLimit == 0 {
+		return Seed{}, errors.New("seed file default_config.gas_limit must be greater than 0")
+	}
+
 	builder := file.DefaultConfig.Builder
+	if builder.BuilderBoostFactor == 0 {
+		return Seed{}, errors.New("seed file default_config.builder.builder_boost_factor must be greater than 0")
+	}
 
 	var urls []string
 	for _, entry := range builder.Builders {
@@ -116,10 +122,6 @@ func MarshalSeed(seed Seed) ([]byte, error) {
 
 // Validate checks the seed flags.
 func (s Seed) Validate() error {
-	if s.File != "" {
-		return errors.New("proposer config seed file not resolved")
-	}
-
 	err := validateBuilderURLs("proposer-config-builder-urls", s.BuilderURLs)
 	if err != nil {
 		return err
@@ -133,7 +135,7 @@ func (s Seed) Validate() error {
 		return errors.New("proposer-config-builder-boost-factor must be greater than 0")
 	}
 
-	boostFactorSet := slices.Contains(s.NonDefault, "proposer-config-builder-boost-factor")
+	boostFactorSet := s.BuilderBoostFactor != DefaultBuilderBoostFactor || slices.Contains(s.NonDefault, "proposer-config-builder-boost-factor")
 	if len(s.BuilderURLs) == 0 && (s.BuilderMinBid != 0 || boostFactorSet || s.BuilderMaxExecutionPayment != 0) {
 		return errors.New("proposer-config-builder-min-bid, proposer-config-builder-boost-factor and " +
 			"proposer-config-builder-max-execution-payment require proposer-config-builder-urls")

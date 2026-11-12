@@ -95,6 +95,8 @@ type clusterConfig struct {
 
 	// ProposerConfigSeed seeds the gas limit and builder of the proposer config signed at revision 1.
 	ProposerConfigSeed proposerconfig.Seed
+	// ProposerConfigSeedFile is the seed file path or URL, the alternative to the seeding flags.
+	ProposerConfigSeedFile string
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -114,7 +116,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
 	bindNetworkFlags(cmd.Flags(), &conf.Network, &conf.testnetConfig)
 	bindProposerConfigSeedFlags(cmd, &conf.ProposerConfigSeed, proposerConfigSignedUsage)
-	bindProposerConfigSeedFileFlag(cmd, &conf.ProposerConfigSeed)
+	bindProposerConfigSeedFileFlag(cmd, &conf.ProposerConfigSeedFile)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
@@ -173,12 +175,7 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	// Reject a bad seed before any work: it is signed by every operator.
-	seed, err := resolveProposerConfigSeed(ctx, conf.ProposerConfigSeed)
-	if err != nil {
-		return err
-	}
-
-	err = seed.Validate()
+	seed, err := resolveProposerConfigSeed(ctx, conf.ProposerConfigSeedFile, conf.ProposerConfigSeed)
 	if err != nil {
 		return err
 	}

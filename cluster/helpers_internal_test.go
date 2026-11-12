@@ -533,11 +533,21 @@ func TestFetchFile(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte(`{"a":1}`), got)
 
-	_, err = FetchFile(context.Background(), server.URL+"/missing")
-	require.ErrorContains(t, err, "http error")
-
 	_, err = FetchFile(context.Background(), server.URL+"/tooLarge")
 	require.ErrorContains(t, err, "file too large")
+
+	_, err = FetchFile(context.Background(), server.URL+"/missing?token=secret")
+	require.ErrorContains(t, err, "http error")
+	require.NotContains(t, err.Error(), "secret")
+
+	// An unreachable host's error carries the URL, redacted.
+	server.Close()
+
+	_, err = FetchFile(context.Background(), strings.Replace(server.URL, "http://", "http://user:password@", 1)+"/ok?token=secret")
+	require.ErrorContains(t, err, "fetch file")
+	require.ErrorContains(t, err, "/ok?token=xxxxx")
+	require.NotContains(t, err.Error(), "secret")
+	require.NotContains(t, err.Error(), "password")
 }
 
 func TestCreateValidatorKeysDir(t *testing.T) {

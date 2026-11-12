@@ -22,6 +22,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/eth1wrap"
 	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/tbls"
@@ -59,14 +60,14 @@ func FetchFile(ctx context.Context, url string) ([]byte, error) {
 
 	resp, err := new(http.Client).Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "fetch file")
+		// The URL may carry credentials.
+		return nil, errors.Wrap(log.RedactURLError(err), "fetch file")
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
-		return nil, errors.New("http error", z.Int("status_code", resp.StatusCode))
+		return nil, errors.New("http error", z.Int("status_code", resp.StatusCode), z.Str("url", log.RedactURL(url, false)))
 	}
-
-	defer resp.Body.Close()
 
 	limitedReader := io.LimitReader(resp.Body, maxDefinitionSize+1)
 

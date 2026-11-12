@@ -116,7 +116,7 @@ func bindCreateDKGFlags(cmd *cobra.Command, config *createDKGConfig) {
 	cmd.Flags().IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	cmd.Flags().StringSliceVar(&config.OperatorENRs, "operator-enrs", nil, "Comma-separated list of each operator's Charon ENR address.")
 	cmd.Flags().StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
-	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 200000000, "Preferred target gas limit for transactions.")
+	cmd.Flags().UintVar(&config.TargetGasLimit, "target-gas-limit", 200000000, "Preferred target gas limit for transactions. Independent of proposer-config-gas-limit.")
 	cmd.Flags().BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 	cmd.Flags().StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	cmd.Flags().BoolVar(&config.Publish, "publish", false, "Creates an invitation to the DKG ceremony on the DV Launchpad. Terms and conditions apply.")
@@ -163,13 +163,12 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		return errors.New("existing cluster-definition.json found. Try again after deleting it")
 	}
 
-	// The seed file is written only when the creator sets seed flags, operators otherwise seed with their own.
-	writeSeed := len(conf.ProposerConfigSeed.NonDefault) > 0
-	if writeSeed {
-		_, err := os.Stat(path.Join(conf.OutputDir, proposerConfigSeedFileName))
-		if err == nil {
-			return errors.New("existing " + proposerConfigSeedFileName + " found. Try again after deleting it")
-		}
+	// A seed file left by an earlier run is not sent along with the new definition.
+	seedPath := path.Join(conf.OutputDir, proposerConfigSeedFileName)
+
+	_, err = os.Stat(seedPath)
+	if err == nil {
+		return errors.New("existing " + proposerConfigSeedFileName + " found. Try again after deleting it")
 	}
 
 	var operators []cluster.Operator
@@ -274,6 +273,16 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 		}
 	}
 
+	// The seed file is written only when the creator sets seed flags, operators otherwise seed with their own.
+	// It is written first: a publish cannot be undone, and a written definition blocks a rerun.
+	writeSeed := len(conf.ProposerConfigSeed.NonDefault) > 0
+	if writeSeed {
+		err = writeProposerConfigSeed(conf.OutputDir, conf.ProposerConfigSeed)
+		if err != nil {
+			return err
+		}
+	}
+
 	if conf.Publish {
 		err = publishPartialDefinition(ctx, conf, privKey, def)
 	} else {
@@ -281,14 +290,19 @@ func runCreateDKG(ctx context.Context, conf createDKGConfig) (err error) {
 	}
 
 	if err != nil {
+		if writeSeed {
+			_ = os.Remove(seedPath)
+		}
+
 		return err
 	}
 
-	if !writeSeed {
-		return nil
+	if writeSeed {
+		log.Info(ctx, "Proposer config seed file created, send it to every operator to pass to charon dkg with --"+proposerConfigSeedFileFlag,
+			z.Str("path", seedPath))
 	}
 
-	return writeProposerConfigSeed(conf.OutputDir, conf.ProposerConfigSeed)
+	return nil
 }
 
 // writeDefinition writes the cluster definition to the output dir.
