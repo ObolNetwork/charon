@@ -538,7 +538,7 @@ func TestProposerConfigSeedFileFlag(t *testing.T) {
 	t.Run("create cluster takes the file", func(t *testing.T) {
 		conf, err := createCluster(t, "--proposer-config-seed-file=seed.json")
 		require.NoError(t, err)
-		require.Equal(t, "seed.json", conf.ProposerConfigSeed.File)
+		require.Equal(t, "seed.json", conf.ProposerConfigSeedFile)
 		require.Nil(t, conf.ProposerConfigSeed.NonDefault)
 	})
 
@@ -566,7 +566,21 @@ func TestProposerConfigSeedFileFlag(t *testing.T) {
 		require.NoError(t, os.WriteFile(path, []byte(`{"version":"v1.0.0","default_config":{"gas_limit":"0"}}`), 0o600))
 
 		_, err := runDKG(t, "--proposer-config-seed-file="+path)
-		require.ErrorContains(t, err, "proposer-config-gas-limit must be greater than 0")
+		require.ErrorContains(t, err, "default_config.gas_limit must be greater than 0")
+	})
+
+	t.Run("dkg file and env flag", func(t *testing.T) {
+		t.Setenv("CHARON_PROPOSER_CONFIG_GAS_LIMIT", "1")
+
+		_, err := runDKG(t, "--proposer-config-seed-file=seed.json")
+		require.ErrorContains(t, err, excludes)
+	})
+
+	t.Run("dkg env file and flag", func(t *testing.T) {
+		t.Setenv("CHARON_PROPOSER_CONFIG_SEED_FILE", "seed.json")
+
+		_, err := runDKG(t, "--proposer-config-gas-limit=1")
+		require.ErrorContains(t, err, excludes)
 	})
 
 	t.Run("run has no seed file", func(t *testing.T) {
