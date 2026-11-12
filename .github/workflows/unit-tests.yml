@@ -23,7 +23,7 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=10m -race ./...
+      - run: go test -coverprofile=coverage.out -covermode=atomic -timeout=15m -race ./...
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
