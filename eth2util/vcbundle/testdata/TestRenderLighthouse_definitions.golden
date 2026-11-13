@@ -1,0 +1,16 @@
+- enabled: true
+  voting_public_key: "0xaa11"
+  type: local_keystore
+  voting_keystore_path: "/opt/charon/validator_keys/keystore-0.json"
+  voting_keystore_password_path: "/opt/charon/validator_keys/keystore-0.txt"
+  suggested_fee_recipient: "0x000000000000000000000000000000000000beef"
+  gas_limit: 60000000
+  builder_proposals: true
+- enabled: true
+  voting_public_key: "0xbb22"
+  type: local_keystore
+  voting_keystore_path: "/opt/charon/validator_keys/keystore-1.json"
+  voting_keystore_password_path: "/opt/charon/validator_keys/keystore-1.txt"
+  suggested_fee_recipient: "0x000000000000000000000000000000000000dead"
+  gas_limit: 60000000
+  builder_proposals: true

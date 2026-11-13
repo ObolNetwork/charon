@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "proposer_config": {
+    "0xaa11": {
+      "fee_recipient": "0x000000000000000000000000000000000000beef",
+      "gas_limit": "60000000",
+      "builder": {
+        "enabled": false,
+        "gas_limit": "60000000"
+      }
+    }
+  },
+  "default_config": {
+    "fee_recipient": "0x000000000000000000000000000000000000dead",
+    "gas_limit": "60000000",
+    "builder": {
+      "enabled": false,
+      "gas_limit": "60000000"
+    }
+  }
+}
