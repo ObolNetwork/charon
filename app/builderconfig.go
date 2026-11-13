@@ -18,7 +18,7 @@ import (
 // proposer configuration output. The other builder flags are rejected without URLs,
 // so they cannot be set (and silently dropped) on their own.
 func builderConfigured(conf Config) bool {
-	return len(conf.BuilderURLs) > 0
+	return len(conf.ProposerConfigSeed.BuilderURLs) > 0
 }
 
 // builderConfig returns the gloas builder configuration sent as the required body of
@@ -30,20 +30,20 @@ func builderConfigured(conf Config) bool {
 // proposal from the aggregated builder preferences duty, leaving out a builder whose auth
 // isn't aggregated.
 func builderConfig(conf Config) *gloas.BuilderConfig {
-	builders := make([]*gloas.BuilderEntry, 0, len(conf.BuilderURLs))
-	for _, url := range conf.BuilderURLs {
+	builders := make([]*gloas.BuilderEntry, 0, len(conf.ProposerConfigSeed.BuilderURLs))
+	for _, url := range conf.ProposerConfigSeed.BuilderURLs {
 		builders = append(builders, &gloas.BuilderEntry{
 			URL:                 []byte(url),
 			BuilderPubkeys:      []eth2p0.BLSPubKey{},
-			MaxExecutionPayment: eth2p0.Gwei(conf.BuilderMaxExecutionPayment),
-			MinBid:              eth2p0.Gwei(conf.BuilderMinBid),
-			BuilderBoostFactor:  conf.BuilderBoostFactor,
+			MaxExecutionPayment: eth2p0.Gwei(conf.ProposerConfigSeed.BuilderMaxExecutionPayment),
+			MinBid:              eth2p0.Gwei(conf.ProposerConfigSeed.BuilderMinBid),
+			BuilderBoostFactor:  conf.ProposerConfigSeed.BuilderBoostFactor,
 		})
 	}
 
 	return &gloas.BuilderConfig{
-		MinBid:             eth2p0.Gwei(conf.BuilderMinBid),
-		BuilderBoostFactor: conf.BuilderBoostFactor,
+		MinBid:             eth2p0.Gwei(conf.ProposerConfigSeed.BuilderMinBid),
+		BuilderBoostFactor: conf.ProposerConfigSeed.BuilderBoostFactor,
 		Builders:           builders,
 	}
 }
@@ -51,8 +51,8 @@ func builderConfig(conf Config) *gloas.BuilderConfig {
 // builderHosts returns the hosts of the configured builders, the default data of the builder
 // request auths validator clients sign for them, in the configured order.
 func builderHosts(conf Config) ([]string, error) {
-	hosts := make([]string, 0, len(conf.BuilderURLs))
-	for _, url := range conf.BuilderURLs {
+	hosts := make([]string, 0, len(conf.ProposerConfigSeed.BuilderURLs))
+	for _, url := range conf.ProposerConfigSeed.BuilderURLs {
 		host, err := eth2util.BuilderAuthData(url)
 		if err != nil {
 			return nil, err
@@ -68,7 +68,7 @@ func builderHosts(conf Config) ([]string, error) {
 // It is exchanged via the peerinfo protocol so peers can detect divergent builder
 // configurations, which would produce divergent (non-aggregatable) builder duties.
 func builderConfigHash(conf Config) []byte {
-	urls := slices.Clone(conf.BuilderURLs)
+	urls := slices.Clone(conf.ProposerConfigSeed.BuilderURLs)
 	slices.Sort(urls)
 
 	h := sha256.New()
@@ -79,7 +79,7 @@ func builderConfigHash(conf Config) []byte {
 	}
 
 	_, _ = fmt.Fprintf(h, "min_bid:%d\nbuilder_boost_factor:%d\nmax_execution_payment:%d\n",
-		conf.BuilderMinBid, conf.BuilderBoostFactor, conf.BuilderMaxExecutionPayment)
+		conf.ProposerConfigSeed.BuilderMinBid, conf.ProposerConfigSeed.BuilderBoostFactor, conf.ProposerConfigSeed.BuilderMaxExecutionPayment)
 
 	return h.Sum(nil)
 }
@@ -91,13 +91,13 @@ func initBuilderConfigMetrics(conf Config) {
 		return
 	}
 
-	for _, u := range conf.BuilderURLs {
+	for _, u := range conf.ProposerConfigSeed.BuilderURLs {
 		builderURLGauge.WithLabelValues(withoutUserInfo(u)).Set(1)
 	}
 
-	builderMinBidGauge.WithLabelValues().Set(float64(conf.BuilderMinBid))
-	builderBoostFactorGauge.WithLabelValues().Set(float64(conf.BuilderBoostFactor))
-	builderMaxExecutionPaymentGauge.WithLabelValues().Set(float64(conf.BuilderMaxExecutionPayment))
+	builderMinBidGauge.WithLabelValues().Set(float64(conf.ProposerConfigSeed.BuilderMinBid))
+	builderBoostFactorGauge.WithLabelValues().Set(float64(conf.ProposerConfigSeed.BuilderBoostFactor))
+	builderMaxExecutionPaymentGauge.WithLabelValues().Set(float64(conf.ProposerConfigSeed.BuilderMaxExecutionPayment))
 }
 
 // withoutUserInfo returns the URL without its user info. Relay URLs carry the relay's public key as the

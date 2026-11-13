@@ -129,6 +129,23 @@ func TestCalculateTrackerDelay(t *testing.T) {
 	}
 }
 
+func TestCurrentEpochFunc(t *testing.T) {
+	const slotDuration = 12 * time.Second
+
+	for _, test := range []struct {
+		name    string
+		genesis time.Time
+		epoch   uint64
+	}{
+		{name: "after genesis", genesis: time.Now().Add(-slotDuration * (3*16 + 5)), epoch: 3},
+		{name: "before genesis", genesis: time.Now().Add(time.Hour), epoch: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			require.EqualValues(t, test.epoch, currentEpochFunc(test.genesis, slotDuration, 16)())
+		})
+	}
+}
+
 func TestSetFeeRecipient(t *testing.T) {
 	set := beaconmock.ValidatorSetA
 	for i := range len(set) {

@@ -1,0 +1,275 @@
+// Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
+
+package proposerconfig
+
+import (
+	"math/rand"
+	"strings"
+	"testing"
+
+	k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/stretchr/testify/require"
+
+	"github.com/obolnetwork/charon/cluster"
+)
+
+func TestVerify(t *testing.T) {
+	lock, keys, _ := cluster.NewForT(t, 1, 3, 4, 7, rand.New(rand.NewSource(7)))
+	require.Equal(t, 3, lock.Threshold)
+
+	newDoc := func(revision uint64, signers ...int) Document {
+		doc := Document{
+			Version:  Version,
+			LockHash: lock.LockHash,
+			Revision: revision,
+			Config: Config{
+				DefaultConfig:  Settings{FeeRecipient: addrA, GasLimit: "200000000"},
+				ProposerConfig: map[string]Settings{},
+			},
+		}
+
+		for _, idx := range signers {
+			sig, err := Sign(doc, keys[idx])
+			require.NoError(t, err)
+
+			doc.Signatures = append(doc.Signatures, Signature{Operator: idx, Signature: sig})
+		}
+
+		return doc
+	}
+
+	other, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	v0 := pubkeyHex(lock.Validators[0].PubKey)
+
+	tests := []struct {
+		name   string
+		doc    func() Document
+		errIs  error
+		errMsg string
+	}{
+		{name: "revision 0 no signatures", doc: func() Document { return newDoc(0) }},
+		{name: "revision 0 one signature", doc: func() Document { return newDoc(0, 0) }, errIs: ErrInvalid},
+		{name: "revision 1 threshold", doc: func() Document { return newDoc(1, 0, 1, 2) }},
+		{name: "revision 1 below threshold", doc: func() Document { return newDoc(1, 0, 1) }, errIs: ErrInvalid},
+		{name: "revision 1 duplicate operator", doc: func() Document { return newDoc(1, 0, 1, 1) }, errIs: ErrInvalid},
+		{
+			name: "revision 1 index out of range",
+			doc: func() Document {
+				doc := newDoc(1, 0, 1, 2)
+				doc.Signatures[2].Operator = 9
+
+				return doc
+			},
+			errIs: ErrInvalid,
+		},
+		{
+			name: "revision 1 negative operator index",
+			doc: func() Document {
+				doc := newDoc(1, 0, 1, 2)
+				doc.Signatures[2].Operator = -1
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "operator index out of range",
+		},
+		{
+			name: "revision 1 truncated signature",
+			doc: func() Document {
+				doc := newDoc(1, 0, 1, 2)
+				doc.Signatures[2].Signature = doc.Signatures[2].Signature[:64]
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "malformed signature",
+		},
+		{
+			name: "revision 1 nil signature",
+			doc: func() Document {
+				doc := newDoc(1, 0, 1, 2)
+				doc.Signatures[2].Signature = nil
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "malformed signature",
+		},
+		{
+			name: "revision 1 signature filed under another operator",
+			doc: func() Document {
+				doc := newDoc(1, 0, 1, 2)
+				doc.Signatures[2].Operator = 3
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "signature does not verify",
+		},
+		{
+			name: "revision 1 non-operator key",
+			doc: func() Document {
+				doc := newDoc(1, 0, 1, 2)
+				sig, err := Sign(doc, other)
+				require.NoError(t, err)
+
+				doc.Signatures[2].Signature = sig
+
+				return doc
+			},
+			errIs: ErrInvalid,
+		},
+		{
+			name: "stored hash differs",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.StoredHash = make([]byte, 32)
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "content was modified",
+		},
+		{
+			name: "stored hash matches",
+			doc: func() Document {
+				doc := newDoc(0)
+				h, err := doc.Hash()
+				require.NoError(t, err)
+
+				doc.StoredHash = h[:]
+
+				return doc
+			},
+		},
+		{
+			name: "other lock hash",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.LockHash = make([]byte, 32)
+
+				return doc
+			},
+			errIs: ErrLockHashMismatch,
+		},
+		{
+			name: "entry gas limit",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig[v0] = Settings{GasLimit: "1"}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "proposer_config entry sets more than fee_recipient",
+		},
+		{
+			name: "entry builder",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig[v0] = Settings{Builder: &Builder{}}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "proposer_config entry sets more than fee_recipient",
+		},
+		{
+			name: "entry fee recipient",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig[v0] = Settings{FeeRecipient: addrB}
+
+				return doc
+			},
+		},
+		{
+			name: "unknown key",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig["0xabcd"] = Settings{FeeRecipient: addrB}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "not a lowercase lock validator pubkey",
+		},
+		{
+			name: "uppercase key",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig["0x"+strings.ToUpper(v0[2:])] = Settings{FeeRecipient: addrB}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "not a lowercase lock validator pubkey",
+		},
+		{
+			name: "builder entry override",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.DefaultConfig.Builder = &Builder{
+					MinBid: "0", BuilderBoostFactor: "100", MaxExecutionPayment: "0",
+					Builders: []BuilderEntry{{URL: "https://b1.example"}, {URL: "https://b2.example", MinBid: "5"}},
+				}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "builder entry sets more than url",
+		},
+		{
+			name: "other major version",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Version = "v3.0.0"
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "unsupported version",
+		},
+		{
+			name: "same major version",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Version = "v1.1.0"
+
+				return doc
+			},
+		},
+		{
+			name: "empty lock hash",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.LockHash = nil
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "malformed lock hash",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Verify(tt.doc(), lock)
+			if tt.errIs == nil {
+				require.NoError(t, err)
+				return
+			}
+
+			require.ErrorIs(t, err, tt.errIs)
+			require.ErrorContains(t, err, tt.errMsg)
+		})
+	}
+}
+
+func TestSignerIndexes(t *testing.T) {
+	doc := Document{Signatures: []Signature{{Operator: 2}, {Operator: 0}}}
+	require.Equal(t, []int{0, 2}, doc.SignerIndexes())
+	require.Empty(t, Document{}.SignerIndexes())
+}
