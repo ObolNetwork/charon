@@ -29,21 +29,27 @@ var (
 // providers put API keys in it. Otherwise only path segments that look like API keys are.
 // A URL that doesn't parse as an absolute URL, as with an unescaped password or without a scheme, has its
 // credentials and path replaced as a whole. Other values, like host:port, are returned unchanged.
+// Without credentials, an "@" in the path, query or fragment is read as their end and what precedes it is
+// replaced, the host included.
 //
 // Beacon node, execution and other endpoint URLs may contain credentials, so redact them
 // wherever they are logged or used as metric labels.
 func RedactURL(raw string, maskPath bool) string {
 	u, err := url.Parse(raw)
+
+	// A password with an unescaped "/", "?" or "#" ends the host early, leaving the "@" in the path, query or
+	// fragment: the credentials then end at the last "@" instead.
+	misread := err == nil && u.Scheme != "" && u.Host != "" && u.User == nil &&
+		(strings.Contains(u.Path, "@") || strings.Contains(u.RawQuery, "@") || strings.Contains(u.Fragment, "@"))
+	if misread {
+		u, err = url.Parse(u.Scheme + "://" + redacted + "@" + raw[strings.LastIndex(raw, "@")+1:])
+	}
+
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return redactUnparsed(raw, maskPath)
 	}
 
-	// A password with an unescaped "/" or "#" ends the host early, leaving the "@" in the path or fragment.
-	if u.User == nil && (strings.Contains(u.Path, "@") || strings.Contains(u.Fragment, "@")) {
-		return redactUnparsed(raw, maskPath)
-	}
-
-	changed := false
+	changed := misread
 
 	if _, ok := u.User.Password(); ok {
 		u.User = url.UserPassword(u.User.Username(), redacted)
@@ -91,7 +97,7 @@ func RedactURL(raw string, maskPath bool) string {
 	return u.String()
 }
 
-// redactUnparsed redacts a URL that url.Parse rejects or misreads, by position: everything up to the last "@"
+// redactUnparsed redacts a URL that url.Parse rejects, by position: everything up to the last "@"
 // is taken as credentials and everything after the host as the path, both replaced. It applies to values with a
 // scheme or with user:password credentials, and to any path if maskPath is true; other values are returned
 // unchanged, like host:port and email addresses.
