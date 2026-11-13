@@ -153,7 +153,7 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 	// Bind broadcasts to the lock hash since it changes with every cluster mutation,
 	// preventing replay of messages from previous ceremonies of the same cluster.
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
-	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster)
+	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, nodeSigMsgID)
 
 	if !p.oldNode {
 		// SigExchanger is only created for nodes remaining in the cluster, because old nodes do not participate in signing.

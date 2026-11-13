@@ -223,3 +223,40 @@ func normaliseAddress(addr string) (string, error) {
 
 	return strings.ToLower(checksummed), nil
 }
+
+// Normalise returns a copy of c with fee recipients lowercased after EIP-55 validation and
+// proposer_config keys lowercased. Empty fee recipients are kept.
+func Normalise(c Config) (Config, error) {
+	norm := func(s Settings) (Settings, error) {
+		if s.FeeRecipient == "" {
+			return s, nil
+		}
+
+		fee, err := normaliseAddress(s.FeeRecipient)
+		if err != nil {
+			return Settings{}, err
+		}
+
+		s.FeeRecipient = fee
+
+		return s, nil
+	}
+
+	def, err := norm(c.DefaultConfig)
+	if err != nil {
+		return Config{}, errors.Wrap(err, "default config")
+	}
+
+	res := Config{DefaultConfig: def, ProposerConfig: make(map[string]Settings, len(c.ProposerConfig))}
+
+	for k, v := range c.ProposerConfig {
+		s, err := norm(v)
+		if err != nil {
+			return Config{}, errors.Wrap(err, "proposer config entry", z.Str("pubkey", k))
+		}
+
+		res.ProposerConfig[strings.ToLower(k)] = s
+	}
+
+	return res, nil
+}
