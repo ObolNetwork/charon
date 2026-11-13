@@ -27,14 +27,20 @@ var (
 // Query values that are integers or 0x hex values, like slots and roots, are kept.
 // If maskPath is true, a non-empty path is replaced too, since hosted beacon and execution
 // providers put API keys in it. Otherwise only path segments that look like API keys are.
-// Values that aren't absolute URLs are returned unchanged.
+// A URL that doesn't parse as an absolute URL, as with an unescaped password or without a scheme, has its
+// credentials and path replaced as a whole. Other values, like host:port, are returned unchanged.
 //
 // Beacon node, execution and other endpoint URLs may contain credentials, so redact them
 // wherever they are logged or used as metric labels.
 func RedactURL(raw string, maskPath bool) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		return raw
+		return redactUnparsed(raw, maskPath)
+	}
+
+	// A password with an unescaped "/" or "#" ends the host early, leaving the "@" in the path or fragment.
+	if u.User == nil && (strings.Contains(u.Path, "@") || strings.Contains(u.Fragment, "@")) {
+		return redactUnparsed(raw, maskPath)
 	}
 
 	changed := false
@@ -83,6 +89,42 @@ func RedactURL(raw string, maskPath bool) string {
 	}
 
 	return u.String()
+}
+
+// redactUnparsed redacts a URL that url.Parse rejects or misreads, by position: everything up to the last "@"
+// is taken as credentials and everything after the host as the path, both replaced. It applies to values with a
+// scheme or with user:password credentials, and to any path if maskPath is true; other values are returned
+// unchanged, like host:port and email addresses.
+func redactUnparsed(raw string, maskPath bool) string {
+	scheme, rest, hasScheme := strings.Cut(raw, "://")
+	if hasScheme {
+		scheme += "://"
+	} else {
+		scheme, rest = "", raw
+	}
+
+	at := strings.LastIndex(rest, "@")
+	hasCredentials := at >= 0 && (hasScheme || strings.Contains(rest[:at], ":"))
+
+	if !hasScheme && !hasCredentials && !maskPath {
+		return raw
+	}
+
+	if hasCredentials {
+		scheme += redacted + "@"
+		rest = rest[at+1:]
+	}
+
+	host, path := rest, ""
+	if i := strings.IndexAny(rest, "/?#"); i >= 0 {
+		host, path = rest[:i], rest[i:]
+	}
+
+	if strings.TrimSpace(strings.Trim(path, "/")) != "" {
+		path = "/" + redacted
+	}
+
+	return scheme + host + path
 }
 
 // RedactURLs returns the URLs redacted with RedactURL.
