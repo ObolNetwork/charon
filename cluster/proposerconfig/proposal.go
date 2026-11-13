@@ -93,7 +93,7 @@ func ApplyProposal(lock cluster.Lock, c, proposal Config) (Config, error) {
 		return Config{}, err
 	}
 
-	res, err := NewConfig(lock, fees, seed.GasLimit, seed.Builder())
+	res, err := NewConfigWithDefault(lock, norm.DefaultConfig.FeeRecipient, fees, seed.GasLimit, seed.Builder())
 	if err != nil {
 		return Config{}, err
 	}

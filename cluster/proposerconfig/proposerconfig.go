@@ -132,25 +132,13 @@ func (d Document) Hash() ([32]byte, error) {
 // and builder; entries only exist for validators diverging from the majority. An empty fee recipient,
 // as in v1.0 and v1.1 locks, means none: it emits no entry.
 func NewConfig(lock cluster.Lock, feeRecipients []string, gasLimit uint64, builder *Builder) (Config, error) {
-	if len(feeRecipients) != len(lock.Validators) {
-		return Config{}, errors.New("fee recipient count mismatch", z.Int("fee_recipients", len(feeRecipients)), z.Int("validators", len(lock.Validators)))
+	fees, err := normaliseFeeRecipients(lock, feeRecipients)
+	if err != nil {
+		return Config{}, err
 	}
 
-	fees := make([]string, len(feeRecipients))
 	counts := make(map[string]int)
-
-	for i, addr := range feeRecipients {
-		if addr == "" {
-			counts[""]++
-			continue
-		}
-
-		fee, err := normaliseAddress(addr)
-		if err != nil {
-			return Config{}, errors.Wrap(err, "fee recipient", z.Int("validator", i))
-		}
-
-		fees[i] = fee
+	for _, fee := range fees {
 		counts[fee]++
 	}
 
@@ -162,6 +150,54 @@ func NewConfig(lock cluster.Lock, feeRecipients []string, gasLimit uint64, build
 		}
 	}
 
+	return newConfig(lock, defaultFee, fees, gasLimit, builder), nil
+}
+
+// NewConfigWithDefault returns the config as NewConfig does, with the given default fee recipient in place of
+// the majority one: an edit moves the default only when asked to.
+func NewConfigWithDefault(lock cluster.Lock, defaultFeeRecipient string, feeRecipients []string, gasLimit uint64, builder *Builder) (Config, error) {
+	fees, err := normaliseFeeRecipients(lock, feeRecipients)
+	if err != nil {
+		return Config{}, err
+	}
+
+	defaultFee := defaultFeeRecipient
+	if defaultFee != "" {
+		defaultFee, err = normaliseAddress(defaultFee)
+		if err != nil {
+			return Config{}, errors.Wrap(err, "default fee recipient")
+		}
+	}
+
+	return newConfig(lock, defaultFee, fees, gasLimit, builder), nil
+}
+
+// normaliseFeeRecipients returns the lock validators' fee recipients normalised, empty ones kept.
+func normaliseFeeRecipients(lock cluster.Lock, feeRecipients []string) ([]string, error) {
+	if len(feeRecipients) != len(lock.Validators) {
+		return nil, errors.New("fee recipient count mismatch", z.Int("fee_recipients", len(feeRecipients)), z.Int("validators", len(lock.Validators)))
+	}
+
+	fees := make([]string, len(feeRecipients))
+
+	for i, addr := range feeRecipients {
+		if addr == "" {
+			continue
+		}
+
+		fee, err := normaliseAddress(addr)
+		if err != nil {
+			return nil, errors.Wrap(err, "fee recipient", z.Int("validator", i))
+		}
+
+		fees[i] = fee
+	}
+
+	return fees, nil
+}
+
+// newConfig returns the config with entries for the validators whose fee recipient is set and not the default.
+func newConfig(lock cluster.Lock, defaultFee string, fees []string, gasLimit uint64, builder *Builder) Config {
 	cfg := Config{
 		DefaultConfig: Settings{
 			FeeRecipient: defaultFee,
@@ -177,7 +213,7 @@ func NewConfig(lock cluster.Lock, feeRecipients []string, gasLimit uint64, build
 		}
 	}
 
-	return cfg, nil
+	return cfg
 }
 
 // FeeRecipient returns the fee recipient of the validator with the given DV pubkey, falling back to the

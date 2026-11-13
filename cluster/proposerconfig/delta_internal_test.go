@@ -20,17 +20,41 @@ func testBuilder() *Builder {
 	}
 }
 
-func TestApplyFeeRecipientAll(t *testing.T) {
+func TestApplyFeeRecipientDefault(t *testing.T) {
 	lock := testLock(t, 3)
 	c, err := NewConfig(lock, []string{addrA, addrA, addrB}, DefaultGasLimit, nil)
 	require.NoError(t, err)
 
+	// Only the default changes, validator 2 keeps its own fee recipient.
 	res, err := Apply(lock, c, Delta{FeeRecipient: "0x" + strings.ToUpper(addrC[2:])})
 	require.NoError(t, err)
-	require.Equal(t, []string{addrC, addrC, addrC}, res.FeeRecipients(lock))
-	require.Empty(t, res.ProposerConfig)
+	require.Equal(t, addrC, res.DefaultConfig.FeeRecipient)
+	require.Equal(t, []string{addrC, addrC, addrB}, res.FeeRecipients(lock))
+	require.Equal(t, map[string]Settings{pubkeyHex(lock.Validators[2].PubKey): {FeeRecipient: addrB}}, res.ProposerConfig)
 	// The input is untouched.
 	require.Equal(t, []string{addrA, addrA, addrB}, c.FeeRecipients(lock))
+
+	// A default equal to a validator's own fee recipient leaves no entry for it.
+	res, err = Apply(lock, c, Delta{FeeRecipient: addrB})
+	require.NoError(t, err)
+	require.Equal(t, []string{addrB, addrB, addrB}, res.FeeRecipients(lock))
+	require.Empty(t, res.ProposerConfig)
+
+	// The current default is no change, whatever the validators' own fee recipients.
+	_, err = Apply(lock, c, Delta{FeeRecipient: addrA})
+	require.ErrorIs(t, err, ErrNoChange)
+}
+
+func TestApplyFeeRecipientBackToDefault(t *testing.T) {
+	lock := testLock(t, 3)
+	c, err := NewConfig(lock, []string{addrA, addrA, addrB}, DefaultGasLimit, nil)
+	require.NoError(t, err)
+
+	// A validator set to the default loses its entry.
+	res, err := Apply(lock, c, Delta{FeeRecipient: addrA, FeeRecipientValidators: []string{pubkeyHex(lock.Validators[2].PubKey)}})
+	require.NoError(t, err)
+	require.Equal(t, addrA, res.DefaultConfig.FeeRecipient)
+	require.Empty(t, res.ProposerConfig)
 }
 
 func TestApplyFeeRecipientSubset(t *testing.T) {
@@ -38,19 +62,41 @@ func TestApplyFeeRecipientSubset(t *testing.T) {
 	c, err := NewConfig(lock, []string{addrA, addrA, addrB}, DefaultGasLimit, nil)
 	require.NoError(t, err)
 
-	// Flips the majority: validators 0 and 1 move to B, validator 2 stays on B.
 	v0 := pubkeyHex(lock.Validators[0].PubKey)
 	v1 := strings.ToUpper(pubkeyHex(lock.Validators[1].PubKey)[2:])
 
 	res, err := Apply(lock, c, Delta{FeeRecipient: addrB, FeeRecipientValidators: []string{v0, "0x" + v1}})
 	require.NoError(t, err)
 	require.Equal(t, []string{addrB, addrB, addrB}, res.FeeRecipients(lock))
-	require.Empty(t, res.ProposerConfig)
+	// The default stays, even with all validators on another fee recipient.
+	require.Equal(t, addrA, res.DefaultConfig.FeeRecipient)
+	require.Len(t, res.ProposerConfig, 3)
 
-	// Only touched validators are listed even though the default flipped.
 	require.Equal(t, []string{
 		"validator " + v0 + ".fee_recipient: " + addrA + " -> " + addrB,
 		"validator " + pubkeyHex(lock.Validators[1].PubKey) + ".fee_recipient: " + addrA + " -> " + addrB,
+	}, Diff(lock, c, res))
+}
+
+func TestApplyFeeRecipientSequence(t *testing.T) {
+	lock := testLock(t, 3)
+	c, err := NewConfig(lock, []string{addrA, addrA, addrA}, DefaultGasLimit, nil)
+	require.NoError(t, err)
+
+	v1, v2 := pubkeyHex(lock.Validators[1].PubKey), pubkeyHex(lock.Validators[2].PubKey)
+
+	// Validators given their own fee recipient keep it through a later default change, majority or not.
+	c, err = Apply(lock, c, Delta{FeeRecipient: addrB, FeeRecipientValidators: []string{v1, v2}})
+	require.NoError(t, err)
+	require.Equal(t, addrA, c.DefaultConfig.FeeRecipient)
+
+	res, err := Apply(lock, c, Delta{FeeRecipient: addrC})
+	require.NoError(t, err)
+	require.Equal(t, addrC, res.DefaultConfig.FeeRecipient)
+	require.Equal(t, []string{addrC, addrB, addrB}, res.FeeRecipients(lock))
+	require.Equal(t, []string{
+		"default.fee_recipient: " + addrA + " -> " + addrC,
+		"validator " + pubkeyHex(lock.Validators[0].PubKey) + ".fee_recipient: " + addrA + " -> " + addrC,
 	}, Diff(lock, c, res))
 }
 

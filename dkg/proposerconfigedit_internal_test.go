@@ -344,11 +344,12 @@ func TestWarnFeeRecipientDriftOnce(t *testing.T) {
 
 	log.InitLogfmtForT(t, &logs)
 
-	// Both validators' fee recipients differ from the lock, and the gas limit from the initial config.
+	// Both validators' fee recipients, and so the default, differ from the lock, and the gas limit from the
+	// initial config.
 	doc := editTestDoc(t, lock, keys, 0, 60_000_000, nil)
 	warnFeeRecipientDrift(t.Context(), lock, doc, filepath.Join(t.TempDir(), "absent.json"))
 
 	require.Equal(t, 1, strings.Count(logs.String(), "level=warn"), logs.String())
-	require.Contains(t, logs.String(), "differences=2")
+	require.Contains(t, logs.String(), "differences=3")
 	require.NotContains(t, logs.String(), "gas_limit")
 }
