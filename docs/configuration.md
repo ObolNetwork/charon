@@ -233,6 +233,26 @@ file as `proposer-config-revision-<N>.json` next to it. Restart the validator cl
 `docker compose restart <vc service>`. Before the gloas fork charon's own builder registrations are unaffected, and a fee recipient
 change also needs `charon feerecipient sign` and `fetch`.
 
+### Validator client bundle
+
+`charon alpha vc-bundle <teku|prysm|lodestar|nimbus|lighthouse>` writes what a validator client consumes from
+`validator_keys/` and `vc-config/proposer-config.json` to `--output-dir` (default `.charon/vc-bundle`), for the
+operator to move into the validator client's own directory. It is meant for clusters past the gloas fork: builders
+are enabled exactly when the proposer config has a builder block. `--include` picks the parts to write, all by default:
+
+| Client | `keystores` | `proposer-settings` | `vc-flags` (`vc-flags.txt`) |
+|---|---|---|---|
+| Teku | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `teku-proposer-config.json` | `--Xobol-dvt-integration-enabled`, `--Xbuilder-*` |
+| Prysm | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `prysm-proposer-settings.json` | `--distributed`, `--enable-beacon-rest-api` |
+| Lodestar | `keystores/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `lodestar-proposer-settings.yml` | `--distributed`, `--payloadLocal=true`, `--builder`, `--allowDangerousTrustedPayments` with a max execution payment above 0 |
+| Nimbus | `validators/<pubkey>/keystore.json`, `secrets/<pubkey>` | `validators/<pubkey>/suggested_fee_recipient.hex`, `suggested_gas_limit.json` | `--distributed`, `--doppelganger-detection=false`, `--payload-builder`, `--payload-builder-url` and `--builder-*` of the first builder |
+| Lighthouse | none, read in place | `validators/validator_definitions.yml`, `validators/builder_definitions.yml` | `--distributed` |
+
+`vc-flags.txt` holds the flags a distributed validator needs, one per line, to append to the validator client's command;
+the builder flags are only written with a builder block. Paths, the network, the beacon node and metrics stay the operator's.
+Lighthouse's definitions name the keystores in `--validator-keys-dir` by absolute path, so Lighthouse must see them at
+that same path. Rerun the command and move the files again after the proposer config changes.
+
 ## Flag Precedence
 
 Charon uses [viper](https://github.com/spf13/viper) for configuration combined with [cobra](https://github.com/spf13/cobra)
