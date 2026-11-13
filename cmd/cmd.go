@@ -57,6 +57,7 @@ func New() *cobra.Command {
 				newReplaceOperatorCmd(runReplaceOperator),
 				newEditProposerConfigCmd(runEditProposerConfig),
 			),
+			newVCBundleCmd(runVCBundle),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
 				newTestPeersCmd(runTestPeers),

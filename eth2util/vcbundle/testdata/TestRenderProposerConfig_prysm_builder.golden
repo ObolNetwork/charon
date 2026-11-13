@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "proposer_config": {
+    "0xaa11": {
+      "fee_recipient": "0x000000000000000000000000000000000000beef",
+      "gas_limit": "60000000",
+      "builder": {
+        "enabled": true,
+        "gas_limit": "60000000"
+      }
+    }
+  },
+  "default_config": {
+    "fee_recipient": "0x000000000000000000000000000000000000dead",
+    "gas_limit": "60000000",
+    "builder": {
+      "enabled": true,
+      "gas_limit": "60000000",
+      "min_bid": "1",
+      "builder_boost_factor": "90",
+      "max_execution_payment": "5",
+      "builders": [
+        {
+          "url": "https://builder-a.example.com"
+        },
+        {
+          "url": "https://builder-b.example.com",
+          "min_bid": "2",
+          "max_execution_payment": "7"
+        }
+      ]
+    }
+  }
+}

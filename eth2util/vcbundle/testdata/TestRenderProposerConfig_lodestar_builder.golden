@@ -1,0 +1,29 @@
+{
+  "proposer_config": {
+    "0xaa11": {
+      "fee_recipient": "0x000000000000000000000000000000000000beef",
+      "builder": {
+        "gas_limit": "60000000"
+      }
+    }
+  },
+  "default_config": {
+    "fee_recipient": "0x000000000000000000000000000000000000dead",
+    "builder": {
+      "gas_limit": "60000000",
+      "min_bid": "1",
+      "boost_factor": "90",
+      "max_execution_payment": "5",
+      "builders": [
+        {
+          "url": "https://builder-a.example.com"
+        },
+        {
+          "url": "https://builder-b.example.com",
+          "min_bid": "2",
+          "max_execution_payment": "7"
+        }
+      ]
+    }
+  }
+}
