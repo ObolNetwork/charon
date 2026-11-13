@@ -27,6 +27,7 @@ const editCmd = "charon alpha edit proposer-config"
 
 // pcFixture is a 3 of 4 cluster with 3 validators, loaded as node 2.
 type pcFixture struct {
+	ctx     context.Context // Cancelled at test end, stopping the services' file watchers.
 	lock    cluster.Lock
 	keys    []*k1.PrivateKey
 	conf    Config
@@ -44,7 +45,11 @@ func newPCFixture(t *testing.T) pcFixture {
 	logs := new(zaptest.Buffer)
 	log.InitLogfmtForT(t, logs)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
 	return pcFixture{
+		ctx:  ctx,
 		lock: lock,
 		keys: keys,
 		conf: Config{
@@ -57,12 +62,20 @@ func newPCFixture(t *testing.T) pcFixture {
 	}
 }
 
-func (f pcFixture) load(t *testing.T, gloasActive bool) (proposerconfig.Document, error) {
+// service loads the proposer config without fee recipient overrides.
+func (f pcFixture) service(t *testing.T, gloasActive bool) (*proposerConfigService, error) {
 	t.Helper()
 
 	noOverrides := func(core.PubKey) string { return "" }
 
-	return loadProposerConfig(context.Background(), f.conf, f.lock, f.nodeIdx, noOverrides, func() bool { return gloasActive })
+	return newProposerConfigService(f.ctx, f.conf, f.lock, f.nodeIdx, noOverrides, func() bool { return gloasActive })
+}
+
+// load returns the document of the service loaded without fee recipient overrides.
+func (f pcFixture) load(t *testing.T, gloasActive bool) (proposerconfig.Document, error) {
+	t.Helper()
+
+	return documentOf(f.service(t, gloasActive))
 }
 
 // loadBadInitial loads with an override fee recipient that fails deriving the initial config.
@@ -71,7 +84,16 @@ func (f pcFixture) loadBadInitial(t *testing.T) (proposerconfig.Document, error)
 
 	badOverride := func(core.PubKey) string { return "0xnot-an-address" }
 
-	return loadProposerConfig(context.Background(), f.conf, f.lock, f.nodeIdx, badOverride, func() bool { return false })
+	return documentOf(newProposerConfigService(f.ctx, f.conf, f.lock, f.nodeIdx, badOverride, func() bool { return false }))
+}
+
+// documentOf returns the document of a loaded service.
+func documentOf(s *proposerConfigService, err error) (proposerconfig.Document, error) {
+	if err != nil {
+		return proposerconfig.Document{}, err
+	}
+
+	return s.Document(), nil
 }
 
 // doc returns a document with the lock's fee recipients, the given gas limit and builder, signed by signers.
@@ -124,7 +146,7 @@ func requireFile(t *testing.T, path string, want []byte) {
 	require.Equal(t, string(want), string(b))
 }
 
-func TestLoadInitialProposerConfig(t *testing.T) {
+func TestNewProposerConfigServiceInitial(t *testing.T) {
 	f := newPCFixture(t)
 	require.EqualValues(t, 30_000_000, f.lock.TargetGasLimit)
 
@@ -141,7 +163,7 @@ func TestLoadInitialProposerConfig(t *testing.T) {
 		return "" // Falls back to the lock.
 	}
 
-	doc, err := loadProposerConfig(context.Background(), f.conf, f.lock, f.nodeIdx, feeRecipientFunc, func() bool { return false })
+	doc, err := documentOf(newProposerConfigService(f.ctx, f.conf, f.lock, f.nodeIdx, feeRecipientFunc, func() bool { return false }))
 	require.NoError(t, err)
 
 	lockFees := f.lock.FeeRecipientAddresses()
@@ -173,7 +195,7 @@ func TestLoadInitialProposerConfig(t *testing.T) {
 	})
 }
 
-func TestLoadProposerConfigRevision0Drift(t *testing.T) {
+func TestNewProposerConfigServiceRevision0Drift(t *testing.T) {
 	f := newPCFixture(t)
 	f.conf.ProposerConfigSeed.BuilderURLs = []string{"https://a.example.com"}
 
@@ -213,7 +235,7 @@ func TestLoadProposerConfigRevision0Drift(t *testing.T) {
 	})
 }
 
-func TestLoadProposerConfigSigned(t *testing.T) {
+func TestNewProposerConfigServiceSigned(t *testing.T) {
 	f := newPCFixture(t)
 	f.conf.ProposerConfigSeed.BuilderURLs = []string{"https://user:secret@a.example.com", "https://user:pa,ss@b.example.com"}
 	f.conf.ProposerConfigSeed.BuilderMinBid = 0 // Set to its default, equal to nothing in a signed file without builders.
@@ -273,7 +295,7 @@ func TestLoadProposerConfigSigned(t *testing.T) {
 	})
 }
 
-func TestLoadProposerConfigInvalidSigned(t *testing.T) {
+func TestNewProposerConfigServiceInvalidSigned(t *testing.T) {
 	f := newPCFixture(t)
 
 	want := f.doc(t, 1, proposerconfig.DefaultGasLimit, nil, 0, 1) // Below threshold 3.
@@ -288,7 +310,7 @@ func TestLoadProposerConfigInvalidSigned(t *testing.T) {
 	requireGauges(t, 1, 1)
 }
 
-func TestLoadProposerConfigWrongLock(t *testing.T) {
+func TestNewProposerConfigServiceWrongLock(t *testing.T) {
 	t.Run("lock hash only", func(t *testing.T) {
 		f := newPCFixture(t)
 
@@ -323,7 +345,7 @@ func TestLoadProposerConfigWrongLock(t *testing.T) {
 	})
 }
 
-func TestLoadInitialProposerConfigFailure(t *testing.T) {
+func TestNewProposerConfigServiceInitialFailure(t *testing.T) {
 	t.Run("valid signed file never derives the initial config", func(t *testing.T) {
 		f := newPCFixture(t)
 		want := f.doc(t, 1, proposerconfig.DefaultGasLimit, nil, 0, 1, 2)
@@ -367,7 +389,7 @@ func TestLoadInitialProposerConfigFailure(t *testing.T) {
 	})
 }
 
-func TestLoadProposerConfigWriteFailure(t *testing.T) {
+func TestNewProposerConfigServiceWriteFailure(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions")
 	}
@@ -386,7 +408,7 @@ func TestLoadProposerConfigWriteFailure(t *testing.T) {
 	requireGauges(t, 0, 1)
 }
 
-func TestLoadProposerConfigUndecodable(t *testing.T) {
+func TestNewProposerConfigServiceUndecodable(t *testing.T) {
 	tests := []struct {
 		name  string
 		setup func(t *testing.T, f pcFixture)
@@ -397,6 +419,26 @@ func TestLoadProposerConfigUndecodable(t *testing.T) {
 				t.Helper()
 				require.NoError(t, os.MkdirAll(filepath.Dir(f.path), 0o755))
 				require.NoError(t, os.WriteFile(f.path, []byte(`{"version": "v1.0.0", `), 0o644))
+			},
+		},
+		{
+			name: "unparseable gas limit",
+			setup: func(t *testing.T, f pcFixture) {
+				t.Helper()
+
+				doc := f.doc(t, 0, proposerconfig.DefaultGasLimit, nil)
+				doc.Config.DefaultConfig.GasLimit = "60_000_000"
+				f.write(t, doc)
+			},
+		},
+		{
+			name: "unparseable builder min bid",
+			setup: func(t *testing.T, f pcFixture) {
+				t.Helper()
+
+				builder := proposerconfig.Seed{BuilderURLs: []string{"https://b.example.com"}, BuilderBoostFactor: 100}.Builder()
+				builder.MinBid = "lots"
+				f.write(t, f.doc(t, 0, proposerconfig.DefaultGasLimit, builder))
 			},
 		},
 		{
@@ -456,7 +498,7 @@ func TestLoadProposerConfigUndecodable(t *testing.T) {
 	})
 }
 
-func TestLoadProposerConfigLockWithoutFeeRecipients(t *testing.T) {
+func TestNewProposerConfigServiceLockWithoutFeeRecipients(t *testing.T) {
 	f := newPCFixture(t)
 
 	// v1.0 and v1.1 locks may have no fee recipients.
@@ -476,7 +518,7 @@ func TestLoadProposerConfigLockWithoutFeeRecipients(t *testing.T) {
 	require.NoError(t, proposerconfig.Verify(loaded, f.lock))
 }
 
-func TestLoadProposerConfigTestLock(t *testing.T) {
+func TestNewProposerConfigServiceTestLock(t *testing.T) {
 	f := newPCFixture(t)
 	f.conf.TestConfig.Lock = &f.lock
 

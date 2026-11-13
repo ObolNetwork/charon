@@ -145,7 +145,7 @@ func TestFetchGloasAttester(t *testing.T) {
 		}
 
 		fetch, err := New(t.Context(), bmock, nil, false, &GraffitiBuilder{},
-			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, func(core.PubKey) string { return "" }, false)
 		require.NoError(t, err)
 
 		clock := clockwork.NewFakeClockAt(slotStart)
@@ -379,7 +379,7 @@ func TestFetchPayloadAttestationDue(t *testing.T) {
 		}
 
 		fetch, err := New(t.Context(), bmock, nil, false, &GraffitiBuilder{},
-			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, func(core.PubKey) string { return "" }, false)
 		require.NoError(t, err)
 
 		clock := clockwork.NewFakeClockAt(now)
@@ -573,7 +573,7 @@ func TestFetchEPBSBuilderSource(t *testing.T) {
 			fetch, err := New(t.Context(), metadataClient{Mock: bmock, metadata: tt.metadata}, func(core.PubKey) string {
 				return "0x0000000000000000000000000000000000000000"
 			}, false, &GraffitiBuilder{},
-				func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+				func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, func(core.PubKey) string { return "" }, false)
 			require.NoError(t, err)
 
 			randao := testutil.RandomCoreSignature()

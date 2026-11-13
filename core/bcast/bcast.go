@@ -49,18 +49,18 @@ func New(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule func() eth2wr
 // Option configures the broadcaster.
 type Option func(*Broadcaster)
 
-// WithBuilderConfig sets the builder configuration whose builders the aggregated builder request
-// auths are submitted to the beacon node for.
-func WithBuilderConfig(config *gloas.BuilderConfig) Option {
+// WithBuilderConfigFunc sets the func returning the builder configuration whose builders the aggregated
+// builder request auths are submitted to the beacon node for.
+func WithBuilderConfigFunc(config func() *gloas.BuilderConfig) Option {
 	return func(b *Broadcaster) {
-		b.builderConfig = config
+		b.builderConfigFunc = config
 	}
 }
 
 type Broadcaster struct {
 	eth2Cl            eth2wrap.Client
 	delayFunc         func(slot uint64, duty core.DutyType) time.Duration
-	builderConfig     *gloas.BuilderConfig
+	builderConfigFunc func() *gloas.BuilderConfig
 	awaitProposalFunc func(ctx context.Context, slot uint64) (core.VersionedProposal, error)
 }
 
@@ -605,13 +605,18 @@ func (b Broadcaster) builderPreferencesEntries(ctx context.Context, set core.Sig
 // configuredBuilders returns the configured builder entries the auth data identifies, in
 // configured order: several when builders share a host, e.g. on different ports.
 func (b Broadcaster) configuredBuilders(authData []byte) []*gloas.BuilderEntry {
-	if b.builderConfig == nil {
+	if b.builderConfigFunc == nil {
+		return nil
+	}
+
+	config := b.builderConfigFunc()
+	if config == nil {
 		return nil
 	}
 
 	var resp []*gloas.BuilderEntry
 
-	for _, entry := range b.builderConfig.Builders {
+	for _, entry := range config.Builders {
 		data, err := eth2util.BuilderAuthData(string(entry.URL))
 		if err == nil && string(data) == string(authData) {
 			resp = append(resp, entry)

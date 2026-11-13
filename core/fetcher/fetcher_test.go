@@ -140,7 +140,7 @@ func TestFetchAttesterGloas(t *testing.T) {
 	}
 
 	fetch, err := fetcher.New(t.Context(), bmock, nil, false, &fetcher.GraffitiBuilder{},
-		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, zeroFeeRecipient, false)
 	require.NoError(t, err)
 
 	fetch.Subscribe(func(_ context.Context, _ core.Duty, resDataSet core.UnsignedDataSet) error {
@@ -447,7 +447,7 @@ func TestFetchEPBSBlocks(t *testing.T) {
 		fetch, err := fetcher.New(t.Context(), bmock, func(core.PubKey) string {
 			return "0x0000000000000000000000000000000000000000"
 		}, false, &fetcher.GraffitiBuilder{},
-			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+			func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, zeroFeeRecipient, false)
 		require.NoError(t, err)
 
 		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error) {
@@ -995,7 +995,7 @@ func mustCreateFetcher(t *testing.T, bmock beaconmock.Mock) *fetcher.Fetcher {
 	t.Helper()
 
 	fetch, err := fetcher.New(t.Context(), bmock, nil, true, &fetcher.GraffitiBuilder{},
-		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, &gloas.BuilderConfig{}, false)
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, zeroFeeRecipient, false)
 	require.NoError(t, err)
 
 	return fetch
@@ -1006,7 +1006,7 @@ func mustCreateFetcherWithAddressAndGraffiti(t *testing.T, bmock beaconmock.Mock
 
 	fetch, err := fetcher.New(t.Context(), bmock, func(core.PubKey) string {
 		return addr
-	}, true, graffitiBuilder, func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, &gloas.BuilderConfig{}, false)
+	}, true, graffitiBuilder, func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, zeroFeeRecipient, false)
 	require.NoError(t, err)
 
 	return fetch
@@ -1125,7 +1125,7 @@ func TestFetchPayloadAttestationNoPayload(t *testing.T) {
 
 	// The no-block data is versioned as the fork active at the slot, gloas here.
 	fetch, err := fetcher.New(t.Context(), bmock, nil, true, &fetcher.GraffitiBuilder{},
-		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, &gloas.BuilderConfig{}, false)
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, zeroFeeRecipient, false)
 	require.NoError(t, err)
 
 	var (
@@ -1553,7 +1553,7 @@ func TestFetchEPBSBuilderAuths(t *testing.T) {
 	fetch, err := fetcher.New(t.Context(), bmock, func(core.PubKey) string {
 		return "0x0000000000000000000000000000000000000000"
 	}, false, &fetcher.GraffitiBuilder{},
-		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, template, false)
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1, func() *gloas.BuilderConfig { return template }, zeroFeeRecipient, false)
 	require.NoError(t, err)
 
 	// Only builder A's aggregate resolves, builder B's never does.
@@ -1589,4 +1589,107 @@ func TestFetchEPBSBuilderAuths(t *testing.T) {
 	// The template is left untouched for later proposals.
 	require.Nil(t, template.Builders[0].Auth)
 	require.Len(t, template.Builders, 2)
+}
+
+// zeroFeeRecipient is the fee recipient func of tests that don't check it.
+func zeroFeeRecipient(core.PubKey) string {
+	return "0x0000000000000000000000000000000000000000"
+}
+
+// TestFetchEPBSProposerBuilderConfigReload verifies that each proposal is requested with the builder
+// configuration the func returns at that time.
+func TestFetchEPBSProposerBuilderConfigReload(t *testing.T) {
+	const slot = 1
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSet := core.DutyDefinitionSet{
+		pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{Slot: slot, ValidatorIndex: 2}),
+	}
+
+	cfgA := &gloas.BuilderConfig{MinBid: 1, BuilderBoostFactor: 100}
+	cfgB := &gloas.BuilderConfig{MinBid: 2, BuilderBoostFactor: 150}
+	current := cfgA
+
+	bmock, err := beaconmock.New(t.Context())
+	require.NoError(t, err)
+
+	var requested []*gloas.BuilderConfig
+
+	bmock.EPBSProposalFunc = func(_ context.Context, opts *eth2api.EPBSProposalOpts) (*eth2api.VersionedEPBSProposal, error) {
+		requested = append(requested, opts.BuilderConfig)
+
+		block := testutil.RandomGloasBeaconBlock()
+		block.Slot = opts.Slot
+		block.Body.RANDAOReveal = opts.RandaoReveal
+
+		return &eth2api.VersionedEPBSProposal{Version: eth2spec.DataVersionGloas, Gloas: block}, nil
+	}
+
+	fetch, err := fetcher.New(t.Context(), bmock, zeroFeeRecipient, false, &fetcher.GraffitiBuilder{},
+		func() eth2wrap.ForkForkSchedule { return eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}} }, 1,
+		func() *gloas.BuilderConfig { return current }, zeroFeeRecipient, false)
+	require.NoError(t, err)
+
+	fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error) {
+		return testutil.RandomCoreSignature(), nil
+	})
+	fetch.Subscribe(func(context.Context, core.Duty, core.UnsignedDataSet) error { return nil })
+
+	require.NoError(t, fetch.Fetch(t.Context(), core.NewProposerDuty(slot), defSet))
+
+	current = cfgB
+
+	require.NoError(t, fetch.Fetch(t.Context(), core.NewProposerDuty(slot), defSet))
+
+	require.Len(t, requested, 2)
+	require.EqualValues(t, 1, requested[0].MinBid)
+	require.EqualValues(t, 2, requested[1].MinBid)
+	require.EqualValues(t, 150, requested[1].BuilderBoostFactor)
+}
+
+// TestFetchFeeRecipientSplit verifies that the pre-gloas proposal path consults the registration fee
+// recipient func and the EPBS path the proposer config one.
+func TestFetchFeeRecipientSplit(t *testing.T) {
+	const slot = 1
+
+	pubkey := testutil.RandomCorePubKey(t)
+	defSet := core.DutyDefinitionSet{
+		pubkey: core.NewProposerDefinition(&eth2v1.ProposerDuty{Slot: slot, ValidatorIndex: 2}),
+	}
+
+	run := func(t *testing.T, schedule eth2wrap.ForkForkSchedule) (regCalls, epbsCalls int) {
+		t.Helper()
+
+		bmock, err := beaconmock.New(t.Context())
+		require.NoError(t, err)
+
+		fetch, err := fetcher.New(t.Context(), bmock, func(core.PubKey) string {
+			regCalls++
+			return zeroFeeRecipient(pubkey)
+		}, false, &fetcher.GraffitiBuilder{},
+			func() eth2wrap.ForkForkSchedule { return schedule }, 1,
+			func() *gloas.BuilderConfig { return &gloas.BuilderConfig{} }, func(core.PubKey) string {
+				epbsCalls++
+				return zeroFeeRecipient(pubkey)
+			}, false)
+		require.NoError(t, err)
+
+		fetch.RegisterAggSigDB(func(context.Context, core.Duty, core.PubKey, core.AwaitOpts) (core.SignedData, error) {
+			return testutil.RandomCoreSignature(), nil
+		})
+		fetch.Subscribe(func(context.Context, core.Duty, core.UnsignedDataSet) error { return nil })
+		fetch.SubscribePayloadContents(func(context.Context, core.VersionedProposal) error { return nil })
+
+		require.NoError(t, fetch.Fetch(t.Context(), core.NewProposerDuty(slot), defSet))
+
+		return regCalls, epbsCalls
+	}
+
+	reg, epbs := run(t, eth2wrap.ForkForkSchedule{eth2wrap.Electra: {Epoch: 5}})
+	require.Positive(t, reg)
+	require.Zero(t, epbs)
+
+	reg, epbs = run(t, eth2wrap.ForkForkSchedule{eth2wrap.Gloas: {Epoch: 0}})
+	require.Zero(t, reg)
+	require.Positive(t, epbs)
 }

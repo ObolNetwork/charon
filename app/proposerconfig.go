@@ -4,6 +4,8 @@ package app
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,46 +21,98 @@ import (
 // proposerConfigEditCmd is the command changing the proposer config cluster-wide.
 const proposerConfigEditCmd = "charon alpha edit proposer-config"
 
-// loadProposerConfig loads the validator client proposer config file on start, writing the initial one if it is
-// absent and verifying it. Only a file of another
-// cluster and an initial config needed but underivable return errors; other failures are logged and a document returned.
-func loadProposerConfig(ctx context.Context, conf Config, lock cluster.Lock, nodeIdx cluster.NodeIdx,
+// newProposerConfigService returns the service of the validator client proposer config file, loading the file on
+// start: the initial one is written if it is absent, a present one is verified. Only a file of another
+// cluster and an initial config needed but underivable return errors; other failures are logged and a service returned.
+func newProposerConfigService(ctx context.Context, conf Config, lock cluster.Lock, nodeIdx cluster.NodeIdx,
 	feeRecipientFunc func(core.PubKey) string, gloasActive func() bool,
-) (proposerconfig.Document, error) {
+) (*proposerConfigService, error) {
+	path := conf.ProposerConfigFile
+
 	// The initial config is only derived when needed, a valid signed file never depends on it.
 	initial := func() (proposerconfig.Document, error) {
 		return InitialProposerConfig(lock, conf.ProposerConfigSeed, feeRecipientFunc)
 	}
 
-	if conf.TestConfig.Lock != nil {
-		// In-memory test lock, there is no cluster directory holding the file.
-		return initial()
+	// changes receives the file changes to reload, nil without a watcher.
+	var changes <-chan struct{}
+
+	// serve returns the service of the document, parsing its config once. verified says whether the document
+	// passed verification: an unverified one is replaced by any verified file.
+	serve := func(doc proposerconfig.Document, verified bool) (*proposerConfigService, error) {
+		snap, err := newProposerConfigSnapshot(doc, verified)
+		if err != nil {
+			return nil, err
+		}
+
+		initBuilderConfigMetrics(snap.builder)
+
+		s := &proposerConfigService{lock: lock, nodeIdx: nodeIdx, path: path, changes: changes}
+		s.current.Store(snap)
+
+		return s, nil
 	}
 
-	path := conf.ProposerConfigFile
 	ctx = log.WithCtx(ctx, z.Str("path", path))
 
-	doc, err := proposerconfig.Load(path, lock, nodeIdx)
-	if errors.Is(err, proposerconfig.ErrLockHashMismatch) {
-		return proposerconfig.Document{}, errors.Wrap(err, "proposer config file belongs to another cluster (after a lock-changing edit, use vc-config/ from its output directory)")
-	} else if errors.Is(err, proposerconfig.ErrNotFound) {
-		return writeInitialProposerConfig(ctx, path, lock, nodeIdx, initial, gloasActive)
-	} else if err != nil {
-		// Leave the file untouched for the operator to inspect, charon uses the initial config meanwhile.
+	if conf.TestConfig.Lock != nil {
+		// In-memory test lock, there is no cluster directory holding the file.
+		doc, err := initial()
+		if err != nil {
+			return nil, err
+		}
+
+		return serve(doc, true) // Unsigned revision 0 verifies.
+	}
+
+	// Watched before loading, so that a file replaced meanwhile is reloaded, in the directory the initial file is written into.
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
+		log.Error(ctx, "Failed creating proposer config directory, changes need a restart", err)
+	} else {
+		changes, err = watchFile(ctx, path)
+		if err != nil {
+			log.Error(ctx, "Failed watching proposer config file, changes need a restart", err)
+		}
+	}
+
+	// unusable leaves the file untouched for the operator to inspect, charon uses the initial config meanwhile.
+	unusable := func(err error) (*proposerConfigService, error) {
 		log.Error(ctx, "Failed loading proposer config file, using one derived from the lock and flags; fix it or delete it to regenerate", err)
 
-		doc, err = initial()
+		doc, err := initial()
 		if err != nil {
-			return proposerconfig.Document{}, err
+			return nil, err
 		}
 
 		setProposerConfigGauges(doc, false)
 
-		return doc, nil
+		return serve(doc, true)
+	}
+
+	doc, err := proposerconfig.Load(path, lock, nodeIdx)
+	if errors.Is(err, proposerconfig.ErrLockHashMismatch) {
+		return nil, errors.Wrap(err, "proposer config file belongs to another cluster (after a lock-changing edit, use vc-config/ from its output directory)")
+	} else if errors.Is(err, proposerconfig.ErrNotFound) {
+		doc, err := writeInitialProposerConfig(ctx, path, lock, nodeIdx, initial, gloasActive)
+		if err != nil {
+			return nil, err
+		}
+
+		return serve(doc, true)
+	} else if err != nil {
+		return unusable(err)
 	}
 
 	err = proposerconfig.Verify(doc, lock)
 	valid := err == nil
+
+	// Config charon cannot parse is as unusable as an undecodable file, verified or not.
+	s, serveErr := serve(doc, valid)
+	if serveErr != nil {
+		return unusable(serveErr)
+	}
+
 	setProposerConfigGauges(doc, valid)
 
 	if valid {
@@ -79,7 +133,7 @@ func loadProposerConfig(ctx context.Context, conf Config, lock cluster.Lock, nod
 		warnSignedProposerConfigOverridesFlags(ctx, doc, conf.ProposerConfigSeed)
 	}
 
-	return doc, nil
+	return s, nil
 }
 
 // writeInitialProposerConfig writes the initial config to the absent file, returning it even if the write fails.

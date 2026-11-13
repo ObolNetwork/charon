@@ -3,6 +3,9 @@
 package app
 
 import (
+	"net/url"
+
+	"github.com/attestantio/go-eth2-client/spec/gloas"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/obolnetwork/charon/app/featureset"
@@ -192,4 +195,41 @@ func initStartupMetrics(peerName string, threshold, numOperators, numValidators 
 	thresholdGauge.Set(float64(threshold))
 	operatorsGauge.Set(float64(numOperators))
 	validatorsGauge.Set(float64(numValidators))
+}
+
+// initBuilderConfigMetrics sets the builder config gauges to the builder configuration sent to the beacon node, so
+// central monitoring can compare the values across the cluster nodes. It first clears previously set gauges, which
+// are absent without builders.
+func initBuilderConfigMetrics(cfg *gloas.BuilderConfig) {
+	builderURLGauge.Reset()
+	builderMinBidGauge.Reset()
+	builderBoostFactorGauge.Reset()
+	builderMaxExecutionPaymentGauge.Reset()
+
+	if cfg == nil || len(cfg.Builders) == 0 {
+		return
+	}
+
+	for _, entry := range cfg.Builders {
+		builderURLGauge.WithLabelValues(withoutUserInfo(string(entry.URL))).Set(1)
+	}
+
+	builderMinBidGauge.WithLabelValues().Set(float64(cfg.MinBid))
+	builderBoostFactorGauge.WithLabelValues().Set(float64(cfg.BuilderBoostFactor))
+	// The max execution payment is per entry, all carrying the file's default since it allows no per-builder overrides.
+	builderMaxExecutionPaymentGauge.WithLabelValues().Set(float64(cfg.Builders[0].MaxExecutionPayment))
+}
+
+// withoutUserInfo returns the URL without its user info. Relay URLs carry the relay's public key as the
+// username, which only lengthens the label, and private builders may carry a password. A URL that does not
+// parse is replaced, since it cannot be stripped: the file is not validated like the flags are.
+func withoutUserInfo(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "invalid"
+	}
+
+	u.User = nil
+
+	return u.String()
 }
