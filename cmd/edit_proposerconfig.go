@@ -99,8 +99,8 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 	}
 
 	f := cmd.Flags()
-	f.StringVar(&flags.feeRecipient, feeRecipientFlag, "", "The new fee recipient address, applied to all validators or those in --fee-recipient-validators.")
-	f.StringSliceVar(&flags.feeRecipientValidators, feeRecipientValidatorsFlag, nil, "Comma-separated DV public keys the fee recipient applies to, default all. Requires --fee-recipient and excludes every other change flag.")
+	f.StringVar(&flags.feeRecipient, feeRecipientFlag, "", "The new default fee recipient address, validators with their own fee recipient keep it. Applied to the validators in --fee-recipient-validators instead if set.")
+	f.StringSliceVar(&flags.feeRecipientValidators, feeRecipientValidatorsFlag, nil, "Comma-separated DV public keys the fee recipient applies to in place of the default, a validator set to the default loses its own entry. Requires --fee-recipient and excludes every other change flag.")
 	f.Uint64Var(&flags.gasLimit, gasLimitFlag, 0, "The new cluster-wide preferred target gas limit, must be greater than 0.")
 	f.StringSliceVar(&flags.builderURLs, builderURLsFlag, nil, "Comma-separated builder API URLs replacing the current ones, in order of preference.")
 	f.Uint64Var(&flags.builderMinBid, builderMinBidFlag, 0, "The new minimum builder bid value in gwei. Requires an existing builder block or --builder-urls.")
