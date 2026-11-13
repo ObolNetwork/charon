@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -219,7 +220,83 @@ func TestEditProposerConfigParticipants(t *testing.T) {
 	}
 }
 
+func TestEditProposerConfigProposalFile(t *testing.T) {
+	const proposalJSON = `{"version":"v1.0.0","lock_hash":"0x0102","revision":3,` +
+		`"default_config":{"fee_recipient":"` + editFeeRecipientLower + `","gas_limit":"60000000"}}`
+
+	dir := t.TempDir()
+	file := path.Join(dir, "proposal.json")
+	require.NoError(t, os.WriteFile(file, []byte(proposalJSON), 0o600))
+
+	invalid := path.Join(dir, "invalid.json")
+	require.NoError(t, os.WriteFile(invalid, []byte(`{"version":"v1.0.0","revision":3,"default_config":{"gas_limit":"1"}}`), 0o600))
+
+	run := func(t *testing.T, args ...string) (dkg.ProposerConfigEditConfig, error) {
+		t.Helper()
+
+		var got dkg.ProposerConfigEditConfig
+
+		cmd := newEditProposerConfigCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
+			got = conf
+			return nil
+		})
+		cmd.SetArgs(args)
+		cmd.SetOut(io.Discard)
+		cmd.SetErr(io.Discard)
+
+		return got, cmd.Execute()
+	}
+
+	t.Run("proposal file", func(t *testing.T) {
+		got, err := run(t, "--proposal-file="+file)
+		require.NoError(t, err)
+		require.Equal(t, proposerconfig.Delta{}, got.Delta)
+		require.NotNil(t, got.Proposal)
+		require.Equal(t, uint64(3), got.Proposal.Revision)
+		require.Equal(t, []byte{1, 2}, got.Proposal.LockHash)
+		require.Equal(t, "60000000", got.Proposal.Config.DefaultConfig.GasLimit)
+		require.Empty(t, got.WriteProposalFile)
+	})
+
+	t.Run("write proposal file", func(t *testing.T) {
+		got, err := run(t, "--gas-limit=60000000", "--write-proposal-file=out.json")
+		require.NoError(t, err)
+		require.Equal(t, proposerconfig.Delta{GasLimit: 60_000_000}, got.Delta)
+		require.Nil(t, got.Proposal)
+		require.Equal(t, "out.json", got.WriteProposalFile)
+	})
+
+	tests := []struct {
+		name   string
+		args   []string
+		errMsg string
+	}{
+		{"file and change flag", []string{"--proposal-file=" + file, "--gas-limit=1"}, "proposal-file excludes the change flags"},
+		{"file and no builders", []string{"--proposal-file=" + file, "--no-builders"}, "proposal-file excludes the change flags"},
+		{"file and write", []string{"--proposal-file=" + file, "--write-proposal-file=out.json"}, "proposal-file excludes write-proposal-file"},
+		{"empty write path", []string{"--gas-limit=1", "--write-proposal-file="}, "write-proposal-file must not be empty"},
+		{"write without change", []string{"--write-proposal-file=out.json"}, "no change requested"},
+		{"missing file", []string{"--proposal-file=" + path.Join(dir, "missing.json")}, "read proposal file"},
+		{"invalid file", []string{"--proposal-file=" + invalid}, "parse proposal file"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := run(t, test.args...)
+			require.ErrorContains(t, err, test.errMsg)
+		})
+	}
+}
+
 func TestEditProposerConfigOutput(t *testing.T) {
+	t.Run("proposal file written", func(t *testing.T) {
+		var buf bytes.Buffer
+
+		printEditProposerConfigResult(&buf, dkg.ProposerConfigEditResult{Revision: 4, Hash: [32]byte{0x7c, 0x41, 0xff}, Operators: 4, ProposalFile: "out.json"})
+
+		require.Equal(t, "Proposal for proposer config revision 4 (hash 0x7c41ff0000000000…) written to out.json.\n"+
+			"Nothing is changed yet: send the file to the other operators, then all run this command with --proposal-file.\n", buf.String())
+	})
+
 	t.Run("success", func(t *testing.T) {
 		var buf bytes.Buffer
 

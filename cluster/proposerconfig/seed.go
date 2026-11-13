@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 
@@ -27,50 +29,79 @@ type Seed struct {
 	NonDefault []string
 }
 
-// seedFile is the seed file: the version and default_config of the proposer config file. It holds no fee recipient
-// and no proposer_config: fee recipients are per validator and come from the cluster definition through the lock,
-// joined with the seed's gas limit and builders when the initial config is built.
-type seedFile struct {
-	Version       string   `json:"version"`
-	DefaultConfig Settings `json:"default_config"`
+// configFile is the file form shared by the seed file and the proposal file: the proposer config file without
+// revision hash and signatures. A seed file only sets the version and a default_config without a fee recipient:
+// it holds no fee recipient and no proposer_config, since fee recipients are per validator and come from the
+// cluster definition through the lock, joined with the seed's gas limit and builders when the initial config is
+// built. A proposal file is complete on its own and names the lock and the revision it proposes.
+type configFile struct {
+	Version        string              `json:"version"`
+	LockHash       string              `json:"lock_hash,omitempty"`
+	Revision       uint64              `json:"revision,omitempty"`
+	DefaultConfig  Settings            `json:"default_config"`
+	ProposerConfig map[string]Settings `json:"proposer_config,omitempty"`
+}
+
+// decodeConfigFile strictly decodes a seed or proposal file: unknown fields, trailing data and other major
+// versions are rejected.
+func decodeConfigFile(b []byte) (configFile, error) {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+
+	var file configFile
+
+	err := dec.Decode(&file)
+	if err != nil {
+		return configFile{}, errors.Wrap(err, "decode file")
+	}
+
+	err = dec.Decode(&struct{}{})
+	if !errors.Is(err, io.EOF) {
+		return configFile{}, errors.New("file has trailing data")
+	}
+
+	if major(file.Version) != major(Version) {
+		return configFile{}, errors.New("unsupported file version", z.Str("version", file.Version), z.Str("supported", Version))
+	}
+
+	return file, nil
 }
 
 // ParseSeed returns the seed held by a seed file. Fields a seed cannot set, such as fee recipients, proposer_config
 // or per-builder overrides, are rejected.
 func ParseSeed(b []byte) (Seed, error) {
-	dec := json.NewDecoder(bytes.NewReader(b))
-	dec.DisallowUnknownFields()
-
-	var file seedFile
-
-	err := dec.Decode(&file)
+	file, err := decodeConfigFile(b)
 	if err != nil {
-		return Seed{}, errors.Wrap(err, "decode seed file")
+		return Seed{}, err
 	}
 
-	err = dec.Decode(&struct{}{})
-	if !errors.Is(err, io.EOF) {
-		return Seed{}, errors.New("seed file has trailing data")
+	switch {
+	case file.LockHash != "":
+		return Seed{}, errors.New("lock_hash must not be set in a seed file")
+	case file.Revision != 0:
+		return Seed{}, errors.New("revision must not be set in a seed file")
+	case file.ProposerConfig != nil:
+		return Seed{}, errors.New("proposer_config must not be set in a seed file")
+	case file.DefaultConfig.FeeRecipient != "":
+		return Seed{}, errors.New("default_config.fee_recipient must not be set in a seed file, fee recipients come from the cluster definition")
 	}
 
-	if major(file.Version) != major(Version) {
-		return Seed{}, errors.New("unsupported seed file version", z.Str("version", file.Version), z.Str("supported", Version))
-	}
+	return seedFromSettings(file.DefaultConfig)
+}
 
-	settings := file.DefaultConfig
-	if settings.FeeRecipient != "" {
-		return Seed{}, errors.New("seed file default_config.fee_recipient must not be set, fee recipients come from the cluster definition")
-	}
-
+// seedFromSettings returns the gas limit and builder of a default_config as a seed.
+func seedFromSettings(settings Settings) (Seed, error) {
 	seed := Seed{BuilderBoostFactor: DefaultBuilderBoostFactor}
 
-	seed.GasLimit, err = parseSeedUint("gas_limit", settings.GasLimit)
+	var err error
+
+	seed.GasLimit, err = parseSettingsUint("gas_limit", settings.GasLimit)
 	if err != nil {
 		return Seed{}, err
 	}
 
 	if seed.GasLimit == 0 {
-		return Seed{}, errors.New("seed file default_config.gas_limit must be greater than 0")
+		return Seed{}, errors.New("default_config.gas_limit must be greater than 0")
 	}
 
 	builder := settings.Builder
@@ -79,32 +110,32 @@ func ParseSeed(b []byte) (Seed, error) {
 	}
 
 	if len(builder.Builders) == 0 {
-		return Seed{}, errors.New("seed file default_config.builder.builders must not be empty")
+		return Seed{}, errors.New("default_config.builder.builders must not be empty")
 	}
 
 	for _, entry := range builder.Builders {
 		if entry != (BuilderEntry{URL: entry.URL}) {
-			return Seed{}, errors.New("seed file default_config.builder.builders entry must only set url")
+			return Seed{}, errors.New("default_config.builder.builders entry must only set url")
 		}
 
 		seed.BuilderURLs = append(seed.BuilderURLs, entry.URL)
 	}
 
-	seed.BuilderMinBid, err = parseSeedUint("builder.min_bid", builder.MinBid)
+	seed.BuilderMinBid, err = parseSettingsUint("builder.min_bid", builder.MinBid)
 	if err != nil {
 		return Seed{}, err
 	}
 
-	seed.BuilderBoostFactor, err = parseSeedUint("builder.builder_boost_factor", builder.BuilderBoostFactor)
+	seed.BuilderBoostFactor, err = parseSettingsUint("builder.builder_boost_factor", builder.BuilderBoostFactor)
 	if err != nil {
 		return Seed{}, err
 	}
 
 	if seed.BuilderBoostFactor == 0 {
-		return Seed{}, errors.New("seed file default_config.builder.builder_boost_factor must be greater than 0")
+		return Seed{}, errors.New("default_config.builder.builder_boost_factor must be greater than 0")
 	}
 
-	seed.BuilderMaxExecutionPayment, err = parseSeedUint("builder.max_execution_payment", builder.MaxExecutionPayment)
+	seed.BuilderMaxExecutionPayment, err = parseSettingsUint("builder.max_execution_payment", builder.MaxExecutionPayment)
 	if err != nil {
 		return Seed{}, err
 	}
@@ -112,11 +143,11 @@ func ParseSeed(b []byte) (Seed, error) {
 	return seed, nil
 }
 
-// parseSeedUint parses a seed file's decimal string value; field names it in errors.
-func parseSeedUint(field, value string) (uint64, error) {
+// parseSettingsUint parses a default_config decimal string value; field names it in errors.
+func parseSettingsUint(field, value string) (uint64, error) {
 	v, err := strconv.ParseUint(value, 10, 64)
 	if err != nil {
-		return 0, errors.Wrap(err, "parse seed file default_config."+field)
+		return 0, errors.Wrap(err, "parse default_config."+field)
 	}
 
 	return v, nil
@@ -124,15 +155,45 @@ func parseSeedUint(field, value string) (uint64, error) {
 
 // MarshalSeed returns the seed file holding the seed.
 func MarshalSeed(seed Seed) ([]byte, error) {
-	b, err := json.MarshalIndent(seedFile{
+	return marshalConfigFile(configFile{
 		Version:       Version,
 		DefaultConfig: Settings{GasLimit: strconv.FormatUint(seed.GasLimit, 10), Builder: seed.Builder()},
-	}, "", "  ")
+	})
+}
+
+func marshalConfigFile(file configFile) ([]byte, error) {
+	b, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
-		return nil, errors.Wrap(err, "marshal seed file")
+		return nil, errors.Wrap(err, "marshal file")
 	}
 
-	return b, nil
+	return append(b, '\n'), nil
+}
+
+// WriteNewFile writes a seed or proposal file read-only for everybody, creating its directory; an existing file
+// is not overwritten.
+func WriteNewFile(path string, data []byte) error {
+	// Best effort creation of the directory, but error when writing the file.
+	_ = os.MkdirAll(filepath.Dir(path), 0o755)
+
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o444)
+	if err != nil {
+		return errors.Wrap(err, "create file")
+	}
+
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+
+	if err != nil {
+		// A partial file would block the retry.
+		_ = os.Remove(path)
+
+		return errors.Wrap(err, "write file")
+	}
+
+	return nil
 }
 
 // Validate checks the seed flags.

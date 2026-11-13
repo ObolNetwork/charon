@@ -31,6 +31,14 @@ type editProposerConfigFlags struct {
 	builderBoostFactor     uint64
 	builderMaxPayment      uint64
 	noBuilders             bool
+	// proposalFile is the path or URL of a proposal file, the alternative to the change flags.
+	proposalFile string
+}
+
+// editChangeFlags are the change flags of the edit proposer-config command, excluded by a proposal file.
+var editChangeFlags = []string{
+	"fee-recipient", "fee-recipient-validators", "gas-limit", "builder-urls", "builder-min-bid",
+	"builder-boost-factor", "builder-max-execution-payment", "no-builders",
 }
 
 func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.ProposerConfigEditConfig) error) *cobra.Command {
@@ -44,21 +52,35 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 		Short: "Change the cluster's signed proposer config",
 		Long: "Changes the fee recipients, gas limit or builders in the cluster's proposer config file. " +
 			"All participating operators run the same command, agree on the new revision, sign it and each writes it with the collected signatures. " +
+			"One operator can write the change to a proposal file with --write-proposal-file for the others to pass with --proposal-file in place of the change flags. " +
 			"Restart the validator client afterwards to apply it.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			delta, err := flags.delta(cmd)
-			if err != nil {
-				return err
-			}
-
-			config.Delta = delta
-
 			if err := log.InitLogger(config.DKGConfig.Log); err != nil {
 				return err
 			}
 
 			routeLibP2PLogs() // Route libp2p logging to charon logger
+
+			if cmd.Flags().Changed("write-proposal-file") && config.WriteProposalFile == "" {
+				return errors.New("write-proposal-file must not be empty")
+			}
+
+			if cmd.Flags().Changed("proposal-file") {
+				proposal, err := flags.proposal(cmd, config.WriteProposalFile)
+				if err != nil {
+					return err
+				}
+
+				config.Proposal = &proposal
+			} else {
+				delta, err := flags.delta(cmd)
+				if err != nil {
+					return err
+				}
+
+				config.Delta = delta
+			}
 
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
 		},
@@ -73,6 +95,8 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 	f.Uint64Var(&flags.builderBoostFactor, "builder-boost-factor", proposerconfig.DefaultBuilderBoostFactor, "The new percentage multiplier applied to builder bid values, must be greater than 0. Requires an existing builder block or --builder-urls.")
 	f.Uint64Var(&flags.builderMaxPayment, "builder-max-execution-payment", 0, "The new maximum execution layer payment in gwei counted when valuing a builder bid. Requires an existing builder block or --builder-urls.")
 	f.BoolVar(&flags.noBuilders, "no-builders", false, "Remove the builder settings. Excludes the other --builder-* flags.")
+	f.StringVar(&flags.proposalFile, "proposal-file", "", "The path to a proposal file or an HTTP URL, holding the next proposer config revision written by one operator with --write-proposal-file. Excludes the change flags. Must be identical on all operators.")
+	f.StringVar(&config.WriteProposalFile, "write-proposal-file", "", "The path to write the proposal file of the change flags to, for the other operators' --proposal-file. Nothing else is changed and no ceremony runs.")
 	f.StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony, this node included. Defaults to all operators, at least the cluster threshold is required.")
 	f.StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
 	f.StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
@@ -88,6 +112,31 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 	bindEth1Flag(f, &config.DKGConfig.ExecutionEngineAddr)
 
 	return cmd
+}
+
+// proposal returns the unsigned revision of the proposal file, which excludes the change flags and writing one.
+func (f editProposerConfigFlags) proposal(cmd *cobra.Command, writeProposalFile string) (proposerconfig.Document, error) {
+	if slices.ContainsFunc(editChangeFlags, cmd.Flags().Changed) {
+		return proposerconfig.Document{}, errors.New("proposal-file excludes the change flags")
+	}
+
+	if writeProposalFile != "" {
+		return proposerconfig.Document{}, errors.New("proposal-file excludes write-proposal-file")
+	}
+
+	b, err := readFileOrURL(cmd.Context(), f.proposalFile)
+	if err != nil {
+		return proposerconfig.Document{}, errors.Wrap(err, "read proposal file")
+	}
+
+	doc, err := proposerconfig.ParseProposal(b)
+	if err != nil {
+		return proposerconfig.Document{}, errors.Wrap(err, "parse proposal file")
+	}
+
+	log.Info(cmd.Context(), "Proposal file loaded", z.Str("source", log.RedactURL(f.proposalFile, false)), z.U64("revision", doc.Revision))
+
+	return doc, nil
 }
 
 // delta validates the change flags and returns the delta they describe.
@@ -217,6 +266,14 @@ func printPreGloasWarning(w io.Writer, lock cluster.Lock, now time.Time) {
 
 // printEditProposerConfigResult prints the outcome and the VC restart instruction.
 func printEditProposerConfigResult(w io.Writer, res dkg.ProposerConfigEditResult) {
+	if res.ProposalFile != "" {
+		_, _ = fmt.Fprintf(w, "Proposal for proposer config revision %d (hash 0x%s…) written to %s.\n",
+			res.Revision, hex.EncodeToString(res.Hash[:8]), res.ProposalFile)
+		_, _ = fmt.Fprintln(w, "Nothing is changed yet: send the file to the other operators, then all run this command with --proposal-file.")
+
+		return
+	}
+
 	if res.Adopted {
 		_, _ = fmt.Fprintln(w, "This node was behind and adopted a newer signed revision from its peers as the base of the change.")
 	}

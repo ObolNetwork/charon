@@ -4,6 +4,7 @@ package dkg_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"slices"
@@ -41,9 +42,20 @@ func TestEditAllAgree(t *testing.T) {
 	before := readProposerConfigFiles(t, clusterDir, n)
 	relayAddr := relay.StartRelay(t.Context(), t)
 
+	// Node 0 writes the proposal file; half of the operators pass it, the others the equal change flags.
+	proposal := writeTestProposal(t, clusterDir, 0, proposerconfig.Delta{GasLimit: 60_000_000})
+	requireFilesUnchanged(t, clusterDir, before)
+
 	var confs []dkg.ProposerConfigEditConfig
+
 	for i := range n {
-		confs = append(confs, editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 60_000_000}))
+		conf := editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 60_000_000})
+		if i >= n/2 {
+			conf.Delta = proposerconfig.Delta{}
+			conf.Proposal = &proposal
+		}
+
+		confs = append(confs, conf)
 	}
 
 	results, errs := runEdits(confs)
@@ -137,10 +149,21 @@ func TestEditThreshold(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, before[absent], absentFile)
 
-	// The absent operator joins the next edit, adopting the signed revision 1 as its base.
+	// The absent operator joins the next edit, adopting the signed revision 1 as its base. It passes a proposal
+	// file for revision 2, ahead of its local revision 0.
+	proposal := writeTestProposal(t, clusterDir, 0, proposerconfig.Delta{GasLimit: 80_000_000})
+	require.Equal(t, uint64(2), proposal.Revision)
+
 	confs = nil
+
 	for i := range n {
-		confs = append(confs, editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 80_000_000}))
+		conf := editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 80_000_000})
+		if i == absent {
+			conf.Delta = proposerconfig.Delta{}
+			conf.Proposal = &proposal
+		}
+
+		confs = append(confs, conf)
 	}
 
 	results, errs = runEdits(confs)
@@ -432,6 +455,125 @@ func TestEditRejectedBeforeNetworking(t *testing.T) {
 			require.False(t, networked.Load())
 		})
 	}
+}
+
+// TestEditProposalFile verifies the proposal file checks made before any networking.
+func TestEditProposalFile(t *testing.T) {
+	clusterDir, lock, cfg := setupEditCluster(t)
+
+	gasLimit, err := cfg.GasLimit()
+	require.NoError(t, err)
+
+	proposal := writeTestProposal(t, clusterDir, 0, proposerconfig.Delta{GasLimit: 60_000_000})
+
+	t.Run("existing file is not overwritten", func(t *testing.T) {
+		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{GasLimit: 70_000_000})
+		conf.WriteProposalFile = path.Join(clusterDir, "proposal.json")
+		require.NoError(t, os.WriteFile(conf.WriteProposalFile, []byte("{}"), 0o600))
+
+		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+		require.ErrorIs(t, err, os.ErrExist)
+	})
+
+	t.Run("unusable change is not written", func(t *testing.T) {
+		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{BuilderURLs: []string{"https://bücher.example"}})
+		conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
+
+		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+		require.ErrorContains(t, err, "no ASCII hostname")
+		require.NoFileExists(t, conf.WriteProposalFile)
+	})
+
+	t.Run("no change is not written", func(t *testing.T) {
+		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{GasLimit: gasLimit})
+		conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
+
+		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+		require.ErrorIs(t, err, proposerconfig.ErrNoChange)
+		require.NoFileExists(t, conf.WriteProposalFile)
+	})
+
+	tests := []struct {
+		name        string
+		mutate      func(*proposerconfig.Document)
+		errIs       error
+		errContains string
+	}{
+		{
+			name:   "another cluster",
+			mutate: func(d *proposerconfig.Document) { d.LockHash = []byte{1, 2, 3} },
+			errIs:  proposerconfig.ErrLockHashMismatch,
+		},
+		{
+			name:        "stale revision",
+			mutate:      func(d *proposerconfig.Document) { d.Revision = 0 },
+			errContains: "does not follow the cluster's proposer config revision",
+		},
+		{
+			name:   "no change",
+			mutate: func(d *proposerconfig.Document) { d.Config = cfg },
+			errIs:  proposerconfig.ErrNoChange,
+		},
+		{
+			name: "per validator gas limit",
+			mutate: func(d *proposerconfig.Document) {
+				d.Config.ProposerConfig = map[string]proposerconfig.Settings{fmt.Sprintf("%#x", lock.Validators[0].PubKey): {GasLimit: "1"}}
+			},
+			errContains: "sets more than fee_recipient",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc := proposal
+			test.mutate(&doc)
+
+			conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{})
+			conf.Proposal = &doc
+			networked := failOnNetworking(&conf)
+
+			_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+			if test.errIs != nil {
+				require.ErrorIs(t, err, test.errIs)
+			} else {
+				require.ErrorContains(t, err, test.errContains)
+			}
+
+			require.False(t, networked.Load())
+		})
+	}
+
+	t.Run("not written from a proposal file", func(t *testing.T) {
+		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{})
+		conf.Proposal = &proposal
+		conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
+
+		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+		require.ErrorContains(t, err, "cannot be written from a proposal file")
+	})
+}
+
+// writeTestProposal has node n write the proposal file of the delta, without a ceremony, and returns it parsed.
+func writeTestProposal(t *testing.T, clusterDir string, n int, delta proposerconfig.Delta) proposerconfig.Document {
+	t.Helper()
+
+	conf := editTestConfig(t, "", clusterDir, n, delta)
+	conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
+	networked := failOnNetworking(&conf)
+
+	res, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+	require.NoError(t, err)
+	require.False(t, networked.Load())
+	require.Equal(t, conf.WriteProposalFile, res.ProposalFile)
+	require.Zero(t, res.Signers)
+
+	b, err := os.ReadFile(conf.WriteProposalFile)
+	require.NoError(t, err)
+
+	doc, err := proposerconfig.ParseProposal(b)
+	require.NoError(t, err)
+	require.Equal(t, res.Revision, doc.Revision)
+
+	return doc
 }
 
 // setupEditCluster returns a cluster whose nodes hold the same unsigned revision 0 proposer config, its lock and config.

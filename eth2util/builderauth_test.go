@@ -3,10 +3,14 @@
 package eth2util_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -61,4 +65,22 @@ func TestBuilderAuthDataRequiresASCIIHostname(t *testing.T) {
 		_, err := eth2util.BuilderAuthData(url)
 		require.Error(t, err, url)
 	}
+}
+
+func TestBuilderAuthDataErrorRedactsURL(t *testing.T) {
+	_, err := eth2util.BuilderAuthData("https://user:password@[fe80::1%25eth0]/apikeySECRET123?token=secret")
+	require.ErrorContains(t, err, "invalid IPv6 literal")
+
+	// The URL is held by the error's fields.
+	enc := zapcore.NewMapObjectEncoder()
+
+	for _, field := range z.Fields(err) {
+		field(func(f zap.Field) { f.AddTo(enc) })
+	}
+
+	msg := fmt.Sprint(enc.Fields)
+	require.Contains(t, msg, "fe80")
+	require.NotContains(t, msg, "password")
+	require.NotContains(t, msg, "apikeySECRET123")
+	require.NotContains(t, msg, "token=secret")
 }

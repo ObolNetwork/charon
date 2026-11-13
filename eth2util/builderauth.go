@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 )
 
@@ -22,7 +23,7 @@ func BuilderAuthData(builderURL string) ([]byte, error) {
 
 	_, rest, ok := strings.Cut(url, "://")
 	if !ok {
-		return nil, errors.New("builder URL has no scheme", z.Str("url", builderURL))
+		return nil, errors.New("builder URL has no scheme", z.Str("url", log.RedactURL(builderURL, true)))
 	}
 
 	authority, _, _ := strings.Cut(rest, "/")
@@ -38,12 +39,12 @@ func BuilderAuthData(builderURL string) ([]byte, error) {
 	if literal, ok := strings.CutPrefix(authority, "["); ok {
 		literal, _, ok = strings.Cut(literal, "]")
 		if !ok {
-			return nil, errors.New("builder URL has an unterminated IPv6 literal", z.Str("url", builderURL))
+			return nil, errors.New("builder URL has an unterminated IPv6 literal", z.Str("url", log.RedactURL(builderURL, true)))
 		}
 
 		addr, err := netip.ParseAddr(literal)
 		if err != nil || !addr.Is6() || addr.Zone() != "" {
-			return nil, errors.New("builder URL has an invalid IPv6 literal", z.Str("url", builderURL))
+			return nil, errors.New("builder URL has an invalid IPv6 literal", z.Str("url", log.RedactURL(builderURL, true)))
 		}
 
 		host = "[" + compressIPv6(addr) + "]"
@@ -52,7 +53,7 @@ func BuilderAuthData(builderURL string) ([]byte, error) {
 	}
 
 	if host == "" || !isASCII(host) {
-		return nil, errors.New("builder URL has no ASCII hostname", z.Str("url", builderURL))
+		return nil, errors.New("builder URL has no ASCII hostname", z.Str("url", log.RedactURL(builderURL, true)))
 	}
 
 	return []byte(strings.ToLower(host)), nil
