@@ -108,6 +108,40 @@ func TestResolveEditBase(t *testing.T) {
 	})
 }
 
+func TestEditProposal(t *testing.T) {
+	lock, keys := newEditTestLock(t)
+
+	rev0 := editTestDoc(t, lock, keys, 0, 36_000_000, nil)
+	rev1 := editTestDoc(t, lock, keys, 1, 60_000_000, []int{0, 1, 2})
+	file := editTestDoc(t, lock, keys, 2, 80_000_000, nil)
+
+	flags := ProposerConfigEditConfig{Delta: proposerconfig.Delta{GasLimit: 80_000_000}}
+	fromFile := ProposerConfigEditConfig{Proposal: &file}
+
+	// The delta applies to any base, as after adopting a newer signed revision.
+	for _, base := range []proposerconfig.Document{rev0, rev1} {
+		got, err := editProposal(lock, base, flags)
+		require.NoError(t, err)
+		require.Equal(t, base.Revision+1, got.Revision)
+	}
+
+	// The proposal file only follows the revision it was written for, where it equals the flags' proposal.
+	want, err := editProposal(lock, rev1, flags)
+	require.NoError(t, err)
+
+	got, err := editProposal(lock, rev1, fromFile)
+	require.NoError(t, err)
+	requireSameDoc(t, want, got)
+
+	_, err = editProposal(lock, rev0, fromFile)
+	require.ErrorContains(t, err, "does not follow the cluster's proposer config revision")
+
+	// Ahead of the local file it is deferred until a newer revision is adopted.
+	require.True(t, proposalDeferred(fromFile, rev0))
+	require.False(t, proposalDeferred(fromFile, rev1))
+	require.False(t, proposalDeferred(flags, rev0))
+}
+
 func TestCheckEditProposals(t *testing.T) {
 	lock, keys := newEditTestLock(t)
 
