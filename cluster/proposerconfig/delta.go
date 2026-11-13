@@ -12,8 +12,8 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 )
 
-// ErrNoChange is returned by Apply when the delta leaves the config unchanged.
-var ErrNoChange = errors.New("delta does not change the proposer config")
+// ErrNoChange is returned by Apply and ApplyProposal when the result equals the current config.
+var ErrNoChange = errors.New("proposer config is unchanged")
 
 // Delta is a set of changes to a Config. Zero values mean "not set": an empty FeeRecipient, a zero
 // GasLimit, nil BuilderURLs and builder pointers, and a false NoBuilders. FeeRecipientValidators holds DV
