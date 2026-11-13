@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"testing"
@@ -256,6 +258,19 @@ func TestEditProposerConfigProposalFile(t *testing.T) {
 		require.Equal(t, []byte{1, 2}, got.Proposal.LockHash)
 		require.Equal(t, "60000000", got.Proposal.Config.DefaultConfig.GasLimit)
 		require.Empty(t, got.WriteProposalFile)
+	})
+
+	t.Run("proposal file from url", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(proposalJSON))
+		}))
+		defer srv.Close()
+
+		got, err := run(t, "--proposal-file="+srv.URL+"/proposal.json")
+		require.NoError(t, err)
+		require.NotNil(t, got.Proposal)
+		require.Equal(t, uint64(3), got.Proposal.Revision)
+		require.Equal(t, "60000000", got.Proposal.Config.DefaultConfig.GasLimit)
 	})
 
 	t.Run("write proposal file", func(t *testing.T) {

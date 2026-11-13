@@ -186,6 +186,54 @@ func TestEditThreshold(t *testing.T) {
 	require.NoFileExists(t, proposerconfig.ArchivePath(proposerconfig.FilePath(nodeDir(clusterDir, absent)), 1))
 }
 
+// TestEditProposalAhead verifies a proposal file ahead of the cluster fails when no operator holds a newer signed
+// revision to adopt.
+func TestEditProposalAhead(t *testing.T) {
+	const (
+		n     = editNodes
+		ahead = 1
+	)
+
+	clusterDir, _, _ := setupEditCluster(t)
+	before := readProposerConfigFiles(t, clusterDir, n)
+	relayAddr := relay.StartRelay(t.Context(), t)
+
+	proposal := writeTestProposal(t, clusterDir, ahead, proposerconfig.Delta{GasLimit: 60_000_000})
+	proposal.Revision = 2
+
+	// The other operators are stopped once the ahead one fails, instead of waiting for it until their timeout.
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{}, n)
+
+	for i := range n {
+		if i == ahead {
+			continue
+		}
+
+		conf := editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 60_000_000})
+
+		go func() {
+			_, _ = dkg.RunProposerConfigEdit(ctx, conf)
+
+			done <- struct{}{}
+		}()
+	}
+
+	conf := editTestConfig(t, relayAddr, clusterDir, ahead, proposerconfig.Delta{})
+	conf.Proposal = &proposal
+
+	_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+
+	cancel()
+
+	for range n - 1 {
+		<-done
+	}
+
+	require.ErrorContains(t, err, "no operator holds a newer signed revision")
+	requireFilesUnchanged(t, clusterDir, before)
+}
+
 // TestEditExcludedOperator verifies an operator left out of the participating list cannot join the ceremony,
 // which completes without it.
 func TestEditExcludedOperator(t *testing.T) {
