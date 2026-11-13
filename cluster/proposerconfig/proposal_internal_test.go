@@ -92,6 +92,22 @@ func TestApplyProposal(t *testing.T) {
 		require.Equal(t, want, got)
 	})
 
+	t.Run("default as written", func(t *testing.T) {
+		// The file's default is kept even if most validators have their own fee recipient.
+		proposal := Config{
+			DefaultConfig: Settings{FeeRecipient: addrA, GasLimit: "200000000"},
+			ProposerConfig: map[string]Settings{
+				pubkeyHex(lock.Validators[1].PubKey): {FeeRecipient: addrB},
+				v2:                                   {FeeRecipient: addrB},
+			},
+		}
+
+		got, err := ApplyProposal(lock, base, proposal)
+		require.NoError(t, err)
+		require.Equal(t, proposal.DefaultConfig, got.DefaultConfig)
+		require.Equal(t, proposal.ProposerConfig, got.ProposerConfig)
+	})
+
 	t.Run("zero fee recipient kept", func(t *testing.T) {
 		// A testnet cluster created with the zero address keeps it through other changes.
 		zero, err := NewConfig(lock, []string{zeroAddress, zeroAddress, zeroAddress}, DefaultGasLimit, nil)

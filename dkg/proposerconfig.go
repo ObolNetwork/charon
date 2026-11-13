@@ -354,7 +354,12 @@ func newLockProposerConfig(lock cluster.Lock, agreed proposerconfig.Config, carr
 
 	fees := append(agreed.FeeRecipients(carried), newFees...)
 
-	return proposerconfig.NewConfig(lock, fees, gasLimit, agreed.DefaultConfig.Builder)
+	// A fresh cluster has no default yet, it takes the majority fee recipient.
+	if agreed.DefaultConfig.FeeRecipient == "" {
+		return proposerconfig.NewConfig(lock, fees, gasLimit, agreed.DefaultConfig.Builder)
+	}
+
+	return proposerconfig.NewConfigWithDefault(lock, agreed.DefaultConfig.FeeRecipient, fees, gasLimit, agreed.DefaultConfig.Builder)
 }
 
 // exchangeProposerConfig exchanges all operators' signatures of the lock's revision 1 proposer config with the

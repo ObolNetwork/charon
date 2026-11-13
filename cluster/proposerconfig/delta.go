@@ -32,6 +32,7 @@ type Delta struct {
 // Apply returns the config with the delta applied, or ErrNoChange if the result equals c.
 func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 	fees := c.FeeRecipients(lock)
+	defaultFee := c.DefaultConfig.FeeRecipient
 
 	if d.FeeRecipient != "" {
 		var err error
@@ -39,6 +40,11 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 		fees, err = applyFeeRecipient(lock, c, fees, d)
 		if err != nil {
 			return Config{}, err
+		}
+
+		// Only the unscoped form moves the default.
+		if len(d.FeeRecipientValidators) == 0 {
+			defaultFee = d.FeeRecipient
 		}
 	}
 
@@ -74,7 +80,7 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 		}
 	}
 
-	res, err := NewConfig(lock, fees, gasLimit, builder)
+	res, err := NewConfigWithDefault(lock, defaultFee, fees, gasLimit, builder)
 	if err != nil {
 		return Config{}, err
 	}

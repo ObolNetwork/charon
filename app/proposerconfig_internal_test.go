@@ -230,7 +230,7 @@ func TestNewProposerConfigServiceRevision0Drift(t *testing.T) {
 
 		logs := f.logs.String()
 		require.Equal(t, 1, strings.Count(logs, "level=warn"), logs)
-		require.Contains(t, logs, "differences=4")
+		require.Contains(t, logs, "differences=5")
 		require.Contains(t, logs, "default.builder.urls")
 	})
 }
