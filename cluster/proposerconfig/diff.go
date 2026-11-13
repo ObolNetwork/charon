@@ -11,8 +11,8 @@ import (
 )
 
 // Diff returns the fields that differ between a and b as "field: old -> new" lines, empty values as "none": the
-// default gas limit and builder fields first, then each lock validator whose effective fee recipient differs, in
-// lock order.
+// default fee recipient, gas limit and builder fields first, then each lock validator whose effective fee
+// recipient differs, in lock order.
 func Diff(lock cluster.Lock, a, b Config) []string {
 	orNone := func(s string) string {
 		if s == "" {
@@ -30,6 +30,7 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 		}
 	}
 
+	add("default.fee_recipient", a.DefaultConfig.FeeRecipient, b.DefaultConfig.FeeRecipient)
 	add("default.gas_limit", a.DefaultConfig.GasLimit, b.DefaultConfig.GasLimit)
 
 	oldB, newB := flattenBuilder(a.DefaultConfig.Builder), flattenBuilder(b.DefaultConfig.Builder)
