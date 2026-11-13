@@ -18,12 +18,16 @@ type ReshareConfig struct {
 	LockFilePath     string
 	ValidatorKeysDir string
 	OutputDir        string
+	// ProposerConfigFile is the current proposer config file, its content is carried over into the new lock.
+	ProposerConfigFile string
+	// OverridesFile is the builder registration overrides file feeding the initial proposer config when ProposerConfigFile is absent.
+	OverridesFile string
 }
 
 // RunReshareProtocol runs the reshare DKG protocol (same operators set).
 func RunReshareProtocol(ctx context.Context, config ReshareConfig) error {
 	return RunProtocol(ctx,
-		newReshareProtocol(config.OutputDir),
+		newReshareProtocol(config),
 		config.LockFilePath,
 		config.PrivateKeyPath,
 		config.ValidatorKeysDir,
@@ -31,16 +35,20 @@ func RunReshareProtocol(ctx context.Context, config ReshareConfig) error {
 }
 
 type reshareProtocol struct {
-	outputDir string
-	config    *pedersen.Config
-	board     *pedersen.Board
+	outputDir          string
+	proposerConfigFile string
+	overridesFile      string
+	config             *pedersen.Config
+	board              *pedersen.Board
 }
 
 var _ Protocol = (*reshareProtocol)(nil)
 
-func newReshareProtocol(outputDir string) *reshareProtocol {
+func newReshareProtocol(config ReshareConfig) *reshareProtocol {
 	return &reshareProtocol{
-		outputDir: outputDir,
+		outputDir:          config.OutputDir,
+		proposerConfigFile: config.ProposerConfigFile,
+		overridesFile:      config.OverridesFile,
 	}
 }
 
@@ -60,6 +68,11 @@ func (p *reshareProtocol) PostInit(ctx context.Context, pctx *ProtocolContext) e
 	pctx.Caster = bcast.New(pctx.ThisNode, pctx.PeerIDs, pctx.ENRPrivateKey, pctx.Lock.LockHash)
 	pctx.NodeSigCaster = newNodeSigBcast(pctx.Peers, pctx.ThisNodeIdx, pctx.Caster, nodeSigMsgID)
 
+	err = initProposerConfig(ctx, pctx, p.proposerConfigFile, p.overridesFile, false)
+	if err != nil {
+		return err
+	}
+
 	pedersenReshareConfig := pedersen.NewReshareConfig(len(pctx.Lock.Validators), pctx.Lock.Threshold, nil, nil)
 	p.config = pedersen.NewConfig(pctx.ThisPeerID, pctx.PeerMap, pctx.Lock.Threshold, pctx.Lock.DefinitionHash, pctx.Config.Timeout/6, pedersenReshareConfig)
 	p.board = pedersen.NewBoard(ctx, pctx.ThisNode, p.config, pctx.Caster)
@@ -69,6 +82,7 @@ func (p *reshareProtocol) PostInit(ctx context.Context, pctx *ProtocolContext) e
 
 func (p *reshareProtocol) Steps(*ProtocolContext) []ProtocolStep {
 	return []ProtocolStep{
+		&agreeProposerConfigProtocolStep{},
 		&reshareProtocolStep{config: p.config, board: p.board},
 		&updateLockProtocolStep{},
 		&updateNodeSignaturesProtocolStep{},
