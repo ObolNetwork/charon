@@ -95,6 +95,8 @@ type clusterConfig struct {
 
 	// ProposerConfigSeed seeds the gas limit and builder of the proposer config signed at revision 1.
 	ProposerConfigSeed proposerconfig.Seed
+	// ProposerConfigSeedFile is the seed file path or URL, the alternative to the seeding flags.
+	ProposerConfigSeedFile string
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -114,6 +116,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
 	bindNetworkFlags(cmd.Flags(), &conf.Network, &conf.testnetConfig)
 	bindProposerConfigSeedFlags(cmd, &conf.ProposerConfigSeed, proposerConfigSignedUsage)
+	bindProposerConfigSeedFileFlag(cmd, &conf.ProposerConfigSeedFile)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
@@ -152,7 +155,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
-	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 200000000, "Preferred target gas limit for transactions.")
+	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 200000000, "Preferred target gas limit of the builder registrations signed into the cluster lock. [DEPRECATED from the gloas fork onwards] Builder registrations are no longer sent then, proposer-config-gas-limit applies instead.")
 	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 	flags.StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	flags.BoolVar(&config.Zipped, "zipped", false, "Create a tar archive compressed with gzip of the cluster directory after creation.")
@@ -172,12 +175,12 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
 	// Reject a bad seed before any work: it is signed by every operator.
-	seed := conf.ProposerConfigSeed
-
-	err := seed.Validate()
+	seed, err := resolveProposerConfigSeed(ctx, conf.ProposerConfigSeedFile, conf.ProposerConfigSeed)
 	if err != nil {
 		return err
 	}
+
+	conf.ProposerConfigSeed = seed
 
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
 	if conf.Network == eth2util.Prater {
@@ -1177,6 +1180,20 @@ func aggSign(secrets [][]tbls.PrivateKey, message []byte) ([]byte, error) {
 	}
 
 	return aggSig[:], nil
+}
+
+// readFileOrURL returns the content of a local file or of an http(s) URL.
+func readFileOrURL(ctx context.Context, source string) ([]byte, error) {
+	if validURI(source) {
+		return cluster.FetchFile(ctx, source)
+	}
+
+	b, err := os.ReadFile(source)
+	if err != nil {
+		return nil, errors.Wrap(err, "read file")
+	}
+
+	return b, nil
 }
 
 // loadDefinition returns the cluster definition from disk or an HTTP URL. It also verifies signatures

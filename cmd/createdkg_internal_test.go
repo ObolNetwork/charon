@@ -5,6 +5,8 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"strings"
@@ -13,11 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/testutil"
 )
 
 const validEthAddr = "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359" // Taken from https://eips.ethereum.org/EIPS/eip-55
+
+// testOperatorENRs are valid operator ENRs for a cluster definition.
+var testOperatorENRs = []string{
+	"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
+	"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
+	"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
+	"enr:-JG4QKu734_MXQklKrNHe9beXIsIV5bqv58OOmsjWmp6CF5vJSHNinYReykn7-IIkc5-YsoF8Hva1Q3pl7_gUj5P9cOGAYGv0jBLgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMM3AvPhXGCUIzBl9VFOw7VQ6_m8dGifVfJ1YXrvZsaZoN0Y3CCDhqDdWRwgg4u",
+}
 
 func TestCreateDkgValid(t *testing.T) {
 	temp := t.TempDir()
@@ -33,12 +44,7 @@ func TestCreateDkgValid(t *testing.T) {
 		DepositAmounts:    []int{8, 16, 4, 4},
 		ConsensusProtocol: "qbft",
 		TargetGasLimit:    30000000,
-		OperatorENRs: []string{
-			"enr:-JG4QFI0llFYxSoTAHm24OrbgoVx77dL6Ehl1Ydys39JYoWcBhiHrRhtGXDTaygWNsEWFb1cL7a1Bk0klIdaNuXplKWGAYGv0Gt7gmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQL6bcis0tFXnbqG4KuywxT5BLhtmijPFApKCDJNl3mXFYN0Y3CCDhqDdWRwgg4u",
-			"enr:-JG4QPnqHa7FU3PBqGxpV5L0hjJrTUqv8Wl6_UTHt-rELeICWjvCfcVfwmax8xI_eJ0ntI3ly9fgxAsmABud6-yBQiuGAYGv0iYPgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMLLCMZ5Oqi_sdnBfdyhmysZMfFm78PgF7Y9jitTJPSroN0Y3CCPoODdWRwgj6E",
-			"enr:-JG4QDKNYm_JK-w6NuRcUFKvJAlq2L4CwkECelzyCVrMWji4YnVRn8AqQEL5fTQotPL2MKxiKNmn2k6XEINtq-6O3Z2GAYGvzr_LgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQKlO7fSaBa3h48CdM-qb_Xb2_hSrJOy6nNjR0mapAqMboN0Y3CCDhqDdWRwgg4u",
-			"enr:-JG4QKu734_MXQklKrNHe9beXIsIV5bqv58OOmsjWmp6CF5vJSHNinYReykn7-IIkc5-YsoF8Hva1Q3pl7_gUj5P9cOGAYGv0jBLgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMM3AvPhXGCUIzBl9VFOw7VQ6_m8dGifVfJ1YXrvZsaZoN0Y3CCDhqDdWRwgg4u",
-		},
+		OperatorENRs:      testOperatorENRs,
 	}
 
 	err := runCreateDKG(context.Background(), conf)
@@ -428,4 +434,100 @@ func TestLaunchpadLink(t *testing.T) {
 			require.Equal(t, test.result, generateLaunchpadLink(test.configHash, test.network))
 		})
 	}
+}
+
+func TestCreateDkgProposerConfigSeed(t *testing.T) {
+	createDKG := func(t *testing.T, dir string, args ...string) error {
+		t.Helper()
+
+		cmd := newCreateCmd(newCreateDKGCmd(runCreateDKG))
+		cmd.SetArgs(append([]string{
+			"dkg", "--operator-enrs=" + strings.Join(testOperatorENRs, ","), "--fee-recipient-addresses=" + validEthAddr,
+			"--withdrawal-addresses=" + validEthAddr, "--output-dir=" + dir,
+		}, args...))
+
+		return cmd.Execute()
+	}
+
+	t.Run("seed flags write the seed file", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, createDKG(t, dir, "--proposer-config-builder-urls=https://a.example.com", "--proposer-config-builder-min-bid=1"))
+
+		b, err := os.ReadFile(path.Join(dir, "proposer-config-seed.json"))
+		require.NoError(t, err)
+
+		seed, err := proposerconfig.ParseSeed(b)
+		require.NoError(t, err)
+		require.Equal(t, proposerconfig.Seed{
+			GasLimit:           proposerconfig.DefaultGasLimit,
+			BuilderURLs:        []string{"https://a.example.com"},
+			BuilderMinBid:      1,
+			BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor,
+		}, seed)
+	})
+
+	t.Run("no seed flags", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, createDKG(t, dir))
+		require.FileExists(t, path.Join(dir, "cluster-definition.json"))
+		require.NoFileExists(t, path.Join(dir, "proposer-config-seed.json"))
+	})
+
+	t.Run("existing seed file", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(path.Join(dir, "proposer-config-seed.json"), []byte("{}"), 0o600))
+
+		err := createDKG(t, dir, "--proposer-config-gas-limit=60000000")
+		require.EqualError(t, err, "existing proposer-config-seed.json found. Try again after deleting it")
+		require.NoFileExists(t, path.Join(dir, "cluster-definition.json"))
+	})
+
+	t.Run("stale seed file without seed flags", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(path.Join(dir, "proposer-config-seed.json"), []byte("{}"), 0o600))
+
+		err := createDKG(t, dir)
+		require.EqualError(t, err, "existing proposer-config-seed.json found. Try again after deleting it")
+	})
+
+	t.Run("publish writes the seed file", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+		defer server.Close()
+
+		dir := t.TempDir()
+		require.NoError(t, createDKG(t, dir, "--publish", "--publish-address="+server.URL, "--proposer-config-gas-limit=60000000"))
+		require.FileExists(t, path.Join(dir, "proposer-config-seed.json"))
+		require.NoFileExists(t, path.Join(dir, "cluster-definition.json"))
+	})
+
+	t.Run("failed publish leaves no seed file", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
+
+		dir := t.TempDir()
+		require.Error(t, createDKG(t, dir, "--publish", "--publish-address="+server.URL, "--proposer-config-gas-limit=60000000"))
+		require.NoFileExists(t, path.Join(dir, "proposer-config-seed.json"))
+	})
+
+	t.Run("unwritable output dir fails before publishing", func(t *testing.T) {
+		var published bool
+
+		server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { published = true }))
+		defer server.Close()
+
+		// A file in place of the output dir cannot hold the seed file.
+		dir := path.Join(t.TempDir(), "file")
+		require.NoError(t, os.WriteFile(dir, nil, 0o600))
+
+		err := createDKG(t, dir, "--publish", "--publish-address="+server.URL, "--proposer-config-gas-limit=60000000")
+		require.ErrorContains(t, err, "write proposer config seed file")
+		require.False(t, published)
+	})
+
+	t.Run("invalid seed flags", func(t *testing.T) {
+		err := createDKG(t, t.TempDir(), "--proposer-config-builder-min-bid=1")
+		require.ErrorContains(t, err, "require proposer-config-builder-urls")
+	})
 }

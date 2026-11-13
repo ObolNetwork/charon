@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -410,6 +411,18 @@ func TestRedact(t *testing.T) {
 			expected: "xxxxx",
 		},
 		{
+			name:     "redact credentials in file URLs",
+			flag:     "proposer-config-seed-file",
+			value:    "https://user:password@example.com/seed.json?token=secret",
+			expected: "https://user:xxxxx@example.com/seed.json?token=xxxxx",
+		},
+		{
+			name:     "keep file paths",
+			flag:     "definition-file",
+			value:    ".charon/cluster-definition.json",
+			expected: ".charon/cluster-definition.json",
+		},
+		{
 			name:     "redact passwords in URL addresses",
 			flag:     "api-address",
 			value:    "https://user:password@example.com/foo/bar",
@@ -476,4 +489,103 @@ func TestRedact(t *testing.T) {
 // slice is a convenience function for creating string slice literals.
 func slice(strs ...string) []string {
 	return strs
+}
+
+// testSeedFileJSON is a seed file setting every seed value.
+const testSeedFileJSON = `{"version":"v1.0.0","default_config":{"gas_limit":"60000000","builder":{"min_bid":"1","builder_boost_factor":"90",` +
+	`"max_execution_payment":"2","builders":[{"url":"https://a.example.com"},{"url":"https://b.example.com"}]}}}`
+
+// testSeedFileSeed is the seed testSeedFileJSON holds.
+var testSeedFileSeed = proposerconfig.Seed{
+	GasLimit:                   60_000_000,
+	BuilderURLs:                []string{"https://a.example.com", "https://b.example.com"},
+	BuilderMinBid:              1,
+	BuilderBoostFactor:         90,
+	BuilderMaxExecutionPayment: 2,
+}
+
+func TestProposerConfigSeedFileFlag(t *testing.T) {
+	const excludes = "proposer-config-seed-file excludes the proposer-config-* flags"
+
+	createCluster := func(t *testing.T, args ...string) (clusterConfig, error) {
+		t.Helper()
+
+		var conf clusterConfig
+
+		root := newRootCmd(newCreateCmd(newCreateClusterCmd(func(_ context.Context, _ io.Writer, config clusterConfig) error {
+			conf = config
+			return nil
+		})))
+		root.SetArgs(append([]string{"create", "cluster", "--nodes=4", "--network=holesky"}, args...))
+
+		return conf, root.Execute()
+	}
+
+	runDKG := func(t *testing.T, args ...string) (dkg.Config, error) {
+		t.Helper()
+
+		var conf dkg.Config
+
+		root := newRootCmd(newDKGCmd(func(_ context.Context, config dkg.Config) error {
+			conf = config
+			return nil
+		}))
+		root.SetArgs(append([]string{"dkg"}, args...))
+
+		return conf, root.Execute()
+	}
+
+	t.Run("create cluster takes the file", func(t *testing.T) {
+		conf, err := createCluster(t, "--proposer-config-seed-file=seed.json")
+		require.NoError(t, err)
+		require.Equal(t, "seed.json", conf.ProposerConfigSeedFile)
+		require.Nil(t, conf.ProposerConfigSeed.NonDefault)
+	})
+
+	t.Run("create cluster file and flag", func(t *testing.T) {
+		_, err := createCluster(t, "--proposer-config-seed-file=seed.json", "--proposer-config-builder-boost-factor=100")
+		require.ErrorContains(t, err, excludes)
+	})
+
+	t.Run("dkg resolves the file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "seed.json")
+		require.NoError(t, os.WriteFile(path, []byte(testSeedFileJSON), 0o600))
+
+		conf, err := runDKG(t, "--proposer-config-seed-file="+path)
+		require.NoError(t, err)
+		require.Equal(t, testSeedFileSeed, conf.ProposerConfigSeed)
+	})
+
+	t.Run("dkg file and flag", func(t *testing.T) {
+		_, err := runDKG(t, "--proposer-config-seed-file=seed.json", "--proposer-config-gas-limit=1")
+		require.ErrorContains(t, err, excludes)
+	})
+
+	t.Run("dkg invalid file content", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "seed.json")
+		require.NoError(t, os.WriteFile(path, []byte(`{"version":"v1.0.0","default_config":{"gas_limit":"0"}}`), 0o600))
+
+		_, err := runDKG(t, "--proposer-config-seed-file="+path)
+		require.ErrorContains(t, err, "default_config.gas_limit must be greater than 0")
+	})
+
+	t.Run("dkg file and env flag", func(t *testing.T) {
+		t.Setenv("CHARON_PROPOSER_CONFIG_GAS_LIMIT", "1")
+
+		_, err := runDKG(t, "--proposer-config-seed-file=seed.json")
+		require.ErrorContains(t, err, excludes)
+	})
+
+	t.Run("dkg env file and flag", func(t *testing.T) {
+		t.Setenv("CHARON_PROPOSER_CONFIG_SEED_FILE", "seed.json")
+
+		_, err := runDKG(t, "--proposer-config-gas-limit=1")
+		require.ErrorContains(t, err, excludes)
+	})
+
+	t.Run("run has no seed file", func(t *testing.T) {
+		root := newRootCmd(newRunCmd(func(context.Context, app.Config) error { return nil }, false))
+		root.SetArgs([]string{"run", "--beacon-node-endpoints=http://beacon.node", "--proposer-config-seed-file=seed.json"})
+		require.ErrorContains(t, root.Execute(), "unknown flag: --proposer-config-seed-file")
+	})
 }

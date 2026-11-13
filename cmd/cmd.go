@@ -236,7 +236,8 @@ func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 // redact returns a redacted version of the given flag value. It supports:
 //   - Full redaction of auth token flags (e.g., keymanager-auth-token)
 //   - Value redaction of header flags (e.g., beacon-node-headers, otlp-headers) keeping keys visible
-//   - Password and query value redaction in URLs for address flags (e.g., loki-addresses)
+//   - Password and query value redaction in URLs for address flags (e.g., loki-addresses) and file flags taking a URL
+//     (e.g., definition-file)
 //   - Password, query value and path redaction in URLs for endpoint and URL flags (e.g., beacon-node-endpoints),
 //     since hosted beacon and execution providers put API keys in the path
 func redact(flag, val string) string {
@@ -252,7 +253,8 @@ func redact(flag, val string) string {
 		return log.RedactURL(val, true)
 	}
 
-	if strings.Contains(flag, "address") {
+	// File flags taking a path or an HTTP URL (e.g., definition-file); RedactURL leaves paths as they are.
+	if strings.Contains(flag, "address") || strings.HasSuffix(flag, "-file") {
 		return log.RedactURL(val, false)
 	}
 
