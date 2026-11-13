@@ -201,8 +201,8 @@ charon alpha edit proposer-config \
 At least one change flag is required, the flags combine into one revision:
 
 - `--fee-recipient` changes the default fee recipient: validators with their own fee recipient keep it. With `--fee-recipient-validators`
-  (DV public keys) it changes those validators instead, and one set to the default loses its own entry. The validator-scoped form excludes
-  every other change flag.
+  (DV public keys) it changes those validators only and leaves the default as is; one set to the default loses its own entry. The
+  validator-scoped form excludes every other change flag.
 - `--gas-limit`, cluster-wide, greater than zero.
 - `--builder-urls` (replaces the list, order is the preference order, no duplicates), `--builder-min-bid`, `--builder-boost-factor`,
   `--builder-max-execution-payment`; the last three need an existing builder block or `--builder-urls`. `--no-builders` removes the builder block.

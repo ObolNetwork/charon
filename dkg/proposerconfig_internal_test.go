@@ -859,6 +859,16 @@ func TestNewLockProposerConfig(t *testing.T) {
 		require.Equal(t, builder, got.DefaultConfig.Builder)
 	})
 
+	t.Run("default kept", func(t *testing.T) {
+		// New validators outnumbering those on the default do not move it.
+		wide := lock
+		wide.Validators = append(slices.Clone(lock.Validators), lock.Validators[2], lock.Validators[2])
+
+		got, err := newLockProposerConfig(wide, agreed, carried, []string{newFee, newFee, newFee})
+		require.NoError(t, err)
+		require.Equal(t, agreed.DefaultConfig.FeeRecipient, got.DefaultConfig.FeeRecipient)
+	})
+
 	t.Run("fresh", func(t *testing.T) {
 		seed := proposerconfig.Config{DefaultConfig: proposerconfig.Settings{GasLimit: "200000000"}}
 
