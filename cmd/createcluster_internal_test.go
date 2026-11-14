@@ -1250,13 +1250,13 @@ func TestZipped(t *testing.T) {
 	require.NoError(t, app.BundleOutput(conf.ClusterDir, "cluster.tar.gz"))
 
 	unzippedDir := t.TempDir()
-	require.NoError(t, app.ExtractArchive(filepath.Join(conf.ClusterDir, "cluster.tar.gz"), unzippedDir))
+	require.NoError(t, testutil.ExtractArchive(filepath.Join(conf.ClusterDir, "cluster.tar.gz"), unzippedDir))
 
 	err := os.RemoveAll(filepath.Join(conf.ClusterDir, "cluster.tar.gz"))
 	require.NoError(t, err)
 
 	// Compare directories using the shared function
-	err = app.CompareDirectories(backupDir, unzippedDir)
+	err = testutil.CompareDirectories(backupDir, unzippedDir)
 	require.NoError(t, err, "unzipped directory should match original directory structure")
 }
 

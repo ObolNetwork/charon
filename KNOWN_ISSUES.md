@@ -16,7 +16,7 @@ If you believe you have found a new, distinct issue, report it to the Obol Secur
 * **Legacy lock formats are retained for compatibility.** Charon must keep loading the existing cluster locks of running clusters. Some lock formats from before v1.7 carry fewer signatures than current ones.
 * **`--no-verify` is out of scope.** This flag disables cluster definition and lock verification. Findings that depend on an operator running with it are not eligible.
 * **Operators control their own node and its inputs.** Operators choose their own beacon node, validator client, configuration, and cluster lock file. Findings that depend on an operator running a lock, configuration, or binary they did not produce or verify themselves are not eligible.
-* **Access to the operator's host is out of scope.** Findings that require reading files, archives, logs, or command output on the operator's machine assume the host is already compromised and are not eligible. Examples include the file permissions of cluster or DKG archives created with `--zipped`, and secrets visible in local logs or test output. Since v1.11.3, Charon redacts credentials and API keys in configured endpoint URLs before logging them.
+* **Access to the operator's host is out of scope.** Findings that require reading files, archives, logs, or command output on the operator's machine assume the host is already compromised and are not eligible. Examples include secrets visible in local logs or test output. Since v2.0.0, cluster and DKG archives created with `--zipped` are readable only by their owner. Since v1.11.3, Charon redacts credentials and API keys in configured endpoint URLs before logging them.
 
 ## Cluster Definition & Lock
 

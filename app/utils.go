@@ -4,7 +4,6 @@ package app
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"encoding/hex"
 	"io"
@@ -27,20 +26,32 @@ func Hex7(input []byte) string {
 }
 
 // BundleOutput archives targetDir into a gzipped tarball named filename in targetDir.
-// After successfully creating the archive, it deletes the original files from disk.
-func BundleOutput(targetDir string, filename string) error {
-	// Create output file
-	file, err := os.Create(filepath.Join(targetDir, filename))
+// The archive contains private key material, so it is only readable and writable by its owner.
+// It is written to a temporary file and renamed into place once complete, so filename is
+// never a partial archive. The original files are deleted only once the archive is in place,
+// so a failure before that leaves them untouched.
+func BundleOutput(targetDir string, filename string) (err error) {
+	archivePath := filepath.Join(targetDir, filename)
+	tempPrefix := filename + ".tmp-"
+
+	// CreateTemp creates the tempFile with mode 0600.
+	tempFile, err := os.CreateTemp(targetDir, tempPrefix+"*")
 	if err != nil {
 		return errors.Wrap(err, "create .tar.gz file")
 	}
-	defer file.Close()
 
-	gzw := gzip.NewWriter(file)
-	defer gzw.Close()
+	// CreateTemp does not clean its path while filepath.Walk does, e.g. for the default "./" directory.
+	tempPath := filepath.Clean(tempFile.Name())
 
+	defer func() {
+		if err != nil {
+			_ = tempFile.Close()
+			_ = os.Remove(tempFile.Name())
+		}
+	}()
+
+	gzw := gzip.NewWriter(tempFile)
 	tw := tar.NewWriter(gzw)
-	defer tw.Close()
 
 	// Files to be deleted
 	dirsToDelete := make([]string, 0)
@@ -61,8 +72,15 @@ func BundleOutput(targetDir string, filename string) error {
 			return nil
 		}
 
-		// Don't delete output file
-		if path == file.Name() {
+		// Don't archive or delete the output file, nor an archive left by a previous run (it is replaced).
+		if path == tempPath || path == archivePath {
+			return nil
+		}
+
+		// Don't archive a temporary file left by an interrupted run, but do delete it.
+		if strings.HasPrefix(info.Name(), tempPrefix) {
+			filesToDelete = append(filesToDelete, path)
+
 			return nil
 		}
 
@@ -100,6 +118,28 @@ func BundleOutput(targetDir string, filename string) error {
 		return errors.Wrap(err, "filepath walk")
 	}
 
+	// Flush the archive to disk and move it into place before deleting the originals,
+	// so a failed write never loses them.
+	if err := tw.Close(); err != nil {
+		return errors.Wrap(err, "close tar writer")
+	}
+
+	if err := gzw.Close(); err != nil {
+		return errors.Wrap(err, "close gzip writer")
+	}
+
+	if err := tempFile.Sync(); err != nil {
+		return errors.Wrap(err, "sync .tar.gz file")
+	}
+
+	if err := tempFile.Close(); err != nil {
+		return errors.Wrap(err, "close .tar.gz file")
+	}
+
+	if err := os.Rename(tempFile.Name(), archivePath); err != nil {
+		return errors.Wrap(err, "rename .tar.gz file")
+	}
+
 	// Delete files/folders
 	for _, path := range filesToDelete {
 		err := os.RemoveAll(path)
@@ -113,155 +153,6 @@ func BundleOutput(targetDir string, filename string) error {
 		if err != nil {
 			return errors.Wrap(err, "remove dir", z.Str("filename", path))
 		}
-	}
-
-	return nil
-}
-
-// ExtractArchive extracts a .tar.gz archive to the target directory.
-func ExtractArchive(archivePath, targetDir string) error {
-	file, err := os.Open(archivePath)
-	if err != nil {
-		return errors.Wrap(err, "open archive file")
-	}
-	defer file.Close()
-
-	gzr, err := gzip.NewReader(file)
-	if err != nil {
-		return errors.Wrap(err, "create gzip reader")
-	}
-	defer gzr.Close()
-
-	tr := tar.NewReader(gzr)
-
-	for {
-		header, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			return nil // End of archive
-		}
-
-		if err != nil {
-			return errors.Wrap(err, "tar read error")
-		}
-
-		cleanName := filepath.Clean(header.Name)
-		// Disallow absolute paths and paths with ".." as first element
-		if strings.HasPrefix(cleanName, "..") || filepath.IsAbs(cleanName) || strings.Contains(cleanName, ".."+string(os.PathSeparator)) {
-			return errors.New("invalid archive entry path", z.Str("path", header.Name))
-		}
-
-		target := filepath.Join(targetDir, cleanName)
-
-		absTargetDir, err := filepath.Abs(targetDir)
-		if err != nil {
-			return errors.Wrap(err, "get absolute target dir")
-		}
-
-		absTarget, err := filepath.Abs(target)
-		if err != nil {
-			return errors.Wrap(err, "get absolute target path")
-		}
-
-		if !strings.HasPrefix(absTarget, absTargetDir+string(os.PathSeparator)) && absTarget != absTargetDir {
-			return errors.New("archive entry path escapes target directory", z.Str("path", header.Name))
-		}
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, header.FileInfo().Mode()); err != nil {
-				return errors.Wrap(err, "create directory")
-			}
-		case tar.TypeReg:
-			// Check file size to prevent decompression bombs
-			const maxFileSize = 100 * 1024 * 1024 // 100MB limit per file
-			if header.Size > maxFileSize {
-				return errors.New("file too large in archive", z.Str("path", header.Name), z.I64("size", header.Size))
-			}
-
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return errors.Wrap(err, "create parent directory")
-			}
-
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode())
-			if err != nil {
-				return errors.Wrap(err, "create file")
-			}
-
-			// Use limited reader to prevent decompression bombs
-			limitedReader := io.LimitReader(tr, maxFileSize)
-
-			_, err = io.Copy(f, limitedReader)
-			if err != nil {
-				f.Close()
-				return errors.Wrap(err, "copy file contents")
-			}
-
-			if err := f.Close(); err != nil {
-				return errors.Wrap(err, "close file")
-			}
-		default:
-			// Skip other types (symlinks, etc.)
-		}
-	}
-}
-
-// CompareDirectories recursively compares two directories and their contents.
-func CompareDirectories(originalDir, extractedDir string) error {
-	err := filepath.Walk(originalDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(originalDir, path)
-		if err != nil {
-			return errors.Wrap(err, "get relative path")
-		}
-
-		extractedPath := filepath.Join(extractedDir, relPath)
-
-		if info.IsDir() {
-			// Check if directory exists in extracted content
-			extractedInfo, err := os.Stat(extractedPath)
-			if err != nil {
-				return errors.Wrap(err, "directory should exist in extracted content", z.Str("path", relPath))
-			}
-
-			if !extractedInfo.IsDir() {
-				return errors.New("path is not a directory", z.Str("path", relPath))
-			}
-
-			return nil
-		}
-
-		// Compare file contents
-		extractedInfo, err := os.Stat(extractedPath)
-		if err != nil {
-			return errors.Wrap(err, "file should exist in extracted content", z.Str("path", relPath))
-		}
-
-		if info.Size() != extractedInfo.Size() {
-			return errors.New("file size mismatch", z.Str("path", relPath))
-		}
-
-		// Read and compare file contents
-		originalContent, err := os.ReadFile(path) //nolint:gosec // no TOCTOU condition as CompareDirectories is used only in CLI non-concurrent context.
-		if err != nil {
-			return errors.Wrap(err, "read original file", z.Str("path", path))
-		}
-
-		extractedContent, err := os.ReadFile(extractedPath)
-		if err != nil {
-			return errors.Wrap(err, "read extracted file", z.Str("path", extractedPath))
-		}
-
-		if !bytes.Equal(originalContent, extractedContent) {
-			return errors.New("file content mismatch", z.Str("path", relPath))
-		}
-
-		return nil
-	})
-	if err != nil {
-		return errors.Wrap(err, "walk directory tree")
 	}
 
 	return nil
