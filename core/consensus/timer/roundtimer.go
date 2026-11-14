@@ -3,6 +3,8 @@
 package timer
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,11 +20,14 @@ import (
 // RoundTimerFunc is a function that returns a round timer.
 type RoundTimerFunc func(core.Duty) RoundTimer
 
-// GetRoundTimerFunc returns a timer function based on the fork schedule and the enabled features.
-// Genesis time and slot duration are required to calculate deterministic slot start times, while
-// the slot offset function provides the duty's offset into the slot at which consensus starts.
+// GetRoundTimerFunc returns a timer function based on the fork schedule, the enabled features and
+// the proposer timer the cluster agreed on as of a slot, applied from gloas, encoded as returned by
+// ProposerTimerProposal or empty if none. Genesis time and slot duration are required to calculate
+// deterministic slot start times, while the slot offset function provides the duty's offset into the
+// slot at which consensus starts.
 func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotsPerEpoch uint64,
 	slotOffsetFunc core.SlotOffsetFunc, forkSchedule func() eth2wrap.ForkForkSchedule,
+	proposerTimerFunc func(slot uint64) string,
 ) RoundTimerFunc {
 	timing := slotTiming{
 		genesisTime:  genesisTime,
@@ -33,13 +38,14 @@ func GetRoundTimerFunc(genesisTime time.Time, slotDuration time.Duration, slotsP
 	return func(duty core.Duty) RoundTimer {
 		gloas := forkSchedule().Active(eth2wrap.Gloas, eth2p0.Epoch(duty.Slot/slotsPerEpoch))
 
-		return newRoundTimer(duty, selectTimer(duty, gloas), timing, clockwork.NewRealClock())
+		return newRoundTimer(duty, selectTimer(duty, gloas, proposerTimerFunc), timing, clockwork.NewRealClock())
 	}
 }
 
 // selectTimer returns the timer for the duty, as selected by the fork, whether gloas is active at the
-// duty's slot, and the feature set, with its extensions.
-func selectTimer(duty core.Duty, gloas bool) timerDef {
+// duty's slot, and the feature set, with its extensions. From gloas, the proposer timer the cluster
+// agreed on as of the duty's slot replaces the linear feature, only consulted then.
+func selectTimer(duty core.Duty, gloas bool, proposerTimerFunc func(slot uint64) string) timerDef {
 	var def timerDef
 
 	switch {
@@ -49,16 +55,77 @@ func selectTimer(duty core.Duty, gloas bool) timerDef {
 		// TODO(post-gloas): make this the default for attester duties without the gloas check, removing
 		// the fork schedule from GetRoundTimerFunc.
 		def = eagerAheadSplitTimer()
+	case duty.Type == core.DutyProposer && gloas:
+		// From gloas, proposer duties use the timer the cluster agreed on, with its agreed inputs, by
+		// default 1.5s rounds, or with at least a threshold of peers enabling the linear feature, quicker
+		// rotating ones: 1.5s, 600ms, 900ms, 1.2s, etc. Rounds are anchored at the duty start, aligned
+		// across peers, and extended by their duration, at least 1s, when armed again. The first round
+		// allows for fetching the proposal, so the feature extensions, i.e. proposal_timeout, don't apply.
+		typ, inputs := parseProposerTimer(proposerTimerFunc(duty.Slot))
+
+		switch typ {
+		case TimerLinear:
+			return linearTimer(inputs[0], inputs[1], anchorDutyStart{}, doubleRoundOnRearm{minimum: time.Second})
+		default:
+			return eagerDLinearTimer(inputs[0], doubleRoundOnRearm{minimum: time.Second})
+		}
 	case duty.Type == core.DutyProposer && featureset.Enabled(featureset.Linear):
 		// The linear timer has precedence over the eager double linear timer, but only for proposer duties.
-		def = linearTimer()
+		def = linearTimer(linearRoundFirst, linearRoundStep, anchorLocalDutyStart{}, resetOnRearm{})
 	case featureset.Enabled(featureset.EagerDoubleLinear):
-		def = eagerDLinearTimer()
+		def = eagerDLinearTimer(eagerDLinearRound, doubleTotalOnRearm{})
 	default:
 		def = incTimer()
 	}
 
 	return withExtensions(duty, def, featureExtensions()...)
+}
+
+// ProposerTimerProposal returns the gloas proposer timer this peer proposes, the linear one if linear,
+// encoded as its type and the inputs of its timer function: linear/1.5s/300ms or eager_dlinear/1.5s.
+func ProposerTimerProposal(linear bool) string {
+	if linear {
+		return fmt.Sprintf("%s/%s/%s", TimerLinear, gloasProposerRound, gloasProposerStep)
+	}
+
+	return fmt.Sprintf("%s/%s", TimerEagerDoubleLinear, gloasProposerRound)
+}
+
+// parseProposerTimer returns the type and timer function inputs of the proposer timer encoded as by
+// ProposerTimerProposal, or the default eager double linear one if empty or invalid, e.g. from a
+// release with other timer functions.
+func parseProposerTimer(s string) (Type, []time.Duration) {
+	parts := strings.Split(s, "/")
+	typ := Type(parts[0])
+
+	// Number of inputs of the proposer timer functions.
+	var numInputs int
+
+	switch typ {
+	case TimerEagerDoubleLinear:
+		numInputs = 1
+	case TimerLinear:
+		numInputs = 2
+	default:
+		return TimerEagerDoubleLinear, []time.Duration{gloasProposerRound}
+	}
+
+	inputs := make([]time.Duration, 0, numInputs)
+
+	for _, part := range parts[1:] {
+		input, err := time.ParseDuration(part)
+		if err != nil || input <= 0 {
+			break
+		}
+
+		inputs = append(inputs, input)
+	}
+
+	if len(inputs) != numInputs || len(parts)-1 != numInputs {
+		return TimerEagerDoubleLinear, []time.Duration{gloasProposerRound}
+	}
+
+	return typ, inputs
 }
 
 // featureExtensions returns the extensions added to every duty's timer, as enabled by the feature set.
@@ -276,7 +343,7 @@ func (t *roundTimer) Timer(round int64) (<-chan time.Time, func()) {
 // acting upon it, or its deadline if none does. In practice, QBFT rearms the current round
 // upon a justified pre-prepare for it. Three extensions currently act upon this rearming, declared
 // by the timers: resetOnRearm by inc and linear, doubleTotalOnRearm by eager_dlinear, and
-// doubleRoundOnRearm by eager_ahead_split.
+// doubleRoundOnRearm by eager_ahead_split and, from gloas, eager_dlinear and linear for proposer duties.
 func (t *roundTimer) rearmDeadline(round int64, currentDeadline, now time.Time) time.Time {
 	for _, ext := range t.def.extensions {
 		adjustedDeadline, ok := ext.onRearm(t.duration(round), t.end(round), t.def.anchor.lead(), currentDeadline, now)
