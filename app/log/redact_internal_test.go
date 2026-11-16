@@ -66,10 +66,13 @@ func TestRedactURLUnparsed(t *testing.T) {
 	// Without a scheme or credentials a path is only masked where paths are.
 	require.Equal(t, "builder.example.com/xxxxx", RedactURL("builder.example.com/apikey123", true))
 	require.Equal(t, "builder.example.com/apikey123", RedactURL("builder.example.com/apikey123", false))
+
+	// Without a scheme path segments that look like API keys are still masked.
+	require.Equal(t, "mainnet.infura.io/v3/xxxxx", RedactURL("mainnet.infura.io/v3/0123456789abcdef0123", false))
 }
 
-// TestRedactURLMisreadCredentials covers URLs that parse without credentials but hold an "@" after the host, as
-// with an unescaped password: the credentials end at the last "@" and the rest is redacted as for any parsed URL.
+// TestRedactURLMisreadCredentials covers URLs that parse but hold an "@" after the host, as with an unescaped
+// password: the credentials end at the last "@" and the rest is redacted as for any parsed URL.
 func TestRedactURLMisreadCredentials(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -94,6 +97,18 @@ func TestRedactURLMisreadCredentials(t *testing.T) {
 			in:         "https://user:12/3?4@builder.example.com/eth",
 			want:       "https://xxxxx@builder.example.com/eth",
 			wantMasked: "https://xxxxx@builder.example.com/xxxxx",
+		},
+		{
+			name:       "at and slash in password",
+			in:         "https://user:a@b/c@builder.example.com/eth",
+			want:       "https://xxxxx@builder.example.com/eth",
+			wantMasked: "https://xxxxx@builder.example.com/xxxxx",
+		},
+		{
+			name:       "credentials and at in query",
+			in:         "https://user:pw@builder.example.com/eth?q=1@b.com",
+			want:       "https://xxxxx@b.com",
+			wantMasked: "https://xxxxx@b.com",
 		},
 		{
 			name:       "at in query",
