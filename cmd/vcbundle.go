@@ -85,6 +85,10 @@ func runVCBundle(ctx context.Context, w io.Writer, conf vcbundle.Config) error {
 		_, _ = fmt.Fprintf(w, "The definitions point at the keystores in %s, Lighthouse must see them at that path.\n", keysDir)
 	}
 
+	if conf.Client == vcbundle.Prysm && slices.Contains(conf.Parts, vcbundle.PartKeystores) {
+		_, _ = fmt.Fprintf(w, "Point prysm's --wallet-dir at the %s directory, no import needed.\n", vcbundle.PrysmWalletDir)
+	}
+
 	if slices.Contains(files, vcbundle.FlagsFile) {
 		_, _ = fmt.Fprintf(w, "Append the lines of %s to the validator client's command.\n", vcbundle.FlagsFile)
 	}

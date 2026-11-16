@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
+	"github.com/obolnetwork/charon/eth2util/keystore"
 	"github.com/obolnetwork/charon/eth2util/vcbundle"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 func TestVCBundleCmd(t *testing.T) {
@@ -123,6 +125,20 @@ func TestRunVCBundle(t *testing.T) {
 		var buf bytes.Buffer
 		require.NoError(t, runVCBundle(t.Context(), &buf, conf(vcbundle.Lighthouse)))
 		require.Contains(t, buf.String(), "The definitions point at the keystores in "+keysDir+", Lighthouse must see them at that path.")
+	})
+
+	t.Run("prysm", func(t *testing.T) {
+		c := conf(vcbundle.Prysm)
+		c.ValidatorKeysDir = t.TempDir()
+
+		secret, err := tbls.GenerateSecretKey()
+		require.NoError(t, err)
+		require.NoError(t, keystore.StoreKeysInsecure([]tbls.PrivateKey{secret}, c.ValidatorKeysDir, keystore.ConfirmInsecureKeys))
+
+		var buf bytes.Buffer
+		require.NoError(t, runVCBundle(t.Context(), &buf, c))
+		require.Contains(t, buf.String(), "  prysm-wallet/direct/accounts/all-accounts.keystore.json\n")
+		require.Contains(t, buf.String(), "Point prysm's --wallet-dir at the prysm-wallet directory, no import needed.\n")
 	})
 
 	t.Run("lighthouse keystores only", func(t *testing.T) {
