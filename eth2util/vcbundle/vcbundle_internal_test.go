@@ -44,7 +44,7 @@ func TestWrite(t *testing.T) {
 		want   []string
 	}{
 		{Teku, []string{"keystores/keystore-0.json", "keystores/keystore-0.txt", "keystores/keystore-1.json", "keystores/keystore-1.txt", "teku-proposer-config.json", "vc-flags.txt"}},
-		{Prysm, []string{"keystores/keystore-0.json", "keystores/keystore-0.txt", "keystores/keystore-1.json", "keystores/keystore-1.txt", "prysm-proposer-settings.json", "vc-flags.txt"}},
+		{Prysm, []string{"prysm-proposer-settings.json", "prysm-wallet/direct/accounts/all-accounts.keystore.json", "prysm-wallet/walletpassword.txt", "vc-flags.txt"}},
 		{Lodestar, []string{"keystores/0xaa11/voting-keystore.json", "keystores/0xbb22/voting-keystore.json", "lodestar-proposer-settings.yml", "secrets/0xaa11", "secrets/0xbb22", "vc-flags.txt"}},
 		{Nimbus, []string{
 			"secrets/0xaa11", "secrets/0xbb22",
@@ -121,7 +121,7 @@ func TestWriteParts(t *testing.T) {
 
 		got, err := Write(t.Context(), conf)
 		require.NoError(t, err)
-		require.Len(t, got, 4)
+		require.Len(t, got, 2)
 	})
 
 	t.Run("lighthouse keystores only", func(t *testing.T) {
@@ -209,8 +209,14 @@ func testBundle(t *testing.T, client Client) Config {
 	nodeDir := t.TempDir()
 	keysDir := filepath.Join(nodeDir, "validator_keys")
 	require.NoError(t, os.Mkdir(keysDir, 0o700))
-	writeTestKeystore(t, keysDir, 0, "aa11")
-	writeTestKeystore(t, keysDir, 1, "bb22")
+
+	// Only prysm decrypts the keystores.
+	if client == Prysm {
+		writeEncryptedTestKeystores(t, keysDir, 2)
+	} else {
+		writeTestKeystore(t, keysDir, 0, "aa11")
+		writeTestKeystore(t, keysDir, 1, "bb22")
+	}
 
 	proposerConfigFile := filepath.Join(nodeDir, "vc-config", "proposer-config.json")
 	writeTestProposerConfig(t, proposerConfigFile, testConfig(true))
@@ -354,7 +360,7 @@ func TestWriteLogsKeystores(t *testing.T) {
 		want   []string
 	}{
 		{Teku, []string{"Keystores copied, teku reads the keystore and password pairs", `"dir": "keystores"`, `"keystores": 2`}},
-		{Prysm, []string{"Keystores copied for prysm's wallet import", `"dir": "keystores"`, `"keystores": 2`}},
+		{Prysm, []string{"Keystores decrypted into a prysm wallet", `"wallet_dir": "prysm-wallet"`, `"keystores": 2`}},
 		{Lodestar, []string{"Keystores written in lodestar's layout", `"keystores_dir": "keystores"`, `"secrets_dir": "secrets"`}},
 		{Nimbus, []string{"Keystores written in nimbus's layout", `"keystores_dir": "validators"`, `"secrets_dir": "secrets"`}},
 		{Lighthouse, []string{"Keystores read in place by lighthouse", "validator_keys"}},

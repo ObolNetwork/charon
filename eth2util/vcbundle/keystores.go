@@ -124,7 +124,8 @@ func readKeystoreFile(path string) (keystoreFile, error) {
 	}, nil
 }
 
-// keystoreFiles returns the keystores and passwords in the client's layout. Lighthouse reads them in place.
+// keystoreFiles returns the keystores and passwords in the client's layout, or Prysm's wallet. Lighthouse reads them
+// in place.
 func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores []keystoreFile) ([]bundleFile, error) {
 	// paths returns the keystore and password paths of a keystore in the bundle.
 	var paths func(k keystoreFile) (keystorePath, passwordPath string)
@@ -139,9 +140,10 @@ func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores
 
 		paths = flat
 	case Prysm:
-		log.Info(ctx, "Keystores copied for prysm's wallet import", z.Str("dir", "keystores"), z.Int("keystores", len(keystores)))
+		// Prysm only reads keys from a wallet, which takes an import otherwise.
+		log.Info(ctx, "Keystores decrypted into a prysm wallet", z.Str("wallet_dir", PrysmWalletDir), z.Int("keystores", len(keystores)))
 
-		paths = flat
+		return prysmWalletFiles(keysDir, keystores)
 	case Lodestar:
 		log.Info(ctx, "Keystores written in lodestar's layout", z.Str("keystores_dir", "keystores"), z.Str("secrets_dir", "secrets"), z.Int("keystores", len(keystores)))
 

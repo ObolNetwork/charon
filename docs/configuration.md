@@ -243,7 +243,7 @@ are enabled exactly when the proposer config has a builder block. `--include` pi
 | Client | `keystores` | `proposer-settings` | `vc-flags` (`vc-flags.txt`) |
 |---|---|---|---|
 | Teku | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `teku-proposer-config.json` | `--Xobol-dvt-integration-enabled`, `--Xbuilder-*` |
-| Prysm | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `prysm-proposer-settings.json` | `--distributed`, `--enable-beacon-rest-api` |
+| Prysm | `prysm-wallet/direct/accounts/all-accounts.keystore.json`, `prysm-wallet/walletpassword.txt` | `prysm-proposer-settings.json` | `--distributed`, `--enable-beacon-rest-api` |
 | Lodestar | `keystores/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `lodestar-proposer-settings.yml` | `--distributed`, `--payloadLocal=true`, `--builder`, `--allowDangerousTrustedPayments` with a max execution payment above 0 |
 | Nimbus | `validators/<pubkey>/keystore.json`, `secrets/<pubkey>` | `validators/<pubkey>/suggested_fee_recipient.hex`, `suggested_gas_limit.json` | `--distributed`, `--doppelganger-detection=false`, `--payload-builder`, `--payload-builder-url` and `--builder-*` of the first builder |
 | Lighthouse | none, read in place | `validators/validator_definitions.yml`, `validators/builder_definitions.yml` | `--distributed` |
@@ -251,7 +251,8 @@ are enabled exactly when the proposer config has a builder block. `--include` pi
 `vc-flags.txt` holds the flags a distributed validator needs, one per line, to append to the validator client's command;
 the builder flags are only written with a builder block. Paths, the network, the beacon node and metrics stay the operator's.
 Lighthouse's definitions name the keystores in `--validator-keys-dir` by absolute path, so Lighthouse must see them at
-that same path. Rerun the command and move the files again after the proposer config changes.
+that same path. Prysm only reads keys from a wallet, so its keystores are decrypted into one, encrypted with a new random
+password that Prysm reads from the wallet directory: point `--wallet-dir` at it, no import needed. Rerun the command and move the files again after the proposer config changes.
 
 ## Flag Precedence
 
