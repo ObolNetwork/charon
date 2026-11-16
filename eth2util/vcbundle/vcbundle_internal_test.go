@@ -307,7 +307,7 @@ func TestWriteLogsBuilders(t *testing.T) {
 		noBuild bool
 		want    []string
 	}{
-		{name: "teku", client: Teku, want: []string{"Builders passed as flags", "vc-flags.txt", "builder-a.example.com", "builder-b.example.com"}},
+		{name: "teku", client: Teku, want: []string{"Builders taken from the proposer config file", "teku-proposer-config.json", "builder-a.example.com", "builder-b.example.com"}},
 		{name: "nimbus", client: Nimbus, want: []string{"First builder passed as flags", "vc-flags.txt", "Nimbus takes a single builder", "builder-b.example.com"}},
 		{name: "prysm", client: Prysm, want: []string{"Builders taken from the proposer settings file", "prysm-proposer-settings.json"}},
 		{name: "lodestar", client: Lodestar, want: []string{"Builders taken from the proposer settings file", "lodestar-proposer-settings.yml"}},

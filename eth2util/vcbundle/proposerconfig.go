@@ -37,8 +37,11 @@ func resolve(cfg proposerconfig.Config, pubkey string) (feeRecipient, gasLimit s
 }
 
 type tekuBuilder struct {
-	Enabled  bool   `json:"enabled"`
-	GasLimit string `json:"gas_limit"`
+	Enabled            bool                          `json:"enabled"`
+	GasLimit           string                        `json:"gas_limit"`
+	MinBid             string                        `json:"min_bid,omitempty"`
+	BuilderBoostFactor string                        `json:"builder_boost_factor,omitempty"`
+	Builders           []proposerconfig.BuilderEntry `json:"builders,omitempty"`
 }
 
 type tekuSettings struct {
@@ -142,6 +145,19 @@ func renderTeku(cfg proposerconfig.Config) ([]byte, error) {
 
 	for pubkey := range cfg.ProposerConfig {
 		out.ProposerConfig[pubkey] = settings(resolve(cfg, pubkey))
+	}
+
+	// Teku falls back to the default config per field, so the builders are only in it. It takes the max execution
+	// payment per builder only.
+	b := cfg.DefaultConfig.Builder
+	if b != nil {
+		out.DefaultConfig.Builder.MinBid = b.MinBid
+		out.DefaultConfig.Builder.BuilderBoostFactor = b.BuilderBoostFactor
+
+		for _, entry := range b.Builders {
+			entry.MaxExecutionPayment = orDefault(entry.MaxExecutionPayment, b.MaxExecutionPayment)
+			out.DefaultConfig.Builder.Builders = append(out.DefaultConfig.Builder.Builders, entry)
+		}
 	}
 
 	return marshalJSON(out)

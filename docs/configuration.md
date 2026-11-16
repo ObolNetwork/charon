@@ -242,9 +242,9 @@ are enabled exactly when the proposer config has a builder block. `--include` pi
 
 | Client | `keystores` | `proposer-settings` | `vc-flags` (`vc-flags.txt`) |
 |---|---|---|---|
-| Teku | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `teku-proposer-config.json` | `--Xobol-dvt-integration-enabled`, `--Xbuilder-*` |
+| Teku | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `teku-proposer-config.json`, builders included (read by Teku releases after 26.10.3) | `--Xobol-dvt-integration-enabled` |
 | Prysm | `prysm-wallet/direct/accounts/all-accounts.keystore.json`, `prysm-wallet/walletpassword.txt` | `prysm-proposer-settings.json` | `--distributed`, `--enable-beacon-rest-api` |
-| Lodestar | `keystores/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `lodestar-proposer-settings.yml` | `--distributed`, `--payloadLocal=true`, `--builder`, `--allowDangerousTrustedPayments` with a max execution payment above 0 |
+| Lodestar | `keystores/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `lodestar-proposer-settings.yml` | `--distributed`, `--payloadLocal=true`, `--allowDangerousTrustedPayments` with a max execution payment above 0 |
 | Nimbus | `validators/<pubkey>/keystore.json`, `secrets/<pubkey>` | `validators/<pubkey>/suggested_fee_recipient.hex`, `suggested_gas_limit.json` | `--distributed`, `--doppelganger-detection=false`, `--payload-builder`, `--payload-builder-url` and `--builder-*` of the first builder |
 | Lighthouse | none, read in place | `validators/validator_definitions.yml`, `validators/builder_definitions.yml` | `--distributed` |
 

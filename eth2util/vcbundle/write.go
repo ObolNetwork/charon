@@ -131,12 +131,7 @@ func render(ctx context.Context, conf Config) ([]bundleFile, error) {
 	}
 
 	if include(PartVCFlags) {
-		flags, err := vcFlags(ctx, conf.Client, cfg)
-		if err != nil {
-			return nil, err
-		}
-
-		files = append(files, bundleFile{Path: FlagsFile, Data: renderFlags(flags), Mode: publicMode})
+		files = append(files, bundleFile{Path: FlagsFile, Data: renderFlags(vcFlags(ctx, conf.Client, cfg)), Mode: publicMode})
 	}
 
 	return files, nil
