@@ -24,7 +24,7 @@ func TestVCFlags(t *testing.T) {
 		},
 		{
 			client:      Lodestar,
-			want:        []string{"--distributed", "--payloadLocal=true"},
+			want:        []string{"--distributed", "--payloadLocal=true", "--builder.selection=maxprofit"},
 			wantBuilder: []string{"--allowDangerousTrustedPayments"},
 		},
 		{
@@ -63,14 +63,14 @@ func TestVCFlags(t *testing.T) {
 		cfg.DefaultConfig.Builder.MaxExecutionPayment = "0"
 		cfg.DefaultConfig.Builder.Builders[1].MaxExecutionPayment = "0"
 
-		require.Equal(t, []string{"--distributed", "--payloadLocal=true"}, vcFlags(t.Context(), Lodestar, cfg))
+		require.Equal(t, []string{"--distributed", "--payloadLocal=true", "--builder.selection=maxprofit"}, vcFlags(t.Context(), Lodestar, cfg))
 	})
 
 	t.Run("lodestar builder max execution payment", func(t *testing.T) {
 		cfg := testConfig(true)
 		cfg.DefaultConfig.Builder.MaxExecutionPayment = "0"
 
-		require.Equal(t, []string{"--distributed", "--payloadLocal=true", "--allowDangerousTrustedPayments"}, vcFlags(t.Context(), Lodestar, cfg))
+		require.Equal(t, []string{"--distributed", "--payloadLocal=true", "--builder.selection=maxprofit", "--allowDangerousTrustedPayments"}, vcFlags(t.Context(), Lodestar, cfg))
 	})
 }
 

@@ -117,18 +117,15 @@ func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile) ([]bun
 		return nil, err
 	}
 
-	files := []bundleFile{{Path: filepath.Join("validators", "validator_definitions.yml"), Data: definitions, Mode: publicMode}}
-
-	if cfg.DefaultConfig.Builder != nil {
-		builders, err := renderLighthouseBuilders(*cfg.DefaultConfig.Builder)
-		if err != nil {
-			return nil, err
-		}
-
-		files = append(files, bundleFile{Path: lighthouseBuildersPath, Data: builders, Mode: publicMode})
+	builders, err := renderLighthouseBuilders(cfg.DefaultConfig.Builder)
+	if err != nil {
+		return nil, err
 	}
 
-	return files, nil
+	return []bundleFile{
+		{Path: filepath.Join("validators", "validator_definitions.yml"), Data: definitions, Mode: publicMode},
+		{Path: lighthouseBuildersPath, Data: builders, Mode: publicMode},
+	}, nil
 }
 
 // renderTeku returns Teku's proposer config file.
@@ -164,8 +161,6 @@ func renderTeku(cfg proposerconfig.Config) ([]byte, error) {
 }
 
 type prysmBuilder struct {
-	Enabled             bool                          `json:"enabled"`
-	GasLimit            string                        `json:"gas_limit"`
 	MinBid              string                        `json:"min_bid,omitempty"`
 	BuilderBoostFactor  string                        `json:"builder_boost_factor,omitempty"`
 	MaxExecutionPayment string                        `json:"max_execution_payment,omitempty"`
@@ -173,9 +168,9 @@ type prysmBuilder struct {
 }
 
 type prysmSettings struct {
-	FeeRecipient string       `json:"fee_recipient"`
-	GasLimit     string       `json:"gas_limit"`
-	Builder      prysmBuilder `json:"builder"`
+	FeeRecipient string        `json:"fee_recipient"`
+	GasLimit     string        `json:"gas_limit"`
+	Builder      *prysmBuilder `json:"builder,omitempty"`
 }
 
 type prysmConfig struct {
@@ -184,35 +179,29 @@ type prysmConfig struct {
 	DefaultConfig  prysmSettings            `json:"default_config"`
 }
 
-// renderPrysm returns Prysm's version 2 proposer settings file: the gas limit is set at the top level, which
-// Prysm uses from the gloas fork, and in the legacy builder block. The default builder block carries the
-// builder settings.
+// renderPrysm returns Prysm's version 2 proposer settings file: the gas limit is set at the top level and the default
+// builder block carries the builder settings. The legacy builder fields (enabled, gas limit) are left out, Prysm drops
+// them from the gloas fork.
 func renderPrysm(cfg proposerconfig.Config) ([]byte, error) {
-	enabled := cfg.DefaultConfig.Builder != nil
-	settings := func(feeRecipient, gasLimit string) prysmSettings {
-		return prysmSettings{
-			FeeRecipient: feeRecipient,
-			GasLimit:     gasLimit,
-			Builder:      prysmBuilder{Enabled: enabled, GasLimit: gasLimit},
-		}
-	}
-
 	out := prysmConfig{
 		Version:        2,
 		ProposerConfig: make(map[string]prysmSettings),
-		DefaultConfig:  settings(cfg.DefaultConfig.FeeRecipient, cfg.DefaultConfig.GasLimit),
+		DefaultConfig:  prysmSettings{FeeRecipient: cfg.DefaultConfig.FeeRecipient, GasLimit: cfg.DefaultConfig.GasLimit},
 	}
 
 	for pubkey := range cfg.ProposerConfig {
-		out.ProposerConfig[pubkey] = settings(resolve(cfg, pubkey))
+		feeRecipient, gasLimit := resolve(cfg, pubkey)
+		out.ProposerConfig[pubkey] = prysmSettings{FeeRecipient: feeRecipient, GasLimit: gasLimit}
 	}
 
 	b := cfg.DefaultConfig.Builder
 	if b != nil {
-		out.DefaultConfig.Builder.MinBid = b.MinBid
-		out.DefaultConfig.Builder.BuilderBoostFactor = b.BuilderBoostFactor
-		out.DefaultConfig.Builder.MaxExecutionPayment = b.MaxExecutionPayment
-		out.DefaultConfig.Builder.Builders = b.Builders
+		out.DefaultConfig.Builder = &prysmBuilder{
+			MinBid:              b.MinBid,
+			BuilderBoostFactor:  b.BuilderBoostFactor,
+			MaxExecutionPayment: b.MaxExecutionPayment,
+			Builders:            b.Builders,
+		}
 	}
 
 	return marshalJSON(out)
@@ -304,8 +293,12 @@ type lighthouseBuilders struct {
 
 // renderLighthouseBuilders returns Lighthouse's builder_definitions.yml, as JSON which Lighthouse reads as YAML.
 // An entry's max execution payment falls back to the block's; its min bid and boost factor are only set when the
-// entry sets them.
-func renderLighthouseBuilders(builder proposerconfig.Builder) ([]byte, error) {
+// entry sets them. Without a builder block it lists no builders, so it replaces the file of an earlier bundle.
+func renderLighthouseBuilders(builder *proposerconfig.Builder) ([]byte, error) {
+	if builder == nil {
+		return marshalJSON(lighthouseBuilders{BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor, Builders: []lighthouseBuilderEntry{}})
+	}
+
 	minBid, err := parseNumber("min_bid", builder.MinBid)
 	if err != nil {
 		return nil, err

@@ -175,8 +175,11 @@ func TestWriteLighthouse(t *testing.T) {
 
 		got, err := Write(t.Context(), conf)
 		require.NoError(t, err)
-		require.Equal(t, []string{"validators/validator_definitions.yml", "vc-flags.txt"}, got)
-		require.NoFileExists(t, filepath.Join(conf.OutputDir, "validators", "builder_definitions.yml"))
+		require.Equal(t, []string{"validators/builder_definitions.yml", "validators/validator_definitions.yml", "vc-flags.txt"}, got)
+
+		builders, err := os.ReadFile(filepath.Join(conf.OutputDir, "validators", "builder_definitions.yml"))
+		require.NoError(t, err)
+		require.JSONEq(t, `{"min_bid": 0, "builder_boost_factor": 100, "builders": []}`, string(builders))
 		requireFile(t, conf.OutputDir, "vc-flags.txt", "--distributed\n")
 
 		b, err := os.ReadFile(filepath.Join(conf.OutputDir, "validators", "validator_definitions.yml"))
