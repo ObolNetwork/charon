@@ -29,9 +29,6 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_cache_hits_total` | Counter | Total number of times the cache was used | `endpoint` |
 | `app_cache_invalidated_reorg_total` | Counter | Total number of times the cache was invalidated due to a chain reorg | `endpoint` |
 | `app_cache_misses_total` | Counter | Total number of times the cache was missed | `endpoint` |
-| `app_eth2_bn_errors_total` | Counter | Total number of errors returned by each beacon node, excluding requests cancelled because another beacon node answered first | `endpoint, addr` |
-| `app_eth2_bn_first_total` | Counter | Total number of requests for which each beacon node returned the successful response that was used | `endpoint, addr` |
-| `app_eth2_bn_requests_total` | Counter | Total number of requests sent to each beacon node. The addr label is the beacon node`s scheme and host, see eth2wrap.BeaconNodeLabel | `endpoint, addr` |
 | `app_eth2_errors_total` | Counter | Total number of errors returned by eth2 beacon node requests | `endpoint` |
 | `app_eth2_latency_seconds` | Histogram | Latency in seconds for eth2 beacon node requests | `endpoint` |
 | `app_eth2_requests_total` | Counter | Total number of requests sent to eth2 beacon node | `endpoint` |

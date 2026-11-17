@@ -3,16 +3,11 @@
 package eth2wrap
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
-
-	"github.com/obolnetwork/charon/app/errors"
 )
 
 func TestSanitiseBeaconNodeAddr(t *testing.T) {
@@ -71,95 +66,4 @@ func TestBeaconNodeLabel(t *testing.T) {
 
 	// Earlier addresses keep their label.
 	require.Equal(t, "http://10.0.0.1:5052", BeaconNodeLabel("http://10.0.0.1:5052"))
-}
-
-// resetPerBeaconNodeMetrics resets the global per beacon node metrics, so tests can run repeatedly.
-func resetPerBeaconNodeMetrics(t *testing.T) {
-	t.Helper()
-
-	bnRequestCount.Reset()
-	bnErrorCount.Reset()
-	bnFirstCount.Reset()
-}
-
-func TestInstrumentPerBeaconNode(t *testing.T) {
-	resetPerBeaconNodeMetrics(t)
-	resetBeaconNodeLabelsForT()
-	t.Cleanup(resetBeaconNodeLabelsForT)
-
-	const endpoint = "test_instrument_per_bn"
-
-	newClient := func(addr string) Client {
-		return &lazy{confAddress: addr}
-	}
-
-	errFail := errors.New("fail")
-
-	work := instrumentPerBeaconNode(endpoint, func(_ context.Context, args provideArgs) (int, error) {
-		if strings.Contains(args.client.(*lazy).confAddress, "bad") {
-			return 0, errFail
-		}
-
-		return 1, nil
-	})
-
-	good := newClient("http://good:5052")
-	bad := newClient("http://user:pass@bad:5052/key")
-
-	_, err := work(t.Context(), provideArgs{client: good})
-	require.NoError(t, err)
-	_, err = work(t.Context(), provideArgs{client: bad})
-	require.ErrorIs(t, err, errFail)
-
-	// Cancelled requests count as requests but not as errors.
-	cancelled, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	_, err = work(cancelled, provideArgs{client: bad})
-	require.ErrorIs(t, err, errFail)
-
-	// Requests that hit the caller's deadline count as errors.
-	expired, cancelExpired := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
-	defer cancelExpired()
-
-	_, err = work(expired, provideArgs{client: bad})
-	require.ErrorIs(t, err, errFail)
-
-	require.InDelta(t, 1, testutil.ToFloat64(bnRequestCount.WithLabelValues(endpoint, "http://good:5052")), 0)
-	require.InDelta(t, 0, testutil.ToFloat64(bnErrorCount.WithLabelValues(endpoint, "http://good:5052")), 0)
-	require.InDelta(t, 3, testutil.ToFloat64(bnRequestCount.WithLabelValues(endpoint, "http://bad:5052")), 0)
-	require.InDelta(t, 2, testutil.ToFloat64(bnErrorCount.WithLabelValues(endpoint, "http://bad:5052")), 0)
-}
-
-func TestProvideCountsFirstResponse(t *testing.T) {
-	resetPerBeaconNodeMetrics(t)
-	resetBeaconNodeLabelsForT()
-	t.Cleanup(resetBeaconNodeLabelsForT)
-
-	const endpoint = "test_provide_first"
-
-	clients := []Client{&lazy{confAddress: "http://a:5052"}, &lazy{confAddress: "http://b:5052"}}
-
-	release := make(chan struct{})
-
-	t.Cleanup(func() { close(release) })
-
-	out, err := provide(t.Context(), endpoint, clients, nil,
-		func(ctx context.Context, args provideArgs) (string, error) {
-			if args.client.(*lazy).confAddress == "http://b:5052" {
-				select { // b is slow, a always answers first.
-				case <-release:
-				case <-ctx.Done():
-					return "", ctx.Err()
-				}
-			}
-
-			return args.client.(*lazy).confAddress, nil
-		}, nil, nil)
-	require.NoError(t, err)
-	require.Equal(t, "http://a:5052", out)
-
-	require.InDelta(t, 1, testutil.ToFloat64(bnFirstCount.WithLabelValues(endpoint, "http://a:5052")), 0)
-	require.InDelta(t, 0, testutil.ToFloat64(bnFirstCount.WithLabelValues(endpoint, "http://b:5052")), 0)
-	require.InDelta(t, 0, testutil.ToFloat64(bnErrorCount.WithLabelValues(endpoint, "http://b:5052")), 0)
 }

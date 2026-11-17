@@ -19,8 +19,6 @@ const (
 	otherBeaconNodeLabel = "other"
 	// invalidBeaconNodeLabel is used for addresses that don't parse to a host.
 	invalidBeaconNodeLabel = "invalid"
-	// unknownBeaconNodeLabel is used for clients without a configured address.
-	unknownBeaconNodeLabel = "unknown"
 )
 
 // bnLabels maps configured beacon node addresses to their metric label values.

@@ -37,8 +37,8 @@ const (
 
 var (
 	latencyHist = promauto.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: "app",  //nolint:goconst // metric namespace
-		Subsystem: "eth2", //nolint:goconst // metric subsystem
+		Namespace: "app", //nolint:goconst // metric namespace
+		Subsystem: "eth2",
 		Name:      "latency_seconds",
 		Help:      "Latency in seconds for eth2 beacon node requests",
 		Buckets:   []float64{.01, .025, .05, .1, .25, .5, .75, 1, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3, 5},
@@ -57,27 +57,6 @@ var (
 		Name:      "requests_total",
 		Help:      "Total number of requests sent to eth2 beacon node",
 	}, []string{"endpoint"})
-
-	bnRequestCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "app",
-		Subsystem: "eth2",
-		Name:      "bn_requests_total",
-		Help:      "Total number of requests sent to each beacon node. The addr label is the beacon node's scheme and host, see eth2wrap.BeaconNodeLabel",
-	}, []string{"endpoint", "addr"})
-
-	bnErrorCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "app",
-		Subsystem: "eth2",
-		Name:      "bn_errors_total",
-		Help:      "Total number of errors returned by each beacon node, excluding requests cancelled because another beacon node answered first",
-	}, []string{"endpoint", "addr"})
-
-	bnFirstCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "app",
-		Subsystem: "eth2",
-		Name:      "bn_first_total",
-		Help:      "Total number of requests for which each beacon node returned the successful response that was used",
-	}, []string{"endpoint", "addr"})
 
 	usingFallbackGauge = promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "app",
@@ -186,15 +165,17 @@ type provideArgs struct {
 // first successful result. Without one, it returns a no content answer if a client
 // gave one, otherwise the last error.
 // The bestIdxFunc is called with the index of the client returning a successful response.
-func provide[O any](ctx context.Context, endpoint string, clients []Client, fallbacks []Client,
+func provide[O any](ctx context.Context, clients []Client, fallbacks []Client,
 	work forkjoin.Work[provideArgs, O], isSuccessFunc func(O) bool, bestSelector *bestSelector,
 ) (O, error) {
 	if isSuccessFunc == nil {
 		isSuccessFunc = func(O) bool { return true }
 	}
 
+	zero := func() O { var z O; return z }()
+
 	runForkJoin := func(clients []Client) (O, error) {
-		fork, join, cancel := forkjoin.New(ctx, instrumentPerBeaconNode(endpoint, work),
+		fork, join, cancel := forkjoin.New(ctx, work,
 			forkjoin.WithoutFailFast(),
 			forkjoin.WithWorkers(len(clients)),
 		)
@@ -204,7 +185,42 @@ func provide[O any](ctx context.Context, endpoint string, clients []Client, fall
 			fork(provideArgs{client: client})
 		}
 
-		return joinProvide(ctx, endpoint, join(), isSuccessFunc, bestSelector)
+		var (
+			nokResp       forkjoin.Result[provideArgs, O]
+			hasNokResp    bool
+			noContentResp *forkjoin.Result[provideArgs, O]
+		)
+
+		for res := range join() {
+			if ctx.Err() != nil {
+				return zero, ctx.Err()
+			} else if res.Err == nil && isSuccessFunc(res.Output) {
+				if bestSelector != nil {
+					bestSelector.Increment(res.Input.client.Address())
+				}
+
+				return res.Output, nil
+			}
+
+			if isNoContent(res.Err) {
+				// A valid answer, so it beats other failures, but keep waiting for a successful one.
+				noContentResp = &res
+				continue
+			}
+
+			nokResp = res
+			hasNokResp = true
+		}
+
+		if ctx.Err() != nil {
+			return zero, ctx.Err()
+		} else if noContentResp != nil {
+			return noContentResp.Output, noContentResp.Err
+		} else if !hasNokResp {
+			return zero, errors.New("bug: no forkjoin results")
+		}
+
+		return nokResp.Output, nokResp.Err
 	}
 	output, err := runForkJoin(clients)
 
@@ -217,51 +233,6 @@ func provide[O any](ctx context.Context, endpoint string, clients []Client, fall
 	usingFallbackGauge.Set(0)
 
 	return output, err
-}
-
-// joinProvide returns the first successful result, else a no-content result, else the last failure.
-func joinProvide[O any](ctx context.Context, endpoint string, results forkjoin.Results[provideArgs, O],
-	isSuccessFunc func(O) bool, bestSelector *bestSelector,
-) (O, error) {
-	var (
-		zero          O
-		nokResp       forkjoin.Result[provideArgs, O]
-		hasNokResp    bool
-		noContentResp *forkjoin.Result[provideArgs, O]
-	)
-
-	for res := range results {
-		if ctx.Err() != nil {
-			return zero, ctx.Err()
-		} else if res.Err == nil && isSuccessFunc(res.Output) {
-			if bestSelector != nil {
-				bestSelector.Increment(res.Input.client.Address())
-			}
-
-			bnFirstCount.WithLabelValues(endpoint, clientLabel(res.Input.client)).Inc()
-
-			return res.Output, nil
-		}
-
-		if isNoContent(res.Err) {
-			// A valid answer, so it beats other failures, but keep waiting for a successful one.
-			noContentResp = &res
-			continue
-		}
-
-		nokResp = res
-		hasNokResp = true
-	}
-
-	if ctx.Err() != nil {
-		return zero, ctx.Err()
-	} else if noContentResp != nil {
-		return noContentResp.Output, noContentResp.Err
-	} else if !hasNokResp {
-		return zero, errors.New("bug: no forkjoin results")
-	}
-
-	return nokResp.Output, nokResp.Err
 }
 
 // isNoContent returns true if the error is a beacon node's 204 no content answer, which the client
@@ -322,8 +293,8 @@ func isBadGateway(err error) bool {
 type empty struct{}
 
 // submit proxies provide, but returns nil instead of a successful result.
-func submit(ctx context.Context, endpoint string, clients []Client, fallbacks []Client, work func(context.Context, provideArgs) error, selector *bestSelector) error {
-	_, err := provide(ctx, endpoint, clients, fallbacks,
+func submit(ctx context.Context, clients []Client, fallbacks []Client, work func(context.Context, provideArgs) error, selector *bestSelector) error {
+	_, err := provide(ctx, clients, fallbacks,
 		func(ctx context.Context, args provideArgs) (empty, error) {
 			return empty{}, work(ctx, args)
 		},
@@ -331,38 +302,6 @@ func submit(ctx context.Context, endpoint string, clients []Client, fallbacks []
 	)
 
 	return err
-}
-
-// instrumentPerBeaconNode wraps work, counting requests and errors per beacon node.
-// Requests cancelled because another beacon node answered first aren't counted as errors,
-// but requests that hit the caller's deadline are, since slow beacon nodes cause them.
-func instrumentPerBeaconNode[O any](endpoint string, work forkjoin.Work[provideArgs, O]) forkjoin.Work[provideArgs, O] {
-	return func(ctx context.Context, args provideArgs) (O, error) {
-		label := clientLabel(args.client)
-		bnRequestCount.WithLabelValues(endpoint, label).Inc()
-
-		out, err := work(ctx, args)
-		if err != nil && !errors.Is(ctx.Err(), context.Canceled) && !isNoContent(err) {
-			bnErrorCount.WithLabelValues(endpoint, label).Inc()
-		}
-
-		return out, err
-	}
-}
-
-// clientLabel returns the beacon node address metric label of the client. It uses the configured
-// address, since Address is empty until a lazy client is initialised. Clients without one, which
-// are only constructed outside newBeaconClient (e.g. in tests), are labelled unknownBeaconNodeLabel.
-func clientLabel(cl Client) string {
-	type configuredAddresser interface {
-		configuredAddress() string
-	}
-
-	if ca, ok := cl.(configuredAddresser); ok && ca.configuredAddress() != "" {
-		return BeaconNodeLabel(ca.configuredAddress())
-	}
-
-	return unknownBeaconNodeLabel
 }
 
 // latency measures endpoint latency and writes metrics and logs results.
