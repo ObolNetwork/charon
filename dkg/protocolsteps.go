@@ -257,6 +257,9 @@ func (s *writeArtifactsProtocolStep) Run(ctx context.Context, pctx *ProtocolCont
 		}
 
 		log.Info(ctx, "The new cluster lock has been published to Obol API")
+
+		// After the lock, the Obol API verifies the proposer config against it.
+		publishProposerConfig(ctx, pctx.Config.PublishAddr, pctx.Config.PublishTimeout, pctx.proposerConfigDoc)
 	}
 
 	return nil

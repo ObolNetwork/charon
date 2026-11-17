@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/cluster"
@@ -66,6 +68,12 @@ func newProposerListCmd(runFunc func(context.Context, io.Writer, proposerViewCon
 	cmd.Flags().BoolVar(&config.JSON, "json", false, "Print JSON instead of a table.")
 
 	return cmd
+}
+
+// bindProposerAPIFlags binds the Obol API address and timeout of the proposer config backup.
+func bindProposerAPIFlags(f *pflag.FlagSet, addr *string, timeout *time.Duration) {
+	f.StringVar(addr, "publish-address", "https://api.obol.tech/v1", "The URL of the Obol API backing up the proposer config.")
+	f.DurationVar(timeout, "publish-timeout", defaultPublishTimeout, "Timeout for the Obol API request.")
 }
 
 func bindProposerViewFlags(cmd *cobra.Command, config *proposerViewConfig) {

@@ -152,7 +152,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Deposit data files are re-created using the provided withdrawal addresses; do not submit deposits for validators that are already active.")
 	flags.StringVar(&config.SplitKeysDir, "split-keys-dir", "", "Directory containing keys to split. Expects keys in keystore-*.json and passwords in keystore-*.txt. Requires --split-existing-keys.")
 	flags.StringVar(&config.PublishAddr, "publish-address", "https://api.obol.tech/v1", "The URL to publish the lock file to.")
-	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
+	flags.BoolVar(&config.Publish, "publish", false, "Publish the lock file and the signed proposer config to obol-api.")
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
 	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 200000000, "Preferred target gas limit of the builder registrations signed into the cluster lock. [DEPRECATED from the gloas fork onwards] Builder registrations are no longer sent then, proposer-config-gas-limit applies instead.")
@@ -379,6 +379,9 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	if conf.Publish {
 		if dashboardURL, err = writeLockToAPI(ctx, conf.PublishAddr, lock); err != nil {
 			log.Warn(ctx, "Couldn't publish lock file to Obol API", err)
+		} else if err = writeProposerConfigToAPI(ctx, conf.PublishAddr, proposerConfig); err != nil {
+			// After the lock, the Obol API verifies the proposer config against it.
+			log.Warn(ctx, "Couldn't publish proposer config to Obol API", err)
 		}
 	}
 
@@ -1294,6 +1297,22 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	log.Info(ctx, "Published lock file", z.Str("addr", publishAddr))
 
 	return cl.LaunchpadURLForLock(lock), nil
+}
+
+// writeProposerConfigToAPI posts the signed proposer config revision to obol-api as a backup.
+func writeProposerConfigToAPI(ctx context.Context, publishAddr string, doc proposerconfig.Document) error {
+	cl, err := obolapi.New(publishAddr)
+	if err != nil {
+		return err
+	}
+
+	if err := cl.PublishProposerConfig(ctx, doc); err != nil {
+		return err
+	}
+
+	log.Info(ctx, "Published proposer config", z.U64("revision", doc.Revision), z.Str("addr", publishAddr))
+
+	return nil
 }
 
 // hasDistinctAddrs returns true if addrs contains more than one distinct address (ignoring case).

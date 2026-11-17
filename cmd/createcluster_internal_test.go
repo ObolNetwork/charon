@@ -26,6 +26,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
+	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/eth2util/keystore"
@@ -1118,7 +1119,7 @@ func TestKeymanager(t *testing.T) {
 func TestPublish(t *testing.T) {
 	ctx := t.Context()
 
-	result := make(chan struct{}, 1) // Buffered channel
+	result := make(chan string, 2) // The posted paths, buffered
 	defer close(result)
 
 	srv := httptest.NewServer(newObolAPIHandler(ctx, t, result))
@@ -1154,7 +1155,13 @@ func TestPublish(t *testing.T) {
 		}
 
 		require.NoError(t, err)
-		require.Equal(t, <-result, struct{}{})
+
+		lock, err := dkg.LoadAndVerifyClusterLock(ctx, path.Join(nodeDir(conf.ClusterDir, 0), clusterLockFile), "", true)
+		require.NoError(t, err)
+
+		// The proposer config is published after the lock, which the Obol API verifies it against.
+		require.Equal(t, "/lock", <-result)
+		require.Equal(t, "/proposer_config/0x"+hex.EncodeToString(lock.LockHash), <-result)
 	})
 }
 
@@ -1324,7 +1331,8 @@ func newKeymanagerHandler(ctx context.Context, t *testing.T, id int, results cha
 }
 
 // newObolAPIHandler returns http handler for a test obol-api server.
-func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- struct{}) http.Handler {
+// newObolAPIHandler returns a handler accepting the lock and the proposer config, which sends the posted paths to result.
+func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- string) http.Handler {
 	t.Helper()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1333,15 +1341,21 @@ func newObolAPIHandler(ctx context.Context, t *testing.T, result chan<- struct{}
 
 		defer r.Body.Close()
 
-		var req cluster.Lock
-		require.NoError(t, json.Unmarshal(data, &req))
+		if strings.HasPrefix(r.URL.Path, "/proposer_config/") {
+			doc, err := proposerconfig.Unmarshal(data)
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), doc.Revision)
+		} else {
+			var req cluster.Lock
+			require.NoError(t, json.Unmarshal(data, &req))
+		}
 
 		w.WriteHeader(http.StatusOK)
 
 		select {
 		case <-ctx.Done():
 			return
-		case result <- struct{}{}:
+		case result <- r.URL.Path:
 		}
 	})
 }

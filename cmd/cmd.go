@@ -59,6 +59,8 @@ func New() *cobra.Command {
 				newProposerListCmd(runProposerList),
 				newProposerCreateCmd(runProposerCreate),
 				newProposerEditCmd(runProposerEdit),
+				newProposerPublishCmd(runProposerPublish),
+				newProposerFetchCmd(runProposerFetch),
 			),
 			newVCBundleCmd(runVCBundle),
 			newTestCmd(
