@@ -322,7 +322,7 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		return ProposerConfigEditResult{}, err
 	}
 
-	log.Info(ctx, "Proposer config updated", z.U64("revision", doc.Revision), z.Hex("hash", hash[:]), z.Any("signers", doc.SignerIndexes()))
+	log.Info(ctx, "Proposer config updated, restart the validator client to apply it", z.U64("revision", doc.Revision), z.Hex("hash", hash[:]), z.Any("signers", doc.SignerIndexes()))
 
 	// The file is written and verifies on its own, so a failed handshake is not a failed edit.
 	if err := stopSync(ctx); err != nil {
