@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/eth2util"
@@ -84,6 +85,8 @@ func render(ctx context.Context, conf Config) ([]bundleFile, error) {
 	if len(conf.Parts) == 0 {
 		return nil, errors.New("nothing to write, include at least one of: " + join(AllParts()))
 	}
+
+	log.Info(ctx, "Validator client bundle made for client version", z.Str("client", string(conf.Client)), z.Str("version", clientVersions[conf.Client]))
 
 	include := func(p Part) bool { return slices.Contains(conf.Parts, p) }
 	perValidator := conf.Client == Nimbus || conf.Client == Lighthouse
