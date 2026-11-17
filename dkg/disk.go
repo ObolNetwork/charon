@@ -161,7 +161,7 @@ func writeLock(datadir string, lock cluster.Lock) error {
 	return nil
 }
 
-func checkClearDataDir(dataDir string) error {
+func checkClearDataDir(ctx context.Context, dataDir string) error {
 	// if dataDir is a file, return error
 	info, err := os.Stat(dataDir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -187,13 +187,19 @@ func checkClearDataDir(dataDir string) error {
 		enrPrivateKeyFile: false,
 	}
 
+	var emptyKeysDir string
+
 	for _, entity := range dirContent {
 		// An empty validator_keys directory is often a mount point created by a container runtime
-		// (possibly root owned), so remove it and let the DKG create its own.
+		// (possibly root owned). Symlinks aren't directories here, so they are refused below.
 		if entity.Name() == validatorKeysSubDir && entity.IsDir() {
-			if removed, err := removeEmptyDir(filepath.Join(dataDir, validatorKeysSubDir)); err != nil {
+			dir := filepath.Join(dataDir, validatorKeysSubDir)
+
+			empty, err := isEmptyDir(dir)
+			if err != nil {
 				return err
-			} else if removed {
+			} else if empty {
+				emptyKeysDir = dir
 				continue
 			}
 		}
@@ -215,23 +221,28 @@ func checkClearDataDir(dataDir string) error {
 		}
 	}
 
+	// Only remove the empty validator_keys directory once every other check passed, so a refused
+	// data directory is left untouched. The DKG creates its own validator_keys directory.
+	if emptyKeysDir != "" {
+		// os.Remove only removes empty directories, so nothing written in the meantime is lost.
+		if err := os.Remove(emptyKeysDir); err != nil {
+			return errors.Wrap(err, "remove empty directory, remove it manually and retry", z.Str("dir", emptyKeysDir))
+		}
+
+		log.Info(ctx, "Removed empty validator_keys directory from data directory", z.Str("dir", emptyKeysDir))
+	}
+
 	return nil
 }
 
-// removeEmptyDir removes dir if it has no entries and returns true if it did.
-func removeEmptyDir(dir string) (bool, error) {
+// isEmptyDir returns true if dir has no entries, including hidden ones.
+func isEmptyDir(dir string) (bool, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false, errors.Wrap(err, "list directory", z.Str("dir", dir))
-	} else if len(entries) > 0 {
-		return false, nil
 	}
 
-	if err := os.Remove(dir); err != nil {
-		return false, errors.Wrap(err, "remove empty directory, remove it manually and retry", z.Str("dir", dir))
-	}
-
-	return true, nil
+	return len(entries) == 0, nil
 }
 
 // checkWrites writes sample files to check disk writes and removes sample files after verification.

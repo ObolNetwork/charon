@@ -189,7 +189,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	if !conf.HasTestConfig() {
-		if err = checkClearDataDir(conf.DataDir); err != nil {
+		if err = checkClearDataDir(ctx, conf.DataDir); err != nil {
 			return err
 		}
 	}
