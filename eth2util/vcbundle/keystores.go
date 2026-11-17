@@ -132,8 +132,7 @@ func readKeystoreFile(path string) (keystoreFile, error) {
 	}, nil
 }
 
-// keystoreFiles returns the keystores and passwords in the client's layout, or Prysm's wallet. Lighthouse reads them
-// in place.
+// keystoreFiles returns the keystores and passwords in the client's layout, or Prysm's wallet.
 func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores []keystoreFile) ([]bundleFile, error) {
 	// paths returns the keystore and password paths of a keystore in the bundle.
 	var paths func(k keystoreFile) (keystorePath, passwordPath string)
@@ -165,14 +164,9 @@ func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores
 			return filepath.Join("validators", k.Pubkey, "keystore.json"), filepath.Join("secrets", k.Pubkey)
 		}
 	case Lighthouse:
-		dir, err := filepath.Abs(keysDir)
-		if err != nil {
-			return nil, errors.Wrap(err, "absolute validator keys path")
-		}
+		log.Info(ctx, "Keystores written in lighthouse's layout", z.Str("keystores_dir", "validators"), z.Str("secrets_dir", "secrets"), z.Int("keystores", len(keystores)))
 
-		log.Info(ctx, "Keystores read in place by lighthouse, its definitions point at them", z.Str("dir", dir))
-
-		return nil, nil
+		paths = func(k keystoreFile) (string, string) { return lighthousePaths(k.Pubkey) }
 	default:
 		return nil, errors.New("unknown validator client", z.Str("client", string(client)))
 	}
@@ -199,4 +193,9 @@ func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores
 	}
 
 	return files, nil
+}
+
+// lighthousePaths returns the keystore and password paths in Lighthouse's layout, relative to its data directory.
+func lighthousePaths(pubkey string) (keystorePath, passwordPath string) {
+	return filepath.Join("validators", pubkey, "voting-keystore.json"), filepath.Join("secrets", pubkey)
 }

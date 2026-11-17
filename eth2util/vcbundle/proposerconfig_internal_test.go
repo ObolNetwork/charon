@@ -55,8 +55,8 @@ func TestRenderProposerConfig(t *testing.T) {
 
 func TestRenderLighthouse(t *testing.T) {
 	keystores := []keystoreFile{
-		{Pubkey: testPubkeyA, KeystorePath: "/opt/charon/validator_keys/keystore-0.json", PasswordPath: "/opt/charon/validator_keys/keystore-0.txt"},
-		{Pubkey: testPubkeyB, KeystorePath: "/opt/charon/validator_keys/keystore-1.json", PasswordPath: "/opt/charon/validator_keys/keystore-1.txt", Index: 1},
+		{Pubkey: testPubkeyA, KeystorePath: "/root/.lighthouse/hoodi/validators/" + testPubkeyA + "/voting-keystore.json", PasswordPath: "/root/.lighthouse/hoodi/secrets/" + testPubkeyA},
+		{Pubkey: testPubkeyB, KeystorePath: "/root/.lighthouse/hoodi/validators/" + testPubkeyB + "/voting-keystore.json", PasswordPath: "/root/.lighthouse/hoodi/secrets/" + testPubkeyB, Index: 1},
 	}
 
 	t.Run("definitions", func(t *testing.T) {

@@ -6,12 +6,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
 
 	"github.com/spf13/cobra"
 
-	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/eth2util/vcbundle"
 )
 
@@ -53,7 +51,8 @@ func newVCBundleCmd(runFunc func(context.Context, io.Writer, vcbundle.Config) er
 	f.StringSliceVar(&include, "include", defaultParts, "Comma-separated parts of the bundle to write: keystores, proposer-settings, vc-flags.")
 	f.StringVar(&conf.OutputDir, "output-dir", ".charon/vc-bundle", "The directory to write the bundle to.")
 	f.StringVar(&conf.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the proposer config file.")
-	f.StringVar(&conf.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "The path to the directory holding the validator key shares. Lighthouse reads them there, at their absolute path.")
+	f.StringVar(&conf.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "The path to the directory holding the validator key shares.")
+	f.StringVar(&conf.LighthouseDir, "lighthouse-dir", "", "Lighthouse's data directory as Lighthouse sees it, e.g. /root/.lighthouse/hoodi. Its validator definitions name the keystores under it. Required for lighthouse proposer settings.")
 
 	return cmd
 }
@@ -64,11 +63,6 @@ func runVCBundle(ctx context.Context, w io.Writer, conf vcbundle.Config) error {
 		return err
 	}
 
-	if len(files) == 0 {
-		_, _ = fmt.Fprintln(w, "Nothing to write: Lighthouse reads the keystores in place.")
-		return nil
-	}
-
 	_, _ = fmt.Fprintf(w, "Validator client bundle for %s written to %s:\n", conf.Client, conf.OutputDir)
 	for _, file := range files {
 		_, _ = fmt.Fprintf(w, "  %s\n", file)
@@ -77,12 +71,7 @@ func runVCBundle(ctx context.Context, w io.Writer, conf vcbundle.Config) error {
 	_, _ = fmt.Fprintln(w, "Move these files into the validator client's directory.")
 
 	if conf.Client == vcbundle.Lighthouse && slices.Contains(conf.Parts, vcbundle.PartProposerSettings) {
-		keysDir, err := filepath.Abs(conf.ValidatorKeysDir)
-		if err != nil {
-			return errors.Wrap(err, "absolute validator keys path")
-		}
-
-		_, _ = fmt.Fprintf(w, "The definitions point at the keystores in %s, Lighthouse must see them at that path.\n", keysDir)
+		_, _ = fmt.Fprintf(w, "The definitions name the keystores under %s, move the validators and secrets directories there.\n", conf.LighthouseDir)
 	}
 
 	if conf.Client == vcbundle.Prysm && slices.Contains(conf.Parts, vcbundle.PartKeystores) {
