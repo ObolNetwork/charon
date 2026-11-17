@@ -1370,7 +1370,7 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock, 
 
 // publishProposerConfig posts the signed proposer config revision to the Obol API, best effort as for the
 // lock: a failure is logged. It returns true if it was published.
-func publishProposerConfig(ctx context.Context, publishAddr string, timeout time.Duration, doc proposerconfig.Document) bool {
+func publishProposerConfig(ctx context.Context, publishAddr string, timeout time.Duration, doc proposerconfig.Document) {
 	cl, err := obolapi.New(publishAddr, obolapi.WithTimeout(timeout))
 	if err == nil {
 		err = cl.PublishProposerConfig(ctx, doc)
@@ -1378,12 +1378,10 @@ func publishProposerConfig(ctx context.Context, publishAddr string, timeout time
 
 	if err != nil {
 		log.Warn(ctx, "Couldn't publish proposer config to Obol API", err, z.U64("revision", doc.Revision))
-		return false
+		return
 	}
 
 	log.Info(ctx, "Published proposer config to Obol API", z.U64("revision", doc.Revision))
-
-	return true
 }
 
 // checkThreshold returns an error if the threshold is out of bounds and

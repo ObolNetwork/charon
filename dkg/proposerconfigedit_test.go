@@ -114,11 +114,10 @@ func TestEditPublish(t *testing.T) {
 		confs = append(confs, conf)
 	}
 
-	results, errs := runEdits(confs)
+	_, errs := runEdits(confs)
 
 	for i := range n {
 		require.NoError(t, errs[i], "node %d", i)
-		require.Equal(t, i != n-1, results[i].Published, "node %d", i)
 	}
 
 	cl, err := obolapi.New(api.URL)

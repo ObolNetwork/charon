@@ -4,8 +4,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -13,6 +11,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/obolapi"
+	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg"
 )
@@ -26,7 +25,7 @@ type proposerPublishConfig struct {
 	NoVerify           bool
 }
 
-func newProposerPublishCmd(runFunc func(context.Context, io.Writer, proposerPublishConfig) error) *cobra.Command {
+func newProposerPublishCmd(runFunc func(context.Context, proposerPublishConfig) error) *cobra.Command {
 	var (
 		config  proposerPublishConfig
 		logConf log.Config
@@ -45,7 +44,7 @@ func newProposerPublishCmd(runFunc func(context.Context, io.Writer, proposerPubl
 				return err
 			}
 
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return runFunc(cmd.Context(), config)
 		},
 	}
 
@@ -61,7 +60,7 @@ func newProposerPublishCmd(runFunc func(context.Context, io.Writer, proposerPubl
 	return cmd
 }
 
-func runProposerPublish(ctx context.Context, w io.Writer, config proposerPublishConfig) error {
+func runProposerPublish(ctx context.Context, config proposerPublishConfig) error {
 	lock, err := dkg.LoadAndVerifyClusterLock(ctx, config.LockFile, "", config.NoVerify)
 	if err != nil {
 		return errors.Wrap(err, "load cluster lock")
@@ -91,7 +90,7 @@ func runProposerPublish(ctx context.Context, w io.Writer, config proposerPublish
 		return err
 	}
 
-	_, _ = fmt.Fprintf(w, "Proposer config revision %d published to %s: charon alpha proposer fetch fetches it.\n", doc.Revision, config.PublishAddress)
+	log.Info(ctx, "Published proposer config to Obol API", z.U64("revision", doc.Revision), z.Str("addr", config.PublishAddress))
 
 	return nil
 }

@@ -4,8 +4,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -32,7 +30,7 @@ type proposerFetchConfig struct {
 	NoVerify bool
 }
 
-func newProposerFetchCmd(runFunc func(context.Context, io.Writer, proposerFetchConfig) error) *cobra.Command {
+func newProposerFetchCmd(runFunc func(context.Context, proposerFetchConfig) error) *cobra.Command {
 	var (
 		config  proposerFetchConfig
 		logConf log.Config
@@ -51,7 +49,7 @@ func newProposerFetchCmd(runFunc func(context.Context, io.Writer, proposerFetchC
 				return err
 			}
 
-			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
+			return runFunc(cmd.Context(), config)
 		},
 	}
 
@@ -69,7 +67,7 @@ func newProposerFetchCmd(runFunc func(context.Context, io.Writer, proposerFetchC
 	return cmd
 }
 
-func runProposerFetch(ctx context.Context, w io.Writer, config proposerFetchConfig) error {
+func runProposerFetch(ctx context.Context, config proposerFetchConfig) error {
 	lock, err := dkg.LoadAndVerifyClusterLock(ctx, config.LockFile, "", config.NoVerify)
 	if err != nil {
 		return errors.Wrap(err, "load cluster lock")
@@ -118,13 +116,12 @@ func runProposerFetch(ctx context.Context, w io.Writer, config proposerFetchConf
 	}
 
 	if !written {
-		_, _ = fmt.Fprintf(w, "The proposer config file already holds revision %d, nothing written.\n", doc.Revision)
+		log.Info(ctx, "Proposer config file already holds the fetched revision", z.U64("revision", doc.Revision))
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(w, "Proposer config revision %d, signed by %d of %d operators (%s), written to %s.\n",
-		doc.Revision, len(doc.Signatures), len(lock.Operators), signerList(doc), config.ProposerConfigFile)
-	_, _ = fmt.Fprintln(w, "Restart your validator client now to apply it, e.g.: docker compose restart <vc service>")
+	log.Info(ctx, "Proposer config fetched, restart the validator client to apply it",
+		z.U64("revision", doc.Revision), z.Any("signers", doc.SignerIndexes()), z.Str("path", config.ProposerConfigFile))
 
 	return nil
 }
