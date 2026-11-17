@@ -164,11 +164,6 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		if err != nil {
 			return ProposerConfigEditResult{}, err
 		}
-
-		err = confirmEdit(ctx, conf, lock, base, proposedDoc)
-		if err != nil {
-			return ProposerConfigEditResult{}, err
-		}
 	}
 
 	err = checkWritable(conf.ProposerConfigFile)
@@ -176,9 +171,17 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		return ProposerConfigEditResult{}, err
 	}
 
+	// Probed before asking the operator to confirm, so a relay problem does not surface after their answer.
 	err = probeRelays(ctx, conf.DKGConfig.P2P.Relays, lock, self)
 	if err != nil {
 		return ProposerConfigEditResult{}, err
+	}
+
+	if !deferred {
+		err = confirmEdit(ctx, conf, lock, base, proposedDoc)
+		if err != nil {
+			return ProposerConfigEditResult{}, err
+		}
 	}
 
 	p2pNode, shutdown, err := setupP2P(ctx, key, relayOnlyConfig(conf.DKGConfig), peers, lock.LockHash, lock.UUID)
@@ -491,12 +494,18 @@ func WriteProposerConfigProposal(ctx context.Context, conf ProposerConfigProposa
 
 	lock := *lockPtr
 
+	// A missing file is an error: a proposal for a config derived from the lock would undo the cluster's changes.
 	load := func() (proposerconfig.Document, error) {
-		return proposerconfig.LoadAnyNode(conf.ProposerConfigFile, lock)
+		doc, err := proposerconfig.LoadAnyNode(conf.ProposerConfigFile, lock)
+		if errors.Is(err, proposerconfig.ErrNotFound) {
+			return proposerconfig.Document{}, errors.New("proposer config file not found, pass the file of any of the cluster's nodes, charon run writes it",
+				z.Str("path", conf.ProposerConfigFile))
+		}
+
+		return doc, err
 	}
 
-	base, _, err := loadProposerConfigDocument(ctx, lock, load, conf.ProposerConfigFile, conf.OverridesFile,
-		"No proposer config file, proposing a change to one derived from the lock and overrides")
+	base, _, err := loadProposerConfigDocument(ctx, lock, load, conf.ProposerConfigFile, conf.OverridesFile, "")
 	if err != nil {
 		return ProposerConfigChange{}, err
 	}
@@ -541,12 +550,16 @@ func newProposerConfigChange(lock cluster.Lock, base, proposal proposerconfig.Do
 	}, nil
 }
 
-// confirmEdit logs the changed fields of the proposal, so the operator sees what they sign, and asks to confirm
-// them if the edit has a Confirm function.
+// confirmEdit shows the operator what they sign: the edit's Confirm function is asked to confirm the changed
+// fields of the proposal, which are logged without one.
 func confirmEdit(ctx context.Context, conf ProposerConfigEditConfig, lock cluster.Lock, base, proposal proposerconfig.Document) error {
 	change, err := newProposerConfigChange(lock, base, proposal)
 	if err != nil {
 		return err
+	}
+
+	if conf.Confirm != nil {
+		return conf.Confirm(ctx, change)
 	}
 
 	log.Info(ctx, fmt.Sprintf("Proposing proposer config revision %d, changes from revision %d:", change.Revision, change.BaseRevision))
@@ -555,11 +568,7 @@ func confirmEdit(ctx context.Context, conf ProposerConfigEditConfig, lock cluste
 		log.Info(ctx, "  "+line)
 	}
 
-	if conf.Confirm == nil {
-		return nil
-	}
-
-	return conf.Confirm(ctx, change)
+	return nil
 }
 
 // docDiffLines returns the differences from a to b as "field: old -> new" lines.

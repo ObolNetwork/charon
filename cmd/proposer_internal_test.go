@@ -13,7 +13,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
+	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/eth2util"
 )
 
@@ -21,6 +23,13 @@ const proposerTestFeeRecipient = "0x000000000000000000000000000000000000dEaD"
 
 // newProposerTestCluster creates a 4 node cluster with 2 validators, its proposer config signed at revision 1.
 func newProposerTestCluster(t *testing.T) string {
+	t.Helper()
+
+	return newProposerTestClusterWith(t, proposerTestFeeRecipient, proposerTestFeeRecipient)
+}
+
+// newProposerTestClusterWith is newProposerTestCluster with the fee recipient of each of the 2 validators.
+func newProposerTestClusterWith(t *testing.T, feeRecipients ...string) string {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -32,7 +41,7 @@ func newProposerTestCluster(t *testing.T) string {
 		NumDVs:            2,
 		Network:           eth2util.Hoodi.Name,
 		TargetGasLimit:    36000000,
-		FeeRecipientAddrs: []string{proposerTestFeeRecipient, proposerTestFeeRecipient},
+		FeeRecipientAddrs: feeRecipients,
 		WithdrawalAddrs:   []string{proposerTestFeeRecipient, proposerTestFeeRecipient},
 		InsecureKeys:      true,
 	}
@@ -100,7 +109,7 @@ func TestProposerStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, out, `Cluster "TestProposerStatus", lock 0x`)
 		require.Contains(t, out, "4 operators, threshold 3")
-		require.Contains(t, out, "Proposer config revision 1, signed by 4/4 operators")
+		require.Contains(t, out, "Proposer config revision 1, signed by 4 of 4 operators: 0, 1, 2, 3\n")
 		require.Contains(t, out, strings.ToLower(proposerTestFeeRecipient)+" (default), 0 validator(s) with their own")
 		require.Contains(t, out, "builders       none")
 		require.Contains(t, out, "Change it: charon alpha proposer create")
@@ -114,6 +123,74 @@ func TestProposerStatus(t *testing.T) {
 		require.Contains(t, out, "No proposer config file at "+missing)
 	})
 
+	loadDoc := func(t *testing.T, node int) (cluster.Lock, proposerconfig.Document) {
+		t.Helper()
+
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(nodeDir(dir, 0), clusterLockFile), "", true)
+		require.NoError(t, err)
+
+		doc, err := proposerconfig.Load(proposerconfig.FilePath(nodeDir(dir, node)), *lock, cluster.NodeIdx{PeerIdx: node, ShareIdx: node + 1})
+		require.NoError(t, err)
+
+		return *lock, doc
+	}
+
+	t.Run("unsigned revision 0", func(t *testing.T) {
+		lock, doc := loadDoc(t, 1)
+		doc.Revision, doc.Signatures, doc.StoredHash = 0, nil, nil
+
+		file := path.Join(t.TempDir(), "proposer-config.json")
+		require.NoError(t, proposerconfig.Write(file, doc, lock, cluster.NodeIdx{PeerIdx: 1, ShareIdx: 2}))
+
+		out, err := runProposerCmd(t, lockFile, "--proposer-config-file="+file)
+		require.NoError(t, err)
+		require.Contains(t, out, "Proposer config revision 0, unsigned")
+		require.Contains(t, out, "gas limit")
+	})
+
+	t.Run("unverified file is not shown", func(t *testing.T) {
+		lock, doc := loadDoc(t, 1)
+		doc.Signatures = doc.Signatures[:1]
+
+		file := path.Join(t.TempDir(), "proposer-config.json")
+		require.NoError(t, proposerconfig.Write(file, doc, lock, cluster.NodeIdx{PeerIdx: 1, ShareIdx: 2}))
+
+		out, err := runProposerCmd(t, lockFile, "--proposer-config-file="+file)
+		require.NoError(t, err)
+		require.Contains(t, out, "Proposer config revision 1 does not verify against the cluster lock: not enough signatures")
+		require.NotContains(t, out, "gas limit")
+	})
+
+	// Malformed locks, loaded unverified, are reported instead of panicking.
+	for name, mutate := range map[string]func(map[string]any){
+		"short lock hash": func(lock map[string]any) { lock["lock_hash"] = "0x12" },
+		"missing pubshare": func(lock map[string]any) {
+			val, ok := lock["distributed_validators"].([]any)[0].(map[string]any)
+			require.True(t, ok)
+
+			val["public_shares"] = val["public_shares"].([]any)[:2]
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b, err := os.ReadFile(path.Join(nodeDir(dir, 0), clusterLockFile))
+			require.NoError(t, err)
+
+			var lock map[string]any
+			require.NoError(t, json.Unmarshal(b, &lock))
+			mutate(lock)
+
+			b, err = json.Marshal(lock)
+			require.NoError(t, err)
+
+			file := path.Join(t.TempDir(), clusterLockFile)
+			require.NoError(t, os.WriteFile(file, b, 0o600))
+
+			out, err := runProposerCmd(t, "--lock-file="+file, "--no-verify", "--proposer-config-file="+proposerconfig.FilePath(nodeDir(dir, 1)))
+			require.NoError(t, err)
+			require.Contains(t, out, `Cluster "TestProposerStatus", lock 0x`)
+		})
+	}
+
 	t.Run("no lock", func(t *testing.T) {
 		out, err := runProposerCmd(t, "--lock-file="+path.Join(t.TempDir(), "missing.json"))
 		require.NoError(t, err)
@@ -122,43 +199,84 @@ func TestProposerStatus(t *testing.T) {
 }
 
 func TestProposerList(t *testing.T) {
-	dir := newProposerTestCluster(t)
-	args := []string{
-		"list",
-		"--lock-file=" + path.Join(nodeDir(dir, 0), clusterLockFile),
-		"--proposer-config-file=" + proposerconfig.FilePath(nodeDir(dir, 3)),
+	def := strings.ToLower(proposerTestFeeRecipient)
+
+	run := func(t *testing.T, dir string, extra ...string) string {
+		t.Helper()
+
+		args := []string{
+			"list",
+			"--lock-file=" + path.Join(nodeDir(dir, 0), clusterLockFile),
+			"--proposer-config-file=" + proposerconfig.FilePath(nodeDir(dir, 3)),
+		}
+
+		out, err := runProposerCmd(t, append(args, extra...)...)
+		require.NoError(t, err)
+
+		return out
 	}
 
-	out, err := runProposerCmd(t, args...)
-	require.NoError(t, err)
-	require.Contains(t, out, "Proposer config revision 1\n")
-	require.Contains(t, out, "INDEX  PUBKEY")
-	require.Equal(t, 2, strings.Count(out, strings.ToLower(proposerTestFeeRecipient)+"  default"))
-	require.Contains(t, out, "Builders of all validators: none")
+	t.Run("all on the default", func(t *testing.T) {
+		dir := newProposerTestCluster(t)
 
-	out, err = runProposerCmd(t, append(args, "--json")...)
-	require.NoError(t, err)
+		out := run(t, dir)
+		require.Equal(t, "Proposer config revision 1, 2 validators\n"+
+			"Default: fee recipient "+def+", gas limit 200000000\n"+
+			"All validators use the default fee recipient.\n"+
+			"Builders: none\n", out)
 
-	var list proposerListJSON
-	require.NoError(t, json.Unmarshal([]byte(out), &list))
-	require.Equal(t, uint64(1), list.Revision)
-	require.Len(t, list.Validators, 2)
-	require.Nil(t, list.Builder)
+		var list proposerListJSON
+		require.NoError(t, json.Unmarshal([]byte(run(t, dir, "--json")), &list))
+		require.Equal(t, proposerListJSON{
+			Revision:   1,
+			Validators: 2,
+			Default:    proposerDefaultJSON{FeeRecipient: def, GasLimit: "200000000"},
+			Own:        []proposerOwnJSON{},
+		}, list)
+	})
 
-	for _, v := range list.Validators {
-		require.Equal(t, strings.ToLower(proposerTestFeeRecipient), v.FeeRecipient)
-		require.False(t, v.OwnFeeRecipient)
-		require.NotEmpty(t, v.GasLimit)
-	}
+	t.Run("own fee recipient", func(t *testing.T) {
+		const own = "0x000000000000000000000000000000000000bEEF"
+
+		dir := newProposerTestClusterWith(t, proposerTestFeeRecipient, own)
+
+		out := run(t, dir)
+		require.Contains(t, out, "Default: fee recipient "+def+", gas limit")
+		require.Contains(t, out, "1 validator(s) with their own fee recipient:\n  PUBKEY")
+		require.Equal(t, 1, strings.Count(out, strings.ToLower(own)))
+		require.Equal(t, 1, strings.Count(out, def))
+
+		var list proposerListJSON
+		require.NoError(t, json.Unmarshal([]byte(run(t, dir, "--json")), &list))
+		require.Equal(t, 2, list.Validators)
+		require.Len(t, list.Own, 1)
+		require.Equal(t, strings.ToLower(own), list.Own[0].FeeRecipient)
+		require.Len(t, list.Own[0].Pubkey, 98)
+	})
 }
 
 func TestBuilderSummary(t *testing.T) {
+	builder := &proposerconfig.Builder{
+		MinBid:              "1",
+		BuilderBoostFactor:  "90",
+		MaxExecutionPayment: "2",
+		Builders:            []proposerconfig.BuilderEntry{{URL: "https://user:secret@builder.example/key?token=0x1234#frag"}, {URL: "https://b.example"}},
+	}
+
 	require.Equal(t, "none", builderSummary(nil))
-	require.Equal(t, "https://user:xxxxx@builder.example/xxxxx, https://b.example · min bid 1 gwei · boost factor 90% · max execution payment 2 gwei",
-		builderSummary(&proposerconfig.Builder{
-			MinBid:              "1",
-			BuilderBoostFactor:  "90",
-			MaxExecutionPayment: "2",
-			Builders:            []proposerconfig.BuilderEntry{{URL: "https://user:secret@builder.example/key"}, {URL: "https://b.example"}},
-		}))
+	require.Equal(t, "https://builder.example (redacted), https://b.example · min bid 1 gwei · boost factor 90% · max execution payment 2 gwei",
+		builderSummary(builder))
+
+	// The JSON list hides the credentials too, and leaves the config's builder as is.
+	require.Nil(t, redactedBuilder(nil))
+
+	b, err := json.Marshal(redactedBuilder(builder))
+	require.NoError(t, err)
+	require.Contains(t, string(b), `"url":"https://builder.example (redacted)"`)
+
+	for _, secret := range []string{"user", "secret", "key", "token", "0x1234", "frag"} {
+		require.NotContains(t, string(b), secret)
+	}
+
+	require.Equal(t, "https://user:secret@builder.example/key?token=0x1234#frag", builder.Builders[0].URL)
 }

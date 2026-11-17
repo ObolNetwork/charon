@@ -203,11 +203,19 @@ func TestEditThreshold(t *testing.T) {
 
 	confs = nil
 
+	// Every operator confirms the change it signs: the absent one only once it adopted revision 1.
+	confirmed := make([][]dkg.ProposerConfigChange, n)
+
 	for i := range n {
 		conf := editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 80_000_000})
 		if i == absent {
 			conf.Delta = proposerconfig.Delta{}
 			conf.Proposal = &proposal
+		}
+
+		conf.Confirm = func(_ context.Context, change dkg.ProposerConfigChange) error {
+			confirmed[i] = append(confirmed[i], change)
+			return nil
 		}
 
 		confs = append(confs, conf)
@@ -217,6 +225,9 @@ func TestEditThreshold(t *testing.T) {
 
 	for i := range n {
 		require.NoError(t, errs[i], "node %d", i)
+		require.Len(t, confirmed[i], 1, "node %d", i)
+		require.Equal(t, uint64(1), confirmed[i][0].BaseRevision, "node %d", i)
+		require.Equal(t, results[i].Hash, confirmed[i][0].Hash, "node %d", i)
 		require.Equal(t, uint64(2), results[i].Revision)
 		require.Equal(t, i == absent, results[i].Adopted, "node %d", i)
 
@@ -690,6 +701,15 @@ func TestEditProposalFile(t *testing.T) {
 
 		_, err := dkg.WriteProposerConfigProposal(t.Context(), conf)
 		require.ErrorIs(t, err, proposerconfig.ErrNoChange)
+		require.NoFileExists(t, conf.OutputFile)
+	})
+
+	t.Run("missing proposer config file", func(t *testing.T) {
+		conf := proposalTestConfig(t, clusterDir, 0, proposerconfig.Delta{GasLimit: 60_000_000})
+		conf.ProposerConfigFile = path.Join(t.TempDir(), "proposer-config.json")
+
+		_, err := dkg.WriteProposerConfigProposal(t.Context(), conf)
+		require.ErrorContains(t, err, "proposer config file not found")
 		require.NoFileExists(t, conf.OutputFile)
 	})
 

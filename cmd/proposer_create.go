@@ -22,9 +22,10 @@ func newProposerCreateCmd(runFunc func(context.Context, io.Writer, dkg.ProposerC
 
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Write a proposer config change to a proposal file for the operators",
-		Long: "Writes the change flags as a proposal file of the cluster's next proposer config revision, for every operator to pass to charon alpha proposer edit. " +
-			"It needs the cluster lock and the proposer config file of any of its nodes, but no node key: it signs and changes nothing.",
+		Short: "Create the proposal file of a proposer config change, for the operators to run edit with",
+		Long: "Creates a proposal file: the cluster's next proposer config revision with the change flags applied. " +
+			"It is to charon alpha proposer edit what charon create dkg's cluster definition is to charon dkg: one person creates it and sends it to every operator, who all run the ceremony with it. " +
+			"It needs the cluster lock and the proposer config file of any of its nodes, but no node key, so its author need not be an operator. It signs and changes nothing.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := log.InitLogger(logConf); err != nil {
@@ -47,7 +48,7 @@ func newProposerCreateCmd(runFunc func(context.Context, io.Writer, dkg.ProposerC
 	f.StringVar(&config.OutputFile, "output-file", "proposer-config-proposal.json", "The path to write the proposal file to, it must not exist.")
 	f.StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
 	f.StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the proposer config file of any of the cluster's nodes.")
-	f.StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
+	f.StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, a revision 0 proposer config file is compared with.")
 	bindNoVerifyFlag(f, &config.NoVerify)
 	bindLogFlags(f, &logConf)
 	bindEth1Flag(f, &config.ExecutionEngineAddr)

@@ -310,10 +310,10 @@ func TestProposerEditConfirm(t *testing.T) {
 	newCmd := func(t *testing.T, terminal bool, in string, got *dkg.ProposerConfigEditConfig) *cobra.Command {
 		t.Helper()
 
-		prev := stdinIsTerminal
-		stdinIsTerminal = func() bool { return terminal }
+		prev := isInteractive
+		isInteractive = func() bool { return terminal }
 
-		t.Cleanup(func() { stdinIsTerminal = prev })
+		t.Cleanup(func() { isInteractive = prev })
 
 		cmd := newProposerEditCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
 			*got = conf
@@ -370,14 +370,23 @@ func TestProposerEditConfirm(t *testing.T) {
 	}
 }
 
+func TestConfirmChangeCancelled(t *testing.T) {
+	in, _ := io.Pipe() // Never answers.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := confirmChange(in, io.Discard)(ctx, dkg.ProposerConfigChange{})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestProposerEditHiddenFlags(t *testing.T) {
 	cmd := newProposerEditCmd(nil)
 
-	for _, name := range []string{"overrides-file", "timeout", "shutdown-delay", "no-verify", "p2p-relays", "execution-client-rpc-endpoint"} {
+	for _, name := range []string{"overrides-file", "timeout", "shutdown-delay", "no-verify", "execution-client-rpc-endpoint"} {
 		require.True(t, cmd.Flags().Lookup(name).Hidden, name)
 	}
 
-	for _, name := range []string{"yes", "lock-file", "private-key-file", "proposer-config-file", "participating-operator-enrs", gasLimitFlag} {
+	for _, name := range []string{"yes", "lock-file", "private-key-file", "proposer-config-file", "participating-operator-enrs", "p2p-relays", gasLimitFlag} {
 		require.False(t, cmd.Flags().Lookup(name).Hidden, name)
 	}
 

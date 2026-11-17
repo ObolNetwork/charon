@@ -190,12 +190,15 @@ file signed for the previous lock.
 
 ### Showing and changing the proposer config
 
-`charon alpha proposer` shows the cluster's proposer config: its revision and signers, the default fee recipient, the gas limit
-and the builders, with builder URL credentials hidden. It never fails, a missing or invalid file is reported instead.
-`charon alpha proposer list [--json]` lists each validator's fee recipient (the default or its own) and gas limit. Both read
+`charon alpha proposer` shows the cluster's proposer config: its revision and the operators that signed it, the default fee
+recipient, the gas limit and the builders, as scheme and host only since builder URLs may carry credentials. It never fails:
+a missing file is reported, and so is one that does not verify against the lock, whose content is not shown.
+`charon alpha proposer list [--json]` lists the default fee recipient and gas limit and only the validators whose fee recipient
+differs from it. Both read
 the proposer config file of any of the cluster's nodes and need no node key.
 
-All participating operators change it in one ceremony, each running the same command:
+Changing it is a ceremony, like a DKG: one operator running it alone changes nothing. The participating operators agree on a
+time, then all run the same command at the same time, which waits for the others to join:
 
 ```sh
 charon alpha proposer edit \
@@ -215,9 +218,10 @@ At least one change flag is required, the flags combine into one revision, and a
 Each operator sees the differences against the current revision and its hash, and confirms them before signing; `--yes` signs
 without asking, for scripts, and is required without a terminal.
 
-To spare every operator retyping the same flags, one person writes the change to a proposal file with
-`charon alpha proposer create --output-file=proposal.json` and the same change flags. It needs the cluster lock and the proposer
-config file of any node, but no node key, so the author need not be an operator, and it changes nothing. Every operator then
+To spare every operator retyping the same flags, one person creates a proposal file with
+`charon alpha proposer create --output-file=proposal.json` and the same change flags, as `charon create dkg` creates the
+cluster definition every operator runs the DKG with. It needs the cluster lock and the proposer
+config file of any node, which must exist, but no node key, so the author need not be an operator, and it changes nothing. Every operator then
 runs `charon alpha proposer edit proposal.json` (a path or an HTTP URL) in place of the change flags; operators passing the file and
 operators passing the equal flags agree. An existing file is not overwritten. The proposal file has the seed file's shape and is
 complete on its own: it adds the `lock_hash`, the `revision` it proposes, the default `fee_recipient` and a `proposer_config`
@@ -228,7 +232,7 @@ reads must hold the cluster's latest revision. Builder URLs are logged redacted,
 
 `--participating-operator-enrs` lists the operators running the ceremony, this node included, as for `remove-operators`. It defaults
 to all operators and must list at least the cluster threshold; every participant passes the same list. An operator that missed a ceremony shows up as `app_peerinfo_proposer_config_mismatch` on its peers and catches up by joining the next edit ceremony, where it adopts the newer signed revision from its peers.
-The hidden `--timeout` (default 24h) is how long to wait for the other operators to join, and the hidden `--p2p-relays` defaults to
+The hidden `--timeout` (default 24h) is how long to wait for the other operators to join, `--p2p-relays` defaults to
 `https://4.relay.obol.dev`. Use relays that do not serve your running charon node. The ceremony connects via relays only, it neither
 listens nor advertises addresses. Run inside charon's container, the command inherits charon run's environment, including the
 `CHARON_P2P_RELAYS` your node uses, so pass `--p2p-relays` explicitly:
