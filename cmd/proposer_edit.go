@@ -56,8 +56,10 @@ var proposerChangeFlagNames = []string{
 	builderBoostFactorFlag, builderMaxPaymentFlag, noBuildersFlag,
 }
 
-// stdinIsTerminal reports whether stdin is a terminal, the confirmation question needs one.
-var stdinIsTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+// isInteractive reports whether stdin and stdout are terminals, the confirmation question needs both.
+var isInteractive = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
 
 // bind binds the change flags. None has a default: a flag left out changes nothing.
 func (f *proposerChangeFlags) bind(fs *pflag.FlagSet) {
@@ -89,10 +91,11 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 
 	cmd := &cobra.Command{
 		Use:   "edit [proposal file or URL]",
-		Short: "Change the cluster's signed proposer config with the other operators",
+		Short: "Change the cluster's proposer config in a ceremony all operators run at the same time",
 		Long: "Changes the fee recipients, gas limit or builders in the cluster's proposer config file. " +
-			"All participating operators run this command with the same change: the change flags, or a proposal file written with charon alpha proposer create (a path or an HTTP URL). " +
-			"Each operator confirms the change before signing it, then all agree on the new revision and each writes it with the collected signatures. " +
+			"It is a ceremony, like a DKG: one operator running it alone changes nothing. Agree on a time with the other operators, then all participating operators run this command " +
+			"at the same time and with the same change: a proposal file written with charon alpha proposer create (a path or an HTTP URL), or the equal change flags. " +
+			"The command waits for the others to join. Each operator confirms the change before signing it, then all agree on the new revision and each writes it with the collected signatures. " +
 			"Restart the validator client afterwards to apply it.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -123,7 +126,7 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 			}
 
 			if !yes {
-				if !stdinIsTerminal() {
+				if !isInteractive() {
 					return errors.New("confirming the change needs a terminal, add --yes to sign it without asking")
 				}
 
@@ -151,7 +154,8 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 	bindLogFlags(f, &config.DKGConfig.Log)
 	bindEth1Flag(f, &config.DKGConfig.ExecutionEngineAddr)
 
-	markHidden(f, "overrides-file", "timeout", "shutdown-delay", "no-verify", "p2p-relays", "execution-client-rpc-endpoint")
+	// p2p-relays stays visible: under docker compose exec it must be passed, see the relay probe.
+	markHidden(f, "overrides-file", "timeout", "shutdown-delay", "no-verify", "execution-client-rpc-endpoint")
 
 	return cmd
 }
@@ -174,23 +178,42 @@ func loadProposal(ctx context.Context, source string) (proposerconfig.Document, 
 }
 
 // confirmChange returns a Confirm function printing the change to w and asking on in to sign it: any answer but
-// y or yes declines.
+// y or yes declines. A cancelled context, as on an interrupt or the ceremony's timeout, ends the wait.
 func confirmChange(in io.Reader, w io.Writer) func(context.Context, dkg.ProposerConfigChange) error {
-	return func(_ context.Context, change dkg.ProposerConfigChange) error {
+	// One reader for all questions, so input buffered by one is not lost to the next.
+	reader := bufio.NewReader(in)
+
+	type answer struct {
+		line string
+		err  error
+	}
+
+	return func(ctx context.Context, change dkg.ProposerConfigChange) error {
 		printProposerConfigChange(w, change)
 
 		_, _ = fmt.Fprint(w, "Sign this change? [y/N] ")
 
-		answer, err := bufio.NewReader(in).ReadString('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			return errors.Wrap(err, "read confirmation")
-		}
+		answers := make(chan answer, 1)
 
-		switch strings.ToLower(strings.TrimSpace(answer)) {
-		case "y", "yes":
-			return nil
-		default:
-			return errors.New("change not confirmed, nothing was signed")
+		go func() {
+			line, err := reader.ReadString('\n')
+			answers <- answer{line: line, err: err}
+		}()
+
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ctx.Err(), "change not confirmed, nothing was signed")
+		case a := <-answers:
+			if a.err != nil && !errors.Is(a.err, io.EOF) {
+				return errors.Wrap(a.err, "read confirmation")
+			}
+
+			switch strings.ToLower(strings.TrimSpace(a.line)) {
+			case "y", "yes":
+				return nil
+			default:
+				return errors.New("change not confirmed, nothing was signed")
+			}
 		}
 	}
 }

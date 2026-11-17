@@ -254,7 +254,7 @@ func TestNewProposerConfigServiceSigned(t *testing.T) {
 	// Only explicitly set flags are compared: the default gas limit differs from the file but is not reported.
 	logs := f.logs.String()
 	require.Equal(t, 1, strings.Count(logs, "level=warn"), logs)
-	require.Contains(t, logs, `flags="proposer-config-builder-urls: file none, flag https://user:xxxxx@a.example.com,https://user:xxxxx@b.example.com; proposer-config-builder-min-bid: file none, flag 0"`)
+	require.Contains(t, logs, `flags="proposer-config-builder-urls: file none, flag https://a.example.com/xxxxx,https://b.example.com/xxxxx; proposer-config-builder-min-bid: file none, flag 0"`)
 	require.NotContains(t, logs, "secret")
 	require.NotContains(t, logs, "pa,ss")
 	require.NotContains(t, logs, "proposer-config-gas-limit")

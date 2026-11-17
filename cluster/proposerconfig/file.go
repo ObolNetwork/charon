@@ -137,6 +137,10 @@ func pubshareMaps(lock cluster.Lock, nodeIdx cluster.NodeIdx) (toShare, toPubkey
 	toPubkey = make(map[string]string, len(lock.Validators))
 
 	for i, val := range lock.Validators {
+		if nodeIdx.PeerIdx < 0 || nodeIdx.PeerIdx >= len(val.PubShares) {
+			return nil, nil, invalid("lock validator has no pubshare for the node", z.Int("validator", i), z.Int("node", nodeIdx.PeerIdx))
+		}
+
 		share, err := val.PublicShare(nodeIdx.PeerIdx)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "pubshare", z.Int("validator", i))
@@ -210,14 +214,23 @@ func Load(path string, lock cluster.Lock, nodeIdx cluster.NodeIdx) (Document, er
 // LoadAnyNode reads a proposer config file written for any node of the lock, found by its pubshare keys, and
 // returns it keyed by DV pubkeys. It suits commands that run without a node's key.
 func LoadAnyNode(path string, lock cluster.Lock) (Document, error) {
+	if len(lock.Operators) == 0 {
+		return Document{}, invalid("lock has no operators")
+	}
+
+	var err error
+
 	for i := range lock.Operators {
-		doc, err := Load(path, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		var doc Document
+
+		doc, err = Load(path, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
 		if !errors.Is(err, errUnknownKey) {
 			return doc, err
 		}
 	}
 
-	return Document{}, invalid("proposer_config keys are not the pubshares of any node", z.Str("path", path))
+	// The last node's error names a key that is not its pubshare.
+	return Document{}, errors.Wrap(err, "proposer_config keys are not the pubshares of any node", z.Str("path", path))
 }
 
 // render returns the file contents of the document, keyed by this node's pubshares instead of DV pubkeys.

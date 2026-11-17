@@ -54,7 +54,7 @@ func TestDiffRedactsBuilderURLs(t *testing.T) {
 
 	// A comma in a URL does not split it before redaction.
 	require.Equal(t, []string{
-		"default.builder.urls: https://b1.example -> https://user:xxxxx@b2.example,https://b3.example/xxxxx?token=xxxxx,https://user:xxxxx@b4.example",
+		"default.builder.urls: https://b1.example -> https://b2.example/xxxxx,https://b3.example/xxxxx,https://b4.example/xxxxx",
 	}, Diff(lock, a, b))
 
 	// URLs differing only in redacted parts still differ.
@@ -96,4 +96,20 @@ func TestDiffLargeLock(t *testing.T) {
 	require.Less(t, time.Since(start), time.Second)
 	// Every validator and the default fee recipient.
 	require.Len(t, diffs, n+1)
+}
+
+func TestRedactURL(t *testing.T) {
+	for raw, want := range map[string]string{
+		"https://b.example":                       "https://b.example",
+		"https://b.example:8080/":                 "https://b.example:8080",
+		"https://token@b.example":                 "https://b.example/xxxxx",
+		"https://user:secret@b.example":           "https://b.example/xxxxx",
+		"https://b.example/key":                   "https://b.example/xxxxx",
+		"https://b.example?apikey=0x5ec2&id=1234": "https://b.example/xxxxx",
+		"https://b.example#secret":                "https://b.example/xxxxx",
+		"b.example/key":                           "xxxxx",
+		"://secret":                               "xxxxx",
+	} {
+		require.Equal(t, want, RedactURL(raw), raw)
+	}
 }
