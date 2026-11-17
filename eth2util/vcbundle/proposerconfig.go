@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strconv"
 
@@ -32,8 +33,9 @@ type tekuConfig struct {
 	DefaultConfig  tekuSettings            `json:"default_config"`
 }
 
-// proposerConfigFiles returns the client's proposer settings files.
-func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []keystoreFile) ([]bundleFile, error) {
+// proposerConfigFiles returns the client's proposer settings files. Lighthouse's name the keystores under
+// lighthouseDir.
+func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []keystoreFile, lighthouseDir string) ([]bundleFile, error) {
 	single := func(path string, render func(proposerconfig.Config) ([]byte, error)) ([]bundleFile, error) {
 		b, err := render(cfg)
 		if err != nil {
@@ -62,34 +64,26 @@ func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []k
 
 		return files, nil
 	case Lighthouse:
-		return lighthouseFiles(cfg, keystores)
+		return lighthouseFiles(cfg, keystores, lighthouseDir)
 	default:
 		return nil, errors.New("unknown validator client", z.Str("client", string(client)))
 	}
 }
 
-// lighthouseFiles returns Lighthouse's validator and builder definitions. The definitions point at the keystores
-// by absolute path, since the files are moved into Lighthouse's validators directory.
-func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile) ([]bundleFile, error) {
-	absolute := make([]keystoreFile, 0, len(keystores))
+// lighthouseFiles returns Lighthouse's validator and builder definitions. The definitions name the bundle's keystores
+// by their absolute path under Lighthouse's data directory dir, as Lighthouse resolves relative paths against its
+// working directory.
+func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir string) ([]bundleFile, error) {
+	located := make([]keystoreFile, 0, len(keystores))
 
 	for _, k := range keystores {
-		var err error
-
-		k.KeystorePath, err = filepath.Abs(k.KeystorePath)
-		if err != nil {
-			return nil, errors.Wrap(err, "absolute keystore path")
-		}
-
-		k.PasswordPath, err = filepath.Abs(k.PasswordPath)
-		if err != nil {
-			return nil, errors.Wrap(err, "absolute keystore password path")
-		}
-
-		absolute = append(absolute, k)
+		keystorePath, passwordPath := lighthousePaths(k.Pubkey)
+		k.KeystorePath = path.Join(dir, filepath.ToSlash(keystorePath))
+		k.PasswordPath = path.Join(dir, filepath.ToSlash(passwordPath))
+		located = append(located, k)
 	}
 
-	definitions, err := renderLighthouseDefinitions(cfg, absolute)
+	definitions, err := renderLighthouseDefinitions(cfg, located)
 	if err != nil {
 		return nil, err
 	}

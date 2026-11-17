@@ -37,6 +37,12 @@ func TestVCBundleCmd(t *testing.T) {
 		return got, cmd.Execute()
 	}
 
+	t.Run("lighthouse dir", func(t *testing.T) {
+		got, err := run(t, "lighthouse", "--lighthouse-dir=/root/.lighthouse/hoodi")
+		require.NoError(t, err)
+		require.Equal(t, "/root/.lighthouse/hoodi", got.LighthouseDir)
+	})
+
 	t.Run("defaults", func(t *testing.T) {
 		got, err := run(t, "nimbus")
 		require.NoError(t, err)
@@ -70,11 +76,13 @@ func TestVCBundleCmd(t *testing.T) {
 }
 
 func TestRunVCBundle(t *testing.T) {
+	lighthousePubkey := "0xaa11" + strings.Repeat("0", 92)
+
 	nodeDir := t.TempDir()
 	keysDir := filepath.Join(nodeDir, "validator_keys")
 	require.NoError(t, os.Mkdir(keysDir, 0o700))
 
-	for i, pubkey := range []string{"aa11" + strings.Repeat("0", 92), "bb22" + strings.Repeat("0", 92)} {
+	for i, pubkey := range []string{lighthousePubkey[2:], "bb22" + strings.Repeat("0", 92)} {
 		keystore := fmt.Sprintf(`{"pubkey":%q,"crypto":{},"version":4}`, pubkey)
 		require.NoError(t, os.WriteFile(filepath.Join(keysDir, fmt.Sprintf("keystore-%d.json", i)), []byte(keystore), 0o600))
 		require.NoError(t, os.WriteFile(filepath.Join(keysDir, fmt.Sprintf("keystore-%d.txt", i)), []byte("password"), 0o600))
@@ -107,6 +115,7 @@ func TestRunVCBundle(t *testing.T) {
 			OutputDir:          filepath.Join(nodeDir, "vc-bundle-"+string(client)),
 			ProposerConfigFile: proposerConfigFile,
 			ValidatorKeysDir:   keysDir,
+			LighthouseDir:      "/root/.lighthouse/hoodi",
 		}
 	}
 
@@ -124,7 +133,8 @@ func TestRunVCBundle(t *testing.T) {
 	t.Run("lighthouse", func(t *testing.T) {
 		var buf bytes.Buffer
 		require.NoError(t, runVCBundle(t.Context(), &buf, conf(vcbundle.Lighthouse)))
-		require.Contains(t, buf.String(), "The definitions point at the keystores in "+keysDir+", Lighthouse must see them at that path.")
+		require.Contains(t, buf.String(), "  validators/"+lighthousePubkey+"/voting-keystore.json\n")
+		require.Contains(t, buf.String(), "The definitions name the keystores under /root/.lighthouse/hoodi, move the validators and secrets directories there.\n")
 	})
 
 	t.Run("prysm", func(t *testing.T) {
@@ -144,9 +154,11 @@ func TestRunVCBundle(t *testing.T) {
 	t.Run("lighthouse keystores only", func(t *testing.T) {
 		c := conf(vcbundle.Lighthouse)
 		c.Parts = []vcbundle.Part{vcbundle.PartKeystores}
+		c.OutputDir = t.TempDir()
 
 		var buf bytes.Buffer
 		require.NoError(t, runVCBundle(t.Context(), &buf, c))
-		require.Equal(t, "Nothing to write: Lighthouse reads the keystores in place.\n", buf.String())
+		require.Contains(t, buf.String(), "  secrets/"+lighthousePubkey+"\n")
+		require.NotContains(t, buf.String(), "The definitions name the keystores")
 	})
 }

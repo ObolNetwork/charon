@@ -5,6 +5,7 @@ package vcbundle
 import (
 	"context"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -30,6 +31,9 @@ type Config struct {
 	OutputDir          string
 	ProposerConfigFile string
 	ValidatorKeysDir   string
+	// LighthouseDir is Lighthouse's data directory as Lighthouse sees it, absolute. Its validator definitions name
+	// the bundle's keystores under it.
+	LighthouseDir string
 }
 
 // bundleFile is a file of the bundle, its path relative to the output directory.
@@ -84,13 +88,18 @@ func render(ctx context.Context, conf Config) ([]bundleFile, error) {
 	include := func(p Part) bool { return slices.Contains(conf.Parts, p) }
 	perValidator := conf.Client == Nimbus || conf.Client == Lighthouse
 
+	if conf.Client == Lighthouse && include(PartProposerSettings) && !path.IsAbs(conf.LighthouseDir) {
+		return nil, errors.New("lighthouse's validator definitions need its absolute data directory, as lighthouse sees it",
+			z.Str("lighthouse_dir", conf.LighthouseDir))
+	}
+
 	var (
 		keystores []keystoreFile
 		cfg       proposerconfig.Config
 		err       error
 	)
 
-	if (include(PartKeystores) && conf.Client != Lighthouse) || (include(PartProposerSettings) && perValidator) {
+	if include(PartKeystores) || (include(PartProposerSettings) && perValidator) {
 		keystores, err = listKeystores(conf.ValidatorKeysDir)
 		if err != nil {
 			return nil, err
@@ -118,7 +127,7 @@ func render(ctx context.Context, conf Config) ([]bundleFile, error) {
 	}
 
 	if include(PartProposerSettings) {
-		settings, err := proposerConfigFiles(conf.Client, cfg, keystores)
+		settings, err := proposerConfigFiles(conf.Client, cfg, keystores, conf.LighthouseDir)
 		if err != nil {
 			return nil, err
 		}

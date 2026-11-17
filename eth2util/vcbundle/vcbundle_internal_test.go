@@ -62,7 +62,11 @@ func TestWrite(t *testing.T) {
 			"validators/" + testPubkeyB + "/keystore.json", "validators/" + testPubkeyB + "/suggested_fee_recipient.hex", "validators/" + testPubkeyB + "/suggested_gas_limit.json",
 			"vc-flags.txt",
 		}},
-		{Lighthouse, []string{"validators/builder_definitions.yml", "validators/validator_definitions.yml", "vc-flags.txt"}},
+		{Lighthouse, []string{
+			"secrets/" + testPubkeyA, "secrets/" + testPubkeyB,
+			"validators/" + testPubkeyA + "/voting-keystore.json", "validators/" + testPubkeyB + "/voting-keystore.json",
+			"validators/builder_definitions.yml", "validators/validator_definitions.yml", "vc-flags.txt",
+		}},
 	}
 	for _, test := range tests {
 		t.Run(string(test.client), func(t *testing.T) {
@@ -137,11 +141,12 @@ func TestWriteParts(t *testing.T) {
 	t.Run("lighthouse keystores only", func(t *testing.T) {
 		conf := testBundle(t, Lighthouse)
 		conf.Parts = []Part{PartKeystores}
+		conf.LighthouseDir = ""
 
 		got, err := Write(t.Context(), conf)
 		require.NoError(t, err)
-		require.Empty(t, got)
-		require.NoDirExists(t, filepath.Join(conf.OutputDir, "validators"))
+		require.Len(t, got, 4)
+		require.NoFileExists(t, filepath.Join(conf.OutputDir, "validators", "validator_definitions.yml"))
 	})
 
 	t.Run("missing proposer config", func(t *testing.T) {
@@ -155,25 +160,34 @@ func TestWriteParts(t *testing.T) {
 }
 
 func TestWriteLighthouse(t *testing.T) {
-	t.Run("absolute keystore paths", func(t *testing.T) {
+	t.Run("keystores copied", func(t *testing.T) {
 		conf := testBundle(t, Lighthouse)
-		absKeysDir := conf.ValidatorKeysDir
-
-		t.Chdir(filepath.Dir(absKeysDir))
-		conf.ValidatorKeysDir = filepath.Base(absKeysDir)
 
 		_, err := Write(t.Context(), conf)
 		require.NoError(t, err)
 
+		keystore, err := os.ReadFile(filepath.Join(conf.ValidatorKeysDir, "keystore-0.json"))
+		require.NoError(t, err)
+		requireFile(t, conf.OutputDir, "validators/"+testPubkeyA+"/voting-keystore.json", string(keystore))
+		requireFile(t, conf.OutputDir, "secrets/"+testPubkeyA, "password-0")
+
 		b, err := os.ReadFile(filepath.Join(conf.OutputDir, "validators", "validator_definitions.yml"))
 		require.NoError(t, err)
-
-		// The temp directory may be a symlink, so compare with the path as the test sees it.
-		wd, err := os.Getwd()
-		require.NoError(t, err)
-		require.Contains(t, string(b), `voting_keystore_path: "`+filepath.Join(wd, conf.ValidatorKeysDir, "keystore-0.json")+`"`)
-		require.Contains(t, string(b), `voting_keystore_password_path: "`+filepath.Join(wd, conf.ValidatorKeysDir, "keystore-0.txt")+`"`)
+		require.Contains(t, string(b), `voting_keystore_path: "/root/.lighthouse/hoodi/validators/`+testPubkeyA+`/voting-keystore.json"`)
+		require.Contains(t, string(b), `voting_keystore_password_path: "/root/.lighthouse/hoodi/secrets/`+testPubkeyA+`"`)
+		require.NotContains(t, string(b), conf.ValidatorKeysDir)
 	})
+
+	for name, dir := range map[string]string{"no lighthouse dir": "", "relative lighthouse dir": "lighthouse"} {
+		t.Run(name, func(t *testing.T) {
+			conf := testBundle(t, Lighthouse)
+			conf.LighthouseDir = dir
+
+			_, err := Write(t.Context(), conf)
+			require.ErrorContains(t, err, "absolute data directory")
+			require.NoDirExists(t, conf.OutputDir)
+		})
+	}
 
 	t.Run("builder removed", func(t *testing.T) {
 		conf := testBundle(t, Lighthouse)
@@ -183,6 +197,7 @@ func TestWriteLighthouse(t *testing.T) {
 
 		writeTestProposerConfig(t, conf.ProposerConfigFile, testConfig(false))
 
+		conf.Parts = []Part{PartProposerSettings, PartVCFlags}
 		got, err := Write(t.Context(), conf)
 		require.NoError(t, err)
 		require.Equal(t, []string{"validators/builder_definitions.yml", "validators/validator_definitions.yml", "vc-flags.txt"}, got)
@@ -240,6 +255,7 @@ func testBundle(t *testing.T, client Client) Config {
 		OutputDir:          filepath.Join(nodeDir, "vc-bundle"),
 		ProposerConfigFile: proposerConfigFile,
 		ValidatorKeysDir:   keysDir,
+		LighthouseDir:      "/root/.lighthouse/hoodi",
 	}
 }
 
@@ -437,7 +453,7 @@ func TestWriteLogsKeystores(t *testing.T) {
 		{Prysm, []string{"Keystores decrypted into a prysm wallet", `"wallet_dir": "prysm-wallet"`, `"keystores": 2`}},
 		{Lodestar, []string{"Keystores written in lodestar's layout", `"keystores_dir": "keystores"`, `"secrets_dir": "secrets"`}},
 		{Nimbus, []string{"Keystores written in nimbus's layout", `"keystores_dir": "validators"`, `"secrets_dir": "secrets"`}},
-		{Lighthouse, []string{"Keystores read in place by lighthouse", "validator_keys"}},
+		{Lighthouse, []string{"Keystores written in lighthouse's layout", `"keystores_dir": "validators"`, `"secrets_dir": "secrets"`}},
 	}
 	for _, test := range tests {
 		t.Run(string(test.client), func(t *testing.T) {
