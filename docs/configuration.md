@@ -250,17 +250,17 @@ keeps the old settings. On charon-distributed-validator-node a compose service d
 `docker compose restart <vc service>` does not run it: recreate the validator client's container instead. Before the gloas fork
 charon's own builder registrations are unaffected, and a fee recipient change also needs `charon feerecipient sign` and `fetch`.
 
-### Backing up and restoring the proposer config
+### Publishing and fetching the proposer config
 
-Losing `proposer-config.json` would otherwise take a new edit ceremony, so the signed revisions can be backed up to the Obol API.
+The signed revisions can be published to the Obol API, for instance so a lost `proposer-config.json` does not take a new edit ceremony.
 As for the cluster lock, it is opt-in: `charon alpha proposer edit --publish` publishes the new revision once the ceremony is over,
 and `charon dkg`, `charon create cluster` and the lock edit commands publish revision 1 with `--publish`, after the lock, which the
 Obol API verifies the operator signatures against. `--publish-address` (default `https://api.obol.tech/v1`) and `--publish-timeout`
 set the API. Publishing is best effort: a failure is logged and the command still succeeds. `charon alpha proposer publish` publishes
-the revision of a proposer config file later, for instance one signed before the backup existed; it needs no node key, the
+the revision of a proposer config file later, for instance one signed without `--publish`; it needs no node key, the
 signatures authenticate the document. Revision 0 is unsigned and differs between nodes, so it is not published.
 
-`charon alpha proposer fetch` restores the latest backed up revision, or `--revision=<N>`. Only the cluster's operators can fetch it:
+`charon alpha proposer fetch` fetches the latest published revision into this node's file, or `--revision=<N>`. Only the cluster's operators can fetch it:
 the request is signed with the node's charon ENR private key (`--private-key-file`). The fetched revision is verified against the
 cluster lock before anything is written, so the Obol API is not trusted. It is written keyed by this node's public shares, archiving
 the current file as an edit does; a file holding a later revision, or another document of the same revision, is never replaced.

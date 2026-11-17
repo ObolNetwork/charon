@@ -142,7 +142,7 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 	f := cmd.Flags()
 	flags.bind(f)
 	f.BoolVar(&yes, "yes", false, "Sign the change without asking to confirm it, for scripts.")
-	f.BoolVar(&config.DKGConfig.Publish, "publish", false, "Publish the new revision to the Obol API as a backup, which charon alpha proposer fetch restores.")
+	f.BoolVar(&config.DKGConfig.Publish, "publish", false, "Publish the new revision to the Obol API, where charon alpha proposer fetch fetches it from.")
 	bindProposerAPIFlags(f, &config.DKGConfig.PublishAddr, &config.DKGConfig.PublishTimeout)
 	f.StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony, this node included. Defaults to all operators, at least the cluster threshold is required.")
 	f.StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")

@@ -1303,7 +1303,7 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock) 
 	return cl.LaunchpadURLForLock(lock), nil
 }
 
-// writeProposerConfigToAPI posts the signed proposer config revision to obol-api as a backup.
+// writeProposerConfigToAPI posts the signed proposer config revision to obol-api.
 func writeProposerConfigToAPI(ctx context.Context, publishAddr string, doc proposerconfig.Document) error {
 	cl, err := obolapi.New(publishAddr)
 	if err != nil {

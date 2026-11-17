@@ -34,8 +34,8 @@ func newProposerPublishCmd(runFunc func(context.Context, io.Writer, proposerPubl
 
 	cmd := &cobra.Command{
 		Use:   "publish",
-		Short: "Publish the cluster's signed proposer config to the Obol API as a backup",
-		Long: "Publishes the signed proposer config revision of the file to the Obol API, as a backup charon alpha proposer fetch restores. " +
+		Short: "Publish the cluster's signed proposer config to the Obol API",
+		Long: "Publishes the signed proposer config revision of the file to the Obol API, where charon alpha proposer fetch fetches it from. " +
 			"Its operator signatures authenticate it, so it needs no node key and any operator can publish it. " +
 			"Use it for a revision not published when it was signed: edit, dkg and create cluster publish it with --publish. " +
 			"Revision 0 is unsigned and is not published.",
@@ -91,7 +91,7 @@ func runProposerPublish(ctx context.Context, w io.Writer, config proposerPublish
 		return err
 	}
 
-	_, _ = fmt.Fprintf(w, "Proposer config revision %d published to %s: charon alpha proposer fetch restores it.\n", doc.Revision, config.PublishAddress)
+	_, _ = fmt.Fprintf(w, "Proposer config revision %d published to %s: charon alpha proposer fetch fetches it.\n", doc.Revision, config.PublishAddress)
 
 	return nil
 }

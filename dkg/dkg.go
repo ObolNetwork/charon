@@ -1390,7 +1390,7 @@ func writeLockToAPI(ctx context.Context, publishAddr string, lock cluster.Lock, 
 	return cl.LaunchpadURLForLock(lock), nil
 }
 
-// publishProposerConfig posts the signed proposer config revision to the Obol API as a backup, best effort as for the
+// publishProposerConfig posts the signed proposer config revision to the Obol API, best effort as for the
 // lock: a failure is logged. It returns true if it was published.
 func publishProposerConfig(ctx context.Context, publishAddr string, timeout time.Duration, doc proposerconfig.Document) bool {
 	cl, err := obolapi.New(publishAddr, obolapi.WithTimeout(timeout))
