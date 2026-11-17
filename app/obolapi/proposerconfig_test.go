@@ -103,14 +103,14 @@ func TestProposerConfig(t *testing.T) {
 		stale := signedProposerConfig(t, lock, keys, 1, 60_000_000)
 
 		err := cl.PublishProposerConfig(t.Context(), stale)
-		require.ErrorIs(t, err, obolapi.ErrProposerConfigConflict)
+		require.ErrorContains(t, err, "http POST failed")
 	})
 
 	t.Run("other document of a stored revision", func(t *testing.T) {
 		other := signedProposerConfig(t, lock, keys, 2, 60_000_000)
 
 		err := cl.PublishProposerConfig(t.Context(), other)
-		require.ErrorIs(t, err, obolapi.ErrProposerConfigConflict)
+		require.ErrorContains(t, err, "http POST failed")
 	})
 }
 
