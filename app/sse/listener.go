@@ -99,7 +99,7 @@ func StartListener(ctx context.Context, eth2Cl eth2wrap.Client, forkSchedule fun
 	}
 
 	for _, addr := range addresses {
-		l.labels[addr] = log.RedactURL(addr, true)
+		l.labels[addr] = eth2wrap.BeaconNodeLabel(addr)
 	}
 
 	// Open connections for each beacon node.
@@ -146,7 +146,7 @@ func (p *listener) label(addr string) string {
 		return label
 	}
 
-	return log.RedactURL(addr, true)
+	return eth2wrap.BeaconNodeLabel(addr)
 }
 
 func (p *listener) eventHandler(ctx context.Context, event *event, addr string) error {

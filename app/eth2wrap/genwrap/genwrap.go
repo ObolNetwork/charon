@@ -79,7 +79,7 @@ type Client interface {
 		{{if .Latency}}defer latency(ctx, label, {{.Log}})() {{end}}
 		defer incRequest(label)
 
-		{{.ResultNames}} := {{.DoFunc}}(ctx, m.clients, m.fallbacks,
+		{{.ResultNames}} := {{.DoFunc}}(ctx, label, m.clients, m.fallbacks,
 			func(ctx context.Context, args provideArgs) ({{.ResultTypes}}){
 				return args.client.{{.Name}}({{.ParamNames}})
 			},

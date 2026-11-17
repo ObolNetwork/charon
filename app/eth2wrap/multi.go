@@ -154,7 +154,7 @@ func (m multi) ActiveValidators(ctx context.Context) (ActiveValidators, error) {
 
 	defer incRequest(label)
 
-	res0, err := provide(ctx, m.clients, m.fallbacks,
+	res0, err := provide(ctx, label, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (ActiveValidators, error) {
 			return args.client.ActiveValidators(ctx)
 		},
@@ -174,7 +174,7 @@ func (m multi) CompleteValidators(ctx context.Context) (CompleteValidators, erro
 
 	defer incRequest(label)
 
-	res0, err := provide(ctx, m.clients, m.fallbacks,
+	res0, err := provide(ctx, label, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (CompleteValidators, error) {
 			return args.client.CompleteValidators(ctx)
 		},
@@ -205,7 +205,7 @@ func (m multi) ProposerDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 
 	defer incRequest(label)
 
-	res0, err := provide(ctx, m.clients, m.fallbacks,
+	res0, err := provide(ctx, label, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (ProposerDutyWithMeta, error) {
 			return args.client.ProposerDutiesCache(ctx, epoch, vidxs)
 		},
@@ -225,7 +225,7 @@ func (m multi) ProposerDutiesV2Cache(ctx context.Context, epoch eth2p0.Epoch, vi
 
 	defer incRequest(label)
 
-	res0, err := provide(ctx, m.clients, m.fallbacks,
+	res0, err := provide(ctx, label, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (ProposerDutyWithMeta, error) {
 			return args.client.ProposerDutiesV2Cache(ctx, epoch, vidxs)
 		},
@@ -245,7 +245,7 @@ func (m multi) AttesterDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 
 	defer incRequest(label)
 
-	res0, err := provide(ctx, m.clients, m.fallbacks,
+	res0, err := provide(ctx, label, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (AttesterDutyWithMeta, error) {
 			return args.client.AttesterDutiesCache(ctx, epoch, vidxs)
 		},
@@ -265,7 +265,7 @@ func (m multi) SyncCommDutiesCache(ctx context.Context, epoch eth2p0.Epoch, vidx
 
 	defer incRequest(label)
 
-	res0, err := provide(ctx, m.clients, m.fallbacks,
+	res0, err := provide(ctx, label, m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (SyncDutyWithMeta, error) {
 			return args.client.SyncCommDutiesCache(ctx, epoch, vidxs)
 		},
@@ -304,7 +304,7 @@ func (m multi) Proxy(ctx context.Context, req *http.Request) (*http.Response, er
 		}
 	}
 
-	res0, err := provide(ctx, m.clients, m.fallbacks,
+	res0, err := provide(ctx, "proxy", m.clients, m.fallbacks,
 		func(ctx context.Context, args provideArgs) (*http.Response, error) {
 			cloned := req.Clone(ctx)
 			if hasBody {
