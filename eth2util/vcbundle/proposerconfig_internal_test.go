@@ -93,9 +93,15 @@ func TestRenderLighthouse(t *testing.T) {
 	})
 
 	t.Run("builders", func(t *testing.T) {
-		b, err := renderLighthouseBuilders(*testConfig(true).DefaultConfig.Builder)
+		b, err := renderLighthouseBuilders(testConfig(true).DefaultConfig.Builder)
 		require.NoError(t, err)
 		testutil.RequireGoldenBytes(t, b)
+	})
+
+	t.Run("no builders", func(t *testing.T) {
+		b, err := renderLighthouseBuilders(nil)
+		require.NoError(t, err)
+		require.JSONEq(t, `{"min_bid": 0, "builder_boost_factor": 100, "builders": []}`, string(b))
 	})
 
 	t.Run("gas limit not a number", func(t *testing.T) {
@@ -108,7 +114,7 @@ func TestRenderLighthouse(t *testing.T) {
 	t.Run("builder value not a number", func(t *testing.T) {
 		builder := *testConfig(true).DefaultConfig.Builder
 		builder.MinBid = "x"
-		_, err := renderLighthouseBuilders(builder)
+		_, err := renderLighthouseBuilders(&builder)
 		require.ErrorContains(t, err, "parse min_bid")
 	})
 }

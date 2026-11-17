@@ -3,19 +3,13 @@
   "proposer_config": {
     "0xaa11": {
       "fee_recipient": "0x000000000000000000000000000000000000beef",
-      "gas_limit": "60000000",
-      "builder": {
-        "enabled": true,
-        "gas_limit": "60000000"
-      }
+      "gas_limit": "60000000"
     }
   },
   "default_config": {
     "fee_recipient": "0x000000000000000000000000000000000000dead",
     "gas_limit": "60000000",
     "builder": {
-      "enabled": true,
-      "gas_limit": "60000000",
       "min_bid": "1",
       "builder_boost_factor": "90",
       "max_execution_payment": "5",

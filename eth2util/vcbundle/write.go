@@ -57,15 +57,6 @@ func Write(ctx context.Context, conf Config) ([]string, error) {
 		resp = append(resp, f.Path)
 	}
 
-	// A stale builders file must not be moved into Lighthouse.
-	if conf.Client == Lighthouse && slices.Contains(conf.Parts, PartProposerSettings) &&
-		!slices.ContainsFunc(files, func(f bundleFile) bool { return f.Path == lighthouseBuildersPath }) {
-		err := os.Remove(filepath.Join(conf.OutputDir, lighthouseBuildersPath))
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			return nil, errors.Wrap(err, "remove stale builder definitions")
-		}
-	}
-
 	slices.Sort(resp)
 
 	return resp, nil

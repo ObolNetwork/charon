@@ -28,8 +28,9 @@ func distributedFlags(client Client) []string {
 		// Charon only serves the beacon REST API.
 		return []string{"--distributed", "--enable-beacon-rest-api"}
 	case Lodestar:
-		// Charon expects the stateful gloas block form, the payload kept on the beacon node.
-		return []string{"--distributed", "--payloadLocal=true"}
+		// Charon expects the stateful gloas block form, the payload kept on the beacon node. Lodestar applies the
+		// boost factor of the proposer settings file only with the maxprofit builder selection.
+		return []string{"--distributed", "--payloadLocal=true", "--builder.selection=maxprofit"}
 	case Nimbus:
 		// The other operators' signatures of the same validators would trip doppelganger detection.
 		return []string{"--distributed", "--doppelganger-detection=false"}
