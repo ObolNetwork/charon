@@ -60,6 +60,8 @@ func New() *cobra.Command {
 				newProposerListCmd(runProposerList),
 				newProposerPrepareCmd(runProposerPrepare),
 				newProposerEditCmd(runProposerEdit),
+				newProposerPublishCmd(runProposerPublish),
+				newProposerFetchCmd(runProposerFetch),
 			),
 			newValidatorCmd(
 				newValidatorConfigCmd(runValidatorConfig),

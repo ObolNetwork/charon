@@ -247,18 +247,30 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 
 	shares := valKeysToSharesNode0(t, valKeys, lock.Validators)
 
-	var receivedLock cluster.Lock
+	var (
+		receivedLock   cluster.Lock
+		receivedConfig proposerconfig.Document
+	)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, "/lock", r.URL.Path)
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 
-		err = json.Unmarshal(body, &receivedLock)
-		require.NoError(t, err)
+		switch r.URL.Path {
+		case "/lock":
+			require.NoError(t, json.Unmarshal(body, &receivedLock))
+		case "/proposer_config/0x" + hex.EncodeToString(lock.LockHash):
+			// The lock is published first, the Obol API verifies the proposer config against it.
+			require.NotZero(t, receivedLock.LockHash)
+
+			receivedConfig, err = proposerconfig.Unmarshal(body)
+			require.NoError(t, err)
+		default:
+			require.Fail(t, "unexpected path", r.URL.Path)
+		}
 
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -316,6 +328,9 @@ func TestWriteArtifactsProtocolStep(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, doc.Config, written.Config)
 	require.Equal(t, uint64(1), written.Revision)
+
+	require.Equal(t, uint64(1), receivedConfig.Revision)
+	require.Equal(t, doc.Config, receivedConfig.Config)
 }
 
 func valKeysToSharesNode0(t *testing.T, valKeys [][]tbls.PrivateKey, vals []cluster.DistValidator) []share.Share {
