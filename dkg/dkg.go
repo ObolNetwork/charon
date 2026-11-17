@@ -54,7 +54,7 @@ const proposerConfigSeedMsgID = "/charon/dkg/proposer_config_seed"
 // Remedies ending a proposer config mismatch error.
 const (
 	proposerConfigSeedHint    = "Align the --proposer-config-* flags or the --proposer-config-seed-file across all operators and retry."
-	proposerConfigCarriedHint = "Converge the current proposer config first with charon alpha edit proposer-config, then retry."
+	proposerConfigCarriedHint = "Converge the current proposer config first with charon alpha proposer edit, then retry."
 )
 
 // shutdownSyncTimeout bounds the final shutdown synchronization between peers. All protocol

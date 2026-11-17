@@ -3,6 +3,7 @@
 package proposerconfig
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -47,6 +48,42 @@ func testDoc(t *testing.T, lock cluster.Lock) Document {
 	doc.StoredHash = hash[:]
 
 	return doc
+}
+
+func TestLoadAnyNode(t *testing.T) {
+	lock := testLock(t, 2)
+	doc := testDoc(t, lock)
+	path := filepath.Join(t.TempDir(), "proposer-config.json")
+
+	require.NoError(t, Write(path, doc, lock, cluster.NodeIdx{PeerIdx: 1, ShareIdx: 2}))
+
+	loaded, err := LoadAnyNode(path, lock)
+	require.NoError(t, err)
+	require.Equal(t, doc.Config, loaded.Config)
+
+	t.Run("another cluster", func(t *testing.T) {
+		_, err := LoadAnyNode(path, testLock(t, 3))
+		require.ErrorIs(t, err, ErrLockHashMismatch)
+	})
+
+	t.Run("missing", func(t *testing.T) {
+		_, err := LoadAnyNode(filepath.Join(t.TempDir(), "missing.json"), lock)
+		require.ErrorIs(t, err, ErrNotFound)
+	})
+
+	t.Run("no node's pubshares", func(t *testing.T) {
+		b, err := os.ReadFile(path)
+		require.NoError(t, err)
+
+		for _, val := range lock.Validators {
+			b = bytes.ReplaceAll(b, fmt.Appendf(nil, "%#x", val.PubShares[1]), []byte("0x"+strings.Repeat("ab", 48)))
+		}
+
+		require.NoError(t, os.WriteFile(path, b, 0o644))
+
+		_, err = LoadAnyNode(path, lock)
+		require.ErrorContains(t, err, "proposer_config keys are not the pubshares of any node")
+	})
 }
 
 func TestWriteLoadRoundTrip(t *testing.T) {

@@ -60,10 +60,33 @@ type ProposerConfigEditConfig struct {
 	Delta              proposerconfig.Delta
 	// Proposal is the unsigned revision of a proposal file, proposed instead of the delta if set.
 	Proposal *proposerconfig.Document
-	// WriteProposalFile is the path the delta's proposal is written to, ending the edit without a ceremony.
-	WriteProposalFile string
 	// ParticipatingENRs lists the operators running the ceremony, all of them if empty.
 	ParticipatingENRs []string
+	// Confirm is called with the change before this node signs it, an error aborts the edit. Nil signs without asking.
+	Confirm func(ctx context.Context, change ProposerConfigChange) error
+}
+
+// ProposerConfigProposalConfig configures writing a proposal file, which needs the lock but no node key: the
+// proposer config file of any node is its base.
+type ProposerConfigProposalConfig struct {
+	LockFilePath        string
+	ProposerConfigFile  string
+	OverridesFile       string
+	ExecutionEngineAddr string
+	NoVerify            bool
+	Delta               proposerconfig.Delta
+	// OutputFile is the path the proposal file is written to, it must not exist.
+	OutputFile string
+}
+
+// ProposerConfigChange is a proposed revision and its differences from the revision it follows.
+type ProposerConfigChange struct {
+	BaseRevision uint64
+	Revision     uint64
+	// Hash is the proposed revision's hash, the same for every operator proposing the same change.
+	Hash [32]byte
+	// Diff lists the changed fields as "field: old -> new" lines.
+	Diff []string
 }
 
 // ProposerConfigEditResult is the outcome of a successful proposer config edit ceremony.
@@ -74,8 +97,6 @@ type ProposerConfigEditResult struct {
 	Operators int
 	// Adopted is true if this node's file was behind and a peer's signed revision was used as the base.
 	Adopted bool
-	// ProposalFile is the proposal file written instead of running the ceremony, if any.
-	ProposalFile string
 }
 
 // RunProposerConfigEdit runs the proposer config edit ceremony: the participating operators agree on the
@@ -104,9 +125,8 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		return ProposerConfigEditResult{}, err
 	}
 
-	err = checkEditProposalFile(lock, conf)
-	if err != nil {
-		return ProposerConfigEditResult{}, err
+	if conf.Proposal != nil && !bytes.Equal(conf.Proposal.LockHash, lock.LockHash) {
+		return ProposerConfigEditResult{}, errors.Wrap(proposerconfig.ErrLockHashMismatch, "proposal file is for another cluster")
 	}
 
 	nodeIdx, err := lock.NodeIdx(self)
@@ -140,16 +160,15 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		log.Info(ctx, "Proposal file is ahead of the local proposer config, expecting to adopt a newer signed revision from a peer",
 			z.U64("proposal_revision", conf.Proposal.Revision), z.U64("local_revision", base.Revision))
 	} else {
-		proposedDoc, err = editProposal(lock, base, conf)
+		proposedDoc, err = editProposal(lock, base, conf.Delta, conf.Proposal)
 		if err != nil {
 			return ProposerConfigEditResult{}, err
 		}
 
-		logEditDiff(ctx, lock, base, proposedDoc)
-	}
-
-	if conf.WriteProposalFile != "" {
-		return writeEditProposalFile(ctx, lock, conf.WriteProposalFile, proposedDoc)
+		err = confirmEdit(ctx, conf, lock, base, proposedDoc)
+		if err != nil {
+			return ProposerConfigEditResult{}, err
+		}
 	}
 
 	err = checkWritable(conf.ProposerConfigFile)
@@ -245,12 +264,15 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 
 		base, disk = written, &written
 
-		proposedDoc, err = editProposal(lock, base, conf)
+		proposedDoc, err = editProposal(lock, base, conf.Delta, conf.Proposal)
 		if err != nil {
 			return ProposerConfigEditResult{}, errors.Wrap(err, "apply change to adopted proposer config")
 		}
 
-		logEditDiff(ctx, lock, base, proposedDoc)
+		err = confirmEdit(ctx, conf, lock, base, proposedDoc)
+		if err != nil {
+			return ProposerConfigEditResult{}, err
+		}
 	} else if deferred {
 		return ProposerConfigEditResult{}, errors.New("proposal file revision is ahead of the cluster's proposer config, no operator holds a newer signed revision",
 			z.U64("proposal_revision", conf.Proposal.Revision), z.U64("current_revision", base.Revision))
@@ -395,7 +417,9 @@ func participants(lock cluster.Lock, enrs []string, self peer.ID) ([]p2p.Peer, e
 // loadEditBase returns this node's proposer config document, or the initial one without a file, and whether a
 // file exists, whose archive of its revision must be free.
 func loadEditBase(ctx context.Context, lock cluster.Lock, nodeIdx cluster.NodeIdx, path, overridesFile string) (proposerconfig.Document, bool, error) {
-	doc, onDisk, err := loadProposerConfigDocument(ctx, lock, nodeIdx, path, overridesFile, "No proposer config file, editing one derived from the lock and overrides")
+	load := func() (proposerconfig.Document, error) { return proposerconfig.Load(path, lock, nodeIdx) }
+
+	doc, onDisk, err := loadProposerConfigDocument(ctx, lock, load, path, overridesFile, "No proposer config file, editing one derived from the lock and overrides")
 	if err != nil {
 		return proposerconfig.Document{}, false, err
 	}
@@ -410,23 +434,6 @@ func loadEditBase(ctx context.Context, lock cluster.Lock, nodeIdx cluster.NodeId
 	return doc, onDisk, nil
 }
 
-// checkEditProposalFile checks the proposal file options: a proposal file is for this cluster and is not written again.
-func checkEditProposalFile(lock cluster.Lock, conf ProposerConfigEditConfig) error {
-	if conf.Proposal == nil {
-		return nil
-	}
-
-	if conf.WriteProposalFile != "" {
-		return errors.New("a proposal file cannot be written from a proposal file")
-	}
-
-	if !bytes.Equal(conf.Proposal.LockHash, lock.LockHash) {
-		return errors.Wrap(proposerconfig.ErrLockHashMismatch, "proposal file is for another cluster")
-	}
-
-	return nil
-}
-
 // proposalDeferred returns whether the proposal file is ahead of the local base: it is then proposed once a
 // peer's newer signed revision is adopted.
 func proposalDeferred(conf ProposerConfigEditConfig, base proposerconfig.Document) bool {
@@ -434,25 +441,25 @@ func proposalDeferred(conf ProposerConfigEditConfig, base proposerconfig.Documen
 }
 
 // editProposal returns the next revision of base: the delta applied, or the proposal file's config if set.
-func editProposal(lock cluster.Lock, base proposerconfig.Document, conf ProposerConfigEditConfig) (proposerconfig.Document, error) {
+func editProposal(lock cluster.Lock, base proposerconfig.Document, delta proposerconfig.Delta, proposal *proposerconfig.Document) (proposerconfig.Document, error) {
 	var (
 		cfg proposerconfig.Config
 		err error
 	)
 
-	if conf.Proposal == nil {
-		cfg, err = proposerconfig.Apply(lock, base.Config, conf.Delta)
+	if proposal == nil {
+		cfg, err = proposerconfig.Apply(lock, base.Config, delta)
 		if err != nil {
 			return proposerconfig.Document{}, errors.Wrap(err, "apply proposer config change")
 		}
 	} else {
 		// A file built on another revision would silently revert the changes made since.
-		if conf.Proposal.Revision != base.Revision+1 {
+		if proposal.Revision != base.Revision+1 {
 			return proposerconfig.Document{}, errors.New("proposal file revision does not follow the cluster's proposer config revision",
-				z.U64("proposal_revision", conf.Proposal.Revision), z.U64("current_revision", base.Revision))
+				z.U64("proposal_revision", proposal.Revision), z.U64("current_revision", base.Revision))
 		}
 
-		cfg, err = proposerconfig.ApplyProposal(lock, base.Config, conf.Proposal.Config)
+		cfg, err = proposerconfig.ApplyProposal(lock, base.Config, proposal.Config)
 		if err != nil {
 			return proposerconfig.Document{}, errors.Wrap(err, "apply proposal file")
 		}
@@ -472,40 +479,87 @@ func editProposal(lock cluster.Lock, base proposerconfig.Document, conf Proposer
 	}, nil
 }
 
-// writeEditProposalFile writes the proposal as a proposal file for the other operators, instead of a ceremony.
-func writeEditProposalFile(ctx context.Context, lock cluster.Lock, path string, proposal proposerconfig.Document) (ProposerConfigEditResult, error) {
+// WriteProposerConfigProposal writes the next revision of the delta as a proposal file for the operators to edit
+// with, without signing it or contacting anyone.
+func WriteProposerConfigProposal(ctx context.Context, conf ProposerConfigProposalConfig) (ProposerConfigChange, error) {
+	ctx = log.WithTopic(ctx, "proposal")
+
+	lockPtr, err := LoadAndVerifyClusterLock(ctx, conf.LockFilePath, conf.ExecutionEngineAddr, conf.NoVerify)
+	if err != nil {
+		return ProposerConfigChange{}, errors.Wrap(err, "load cluster lock")
+	}
+
+	lock := *lockPtr
+
+	load := func() (proposerconfig.Document, error) {
+		return proposerconfig.LoadAnyNode(conf.ProposerConfigFile, lock)
+	}
+
+	base, _, err := loadProposerConfigDocument(ctx, lock, load, conf.ProposerConfigFile, conf.OverridesFile,
+		"No proposer config file, proposing a change to one derived from the lock and overrides")
+	if err != nil {
+		return ProposerConfigChange{}, err
+	}
+
+	proposal, err := editProposal(lock, base, conf.Delta, nil)
+	if err != nil {
+		return ProposerConfigChange{}, err
+	}
+
 	b, err := proposerconfig.MarshalProposal(proposal)
 	if err != nil {
-		return ProposerConfigEditResult{}, err
+		return ProposerConfigChange{}, err
 	}
 
-	err = proposerconfig.WriteNewFile(path, b)
+	err = proposerconfig.WriteNewFile(conf.OutputFile, b)
 	if err != nil {
-		return ProposerConfigEditResult{}, errors.Wrap(err, "write proposal file", z.Str("path", path))
+		return ProposerConfigChange{}, errors.Wrap(err, "write proposal file", z.Str("path", conf.OutputFile))
 	}
 
+	change, err := newProposerConfigChange(lock, base, proposal)
+	if err != nil {
+		return ProposerConfigChange{}, err
+	}
+
+	log.Info(ctx, "Proposal file written", z.Str("path", conf.OutputFile), z.U64("revision", change.Revision), z.Hex("hash", change.Hash[:]))
+
+	return change, nil
+}
+
+// newProposerConfigChange returns the change from base to proposal.
+func newProposerConfigChange(lock cluster.Lock, base, proposal proposerconfig.Document) (ProposerConfigChange, error) {
 	hash, err := proposal.Hash()
 	if err != nil {
-		return ProposerConfigEditResult{}, err
+		return ProposerConfigChange{}, err
 	}
 
-	log.Info(ctx, "Proposal file written", z.Str("path", path), z.U64("revision", proposal.Revision), z.Hex("hash", hash[:]))
-
-	return ProposerConfigEditResult{
+	return ProposerConfigChange{
+		BaseRevision: base.Revision,
 		Revision:     proposal.Revision,
 		Hash:         hash,
-		Operators:    len(lock.Operators),
-		ProposalFile: path,
+		Diff:         proposerconfig.Diff(lock, base.Config, proposal.Config),
 	}, nil
 }
 
-// logEditDiff logs the changed fields of the proposal, so the operator sees what they sign.
-func logEditDiff(ctx context.Context, lock cluster.Lock, base, proposal proposerconfig.Document) {
-	log.Info(ctx, fmt.Sprintf("Proposing proposer config revision %d, changes from revision %d:", proposal.Revision, base.Revision))
+// confirmEdit logs the changed fields of the proposal, so the operator sees what they sign, and asks to confirm
+// them if the edit has a Confirm function.
+func confirmEdit(ctx context.Context, conf ProposerConfigEditConfig, lock cluster.Lock, base, proposal proposerconfig.Document) error {
+	change, err := newProposerConfigChange(lock, base, proposal)
+	if err != nil {
+		return err
+	}
 
-	for _, line := range proposerconfig.Diff(lock, base.Config, proposal.Config) {
+	log.Info(ctx, fmt.Sprintf("Proposing proposer config revision %d, changes from revision %d:", change.Revision, change.BaseRevision))
+
+	for _, line := range change.Diff {
 		log.Info(ctx, "  "+line)
 	}
+
+	if conf.Confirm == nil {
+		return nil
+	}
+
+	return conf.Confirm(ctx, change)
 }
 
 // docDiffLines returns the differences from a to b as "field: old -> new" lines.
