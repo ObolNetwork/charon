@@ -21,6 +21,9 @@ import (
 // ErrNotFound is returned by Load if the proposer config file does not exist.
 var ErrNotFound = errors.Wrap(os.ErrNotExist, "proposer config file not found")
 
+// errUnknownKey is returned when a proposer_config key is not one of the expected keys.
+var errUnknownKey = errors.NewSentinel("unknown proposer_config key")
+
 // documentJSON is the JSON form of a Document, field order is the file's field order.
 type documentJSON struct {
 	Version        string              `json:"version"`
@@ -157,7 +160,7 @@ func rekey(in map[string]Settings, keys map[string]string, keyName string) (map[
 	for k, v := range in {
 		renamed, ok := keys[strings.ToLower(k)]
 		if !ok {
-			return nil, errors.New("unknown "+keyName, z.Str(keyName, k))
+			return nil, errors.Wrap(errUnknownKey, "unknown "+keyName, z.Str(keyName, k))
 		}
 
 		out[renamed] = v
@@ -202,6 +205,19 @@ func Load(path string, lock cluster.Lock, nodeIdx cluster.NodeIdx) (Document, er
 	}
 
 	return doc, nil
+}
+
+// LoadAnyNode reads a proposer config file written for any node of the lock, found by its pubshare keys, and
+// returns it keyed by DV pubkeys. It suits commands that run without a node's key.
+func LoadAnyNode(path string, lock cluster.Lock) (Document, error) {
+	for i := range lock.Operators {
+		doc, err := Load(path, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		if !errors.Is(err, errUnknownKey) {
+			return doc, err
+		}
+	}
+
+	return Document{}, invalid("proposer_config keys are not the pubshares of any node", z.Str("path", path))
 }
 
 // render returns the file contents of the document, keyed by this node's pubshares instead of DV pubkeys.

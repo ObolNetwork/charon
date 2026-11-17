@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
@@ -515,30 +516,45 @@ func TestEditProposalFile(t *testing.T) {
 	proposal := writeTestProposal(t, clusterDir, 0, proposerconfig.Delta{GasLimit: 60_000_000})
 
 	t.Run("existing file is not overwritten", func(t *testing.T) {
-		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{GasLimit: 70_000_000})
-		conf.WriteProposalFile = path.Join(clusterDir, "proposal.json")
-		require.NoError(t, os.WriteFile(conf.WriteProposalFile, []byte("{}"), 0o600))
+		conf := proposalTestConfig(t, clusterDir, 0, proposerconfig.Delta{GasLimit: 70_000_000})
+		require.NoError(t, os.WriteFile(conf.OutputFile, []byte("{}"), 0o600))
 
-		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+		_, err := dkg.WriteProposerConfigProposal(t.Context(), conf)
 		require.ErrorIs(t, err, os.ErrExist)
 	})
 
 	t.Run("unusable change is not written", func(t *testing.T) {
-		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{BuilderURLs: []string{"https://bücher.example"}})
-		conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
+		conf := proposalTestConfig(t, clusterDir, 0, proposerconfig.Delta{BuilderURLs: []string{"https://bücher.example"}})
 
-		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+		_, err := dkg.WriteProposerConfigProposal(t.Context(), conf)
 		require.ErrorContains(t, err, "no ASCII hostname")
-		require.NoFileExists(t, conf.WriteProposalFile)
+		require.NoFileExists(t, conf.OutputFile)
 	})
 
 	t.Run("no change is not written", func(t *testing.T) {
-		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{GasLimit: gasLimit})
-		conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
+		conf := proposalTestConfig(t, clusterDir, 0, proposerconfig.Delta{GasLimit: gasLimit})
 
-		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+		_, err := dkg.WriteProposerConfigProposal(t.Context(), conf)
 		require.ErrorIs(t, err, proposerconfig.ErrNoChange)
-		require.NoFileExists(t, conf.WriteProposalFile)
+		require.NoFileExists(t, conf.OutputFile)
+	})
+
+	t.Run("any node's file without its key", func(t *testing.T) {
+		conf := proposalTestConfig(t, clusterDir, 0, proposerconfig.Delta{GasLimit: 60_000_000})
+		conf.ProposerConfigFile = proposerconfig.FilePath(nodeDir(clusterDir, 2))
+
+		change, err := dkg.WriteProposerConfigProposal(t.Context(), conf)
+		require.NoError(t, err)
+		require.Equal(t, proposal.Revision, change.Revision)
+
+		b, err := os.ReadFile(conf.OutputFile)
+		require.NoError(t, err)
+
+		doc, err := proposerconfig.ParseProposal(b)
+		require.NoError(t, err)
+		same, err := proposerconfig.SameConfig(proposal.Config, doc.Config)
+		require.NoError(t, err)
+		require.True(t, same)
 	})
 
 	tests := []struct {
@@ -589,39 +605,65 @@ func TestEditProposalFile(t *testing.T) {
 			require.False(t, networked.Load())
 		})
 	}
-
-	t.Run("not written from a proposal file", func(t *testing.T) {
-		conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{})
-		conf.Proposal = &proposal
-		conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
-
-		_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
-		require.ErrorContains(t, err, "cannot be written from a proposal file")
-	})
 }
 
-// writeTestProposal has node n write the proposal file of the delta, without a ceremony, and returns it parsed.
+// TestEditConfirm verifies a declined change aborts the edit before any networking, after showing the change.
+func TestEditConfirm(t *testing.T) {
+	clusterDir, _, _ := setupEditCluster(t)
+
+	conf := editTestConfig(t, "", clusterDir, 0, proposerconfig.Delta{GasLimit: 60_000_000})
+	networked := failOnNetworking(&conf)
+
+	var got dkg.ProposerConfigChange
+
+	conf.Confirm = func(_ context.Context, change dkg.ProposerConfigChange) error {
+		got = change
+
+		return errors.New("declined")
+	}
+
+	_, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+	require.ErrorContains(t, err, "declined")
+	require.False(t, networked.Load())
+	require.Equal(t, uint64(0), got.BaseRevision)
+	require.Equal(t, uint64(1), got.Revision)
+	require.Len(t, got.Diff, 1)
+	require.Contains(t, got.Diff[0], "60000000")
+}
+
+// writeTestProposal writes the proposal file of the delta from node n's files and returns it parsed.
 func writeTestProposal(t *testing.T, clusterDir string, n int, delta proposerconfig.Delta) proposerconfig.Document {
 	t.Helper()
 
-	conf := editTestConfig(t, "", clusterDir, n, delta)
-	conf.WriteProposalFile = path.Join(t.TempDir(), "proposal.json")
-	networked := failOnNetworking(&conf)
+	conf := proposalTestConfig(t, clusterDir, n, delta)
 
-	res, err := dkg.RunProposerConfigEdit(t.Context(), conf)
+	change, err := dkg.WriteProposerConfigProposal(t.Context(), conf)
 	require.NoError(t, err)
-	require.False(t, networked.Load())
-	require.Equal(t, conf.WriteProposalFile, res.ProposalFile)
-	require.Zero(t, res.Signers)
+	require.NotEmpty(t, change.Diff)
 
-	b, err := os.ReadFile(conf.WriteProposalFile)
+	b, err := os.ReadFile(conf.OutputFile)
 	require.NoError(t, err)
 
 	doc, err := proposerconfig.ParseProposal(b)
 	require.NoError(t, err)
-	require.Equal(t, res.Revision, doc.Revision)
+	require.Equal(t, change.Revision, doc.Revision)
 
 	return doc
+}
+
+// proposalTestConfig returns the config writing a proposal file from node n's lock and proposer config file.
+func proposalTestConfig(t *testing.T, clusterDir string, n int, delta proposerconfig.Delta) dkg.ProposerConfigProposalConfig {
+	t.Helper()
+
+	ndir := nodeDir(clusterDir, n)
+
+	return dkg.ProposerConfigProposalConfig{
+		LockFilePath:       path.Join(ndir, clusterLockFile),
+		ProposerConfigFile: proposerconfig.FilePath(ndir),
+		OverridesFile:      overridesPath(ndir),
+		Delta:              delta,
+		OutputFile:         path.Join(t.TempDir(), "proposal.json"),
+	}
 }
 
 // setupEditCluster returns a cluster whose nodes hold the same unsigned revision 0 proposer config, its lock and config.

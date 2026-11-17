@@ -3,14 +3,19 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"golang.org/x/term"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
@@ -21,8 +26,8 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 )
 
-// editProposerConfigFlags holds the change flags of the edit proposer-config command.
-type editProposerConfigFlags struct {
+// proposerChangeFlags holds the change flags of the proposer create and edit commands.
+type proposerChangeFlags struct {
 	feeRecipient           string
 	feeRecipientValidators []string
 	gasLimit               uint64
@@ -31,11 +36,9 @@ type editProposerConfigFlags struct {
 	builderBoostFactor     uint64
 	builderMaxPayment      uint64
 	noBuilders             bool
-	// proposalFile is the path or URL of a proposal file, the alternative to the change flags.
-	proposalFile string
 }
 
-// Names of the change flags of the edit proposer-config command.
+// Names of the change flags of the proposer create and edit commands.
 const (
 	feeRecipientFlag           = "fee-recipient"
 	feeRecipientValidatorsFlag = "fee-recipient-validators"
@@ -47,39 +50,64 @@ const (
 	noBuildersFlag             = "no-builders"
 )
 
-// editChangeFlags are the change flags of the edit proposer-config command, excluded by a proposal file.
-var editChangeFlags = []string{
+// proposerChangeFlagNames are the change flags, excluded by a proposal file.
+var proposerChangeFlagNames = []string{
 	feeRecipientFlag, feeRecipientValidatorsFlag, gasLimitFlag, builderURLsFlag, builderMinBidFlag,
 	builderBoostFactorFlag, builderMaxPaymentFlag, noBuildersFlag,
 }
 
-func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.ProposerConfigEditConfig) error) *cobra.Command {
+// stdinIsTerminal reports whether stdin is a terminal, the confirmation question needs one.
+var stdinIsTerminal = func() bool { return term.IsTerminal(int(os.Stdin.Fd())) }
+
+// bind binds the change flags. None has a default: a flag left out changes nothing.
+func (f *proposerChangeFlags) bind(fs *pflag.FlagSet) {
+	fs.StringVar(&f.feeRecipient, feeRecipientFlag, "", "The new default fee recipient address, validators with their own fee recipient keep it. Applied to the validators in --fee-recipient-validators instead if set.")
+	fs.StringSliceVar(&f.feeRecipientValidators, feeRecipientValidatorsFlag, nil, "Comma-separated DV public keys the fee recipient applies to, the default is left as is. A validator set to the default loses its own entry. Requires --fee-recipient and excludes every other change flag.")
+	fs.Uint64Var(&f.gasLimit, gasLimitFlag, 0, "The new cluster-wide preferred target gas limit, must be greater than 0.")
+	fs.StringSliceVar(&f.builderURLs, builderURLsFlag, nil, "Comma-separated builder API URLs replacing the current ones, in order of preference.")
+	fs.Uint64Var(&f.builderMinBid, builderMinBidFlag, 0, "The new minimum builder bid value in gwei. Requires an existing builder block or --builder-urls.")
+	fs.Uint64Var(&f.builderBoostFactor, builderBoostFactorFlag, 0, "The new percentage multiplier applied to builder bid values, must be greater than 0. Requires an existing builder block or --builder-urls.")
+	fs.Uint64Var(&f.builderMaxPayment, builderMaxPaymentFlag, 0, "The new maximum execution layer payment in gwei counted when valuing a builder bid. Requires an existing builder block or --builder-urls.")
+	fs.BoolVar(&f.noBuilders, noBuildersFlag, false, "Remove the builder settings. Excludes the other --builder-* flags.")
+}
+
+// markHidden hides the plumbing flags from the help text, they keep working.
+func markHidden(fs *pflag.FlagSet, names ...string) {
+	for _, name := range names {
+		if err := fs.MarkHidden(name); err != nil {
+			panic(err) // Only fails on an unknown flag name, a programming error.
+		}
+	}
+}
+
+func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerConfigEditConfig) error) *cobra.Command {
 	var (
 		config dkg.ProposerConfigEditConfig
-		flags  editProposerConfigFlags
+		flags  proposerChangeFlags
+		yes    bool
 	)
 
 	cmd := &cobra.Command{
-		Use:   "proposer-config",
-		Short: "Change the cluster's signed proposer config",
+		Use:   "edit [proposal file or URL]",
+		Short: "Change the cluster's signed proposer config with the other operators",
 		Long: "Changes the fee recipients, gas limit or builders in the cluster's proposer config file. " +
-			"All participating operators run the same command, agree on the new revision, sign it and each writes it with the collected signatures. " +
-			"One operator can write the change to a proposal file with --write-proposal-file for the others to pass with --proposal-file in place of the change flags. " +
+			"All participating operators run this command with the same change: the change flags, or a proposal file written with charon alpha proposer create (a path or an HTTP URL). " +
+			"Each operator confirms the change before signing it, then all agree on the new revision and each writes it with the collected signatures. " +
 			"Restart the validator client afterwards to apply it.",
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := log.InitLogger(config.DKGConfig.Log); err != nil {
 				return err
 			}
 
 			routeLibP2PLogs() // Route libp2p logging to charon logger
 
-			if cmd.Flags().Changed("write-proposal-file") && config.WriteProposalFile == "" {
-				return errors.New("write-proposal-file must not be empty")
-			}
+			if len(args) == 1 {
+				if slices.ContainsFunc(proposerChangeFlagNames, cmd.Flags().Changed) {
+					return errors.New("a proposal file excludes the change flags")
+				}
 
-			if cmd.Flags().Changed("proposal-file") {
-				proposal, err := flags.proposal(cmd, config.WriteProposalFile)
+				proposal, err := loadProposal(cmd.Context(), args[0])
 				if err != nil {
 					return err
 				}
@@ -94,21 +122,21 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 				config.Delta = delta
 			}
 
+			if !yes {
+				if !stdinIsTerminal() {
+					return errors.New("confirming the change needs a terminal, add --yes to sign it without asking")
+				}
+
+				config.Confirm = confirmChange(cmd.InOrStdin(), cmd.OutOrStdout())
+			}
+
 			return runFunc(cmd.Context(), cmd.OutOrStdout(), config)
 		},
 	}
 
 	f := cmd.Flags()
-	f.StringVar(&flags.feeRecipient, feeRecipientFlag, "", "The new default fee recipient address, validators with their own fee recipient keep it. Applied to the validators in --fee-recipient-validators instead if set.")
-	f.StringSliceVar(&flags.feeRecipientValidators, feeRecipientValidatorsFlag, nil, "Comma-separated DV public keys the fee recipient applies to, the default is left as is. A validator set to the default loses its own entry. Requires --fee-recipient and excludes every other change flag.")
-	f.Uint64Var(&flags.gasLimit, gasLimitFlag, 0, "The new cluster-wide preferred target gas limit, must be greater than 0.")
-	f.StringSliceVar(&flags.builderURLs, builderURLsFlag, nil, "Comma-separated builder API URLs replacing the current ones, in order of preference.")
-	f.Uint64Var(&flags.builderMinBid, builderMinBidFlag, 0, "The new minimum builder bid value in gwei. Requires an existing builder block or --builder-urls.")
-	f.Uint64Var(&flags.builderBoostFactor, builderBoostFactorFlag, proposerconfig.DefaultBuilderBoostFactor, "The new percentage multiplier applied to builder bid values, must be greater than 0. Requires an existing builder block or --builder-urls.")
-	f.Uint64Var(&flags.builderMaxPayment, builderMaxPaymentFlag, 0, "The new maximum execution layer payment in gwei counted when valuing a builder bid. Requires an existing builder block or --builder-urls.")
-	f.BoolVar(&flags.noBuilders, noBuildersFlag, false, "Remove the builder settings. Excludes the other --builder-* flags.")
-	f.StringVar(&flags.proposalFile, "proposal-file", "", "The path to a proposal file or an HTTP URL, holding the next proposer config revision written by one operator with --write-proposal-file. Excludes the change flags. Must be identical on all operators.")
-	f.StringVar(&config.WriteProposalFile, "write-proposal-file", "", "The path to write the proposal file of the change flags to, for the other operators' --proposal-file. Nothing else is changed and no ceremony runs.")
+	flags.bind(f)
+	f.BoolVar(&yes, "yes", false, "Sign the change without asking to confirm it, for scripts.")
 	f.StringSliceVar(&config.ParticipatingENRs, "participating-operator-enrs", nil, "Comma-separated list of operator ENRs participating in the ceremony, this node included. Defaults to all operators, at least the cluster threshold is required.")
 	f.StringVar(&config.PrivateKeyPath, "private-key-file", ".charon/charon-enr-private-key", "The path to the charon enr private key file.")
 	f.StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
@@ -123,20 +151,14 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 	bindLogFlags(f, &config.DKGConfig.Log)
 	bindEth1Flag(f, &config.DKGConfig.ExecutionEngineAddr)
 
+	markHidden(f, "overrides-file", "timeout", "shutdown-delay", "no-verify", "p2p-relays", "execution-client-rpc-endpoint")
+
 	return cmd
 }
 
-// proposal returns the unsigned revision of the proposal file, which excludes the change flags and writing one.
-func (f editProposerConfigFlags) proposal(cmd *cobra.Command, writeProposalFile string) (proposerconfig.Document, error) {
-	if slices.ContainsFunc(editChangeFlags, cmd.Flags().Changed) {
-		return proposerconfig.Document{}, errors.New("proposal-file excludes the change flags")
-	}
-
-	if writeProposalFile != "" {
-		return proposerconfig.Document{}, errors.New("proposal-file excludes write-proposal-file")
-	}
-
-	b, err := readFileOrURL(cmd.Context(), f.proposalFile)
+// loadProposal returns the unsigned revision of the proposal file at the path or URL.
+func loadProposal(ctx context.Context, source string) (proposerconfig.Document, error) {
+	b, err := readFileOrURL(ctx, source)
 	if err != nil {
 		return proposerconfig.Document{}, errors.Wrap(err, "read proposal file")
 	}
@@ -146,13 +168,45 @@ func (f editProposerConfigFlags) proposal(cmd *cobra.Command, writeProposalFile 
 		return proposerconfig.Document{}, errors.Wrap(err, "parse proposal file")
 	}
 
-	log.Info(cmd.Context(), "Proposal file loaded", z.Str("source", log.RedactURL(f.proposalFile, false)), z.U64("revision", doc.Revision))
+	log.Info(ctx, "Proposal file loaded", z.Str("source", log.RedactURL(source, false)), z.U64("revision", doc.Revision))
 
 	return doc, nil
 }
 
+// confirmChange returns a Confirm function printing the change to w and asking on in to sign it: any answer but
+// y or yes declines.
+func confirmChange(in io.Reader, w io.Writer) func(context.Context, dkg.ProposerConfigChange) error {
+	return func(_ context.Context, change dkg.ProposerConfigChange) error {
+		printProposerConfigChange(w, change)
+
+		_, _ = fmt.Fprint(w, "Sign this change? [y/N] ")
+
+		answer, err := bufio.NewReader(in).ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return errors.Wrap(err, "read confirmation")
+		}
+
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "y", "yes":
+			return nil
+		default:
+			return errors.New("change not confirmed, nothing was signed")
+		}
+	}
+}
+
+// printProposerConfigChange prints the proposed revision and its changes.
+func printProposerConfigChange(w io.Writer, change dkg.ProposerConfigChange) {
+	_, _ = fmt.Fprintf(w, "Proposer config revision %d (hash 0x%s…), changes from revision %d:\n",
+		change.Revision, hex.EncodeToString(change.Hash[:8]), change.BaseRevision)
+
+	for _, line := range change.Diff {
+		_, _ = fmt.Fprintln(w, "  "+line)
+	}
+}
+
 // delta validates the change flags and returns the delta they describe.
-func (f editProposerConfigFlags) delta(cmd *cobra.Command) (proposerconfig.Delta, error) {
+func (f proposerChangeFlags) delta(cmd *cobra.Command) (proposerconfig.Delta, error) {
 	changed := cmd.Flags().Changed
 	builderFlags := []string{builderURLsFlag, builderMinBidFlag, builderBoostFactorFlag, builderMaxPaymentFlag}
 
@@ -218,7 +272,7 @@ func (f editProposerConfigFlags) delta(cmd *cobra.Command) (proposerconfig.Delta
 	return d, nil
 }
 
-func runEditProposerConfig(ctx context.Context, w io.Writer, conf dkg.ProposerConfigEditConfig) error {
+func runProposerEdit(ctx context.Context, w io.Writer, conf dkg.ProposerConfigEditConfig) error {
 	lock, err := dkg.LoadAndVerifyClusterLock(ctx, conf.LockFilePath, conf.DKGConfig.ExecutionEngineAddr, conf.DKGConfig.NoVerify)
 	if err != nil {
 		return errors.Wrap(err, "load cluster lock")
@@ -235,7 +289,7 @@ func runEditProposerConfig(ctx context.Context, w io.Writer, conf dkg.ProposerCo
 		return errors.Wrap(err, "run proposer config edit")
 	}
 
-	printEditProposerConfigResult(w, res)
+	printProposerEditResult(w, res)
 
 	return nil
 }
@@ -276,16 +330,8 @@ func printPreGloasWarning(w io.Writer, lock cluster.Lock, now time.Time) {
 		"A fee recipient change before the fork also needs charon feerecipient sign and fetch.")
 }
 
-// printEditProposerConfigResult prints the outcome and the VC restart instruction.
-func printEditProposerConfigResult(w io.Writer, res dkg.ProposerConfigEditResult) {
-	if res.ProposalFile != "" {
-		_, _ = fmt.Fprintf(w, "Proposal for proposer config revision %d (hash 0x%s…) written to %s.\n",
-			res.Revision, hex.EncodeToString(res.Hash[:8]), res.ProposalFile)
-		_, _ = fmt.Fprintln(w, "Nothing is changed yet: send the file to the other operators, then all run this command with --proposal-file.")
-
-		return
-	}
-
+// printProposerEditResult prints the outcome and the VC restart instruction.
+func printProposerEditResult(w io.Writer, res dkg.ProposerConfigEditResult) {
 	if res.Adopted {
 		_, _ = fmt.Fprintln(w, "This node was behind and adopted a newer signed revision from its peers as the base of the change.")
 	}

@@ -279,7 +279,9 @@ func initialProposerConfig(ctx context.Context, lock cluster.Lock, overridesFile
 // loadCarriedProposerConfig returns the config of this node's proposer config file to carry into a new lock,
 // or the initial config if the file is absent. An unloadable or invalid file is an error.
 func loadCarriedProposerConfig(ctx context.Context, lock cluster.Lock, nodeIdx cluster.NodeIdx, path, overridesFile string) (proposerconfig.Config, error) {
-	doc, _, err := loadProposerConfigDocument(ctx, lock, nodeIdx, path, overridesFile, "No proposer config file, carrying over one derived from the lock and overrides")
+	load := func() (proposerconfig.Document, error) { return proposerconfig.Load(path, lock, nodeIdx) }
+
+	doc, _, err := loadProposerConfigDocument(ctx, lock, load, path, overridesFile, "No proposer config file, carrying over one derived from the lock and overrides")
 	if err != nil {
 		return proposerconfig.Config{}, err
 	}
@@ -287,12 +289,13 @@ func loadCarriedProposerConfig(ctx context.Context, lock cluster.Lock, nodeIdx c
 	return doc.Config, nil
 }
 
-// loadProposerConfigDocument returns this node's proposer config document and true, or an unsigned revision 0
+// loadProposerConfigDocument returns the proposer config document load reads from path and true, or an unsigned revision 0
 // document derived from the lock and overrides and false if the file is absent (logged as absentMsg). A file must
 // verify against the lock and be usable as charon run checks on load, a hand-edited revision 0 file would otherwise
 // be signed as is; a revision 0 file's fee recipients are compared with the lock and overrides, warning if they differ.
-func loadProposerConfigDocument(ctx context.Context, lock cluster.Lock, nodeIdx cluster.NodeIdx, path, overridesFile, absentMsg string) (proposerconfig.Document, bool, error) {
-	doc, err := proposerconfig.Load(path, lock, nodeIdx)
+func loadProposerConfigDocument(ctx context.Context, lock cluster.Lock, load func() (proposerconfig.Document, error), path, overridesFile, absentMsg string,
+) (proposerconfig.Document, bool, error) {
+	doc, err := load()
 	if errors.Is(err, proposerconfig.ErrNotFound) {
 		log.Info(ctx, absentMsg, z.Str("path", path))
 

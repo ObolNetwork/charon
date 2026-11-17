@@ -176,7 +176,7 @@ const (
 	// proposerConfigSeedUsage ends the seeding flags' usage on charon run, which writes an unsigned file.
 	proposerConfigSeedUsage = "Seeds a new proposer config file only, disregarded once the cluster has a signed one. Must be identical on all nodes in the cluster."
 	// proposerConfigSignedUsage ends the seeding flags' usage on the commands signing the initial file.
-	proposerConfigSignedUsage = "Signed into the cluster's initial proposer config, must be identical on all operators. Change it later with charon alpha edit proposer-config."
+	proposerConfigSignedUsage = "Signed into the cluster's initial proposer config, must be identical on all operators. Change it later with charon alpha proposer edit."
 )
 
 // bindProposerConfigSeedFlags binds the flags seeding the initial proposer config; note ends each usage.

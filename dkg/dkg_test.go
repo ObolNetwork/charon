@@ -1082,7 +1082,7 @@ func TestAppendDKGMismatch(t *testing.T) {
 
 	for i, err := range errs {
 		require.ErrorContains(t, err, "default.gas_limit: 200000000 -> 60000000", "node %d", i)
-		require.ErrorContains(t, err, "charon alpha edit proposer-config", "node %d", i)
+		require.ErrorContains(t, err, "charon alpha proposer edit", "node %d", i)
 	}
 }
 
