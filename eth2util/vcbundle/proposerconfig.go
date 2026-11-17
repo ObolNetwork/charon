@@ -8,33 +8,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
 )
-
-// resolve returns the fee recipient and gas limit of the validator, falling back to the default config for an
-// absent entry or field.
-func resolve(cfg proposerconfig.Config, pubkey string) (feeRecipient, gasLimit string) {
-	feeRecipient, gasLimit = cfg.DefaultConfig.FeeRecipient, cfg.DefaultConfig.GasLimit
-
-	entry, ok := cfg.ProposerConfig[strings.ToLower(pubkey)]
-	if !ok {
-		return feeRecipient, gasLimit
-	}
-
-	if entry.FeeRecipient != "" {
-		feeRecipient = entry.FeeRecipient
-	}
-
-	if entry.GasLimit != "" {
-		gasLimit = entry.GasLimit
-	}
-
-	return feeRecipient, gasLimit
-}
 
 type tekuBuilder struct {
 	Enabled            bool                          `json:"enabled"`
@@ -76,10 +54,9 @@ func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []k
 		var files []bundleFile
 
 		for _, k := range keystores {
-			feeRecipient, gasLimit := resolve(cfg, k.Pubkey)
 			files = append(files,
-				bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_fee_recipient.hex"), Data: []byte(feeRecipient + "\n"), Mode: publicMode},
-				bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_gas_limit.json"), Data: []byte(gasLimit + "\n"), Mode: publicMode},
+				bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_fee_recipient.hex"), Data: []byte(cfg.FeeRecipient(k.Pubkey) + "\n"), Mode: publicMode},
+				bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_gas_limit.json"), Data: []byte(cfg.DefaultConfig.GasLimit + "\n"), Mode: publicMode},
 			)
 		}
 
@@ -141,7 +118,7 @@ func renderTeku(cfg proposerconfig.Config) ([]byte, error) {
 	}
 
 	for pubkey := range cfg.ProposerConfig {
-		out.ProposerConfig[pubkey] = settings(resolve(cfg, pubkey))
+		out.ProposerConfig[pubkey] = settings(cfg.FeeRecipient(pubkey), cfg.DefaultConfig.GasLimit)
 	}
 
 	// Teku falls back to the default config per field, so the builders are only in it. It takes the max execution
@@ -190,8 +167,7 @@ func renderPrysm(cfg proposerconfig.Config) ([]byte, error) {
 	}
 
 	for pubkey := range cfg.ProposerConfig {
-		feeRecipient, gasLimit := resolve(cfg, pubkey)
-		out.ProposerConfig[pubkey] = prysmSettings{FeeRecipient: feeRecipient, GasLimit: gasLimit}
+		out.ProposerConfig[pubkey] = prysmSettings{FeeRecipient: cfg.FeeRecipient(pubkey), GasLimit: cfg.DefaultConfig.GasLimit}
 	}
 
 	b := cfg.DefaultConfig.Builder
@@ -236,8 +212,10 @@ func renderLodestar(cfg proposerconfig.Config) ([]byte, error) {
 	}
 
 	for pubkey := range cfg.ProposerConfig {
-		feeRecipient, gasLimit := resolve(cfg, pubkey)
-		out.ProposerConfig[pubkey] = lodestarSettings{FeeRecipient: feeRecipient, Builder: lodestarBuilder{GasLimit: gasLimit}}
+		out.ProposerConfig[pubkey] = lodestarSettings{
+			FeeRecipient: cfg.FeeRecipient(pubkey),
+			Builder:      lodestarBuilder{GasLimit: cfg.DefaultConfig.GasLimit},
+		}
 	}
 
 	b := cfg.DefaultConfig.Builder
@@ -256,20 +234,18 @@ func renderLodestar(cfg proposerconfig.Config) ([]byte, error) {
 func renderLighthouseDefinitions(cfg proposerconfig.Config, keystores []keystoreFile) ([]byte, error) {
 	var buf bytes.Buffer
 
+	gas, err := parseNumber("gas limit", cfg.DefaultConfig.GasLimit)
+	if err != nil {
+		return nil, err
+	}
+
 	for _, k := range keystores {
-		feeRecipient, gasLimit := resolve(cfg, k.Pubkey)
-
-		gas, err := parseNumber("gas limit", gasLimit)
-		if err != nil {
-			return nil, err
-		}
-
 		buf.WriteString("- enabled: true\n")
 		_, _ = fmt.Fprintf(&buf, "  voting_public_key: %q\n", k.Pubkey)
 		buf.WriteString("  type: local_keystore\n")
 		_, _ = fmt.Fprintf(&buf, "  voting_keystore_path: %s\n", strconv.Quote(k.KeystorePath))
 		_, _ = fmt.Fprintf(&buf, "  voting_keystore_password_path: %s\n", strconv.Quote(k.PasswordPath))
-		_, _ = fmt.Fprintf(&buf, "  suggested_fee_recipient: %q\n", feeRecipient)
+		_, _ = fmt.Fprintf(&buf, "  suggested_fee_recipient: %q\n", cfg.FeeRecipient(k.Pubkey))
 		_, _ = fmt.Fprintf(&buf, "  gas_limit: %d\n", gas)
 		_, _ = fmt.Fprintf(&buf, "  builder_proposals: %t\n", cfg.DefaultConfig.Builder != nil)
 	}

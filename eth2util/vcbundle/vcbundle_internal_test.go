@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,15 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
 )
+
+// testPubkeyA and testPubkeyB are the public keys of the test keystores.
+const (
+	testPubkeyA = "0xaa1100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	testPubkeyB = "0xbb2200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+)
+
+// upperPubkeyA is testPubkeyA in uppercase hex.
+var upperPubkeyA = "0x" + strings.ToUpper(testPubkeyA[2:])
 
 func TestParseClient(t *testing.T) {
 	c, err := ParseClient("teku")
@@ -45,11 +55,11 @@ func TestWrite(t *testing.T) {
 	}{
 		{Teku, []string{"keystores/keystore-0.json", "keystores/keystore-0.txt", "keystores/keystore-1.json", "keystores/keystore-1.txt", "teku-proposer-config.json", "vc-flags.txt"}},
 		{Prysm, []string{"prysm-proposer-settings.json", "prysm-wallet/direct/accounts/all-accounts.keystore.json", "prysm-wallet/walletpassword.txt", "vc-flags.txt"}},
-		{Lodestar, []string{"keystores/0xaa11/voting-keystore.json", "keystores/0xbb22/voting-keystore.json", "lodestar-proposer-settings.yml", "secrets/0xaa11", "secrets/0xbb22", "vc-flags.txt"}},
+		{Lodestar, []string{"keystores/" + testPubkeyA + "/voting-keystore.json", "keystores/" + testPubkeyB + "/voting-keystore.json", "lodestar-proposer-settings.yml", "secrets/" + testPubkeyA, "secrets/" + testPubkeyB, "vc-flags.txt"}},
 		{Nimbus, []string{
-			"secrets/0xaa11", "secrets/0xbb22",
-			"validators/0xaa11/keystore.json", "validators/0xaa11/suggested_fee_recipient.hex", "validators/0xaa11/suggested_gas_limit.json",
-			"validators/0xbb22/keystore.json", "validators/0xbb22/suggested_fee_recipient.hex", "validators/0xbb22/suggested_gas_limit.json",
+			"secrets/" + testPubkeyA, "secrets/" + testPubkeyB,
+			"validators/" + testPubkeyA + "/keystore.json", "validators/" + testPubkeyA + "/suggested_fee_recipient.hex", "validators/" + testPubkeyA + "/suggested_gas_limit.json",
+			"validators/" + testPubkeyB + "/keystore.json", "validators/" + testPubkeyB + "/suggested_fee_recipient.hex", "validators/" + testPubkeyB + "/suggested_gas_limit.json",
 			"vc-flags.txt",
 		}},
 		{Lighthouse, []string{"validators/builder_definitions.yml", "validators/validator_definitions.yml", "vc-flags.txt"}},
@@ -75,9 +85,9 @@ func TestWriteContent(t *testing.T) {
 		_, err := Write(t.Context(), conf)
 		require.NoError(t, err)
 
-		requireFile(t, conf.OutputDir, "validators/0xaa11/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
-		requireFile(t, conf.OutputDir, "validators/0xbb22/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000dead\n")
-		requireFile(t, conf.OutputDir, "validators/0xbb22/suggested_gas_limit.json", "60000000\n")
+		requireFile(t, conf.OutputDir, "validators/"+testPubkeyA+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
+		requireFile(t, conf.OutputDir, "validators/"+testPubkeyB+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000dead\n")
+		requireFile(t, conf.OutputDir, "validators/"+testPubkeyB+"/suggested_gas_limit.json", "60000000\n")
 		requireFile(t, conf.OutputDir, "vc-flags.txt", "--distributed\n--doppelganger-detection=false\n--payload-builder=true\n"+
 			"--payload-builder-url=https://builder-a.example.com\n--builder-min-bid=1\n--builder-boost-factor=90\n--builder-max-execution-payment=5\n")
 	})
@@ -87,9 +97,9 @@ func TestWriteContent(t *testing.T) {
 		_, err := Write(t.Context(), conf)
 		require.NoError(t, err)
 
-		requireFile(t, conf.OutputDir, "secrets/0xaa11", "password-0")
+		requireFile(t, conf.OutputDir, "secrets/"+testPubkeyA, "password-0")
 
-		info, err := os.Stat(filepath.Join(conf.OutputDir, "secrets", "0xaa11"))
+		info, err := os.Stat(filepath.Join(conf.OutputDir, "secrets", testPubkeyA))
 		require.NoError(t, err)
 		require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 
@@ -99,7 +109,7 @@ func TestWriteContent(t *testing.T) {
 
 		keystore, err := os.ReadFile(filepath.Join(conf.ValidatorKeysDir, "keystore-1.json"))
 		require.NoError(t, err)
-		requireFile(t, conf.OutputDir, "keystores/0xbb22/voting-keystore.json", string(keystore))
+		requireFile(t, conf.OutputDir, "keystores/"+testPubkeyB+"/voting-keystore.json", string(keystore))
 	})
 }
 
@@ -200,8 +210,8 @@ func TestWriteRewrite(t *testing.T) {
 
 	_, err = Write(t.Context(), conf)
 	require.NoError(t, err)
-	requireFile(t, conf.OutputDir, "validators/0xbb22/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000f00d\n")
-	requireFile(t, conf.OutputDir, "validators/0xaa11/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
+	requireFile(t, conf.OutputDir, "validators/"+testPubkeyB+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000f00d\n")
+	requireFile(t, conf.OutputDir, "validators/"+testPubkeyA+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
 }
 
 // testBundle returns the config of a bundle of all parts for a node with two keystores and a proposer config with
@@ -217,8 +227,8 @@ func testBundle(t *testing.T, client Client) Config {
 	if client == Prysm {
 		writeEncryptedTestKeystores(t, keysDir, 2)
 	} else {
-		writeTestKeystore(t, keysDir, 0, "aa11")
-		writeTestKeystore(t, keysDir, 1, "bb22")
+		writeTestKeystore(t, keysDir, 0, testPubkeyA[2:])
+		writeTestKeystore(t, keysDir, 1, testPubkeyB[2:])
 	}
 
 	proposerConfigFile := filepath.Join(nodeDir, "vc-config", "proposer-config.json")
@@ -258,12 +268,12 @@ func TestWriteMixedCaseProposerConfigKeys(t *testing.T) {
 	conf := testBundle(t, Nimbus)
 
 	cfg := testConfig(true)
-	cfg.ProposerConfig = map[string]proposerconfig.Settings{"0xAA11": cfg.ProposerConfig["0xaa11"]}
+	cfg.ProposerConfig = map[string]proposerconfig.Settings{upperPubkeyA: cfg.ProposerConfig[testPubkeyA]}
 	writeTestProposerConfig(t, conf.ProposerConfigFile, cfg)
 
 	_, err := Write(t.Context(), conf)
 	require.NoError(t, err)
-	requireFile(t, conf.OutputDir, "validators/0xaa11/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
+	requireFile(t, conf.OutputDir, "validators/"+testPubkeyA+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
 
 	conf.Client = Teku
 	_, err = Write(t.Context(), conf)
@@ -271,12 +281,12 @@ func TestWriteMixedCaseProposerConfigKeys(t *testing.T) {
 
 	b, err := os.ReadFile(filepath.Join(conf.OutputDir, "teku-proposer-config.json"))
 	require.NoError(t, err)
-	require.Contains(t, string(b), `"0xaa11": {`)
-	require.NotContains(t, string(b), "0xAA11")
+	require.Contains(t, string(b), `"`+testPubkeyA+`": {`)
+	require.NotContains(t, string(b), upperPubkeyA)
 	require.Contains(t, string(b), "beef")
 
 	t.Run("colliding keys", func(t *testing.T) {
-		cfg.ProposerConfig["0xaa11"] = proposerconfig.Settings{GasLimit: "1"}
+		cfg.ProposerConfig[testPubkeyA] = proposerconfig.Settings{GasLimit: "1"}
 		writeTestProposerConfig(t, conf.ProposerConfigFile, cfg)
 
 		_, err := Write(t.Context(), conf)
@@ -296,7 +306,7 @@ func TestWriteSecretDirectoryMode(t *testing.T) {
 	_, err = Write(t.Context(), conf)
 	require.NoError(t, err)
 
-	for _, dir := range []string{"validators", "validators/0xaa11", "secrets"} {
+	for _, dir := range []string{"validators", "validators/" + testPubkeyA, "secrets"} {
 		info, err := os.Stat(filepath.Join(conf.OutputDir, dir))
 		require.NoError(t, err)
 		require.Equal(t, os.FileMode(0o700), info.Mode().Perm(), dir)
@@ -343,18 +353,79 @@ func TestWriteLogsBuilders(t *testing.T) {
 		})
 	}
 
-	t.Run("without flags", func(t *testing.T) {
-		conf := testBundle(t, Teku)
-		conf.Parts = []Part{PartKeystores, PartProposerSettings}
+	// The builders are logged with the part holding them: the settings file, or the flags for nimbus.
+	parts := []struct {
+		name   string
+		client Client
+		parts  []Part
+		logged bool
+	}{
+		{name: "teku settings only", client: Teku, parts: []Part{PartProposerSettings}, logged: true},
+		{name: "teku flags only", client: Teku, parts: []Part{PartVCFlags}},
+		{name: "nimbus settings only", client: Nimbus, parts: []Part{PartProposerSettings}},
+		{name: "nimbus flags only", client: Nimbus, parts: []Part{PartVCFlags}, logged: true},
+		{name: "keystores only", client: Teku, parts: []Part{PartKeystores}},
+	}
+	for _, test := range parts {
+		t.Run(test.name, func(t *testing.T) {
+			conf := testBundle(t, test.client)
+			conf.Parts = test.parts
 
-		var buf bytes.Buffer
+			var buf bytes.Buffer
 
-		ctx := log.WithLogger(context.Background(), log.NewConsoleForT(t, zapcore.AddSync(&buf)))
+			ctx := log.WithLogger(context.Background(), log.NewConsoleForT(t, zapcore.AddSync(&buf)))
 
-		_, err := Write(ctx, conf)
-		require.NoError(t, err)
-		require.NotContains(t, buf.String(), "uilder")
-	})
+			_, err := Write(ctx, conf)
+			require.NoError(t, err)
+			require.Equal(t, test.logged, strings.Contains(buf.String(), "uilder"), buf.String())
+		})
+	}
+}
+
+func TestWriteInvalidProposerConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		edit    func(*proposerconfig.Document)
+		wantErr string
+	}{
+		{name: "version", edit: func(d *proposerconfig.Document) { d.Version = "v2.0.0" }, wantErr: "unsupported proposer config file version"},
+		{name: "no default fee recipient", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.FeeRecipient = "" }, wantErr: "default config without fee recipient"},
+		{name: "default fee recipient", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.FeeRecipient = "0xdead" }, wantErr: "default config fee recipient"},
+		{name: "no gas limit", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.GasLimit = "" }, wantErr: "parse gas_limit"},
+		{
+			name: "entry fee recipient",
+			edit: func(d *proposerconfig.Document) {
+				d.Config.ProposerConfig[testPubkeyA] = proposerconfig.Settings{FeeRecipient: "beef"}
+			},
+			wantErr: "proposer config entry fee recipient",
+		},
+		{
+			name: "entry gas limit",
+			edit: func(d *proposerconfig.Document) {
+				d.Config.ProposerConfig[testPubkeyB] = proposerconfig.Settings{GasLimit: "1"}
+			},
+			wantErr: "proposer config entry sets more than fee recipient",
+		},
+		{name: "no max execution payment", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.Builder.MaxExecutionPayment = "" }, wantErr: "parse max_execution_payment"},
+		{name: "builder min bid", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.Builder.Builders[1].MinBid = "x" }, wantErr: "parse min_bid"},
+		{name: "builder without url", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.Builder.Builders[0].URL = "" }, wantErr: "builder without url"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf := testBundle(t, Nimbus)
+
+			doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: []byte{1, 2, 3}, Revision: 1, Config: testConfig(true)}
+			test.edit(&doc)
+
+			b, err := proposerconfig.Marshal(doc)
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(conf.ProposerConfigFile, b, 0o644))
+
+			_, err = Write(t.Context(), conf)
+			require.ErrorContains(t, err, test.wantErr)
+			require.NoDirExists(t, conf.OutputDir)
+		})
+	}
 }
 
 func TestWriteLogsKeystores(t *testing.T) {

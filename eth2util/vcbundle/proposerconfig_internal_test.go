@@ -16,7 +16,7 @@ func testConfig(withBuilder bool) proposerconfig.Config {
 	cfg := proposerconfig.Config{
 		DefaultConfig: proposerconfig.Settings{FeeRecipient: "0x000000000000000000000000000000000000dead", GasLimit: "60000000"},
 		ProposerConfig: map[string]proposerconfig.Settings{
-			"0xaa11": {FeeRecipient: "0x000000000000000000000000000000000000beef"},
+			testPubkeyA: {FeeRecipient: "0x000000000000000000000000000000000000beef"},
 		},
 	}
 
@@ -53,30 +53,10 @@ func TestRenderProposerConfig(t *testing.T) {
 	}
 }
 
-func TestResolve(t *testing.T) {
-	cfg := testConfig(false)
-	cfg.ProposerConfig["0xcc33"] = proposerconfig.Settings{GasLimit: "45000000"}
-
-	fee, gas := resolve(cfg, "0xaa11")
-	require.Equal(t, "0x000000000000000000000000000000000000beef", fee)
-	require.Equal(t, "60000000", gas)
-
-	fee, gas = resolve(cfg, "0xcc33")
-	require.Equal(t, "0x000000000000000000000000000000000000dead", fee)
-	require.Equal(t, "45000000", gas)
-
-	fee, gas = resolve(cfg, "0xbb22")
-	require.Equal(t, "0x000000000000000000000000000000000000dead", fee)
-	require.Equal(t, "60000000", gas)
-
-	fee, _ = resolve(cfg, "0xAA11")
-	require.Equal(t, "0x000000000000000000000000000000000000beef", fee)
-}
-
 func TestRenderLighthouse(t *testing.T) {
 	keystores := []keystoreFile{
-		{Pubkey: "0xaa11", KeystorePath: "/opt/charon/validator_keys/keystore-0.json", PasswordPath: "/opt/charon/validator_keys/keystore-0.txt"},
-		{Pubkey: "0xbb22", KeystorePath: "/opt/charon/validator_keys/keystore-1.json", PasswordPath: "/opt/charon/validator_keys/keystore-1.txt", Index: 1},
+		{Pubkey: testPubkeyA, KeystorePath: "/opt/charon/validator_keys/keystore-0.json", PasswordPath: "/opt/charon/validator_keys/keystore-0.txt"},
+		{Pubkey: testPubkeyB, KeystorePath: "/opt/charon/validator_keys/keystore-1.json", PasswordPath: "/opt/charon/validator_keys/keystore-1.txt", Index: 1},
 	}
 
 	t.Run("definitions", func(t *testing.T) {

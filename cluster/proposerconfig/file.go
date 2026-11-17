@@ -233,11 +233,12 @@ func Write(path string, doc Document, lock cluster.Lock, nodeIdx cluster.NodeIdx
 		return err
 	}
 
-	return writeAtomic(path, b)
+	return WriteAtomic(path, b, 0o644)
 }
 
-// writeAtomic writes data to a temp file in the same directory and renames it to path, mode 0644.
-func writeAtomic(path string, data []byte) error {
+// WriteAtomic writes data to a temp file in the same directory and renames it to path with the mode, creating
+// the directory.
+func WriteAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -260,7 +261,7 @@ func writeAtomic(path string, data []byte) error {
 		return cleanup(err, "write temp file")
 	}
 
-	if err := tmp.Chmod(0o644); err != nil {
+	if err := tmp.Chmod(mode); err != nil {
 		return cleanup(err, "chmod temp file")
 	}
 
@@ -325,5 +326,5 @@ func Archive(path string, revision uint64) error {
 		return err
 	}
 
-	return writeAtomic(ArchivePath(path, revision), current)
+	return WriteAtomic(ArchivePath(path, revision), current, 0o644)
 }

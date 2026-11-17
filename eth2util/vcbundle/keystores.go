@@ -5,6 +5,7 @@ package vcbundle
 import (
 	"cmp"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/eth2util/keystore"
+	"github.com/obolnetwork/charon/tbls"
 )
 
 var keystoreIndex = regexp.MustCompile(`^keystore-(?:insecure-)?([0-9]+)\.json$`)
@@ -97,6 +99,12 @@ func readKeystoreFile(path string) (keystoreFile, error) {
 		return keystoreFile{}, errors.New("keystore without public key", z.Str("path", path))
 	}
 
+	// The public key names directories of the bundle, so it must be a public key and nothing else.
+	pubkey, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(store.Pubkey), "0x"))
+	if err != nil || len(pubkey) != len(tbls.PublicKey{}) {
+		return keystoreFile{}, errors.New("keystore public key is not 48 bytes of hex", z.Str("path", path))
+	}
+
 	passwordPath := strings.TrimSuffix(path, ".json") + ".txt"
 
 	_, err = os.Stat(passwordPath)
@@ -117,7 +125,7 @@ func readKeystoreFile(path string) (keystoreFile, error) {
 	}
 
 	return keystoreFile{
-		Pubkey:       "0x" + strings.TrimPrefix(strings.ToLower(store.Pubkey), "0x"),
+		Pubkey:       "0x" + hex.EncodeToString(pubkey),
 		KeystorePath: path,
 		PasswordPath: passwordPath,
 		Index:        index,
