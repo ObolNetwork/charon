@@ -385,29 +385,6 @@ func TestProposerEditHiddenFlags(t *testing.T) {
 }
 
 func TestProposerEditOutput(t *testing.T) {
-	t.Run("success", func(t *testing.T) {
-		var buf bytes.Buffer
-
-		printProposerEditResult(&buf, dkg.ProposerConfigEditResult{
-			Revision:  4,
-			Hash:      [32]byte{0x7c, 0x41, 0xff},
-			Signers:   4,
-			Operators: 4,
-		})
-
-		require.Equal(t, "Proposer config updated to revision 4 (hash 0x7c41ff0000000000…) with 4/4 operator signatures.\n"+
-			"Restart your validator client now to apply it, e.g.: docker compose restart <vc service>\n", buf.String())
-	})
-
-	t.Run("adopted", func(t *testing.T) {
-		var buf bytes.Buffer
-
-		printProposerEditResult(&buf, dkg.ProposerConfigEditResult{Revision: 2, Signers: 3, Operators: 4, Adopted: true})
-
-		require.Contains(t, buf.String(), "adopted a newer signed revision from its peers")
-		require.Contains(t, buf.String(), "revision 2 (hash 0x0000000000000000…) with 3/4 operator signatures.")
-	})
-
 	t.Run("pre-gloas warning", func(t *testing.T) {
 		var buf bytes.Buffer
 

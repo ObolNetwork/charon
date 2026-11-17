@@ -307,12 +307,10 @@ func runProposerEdit(ctx context.Context, w io.Writer, conf dkg.ProposerConfigEd
 
 	printPreGloasWarning(w, *lock, time.Now())
 
-	res, err := dkg.RunProposerConfigEdit(ctx, conf)
+	_, err = dkg.RunProposerConfigEdit(ctx, conf)
 	if err != nil {
 		return errors.Wrap(err, "run proposer config edit")
 	}
-
-	printProposerEditResult(w, res)
 
 	return nil
 }
@@ -351,15 +349,4 @@ func printPreGloasWarning(w io.Writer, lock cluster.Lock, now time.Time) {
 
 	_, _ = fmt.Fprintln(w, "Warning: the gloas fork is not active yet, charon's own builder registrations are unaffected by the proposer config until then. "+
 		"A fee recipient change before the fork also needs charon feerecipient sign and fetch.")
-}
-
-// printProposerEditResult prints the outcome and the VC restart instruction.
-func printProposerEditResult(w io.Writer, res dkg.ProposerConfigEditResult) {
-	if res.Adopted {
-		_, _ = fmt.Fprintln(w, "This node was behind and adopted a newer signed revision from its peers as the base of the change.")
-	}
-
-	_, _ = fmt.Fprintf(w, "Proposer config updated to revision %d (hash 0x%s…) with %d/%d operator signatures.\n",
-		res.Revision, hex.EncodeToString(res.Hash[:8]), res.Signers, res.Operators)
-	_, _ = fmt.Fprintln(w, "Restart your validator client now to apply it, e.g.: docker compose restart <vc service>")
 }
