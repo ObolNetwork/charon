@@ -97,8 +97,6 @@ type ProposerConfigEditResult struct {
 	Operators int
 	// Adopted is true if this node's file was behind and a peer's signed revision was used as the base.
 	Adopted bool
-	// Published is true if the revision was published to the Obol API.
-	Published bool
 }
 
 // RunProposerConfigEdit runs the proposer config edit ceremony: the participating operators agree on the
@@ -348,7 +346,9 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 	}
 
 	// Published once the ceremony is over, so a slow Obol API holds up no peer.
-	published := conf.DKGConfig.Publish && publishProposerConfig(ctx, conf.DKGConfig.PublishAddr, conf.DKGConfig.PublishTimeout, doc)
+	if conf.DKGConfig.Publish {
+		publishProposerConfig(ctx, conf.DKGConfig.PublishAddr, conf.DKGConfig.PublishTimeout, doc)
+	}
 
 	return ProposerConfigEditResult{
 		Revision:  doc.Revision,
@@ -356,7 +356,6 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		Signers:   len(doc.Signatures),
 		Operators: len(lock.Operators),
 		Adopted:   adopted,
-		Published: published,
 	}, nil
 }
 

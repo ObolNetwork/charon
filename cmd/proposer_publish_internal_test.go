@@ -3,7 +3,6 @@
 package cmd
 
 import (
-	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -109,19 +108,17 @@ func TestProposerPublish(t *testing.T) {
 	t.Run("lock not published", func(t *testing.T) {
 		b := newProposerAPITest(t, false)
 
-		err := runProposerPublish(t.Context(), new(bytes.Buffer), b.publishConfig(0))
+		err := runProposerPublish(t.Context(), b.publishConfig(0))
 		require.ErrorIs(t, err, obolapi.ErrLockNotFound)
 	})
 
 	t.Run("published", func(t *testing.T) {
 		b := newProposerAPITest(t, true)
 
-		var out bytes.Buffer
-		require.NoError(t, runProposerPublish(t.Context(), &out, b.publishConfig(2)))
-		require.Equal(t, "Proposer config revision 1 published to "+b.api+": charon alpha proposer fetch fetches it.\n", out.String())
+		require.NoError(t, runProposerPublish(t.Context(), b.publishConfig(2)))
 
 		// Every node may publish the same revision.
-		require.NoError(t, runProposerPublish(t.Context(), new(bytes.Buffer), b.publishConfig(0)))
+		require.NoError(t, runProposerPublish(t.Context(), b.publishConfig(0)))
 	})
 
 	t.Run("revision 0", func(t *testing.T) {
@@ -131,7 +128,7 @@ func TestProposerPublish(t *testing.T) {
 		doc.Revision, doc.Signatures, doc.StoredHash = 0, nil, nil
 		require.NoError(t, proposerconfig.Write(proposerconfig.FilePath(nodeDir(b.dir, 1)), doc, b.lock, b.nodeIdx(1)))
 
-		err := runProposerPublish(t.Context(), new(bytes.Buffer), b.publishConfig(1))
+		err := runProposerPublish(t.Context(), b.publishConfig(1))
 		require.ErrorContains(t, err, "unsigned revision 0, which is not published")
 	})
 }
@@ -140,7 +137,7 @@ func TestProposerFetch(t *testing.T) {
 	b := newProposerAPITest(t, true)
 
 	// Revisions 1 and 2 are published, every node file holds revision 1.
-	require.NoError(t, runProposerPublish(t.Context(), new(bytes.Buffer), b.publishConfig(0)))
+	require.NoError(t, runProposerPublish(t.Context(), b.publishConfig(0)))
 
 	cl, err := obolapi.New(b.api)
 	require.NoError(t, err)
@@ -151,10 +148,7 @@ func TestProposerFetch(t *testing.T) {
 	t.Run("lost file", func(t *testing.T) {
 		require.NoError(t, os.Remove(proposerconfig.FilePath(nodeDir(b.dir, 1))))
 
-		var out bytes.Buffer
-		require.NoError(t, runProposerFetch(t.Context(), &out, b.fetchConfig(1)))
-		require.Contains(t, out.String(), "Proposer config revision 2, signed by 4 of 4 operators (0, 1, 2, 3), written to ")
-		require.Contains(t, out.String(), "Restart your validator client")
+		require.NoError(t, runProposerFetch(t.Context(), b.fetchConfig(1)))
 
 		doc := b.load(t, 1)
 		require.Equal(t, uint64(2), doc.Revision)
@@ -162,22 +156,22 @@ func TestProposerFetch(t *testing.T) {
 	})
 
 	t.Run("earlier revision archived", func(t *testing.T) {
-		require.NoError(t, runProposerFetch(t.Context(), new(bytes.Buffer), b.fetchConfig(2)))
+		require.NoError(t, runProposerFetch(t.Context(), b.fetchConfig(2)))
 		require.Equal(t, uint64(2), b.load(t, 2).Revision)
 		require.FileExists(t, proposerconfig.ArchivePath(proposerconfig.FilePath(nodeDir(b.dir, 2)), 1))
 	})
 
 	t.Run("already holds it", func(t *testing.T) {
-		var out bytes.Buffer
-		require.NoError(t, runProposerFetch(t.Context(), &out, b.fetchConfig(1)))
-		require.Equal(t, "The proposer config file already holds revision 2, nothing written.\n", out.String())
+		require.NoError(t, runProposerFetch(t.Context(), b.fetchConfig(1)))
+		require.Equal(t, uint64(2), b.load(t, 1).Revision)
+		require.NoFileExists(t, proposerconfig.ArchivePath(proposerconfig.FilePath(nodeDir(b.dir, 1)), 2))
 	})
 
 	t.Run("earlier revision refused", func(t *testing.T) {
 		conf := b.fetchConfig(1)
 		conf.Revision = 1
 
-		err := runProposerFetch(t.Context(), new(bytes.Buffer), conf)
+		err := runProposerFetch(t.Context(), conf)
 		require.ErrorContains(t, err, "holds a later revision than the fetched one")
 		require.Equal(t, uint64(2), b.load(t, 1).Revision)
 	})
@@ -186,7 +180,7 @@ func TestProposerFetch(t *testing.T) {
 		conf := b.fetchConfig(3)
 		conf.Revision = 3
 
-		err := runProposerFetch(t.Context(), new(bytes.Buffer), conf)
+		err := runProposerFetch(t.Context(), conf)
 		require.ErrorIs(t, err, obolapi.ErrProposerConfigNotFound)
 		require.Equal(t, uint64(1), b.load(t, 3).Revision)
 	})
@@ -210,7 +204,7 @@ func TestProposerFetchUntrusted(t *testing.T) {
 	conf := b.fetchConfig(1)
 	conf.PublishAddress = srv.URL
 
-	err = runProposerFetch(t.Context(), new(bytes.Buffer), conf)
+	err = runProposerFetch(t.Context(), conf)
 	require.ErrorContains(t, err, "verify fetched proposer config")
 	require.Equal(t, uint64(1), b.load(t, 1).Revision)
 }
