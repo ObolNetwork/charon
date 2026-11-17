@@ -24,6 +24,16 @@ const (
 
 var clients = []Client{Teku, Prysm, Lodestar, Nimbus, Lighthouse}
 
+// clientVersions are the client versions the bundle is made for. Teku reads builders from its proposer config file
+// only after 26.10.3.
+var clientVersions = map[Client]string{
+	Teku:       "develop",
+	Prysm:      "v7.3.1",
+	Lodestar:   "v1.50.1",
+	Nimbus:     "v26.10.2",
+	Lighthouse: "v8.3.3",
+}
+
 // ParseClient returns the client of the given name.
 func ParseClient(s string) (Client, error) {
 	c := Client(s)

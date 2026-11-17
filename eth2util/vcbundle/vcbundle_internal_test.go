@@ -26,6 +26,14 @@ const (
 // upperPubkeyA is testPubkeyA in uppercase hex.
 var upperPubkeyA = "0x" + strings.ToUpper(testPubkeyA[2:])
 
+func TestClientVersions(t *testing.T) {
+	for _, client := range clients {
+		require.NotEmpty(t, clientVersions[client], client)
+	}
+
+	require.Len(t, clientVersions, len(clients))
+}
+
 func TestParseClient(t *testing.T) {
 	c, err := ParseClient("teku")
 	require.NoError(t, err)
@@ -449,7 +457,7 @@ func TestWriteLogsKeystores(t *testing.T) {
 		client Client
 		want   []string
 	}{
-		{Teku, []string{"Keystores copied, teku reads the keystore and password pairs", `"dir": "keystores"`, `"keystores": 2`}},
+		{Teku, []string{"Validator client bundle made for client version", `"client": "teku"`, `"version": "develop"`, "Keystores copied, teku reads the keystore and password pairs", `"dir": "keystores"`, `"keystores": 2`}},
 		{Prysm, []string{"Keystores decrypted into a prysm wallet", `"wallet_dir": "prysm-wallet"`, `"keystores": 2`}},
 		{Lodestar, []string{"Keystores written in lodestar's layout", `"keystores_dir": "keystores"`, `"secrets_dir": "secrets"`}},
 		{Nimbus, []string{"Keystores written in nimbus's layout", `"keystores_dir": "validators"`, `"secrets_dir": "secrets"`}},

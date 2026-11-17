@@ -252,7 +252,8 @@ are enabled exactly when the proposer config has a builder block. `--include` pi
 the builder flags are only written with a builder block. Paths, the network, the beacon node and metrics stay the operator's.
 Lighthouse's definitions name the keystores by absolute path under `--lighthouse-dir`, its data directory as Lighthouse
 sees it (e.g. `/root/.lighthouse/hoodi` in its container), so move `validators/` and `secrets/` there. Prysm only reads keys from a wallet, so its keystores are decrypted into one, encrypted with a new random
-password that Prysm reads from the wallet directory: point `--wallet-dir` at it, no import needed. Rerun the command and move the files again after the proposer config changes.
+password that Prysm reads from the wallet directory: point `--wallet-dir` at it, no import needed. The command logs the
+client version the bundle is made for: Teku `develop`, Prysm `v7.3.1`, Lodestar `v1.50.1`, Nimbus `v26.10.2`, Lighthouse `v8.3.3`. Rerun the command and move the files again after the proposer config changes.
 
 ## Flag Precedence
 
