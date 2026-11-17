@@ -36,38 +36,64 @@ type tekuConfig struct {
 // proposerConfigFiles returns the client's proposer settings files. Lighthouse's name the keystores under
 // lighthouseDir.
 func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []keystoreFile, lighthouseDir string) ([]bundleFile, error) {
-	single := func(path string, render func(proposerconfig.Config) ([]byte, error)) ([]bundleFile, error) {
-		b, err := render(cfg)
-		if err != nil {
-			return nil, err
-		}
-
-		return []bundleFile{{Path: path, Data: b, Mode: publicMode}}, nil
-	}
-
 	switch client {
 	case Teku:
-		return single(tekuSettingsPath, renderTeku)
+		return tekuFiles(cfg)
 	case Prysm:
-		return single(prysmSettingsPath, renderPrysm)
+		return prysmFiles(cfg)
 	case Lodestar:
-		return single(lodestarSettingsPath, renderLodestar)
+		return lodestarFiles(cfg)
 	case Nimbus:
-		var files []bundleFile
-
-		for _, k := range keystores {
-			files = append(files,
-				bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_fee_recipient.hex"), Data: []byte(cfg.FeeRecipient(k.Pubkey) + "\n"), Mode: publicMode},
-				bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_gas_limit.json"), Data: []byte(cfg.DefaultConfig.GasLimit + "\n"), Mode: publicMode},
-			)
-		}
-
-		return files, nil
+		return nimbusFiles(cfg, keystores), nil
 	case Lighthouse:
 		return lighthouseFiles(cfg, keystores, lighthouseDir)
 	default:
 		return nil, errors.New("unknown validator client", z.Str("client", string(client)))
 	}
+}
+
+// tekuFiles returns Teku's proposer config file.
+func tekuFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
+	b, err := renderTeku(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return []bundleFile{{Path: tekuSettingsPath, Data: b, Mode: publicMode}}, nil
+}
+
+// prysmFiles returns Prysm's proposer settings file.
+func prysmFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
+	b, err := renderPrysm(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return []bundleFile{{Path: prysmSettingsPath, Data: b, Mode: publicMode}}, nil
+}
+
+// lodestarFiles returns Lodestar's proposer settings file.
+func lodestarFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
+	b, err := renderLodestar(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return []bundleFile{{Path: lodestarSettingsPath, Data: b, Mode: publicMode}}, nil
+}
+
+// nimbusFiles returns Nimbus's fee recipient and gas limit files of each validator, in its keystore's directory.
+func nimbusFiles(cfg proposerconfig.Config, keystores []keystoreFile) []bundleFile {
+	var files []bundleFile
+
+	for _, k := range keystores {
+		files = append(files,
+			bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_fee_recipient.hex"), Data: []byte(cfg.FeeRecipient(k.Pubkey) + "\n"), Mode: publicMode},
+			bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_gas_limit.json"), Data: []byte(cfg.DefaultConfig.GasLimit + "\n"), Mode: publicMode},
+		)
+	}
+
+	return files
 }
 
 // lighthouseFiles returns Lighthouse's validator and builder definitions. The definitions name the bundle's keystores
