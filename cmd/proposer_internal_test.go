@@ -112,7 +112,7 @@ func TestProposerStatus(t *testing.T) {
 		require.Contains(t, out, "Proposer config revision 1, signed by 4 of 4 operators: 0, 1, 2, 3\n")
 		require.Contains(t, out, strings.ToLower(proposerTestFeeRecipient)+" (default), 0 validator(s) with their own")
 		require.Contains(t, out, "builders       none")
-		require.Contains(t, out, "Change it: charon alpha proposer create")
+		require.Contains(t, out, "Change it: every operator runs charon alpha proposer edit <change flags> at the same time")
 	})
 
 	t.Run("no file", func(t *testing.T) {

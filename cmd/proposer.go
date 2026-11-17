@@ -35,7 +35,7 @@ func newProposerCmd(runStatus func(context.Context, io.Writer, proposerViewConfi
 		Use:   "proposer",
 		Short: "Show and change the cluster's proposer config: fee recipients, gas limit and builders",
 		Long: "Shows the cluster's signed proposer config, the fee recipients, gas limit and builders its validator clients use, and how to change it. " +
-			"A change is made in two steps: create writes it to a proposal file, then all operators run edit with that file at the same time.",
+			"To change it, all operators run edit at the same time with the same change: either the same change flags, or a proposal file one person wrote with create, which spares everyone retyping the flags.",
 		Args: cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
 			runStatus(cmd.Context(), cmd.OutOrStdout(), config)
@@ -129,7 +129,7 @@ func runProposerStatus(ctx context.Context, w io.Writer, config proposerViewConf
 	_, _ = fmt.Fprintf(tw, "  builders\t%s\n", builderSummary(def.Builder))
 	_ = tw.Flush()
 
-	_, _ = fmt.Fprintln(w, "Change it: charon alpha proposer create <change flags>, then every operator runs charon alpha proposer edit <proposal file>")
+	_, _ = fmt.Fprintln(w, "Change it: every operator runs charon alpha proposer edit <change flags> at the same time, or edit <proposal file> with a file from charon alpha proposer create")
 }
 
 // signerList returns the indexes of the operators that signed the document, as in the lock, comma-separated.
