@@ -20,8 +20,8 @@ const (
 	fetchProposerConfigTmpl   = "/" + lockHashPath + "/" + shareIndexPath
 )
 
-// HandlePublishProposerConfig stores a signed proposer config revision: 201 for a new one, 200 if already stored,
-// 409 for a revision lower than the latest or another document of a stored revision.
+// HandlePublishProposerConfig stores a signed proposer config revision: 201 for a new one, 409 if already stored as
+// for the lock, 400 for a revision lower than the latest or another document of a stored revision.
 func (ts *testServer) HandlePublishProposerConfig(writer http.ResponseWriter, request *http.Request) {
 	ts.lock.Lock()
 	defer ts.lock.Unlock()
@@ -66,16 +66,16 @@ func (ts *testServer) HandlePublishProposerConfig(writer http.ResponseWriter, re
 	if stored, ok := revisions[doc.Revision]; ok {
 		// The signature set may differ between the nodes publishing the same revision.
 		if bytes.Equal(stored.StoredHash, doc.StoredHash) {
-			writer.WriteHeader(http.StatusOK)
+			writeErr(writer, http.StatusConflict, "revision already stored")
 		} else {
-			writeErr(writer, http.StatusConflict, "another document of this revision is stored")
+			writeErr(writer, http.StatusBadRequest, "another document of this revision is stored")
 		}
 
 		return
 	}
 
 	if doc.Revision < latestRevision(revisions) {
-		writeErr(writer, http.StatusConflict, "a later revision is stored")
+		writeErr(writer, http.StatusBadRequest, "a later revision is stored")
 		return
 	}
 

@@ -109,30 +109,9 @@ func launchpadURLPath(lock cluster.Lock) string {
 }
 
 func (c Client) httpPost(ctx context.Context, url *url.URL, body []byte, headers map[string]string) error {
-	status, data, err := c.httpPostStatus(ctx, url, body, headers)
-	if err != nil {
-		return err
-	}
-
-	switch {
-	case status/100 == 2:
-		return nil
-	case status == http.StatusNotFound:
-		return errors.Wrap(ErrLockNotFound, "http POST failed", z.Int("status", status), z.Str("body", string(data)))
-	case status != http.StatusConflict:
-		return errors.New("http POST failed", z.Int("status", status), z.Str("body", string(data)))
-	}
-
-	log.Info(ctx, "Duplicate request ignored by Obol API. Likely another node submitted the same data already.", z.Int("status", status), z.Str("body", string(data)))
-
-	return nil
-}
-
-// httpPostStatus posts body and returns the response status, with the response body if it isn't a 2xx.
-func (c Client) httpPostStatus(ctx context.Context, url *url.URL, body []byte, headers map[string]string) (int, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url.String(), bytes.NewReader(body))
 	if err != nil {
-		return 0, nil, errors.Wrap(err, "create POST request")
+		return errors.Wrap(err, "create POST request")
 	}
 
 	req.Header.Add("Content-Type", "application/json")
@@ -144,20 +123,28 @@ func (c Client) httpPostStatus(ctx context.Context, url *url.URL, body []byte, h
 
 	res, err := new(http.Client).Do(req)
 	if err != nil {
-		return 0, nil, errors.Wrap(err, "call POST endpoint")
+		return errors.Wrap(err, "call POST endpoint")
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode/100 == 2 {
-		return res.StatusCode, nil, nil
+	if res.StatusCode/100 != 2 {
+		data, err := io.ReadAll(res.Body)
+		if err != nil {
+			return errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))
+		}
+
+		if res.StatusCode == http.StatusNotFound {
+			return errors.Wrap(ErrLockNotFound, "http POST failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
+		}
+
+		if res.StatusCode != http.StatusConflict {
+			return errors.New("http POST failed", z.Int("status", res.StatusCode), z.Str("body", string(data)))
+		}
+
+		log.Info(ctx, "Duplicate request ignored by Obol API. Likely another node submitted the same data already.", z.Int("status", res.StatusCode), z.Str("body", string(data)))
 	}
 
-	data, err := io.ReadAll(res.Body)
-	if err != nil {
-		return 0, nil, errors.Wrap(err, "read POST response", z.Int("status", res.StatusCode))
-	}
-
-	return res.StatusCode, data, nil
+	return nil
 }
 
 func (c Client) httpGet(ctx context.Context, url *url.URL, headers map[string]string) (io.ReadCloser, error) {

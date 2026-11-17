@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -26,14 +25,9 @@ const (
 	fetchProposerConfigTmpl   = "/proposer_config/" + lockHashPath + "/" + shareIndexPath
 )
 
-var (
-	// ErrProposerConfigConflict is returned when the Obol API refuses a proposer config revision, as it holds a later
-	// revision or another document of the same revision.
-	ErrProposerConfigConflict = errors.NewSentinel("Obol API holds a later or conflicting proposer config revision")
-	// ErrProposerConfigNotFound is returned when the Obol API holds no proposer config of the cluster, or not the
-	// revision asked for.
-	ErrProposerConfigNotFound = errors.NewSentinel("proposer config not found on Obol API")
-)
+// ErrProposerConfigNotFound is returned when the Obol API holds no proposer config of the cluster, or not the
+// revision asked for.
+var ErrProposerConfigNotFound = errors.NewSentinel("proposer config not found on Obol API")
 
 // ProposerConfigAuthBlob is what an operator signs with its identity key to fetch the cluster's proposer config.
 type ProposerConfigAuthBlob struct {
@@ -82,21 +76,12 @@ func (c Client) PublishProposerConfig(ctx context.Context, doc proposerconfig.Do
 	ctx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
-	status, data, err := c.httpPostStatus(ctx, u, b, nil)
+	err = c.httpPost(ctx, u, b, nil)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "http Obol API POST request")
 	}
 
-	switch {
-	case status/100 == 2:
-		return nil
-	case status == http.StatusNotFound:
-		return errors.Wrap(ErrLockNotFound, "publish proposer config", z.Str("body", string(data)))
-	case status == http.StatusConflict:
-		return errors.Wrap(ErrProposerConfigConflict, "publish proposer config", z.U64("revision", doc.Revision), z.Str("body", string(data)))
-	default:
-		return errors.New("publish proposer config", z.Int("status", status), z.Str("body", string(data)))
-	}
+	return nil
 }
 
 // GetProposerConfig returns the cluster's proposer config revision from the Obol API, the latest if revision is 0.
