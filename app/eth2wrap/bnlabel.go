@@ -63,13 +63,19 @@ func BeaconNodeLabel(addr string) string {
 // sanitiseBeaconNodeAddr returns scheme://host[:port] of addr, truncated to maxBeaconNodeLabelLen.
 func sanitiseBeaconNodeAddr(addr string) string {
 	// Mirror go-eth2-client, which defaults to http when no scheme is given.
-	if !strings.HasPrefix(addr, "http") {
-		addr = "http://" + addr
+	// This only builds a metric label, no request is made.
+	hasScheme := strings.Contains(addr, "://")
+	if !hasScheme {
+		addr = "//" + addr
 	}
 
 	u, err := url.Parse(addr)
 	if err != nil || u.Host == "" {
 		return invalidBeaconNodeLabel
+	}
+
+	if !hasScheme {
+		u.Scheme = "http"
 	}
 
 	label := u.Scheme + "://" + u.Host

@@ -193,8 +193,6 @@ func provide[O any](ctx context.Context, endpoint string, clients []Client, fall
 		isSuccessFunc = func(O) bool { return true }
 	}
 
-	zero := func() O { var z O; return z }()
-
 	runForkJoin := func(clients []Client) (O, error) {
 		fork, join, cancel := forkjoin.New(ctx, instrumentPerBeaconNode(endpoint, work),
 			forkjoin.WithoutFailFast(),
@@ -206,44 +204,7 @@ func provide[O any](ctx context.Context, endpoint string, clients []Client, fall
 			fork(provideArgs{client: client})
 		}
 
-		var (
-			nokResp       forkjoin.Result[provideArgs, O]
-			hasNokResp    bool
-			noContentResp *forkjoin.Result[provideArgs, O]
-		)
-
-		for res := range join() {
-			if ctx.Err() != nil {
-				return zero, ctx.Err()
-			} else if res.Err == nil && isSuccessFunc(res.Output) {
-				if bestSelector != nil {
-					bestSelector.Increment(res.Input.client.Address())
-				}
-
-				bnFirstCount.WithLabelValues(endpoint, clientLabel(res.Input.client)).Inc()
-
-				return res.Output, nil
-			}
-
-			if isNoContent(res.Err) {
-				// A valid answer, so it beats other failures, but keep waiting for a successful one.
-				noContentResp = &res
-				continue
-			}
-
-			nokResp = res
-			hasNokResp = true
-		}
-
-		if ctx.Err() != nil {
-			return zero, ctx.Err()
-		} else if noContentResp != nil {
-			return noContentResp.Output, noContentResp.Err
-		} else if !hasNokResp {
-			return zero, errors.New("bug: no forkjoin results")
-		}
-
-		return nokResp.Output, nokResp.Err
+		return joinProvide(ctx, endpoint, join(), isSuccessFunc, bestSelector)
 	}
 	output, err := runForkJoin(clients)
 
@@ -256,6 +217,51 @@ func provide[O any](ctx context.Context, endpoint string, clients []Client, fall
 	usingFallbackGauge.Set(0)
 
 	return output, err
+}
+
+// joinProvide returns the first successful result, else a no-content result, else the last failure.
+func joinProvide[O any](ctx context.Context, endpoint string, results forkjoin.Results[provideArgs, O],
+	isSuccessFunc func(O) bool, bestSelector *bestSelector,
+) (O, error) {
+	var (
+		zero          O
+		nokResp       forkjoin.Result[provideArgs, O]
+		hasNokResp    bool
+		noContentResp *forkjoin.Result[provideArgs, O]
+	)
+
+	for res := range results {
+		if ctx.Err() != nil {
+			return zero, ctx.Err()
+		} else if res.Err == nil && isSuccessFunc(res.Output) {
+			if bestSelector != nil {
+				bestSelector.Increment(res.Input.client.Address())
+			}
+
+			bnFirstCount.WithLabelValues(endpoint, clientLabel(res.Input.client)).Inc()
+
+			return res.Output, nil
+		}
+
+		if isNoContent(res.Err) {
+			// A valid answer, so it beats other failures, but keep waiting for a successful one.
+			noContentResp = &res
+			continue
+		}
+
+		nokResp = res
+		hasNokResp = true
+	}
+
+	if ctx.Err() != nil {
+		return zero, ctx.Err()
+	} else if noContentResp != nil {
+		return noContentResp.Output, noContentResp.Err
+	} else if !hasNokResp {
+		return zero, errors.New("bug: no forkjoin results")
+	}
+
+	return nokResp.Output, nokResp.Err
 }
 
 // isNoContent returns true if the error is a beacon node's 204 no content answer, which the client

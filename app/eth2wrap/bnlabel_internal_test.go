@@ -22,6 +22,7 @@ func TestSanitiseBeaconNodeAddr(t *testing.T) {
 	}{
 		{"http://10.0.0.1:5052", "http://10.0.0.1:5052"},
 		{"10.0.0.1:5052", "http://10.0.0.1:5052"},
+		{"httpbn:5052", "http://httpbn:5052"},
 		{"https://user:secret@bn.example.com/apikey123?token=abc", "https://bn.example.com"},
 		{"https://bn.example.com/eth/v1/", "https://bn.example.com"},
 		{"http://[::1]:5052", "http://[::1]:5052"},
