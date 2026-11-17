@@ -20,14 +20,14 @@ import (
 	"github.com/obolnetwork/charon/testutil/obolapimock"
 )
 
-// proposerBackupTest is a 4 node cluster at revision 1 and an Obol API mock, which holds its lock if published.
-type proposerBackupTest struct {
+// proposerAPITest is a 4 node cluster at revision 1 and an Obol API mock, which holds its lock if published.
+type proposerAPITest struct {
 	dir  string
 	lock cluster.Lock
 	api  string
 }
 
-func newProposerBackupTest(t *testing.T, lockPublished bool) proposerBackupTest {
+func newProposerAPITest(t *testing.T, lockPublished bool) proposerAPITest {
 	t.Helper()
 
 	dir := newProposerTestCluster(t)
@@ -43,10 +43,10 @@ func newProposerBackupTest(t *testing.T, lockPublished bool) proposerBackupTest 
 		addLockFiles(*lock)
 	}
 
-	return proposerBackupTest{dir: dir, lock: *lock, api: srv.URL}
+	return proposerAPITest{dir: dir, lock: *lock, api: srv.URL}
 }
 
-func (b proposerBackupTest) publishConfig(node int) proposerPublishConfig {
+func (b proposerAPITest) publishConfig(node int) proposerPublishConfig {
 	return proposerPublishConfig{
 		LockFile:           path.Join(nodeDir(b.dir, node), clusterLockFile),
 		ProposerConfigFile: proposerconfig.FilePath(nodeDir(b.dir, node)),
@@ -56,7 +56,7 @@ func (b proposerBackupTest) publishConfig(node int) proposerPublishConfig {
 	}
 }
 
-func (b proposerBackupTest) fetchConfig(node int) proposerFetchConfig {
+func (b proposerAPITest) fetchConfig(node int) proposerFetchConfig {
 	return proposerFetchConfig{
 		LockFile:           path.Join(nodeDir(b.dir, node), clusterLockFile),
 		PrivateKeyFile:     path.Join(nodeDir(b.dir, node), enrPrivateKeyFile),
@@ -67,12 +67,12 @@ func (b proposerBackupTest) fetchConfig(node int) proposerFetchConfig {
 	}
 }
 
-func (b proposerBackupTest) nodeIdx(node int) cluster.NodeIdx {
+func (b proposerAPITest) nodeIdx(node int) cluster.NodeIdx {
 	return cluster.NodeIdx{PeerIdx: node, ShareIdx: node + 1}
 }
 
 // load returns the node's proposer config file.
-func (b proposerBackupTest) load(t *testing.T, node int) proposerconfig.Document {
+func (b proposerAPITest) load(t *testing.T, node int) proposerconfig.Document {
 	t.Helper()
 
 	doc, err := proposerconfig.Load(proposerconfig.FilePath(nodeDir(b.dir, node)), b.lock, b.nodeIdx(node))
@@ -82,7 +82,7 @@ func (b proposerBackupTest) load(t *testing.T, node int) proposerconfig.Document
 }
 
 // signedRevision returns the node's revision with the gas limit changed, as the next revision signed by all operators.
-func (b proposerBackupTest) signedRevision(t *testing.T, node int, gasLimit string) proposerconfig.Document {
+func (b proposerAPITest) signedRevision(t *testing.T, node int, gasLimit string) proposerconfig.Document {
 	t.Helper()
 
 	doc := b.load(t, node)
@@ -107,25 +107,25 @@ func (b proposerBackupTest) signedRevision(t *testing.T, node int, gasLimit stri
 
 func TestProposerPublish(t *testing.T) {
 	t.Run("lock not published", func(t *testing.T) {
-		b := newProposerBackupTest(t, false)
+		b := newProposerAPITest(t, false)
 
 		err := runProposerPublish(t.Context(), new(bytes.Buffer), b.publishConfig(0))
 		require.ErrorIs(t, err, obolapi.ErrLockNotFound)
 	})
 
 	t.Run("published", func(t *testing.T) {
-		b := newProposerBackupTest(t, true)
+		b := newProposerAPITest(t, true)
 
 		var out bytes.Buffer
 		require.NoError(t, runProposerPublish(t.Context(), &out, b.publishConfig(2)))
-		require.Equal(t, "Proposer config revision 1 published to "+b.api+": charon alpha proposer fetch restores it.\n", out.String())
+		require.Equal(t, "Proposer config revision 1 published to "+b.api+": charon alpha proposer fetch fetches it.\n", out.String())
 
 		// Every node may publish the same revision.
 		require.NoError(t, runProposerPublish(t.Context(), new(bytes.Buffer), b.publishConfig(0)))
 	})
 
 	t.Run("revision 0", func(t *testing.T) {
-		b := newProposerBackupTest(t, true)
+		b := newProposerAPITest(t, true)
 
 		doc := b.load(t, 1)
 		doc.Revision, doc.Signatures, doc.StoredHash = 0, nil, nil
@@ -137,7 +137,7 @@ func TestProposerPublish(t *testing.T) {
 }
 
 func TestProposerFetch(t *testing.T) {
-	b := newProposerBackupTest(t, true)
+	b := newProposerAPITest(t, true)
 
 	// Revisions 1 and 2 are published, every node file holds revision 1.
 	require.NoError(t, runProposerPublish(t.Context(), new(bytes.Buffer), b.publishConfig(0)))
@@ -193,7 +193,7 @@ func TestProposerFetch(t *testing.T) {
 }
 
 func TestProposerFetchUntrusted(t *testing.T) {
-	b := newProposerBackupTest(t, true)
+	b := newProposerAPITest(t, true)
 
 	// The API returns revision 2 with its gas limit changed after signing.
 	tampered := b.signedRevision(t, 0, "45000000")

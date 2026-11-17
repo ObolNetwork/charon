@@ -70,9 +70,9 @@ func newProposerListCmd(runFunc func(context.Context, io.Writer, proposerViewCon
 	return cmd
 }
 
-// bindProposerAPIFlags binds the Obol API address and timeout of the proposer config backup.
+// bindProposerAPIFlags binds the Obol API address and timeout of publishing and fetching the proposer config.
 func bindProposerAPIFlags(f *pflag.FlagSet, addr *string, timeout *time.Duration) {
-	f.StringVar(addr, "publish-address", "https://api.obol.tech/v1", "The URL of the Obol API backing up the proposer config.")
+	f.StringVar(addr, "publish-address", "https://api.obol.tech/v1", "The URL of the Obol API the proposer config is published to.")
 	f.DurationVar(timeout, "publish-timeout", defaultPublishTimeout, "Timeout for the Obol API request.")
 }
 

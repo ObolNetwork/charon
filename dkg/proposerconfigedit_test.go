@@ -94,7 +94,7 @@ func TestEditPublish(t *testing.T) {
 
 	addLockFiles(lock)
 
-	// The last node publishes to an Obol API without the lock: a failed backup does not fail the edit.
+	// The last node publishes to an Obol API without the lock: a failed publish does not fail the edit.
 	noLock, _ := obolapimock.MockServer(false, nil)
 	noLockAPI := httptest.NewServer(noLock)
 	t.Cleanup(noLockAPI.Close)

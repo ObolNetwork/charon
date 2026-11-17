@@ -40,7 +40,7 @@ func newProposerFetchCmd(runFunc func(context.Context, io.Writer, proposerFetchC
 
 	cmd := &cobra.Command{
 		Use:   "fetch",
-		Short: "Restore this node's proposer config file from the Obol API backup",
+		Short: "Fetch the cluster's signed proposer config from the Obol API into this node's file",
 		Long: "Fetches the cluster's signed proposer config from the Obol API and writes it to this node's proposer config file. " +
 			"Only the cluster's operators can fetch it: the request is signed with this node's charon ENR private key. " +
 			"The fetched revision is verified against the cluster lock before anything is written, and it replaces the file only " +
@@ -102,9 +102,9 @@ func runProposerFetch(ctx context.Context, w io.Writer, config proposerFetchConf
 
 	// The Obol API is not trusted: only a signed revision of this cluster lands on disk.
 	if doc.Revision == 0 {
-		return errors.New("Obol API returned the unsigned revision 0")
+		return errors.New("unsigned revision 0 returned by Obol API")
 	} else if config.Revision != 0 && doc.Revision != config.Revision {
-		return errors.New("Obol API returned another revision than asked for", z.U64("revision", doc.Revision), z.U64("asked", config.Revision))
+		return errors.New("another revision than asked for returned by Obol API", z.U64("revision", doc.Revision), z.U64("asked", config.Revision))
 	}
 
 	err = proposerconfig.Verify(doc, *lock)
