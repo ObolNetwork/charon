@@ -41,7 +41,7 @@ func Verify(doc Document, lock cluster.Lock) error {
 		return errors.Wrap(ErrLockHashMismatch, "document lock hash differs from lock")
 	}
 
-	if major(doc.Version) != major(Version) {
+	if !SupportedVersion(doc.Version) {
 		return invalid("unsupported version", z.Str("version", doc.Version), z.Str("supported", Version))
 	}
 
@@ -134,6 +134,11 @@ func verifySignature(hash [32]byte, lock cluster.Lock, operator int, sig []byte)
 	}
 
 	return nil
+}
+
+// SupportedVersion returns true if the version has the same major as Version.
+func SupportedVersion(version string) bool {
+	return major(version) == major(Version)
 }
 
 // major returns the major of a vX.Y.Z version.

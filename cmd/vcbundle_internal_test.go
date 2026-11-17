@@ -74,7 +74,7 @@ func TestRunVCBundle(t *testing.T) {
 	keysDir := filepath.Join(nodeDir, "validator_keys")
 	require.NoError(t, os.Mkdir(keysDir, 0o700))
 
-	for i, pubkey := range []string{"aa11", "bb22"} {
+	for i, pubkey := range []string{"aa11" + strings.Repeat("0", 92), "bb22" + strings.Repeat("0", 92)} {
 		keystore := fmt.Sprintf(`{"pubkey":%q,"crypto":{},"version":4}`, pubkey)
 		require.NoError(t, os.WriteFile(filepath.Join(keysDir, fmt.Sprintf("keystore-%d.json", i)), []byte(keystore), 0o600))
 		require.NoError(t, os.WriteFile(filepath.Join(keysDir, fmt.Sprintf("keystore-%d.txt", i)), []byte("password"), 0o600))

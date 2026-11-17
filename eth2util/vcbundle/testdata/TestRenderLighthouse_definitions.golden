@@ -1,5 +1,5 @@
 - enabled: true
-  voting_public_key: "0xaa11"
+  voting_public_key: "0xaa1100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
   type: local_keystore
   voting_keystore_path: "/opt/charon/validator_keys/keystore-0.json"
   voting_keystore_password_path: "/opt/charon/validator_keys/keystore-0.txt"
@@ -7,7 +7,7 @@
   gas_limit: 60000000
   builder_proposals: true
 - enabled: true
-  voting_public_key: "0xbb22"
+  voting_public_key: "0xbb2200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
   type: local_keystore
   voting_keystore_path: "/opt/charon/validator_keys/keystore-1.json"
   voting_keystore_password_path: "/opt/charon/validator_keys/keystore-1.txt"
