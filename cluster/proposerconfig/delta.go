@@ -17,7 +17,7 @@ var ErrNoChange = errors.New("proposer config is unchanged")
 
 // Delta is a set of changes to a Config. Zero values mean "not set": an empty FeeRecipient, a zero
 // GasLimit, nil BuilderURLs and builder pointers, and a false NoBuilders. FeeRecipientValidators holds DV
-// pubkeys; empty applies the fee recipient to all validators.
+// pubkeys; empty applies the fee recipient to the default config, leaving validators with their own untouched.
 type Delta struct {
 	FeeRecipient               string
 	FeeRecipientValidators     []string
@@ -32,13 +32,19 @@ type Delta struct {
 // Apply returns the config with the delta applied, or ErrNoChange if the result equals c.
 func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 	fees := c.FeeRecipients(lock)
+	defaultFee := c.DefaultConfig.FeeRecipient
 
 	if d.FeeRecipient != "" {
 		var err error
 
-		fees, err = applyFeeRecipient(lock, fees, d)
+		fees, err = applyFeeRecipient(lock, c, fees, d)
 		if err != nil {
 			return Config{}, err
+		}
+
+		// Only the unscoped form moves the default.
+		if len(d.FeeRecipientValidators) == 0 {
+			defaultFee = d.FeeRecipient
 		}
 	}
 
@@ -74,7 +80,7 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 		}
 	}
 
-	res, err := NewConfig(lock, fees, gasLimit, builder)
+	res, err := NewConfigWithDefault(lock, defaultFee, fees, gasLimit, builder)
 	if err != nil {
 		return Config{}, err
 	}
@@ -91,8 +97,9 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 	return res, nil
 }
 
-// applyFeeRecipient returns a copy of fees with the delta's fee recipient set on the selected validators.
-func applyFeeRecipient(lock cluster.Lock, fees []string, d Delta) ([]string, error) {
+// applyFeeRecipient returns a copy of fees with the delta's fee recipient set on the selected validators, or on
+// those using the default if none are selected: validators with their own fee recipient keep it.
+func applyFeeRecipient(lock cluster.Lock, c Config, fees []string, d Delta) ([]string, error) {
 	fee, err := normaliseAddress(d.FeeRecipient)
 	if err != nil {
 		return nil, err
@@ -101,8 +108,10 @@ func applyFeeRecipient(lock cluster.Lock, fees []string, d Delta) ([]string, err
 	res := slices.Clone(fees)
 
 	if len(d.FeeRecipientValidators) == 0 {
-		for i := range res {
-			res[i] = fee
+		for i, val := range lock.Validators {
+			if c.ProposerConfig[pubkeyHex(val.PubKey)].FeeRecipient == "" {
+				res[i] = fee
+			}
 		}
 
 		return res, nil
