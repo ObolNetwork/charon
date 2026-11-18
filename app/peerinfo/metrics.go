@@ -61,12 +61,12 @@ var (
 		Help:      "Set to 1 if builder API is enabled on this peer, else 0 if disabled.",
 	}, []string{"peer"})
 
-	peerBuilderConfigMismatchGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	peerProposerConfigMismatchGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "peerinfo",
-		Name:      "builder_config_mismatch",
-		Help: "Set to 1 if the peer's builder configuration (builder URLs and related flags) differs from this " +
-			"node's, else 0. Absent for peers not reporting a builder configuration hash.",
+		Name:      "proposer_config_mismatch",
+		Help: "Set to 1 if the peer's proposer config revision hash differs from this node's, else 0. " +
+			"Absent for peers not reporting a proposer config hash.",
 	}, []string{"peer"})
 
 	peerNickname = promauto.NewResetGaugeVec(prometheus.GaugeOpts{

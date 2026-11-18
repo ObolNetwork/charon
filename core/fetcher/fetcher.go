@@ -30,9 +30,11 @@ import (
 )
 
 // New returns a new fetcher instance. The fork schedule function returns the schedule charon
-// currently applies, which may change at runtime.
+// currently applies, which may change at runtime, as do the builder configuration and the fee recipient of
+// gloas proposals, read from their funcs at each proposal. A nil builder configuration func sends a nil
+// configuration, which the beacon node client rejects, so production callers must supply one.
 func New(ctx context.Context, eth2Cl eth2wrap.Client, feeRecipientFunc func(core.PubKey) string, builderEnabled bool, graffitiBuilder *GraffitiBuilder,
-	forkSchedule func() eth2wrap.ForkForkSchedule, slotsPerEpoch uint64, builderConfig *gloas.BuilderConfig, fetchOnlyCommIdx0 bool,
+	forkSchedule func() eth2wrap.ForkForkSchedule, slotsPerEpoch uint64, builderConfigFunc func() *gloas.BuilderConfig, epbsFeeRecipientFunc func(core.PubKey) string, fetchOnlyCommIdx0 bool,
 ) (*Fetcher, error) {
 	if slotsPerEpoch == 0 {
 		return nil, errors.New("zero slots per epoch")
@@ -54,19 +56,20 @@ func New(ctx context.Context, eth2Cl eth2wrap.Client, feeRecipientFunc func(core
 	}
 
 	return &Fetcher{
-		eth2Cl:            eth2Cl,
-		feeRecipientFunc:  feeRecipientFunc,
-		builderEnabled:    builderEnabled,
-		graffitiBuilder:   graffitiBuilder,
-		forkSchedule:      forkSchedule,
-		slotsPerEpoch:     slotsPerEpoch,
-		builderConfig:     builderConfig,
-		fetchOnlyCommIdx0: fetchOnlyCommIdx0,
-		clock:             clockwork.NewRealClock(),
-		genesisTime:       genesisTime,
-		slotDuration:      slotDuration,
-		slotOffsetFunc:    slotOffsetFunc,
-		headEvents:        make(map[uint64]chan headEvent),
+		eth2Cl:               eth2Cl,
+		feeRecipientFunc:     feeRecipientFunc,
+		builderEnabled:       builderEnabled,
+		graffitiBuilder:      graffitiBuilder,
+		forkSchedule:         forkSchedule,
+		slotsPerEpoch:        slotsPerEpoch,
+		builderConfigFunc:    builderConfigFunc,
+		epbsFeeRecipientFunc: epbsFeeRecipientFunc,
+		fetchOnlyCommIdx0:    fetchOnlyCommIdx0,
+		clock:                clockwork.NewRealClock(),
+		genesisTime:          genesisTime,
+		slotDuration:         slotDuration,
+		slotOffsetFunc:       slotOffsetFunc,
+		headEvents:           make(map[uint64]chan headEvent),
 	}, nil
 }
 
@@ -83,7 +86,8 @@ type Fetcher struct {
 	graffitiBuilder        *GraffitiBuilder
 	forkSchedule           func() eth2wrap.ForkForkSchedule
 	slotsPerEpoch          uint64
-	builderConfig          *gloas.BuilderConfig
+	builderConfigFunc      func() *gloas.BuilderConfig
+	epbsFeeRecipientFunc   func(core.PubKey) string
 	fetchOnlyCommIdx0      bool
 	attDataCache           sync.Map // Cache for early-fetched attestation data (map[uint64]core.UnsignedDataSet). TODO(post-gloas): remove.
 	clock                  clockwork.Clock
@@ -637,7 +641,7 @@ func (f *Fetcher) fetchEPBSProposerData(ctx context.Context, slot uint64, defSet
 		}
 
 		// Ensure fee recipient is correctly populated in the proposal.
-		verifyFeeRecipient(ctx, coreProposal, f.feeRecipientFunc(pubkey))
+		verifyFeeRecipient(ctx, coreProposal, f.epbsFeeRecipientFunc(pubkey))
 
 		bid, err := core.EPBSBid(coreProposal.EPBS)
 		if err != nil {
@@ -751,22 +755,27 @@ const builderAuthTimeout = 500 * time.Millisecond
 // builders with their aggregated builder request auths. A builder whose auth isn't aggregated in
 // time is left out, since the beacon node can't request bids from it without one.
 func (f *Fetcher) builderConfigFor(ctx context.Context, slot uint64, pubkey core.PubKey) *gloas.BuilderConfig {
-	if f.builderConfig == nil || len(f.builderConfig.Builders) == 0 || f.aggSigDBFunc == nil {
-		return f.builderConfig
+	var config *gloas.BuilderConfig
+	if f.builderConfigFunc != nil {
+		config = f.builderConfigFunc()
+	}
+
+	if config == nil || len(config.Builders) == 0 || f.aggSigDBFunc == nil {
+		return config
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, builderAuthTimeout)
 	defer cancel()
 
-	entries := make([]*gloas.BuilderEntry, len(f.builderConfig.Builders))
+	entries := make([]*gloas.BuilderEntry, len(config.Builders))
 
 	var wg sync.WaitGroup
-	for i, entry := range f.builderConfig.Builders {
+	for i, entry := range config.Builders {
 		wg.Go(func() {
 			auth, err := f.awaitBuilderAuth(ctx, slot, pubkey, entry)
 			if err != nil {
-				log.Warn(ctx, "Requesting proposal without builder, its request auth isn't aggregated", err,
-					z.U64("slot", slot), z.Str("builder", string(entry.URL)))
+				// The error names the builder by its host, the URL may carry credentials.
+				log.Warn(ctx, "Requesting proposal without builder, its request auth isn't aggregated", err, z.U64("slot", slot))
 
 				return
 			}
@@ -790,8 +799,8 @@ func (f *Fetcher) builderConfigFor(ctx context.Context, slot uint64, pubkey core
 	}
 
 	return &gloas.BuilderConfig{
-		MinBid:             f.builderConfig.MinBid,
-		BuilderBoostFactor: f.builderConfig.BuilderBoostFactor,
+		MinBid:             config.MinBid,
+		BuilderBoostFactor: config.BuilderBoostFactor,
 		Builders:           builders,
 	}
 }
@@ -805,12 +814,12 @@ func (f *Fetcher) awaitBuilderAuth(ctx context.Context, slot uint64, pubkey core
 
 	signed, err := f.aggSigDBFunc(ctx, core.NewBuilderPreferencesDuty(slot), pubkey, core.AwaitOpts{BuilderHost: string(builderHost)})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "await builder request auth", z.Str("builder", string(builderHost)))
 	}
 
 	auth, ok := signed.(core.SignedBuilderRequestAuth)
 	if !ok {
-		return nil, errors.New("invalid builder request auth")
+		return nil, errors.New("invalid builder request auth", z.Str("builder", string(builderHost)))
 	}
 
 	return &auth.SignedBuilderRequestAuth, nil

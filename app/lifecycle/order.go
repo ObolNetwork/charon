@@ -28,6 +28,7 @@ const (
 	StartSimulator
 	StartScheduler
 	StartBuilderRegWatcher
+	StartProposerConfigWatcher
 	StartP2PEventCollector
 	StartPeerInfo
 	StartParSigDB

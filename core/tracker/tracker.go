@@ -122,14 +122,14 @@ type Option func(*options)
 
 // options are the optional Tracker settings.
 type options struct {
-	builderHosts []string
+	builderHostsFunc func() []string
 }
 
-// WithBuilderHosts sets the hosts of the builders configured on this node, by which the builder
-// request auths of each peer are counted.
-func WithBuilderHosts(hosts []string) Option {
+// WithBuilderHostsFunc sets the func returning the hosts of the builders configured on this node, by which
+// the builder request auths of each peer are counted.
+func WithBuilderHostsFunc(hosts func() []string) Option {
 	return func(o *options) {
-		o.builderHosts = hosts
+		o.builderHostsFunc = hosts
 	}
 }
 
@@ -150,7 +150,7 @@ func New(analyser core.Deadliner, deleter core.Deadliner, peers []p2p.Peer, from
 		parSigReporter:        reportParSigs,
 		failedDutyReporter:    newFailedDutyReporter(),
 		participationReporter: newParticipationReporter(peers),
-		builderAuthReporter:   newBuilderAuthReporter(peers, o.builderHosts),
+		builderAuthReporter:   newBuilderAuthReporter(peers, o.builderHostsFunc),
 	}
 
 	return t
@@ -699,25 +699,29 @@ const builderUnknown = "unknown"
 // each peer by builder host, so that a peer whose validator client doesn't sign for a configured
 // builder, or still signs for a removed one, stands out. Hosts of builders not configured on this
 // node are counted as unknown, bounding the metric's cardinality.
-func newBuilderAuthReporter(peers []p2p.Peer, builderHosts []string) func(core.Duty, []event) {
-	configured := make(map[string]bool)
-	for _, host := range builderHosts {
-		configured[host] = true
-	}
-
+func newBuilderAuthReporter(peers []p2p.Peer, builderHostsFunc func() []string) func(core.Duty, []event) {
 	peerNames := make(map[int]string)
 	for _, peer := range peers {
 		peerNames[peer.ShareIdx()] = peer.Name
-
-		// Initialise counters to 0 to avoid non-existent metrics issues when querying prometheus.
-		for _, host := range builderHosts {
-			builderRequestAuths.WithLabelValues(peer.Name, host).Add(0)
-		}
 	}
 
 	return func(duty core.Duty, events []event) {
 		if duty.Type != core.DutyBuilderPreferences {
 			return
+		}
+
+		// The hosts are read per report, since they change when the proposer config reloads.
+		configured := make(map[string]bool)
+
+		if builderHostsFunc != nil {
+			for _, host := range builderHostsFunc() {
+				configured[host] = true
+
+				// Initialise each peer's counter so a peer never signing for the builder shows 0 rather than nothing.
+				for _, name := range peerNames {
+					builderRequestAuths.WithLabelValues(name, host).Add(0)
+				}
+			}
 		}
 
 		// A peer's auth for a validator and builder is counted once, whichever step reported it.
