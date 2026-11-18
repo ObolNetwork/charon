@@ -57,8 +57,8 @@ func selectTimer(duty core.Duty, gloas bool, proposerTimerFunc func(slot uint64)
 		def = eagerAheadSplitTimer()
 	case duty.Type == core.DutyProposer && gloas:
 		// From gloas, proposer duties use the timer the cluster agreed on, with its agreed inputs, by
-		// default 1.5s rounds, or with at least a threshold of peers enabling the linear feature, quicker
-		// rotating ones: 1.5s, 600ms, 900ms, 1.2s, etc. Rounds are anchored at the duty start, aligned
+		// default 1.5s rounds, giving two leaders a chance before the 3s attestation due, or with at least
+		// a threshold of peers enabling the linear feature, three: 1.5s, 600ms, 900ms, 1.2s, etc. Rounds are anchored at the duty start, aligned
 		// across peers, and extended by their duration, at least 1s, when armed again. The first round
 		// allows for fetching the proposal, so the feature extensions, i.e. proposal_timeout, don't apply.
 		typ, inputs := parseProposerTimer(proposerTimerFunc(duty.Slot))
@@ -93,7 +93,7 @@ func ProposerTimerProposal(linear bool) string {
 
 // parseProposerTimer returns the type and timer function inputs of the proposer timer encoded as by
 // ProposerTimerProposal, or the default eager double linear one if empty or invalid, e.g. from a
-// release with other timer functions.
+// release with other timer functions or with an input outside 100ms to 4s.
 func parseProposerTimer(s string) (Type, []time.Duration) {
 	parts := strings.Split(s, "/")
 	typ := Type(parts[0])
@@ -114,7 +114,7 @@ func parseProposerTimer(s string) (Type, []time.Duration) {
 
 	for _, part := range parts[1:] {
 		input, err := time.ParseDuration(part)
-		if err != nil || input <= 0 {
+		if err != nil || input < minProposerInput || input > maxProposerInput {
 			break
 		}
 

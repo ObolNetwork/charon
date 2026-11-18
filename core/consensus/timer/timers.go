@@ -29,6 +29,9 @@ const (
 	// the eager double linear one, gloasProposerStep the step of the linear one.
 	gloasProposerRound = 1500 * time.Millisecond
 	gloasProposerStep  = 300 * time.Millisecond
+	// minProposerInput and maxProposerInput bound the agreed gloas proposer timer function inputs.
+	minProposerInput = 100 * time.Millisecond
+	maxProposerInput = 4 * time.Second
 )
 
 // timerDef defines a timer: its round durations, the start of its first round and its extensions.

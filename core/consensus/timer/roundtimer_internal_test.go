@@ -601,6 +601,9 @@ func TestParseProposerTimer(t *testing.T) {
 		{name: "invalid duration", input: "linear/1.5s/abc", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
 		{name: "zero duration", input: "linear/1.5s/0s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
 		{name: "negative duration", input: "eager_dlinear/-1s", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "input too short", input: "linear/1.5s/50ms", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "input too long", input: "eager_dlinear/1h", wantType: TimerEagerDoubleLinear, wantInputs: ms(1500)},
+		{name: "input bounds", input: "linear/4s/100ms", wantType: TimerLinear, wantInputs: ms(4000, 100)},
 	}
 
 	for _, test := range tests {
