@@ -1,0 +1,35 @@
+{
+  "version": "v1.0.0",
+  "lock_hash": "0xb8dc5d81fa56c6d893e752f04e313b9f63dcd44a84ff19008530449362e6ea51",
+  "revision": 2,
+  "revision_hash": "0xbd99c58116d0f003bb0ad300b07eb660bd72fcc3fcf3e1e57c7ce952776c13cd",
+  "proposer_config": {
+    "0xb44958c07ba41e9a135435682bbac2507c3651f13600a2b313eb2c335cc8924f54504e471c954bf029aaf7277f8c4e3d": {
+      "fee_recipient": "0x000000000000000000000000000000000000000b"
+    }
+  },
+  "default_config": {
+    "fee_recipient": "0x000000000000000000000000000000000000000a",
+    "gas_limit": "200000000",
+    "builder": {
+      "min_bid": "0",
+      "builder_boost_factor": "100",
+      "max_execution_payment": "0",
+      "builders": [
+        {
+          "url": "https://b1.example"
+        }
+      ]
+    }
+  },
+  "signatures": [
+    {
+      "operator": 0,
+      "signature": "0xaa"
+    },
+    {
+      "operator": 2,
+      "signature": "0xbbbb"
+    }
+  ]
+}

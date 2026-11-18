@@ -46,6 +46,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/aggsigdb"
 	"github.com/obolnetwork/charon/core/bcast"
@@ -104,7 +105,6 @@ type Config struct {
 	ConsensusProtocol           string
 	Nickname                    string
 	BeaconNodeHeaders           []string
-	ProposerGasLimit            uint64
 	FallbackBeaconNodeAddrs     []string
 	ExecutionEngineAddr         string
 	Graffiti                    []string
@@ -115,10 +115,8 @@ type Config struct {
 	PublishAddress              string
 	PublishTimeout              time.Duration
 	FetchFeerecipientUpdates    bool
-	BuilderURLs                 []string
-	BuilderMinBid               uint64
-	BuilderBoostFactor          uint64
-	BuilderMaxExecutionPayment  uint64
+	ProposerConfigFile          string
+	ProposerConfigSeed          proposerconfig.Seed
 
 	TestConfig TestConfig
 }
@@ -511,7 +509,24 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 	life.RegisterStart(lifecycle.AsyncAppCtx, lifecycle.StartBuilderRegWatcher,
 		lifecycle.HookFuncCtx(builderRegSvc.Run))
 
-	wireProposerConfigFile(ctx, conf, lock, nodeIdx, builderRegSvc.FeeRecipient)
+	genesis, err := eth2wrap.FetchGenesisTime(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	slotDur, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
+	if err != nil {
+		return err
+	}
+
+	currentEpoch := currentEpochFunc(genesis, slotDur, slotsPerEpoch)
+
+	gloasActive := func() bool { return forkSchedule().Active(eth2wrap.Gloas, currentEpoch()) }
+
+	_, err = loadProposerConfig(ctx, conf, *lock, nodeIdx, builderRegSvc.FeeRecipient, gloasActive)
+	if err != nil {
+		return err
+	}
 
 	peers, err := lock.Peers()
 	if err != nil {
@@ -636,11 +651,6 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 		return err
 	}
 
-	_, slotsPerEpoch, err := eth2wrap.FetchSlotsConfig(ctx, eth2Cl)
-	if err != nil {
-		return err
-	}
-
 	builderCfg := builderConfig(conf)
 
 	hosts, err := builderHosts(conf)
@@ -664,7 +674,7 @@ func wireCoreWorkflow(ctx context.Context, life *lifecycle.Manager, conf Config,
 
 	dutyDB := dutydb.NewMemDB(retainerFunc("dutydb"))
 
-	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, conf.ProposerGasLimit,
+	vapi, err := validatorapi.NewComponent(eth2Cl, allPubSharesByKey, nodeIdx.ShareIdx, builderRegSvc.FeeRecipient, conf.BuilderAPI, conf.ProposerConfigSeed.GasLimit,
 		validatorapi.WithBuilderHosts(hosts))
 	if err != nil {
 		return err
@@ -954,6 +964,18 @@ func calculateTrackerDelay(ctx context.Context, cl eth2wrap.Client, now time.Tim
 	}
 
 	return maxDelayTimeSlot, nil
+}
+
+// currentEpochFunc returns a function returning the current epoch per the genesis time and slot config.
+func currentEpochFunc(genesisTime time.Time, slotDuration time.Duration, slotsPerEpoch uint64) func() eth2p0.Epoch {
+	return func() eth2p0.Epoch {
+		elapsed := time.Since(genesisTime)
+		if elapsed < 0 {
+			return 0
+		}
+
+		return eth2p0.Epoch(uint64(elapsed/slotDuration) / slotsPerEpoch)
+	}
 }
 
 // eth2PubKeys returns a list of BLS pubkeys of validators in the cluster lock.
