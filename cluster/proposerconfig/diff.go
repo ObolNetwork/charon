@@ -3,10 +3,10 @@
 package proposerconfig
 
 import (
+	"net/url"
 	"slices"
 	"strings"
 
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 )
 
@@ -51,10 +51,34 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 	return lines
 }
 
-// RedactURLs returns the URLs redacted as the URL flags are logged, comma-joined for display. The URLs are
-// redacted one by one: a URL may itself contain a comma.
+// RedactURLs returns the builder URLs redacted with RedactURL, comma-joined for display. The URLs are redacted
+// one by one: a URL may itself contain a comma.
 func RedactURLs(urls []string) string {
-	return strings.Join(log.RedactURLs(urls, true), ",")
+	redacted := make([]string, 0, len(urls))
+	for _, u := range urls {
+		redacted = append(redacted, RedactURL(u))
+	}
+
+	return strings.Join(redacted, ",")
+}
+
+// RedactURL returns the builder URL's scheme and host only, since builders put credentials anywhere else: the
+// user info, path, query or fragment, which are replaced by one placeholder. A value that is not an absolute
+// URL is replaced whole.
+func RedactURL(raw string) string {
+	const redacted = "xxxxx"
+
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return redacted
+	}
+
+	host := u.Scheme + "://" + u.Host
+	if u.User == nil && strings.Trim(u.Path, "/") == "" && u.RawQuery == "" && u.Fragment == "" {
+		return host
+	}
+
+	return host + "/" + redacted
 }
 
 // builderValues are a builder's settings as strings, all empty for a nil builder.

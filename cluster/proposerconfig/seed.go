@@ -13,7 +13,6 @@ import (
 	"strconv"
 
 	"github.com/obolnetwork/charon/app/errors"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/core"
 )
@@ -233,7 +232,7 @@ func validateBuilderURLs(flag string, urls []string) error {
 		}
 
 		if seen[u] {
-			return errors.New(flag+" entry is duplicated", z.Str("url", log.RedactURL(u, true)))
+			return errors.New(flag+" entry is duplicated", z.Str("url", RedactURL(u)))
 		}
 
 		seen[u] = true

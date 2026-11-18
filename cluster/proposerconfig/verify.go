@@ -11,7 +11,6 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
-	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/enr"
@@ -173,7 +172,7 @@ func checkEditableFields(c Config, lock cluster.Lock) error {
 
 	for _, e := range c.DefaultConfig.Builder.Builders {
 		if e.MinBid != "" || e.BuilderBoostFactor != "" || e.MaxExecutionPayment != "" {
-			return invalid("builder entry sets more than url", z.Str("url", log.RedactURL(e.URL, true)))
+			return invalid("builder entry sets more than url", z.Str("url", RedactURL(e.URL)))
 		}
 	}
 

@@ -10,9 +10,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -26,7 +28,7 @@ const (
 	editFeeRecipientSum   = "0x000000000000000000000000000000000000dEaD"
 )
 
-func TestEditProposerConfigFlags(t *testing.T) {
+func TestProposerEditFlags(t *testing.T) {
 	u64 := func(v uint64) *uint64 { return &v }
 
 	tests := []struct {
@@ -146,13 +148,13 @@ func TestEditProposerConfigFlags(t *testing.T) {
 				got    dkg.ProposerConfigEditConfig
 			)
 
-			cmd := newEditProposerConfigCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
+			cmd := newProposerEditCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
 				called = true
 				got = conf
 
 				return nil
 			})
-			cmd.SetArgs(test.args)
+			cmd.SetArgs(append(test.args, "--yes"))
 			cmd.SetOut(io.Discard)
 			cmd.SetErr(io.Discard)
 
@@ -173,11 +175,12 @@ func TestEditProposerConfigFlags(t *testing.T) {
 			require.Equal(t, ".charon/vc-config/proposer-config.json", got.ProposerConfigFile)
 			require.Equal(t, ".charon/builder_registrations_overrides.json", got.OverridesFile)
 			require.Nil(t, got.ParticipatingENRs)
+			require.Nil(t, got.Confirm)
 		})
 	}
 }
 
-func TestEditProposerConfigParticipants(t *testing.T) {
+func TestProposerEditParticipants(t *testing.T) {
 	srcDir := t.TempDir()
 	conf := clusterConfig{
 		ClusterDir:        srcDir,
@@ -211,7 +214,7 @@ func TestEditProposerConfigParticipants(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var buf bytes.Buffer
 
-			err := runEditProposerConfig(t.Context(), &buf, dkg.ProposerConfigEditConfig{
+			err := runProposerEdit(t.Context(), &buf, dkg.ProposerConfigEditConfig{
 				LockFilePath:      path.Join(nodeDir(srcDir, 0), clusterLockFile),
 				DKGConfig:         dkg.Config{NoVerify: true},
 				ParticipatingENRs: test.enrs,
@@ -222,7 +225,7 @@ func TestEditProposerConfigParticipants(t *testing.T) {
 	}
 }
 
-func TestEditProposerConfigProposalFile(t *testing.T) {
+func TestProposerEditProposalFile(t *testing.T) {
 	const proposalJSON = `{"version":"v1.0.0","lock_hash":"0x0102","revision":3,` +
 		`"default_config":{"fee_recipient":"` + editFeeRecipientLower + `","gas_limit":"60000000"}}`
 
@@ -238,11 +241,11 @@ func TestEditProposerConfigProposalFile(t *testing.T) {
 
 		var got dkg.ProposerConfigEditConfig
 
-		cmd := newEditProposerConfigCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
+		cmd := newProposerEditCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
 			got = conf
 			return nil
 		})
-		cmd.SetArgs(args)
+		cmd.SetArgs(append(args, "--yes"))
 		cmd.SetOut(io.Discard)
 		cmd.SetErr(io.Discard)
 
@@ -250,14 +253,13 @@ func TestEditProposerConfigProposalFile(t *testing.T) {
 	}
 
 	t.Run("proposal file", func(t *testing.T) {
-		got, err := run(t, "--proposal-file="+file)
+		got, err := run(t, file)
 		require.NoError(t, err)
 		require.Equal(t, proposerconfig.Delta{}, got.Delta)
 		require.NotNil(t, got.Proposal)
 		require.Equal(t, uint64(3), got.Proposal.Revision)
 		require.Equal(t, []byte{1, 2}, got.Proposal.LockHash)
 		require.Equal(t, "60000000", got.Proposal.Config.DefaultConfig.GasLimit)
-		require.Empty(t, got.WriteProposalFile)
 	})
 
 	t.Run("proposal file from url", func(t *testing.T) {
@@ -266,19 +268,11 @@ func TestEditProposerConfigProposalFile(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		got, err := run(t, "--proposal-file="+srv.URL+"/proposal.json")
+		got, err := run(t, srv.URL+"/proposal.json")
 		require.NoError(t, err)
 		require.NotNil(t, got.Proposal)
 		require.Equal(t, uint64(3), got.Proposal.Revision)
 		require.Equal(t, "60000000", got.Proposal.Config.DefaultConfig.GasLimit)
-	})
-
-	t.Run("write proposal file", func(t *testing.T) {
-		got, err := run(t, "--gas-limit=60000000", "--write-proposal-file=out.json")
-		require.NoError(t, err)
-		require.Equal(t, proposerconfig.Delta{GasLimit: 60_000_000}, got.Delta)
-		require.Nil(t, got.Proposal)
-		require.Equal(t, "out.json", got.WriteProposalFile)
 	})
 
 	tests := []struct {
@@ -286,13 +280,11 @@ func TestEditProposerConfigProposalFile(t *testing.T) {
 		args   []string
 		errMsg string
 	}{
-		{"file and change flag", []string{"--proposal-file=" + file, "--gas-limit=1"}, "proposal-file excludes the change flags"},
-		{"file and no builders", []string{"--proposal-file=" + file, "--no-builders"}, "proposal-file excludes the change flags"},
-		{"file and write", []string{"--proposal-file=" + file, "--write-proposal-file=out.json"}, "proposal-file excludes write-proposal-file"},
-		{"empty write path", []string{"--gas-limit=1", "--write-proposal-file="}, "write-proposal-file must not be empty"},
-		{"write without change", []string{"--write-proposal-file=out.json"}, "no change requested"},
-		{"missing file", []string{"--proposal-file=" + path.Join(dir, "missing.json")}, "read proposal file"},
-		{"invalid file", []string{"--proposal-file=" + invalid}, "parse proposal file"},
+		{"file and change flag", []string{file, "--gas-limit=1"}, "a proposal file excludes the change flags"},
+		{"file and no builders", []string{file, "--no-builders"}, "a proposal file excludes the change flags"},
+		{"two files", []string{file, file}, "accepts at most 1 arg"},
+		{"missing file", []string{path.Join(dir, "missing.json")}, "read proposal file"},
+		{"invalid file", []string{invalid}, "parse proposal file"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -302,39 +294,97 @@ func TestEditProposerConfigProposalFile(t *testing.T) {
 	}
 }
 
-func TestEditProposerConfigOutput(t *testing.T) {
-	t.Run("proposal file written", func(t *testing.T) {
-		var buf bytes.Buffer
+func TestProposerEditConfirm(t *testing.T) {
+	newCmd := func(t *testing.T, terminal bool, in string, got *dkg.ProposerConfigEditConfig) *cobra.Command {
+		t.Helper()
 
-		printEditProposerConfigResult(&buf, dkg.ProposerConfigEditResult{Revision: 4, Hash: [32]byte{0x7c, 0x41, 0xff}, Operators: 4, ProposalFile: "out.json"})
+		prev := isInteractive
+		isInteractive = func() bool { return terminal }
 
-		require.Equal(t, "Proposal for proposer config revision 4 (hash 0x7c41ff0000000000…) written to out.json.\n"+
-			"Nothing is changed yet: send the file to the other operators, then all run this command with --proposal-file.\n", buf.String())
-	})
+		t.Cleanup(func() { isInteractive = prev })
 
-	t.Run("success", func(t *testing.T) {
-		var buf bytes.Buffer
-
-		printEditProposerConfigResult(&buf, dkg.ProposerConfigEditResult{
-			Revision:  4,
-			Hash:      [32]byte{0x7c, 0x41, 0xff},
-			Signers:   4,
-			Operators: 4,
+		cmd := newProposerEditCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
+			*got = conf
+			return nil
 		})
+		cmd.SetArgs([]string{"--gas-limit=60000000"})
+		cmd.SetIn(strings.NewReader(in))
+		cmd.SetErr(io.Discard)
 
-		require.Equal(t, "Proposer config updated to revision 4 (hash 0x7c41ff0000000000…) with 4/4 operator signatures.\n"+
-			"Restart your validator client now to apply it, e.g.: docker compose restart <vc service>\n", buf.String())
+		return cmd
+	}
+
+	t.Run("no terminal without yes", func(t *testing.T) {
+		var got dkg.ProposerConfigEditConfig
+
+		cmd := newCmd(t, false, "", &got)
+		cmd.SetOut(io.Discard)
+		require.ErrorContains(t, cmd.Execute(), "add --yes")
 	})
 
-	t.Run("adopted", func(t *testing.T) {
-		var buf bytes.Buffer
+	change := dkg.ProposerConfigChange{BaseRevision: 1, Revision: 2, Hash: [32]byte{0xab}, Diff: []string{"gas_limit: 36000000 -> 60000000"}}
 
-		printEditProposerConfigResult(&buf, dkg.ProposerConfigEditResult{Revision: 2, Signers: 3, Operators: 4, Adopted: true})
+	for _, test := range []struct {
+		answer string
+		errMsg string
+	}{
+		{"y\n", ""},
+		{"YES\n", ""},
+		{"n\n", "change not confirmed"},
+		{"", "change not confirmed"},
+	} {
+		t.Run("answer "+strings.TrimSpace(test.answer), func(t *testing.T) {
+			var (
+				got dkg.ProposerConfigEditConfig
+				out bytes.Buffer
+			)
 
-		require.Contains(t, buf.String(), "adopted a newer signed revision from its peers")
-		require.Contains(t, buf.String(), "revision 2 (hash 0x0000000000000000…) with 3/4 operator signatures.")
-	})
+			cmd := newCmd(t, true, test.answer, &got)
+			cmd.SetOut(&out)
+			require.NoError(t, cmd.Execute())
+			require.NotNil(t, got.Confirm)
 
+			err := got.Confirm(t.Context(), change)
+			if test.errMsg != "" {
+				require.ErrorContains(t, err, test.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+
+			require.Equal(t, "Proposer config revision 2 (hash 0xab00000000000000…), changes from revision 1:\n"+
+				"  gas_limit: 36000000 -> 60000000\n"+
+				"Sign this change? [y/N] ", out.String())
+		})
+	}
+}
+
+func TestConfirmChangeCancelled(t *testing.T) {
+	in, _ := io.Pipe() // Never answers.
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	err := confirmChange(in, io.Discard)(ctx, dkg.ProposerConfigChange{})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestProposerEditHiddenFlags(t *testing.T) {
+	cmd := newProposerEditCmd(nil)
+
+	for _, name := range []string{"overrides-file", "timeout", "shutdown-delay", "no-verify", "execution-client-rpc-endpoint"} {
+		require.True(t, cmd.Flags().Lookup(name).Hidden, name)
+	}
+
+	for _, name := range []string{"yes", "lock-file", "private-key-file", "proposer-config-file", "participating-operator-enrs", "p2p-relays", gasLimitFlag} {
+		require.False(t, cmd.Flags().Lookup(name).Hidden, name)
+	}
+
+	// Change flags have no default, a flag left out changes nothing.
+	for _, name := range proposerChangeFlagNames {
+		require.Contains(t, []string{"", "0", "false", "[]"}, cmd.Flags().Lookup(name).DefValue, name)
+	}
+}
+
+func TestProposerEditOutput(t *testing.T) {
 	t.Run("pre-gloas warning", func(t *testing.T) {
 		var buf bytes.Buffer
 
@@ -353,7 +403,7 @@ func TestEditProposerConfigOutput(t *testing.T) {
 	})
 }
 
-func TestEditProposerConfigIgnoresRunP2PEnv(t *testing.T) {
+func TestProposerEditIgnoresRunP2PEnv(t *testing.T) {
 	// The environment of charon run's container under docker compose exec.
 	t.Setenv("CHARON_P2P_TCP_ADDRESS", "0.0.0.0:3610")
 	t.Setenv("CHARON_P2P_UDP_ADDRESS", "0.0.0.0:3630")
@@ -363,12 +413,12 @@ func TestEditProposerConfigIgnoresRunP2PEnv(t *testing.T) {
 
 	var got dkg.ProposerConfigEditConfig
 
-	editCmd := newEditProposerConfigCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
+	editCmd := newProposerEditCmd(func(_ context.Context, _ io.Writer, conf dkg.ProposerConfigEditConfig) error {
 		got = conf
 		return nil
 	})
-	root := newRootCmd(newAlphaCmd(newEditCmd(editCmd)))
-	root.SetArgs([]string{"alpha", "edit", "proposer-config", "--gas-limit=60000000"})
+	root := newRootCmd(newAlphaCmd(newProposerCmd(nil, editCmd)))
+	root.SetArgs([]string{"alpha", "proposer", "edit", "--gas-limit=60000000", "--yes"})
 	root.SetOut(io.Discard)
 	require.NoError(t, root.Execute())
 

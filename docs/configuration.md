@@ -145,7 +145,7 @@ The file is a revisioned document, signed by the cluster operators:
 - **Revision 0** is unsigned. With no file, `charon run` writes revision 0 from the cluster lock, the builder registration
   overrides file (`--overrides-file`) for the fee recipients, falling back to the lock's,
   and the `--proposer-config-*` seeding flags for the gas limit and builders. At revision 0 the file wins: seeding flags that differ
-  from it only produce a warning naming `charon alpha edit proposer-config`. After the gloas fork charon also warns that an unsigned file is in use.
+  from it only produce a warning naming `charon alpha proposer edit`. After the gloas fork charon also warns that an unsigned file is in use.
 - **Revision 1 and higher** carry the signatures of at least the cluster threshold of operators over the revision hash,
   made with their charon ENR keys and verified on start against the operator ENRs in the lock. Once the file is signed the seeding flags
   are disregarded, with a warning if flags you set explicitly differ from it.
@@ -188,17 +188,25 @@ current content over into a file signed for the new lock, written to `<output-di
 `vc-config/proposer-config.json`: switch to the whole output directory, including its `vc-config/`, since charon refuses to start with a
 file signed for the previous lock.
 
-### Changing the proposer config
+### Showing and changing the proposer config
 
-All participating operators run the same command and agree on the result in one ceremony:
+`charon alpha proposer` shows the cluster's proposer config: its revision and the operators that signed it, the default fee
+recipient, the gas limit and the builders, as scheme and host only since builder URLs may carry credentials. It never fails:
+a missing file is reported, and so is one that does not verify against the lock, whose content is not shown.
+`charon alpha proposer list [--json]` lists the default fee recipient and gas limit and only the validators whose fee recipient
+differs from it. Both read
+the proposer config file of any of the cluster's nodes and need no node key.
+
+Changing it is a ceremony, like a DKG: one operator running it alone changes nothing. The participating operators agree on a
+time, then all run the same command at the same time, which waits for the others to join:
 
 ```sh
-charon alpha edit proposer-config \
+charon alpha proposer edit \
   --fee-recipient=0x123... --gas-limit=60000000 \
   --builder-urls=https://a.example,https://b.example --builder-boost-factor=110
 ```
 
-At least one change flag is required, the flags combine into one revision:
+At least one change flag is required, the flags combine into one revision, and a flag left out changes nothing:
 
 - `--fee-recipient` changes the default fee recipient: validators with their own fee recipient keep it. With `--fee-recipient-validators`
   (DV public keys) it changes those validators only and leaves the default as is; one set to the default loses its own entry. The
@@ -207,31 +215,35 @@ At least one change flag is required, the flags combine into one revision:
 - `--builder-urls` (replaces the list, order is the preference order, no duplicates), `--builder-min-bid`, `--builder-boost-factor`,
   `--builder-max-execution-payment`; the last three need an existing builder block or `--builder-urls`. `--no-builders` removes the builder block.
 
-To spare every operator retyping the same flags, one operator adds `--write-proposal-file=proposal.json` to them. It writes the
-resulting revision as a proposal file and stops, changing nothing. The others, and the author, then run the command with
-`--proposal-file=proposal.json` (a path or an HTTP URL) in place of the change flags; operators passing the file and operators
-passing the equal flags agree. An existing file is not overwritten. The proposal file has the seed file's shape and is complete
-on its own: it adds the `lock_hash`, the `revision` it proposes, the default `fee_recipient` and a `proposer_config` keyed by DV
-public key (not by this node's public shares, as `proposer-config.json` is) for the validators with another fee recipient. Write
-it with `--write-proposal-file` rather than by hand: a fee recipient left out is refused, not defaulted. A file for another cluster,
-or for a revision other than the next one, is refused, so a stale file cannot revert a later change; the author's node must hold
-the cluster's latest revision. Builder URLs are logged redacted, so check them in the file itself.
+Each operator sees the differences against the current revision and its hash, and confirms them before signing; `--yes` signs
+without asking, for scripts, and is required without a terminal.
+
+To spare every operator retyping the same flags, one person creates a proposal file with
+`charon alpha proposer create --output-file=proposal.json` and the same change flags, as `charon create dkg` creates the
+cluster definition every operator runs the DKG with. It needs the cluster lock and the proposer
+config file of any node, which must exist, but no node key, so the author need not be an operator, and it changes nothing. Every operator then
+runs `charon alpha proposer edit proposal.json` (a path or an HTTP URL) in place of the change flags; operators passing the file and
+operators passing the equal flags agree. An existing file is not overwritten. The proposal file has the seed file's shape and is
+complete on its own: it adds the `lock_hash`, the `revision` it proposes, the default `fee_recipient` and a `proposer_config`
+keyed by DV public key (not by a node's public shares, as `proposer-config.json` is) for the validators with another fee
+recipient. Write it with `create` rather than by hand: a fee recipient left out is refused, not defaulted. A file for another
+cluster, or for a revision other than the next one, is refused, so a stale file cannot revert a later change; the file `create`
+reads must hold the cluster's latest revision. Builder URLs are logged redacted, so check them in the file itself.
 
 `--participating-operator-enrs` lists the operators running the ceremony, this node included, as for `remove-operators`. It defaults
 to all operators and must list at least the cluster threshold; every participant passes the same list. An operator that missed a ceremony shows up as `app_peerinfo_proposer_config_mismatch` on its peers and catches up by joining the next edit ceremony, where it adopts the newer signed revision from its peers.
-`--timeout` (default 24h) is how long to wait for the other operators to join, `--p2p-relays` defaults to `https://4.relay.obol.dev`.
-Use relays that do not serve your running charon node. The ceremony connects via relays only, it neither listens nor advertises addresses.
-Run inside charon's container, the command inherits charon run's environment, including the `CHARON_P2P_RELAYS` your node uses,
-so pass `--p2p-relays` explicitly:
+The hidden `--timeout` (default 24h) is how long to wait for the other operators to join, `--p2p-relays` defaults to
+`https://4.relay.obol.dev`. Use relays that do not serve your running charon node. The ceremony connects via relays only, it neither
+listens nor advertises addresses. Run inside charon's container, the command inherits charon run's environment, including the
+`CHARON_P2P_RELAYS` your node uses, so pass `--p2p-relays` explicitly:
 
 ```sh
-docker compose exec charon charon alpha edit proposer-config --p2p-relays=https://4.relay.obol.dev --gas-limit=60000000
+docker compose exec charon charon alpha proposer edit --p2p-relays=https://4.relay.obol.dev --gas-limit=60000000
 ```
 
-The ceremony prints the differences against the current revision, and on success writes revision N+1 and archives the previous
-file as `proposer-config-revision-<N>.json` next to it. Restart the validator client afterwards to apply the new file, e.g.
-`docker compose restart <vc service>`. Before the gloas fork charon's own builder registrations are unaffected, and a fee recipient
-change also needs `charon feerecipient sign` and `fetch`.
+On success the ceremony writes revision N+1 and archives the previous file as `proposer-config-revision-<N>.json` next to it.
+Restart the validator client afterwards to apply the new file, e.g. `docker compose restart <vc service>`. Before the gloas fork
+charon's own builder registrations are unaffected, and a fee recipient change also needs `charon feerecipient sign` and `fetch`.
 
 ### Validator client bundle
 
