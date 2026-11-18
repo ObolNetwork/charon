@@ -56,7 +56,7 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 		{exitEpoch, false},
 		{validatorPubkey, false},
 		{validatorIndex, false},
-		{beaconNodeEndpoints, true},
+		{beaconNodeEndpoints, false},
 		{beaconNodeTimeout, false},
 		{publishTimeout, false},
 		{all, false},
@@ -93,6 +93,11 @@ func newSignPartialExitCmd(runFunc func(context.Context, exitConfig) error) *cob
 
 		config.ValidatorIndexPresent = valIdxPresent
 		config.SkipBeaconNodeCheck = valIdxPresent && valPubkPresent
+
+		if !config.SkipBeaconNodeCheck && len(config.BeaconNodeEndpoints) == 0 {
+			//nolint:revive // we use our own version of the errors package.
+			return errors.New(fmt.Sprintf("%s must be specified, unless both %s and %s are.", beaconNodeEndpoints.String(), validatorIndex.String(), validatorPubkey.String()))
+		}
 
 		return nil
 	})
@@ -137,9 +142,18 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 		return err
 	}
 
-	eth2Cl, err := eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.ForkVersion))
+	// The beacon node is optional when both the validator public key and index are provided.
+	var eth2Cl eth2wrap.Client
+	if len(config.BeaconNodeEndpoints) > 0 {
+		eth2Cl, err = eth2Client(ctx, config.FallbackBeaconNodeAddrs, beaconNodeHeaders, config.BeaconNodeEndpoints, config.BeaconNodeTimeout, [4]byte(cl.ForkVersion))
+		if err != nil {
+			return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", log.RedactURLs(config.BeaconNodeEndpoints, true)))
+		}
+	}
+
+	domain, err := exitDomain(ctx, eth2Cl, [4]byte(cl.ForkVersion), eth2p0.Epoch(config.ExitEpoch))
 	if err != nil {
-		return errors.Wrap(err, "create eth2 client for specified beacon node(s)", z.Any("beacon_nodes_endpoints", log.RedactURLs(config.BeaconNodeEndpoints, true)))
+		return errors.Wrap(err, "get exit domain")
 	}
 
 	if config.ValidatorIndexPresent {
@@ -151,17 +165,17 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	}
 
 	if config.SkipBeaconNodeCheck {
-		log.Info(ctx, "Both public key and index are specified, beacon node won't be checked for validator liveness, only that the index matches the public key")
+		log.Info(ctx, "Both public key and index are specified, beacon node won't be checked for validator liveness, only that the index matches the public key if a beacon node is configured")
 	}
 
 	var exitBlobs []obolapi.ExitBlob
 	if config.All {
-		exitBlobs, err = signAllValidatorsExits(ctx, config, eth2Cl, shares)
+		exitBlobs, err = signAllValidatorsExits(ctx, config, eth2Cl, domain, shares)
 		if err != nil {
 			return errors.Wrap(err, "sign exits for all validators")
 		}
 	} else {
-		exitBlobs, err = signSingleValidatorExit(ctx, config, eth2Cl, shares)
+		exitBlobs, err = signSingleValidatorExit(ctx, config, eth2Cl, domain, shares)
 		if err != nil {
 			return errors.Wrap(err, "sign exit for validator")
 		}
@@ -174,7 +188,7 @@ func runSignPartialExit(ctx context.Context, config exitConfig) error {
 	return nil
 }
 
-func signSingleValidatorExit(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client, shares keystore.ValidatorShares) ([]obolapi.ExitBlob, error) {
+func signSingleValidatorExit(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client, domain eth2p0.Domain, shares keystore.ValidatorShares) ([]obolapi.ExitBlob, error) {
 	valEth2, err := fetchValidatorBLSPubKey(ctx, config, eth2Cl)
 	if err != nil {
 		return nil, errors.Wrap(err, "fetch validator public key")
@@ -192,7 +206,7 @@ func signSingleValidatorExit(ctx context.Context, config exitConfig, eth2Cl eth2
 		return nil, errors.Wrap(err, "fetch validator index")
 	}
 
-	if config.SkipBeaconNodeCheck {
+	if config.SkipBeaconNodeCheck && eth2Cl != nil {
 		if err := crossCheckValidatorIndex(ctx, eth2Cl, valEth2, valIndex); err != nil {
 			return nil, err
 		}
@@ -200,7 +214,7 @@ func signSingleValidatorExit(ctx context.Context, config exitConfig, eth2Cl eth2
 
 	log.Info(ctx, "Signing partial exit message for validator", z.Str("validator_public_key", valEth2.String()), z.U64("validator_index", uint64(valIndex)))
 
-	exitMsg, err := signExit(ctx, eth2Cl, valIndex, ourShare.Share, eth2p0.Epoch(config.ExitEpoch))
+	exitMsg, err := signExit(domain, valIndex, ourShare.Share, eth2p0.Epoch(config.ExitEpoch))
 	if err != nil {
 		return nil, errors.Wrap(err, "sign partial exit message", z.Str("validator_public_key", valEth2.String()), z.U64("validator_index", uint64(valIndex)), z.Int("exit_epoch", int(config.ExitEpoch)))
 	}
@@ -213,7 +227,7 @@ func signSingleValidatorExit(ctx context.Context, config exitConfig, eth2Cl eth2
 	}, nil
 }
 
-func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client, shares keystore.ValidatorShares) ([]obolapi.ExitBlob, error) {
+func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2wrap.Client, domain eth2p0.Domain, shares keystore.ValidatorShares) ([]obolapi.ExitBlob, error) {
 	var valsEth2 []eth2p0.BLSPubKey
 
 	for pk := range shares {
@@ -249,7 +263,7 @@ func signAllValidatorsExits(ctx context.Context, config exitConfig, eth2Cl eth2w
 	var exitBlobs []obolapi.ExitBlob
 
 	for pk, share := range activeShares {
-		exitMsg, err := signExit(ctx, eth2Cl, eth2p0.ValidatorIndex(share.Index), share.Share, eth2p0.Epoch(config.ExitEpoch))
+		exitMsg, err := signExit(domain, eth2p0.ValidatorIndex(share.Index), share.Share, eth2p0.Epoch(config.ExitEpoch))
 		if err != nil {
 			return nil, errors.Wrap(err, "sign partial exit message", z.Str("validator_public_key", pk.String()), z.Int("validator_index", share.Index), z.Int("exit_epoch", int(config.ExitEpoch)))
 		}
