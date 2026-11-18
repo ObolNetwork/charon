@@ -44,8 +44,8 @@ const (
 	GnosisBlockHotfix Feature = "gnosis_block_hotfix"
 
 	// Linear enables the linear round timer for proposer duties, taking precedence over EagerDoubleLinear.
-	// From the gloas fork, it proposes the quicker rotating gloas proposer timer, used cluster-wide once a
-	// threshold of peers propose it.
+	// From the gloas fork, it proposes the gloas proposer timer giving three leaders a chance before the
+	// attestation due, used cluster-wide once a threshold of peers propose it.
 	Linear Feature = "linear"
 
 	// SSEReorgDuties enables Scheduler to refresh duties when reorg occurs.
