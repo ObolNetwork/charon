@@ -22,13 +22,19 @@ import (
 
 // proposerConfigSnapshot is a document with the values derived from it, swapped atomically on reload.
 type proposerConfigSnapshot struct {
-	doc      proposerconfig.Document
-	hash     [32]byte
+	proposerConfigValues
+
+	doc  proposerconfig.Document
+	hash [32]byte
+	// verified is false for a file served on start although it fails verification, which any verified file replaces.
+	verified bool
+}
+
+// proposerConfigValues are the values charon run derives from a proposer config.
+type proposerConfigValues struct {
 	gasLimit uint64
 	builder  *gloas.BuilderConfig
 	hosts    []string
-	// verified is false for a file served on start although it fails verification, which any verified file replaces.
-	verified bool
 }
 
 // proposerConfigService serves the current proposer config document and reloads it when the file changes.
@@ -156,30 +162,48 @@ func newProposerConfigSnapshot(doc proposerconfig.Document, verified bool) (*pro
 		return nil, err
 	}
 
-	gasLimit, err := doc.Config.GasLimit()
+	vals, err := parseProposerConfig(doc.Config)
 	if err != nil {
 		return nil, err
 	}
 
-	builder, err := toBuilderConfig(doc.Config.DefaultConfig.Builder)
+	return &proposerConfigSnapshot{proposerConfigValues: vals, doc: doc, hash: hash, verified: verified}, nil
+}
+
+// CheckProposerConfig returns an error if charon run could not derive its values from the config: the gas limit,
+// the builder settings or a builder's host.
+func CheckProposerConfig(cfg proposerconfig.Config) error {
+	_, err := parseProposerConfig(cfg)
+
+	return err
+}
+
+// parseProposerConfig derives the gas limit, the builder config and the builder hosts from the config.
+func parseProposerConfig(cfg proposerconfig.Config) (proposerConfigValues, error) {
+	gasLimit, err := cfg.GasLimit()
 	if err != nil {
-		return nil, err
+		return proposerConfigValues{}, err
+	}
+
+	builder, err := toBuilderConfig(cfg.DefaultConfig.Builder)
+	if err != nil {
+		return proposerConfigValues{}, err
 	}
 
 	var hosts []string
 
-	if b := doc.Config.DefaultConfig.Builder; b != nil {
+	if b := cfg.DefaultConfig.Builder; b != nil {
 		for _, entry := range b.Builders {
 			host, err := eth2util.BuilderAuthData(entry.URL)
 			if err != nil {
-				return nil, err
+				return proposerConfigValues{}, err
 			}
 
 			hosts = append(hosts, string(host))
 		}
 	}
 
-	return &proposerConfigSnapshot{doc: doc, hash: hash, gasLimit: gasLimit, builder: builder, hosts: hosts, verified: verified}, nil
+	return proposerConfigValues{gasLimit: gasLimit, builder: builder, hosts: hosts}, nil
 }
 
 // toBuilderConfig returns the gloas builder configuration of the document's builder, the default without builders if

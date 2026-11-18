@@ -87,8 +87,8 @@ func newBcastComponents(t *testing.T, n int) ([]*bcast.Component, []p2p.Peer, []
 	return comps, clusterPeers, secrets
 }
 
-// runAgreement runs agree on all nodes with the given local configs.
-func runAgreement(t *testing.T, lock cluster.Lock, locals []proposerconfig.Config) ([]proposerconfig.Config, []error) {
+// runAgreement runs agree on all nodes with the given local configs (nil adopts).
+func runAgreement(t *testing.T, lock cluster.Lock, locals []*proposerconfig.Config) ([]proposerconfig.Config, []error) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -104,7 +104,7 @@ func runAgreement(t *testing.T, lock cluster.Lock, locals []proposerconfig.Confi
 
 	agreements := make([]*configAgreement, len(locals))
 	for i := range locals {
-		agreements[i] = newConfigAgreement(peers, cluster.NodeIdx{PeerIdx: i}, comps[i], proposerConfigSeedMsgID)
+		agreements[i] = newConfigAgreement(peers, cluster.NodeIdx{PeerIdx: i}, comps[i], proposerConfigContentMsgID)
 	}
 
 	for i := range locals {
@@ -119,7 +119,7 @@ func runAgreement(t *testing.T, lock cluster.Lock, locals []proposerconfig.Confi
 	return results, errs
 }
 
-func testProposerConfig(t *testing.T, lock cluster.Lock, gasLimit uint64) proposerconfig.Config {
+func testProposerConfig(t *testing.T, lock cluster.Lock, gasLimit uint64) *proposerconfig.Config {
 	t.Helper()
 
 	fees := make([]string, len(lock.Validators))
@@ -130,7 +130,7 @@ func testProposerConfig(t *testing.T, lock cluster.Lock, gasLimit uint64) propos
 	c, err := proposerconfig.NewConfig(lock, fees, gasLimit, nil)
 	require.NoError(t, err)
 
-	return c
+	return &c
 }
 
 func TestNodeSigBcastTwoMessageIDs(t *testing.T) {
@@ -195,10 +195,31 @@ func TestConfigAgreementEqual(t *testing.T) {
 	lock, _, _ := cluster.NewForT(t, 2, 3, 4, 0, rand.New(rand.NewSource(1)))
 	c := testProposerConfig(t, lock, proposerconfig.DefaultGasLimit)
 
-	results, errs := runAgreement(t, lock, []proposerconfig.Config{c, c, c, c})
+	results, errs := runAgreement(t, lock, []*proposerconfig.Config{c, c, c, c})
 	for i := range errs {
 		require.NoError(t, errs[i])
-		require.Equal(t, c, results[i])
+		require.Equal(t, *c, results[i])
+	}
+}
+
+func TestConfigAgreementAdopt(t *testing.T) {
+	lock, _, _ := cluster.NewForT(t, 2, 3, 4, 0, rand.New(rand.NewSource(1)))
+	c := testProposerConfig(t, lock, proposerconfig.DefaultGasLimit)
+
+	results, errs := runAgreement(t, lock, []*proposerconfig.Config{nil, c, c, c})
+	for i := range errs {
+		require.NoError(t, errs[i])
+		require.Equal(t, *c, results[i])
+	}
+}
+
+func TestConfigAgreementAllAdopt(t *testing.T) {
+	lock, _, _ := cluster.NewForT(t, 1, 3, 4, 0, rand.New(rand.NewSource(1)))
+
+	_, errs := runAgreement(t, lock, []*proposerconfig.Config{nil, nil, nil, nil})
+	for _, err := range errs {
+		require.ErrorContains(t, err, "no operator has a proposer config")
+		require.NotContains(t, err.Error(), "test hint")
 	}
 }
 
@@ -207,7 +228,7 @@ func TestConfigAgreementMismatchDiff(t *testing.T) {
 	a := testProposerConfig(t, lock, proposerconfig.DefaultGasLimit)
 	b := testProposerConfig(t, lock, 123)
 
-	_, errs := runAgreement(t, lock, []proposerconfig.Config{a, a, b, a})
+	_, errs := runAgreement(t, lock, []*proposerconfig.Config{a, a, b, a})
 	for _, err := range errs {
 		require.ErrorContains(t, err, "peer 2")
 		require.ErrorContains(t, err, "default.gas_limit: 200000000 -> 123")
@@ -218,20 +239,20 @@ func TestConfigAgreementMismatchDiff(t *testing.T) {
 
 func TestConfigAgreementNoValidators(t *testing.T) {
 	// Seed configs carry no validators; Diff must still work against a lock without any.
-	a := proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "1"}}
-	b := proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "2"}}
+	a := &proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "1"}}
+	b := &proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "2"}}
 
-	_, errs := runAgreement(t, cluster.Lock{}, []proposerconfig.Config{a, b, a})
+	_, errs := runAgreement(t, cluster.Lock{}, []*proposerconfig.Config{a, b, a})
 	for _, err := range errs {
 		require.ErrorContains(t, err, "default.gas_limit: 1 -> 2")
 	}
 }
 
 func TestConfigAgreementNormalisesAddresses(t *testing.T) {
-	a := proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "1"}}
-	b := proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: strings.ToLower(testFeeAddr), GasLimit: "1"}}
+	a := &proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "1"}}
+	b := &proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: strings.ToLower(testFeeAddr), GasLimit: "1"}}
 
-	_, errs := runAgreement(t, cluster.Lock{}, []proposerconfig.Config{a, b, a})
+	_, errs := runAgreement(t, cluster.Lock{}, []*proposerconfig.Config{a, b, a})
 	for _, err := range errs {
 		require.NoError(t, err)
 	}
@@ -241,10 +262,10 @@ func TestConfigAgreementHostileConfig(t *testing.T) {
 	lock, _, _ := cluster.NewForT(t, 2, 3, 4, 0, rand.New(rand.NewSource(1)))
 	a := testProposerConfig(t, lock, proposerconfig.DefaultGasLimit)
 	// Missing default fields, an entry for a pubkey outside the lock and empty maps.
-	b := proposerconfig.Config{ProposerConfig: map[string]proposerconfig.Settings{"0xABCD": {GasLimit: "5"}}}
-	c := proposerconfig.Config{}
+	b := &proposerconfig.Config{ProposerConfig: map[string]proposerconfig.Settings{"0xABCD": {GasLimit: "5"}}}
+	c := &proposerconfig.Config{}
 
-	_, errs := runAgreement(t, lock, []proposerconfig.Config{a, b, c})
+	_, errs := runAgreement(t, lock, []*proposerconfig.Config{a, b, c})
 	for _, err := range errs {
 		require.ErrorContains(t, err, "peer 1")
 		require.ErrorContains(t, err, "peer 2")
@@ -252,13 +273,13 @@ func TestConfigAgreementHostileConfig(t *testing.T) {
 }
 
 func TestConfigAgreementHashOnlyDiff(t *testing.T) {
-	a := proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "1"}}
-	b := proposerconfig.Config{
+	a := &proposerconfig.Config{DefaultConfig: proposerconfig.Settings{FeeRecipient: testFeeAddr, GasLimit: "1"}}
+	b := &proposerconfig.Config{
 		DefaultConfig:  a.DefaultConfig,
 		ProposerConfig: map[string]proposerconfig.Settings{"0xabcd": {GasLimit: "5"}},
 	}
 
-	_, errs := runAgreement(t, cluster.Lock{}, []proposerconfig.Config{a, b, a})
+	_, errs := runAgreement(t, cluster.Lock{}, []*proposerconfig.Config{a, b, a})
 	for _, err := range errs {
 		require.ErrorContains(t, err, "configs differ outside the compared fields")
 	}
@@ -266,7 +287,7 @@ func TestConfigAgreementHashOnlyDiff(t *testing.T) {
 
 func TestConfigAgreementDuplicateFirstWins(t *testing.T) {
 	comps, peers, _ := newBcastComponents(t, 2)
-	ag := newConfigAgreement(peers, cluster.NodeIdx{PeerIdx: 0}, comps[0], proposerConfigSeedMsgID)
+	ag := newConfigAgreement(peers, cluster.NodeIdx{PeerIdx: 0}, comps[0], proposerConfigContentMsgID)
 
 	send := func(gas string) error {
 		b, err := json.Marshal(proposerconfig.Config{DefaultConfig: proposerconfig.Settings{GasLimit: gas}})
@@ -431,7 +452,7 @@ func TestLoadCarriedProposerConfig(t *testing.T) {
 	nodeIdx := cluster.NodeIdx{PeerIdx: 1, ShareIdx: 2}
 	absent := filepath.Join(t.TempDir(), "absent.json")
 
-	cfg := testProposerConfig(t, lock, 60_000_000)
+	cfg := *testProposerConfig(t, lock, 60_000_000)
 	cfg.DefaultConfig.Builder = &proposerconfig.Builder{MinBid: "0", BuilderBoostFactor: "100", MaxExecutionPayment: "0", Builders: []proposerconfig.BuilderEntry{{URL: "https://b.example.com"}}}
 
 	signed := func(t *testing.T, signers int) proposerconfig.Document {
@@ -506,6 +527,311 @@ func TestLoadCarriedProposerConfig(t *testing.T) {
 
 		_, err := loadCarriedProposerConfig(t.Context(), lock, nodeIdx, path, absent)
 		require.ErrorIs(t, err, proposerconfig.ErrLockHashMismatch)
+	})
+
+	t.Run("unparsable gas limit", func(t *testing.T) {
+		bad := cfg
+		bad.DefaultConfig.GasLimit = "lots"
+		doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Config: bad}
+
+		_, err := loadCarriedProposerConfig(t.Context(), lock, nodeIdx, write(t, doc), absent)
+		require.ErrorContains(t, err, "parse gas limit")
+	})
+
+	t.Run("unparsable builder field", func(t *testing.T) {
+		bad := cfg
+		bad.DefaultConfig.Builder = &proposerconfig.Builder{MinBid: "lots", BuilderBoostFactor: "100", MaxExecutionPayment: "0", Builders: cfg.DefaultConfig.Builder.Builders}
+		doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Config: bad}
+
+		_, err := loadCarriedProposerConfig(t.Context(), lock, nodeIdx, write(t, doc), absent)
+		require.ErrorContains(t, err, "parse builder min_bid")
+	})
+
+	t.Run("builder URL without a scheme", func(t *testing.T) {
+		bad := cfg
+		bad.DefaultConfig.Builder = &proposerconfig.Builder{MinBid: "0", BuilderBoostFactor: "100", MaxExecutionPayment: "0", Builders: []proposerconfig.BuilderEntry{{URL: "b.example.com"}}}
+		doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Config: bad}
+
+		_, err := loadCarriedProposerConfig(t.Context(), lock, nodeIdx, write(t, doc), absent)
+		require.ErrorContains(t, err, "builder URL has no scheme")
+	})
+
+	malformedOverrides := func(t *testing.T) string {
+		t.Helper()
+
+		path := filepath.Join(t.TempDir(), "overrides.json")
+		require.NoError(t, os.WriteFile(path, []byte("{"), 0o644))
+
+		return path
+	}
+
+	t.Run("malformed overrides file without a proposer config file", func(t *testing.T) {
+		_, err := loadCarriedProposerConfig(t.Context(), lock, nodeIdx, absent, malformedOverrides(t))
+		require.ErrorContains(t, err, "unmarshal builder registration overrides file")
+	})
+
+	t.Run("overrides file ignored with a proposer config file", func(t *testing.T) {
+		doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Config: cfg}
+
+		got, err := loadCarriedProposerConfig(t.Context(), lock, nodeIdx, write(t, doc), malformedOverrides(t))
+		require.NoError(t, err)
+		require.Equal(t, cfg.DefaultConfig, got.DefaultConfig)
+	})
+}
+
+// TestCarriedProposerConfigScenarios covers operators running a lock-changing edit in mixed proposer config
+// states: each operator's carried config is loaded as initProposerConfig does and the agreement resolved
+// over them. Only the content counts: revisions are not compared and the overrides file is only read
+// by an operator without a proposer config file.
+func TestCarriedProposerConfigScenarios(t *testing.T) {
+	lock, keys, shares := cluster.NewForT(t, 2, 3, 4, 0, rand.New(rand.NewSource(1)))
+
+	const (
+		overrideFee = "0x0000000000000000000000000000000000000099"
+		builderURL  = "https://b.example.com"
+	)
+
+	newConfig := func(fees []string, gasLimit uint64, builder *proposerconfig.Builder) proposerconfig.Config {
+		cfg, err := proposerconfig.NewConfig(lock, fees, gasLimit, builder)
+		require.NoError(t, err)
+
+		return cfg
+	}
+
+	builder := &proposerconfig.Builder{MinBid: "0", BuilderBoostFactor: "100", MaxExecutionPayment: "0", Builders: []proposerconfig.BuilderEntry{{URL: builderURL}}}
+
+	lockFees := lowerAddrs(lock.FeeRecipientAddresses())
+	overriddenFees := slices.Clone(lockFees)
+	overriddenFees[0] = overrideFee
+
+	var (
+		initial    = newConfig(lockFees, proposerconfig.DefaultGasLimit, nil)       // charon run without overrides and seeding flags.
+		overridden = newConfig(overriddenFees, proposerconfig.DefaultGasLimit, nil) // charon run with the override.
+		edited     = newConfig(lockFees, 60_000_000, builder)                       // Seeding flags or an edit ceremony.
+		edited2    = newConfig(lockFees, 70_000_000, builder)                       // A later edit ceremony.
+	)
+
+	b, err := json.Marshal([]*eth2api.VersionedSignedValidatorRegistration{
+		signOverride(t, lock, shares, 0, bellatrix.ExecutionAddress{19: 0x99}, time.Now()),
+	})
+	require.NoError(t, err)
+
+	overridesFile := filepath.Join(t.TempDir(), "overrides.json")
+	require.NoError(t, os.WriteFile(overridesFile, b, 0o644))
+
+	absent := filepath.Join(t.TempDir(), "absent.json")
+
+	doc := func(revision uint64, cfg proposerconfig.Config, signers int) *proposerconfig.Document {
+		d := proposerconfig.Document{Version: proposerconfig.Version, LockHash: lock.LockHash, Revision: revision, Config: cfg}
+		for i := range signers {
+			sig, err := proposerconfig.Sign(d, keys[i])
+			require.NoError(t, err)
+
+			d.Signatures = append(d.Signatures, proposerconfig.Signature{Operator: i, Signature: sig})
+		}
+
+		return &d
+	}
+
+	// state is an operator's proposer config file (nil for none) and overrides file.
+	type state struct {
+		doc       *proposerconfig.Document
+		overrides string
+	}
+
+	states := map[string]state{
+		"no file":                  {overrides: absent},
+		"no file, override":        {overrides: overridesFile},
+		"rev 0":                    {doc: doc(0, initial, 0), overrides: absent},
+		"rev 0, override baked in": {doc: doc(0, overridden, 0), overrides: overridesFile},
+		"rev 0, override added":    {doc: doc(0, initial, 0), overrides: overridesFile},
+		"rev 0, seeded":            {doc: doc(0, edited, 0), overrides: absent},
+		"rev 1":                    {doc: doc(1, edited, lock.Threshold), overrides: absent},
+		"rev 1, override":          {doc: doc(1, edited, lock.Threshold), overrides: overridesFile},
+		"rev 1, initial content":   {doc: doc(1, initial, len(lock.Operators)), overrides: absent},
+		"rev 2":                    {doc: doc(2, edited2, lock.Threshold), overrides: absent},
+	}
+
+	feeField := "validator 0x" + hex.EncodeToString(lock.Validators[0].PubKey) + ".fee_recipient"
+
+	tests := []struct {
+		name        string
+		operators   [4]string
+		want        proposerconfig.Config
+		errLines    []string
+		absentLines []string
+	}{
+		{
+			name:      "no files",
+			operators: [4]string{"no file", "no file", "no file", "no file"},
+			want:      initial,
+		},
+		{
+			name:      "no files, same override",
+			operators: [4]string{"no file, override", "no file, override", "no file, override", "no file, override"},
+			want:      overridden,
+		},
+		{
+			name:      "no files, override on one operator",
+			operators: [4]string{"no file", "no file, override", "no file", "no file"},
+			errLines:  []string{"peer 1 differs from peer 0", feeField + ": " + lockFees[0] + " -> " + overrideFee},
+		},
+		{
+			name:      "rev 0 next to no file",
+			operators: [4]string{"rev 0", "no file", "rev 0", "no file"},
+			want:      initial,
+		},
+		{
+			name:      "rev 0 with the override baked in next to rev 0 without",
+			operators: [4]string{"rev 0", "rev 0, override baked in", "rev 0", "rev 0"},
+			errLines:  []string{"peer 1 differs from peer 0", feeField + ": " + lockFees[0] + " -> " + overrideFee},
+		},
+		{
+			name:      "override added after rev 0 is ignored",
+			operators: [4]string{"rev 0, override added", "rev 0", "no file", "rev 0"},
+			want:      initial,
+		},
+		{
+			name:      "rev 0 with the override baked in next to no file with the override",
+			operators: [4]string{"rev 0, override baked in", "no file, override", "rev 0, override baked in", "no file, override"},
+			want:      overridden,
+		},
+		{
+			name:        "rev 0 from seeding flags next to no file",
+			operators:   [4]string{"no file", "rev 0, seeded", "no file", "no file"},
+			errLines:    []string{"peer 1 differs from peer 0", "default.gas_limit: 200000000 -> 60000000", "default.builder.urls: none -> "},
+			absentLines: []string{feeField},
+		},
+		{
+			name:      "rev 0 next to rev 1",
+			operators: [4]string{"rev 1", "rev 1", "rev 0", "rev 1"},
+			errLines:  []string{"peer 2 differs from peer 0", "default.gas_limit: 60000000 -> 200000000"},
+		},
+		{
+			name:      "rev 1 next to rev 2",
+			operators: [4]string{"rev 2", "rev 1", "rev 2", "rev 2"},
+			errLines:  []string{"peer 1 differs from peer 0", "default.gas_limit: 70000000 -> 60000000"},
+		},
+		{
+			name:      "rev 1 with the initial content next to rev 0",
+			operators: [4]string{"rev 1, initial content", "rev 0", "no file", "rev 0"},
+			want:      initial,
+		},
+		{
+			name:      "override next to rev 1 is ignored",
+			operators: [4]string{"rev 1, override", "rev 1", "rev 1", "rev 1"},
+			want:      edited,
+		},
+		{
+			name:      "rev 1 next to rev 0 with the override baked in",
+			operators: [4]string{"rev 1, override", "rev 0, override baked in", "rev 1", "rev 1"},
+			errLines:  []string{"peer 1 differs from peer 0", "default.gas_limit: 60000000 -> 200000000", feeField + ": " + lockFees[0] + " -> " + overrideFee},
+		},
+		{
+			name:        "rev 1 next to rev 0 without the override",
+			operators:   [4]string{"rev 1", "rev 0", "rev 1", "rev 1"},
+			errLines:    []string{"peer 1 differs from peer 0", "default.gas_limit: 60000000 -> 200000000"},
+			absentLines: []string{feeField},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			locals := make([]*proposerconfig.Config, len(test.operators))
+
+			for i, name := range test.operators {
+				st, ok := states[name]
+				require.True(t, ok, name)
+
+				nodeIdx := cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1}
+
+				path := filepath.Join(t.TempDir(), "proposer-config.json")
+				if st.doc != nil {
+					require.NoError(t, proposerconfig.Write(path, *st.doc, lock, nodeIdx))
+				}
+
+				cfg, err := loadCarriedProposerConfig(t.Context(), lock, nodeIdx, path, st.overrides)
+				require.NoError(t, err)
+
+				norm, err := proposerconfig.Normalise(cfg)
+				require.NoError(t, err)
+
+				locals[i] = &norm
+			}
+
+			got, err := resolveConfigs(lock, locals, proposerConfigCarriedHint)
+			if len(test.errLines) == 0 {
+				require.NoError(t, err)
+
+				same, err := proposerconfig.SameConfig(test.want, got)
+				require.NoError(t, err)
+				require.True(t, same)
+
+				return
+			}
+
+			require.ErrorContains(t, err, "proposer config mismatch between operators")
+
+			for _, line := range test.errLines {
+				require.ErrorContains(t, err, line)
+			}
+
+			for _, line := range test.absentLines {
+				require.NotContains(t, err.Error(), line)
+			}
+
+			require.ErrorContains(t, err, proposerConfigCarriedHint)
+		})
+	}
+}
+
+// TestInitProposerConfig verifies adopting operators (joining or removed) never read their proposer config
+// file, while remaining operators fail fast on an unusable one.
+func TestInitProposerConfig(t *testing.T) {
+	lock, keys, _ := cluster.NewForT(t, 2, 3, 4, 0, rand.New(rand.NewSource(1)))
+	comps, peers, _ := newBcastComponents(t, 4)
+
+	peerID, err := p2p.PeerIDFromKey(keys[1].PubKey())
+	require.NoError(t, err)
+
+	joiningKey, err := k1.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	joiningID, err := p2p.PeerIDFromKey(joiningKey.PubKey())
+	require.NoError(t, err)
+
+	garbage := filepath.Join(t.TempDir(), "proposer-config.json")
+	require.NoError(t, os.WriteFile(garbage, []byte("{"), 0o644))
+
+	absent := filepath.Join(t.TempDir(), "absent.json")
+
+	newPctx := func(comp *bcast.Component, peerID peer.ID) *ProtocolContext {
+		return &ProtocolContext{Lock: &lock, ThisPeerID: peerID, ThisNodeIdx: cluster.NodeIdx{PeerIdx: 1, ShareIdx: 2}, Peers: peers, Caster: comp}
+	}
+
+	t.Run("joining adopts and ignores the file", func(t *testing.T) {
+		pctx := newPctx(comps[0], joiningID)
+		require.NoError(t, initProposerConfig(t.Context(), pctx, garbage, garbage, false))
+		require.Nil(t, pctx.proposerConfigLocal)
+		require.NotNil(t, pctx.ProposerConfig)
+		require.NotNil(t, pctx.ProposerConfigSigCaster)
+	})
+
+	t.Run("removed adopts and ignores the file", func(t *testing.T) {
+		pctx := newPctx(comps[1], peerID)
+		require.NoError(t, initProposerConfig(t.Context(), pctx, garbage, garbage, true))
+		require.Nil(t, pctx.proposerConfigLocal)
+	})
+
+	t.Run("remaining fails on an unusable file", func(t *testing.T) {
+		pctx := newPctx(comps[2], peerID)
+		require.ErrorContains(t, initProposerConfig(t.Context(), pctx, garbage, absent, false), "unmarshal proposer config")
+	})
+
+	t.Run("remaining carries the file", func(t *testing.T) {
+		pctx := newPctx(comps[3], peerID)
+		require.NoError(t, initProposerConfig(t.Context(), pctx, absent, absent, false))
+		require.NotNil(t, pctx.proposerConfigLocal)
 	})
 }
 

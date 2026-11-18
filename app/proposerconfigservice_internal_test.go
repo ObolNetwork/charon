@@ -266,3 +266,32 @@ func TestProposerConfigServiceGetters(t *testing.T) {
 	require.Empty(t, s.BuilderHosts())
 	require.Zero(t, testutil.CollectAndCount(builderURLGauge))
 }
+
+func TestCheckProposerConfig(t *testing.T) {
+	builder := func(minBid, url string) *proposerconfig.Builder {
+		return &proposerconfig.Builder{MinBid: minBid, BuilderBoostFactor: "100", MaxExecutionPayment: "0", Builders: []proposerconfig.BuilderEntry{{URL: url}}}
+	}
+
+	tests := []struct {
+		name   string
+		cfg    proposerconfig.Settings
+		errMsg string
+	}{
+		{name: "no builder", cfg: proposerconfig.Settings{GasLimit: "36000000"}},
+		{name: "builder", cfg: proposerconfig.Settings{GasLimit: "36000000", Builder: builder("0", "https://b.example.com")}},
+		{name: "gas limit", cfg: proposerconfig.Settings{GasLimit: "lots"}, errMsg: "parse gas limit"},
+		{name: "builder field", cfg: proposerconfig.Settings{GasLimit: "36000000", Builder: builder("lots", "https://b.example.com")}, errMsg: "parse builder min_bid"},
+		{name: "builder URL", cfg: proposerconfig.Settings{GasLimit: "36000000", Builder: builder("0", "b.example.com")}, errMsg: "builder URL has no scheme"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := CheckProposerConfig(proposerconfig.Config{DefaultConfig: test.cfg})
+			if test.errMsg == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.errMsg)
+			}
+		})
+	}
+}

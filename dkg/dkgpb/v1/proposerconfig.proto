@@ -6,5 +6,6 @@ option go_package = "github.com/obolnetwork/charon/dkg/dkgpb/v1";
 
 message MsgProposerConfigContent {
   bytes content = 1;
+  bool adopt = 2;
   uint32 peer_index = 3;
 }
