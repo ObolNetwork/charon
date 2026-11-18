@@ -26,8 +26,12 @@ import (
 func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 	skipIfDisabled(t)
 
-	// Whole seconds only, since it is published as SECONDS_PER_SLOT.
-	const slotDuration = time.Second
+	const (
+		// Whole seconds only, since it is published as SECONDS_PER_SLOT.
+		slotDuration = time.Second
+		// Number of slots from the fork in which post-fork offsets are observed.
+		postForkSlots = 3
+	)
 
 	args := newSimnetArgs(t)
 	args.VMocks = true
@@ -61,11 +65,14 @@ func TestSimnetDutyTimingGloasMigration(t *testing.T) {
 	expect := newSimnetExpect(args.N,
 		core.DutyPrepareAggregator, core.DutyAttester, core.DutyAggregator,
 		core.DutyPrepareSyncContribution, core.DutySyncMessage, core.DutySyncContribution,
-		core.DutyPayloadAttestation, // Only completes once gloas activates, keeping the test alive across the fork.
+		core.DutyPayloadAttestation,
 	)
+	// Keep the test alive for postForkSlots slots from the fork, so post-fork offsets aren't only
+	// observed in the transition slot, where a single slow broadcast would fail the test.
+	expect.minSlots[core.DutyPayloadAttestation] = forkSlot + postForkSlots - 1
 	testSimnet(t, args, expect)
 
-	require.Greater(t, time.Now(), forkTime, "test finished before the gloas fork activated")
+	require.Greater(t, time.Now(), forkTime.Add((postForkSlots-1)*slotDuration), "test finished before observing all post-fork slots")
 
 	// Assertion windows use spec basis points and the millisecond rounding of core.NewSlotOffsetFunc.
 	bps := func(bps int64) time.Duration {
@@ -141,6 +148,7 @@ func (r *timingRecorder) assertMinOffset(t *testing.T, metric string, postFork b
 	require.NotEmptyf(t, offsets, "no %v observations (post_fork=%v)", metric, postFork)
 
 	earliest := slices.Min(offsets)
+	t.Logf("%v earliest offset %v of %d observations, window [%v, %v) (post_fork=%v)", metric, earliest, len(offsets), minOffset, maxOffset, postFork)
 	require.GreaterOrEqualf(t, earliest, minOffset, "%v triggered before its due offset (post_fork=%v)", metric, postFork)
 	require.Lessf(t, earliest, maxOffset, "%v triggered too late for its due offset (post_fork=%v)", metric, postFork)
 }
