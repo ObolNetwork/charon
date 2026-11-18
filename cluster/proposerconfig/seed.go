@@ -3,6 +3,9 @@
 package proposerconfig
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/url"
 	"slices"
 	"strconv"
@@ -24,6 +27,114 @@ type Seed struct {
 	NonDefault []string
 }
 
+// seedFile is the seed file: the version and default_config of the proposer config file. It holds no fee recipient
+// and no proposer_config: fee recipients are per validator and come from the cluster definition through the lock,
+// joined with the seed's gas limit and builders when the initial config is built.
+type seedFile struct {
+	Version       string   `json:"version"`
+	DefaultConfig Settings `json:"default_config"`
+}
+
+// ParseSeed returns the seed held by a seed file. Fields a seed cannot set, such as fee recipients, proposer_config
+// or per-builder overrides, are rejected.
+func ParseSeed(b []byte) (Seed, error) {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+
+	var file seedFile
+
+	err := dec.Decode(&file)
+	if err != nil {
+		return Seed{}, errors.Wrap(err, "decode seed file")
+	}
+
+	err = dec.Decode(&struct{}{})
+	if !errors.Is(err, io.EOF) {
+		return Seed{}, errors.New("seed file has trailing data")
+	}
+
+	if major(file.Version) != major(Version) {
+		return Seed{}, errors.New("unsupported seed file version", z.Str("version", file.Version), z.Str("supported", Version))
+	}
+
+	settings := file.DefaultConfig
+	if settings.FeeRecipient != "" {
+		return Seed{}, errors.New("seed file default_config.fee_recipient must not be set, fee recipients come from the cluster definition")
+	}
+
+	seed := Seed{BuilderBoostFactor: DefaultBuilderBoostFactor}
+
+	seed.GasLimit, err = parseSeedUint("gas_limit", settings.GasLimit)
+	if err != nil {
+		return Seed{}, err
+	}
+
+	if seed.GasLimit == 0 {
+		return Seed{}, errors.New("seed file default_config.gas_limit must be greater than 0")
+	}
+
+	builder := settings.Builder
+	if builder == nil {
+		return seed, nil
+	}
+
+	if len(builder.Builders) == 0 {
+		return Seed{}, errors.New("seed file default_config.builder.builders must not be empty")
+	}
+
+	for _, entry := range builder.Builders {
+		if entry != (BuilderEntry{URL: entry.URL}) {
+			return Seed{}, errors.New("seed file default_config.builder.builders entry must only set url")
+		}
+
+		seed.BuilderURLs = append(seed.BuilderURLs, entry.URL)
+	}
+
+	seed.BuilderMinBid, err = parseSeedUint("builder.min_bid", builder.MinBid)
+	if err != nil {
+		return Seed{}, err
+	}
+
+	seed.BuilderBoostFactor, err = parseSeedUint("builder.builder_boost_factor", builder.BuilderBoostFactor)
+	if err != nil {
+		return Seed{}, err
+	}
+
+	if seed.BuilderBoostFactor == 0 {
+		return Seed{}, errors.New("seed file default_config.builder.builder_boost_factor must be greater than 0")
+	}
+
+	seed.BuilderMaxExecutionPayment, err = parseSeedUint("builder.max_execution_payment", builder.MaxExecutionPayment)
+	if err != nil {
+		return Seed{}, err
+	}
+
+	return seed, nil
+}
+
+// parseSeedUint parses a seed file's decimal string value; field names it in errors.
+func parseSeedUint(field, value string) (uint64, error) {
+	v, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "parse seed file default_config."+field)
+	}
+
+	return v, nil
+}
+
+// MarshalSeed returns the seed file holding the seed.
+func MarshalSeed(seed Seed) ([]byte, error) {
+	b, err := json.MarshalIndent(seedFile{
+		Version:       Version,
+		DefaultConfig: Settings{GasLimit: strconv.FormatUint(seed.GasLimit, 10), Builder: seed.Builder()},
+	}, "", "  ")
+	if err != nil {
+		return nil, errors.Wrap(err, "marshal seed file")
+	}
+
+	return b, nil
+}
+
 // Validate checks the seed flags.
 func (s Seed) Validate() error {
 	err := validateBuilderURLs("proposer-config-builder-urls", s.BuilderURLs)
@@ -39,7 +150,7 @@ func (s Seed) Validate() error {
 		return errors.New("proposer-config-builder-boost-factor must be greater than 0")
 	}
 
-	boostFactorSet := slices.Contains(s.NonDefault, "proposer-config-builder-boost-factor")
+	boostFactorSet := s.BuilderBoostFactor != DefaultBuilderBoostFactor || slices.Contains(s.NonDefault, "proposer-config-builder-boost-factor")
 	if len(s.BuilderURLs) == 0 && (s.BuilderMinBid != 0 || boostFactorSet || s.BuilderMaxExecutionPayment != 0) {
 		return errors.New("proposer-config-builder-min-bid, proposer-config-builder-boost-factor and " +
 			"proposer-config-builder-max-execution-payment require proposer-config-builder-urls")
