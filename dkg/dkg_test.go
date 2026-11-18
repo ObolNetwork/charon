@@ -365,12 +365,12 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 		conf.KeymanagerAuthToken = testAuthToken
 	}
 
-	receivedLockfile := make(chan struct{}) // Receives string for lockfile intercepted by the obol-api server
+	published := make(chan string) // Receives the paths the obol-api server is posted to
 
 	if publish {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			go func() {
-				receivedLockfile <- struct{}{}
+				published <- r.URL.Path
 			}()
 		}))
 		defer srv.Close()
@@ -436,14 +436,18 @@ func testDKG(t *testing.T, def cluster.Definition, dir string, p2pKeys []*k1.Pri
 	}
 
 	if publish {
-		expectedReceives := 1
-		for expectedReceives > 0 {
-			<-receivedLockfile
+		lock, err := dkg.LoadAndVerifyClusterLock(t.Context(), path.Join(dir, "node0", "cluster-lock.json"), "", true)
+		require.NoError(t, err)
 
-			expectedReceives--
+		// The proposer config is published after the lock, which the Obol API verifies it against.
+		configPath := "/proposer_config/0x" + hex.EncodeToString(lock.LockHash)
+
+		seen := make(map[string]bool)
+		for !seen["/lock"] || !seen[configPath] {
+			seen[<-published] = true
 		}
 
-		t.Log("Lockfile published to obol-api 🎉")
+		t.Log("Lockfile and proposer config published to obol-api 🎉")
 	}
 }
 

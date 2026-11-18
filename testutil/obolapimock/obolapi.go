@@ -17,6 +17,7 @@ import (
 	"github.com/obolnetwork/charon/app/k1util"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/eth2util/enr"
 )
 
@@ -63,6 +64,9 @@ type testServer struct {
 
 	// store the lock file by its lock hash
 	lockFiles map[string]cluster.Lock
+
+	// store the signed proposer config revisions by lock hash and revision
+	proposerConfigs map[string]map[uint64]proposerconfig.Document
 
 	// drop one partial signature when returning the full set
 	dropOnePsig bool
@@ -116,6 +120,7 @@ func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lo
 		partialDeposits:      map[string]depositBlob{},
 		partialFeeRecipients: map[string]feeRecipientBlob{},
 		lockFiles:            map[string]cluster.Lock{},
+		proposerConfigs:      map[string]map[uint64]proposerconfig.Document{},
 		dropOnePsig:          dropOnePsig,
 		beacon:               beacon,
 	}
@@ -137,6 +142,12 @@ func MockServer(dropOnePsig bool, beacon eth2wrap.Client) (http.Handler, func(lo
 
 	router.HandleFunc(submitPartialFeeRecipientTmpl, ts.HandleSubmitPartialFeeRecipient).Methods(http.MethodPost)
 	router.HandleFunc(fetchFeeRecipientTmpl, ts.HandlePostFeeRecipientFetch).Methods(http.MethodPost)
+
+	router.HandleFunc(publishProposerConfigTmpl, ts.HandlePublishProposerConfig).Methods(http.MethodPost)
+
+	getProposerConfig := router.PathPrefix(proposerConfigPrefix).Subrouter()
+	getProposerConfig.Use(authMiddleware)
+	getProposerConfig.HandleFunc(fetchProposerConfigTmpl, ts.HandleGetProposerConfig).Methods(http.MethodGet)
 
 	return router, ts.addLockFiles
 }

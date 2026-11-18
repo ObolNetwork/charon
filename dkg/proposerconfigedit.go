@@ -320,6 +320,11 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 	case <-time.After(conf.DKGConfig.ShutdownDelay):
 	}
 
+	// Published once the ceremony is over, so a slow Obol API holds up no peer.
+	if conf.DKGConfig.Publish {
+		publishProposerConfig(ctx, conf.DKGConfig.PublishAddr, conf.DKGConfig.PublishTimeout, doc)
+	}
+
 	return ProposerConfigEditResult{
 		Revision:  doc.Revision,
 		Hash:      hash,
