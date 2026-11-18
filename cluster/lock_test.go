@@ -6,6 +6,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/rand"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
@@ -17,6 +20,7 @@ import (
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/eth2util/deposit"
 	"github.com/obolnetwork/charon/tbls"
+	"github.com/obolnetwork/charon/testutil"
 )
 
 func TestVerifyLock(t *testing.T) {
@@ -432,4 +436,243 @@ func TestVerifyLockRejectsInvalidSignatureLengths(t *testing.T) {
 	require.ErrorContains(t, short.VerifySignatures(nil), "invalid node signature length")
 
 	require.NoError(t, resignLockForT(t, lock, p2pKeys, shares).VerifySignatures(nil))
+}
+
+func TestVerifyLockDepositData(t *testing.T) {
+	for _, version := range []string{v1_6, v1_7, v1_8, v1_9, v1_10, v1_11} {
+		t.Run(version, func(t *testing.T) {
+			lock, _, _ := newLockWithDepositsForT(t, version, false)
+			require.NotEmpty(t, lock.Validators[0].PartialDepositData)
+			require.NoError(t, lock.VerifyHashes())
+			require.NoError(t, lock.VerifySignatures(nil))
+			require.NoError(t, lock.VerifyContents())
+
+			// Ensure it survives a json roundtrip.
+			b, err := json.Marshal(lock)
+			require.NoError(t, err)
+
+			var lock2 cluster.Lock
+			require.NoError(t, json.Unmarshal(b, &lock2))
+			require.NoError(t, lock2.VerifyHashes())
+			require.NoError(t, lock2.VerifySignatures(nil))
+			require.NoError(t, lock2.VerifyContents())
+		})
+	}
+
+	t.Run("compounding", func(t *testing.T) {
+		lock, _, _ := newLockWithDepositsForT(t, v1_11, true)
+		require.Len(t, lock.Validators[0].PartialDepositData, len(deposit.DefaultDepositAmounts(true)))
+		require.Equal(t, byte(0x02), lock.Validators[0].PartialDepositData[0].WithdrawalCredentials[0])
+		require.NoError(t, lock.VerifyContents())
+	})
+
+	t.Run("absent deposit data", func(t *testing.T) {
+		for _, version := range []string{v1_7, v1_11} {
+			lock, p2pKeys, shares := newLockWithDepositsForT(t, version, false)
+			for i := range lock.Validators {
+				if isAnyVersion(version, v1_7) {
+					// v1.6 and v1.7 locks in the wild contain zero valued deposit data.
+					lock.Validators[i].PartialDepositData = []cluster.DepositData{{}}
+				} else {
+					lock.Validators[i].PartialDepositData = nil
+				}
+			}
+
+			lock = resignLockForT(t, lock, p2pKeys, shares)
+			require.NoError(t, lock.VerifySignatures(nil))
+			require.NoError(t, lock.VerifyContents())
+		}
+	})
+}
+
+func TestVerifyLockRejectsInvalidDepositData(t *testing.T) {
+	tests := []struct {
+		name        string
+		version     string
+		compounding bool
+		tamper      func(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) cluster.Lock
+		errMsg      string
+	}{
+		{
+			name:    "bad signature",
+			version: v1_11,
+			tamper: func(_ *testing.T, lock cluster.Lock, _ [][]tbls.PrivateKey) cluster.Lock {
+				// Use the signature of another amount.
+				dd := lock.Validators[0].PartialDepositData
+				dd[0].Signature = dd[1].Signature
+
+				return lock
+			},
+			errMsg: "verify deposit data signature",
+		},
+		{
+			name:    "bad signature v1.7",
+			version: v1_7,
+			tamper: func(_ *testing.T, lock cluster.Lock, _ [][]tbls.PrivateKey) cluster.Lock {
+				lock.Validators[0].PartialDepositData[0].Signature = lock.Validators[1].PartialDepositData[0].Signature
+				return lock
+			},
+			errMsg: "verify deposit data signature",
+		},
+		{
+			name:    "wrong withdrawal credentials",
+			version: v1_11,
+			tamper: func(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) cluster.Lock {
+				t.Helper()
+
+				// Validly signed deposit for a different withdrawal address.
+				orig := lock.ValidatorAddresses[0].WithdrawalAddress
+				lock.ValidatorAddresses[0].WithdrawalAddress = testutil.RandomETHAddress()
+				dd := signDepositForT(t, lock, shares[0], 0, deposit.DefaultDepositAmount, false)
+				lock.ValidatorAddresses[0].WithdrawalAddress = orig
+				lock.Validators[0].PartialDepositData[1] = dd
+
+				return lock
+			},
+			errMsg: "deposit withdrawal credentials don't match definition withdrawal address",
+		},
+		{
+			name:        "0x01 credentials for compounding definition",
+			version:     v1_11,
+			compounding: true,
+			tamper: func(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) cluster.Lock {
+				t.Helper()
+
+				lock.Validators[0].PartialDepositData[0] = signDepositForT(t, lock, shares[0], 0, deposit.MinDepositAmount, false)
+
+				return lock
+			},
+			errMsg: "deposit withdrawal credentials don't match definition withdrawal address",
+		},
+		{
+			name:    "0x02 credentials for non-compounding definition",
+			version: v1_11,
+			tamper: func(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) cluster.Lock {
+				t.Helper()
+
+				lock.Validators[0].PartialDepositData[0] = signDepositForT(t, lock, shares[0], 0, deposit.MinDepositAmount, true)
+
+				return lock
+			},
+			errMsg: "deposit withdrawal credentials don't match definition withdrawal address",
+		},
+		{
+			name:    "amount not in definition",
+			version: v1_11,
+			tamper: func(t *testing.T, lock cluster.Lock, shares [][]tbls.PrivateKey) cluster.Lock {
+				t.Helper()
+
+				lock.Validators[0].PartialDepositData[0] = signDepositForT(t, lock, shares[0], 0, 2*deposit.MinDepositAmount, false)
+
+				return lock
+			},
+			errMsg: "deposit amount not in definition deposit amounts",
+		},
+		{
+			name:    "pubkey mismatch",
+			version: v1_11,
+			tamper: func(_ *testing.T, lock cluster.Lock, _ [][]tbls.PrivateKey) cluster.Lock {
+				lock.Validators[0].PartialDepositData[0] = lock.Validators[1].PartialDepositData[0]
+				return lock
+			},
+			errMsg: "deposit data pubkey doesn't match distributed validator pubkey",
+		},
+		{
+			name:    "zero valued partial deposit data",
+			version: v1_11,
+			tamper: func(_ *testing.T, lock cluster.Lock, _ [][]tbls.PrivateKey) cluster.Lock {
+				lock.Validators[0].PartialDepositData[0] = cluster.DepositData{}
+				return lock
+			},
+			errMsg: "deposit data pubkey doesn't match distributed validator pubkey",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lock, p2pKeys, shares := newLockWithDepositsForT(t, tt.version, tt.compounding)
+			require.NoError(t, lock.VerifySignatures(nil))
+
+			lock = tt.tamper(t, lock, shares)
+			lock = resignLockForT(t, lock, p2pKeys, shares)
+			require.NoError(t, lock.VerifyHashes())
+
+			// Lock signatures don't cover deposit data contents.
+			require.NoError(t, lock.VerifySignatures(nil))
+
+			err := lock.VerifyContents()
+			require.ErrorContains(t, err, "verify deposit data")
+			require.ErrorContains(t, err, tt.errMsg)
+		})
+	}
+}
+
+func TestVerifyLockRejectsMismatchingRegistration(t *testing.T) {
+	lock, p2pKeys, shares := newLockWithDepositsForT(t, v1_11, false)
+
+	tampered := lock
+	tampered.Validators = append([]cluster.DistValidator(nil), lock.Validators...)
+	tampered.Validators[0].BuilderRegistration.Message.FeeRecipient = bytes.Repeat([]byte{0x11}, 20)
+	tampered = resignLockForT(t, tampered, p2pKeys, shares)
+	require.ErrorContains(t, tampered.VerifyContents(), "builder registration fee recipient doesn't match definition fee recipient")
+
+	tampered = lock
+	tampered.Validators = append([]cluster.DistValidator(nil), lock.Validators...)
+	tampered.Validators[0].BuilderRegistration.Message.PubKey = lock.Validators[1].PubKey
+	tampered = resignLockForT(t, tampered, p2pKeys, shares)
+	require.ErrorContains(t, tampered.VerifyContents(), "builder registration pubkey doesn't match distributed validator pubkey")
+}
+
+func TestVerifyDefinitionAddresses(t *testing.T) {
+	lock, _, _ := newLockWithDepositsForT(t, v1_11, false)
+
+	const checksummed = "0x52908400098527886E0F7030069857D2E4169EE7" // EIP-55 example.
+
+	tests := []struct {
+		name    string
+		addr    string
+		wantErr string
+	}{
+		{name: "checksummed", addr: checksummed},
+		{name: "lower case", addr: strings.ToLower(checksummed)},
+		{name: "upper case", addr: "0x" + strings.ToUpper(checksummed[2:])},
+		{name: "bad checksum", addr: "0x52908400098527886e0F7030069857D2E4169EE7", wantErr: "does not match its EIP-55 checksum"},
+		{name: "no 0x prefix", addr: checksummed[2:], wantErr: "invalid address"},
+		{name: "empty", addr: "", wantErr: "missing address"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			def := lock.Definition
+			def.ValidatorAddresses = append([]cluster.ValidatorAddresses(nil), def.ValidatorAddresses...)
+			def.ValidatorAddresses[0].WithdrawalAddress = tt.addr
+
+			err := def.VerifyAddresses()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+// TestLoadClusterLockSkipsContentChecks ensures existing locks with invalid contents still load,
+// since contents are only verified when a lock is created.
+func TestLoadClusterLockSkipsContentChecks(t *testing.T) {
+	lock, p2pKeys, shares := newLockWithDepositsForT(t, v1_11, false)
+	lock.Validators[0].PartialDepositData[0].Signature = lock.Validators[0].PartialDepositData[1].Signature
+	lock = resignLockForT(t, lock, p2pKeys, shares)
+	require.Error(t, lock.VerifyContents())
+
+	b, err := json.Marshal(lock)
+	require.NoError(t, err)
+
+	file := filepath.Join(t.TempDir(), "cluster-lock.json")
+	require.NoError(t, os.WriteFile(file, b, 0o644))
+
+	loaded, err := cluster.LoadClusterLock(t.Context(), file, false, nil)
+	require.NoError(t, err)
+	require.Equal(t, lock.LockHash, loaded.LockHash)
 }
