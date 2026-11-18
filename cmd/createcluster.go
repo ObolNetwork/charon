@@ -35,6 +35,7 @@ import (
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/eth2util"
@@ -91,6 +92,9 @@ type clusterConfig struct {
 	ExecutionEngineAddr string
 
 	Zipped bool
+
+	// ProposerConfigSeed seeds the gas limit and builder of the proposer config signed at revision 1.
+	ProposerConfigSeed proposerconfig.Seed
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -109,6 +113,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 	bindClusterFlags(cmd.Flags(), &conf)
 	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
 	bindNetworkFlags(cmd.Flags(), &conf.Network, &conf.testnetConfig)
+	bindProposerConfigSeedFlags(cmd, &conf.ProposerConfigSeed, proposerConfigSignedUsage)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
@@ -166,7 +171,13 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 }
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
-	var err error
+	// Reject a bad seed before any work: it is signed by every operator.
+	seed := conf.ProposerConfigSeed
+
+	err := seed.Validate()
+	if err != nil {
+		return err
+	}
 
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
 	if conf.Network == eth2util.Prater {
@@ -351,6 +362,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		lock.NodeSignatures = append(lock.NodeSignatures, nodeSig)
 	}
 
+	proposerConfig, err := signProposerConfig(lock, def.FeeRecipientAddresses(), conf.ProposerConfigSeed, nodeKeys)
+	if err != nil {
+		return err
+	}
+
 	// dashboardURL is the Launchpad dashboard url for a given lock file.
 	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
 	// the generated lock file.
@@ -364,6 +380,10 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if err = writeLock(lock, conf.ClusterDir, numNodes); err != nil {
+		return err
+	}
+
+	if err = writeProposerConfig(proposerConfig, lock, conf.ClusterDir); err != nil {
 		return err
 	}
 
@@ -718,6 +738,51 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 	return nil
 }
 
+// signProposerConfig returns the lock's revision 1 proposer config signed by every operator key.
+func signProposerConfig(lock cluster.Lock, feeRecipients []string, seed proposerconfig.Seed, nodeKeys []*k1.PrivateKey) (proposerconfig.Document, error) {
+	cfg, err := proposerconfig.NewConfig(lock, feeRecipients, seed.GasLimit, seed.Builder())
+	if err != nil {
+		return proposerconfig.Document{}, errors.Wrap(err, "proposer config")
+	}
+
+	doc := proposerconfig.Document{
+		Version:  proposerconfig.Version,
+		LockHash: lock.LockHash,
+		Revision: 1,
+		Config:   cfg,
+	}
+
+	for i, key := range nodeKeys {
+		sig, err := proposerconfig.Sign(doc, key)
+		if err != nil {
+			return proposerconfig.Document{}, errors.Wrap(err, "sign proposer config", z.Int("operator", i))
+		}
+
+		doc.Signatures = append(doc.Signatures, proposerconfig.Signature{Operator: i, Signature: sig})
+	}
+
+	err = proposerconfig.Verify(doc, lock)
+	if err != nil {
+		return proposerconfig.Document{}, errors.Wrap(err, "verify signed proposer config")
+	}
+
+	return doc, nil
+}
+
+// writeProposerConfig writes the proposer config to every node's vc-config directory, keyed by its pubshares.
+func writeProposerConfig(doc proposerconfig.Document, lock cluster.Lock, clusterDir string) error {
+	for i := range lock.Operators {
+		path := filepath.Join(nodeDir(clusterDir, i), "vc-config", "proposer-config.json")
+
+		err := proposerconfig.Write(path, doc, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		if err != nil {
+			return errors.Wrap(err, "write proposer config", z.Int("node", i))
+		}
+	}
+
+	return nil
+}
+
 // getValidators returns distributed validators from the provided dv public keys and keyshares.
 // It creates new peers from the provided config and saves validator keys to disk for each peer.
 func getValidators(
@@ -1003,6 +1068,8 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = fmt.Fprintf(&sb, "├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1)
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
+
+	_, _ = sb.WriteString("│  ├─ vc-config/proposer-config.json\tProposer config signed by all nodes, read by charon run and the validator clients\n")
 
 	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on the DV Launchpad\n")
 	if keysToDisk {

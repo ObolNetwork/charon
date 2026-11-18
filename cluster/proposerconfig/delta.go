@@ -79,7 +79,7 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 		return Config{}, err
 	}
 
-	equal, err := sameConfig(c, res)
+	equal, err := SameConfig(c, res)
 	if err != nil {
 		return Config{}, err
 	}
@@ -173,8 +173,8 @@ func applyBuilder(b *Builder, d Delta) (*Builder, error) {
 	return &res, nil
 }
 
-// sameConfig returns whether a and b have the same canonical form.
-func sameConfig(a, b Config) (bool, error) {
+// SameConfig returns whether a and b have the same canonical form.
+func SameConfig(a, b Config) (bool, error) {
 	ha, err := Document{Config: a}.Hash()
 	if err != nil {
 		return false, err

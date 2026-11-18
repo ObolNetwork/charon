@@ -21,6 +21,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg"
 	"github.com/obolnetwork/charon/p2p"
 )
@@ -90,7 +91,8 @@ func TestLongWaitDKG(t *testing.T) {
 		TestConfig: dkg.TestConfig{
 			Def: &def,
 		},
-		Timeout: 10 * time.Minute,
+		Timeout:            10 * time.Minute,
+		ProposerConfigSeed: proposerconfig.Seed{GasLimit: proposerconfig.DefaultGasLimit, BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor},
 	}
 
 	windowTicker := time.NewTicker(window)
@@ -307,7 +309,8 @@ func TestDKGWithHighValidatorsAmt(t *testing.T) {
 		TestConfig: dkg.TestConfig{
 			Def: &def,
 		},
-		Timeout: 10 * time.Minute,
+		Timeout:            10 * time.Minute,
+		ProposerConfigSeed: proposerconfig.Seed{GasLimit: proposerconfig.DefaultGasLimit, BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor},
 	}
 
 	dir := t.TempDir()

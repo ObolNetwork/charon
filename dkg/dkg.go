@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +34,7 @@ import (
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/bcast"
 	"github.com/obolnetwork/charon/dkg/pedersen"
@@ -44,6 +47,15 @@ import (
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/tbls"
 	"github.com/obolnetwork/charon/tbls/tblsconv"
+)
+
+// proposerConfigSeedMsgID is the message ID of the proposer config agreement before key generation.
+const proposerConfigSeedMsgID = "/charon/dkg/proposer_config_seed"
+
+// Remedies ending a proposer config mismatch error.
+const (
+	proposerConfigSeedHint    = "Align the --proposer-config-* flags across all operators and retry."
+	proposerConfigCarriedHint = "Converge the current proposer config first with charon alpha edit proposer-config, then retry."
 )
 
 // shutdownSyncTimeout bounds the final shutdown synchronization between peers. All protocol
@@ -74,6 +86,9 @@ type Config struct {
 
 	Zipped   bool
 	Nickname string
+
+	// ProposerConfigSeed seeds the gas limit and builder of the proposer config signed at revision 1.
+	ProposerConfigSeed proposerconfig.Seed
 }
 
 // TestConfig defines additional test-only config for DKG.
@@ -108,6 +123,10 @@ type AppendConfig struct {
 	ValidatorAddresses []cluster.ValidatorAddresses
 	// DepositData is the deposit data from the existing cluster.
 	DepositData [][]eth2p0.DepositData
+	// ProposerConfigFile is the existing cluster's proposer config file, its config is carried over.
+	ProposerConfigFile string
+	// OverridesFile is the builder registration overrides file feeding the initial proposer config when ProposerConfigFile is absent.
+	OverridesFile string
 }
 
 // Run executes a dkg ceremony and writes secret share keystore and cluster lock files as output to disk.
@@ -229,6 +248,49 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 
+	nodeIdx, err := def.NodeIdx(pID)
+	if err != nil {
+		return errors.Wrap(err, "private key not matching definition file")
+	}
+
+	// The new validators' fee recipients go into the signed proposer config after key generation.
+	for i, addr := range newFeeRecipientAddrs {
+		_, err := eth2util.ValidateChecksumAddress(addr)
+		if err != nil {
+			return errors.Wrap(err, "invalid fee recipient address", z.Int("validator", i), z.Str("address", addr))
+		}
+	}
+
+	// The proposer config all operators must agree on before key generation, the lock describing a
+	// mismatch and its remedy.
+	var (
+		localProposerConfig proposerconfig.Config
+		proposerConfigLock  = cluster.Lock{Definition: def}
+		proposerConfigHint  = proposerConfigSeedHint
+	)
+
+	if conf.AppendConfig != nil {
+		proposerConfigLock = *conf.AppendConfig.ClusterLock
+		proposerConfigHint = proposerConfigCarriedHint
+
+		localProposerConfig, err = loadCarriedProposerConfig(ctx, proposerConfigLock, nodeIdx, conf.AppendConfig.ProposerConfigFile, conf.AppendConfig.OverridesFile)
+		if err != nil {
+			return err
+		}
+	} else {
+		seed := conf.ProposerConfigSeed
+
+		err = seed.Validate()
+		if err != nil {
+			return err
+		}
+
+		localProposerConfig.DefaultConfig = proposerconfig.Settings{
+			GasLimit: strconv.FormatUint(seed.GasLimit, 10),
+			Builder:  seed.Builder(),
+		}
+	}
+
 	log.Info(ctx, "Starting local P2P networking peer")
 
 	logPeerSummary(ctx, pID, peers, def.Operators)
@@ -238,11 +300,6 @@ func Run(ctx context.Context, conf Config) (err error) {
 		return err
 	}
 	defer shutdown()
-
-	nodeIdx, err := def.NodeIdx(p2pNode.ID())
-	if err != nil {
-		return errors.Wrap(err, "private key not matching definition file")
-	}
 
 	peerIDs, err := def.PeerIDs()
 	if err != nil {
@@ -279,7 +336,9 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	// register bcast callbacks: node signatures and public shares
-	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster)
+	nodeSigCaster := newNodeSigBcast(peers, nodeIdx, caster, nodeSigMsgID)
+	proposerConfigSigCaster := newNodeSigBcast(peers, nodeIdx, caster, proposerConfigSigMsgID)
+	proposerConfigAgreement := newConfigAgreement(peers, nodeIdx, caster, proposerConfigSeedMsgID)
 
 	// register pedersen protocol messages
 	phaseDuration := conf.Timeout / time.Duration(6) // 10 seconds per phase for default 1 minute DKG timeout
@@ -317,6 +376,12 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Info(ctx, "All peers connected, starting DKG ceremony")
+
+	// Fail on differing proposer config seeding flags (or carried files) before generating keys.
+	agreedProposerConfig, err := proposerConfigAgreement.agree(ctx, proposerConfigLock, localProposerConfig, proposerConfigHint)
+	if err != nil {
+		return fatalOr(errors.Wrap(err, "agree proposer config"))
+	}
 
 	var shares []share.Share
 
@@ -424,6 +489,17 @@ func Run(ctx context.Context, conf Config) (err error) {
 		lock.NodeSignatures = nil
 	}
 
+	// Sign, exchange K1 signatures over the revision 1 proposer config of the lock
+	lockProposerConfig, err := newLockProposerConfig(lock, agreedProposerConfig, proposerConfigLock, newFeeRecipientAddrs)
+	if err != nil {
+		return err
+	}
+
+	proposerConfig, err := exchangeProposerConfig(ctx, proposerConfigSigCaster, key, lock, lockProposerConfig)
+	if err != nil {
+		return err
+	}
+
 	// Node signatures was step 5, advance to step 6
 	if err := nextStepSync(ctx); err != nil {
 		return err
@@ -471,6 +547,13 @@ func Run(ctx context.Context, conf Config) (err error) {
 	}
 
 	log.Debug(ctx, "Saved lock file to disk")
+
+	err = proposerconfig.Write(filepath.Join(conf.DataDir, "vc-config", "proposer-config.json"), proposerConfig, lock, nodeIdx)
+	if err != nil {
+		return err
+	}
+
+	log.Debug(ctx, "Saved proposer config file to disk")
 
 	if conf.AppendConfig != nil && conf.AppendConfig.DepositData != nil {
 		// Merging existing deposit data files with the new ones (append mode).
