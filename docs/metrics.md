@@ -21,7 +21,7 @@ when storing metrics from multiple nodes or clusters in one Prometheus instance.
 | `app_beacon_node_sse_dependent_root_mismatch_total` | Counter | Total number of head events whose duty dependent root differed from the cached attester duties, invalidating them | `addr` |
 | `app_beacon_node_sse_head_delay` | Histogram | Delay in seconds between slot start and head update, supplied by beacon node`s SSE endpoint. Values up to the end of the slot (12s for Ethereum mainnet) are considered safe. | `addr` |
 | `app_beacon_node_sse_head_slot` | Gauge | Current beacon node head slot, supplied by beacon node`s SSE endpoint | `addr` |
-| `app_beacon_node_version` | Gauge | Constant gauge with labels set to the version and beacon_id of the upstream beacon node | `version, beacon_id` |
+| `app_beacon_node_version` | Gauge | Constant gauge with labels set to the version, beacon_id and addr of the upstream beacon node | `version, beacon_id, addr` |
 | `app_builder_config_boost_factor_percent` | Gauge | The configured percentage multiplier applied to builder bid values. Absent when no builder URLs are configured. |  |
 | `app_builder_config_max_execution_payment_gwei` | Gauge | The configured maximum execution layer payment in gwei counted when valuing a builder bid. Absent when no builder URLs are configured. |  |
 | `app_builder_config_min_bid_gwei` | Gauge | The configured minimum builder bid value in gwei. Absent when no builder URLs are configured. |  |

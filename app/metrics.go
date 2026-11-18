@@ -87,8 +87,8 @@ var (
 		Namespace: "app",
 		Subsystem: "beacon_node",
 		Name:      "version",
-		Help:      "Constant gauge with labels set to the version and beacon_id of the upstream beacon node",
-	}, []string{"version", "beacon_id"})
+		Help:      "Constant gauge with labels set to the version, beacon_id and addr of the upstream beacon node",
+	}, []string{"version", "beacon_id", "addr"})
 
 	executionEngineVersionGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",

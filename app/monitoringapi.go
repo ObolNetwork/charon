@@ -305,7 +305,7 @@ func consensusAndExecutionVersionMetric(ctx context.Context, eth2Cl eth2wrap.Cli
 				continue
 			}
 
-			beaconNodeVersionGauge.WithLabelValues(bnVersion, beaconID).Set(1)
+			beaconNodeVersionGauge.WithLabelValues(bnVersion, beaconID, log.RedactURL(addr, true)).Set(1)
 			eth2wrap.CheckBeaconNodeVersion(ctx, bnVersion)
 
 			if eeVersion != "" {
