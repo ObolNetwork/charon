@@ -3,8 +3,10 @@
 package dkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"math/rand"
 	"os"
 	"path"
@@ -13,8 +15,10 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/obolnetwork/charon/app/eth1wrap/mocks"
+	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/cluster"
 )
 
@@ -170,10 +174,18 @@ func TestCheckClearDataDir(t *testing.T) {
 			},
 		},
 		{
-			"dataDir contains validator_keys directory",
+			"dataDir contains non-empty validator_keys directory",
 			func(rootDir string, dataDir string) {
 				require.NoError(t,
 					os.MkdirAll(filepath.Join(rootDir, dataDir, "validator_keys"), 0o755),
+				)
+
+				require.NoError(t,
+					os.WriteFile(
+						filepath.Join(rootDir, dataDir, "validator_keys", "keystore-0.json"),
+						[]byte{1, 2, 3},
+						0o755,
+					),
 				)
 			},
 			func(err error) {
@@ -255,7 +267,192 @@ func TestCheckClearDataDir(t *testing.T) {
 			td := t.TempDir()
 			tt.prepare(td, "data_dir")
 
-			tt.checkError(checkClearDataDir(filepath.Join(td, "data_dir")))
+			tt.checkError(checkClearDataDir(t.Context(), filepath.Join(td, "data_dir")))
 		})
+	}
+}
+
+// TestCheckClearDataDirValidatorKeys covers the empty validator_keys directory a container runtime
+// leaves behind as a mount point: it is removed only when it is a real, empty directory and the
+// rest of the data directory is clean, and is otherwise refused and left untouched.
+func TestCheckClearDataDirValidatorKeys(t *testing.T) {
+	const (
+		removeHint = "remove it manually and retry"
+		notClean   = "data directory not clean, cannot continue"
+	)
+
+	writeFile := func(t *testing.T, path string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(path, []byte{1, 2, 3}, 0o600))
+	}
+
+	tests := []struct {
+		name string
+		// prepare populates dataDir, which already contains charon-enr-private-key.
+		prepare func(t *testing.T, dataDir string)
+		wantErr string
+		// wantKeysDir is whether dataDir/validator_keys still exists afterwards.
+		wantKeysDir bool
+	}{
+		{
+			name: "empty directory is removed",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o755))
+			},
+			wantKeysDir: false,
+		},
+		{
+			name: "empty read-only directory is removed",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				// Removing an entry needs write access to the parent only, like a root owned mount point.
+				require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o555))
+			},
+			wantKeysDir: false,
+		},
+		{
+			name: "hidden file is refused",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o755))
+				writeFile(t, filepath.Join(dataDir, "validator_keys", ".hidden"))
+			},
+			wantErr:     notClean,
+			wantKeysDir: true,
+		},
+		{
+			name: "empty subdirectory is refused",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				require.NoError(t, os.MkdirAll(filepath.Join(dataDir, "validator_keys", "sub"), 0o755))
+			},
+			wantErr:     notClean,
+			wantKeysDir: true,
+		},
+		{
+			name: "symlink to an empty directory is refused",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+
+				target := filepath.Join(t.TempDir(), "keys")
+				require.NoError(t, os.Mkdir(target, 0o755))
+				require.NoError(t, os.Symlink(target, filepath.Join(dataDir, "validator_keys")))
+			},
+			wantErr:     notClean,
+			wantKeysDir: true,
+		},
+		{
+			name: "dangling symlink is refused",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				require.NoError(t, os.Symlink(filepath.Join(t.TempDir(), "missing"), filepath.Join(dataDir, "validator_keys")))
+			},
+			wantErr:     notClean,
+			wantKeysDir: true,
+		},
+		{
+			name: "empty directory is kept when a cluster lock exists",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o755))
+				writeFile(t, filepath.Join(dataDir, "cluster-lock.json"))
+			},
+			wantErr:     notClean,
+			wantKeysDir: true,
+		},
+		{
+			name: "empty directory is kept when deposit data exists",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o755))
+				writeFile(t, filepath.Join(dataDir, "deposit-data-32eth.json"))
+			},
+			wantErr:     notClean,
+			wantKeysDir: true,
+		},
+		{
+			name: "empty directory is kept when the enr private key is missing",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o755))
+				require.NoError(t, os.Remove(filepath.Join(dataDir, "charon-enr-private-key")))
+			},
+			wantErr:     "missing required files, cannot continue",
+			wantKeysDir: true,
+		},
+		{
+			name: "unreadable directory is refused",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				skipIfRoot(t)
+
+				dir := filepath.Join(dataDir, "validator_keys")
+				require.NoError(t, os.Mkdir(dir, 0o000))
+				t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+			},
+			wantErr:     "list directory",
+			wantKeysDir: true,
+		},
+		{
+			name: "read-only data directory returns a hint",
+			prepare: func(t *testing.T, dataDir string) {
+				t.Helper()
+				skipIfRoot(t)
+
+				require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o755))
+				require.NoError(t, os.Chmod(dataDir, 0o555))
+				t.Cleanup(func() { _ = os.Chmod(dataDir, 0o755) })
+			},
+			wantErr:     removeHint,
+			wantKeysDir: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataDir := filepath.Join(t.TempDir(), "data_dir")
+			require.NoError(t, os.Mkdir(dataDir, 0o755))
+			writeFile(t, filepath.Join(dataDir, "charon-enr-private-key"))
+
+			tt.prepare(t, dataDir)
+
+			var logs bytes.Buffer
+			log.InitLogfmtForT(t, zapcore.AddSync(&logs))
+
+			err := checkClearDataDir(t.Context(), dataDir)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				require.NotContains(t, logs.String(), "Removed empty validator_keys directory")
+			} else {
+				require.NoError(t, err)
+				require.Contains(t, logs.String(), "Removed empty validator_keys directory")
+			}
+
+			_, statErr := os.Lstat(filepath.Join(dataDir, "validator_keys"))
+			if tt.wantKeysDir {
+				require.NoError(t, statErr)
+			} else {
+				require.ErrorIs(t, statErr, fs.ErrNotExist)
+			}
+		})
+	}
+
+	t.Run("dkg can write keys after removal", func(t *testing.T) {
+		dataDir := t.TempDir()
+		writeFile(t, filepath.Join(dataDir, "charon-enr-private-key"))
+		require.NoError(t, os.Mkdir(filepath.Join(dataDir, "validator_keys"), 0o755))
+
+		require.NoError(t, checkClearDataDir(t.Context(), dataDir))
+		require.NoError(t, checkWrites(dataDir))
+	})
+}
+
+// skipIfRoot skips tests relying on permission checks, which root bypasses.
+func skipIfRoot(t *testing.T) {
+	t.Helper()
+
+	if os.Geteuid() == 0 {
+		t.Skip("permission checks don't apply to root")
 	}
 }
