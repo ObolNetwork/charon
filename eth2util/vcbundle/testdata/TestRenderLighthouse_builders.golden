@@ -1,0 +1,17 @@
+{
+  "min_bid": 1,
+  "builder_boost_factor": 90,
+  "builders": [
+    {
+      "enabled": true,
+      "url": "https://builder-a.example.com",
+      "max_execution_payment": 5
+    },
+    {
+      "enabled": true,
+      "url": "https://builder-b.example.com",
+      "max_execution_payment": 7,
+      "min_bid": 2
+    }
+  ]
+}
