@@ -135,7 +135,7 @@ type Duty struct {
 - `DutySyncMessage = 10`: Sync message duty
 - `DutyPrepareSyncContribution = 11`: Prepare sync contribution duty
 - `DutySyncContribution = 12`: Sync contribution duty
-- `DutyInfoSync = 13`: Sending versions of peers in a cluster over wire
+- `DutyInfoSync = 13`: Syncing versions, protocols and the proposer timer of peers in a cluster over wire
 - `DutyPayloadAttestation = 14`: Payload timeliness committee (PTC) attestation duty (gloas/ePBS)
 - `DutyProposerPreferences = 15`: Proposer preferences (fee recipient, gas limit) signed ahead of a proposal (gloas)
 - `DutyExecutionPayloadEnvelope = 16`: Revealing the execution payload envelope of a self-built block (gloas/ePBS)
@@ -1033,8 +1033,8 @@ The following components support the core workflow but are not part of the duty 
   actually included on-chain and reports the outcome to the tracker.
 - **Priority protocol** ([core/priority](../core/priority)): establishes cluster wide priorities
   (e.g. the preferred consensus protocol) by playing a QBFT consensus game over each peer's ordered preferences.
-  The **InfoSync** component ([core/infosync](../core/infosync)) uses it to exchange peer versions and supported
-  protocols in the cluster (`DutyInfoSync`).
+  The **InfoSync** component ([core/infosync](../core/infosync)) uses it to exchange peer versions, supported
+  protocols and the proposer timer in the cluster (`DutyInfoSync`).
 - **Deadliner** ([core/deadline.go](../core/deadline.go)): provides uniform duty expiry across components.
   Each stateful component (DutyDB, ParSigDB, AggSigDB) uses its own deadliner instance to trim state for
   expired duties. `DutyExit` and `DutyBuilderRegistration` never expire.

@@ -5,6 +5,7 @@ package priority
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -15,7 +16,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/core"
 	pbv1 "github.com/obolnetwork/charon/core/corepb/v1"
 	"github.com/obolnetwork/charon/p2p"
@@ -211,4 +215,173 @@ func (nopConsensus) SubscribePriority(func(context.Context, core.Duty, *pbv1.Pri
 func nopRegisterHandler(string, host.Host, protocol.ID, func() proto.Message,
 	p2p.HandlerFunc, ...p2p.SendRecvOption,
 ) {
+}
+
+func TestVerifyResult(t *testing.T) {
+	const minRequired = 2
+
+	duty := core.NewInfoSyncDuty(7)
+
+	// topicMsg returns the peer's signed-by-assumption proposal of the priorities for the topic.
+	topicMsg := func(pID peer.ID, duty core.Duty, priorities ...string) *pbv1.PriorityMsg {
+		var prios []*anypb.Any
+		for _, prio := range priorities {
+			prios = append(prios, mustAnyString(t, prio))
+		}
+
+		return &pbv1.PriorityMsg{
+			Duty:   core.DutyToProto(duty),
+			PeerId: pID.String(),
+			Topics: []*pbv1.PriorityTopicProposal{{Topic: mustAnyString(t, "timer"), Priorities: prios}},
+		}
+	}
+
+	var peers []peer.ID
+	for range 3 {
+		peers = append(peers, testutil.CreateHost(t, testutil.AvailableAddr(t)).ID())
+	}
+
+	msgs := []*pbv1.PriorityMsg{
+		topicMsg(peers[0], duty, "linear"),
+		topicMsg(peers[1], duty, "linear"),
+		topicMsg(peers[2], duty, "eager_dlinear"),
+	}
+
+	valid, err := calculateResult(msgs, minRequired)
+	require.NoError(t, err)
+	require.Len(t, valid.GetTopics()[0].GetPriorities(), 1) // Only linear reached the threshold.
+
+	acceptAll := func(*pbv1.PriorityMsg) error { return nil }
+
+	tests := []struct {
+		name      string
+		result    *pbv1.PriorityResult
+		validator msgValidator
+		wantErr   string
+	}{
+		{
+			name:      "valid result",
+			result:    valid,
+			validator: acceptAll,
+		},
+		{
+			name: "tampered priorities",
+			result: &pbv1.PriorityResult{
+				Msgs: msgs,
+				Topics: []*pbv1.PriorityTopicResult{{
+					Topic:      valid.GetTopics()[0].GetTopic(),
+					Priorities: []*pbv1.PriorityScoredResult{{Priority: mustAnyString(t, "eager_dlinear"), Score: 3000}},
+				}},
+			},
+			validator: acceptAll,
+			wantErr:   "result topics mismatch",
+		},
+		{
+			name:      "injected topic without messages",
+			result:    &pbv1.PriorityResult{Topics: valid.GetTopics()},
+			validator: acceptAll,
+			wantErr:   "messages empty",
+		},
+		{
+			name:      "invalid message signature",
+			result:    valid,
+			validator: func(*pbv1.PriorityMsg) error { return errors.New("invalid signature") },
+			wantErr:   "invalid signature",
+		},
+		{
+			name: "messages of another duty",
+			result: func() *pbv1.PriorityResult {
+				other := core.NewInfoSyncDuty(6)
+				res, err := calculateResult([]*pbv1.PriorityMsg{topicMsg(peers[0], other, "linear"), topicMsg(peers[1], other, "linear")}, minRequired)
+				require.NoError(t, err)
+
+				return res
+			}(),
+			validator: acceptAll,
+			wantErr:   "result message duty mismatch",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := verifyResult(duty, test.result, test.validator, minRequired)
+			if test.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, test.wantErr)
+			}
+		})
+	}
+}
+
+// mustAnyString returns the string as an any proto.
+func mustAnyString(t *testing.T, s string) *anypb.Any {
+	t.Helper()
+
+	a, err := anypb.New(structpb.NewStringValue(s))
+	require.NoError(t, err)
+
+	return a
+}
+
+// TestProposerTimerThreshold asserts the proposer timer a cluster agrees on when a mixed number of peers
+// enable the linear feature: the proposed timer of at least a threshold of peers, else none.
+func TestProposerTimerThreshold(t *testing.T) {
+	const (
+		linear       = "linear/1.5s/300ms"
+		eagerDLinear = "eager_dlinear/1.5s"
+	)
+
+	tests := []struct {
+		nodes     int
+		threshold int
+		linear    int // Number of peers proposing the linear timer.
+		want      []string
+	}{
+		{nodes: 7, threshold: 5, linear: 0, want: []string{eagerDLinear}},
+		{nodes: 7, threshold: 5, linear: 1, want: []string{eagerDLinear}},
+		{nodes: 7, threshold: 5, linear: 3, want: nil},
+		{nodes: 7, threshold: 5, linear: 4, want: nil},
+		{nodes: 7, threshold: 5, linear: 5, want: []string{linear}},
+		{nodes: 7, threshold: 5, linear: 7, want: []string{linear}},
+		{nodes: 4, threshold: 3, linear: 1, want: []string{eagerDLinear}},
+		{nodes: 4, threshold: 3, linear: 2, want: nil},
+		{nodes: 4, threshold: 3, linear: 3, want: []string{linear}},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%d of %d linear, threshold %d", test.linear, test.nodes, test.threshold), func(t *testing.T) {
+			duty := core.NewInfoSyncDuty(7)
+
+			var msgs []*pbv1.PriorityMsg
+
+			for i := range test.nodes {
+				timer := eagerDLinear
+				if i < test.linear {
+					timer = linear
+				}
+
+				msgs = append(msgs, &pbv1.PriorityMsg{
+					Duty:   core.DutyToProto(duty),
+					PeerId: fmt.Sprintf("peer%d", i),
+					Topics: []*pbv1.PriorityTopicProposal{{Topic: mustAnyString(t, "proposer_timer"), Priorities: []*anypb.Any{mustAnyString(t, timer)}}},
+				})
+			}
+
+			result, err := calculateResult(msgs, test.threshold)
+			require.NoError(t, err)
+			require.Len(t, result.GetTopics(), 1)
+
+			var got []string
+
+			for _, prio := range result.GetTopics()[0].GetPriorities() {
+				value, err := prio.GetPriority().UnmarshalNew()
+				require.NoError(t, err)
+
+				got = append(got, value.(*structpb.Value).GetStringValue())
+			}
+
+			require.Equal(t, test.want, got)
+		})
+	}
 }
