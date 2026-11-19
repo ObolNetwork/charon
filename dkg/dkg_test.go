@@ -843,11 +843,11 @@ func TestZipped(t *testing.T) {
 
 	// Create new temp dir and unzip to there
 	unzippedDir := t.TempDir()
-	err = app.ExtractArchive(tarPath, unzippedDir)
+	err = testutil.ExtractArchive(tarPath, unzippedDir)
 	require.NoError(t, err)
 
 	// Compare backup with unzipped folder
-	err = app.CompareDirectories(backupDir, unzippedDir)
+	err = testutil.CompareDirectories(backupDir, unzippedDir)
 	require.NoError(t, err, "unzipped content should match original for node0")
 }
 
