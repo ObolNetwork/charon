@@ -1,7 +1,7 @@
 # Build on the build platform and cross-compile for the target platform, so
 # multi-platform builds don't compile under QEMU emulation. promrated has no cgo
 # dependencies, so a pure Go build cross-compiles without a C toolchain.
-FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine AS builder
 
 # Install dependencies (git for VCS build info)
 RUN apk add --no-cache git

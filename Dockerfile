@@ -1,7 +1,7 @@
 # Container for building Go binary. It always runs on the build platform and
 # cross-compiles for the target platform, so multi-platform builds don't compile
 # under QEMU emulation.
-FROM --platform=$BUILDPLATFORM golang:1.27.3-trixie AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.4-trixie AS builder
 ARG BUILDARCH
 ARG TARGETOS
 ARG TARGETARCH
