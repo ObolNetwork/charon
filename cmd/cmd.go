@@ -18,6 +18,7 @@ import (
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/cmd/relay"
 	"github.com/obolnetwork/charon/dkg"
 )
@@ -238,6 +239,8 @@ func flagsToLogFields(flags *pflag.FlagSet) []z.Field {
 //   - Password and query value redaction in URLs for address flags (e.g., loki-addresses)
 //   - Password, query value and path redaction in URLs for endpoint and URL flags (e.g., beacon-node-endpoints),
 //     since hosted beacon and execution providers put API keys in the path
+//   - Everything but the scheme and host of builder URLs (e.g., proposer-config-builder-urls), since builders
+//     also put credentials in the user info
 func redact(flag, val string) string {
 	if strings.Contains(flag, "auth-token") {
 		return "xxxxx"
@@ -245,6 +248,10 @@ func redact(flag, val string) string {
 
 	if strings.Contains(flag, "header") {
 		return redactHeaderValue(val)
+	}
+
+	if strings.Contains(flag, "builder-url") {
+		return proposerconfig.RedactURL(val)
 	}
 
 	if strings.Contains(flag, "endpoint") || strings.Contains(flag, "url") {

@@ -54,15 +54,36 @@ func TestDiffRedactsBuilderURLs(t *testing.T) {
 
 	// A comma in a URL does not split it before redaction.
 	require.Equal(t, []string{
-		"default.builder.urls: https://b1.example -> https://user:xxxxx@b2.example,https://b3.example/xxxxx?token=xxxxx,https://user:xxxxx@b4.example",
+		"default.builder.urls: https://b1.example -> https://b2.example (redacted),https://b3.example (redacted),https://b4.example (redacted)",
 	}, Diff(lock, a, b))
 
 	// URLs differing only in redacted parts still differ.
 	builder = testBuilder()
-	builder.Builders = []BuilderEntry{{URL: "https://user:other@b2.example"}}
+	builder.Builders = []BuilderEntry{{URL: "https://user:other@b2.example"}, {URL: "https://b3.example/key?token=other"}, {URL: "https://token@b4.example"}}
 	c, err := NewConfig(lock, []string{addrA}, DefaultGasLimit, builder)
 	require.NoError(t, err)
-	require.Len(t, Diff(lock, b, c), 1)
+	require.Equal(t, []string{"default.builder.urls: changed (redacted)"}, Diff(lock, b, c))
+}
+
+func TestRedactURL(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want string
+	}{
+		{"https://b.example", "https://b.example"},
+		{"https://b.example/", "https://b.example"},
+		{"http://b.example:18550", "http://b.example:18550"},
+		{"https://user:secret@b.example", "https://b.example (redacted)"},
+		{"https://token@b.example", "https://b.example (redacted)"},
+		{"https://b.example/key", "https://b.example (redacted)"},
+		{"https://b.example?token=secret", "https://b.example (redacted)"},
+		{"https://b.example#secret", "https://b.example (redacted)"},
+		{"b.example/secret", "(redacted)"},
+		{"://secret", "(redacted)"},
+	}
+	for _, tt := range tests {
+		require.Equal(t, tt.want, RedactURL(tt.raw), tt.raw)
+	}
 }
 
 func TestDiffLargeLock(t *testing.T) {

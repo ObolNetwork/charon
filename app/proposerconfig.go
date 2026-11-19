@@ -176,7 +176,7 @@ func warnSignedProposerConfigOverridesFlags(ctx context.Context, doc proposercon
 		val := strings.Join(vals, ",")
 		if flag == "proposer-config-builder-urls" {
 			// Builder URLs may carry credentials, shown redacted as the URL flags are logged.
-			val = proposerconfig.RedactURLs(vals)
+			val = proposerconfig.JoinRedactedURLs(vals)
 		}
 
 		if val == "" {

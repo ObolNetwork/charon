@@ -352,7 +352,7 @@ func TestRedact(t *testing.T) {
 			name:     "redact builder URL passwords",
 			flag:     "proposer-config-builder-urls",
 			value:    "https://0xabc:secret@relay.example.com",
-			expected: "https://0xabc:xxxxx@relay.example.com",
+			expected: "https://relay.example.com (redacted)",
 		},
 		{
 			name:     "no redact",
@@ -377,6 +377,18 @@ func TestRedact(t *testing.T) {
 			flag:     "beacon-node-headers",
 			value:    "X-No-Value",
 			expected: "X-No-Value",
+		},
+		{
+			name:     "redact builder url user info",
+			flag:     "proposer-config-builder-urls",
+			value:    "https://token@builder.example",
+			expected: "https://builder.example (redacted)",
+		},
+		{
+			name:     "builder url without credentials passes through",
+			flag:     "proposer-config-builder-urls",
+			value:    "https://builder.example",
+			expected: "https://builder.example",
 		},
 	}
 
