@@ -3,6 +3,9 @@
 package app_test
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"encoding/hex"
 	"os"
 	"path/filepath"
@@ -260,4 +263,41 @@ func TestCompareDirectories(t *testing.T) {
 			}
 		})
 	}
+}
+
+func writeTarGz(t *testing.T, entries map[string]string) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	gzw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gzw)
+	for name, content := range entries {
+		hdr := &tar.Header{Name: name, Mode: 0o644, Size: int64(len(content)), Typeflag: tar.TypeReg}
+		require.NoError(t, tw.WriteHeader(hdr))
+		_, err := tw.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, tw.Close())
+	require.NoError(t, gzw.Close())
+
+	path := filepath.Join(t.TempDir(), "archive.tar.gz")
+	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o644))
+	return path
+}
+
+// Extracting an archive over an existing, longer file must replace its
+// contents. Without O_TRUNC the old trailing bytes survive, leaving a corrupt
+// file whose size no longer matches the archive entry.
+func TestExtractArchiveOverwritesExistingFile(t *testing.T) {
+	archivePath := writeTarGz(t, map[string]string{"file.txt": "new"})
+
+	targetDir := t.TempDir()
+	targetFile := filepath.Join(targetDir, "file.txt")
+	require.NoError(t, os.WriteFile(targetFile, []byte("old-content-here"), 0o644))
+
+	require.NoError(t, app.ExtractArchive(archivePath, targetDir))
+
+	content, err := os.ReadFile(targetFile)
+	require.NoError(t, err)
+	require.Equal(t, "new", string(content))
 }
