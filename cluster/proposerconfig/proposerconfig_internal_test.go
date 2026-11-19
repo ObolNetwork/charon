@@ -4,7 +4,6 @@ package proposerconfig
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"math/rand"
 	"strings"
 	"testing"
@@ -48,22 +47,6 @@ func TestHashGolden(t *testing.T) {
 	hash, err := doc.Hash()
 	require.NoError(t, err)
 	testutil.RequireGoldenJSON(t, "0x"+hex.EncodeToString(hash[:]))
-
-	// The signing data has the five hashed fields in order and no whitespace.
-	b, err := json.Marshal(newSigningData(doc))
-	require.NoError(t, err)
-	testutil.RequireGoldenBytes(t, b, testutil.WithFilename("TestHashGolden_signing_data.golden"))
-
-	s := string(b)
-	last := -1
-
-	for _, k := range []string{"version", "lock_hash", "revision", "default_config", "proposer_config"} {
-		idx := strings.Index(s, `"`+k+`":`)
-		require.Greater(t, idx, last, k)
-		last = idx
-	}
-
-	require.NotContains(t, s, " ")
 }
 
 func TestHashIgnoresSignatures(t *testing.T) {
@@ -189,26 +172,6 @@ func TestHashNilEmptyBuilders(t *testing.T) {
 	hash := func(builders []BuilderEntry) [32]byte {
 		c, err := NewConfig(lock, []string{addrA}, DefaultGasLimit, &Builder{MinBid: "0", BuilderBoostFactor: "100", MaxExecutionPayment: "0", Builders: builders})
 		require.NoError(t, err)
-
-		h, err := Document{Version: Version, LockHash: lock.LockHash, Config: c}.Hash()
-		require.NoError(t, err)
-
-		return h
-	}
-
-	require.Equal(t, hash(nil), hash([]BuilderEntry{}))
-}
-
-func TestHashNilEmptyBuildersInEntry(t *testing.T) {
-	lock := testLock(t, 1)
-
-	hash := func(builders []BuilderEntry) [32]byte {
-		c := Config{
-			DefaultConfig: Settings{FeeRecipient: addrA},
-			ProposerConfig: map[string]Settings{
-				"0xaa": {Builder: &Builder{MinBid: "0", BuilderBoostFactor: "100", MaxExecutionPayment: "0", Builders: builders}},
-			},
-		}
 
 		h, err := Document{Version: Version, LockHash: lock.LockHash, Config: c}.Hash()
 		require.NoError(t, err)

@@ -28,7 +28,7 @@ func invalid(reason string, fields ...z.Field) error {
 	return errors.Wrap(ErrInvalid, reason, fields...)
 }
 
-// Verify checks the document against the lock: lock hash, version, stored hash, editable fields and signatures.
+// Verify checks the document against the lock: lock hash, version, editable fields, stored hash and signatures.
 // Any version with the same major as Version is accepted. Revision 0 must be unsigned; later revisions need
 // threshold distinct valid operator signatures.
 func Verify(doc Document, lock cluster.Lock) error {
@@ -44,18 +44,19 @@ func Verify(doc Document, lock cluster.Lock) error {
 		return invalid("unsupported version", z.Str("version", doc.Version), z.Str("supported", Version))
 	}
 
-	hash, err := doc.Hash()
+	// Checked before hashing: the hash has no place for fields the CLI cannot set.
+	err := checkEditableFields(doc.Config, lock)
 	if err != nil {
 		return err
+	}
+
+	hash, err := doc.Hash()
+	if err != nil {
+		return invalid("document does not hash", z.Err(err))
 	}
 
 	if len(doc.StoredHash) > 0 && !bytes.Equal(doc.StoredHash, hash[:]) {
 		return invalid("content was modified, revision hash mismatch")
-	}
-
-	err = checkEditableFields(doc.Config, lock)
-	if err != nil {
-		return err
 	}
 
 	if doc.Revision == 0 {
