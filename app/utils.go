@@ -182,7 +182,7 @@ func ExtractArchive(archivePath, targetDir string) error {
 				return errors.Wrap(err, "create parent directory")
 			}
 
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode())
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, header.FileInfo().Mode())
 			if err != nil {
 				return errors.Wrap(err, "create file")
 			}
