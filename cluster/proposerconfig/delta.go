@@ -173,14 +173,16 @@ func applyBuilder(b *Builder, d Delta) (*Builder, error) {
 	return &res, nil
 }
 
-// sameConfig returns whether a and b have the same canonical form.
+// sameConfig returns whether a and b have the same canonical form, comparing their hashes under one lock hash.
 func sameConfig(a, b Config) (bool, error) {
-	ha, err := Document{Config: a}.Hash()
+	lockHash := make([]byte, sszLenHash)
+
+	ha, err := Document{LockHash: lockHash, Config: a}.Hash()
 	if err != nil {
 		return false, err
 	}
 
-	hb, err := Document{Config: b}.Hash()
+	hb, err := Document{LockHash: lockHash, Config: b}.Hash()
 	if err != nil {
 		return false, err
 	}

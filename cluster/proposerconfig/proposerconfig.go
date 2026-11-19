@@ -9,9 +9,7 @@
 package proposerconfig
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -81,32 +79,7 @@ type Document struct {
 	StoredHash []byte
 }
 
-// signingData is the canonical hashed form of a Document, keyed by DV pubkeys so every node hashes the same
-// bytes; field order is part of the format.
-type signingData struct {
-	Version        string              `json:"version"`
-	LockHash       string              `json:"lock_hash"`
-	Revision       string              `json:"revision"`
-	DefaultConfig  Settings            `json:"default_config"`
-	ProposerConfig map[string]Settings `json:"proposer_config"`
-}
-
-func newSigningData(d Document) signingData {
-	proposerConfig := make(map[string]Settings, len(d.Config.ProposerConfig))
-	for k, v := range d.Config.ProposerConfig {
-		proposerConfig[k] = canonicalSettings(v)
-	}
-
-	return signingData{
-		Version:        d.Version,
-		LockHash:       "0x" + hex.EncodeToString(d.LockHash),
-		Revision:       strconv.FormatUint(d.Revision, 10),
-		DefaultConfig:  canonicalSettings(d.Config.DefaultConfig),
-		ProposerConfig: proposerConfig,
-	}
-}
-
-// canonicalSettings returns a copy with a nil builders list as an empty one, so nil and empty hash equal.
+// canonicalSettings returns a copy with a nil builders list as an empty one, written as [] rather than null.
 func canonicalSettings(s Settings) Settings {
 	if s.Builder != nil && s.Builder.Builders == nil {
 		b := *s.Builder
@@ -117,14 +90,9 @@ func canonicalSettings(s Settings) Settings {
 	return s
 }
 
-// Hash returns the revision hash: sha256 over the canonical JSON of the hashed fields.
+// Hash returns the revision hash: the SSZ hash tree root of the hashed fields, see hashDocument.
 func (d Document) Hash() ([32]byte, error) {
-	b, err := json.Marshal(newSigningData(d))
-	if err != nil {
-		return [32]byte{}, errors.Wrap(err, "marshal proposer config signing data")
-	}
-
-	return sha256.Sum256(b), nil
+	return hashDocument(d)
 }
 
 // NewConfig returns the config for the lock with one fee recipient per lock validator. The default

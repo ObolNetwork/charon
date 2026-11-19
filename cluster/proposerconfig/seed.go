@@ -47,9 +47,13 @@ func (s Seed) Validate() error {
 	return nil
 }
 
-// validateBuilderURLs checks each builder URL is a unique http(s) URL with a host that fits a proposal;
-// flag names the URLs' flag in errors.
+// validateBuilderURLs checks there are at most 32 builder URLs, each a unique http(s) URL with a host that fits a
+// proposal; flag names the URLs' flag in errors.
 func validateBuilderURLs(flag string, urls []string) error {
+	if len(urls) > sszMaxBuilders {
+		return errors.New(flag+" has too many entries", z.Int("max", sszMaxBuilders))
+	}
+
 	seen := make(map[string]bool)
 
 	for i, u := range urls {

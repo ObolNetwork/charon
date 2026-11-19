@@ -3,6 +3,7 @@
 package proposerconfig
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -41,6 +42,7 @@ func TestSeedValidate(t *testing.T) {
 		{"boost set without urls", boostSet(valid), withoutURLs},
 		{"non-http url", Seed{GasLimit: 1, BuilderBoostFactor: 100, BuilderURLs: []string{"ftp://x"}}, "proposer-config-builder-urls entry is not a valid http(s) URL"},
 		{"duplicate url", Seed{GasLimit: 1, BuilderBoostFactor: 100, BuilderURLs: []string{"https://a.example", "https://b.example", "https://a.example"}}, "proposer-config-builder-urls entry is duplicated"},
+		{"too many urls", Seed{GasLimit: 1, BuilderBoostFactor: 100, BuilderURLs: manyURLs(sszMaxBuilders + 1)}, "proposer-config-builder-urls has too many entries"},
 		{"long url", Seed{GasLimit: 1, BuilderBoostFactor: 100, BuilderURLs: []string{"https://" + strings.Repeat("a", core.MaxBuilderURLSize)}}, "proposer-config-builder-urls entry is longer than the maximum"},
 	}
 	for _, tt := range tests {
@@ -58,4 +60,13 @@ func TestSeedBuilder(t *testing.T) {
 		MinBid: "2", BuilderBoostFactor: "110", MaxExecutionPayment: "3",
 		Builders: []BuilderEntry{{URL: "https://a.example"}},
 	}, b)
+}
+
+func manyURLs(n int) []string {
+	urls := make([]string, 0, n)
+	for i := range n {
+		urls = append(urls, "https://b"+strconv.Itoa(i)+".example")
+	}
+
+	return urls
 }
