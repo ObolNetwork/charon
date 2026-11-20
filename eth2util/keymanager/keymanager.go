@@ -86,7 +86,7 @@ type keymanagerReq struct {
 
 // postKeys pushes the secrets to the provided keymanager address. The HTTP request timeout is calculated based on the amount of keystores being pushed. For each keystore, the timeout is incremented by 2 seconds.
 func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq) error {
-	ctx, cancel := context.WithTimeout(ctx, time.Duration(2*len(reqBody.Keystores))*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(2*max(1, len(reqBody.Keystores)))*time.Second)
 	defer cancel()
 
 	reqBytes, err := json.Marshal(reqBody)
@@ -106,13 +106,12 @@ func postKeys(ctx context.Context, addr, authToken string, reqBody keymanagerReq
 	if err != nil {
 		return errors.Wrap(err, "post validator keys to keymanager")
 	}
+	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return errors.Wrap(err, "read response")
 	}
-
-	_ = resp.Body.Close()
 
 	if resp.StatusCode/100 != 2 {
 		return errors.New("post keys to keymanager failed", z.Int("status", resp.StatusCode), z.Str("body", string(data)))
