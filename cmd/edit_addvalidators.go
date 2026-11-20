@@ -87,7 +87,8 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 
 	// Bind `create dkg` flags.
 	cmd.Flags().StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil,
-		"Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
+		"Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator. "+
+			"Used for the new validators' builder registrations before the gloas fork, and as their fee recipients in the proposer config, which apply from gloas.")
 	cmd.Flags().StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil,
 		"Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 
