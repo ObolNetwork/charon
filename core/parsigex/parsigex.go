@@ -40,9 +40,11 @@ func Protocols() []protocol.ID {
 	return []protocol.ID{protocolID2}
 }
 
+// NewParSigEx returns a new ParSigEx. maxSetSize is the maximum number of partial signatures
+// in a received set, which is the number of validators in the cluster.
 func NewParSigEx(p2pNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []peer.ID,
 	verifyFunc func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error,
-	gaterFunc core.DutyGaterFunc, p2pOpts ...p2p.SendRecvOption,
+	gaterFunc core.DutyGaterFunc, maxSetSize int, p2pOpts ...p2p.SendRecvOption,
 ) *ParSigEx {
 	parSigEx := &ParSigEx{
 		p2pNode:    p2pNode,
@@ -51,6 +53,7 @@ func NewParSigEx(p2pNode host.Host, sendFunc p2p.SendFunc, peerIdx int, peers []
 		peers:      peers,
 		verifyFunc: verifyFunc,
 		gaterFunc:  gaterFunc,
+		maxSetSize: maxSetSize,
 	}
 
 	newReq := func() proto.Message { return new(pbv1.ParSigExMsg) }
@@ -75,6 +78,7 @@ type ParSigEx struct {
 	peers      []peer.ID
 	verifyFunc func(context.Context, peer.ID, core.Duty, core.PubKey, core.ParSignedData) error
 	gaterFunc  core.DutyGaterFunc
+	maxSetSize int
 	subs       []func(context.Context, core.Duty, core.ParSignedDataSet) error
 }
 
@@ -93,6 +97,12 @@ func (m *ParSigEx) handle(ctx context.Context, sender peer.ID, req proto.Message
 
 	if !m.gaterFunc(duty) {
 		return nil, false, errors.New("invalid duty")
+	}
+
+	// Legitimate sets hold at most one partial signature per cluster validator. Reject larger
+	// sets before decoding, since each entry is unmarshalled before any of it is authenticated.
+	if n := len(pb.GetDataSet().GetSet()); n > m.maxSetSize {
+		return nil, false, errors.New("partial signature set too large", z.Int("size", n), z.Int("max", m.maxSetSize))
 	}
 
 	set, err := core.ParSignedDataSetFromProto(duty.Type, pb.GetDataSet())

@@ -166,7 +166,7 @@ func (p *removeOperatorsProtocol) PostInit(ctx context.Context, pctx *ProtocolCo
 			ShareIdx: peerMap[pctx.ThisPeerID].ShareIdx,
 		}
 
-		sigEx, err := newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, exchangerPeerMap, []sigType{sigLock}, pctx.Config.Timeout)
+		sigEx, err := newExchanger(pctx.ThisNode, nodeIdx, newPeerIDs, exchangerPeerMap, []sigType{sigLock}, pctx.Config.Timeout, len(pctx.Lock.Validators))
 		if err != nil {
 			return err
 		}

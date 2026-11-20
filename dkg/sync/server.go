@@ -401,13 +401,12 @@ func readSizedProto(reader io.Reader, msg proto.Message) error {
 		return errors.New("invalid message size")
 	}
 
-	buf := make([]byte, size)
-
-	n, err := reader.Read(buf)
-	if err != nil {
-		return errors.Wrap(err, "read buffer")
-	} else if int64(n) != size {
+	// Grow the buffer as bytes arrive, so a peer cannot pin maxMessageSize by declaring it and sending little.
+	buf, err := p2p.ReadFullIncremental(reader, int(size))
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return errors.New("unexpected message length")
+	} else if err != nil {
+		return errors.Wrap(err, "read buffer")
 	}
 
 	err = proto.Unmarshal(buf, msg)

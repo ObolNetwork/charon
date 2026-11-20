@@ -264,7 +264,7 @@ func Run(ctx context.Context, conf Config) (err error) {
 		sigLock,
 		sigDepositData,
 		sigValidatorRegistration,
-	}, conf.Timeout)
+	}, conf.Timeout, totalValidators)
 	if err != nil {
 		return err
 	}
