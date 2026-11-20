@@ -214,6 +214,34 @@ func TestProposerConfigServiceRejectsInvalid(t *testing.T) {
 	require.Contains(t, f.logs.String(), "keeping revision 3")
 }
 
+func TestProposerConfigServiceHalfWrittenFile(t *testing.T) {
+	f := newPCFixture(t)
+	s, _, stop := startService(t, f)
+
+	// Render revision 2 elsewhere, then write it in place in two parts, as a non-atomic editor save would.
+	other := filepath.Join(t.TempDir(), "proposer-config.json")
+	require.NoError(t, proposerconfig.Write(other, f.doc(t, 2, 70_000_000, nil, 0, 1, 2), f.lock, f.nodeIdx))
+	b, err := os.ReadFile(other)
+	require.NoError(t, err)
+
+	file, err := os.OpenFile(f.path, os.O_WRONLY|os.O_TRUNC, 0o644)
+	require.NoError(t, err)
+
+	_, err = file.Write(b[:len(b)/2])
+	require.NoError(t, err)
+	eventually(t, func() bool { return invalidGauge() == 1 })
+	require.EqualValues(t, 1, s.Document().Revision)
+
+	_, err = file.Write(b[len(b)/2:])
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+	eventually(t, func() bool { return s.Document().Revision == 2 })
+	eventually(t, func() bool { return invalidGauge() == 0 })
+
+	stop()
+	require.Contains(t, f.logs.String(), "Failed reloading proposer config, keeping revision 1")
+}
+
 func TestProposerConfigServiceGetters(t *testing.T) {
 	f := newPCFixture(t)
 	f.conf.ProposerConfigSeed = proposerconfig.Seed{
