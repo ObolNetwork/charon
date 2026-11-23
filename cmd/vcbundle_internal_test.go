@@ -90,7 +90,7 @@ func TestRunVCBundle(t *testing.T) {
 
 	doc := proposerconfig.Document{
 		Version:  proposerconfig.Version,
-		LockHash: []byte{1},
+		LockHash: bytes.Repeat([]byte{1}, 32),
 		Revision: 1,
 		Config: proposerconfig.Config{DefaultConfig: proposerconfig.Settings{
 			FeeRecipient: "0x000000000000000000000000000000000000dead",

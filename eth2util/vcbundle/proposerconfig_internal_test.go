@@ -27,7 +27,7 @@ func testConfig(withBuilder bool) proposerconfig.Config {
 			MaxExecutionPayment: "5",
 			Builders: []proposerconfig.BuilderEntry{
 				{URL: "https://builder-a.example.com"},
-				{URL: "https://builder-b.example.com", MinBid: "2", MaxExecutionPayment: "7"},
+				{URL: "https://builder-b.example.com"},
 			},
 		}
 	}

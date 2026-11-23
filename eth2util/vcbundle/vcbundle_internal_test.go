@@ -271,7 +271,7 @@ func testBundle(t *testing.T, client Client) Config {
 func writeTestProposerConfig(t *testing.T, path string, cfg proposerconfig.Config) {
 	t.Helper()
 
-	doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: []byte{1, 2, 3}, Revision: 1, Config: cfg}
+	doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: bytes.Repeat([]byte{1}, 32), Revision: 1, Config: cfg}
 
 	b, err := proposerconfig.Marshal(doc)
 	require.NoError(t, err)
@@ -310,7 +310,7 @@ func TestWriteMixedCaseProposerConfigKeys(t *testing.T) {
 	require.Contains(t, string(b), "beef")
 
 	t.Run("colliding keys", func(t *testing.T) {
-		cfg.ProposerConfig[testPubkeyA] = proposerconfig.Settings{GasLimit: "1"}
+		cfg.ProposerConfig[testPubkeyA] = proposerconfig.Settings{FeeRecipient: "0x000000000000000000000000000000000000f00d"}
 		writeTestProposerConfig(t, conf.ProposerConfigFile, cfg)
 
 		_, err := Write(t.Context(), conf)
@@ -406,44 +406,37 @@ func TestWriteLogsBuilders(t *testing.T) {
 	}
 }
 
+// TestWriteInvalidProposerConfig verifies a proposer config file edited by hand into an invalid one is rejected.
 func TestWriteInvalidProposerConfig(t *testing.T) {
+	const (
+		defaultRecipient = `"0x000000000000000000000000000000000000dead"`
+		entryRecipient   = `"0x000000000000000000000000000000000000beef"`
+	)
+
 	tests := []struct {
 		name    string
-		edit    func(*proposerconfig.Document)
+		old     string
+		new     string
 		wantErr string
 	}{
-		{name: "version", edit: func(d *proposerconfig.Document) { d.Version = "v2.0.0" }, wantErr: "unsupported proposer config file version"},
-		{name: "no default fee recipient", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.FeeRecipient = "" }, wantErr: "default config without fee recipient"},
-		{name: "default fee recipient", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.FeeRecipient = "0xdead" }, wantErr: "default config fee recipient"},
-		{name: "no gas limit", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.GasLimit = "" }, wantErr: "parse gas_limit"},
-		{
-			name: "entry fee recipient",
-			edit: func(d *proposerconfig.Document) {
-				d.Config.ProposerConfig[testPubkeyA] = proposerconfig.Settings{FeeRecipient: "beef"}
-			},
-			wantErr: "proposer config entry fee recipient",
-		},
-		{
-			name: "entry gas limit",
-			edit: func(d *proposerconfig.Document) {
-				d.Config.ProposerConfig[testPubkeyB] = proposerconfig.Settings{GasLimit: "1"}
-			},
-			wantErr: "proposer config entry sets more than fee recipient",
-		},
-		{name: "no max execution payment", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.Builder.MaxExecutionPayment = "" }, wantErr: "parse max_execution_payment"},
-		{name: "builder min bid", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.Builder.Builders[1].MinBid = "x" }, wantErr: "parse min_bid"},
-		{name: "builder without url", edit: func(d *proposerconfig.Document) { d.Config.DefaultConfig.Builder.Builders[0].URL = "" }, wantErr: "builder without url"},
+		{name: "version", old: `"version": "v1.0.0"`, new: `"version": "v2.0.0"`, wantErr: "unsupported proposer config file version"},
+		{name: "no default fee recipient", old: defaultRecipient, new: `""`, wantErr: "default config without fee recipient"},
+		{name: "default fee recipient", old: defaultRecipient, new: `"0xdead"`, wantErr: "default config fee recipient"},
+		{name: "no gas limit", old: `"gas_limit": "60000000"`, new: `"gas_limit": ""`, wantErr: "parse gas_limit"},
+		{name: "entry fee recipient", old: entryRecipient, new: `"beef"`, wantErr: "proposer config entry fee recipient"},
+		{name: "entry gas limit", old: `"fee_recipient": ` + entryRecipient, new: `"gas_limit": "1"`, wantErr: "proposer config entry sets more than fee recipient"},
+		{name: "no max execution payment", old: `"max_execution_payment": "5"`, new: `"max_execution_payment": ""`, wantErr: "parse max_execution_payment"},
+		{name: "min bid", old: `"min_bid": "1"`, new: `"min_bid": "x"`, wantErr: "parse min_bid"},
+		{name: "builder without url", old: `"url": "https://builder-a.example.com"`, new: `"url": ""`, wantErr: "builder without url"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			conf := testBundle(t, Nimbus)
 
-			doc := proposerconfig.Document{Version: proposerconfig.Version, LockHash: []byte{1, 2, 3}, Revision: 1, Config: testConfig(true)}
-			test.edit(&doc)
-
-			b, err := proposerconfig.Marshal(doc)
+			b, err := os.ReadFile(conf.ProposerConfigFile)
 			require.NoError(t, err)
-			require.NoError(t, os.WriteFile(conf.ProposerConfigFile, b, 0o644))
+			require.Contains(t, string(b), test.old)
+			require.NoError(t, os.WriteFile(conf.ProposerConfigFile, []byte(strings.Replace(string(b), test.old, test.new, 1)), 0o644))
 
 			_, err = Write(t.Context(), conf)
 			require.ErrorContains(t, err, test.wantErr)

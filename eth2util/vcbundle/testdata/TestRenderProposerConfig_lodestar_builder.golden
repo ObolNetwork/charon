@@ -19,9 +19,7 @@
           "url": "https://builder-a.example.com"
         },
         {
-          "url": "https://builder-b.example.com",
-          "min_bid": "2",
-          "max_execution_payment": "7"
+          "url": "https://builder-b.example.com"
         }
       ]
     }

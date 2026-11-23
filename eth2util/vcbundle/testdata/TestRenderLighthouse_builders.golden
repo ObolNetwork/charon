@@ -10,8 +10,7 @@
     {
       "enabled": true,
       "url": "https://builder-b.example.com",
-      "max_execution_payment": 7,
-      "min_bid": 2
+      "max_execution_payment": 5
     }
   ]
 }
