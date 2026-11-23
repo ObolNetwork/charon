@@ -471,6 +471,23 @@ func TestEditRejectedBeforeNetworking(t *testing.T) {
 			},
 			errContains: "archive exists and differs",
 		},
+		{
+			name:  "directory not writable",
+			delta: proposerconfig.Delta{GasLimit: 60_000_000},
+			prepare: func(t *testing.T) {
+				t.Helper()
+
+				if os.Geteuid() == 0 {
+					t.Skip("root writes to read-only directories")
+				}
+
+				dir := path.Dir(proposerconfig.FilePath(ndir))
+				require.NoError(t, os.Remove(proposerconfig.ArchivePath(proposerconfig.FilePath(ndir), 0)))
+				require.NoError(t, os.Chmod(dir, 0o555))
+				t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+			},
+			errContains: "proposer config directory not writable",
+		},
 	}
 
 	for _, test := range tests {

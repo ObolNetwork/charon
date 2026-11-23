@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -123,6 +125,11 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 	}
 
 	logEditDiff(ctx, lock, base, proposedDoc)
+
+	err = checkWritable(conf.ProposerConfigFile)
+	if err != nil {
+		return ProposerConfigEditResult{}, err
+	}
 
 	err = probeRelays(ctx, conf.DKGConfig.P2P.Relays, lock, self)
 	if err != nil {
@@ -280,6 +287,27 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		Operators: len(lock.Operators),
 		Adopted:   adopted,
 	}, nil
+}
+
+// checkWritable returns an error if the directory of the proposer config file cannot be written to.
+func checkWritable(path string) error {
+	dir := filepath.Dir(path)
+
+	err := os.MkdirAll(dir, 0o755)
+	if err != nil {
+		return errors.Wrap(err, "create proposer config directory", z.Str("path", dir))
+	}
+
+	tmp, err := os.CreateTemp(dir, ".writable-*")
+	if err != nil {
+		return errors.Wrap(err, "proposer config directory not writable", z.Str("path", dir))
+	}
+
+	defer os.Remove(tmp.Name())
+
+	_ = tmp.Close()
+
+	return nil
 }
 
 // relayOnlyConfig returns conf without listen or advertised addresses: the ceremony runs beside this node's
