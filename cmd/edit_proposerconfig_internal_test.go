@@ -164,7 +164,7 @@ func TestEditProposerConfigFlags(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, called)
 			require.Equal(t, test.delta, got.Delta)
-			require.Equal(t, 24*time.Hour, got.DKGConfig.Timeout)
+			require.Equal(t, time.Minute, got.DKGConfig.Timeout)
 			require.Equal(t, 5*time.Second, got.DKGConfig.ShutdownDelay)
 			require.Equal(t, []string{"https://4.relay.obol.dev"}, got.DKGConfig.P2P.Relays)
 			require.Equal(t, ".charon/vc-config/proposer-config.json", got.ProposerConfigFile)

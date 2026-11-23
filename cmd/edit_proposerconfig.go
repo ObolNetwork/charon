@@ -78,7 +78,7 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 	f.StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
 	f.StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the proposer config file.")
 	f.StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
-	f.DurationVar(&config.DKGConfig.Timeout, "timeout", 24*time.Hour, "The time to wait for the other operators to join the ceremony.")
+	f.DurationVar(&config.DKGConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
 	bindShutdownDelayFlag(f, &config.DKGConfig.ShutdownDelay)
 
 	bindNoVerifyFlag(f, &config.DKGConfig.NoVerify)

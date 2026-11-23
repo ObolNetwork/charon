@@ -45,8 +45,8 @@ const (
 	editRoundProposal uint32 = 2
 )
 
-// ProposerConfigEditConfig configures a proposer config edit ceremony. DKGConfig.Timeout bounds the wait
-// for operators to join and DKGConfig.P2P.Relays are the relays, which must not serve this node's charon run.
+// ProposerConfigEditConfig configures a proposer config edit ceremony. DKGConfig.Timeout bounds the
+// protocol once every operator joined and DKGConfig.P2P.Relays are the relays, which must not serve this node's charon run.
 type ProposerConfigEditConfig struct {
 	DKGConfig          Config
 	LockFilePath       string
@@ -129,13 +129,6 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 		return ProposerConfigEditResult{}, err
 	}
 
-	if conf.DKGConfig.Timeout > 0 {
-		var cancelTimeout context.CancelFunc
-
-		ctx, cancelTimeout = context.WithTimeout(ctx, conf.DKGConfig.Timeout)
-		defer cancelTimeout()
-	}
-
 	p2pNode, shutdown, err := setupP2P(ctx, key, relayOnlyConfig(conf.DKGConfig), peers, lock.LockHash, lock.UUID)
 	if err != nil {
 		return ProposerConfigEditResult{}, err
@@ -155,6 +148,14 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 	}
 
 	log.Info(ctx, "All participating operators connected", z.Int("operators", len(peerIDs)))
+
+	// The timeout bounds the protocol once every operator joined, the wait for them is unbounded.
+	if conf.DKGConfig.Timeout > 0 {
+		var cancelTimeout context.CancelFunc
+
+		ctx, cancelTimeout = context.WithTimeout(ctx, conf.DKGConfig.Timeout)
+		defer cancelTimeout()
+	}
 
 	// fatalOr returns the recorded fatal sync failure if any, else err.
 	fatalOr := func(err error) error {

@@ -217,22 +217,27 @@ func TestEditExcludedOperator(t *testing.T) {
 	clusterDir, lock, _ := setupEditCluster(t)
 	relayAddr := relay.StartRelay(t.Context(), t)
 
+	// The excluded operator runs with the default of all operators, who do not expect it, and waits until stopped.
+	ctx, cancel := context.WithCancel(t.Context())
+	excludedErr := make(chan error, 1)
+
+	go func() {
+		_, err := dkg.RunProposerConfigEdit(ctx, editTestConfig(t, relayAddr, clusterDir, excluded, proposerconfig.Delta{GasLimit: 60_000_000}))
+		excludedErr <- err
+	}()
+
 	var confs []dkg.ProposerConfigEditConfig
 
-	for i := range n {
+	for i := range n - 1 {
 		conf := editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 60_000_000})
-		if i == excluded {
-			conf.DKGConfig.Timeout = 15 * time.Second // Runs with the default of all operators, who do not expect it.
-		} else {
-			conf.ParticipatingENRs = participatingENRs(lock, 0, 1, 2)
-		}
-
+		conf.ParticipatingENRs = participatingENRs(lock, 0, 1, 2)
 		confs = append(confs, conf)
 	}
 
 	results, errs := runEdits(confs)
 
-	require.ErrorIs(t, errs[excluded], context.DeadlineExceeded)
+	cancel()
+	require.ErrorIs(t, <-excludedErr, context.Canceled)
 
 	for i := range n - 1 {
 		require.NoError(t, errs[i], "node %d", i)
