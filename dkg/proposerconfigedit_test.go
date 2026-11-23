@@ -36,6 +36,8 @@ const (
 )
 
 func TestEditAllAgree(t *testing.T) {
+	t.Parallel()
+
 	const n = editNodes
 
 	clusterDir, _, _ := setupEditCluster(t)
@@ -68,6 +70,8 @@ func TestEditAllAgree(t *testing.T) {
 }
 
 func TestEditProposalMismatch(t *testing.T) {
+	t.Parallel()
+
 	const (
 		n       = editNodes
 		deviant = 2
@@ -107,6 +111,8 @@ func TestEditProposalMismatch(t *testing.T) {
 // TestEditKeepsAdoptedRevision verifies a node behind keeps the signed revision it adopted in round 1 when
 // round 2 fails.
 func TestEditKeepsAdoptedRevision(t *testing.T) {
+	t.Parallel()
+
 	const (
 		n      = editNodes
 		behind = 3
@@ -143,6 +149,8 @@ func TestEditKeepsAdoptedRevision(t *testing.T) {
 }
 
 func TestEditThreshold(t *testing.T) {
+	t.Parallel()
+
 	const (
 		n      = editNodes
 		absent = 3
@@ -209,6 +217,8 @@ func TestEditThreshold(t *testing.T) {
 // TestEditExcludedOperator verifies an operator left out of the participating list cannot join the ceremony,
 // which completes without it.
 func TestEditExcludedOperator(t *testing.T) {
+	t.Parallel()
+
 	const (
 		n        = editNodes
 		excluded = 3
@@ -252,6 +262,8 @@ func TestEditExcludedOperator(t *testing.T) {
 
 // TestEditPeerDropsMidRound verifies no operator writes when a participant goes away during round 1.
 func TestEditPeerDropsMidRound(t *testing.T) {
+	t.Parallel()
+
 	const (
 		n       = editNodes
 		dropper = 3
@@ -308,6 +320,8 @@ func TestEditPeerDropsMidRound(t *testing.T) {
 }
 
 func TestEditInvalidPeerCurrent(t *testing.T) {
+	t.Parallel()
+
 	const (
 		n       = editNodes
 		hostile = 3
@@ -382,6 +396,8 @@ func TestEditInvalidPeerCurrent(t *testing.T) {
 }
 
 func TestEditSameRevisionDifferentHash(t *testing.T) {
+	t.Parallel()
+
 	const n = editNodes
 
 	clusterDir, lock, cfg := setupEditCluster(t)
@@ -427,6 +443,8 @@ func TestEditSameRevisionDifferentHash(t *testing.T) {
 }
 
 func TestEditRelayOccupied(t *testing.T) {
+	t.Parallel()
+
 	clusterDir, _, _ := setupEditCluster(t)
 	relayAddr := relay.StartRelay(t.Context(), t)
 
@@ -457,6 +475,8 @@ func TestEditRelayOccupied(t *testing.T) {
 }
 
 func TestEditWrongLock(t *testing.T) {
+	t.Parallel()
+
 	clusterDir, _, _ := setupEditCluster(t)
 	otherDir := createTestCluster(t, 4, 3, 2)
 
