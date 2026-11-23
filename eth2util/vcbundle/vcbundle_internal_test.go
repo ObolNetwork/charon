@@ -101,7 +101,7 @@ func TestWriteContent(t *testing.T) {
 		requireFile(t, conf.OutputDir, "validators/"+testPubkeyB+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000dead\n")
 		requireFile(t, conf.OutputDir, "validators/"+testPubkeyB+"/suggested_gas_limit.json", "60000000\n")
 		requireFile(t, conf.OutputDir, "vc-flags.txt", "--distributed\n--doppelganger-detection=false\n--payload-builder=true\n"+
-			"--payload-builder-url=https://builder-a.example.com\n--builder-min-bid=1\n--builder-boost-factor=90\n--builder-max-execution-payment=5\n")
+			"--payload-builder-url=https://builder-a.example.com\n--payload-builder-url=https://builder-b.example.com\n--builder-min-bid=1\n--builder-boost-factor=90\n--builder-max-execution-payment=5\n")
 	})
 
 	t.Run("lodestar", func(t *testing.T) {
@@ -345,7 +345,7 @@ func TestWriteLogsBuilders(t *testing.T) {
 		want    []string
 	}{
 		{name: "teku", client: Teku, want: []string{"Builders taken from the proposer config file", "teku-proposer-config.json", "builder-a.example.com", "builder-b.example.com"}},
-		{name: "nimbus", client: Nimbus, want: []string{"First builder passed as flags", "vc-flags.txt", "Nimbus takes a single builder", "builder-b.example.com"}},
+		{name: "nimbus", client: Nimbus, want: []string{"Builders passed as flags", "vc-flags.txt", "builder-a.example.com", "builder-b.example.com"}},
 		{name: "prysm", client: Prysm, want: []string{"Builders taken from the proposer settings file", "prysm-proposer-settings.json"}},
 		{name: "lodestar", client: Lodestar, want: []string{"Builders taken from the proposer settings file", "lodestar-proposer-settings.yml"}},
 		{name: "lighthouse", client: Lighthouse, want: []string{"Builders taken from the builder definitions", "validators/builder_definitions.yml"}},

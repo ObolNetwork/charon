@@ -49,14 +49,17 @@ func builderFlags(client Client, builder *proposerconfig.Builder) []string {
 
 	switch client {
 	case Nimbus:
-		// Nimbus takes a single builder: the first.
-		return []string{
-			"--payload-builder=true",
-			"--payload-builder-url=" + builder.Builders[0].URL,
-			"--builder-min-bid=" + builder.MinBid,
-			"--builder-boost-factor=" + builder.BuilderBoostFactor,
-			"--builder-max-execution-payment=" + builder.MaxExecutionPayment,
+		// Nimbus takes the flag once per builder.
+		flags := []string{"--payload-builder=true"}
+		for _, b := range builder.Builders {
+			flags = append(flags, "--payload-builder-url="+b.URL)
 		}
+
+		return append(flags,
+			"--builder-min-bid="+builder.MinBid,
+			"--builder-boost-factor="+builder.BuilderBoostFactor,
+			"--builder-max-execution-payment="+builder.MaxExecutionPayment,
+		)
 	case Lodestar:
 		// Lodestar refuses any max execution payment above 0 (trusted payments) without an explicit opt-in.
 		if builder.MaxExecutionPayment != "0" {
@@ -89,11 +92,7 @@ func logBuilders(ctx context.Context, client Client, builder *proposerconfig.Bui
 			return
 		}
 
-		log.Info(ctx, "First builder passed as flags", z.Str("file", FlagsFile), z.Str("builder", redacted[0]))
-
-		if len(redacted) > 1 {
-			log.Warn(ctx, "Nimbus takes a single builder, the others are not used", nil, z.Any("unused_builders", redacted[1:]))
-		}
+		log.Info(ctx, "Builders passed as flags", z.Str("file", FlagsFile), z.Any("builders", redacted))
 
 		return
 	}

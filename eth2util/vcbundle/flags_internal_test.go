@@ -31,7 +31,7 @@ func TestVCFlags(t *testing.T) {
 			client: Nimbus,
 			want:   []string{"--distributed", "--doppelganger-detection=false"},
 			wantBuilder: []string{
-				"--payload-builder=true", "--payload-builder-url=https://builder-a.example.com",
+				"--payload-builder=true", "--payload-builder-url=https://builder-a.example.com", "--payload-builder-url=https://builder-b.example.com",
 				"--builder-min-bid=1", "--builder-boost-factor=90", "--builder-max-execution-payment=5",
 			},
 		},
