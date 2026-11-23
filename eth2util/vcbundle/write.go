@@ -89,7 +89,7 @@ func render(ctx context.Context, conf Config) ([]bundleFile, error) {
 	log.Info(ctx, "Validator client bundle made for client version", z.Str("client", string(conf.Client)), z.Str("version", clientVersions[conf.Client]))
 
 	include := func(p Part) bool { return slices.Contains(conf.Parts, p) }
-	perValidator := conf.Client == Nimbus || conf.Client == Lighthouse
+	perValidator := conf.Client == Prysm || conf.Client == Nimbus || conf.Client == Lighthouse
 
 	if conf.Client == Lighthouse && include(PartProposerSettings) && !path.IsAbs(conf.LighthouseDir) {
 		return nil, errors.New("lighthouse's validator definitions need its absolute data directory, as lighthouse sees it",

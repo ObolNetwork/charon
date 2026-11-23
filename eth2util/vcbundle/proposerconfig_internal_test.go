@@ -37,8 +37,10 @@ func testConfig(withBuilder bool) proposerconfig.Config {
 
 func TestRenderProposerConfig(t *testing.T) {
 	renders := map[string]func(proposerconfig.Config) ([]byte, error){
-		"teku":     renderTeku,
-		"prysm":    renderPrysm,
+		"teku": renderTeku,
+		"prysm": func(cfg proposerconfig.Config) ([]byte, error) {
+			return renderPrysm(cfg, []keystoreFile{{Pubkey: testPubkeyA}, {Pubkey: testPubkeyB}})
+		},
 		"lodestar": renderLodestar,
 	}
 

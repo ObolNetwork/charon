@@ -40,7 +40,7 @@ func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []k
 	case Teku:
 		return tekuFiles(cfg)
 	case Prysm:
-		return prysmFiles(cfg)
+		return prysmFiles(cfg, keystores)
 	case Lodestar:
 		return lodestarFiles(cfg)
 	case Nimbus:
@@ -63,8 +63,8 @@ func tekuFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
 }
 
 // prysmFiles returns Prysm's proposer settings file.
-func prysmFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
-	b, err := renderPrysm(cfg)
+func prysmFiles(cfg proposerconfig.Config, keystores []keystoreFile) ([]bundleFile, error) {
+	b, err := renderPrysm(cfg, keystores)
 	if err != nil {
 		return nil, err
 	}
@@ -179,15 +179,16 @@ type prysmConfig struct {
 // renderPrysm returns Prysm's version 2 proposer settings file: the gas limit is set at the top level and the default
 // builder block carries the builder settings. The legacy builder fields (enabled, gas limit) are left out, Prysm drops
 // them from the gloas fork.
-func renderPrysm(cfg proposerconfig.Config) ([]byte, error) {
+func renderPrysm(cfg proposerconfig.Config, keystores []keystoreFile) ([]byte, error) {
 	out := prysmConfig{
 		Version:        2,
 		ProposerConfig: make(map[string]prysmSettings),
 		DefaultConfig:  prysmSettings{FeeRecipient: cfg.DefaultConfig.FeeRecipient, GasLimit: cfg.DefaultConfig.GasLimit},
 	}
 
-	for pubkey := range cfg.ProposerConfig {
-		out.ProposerConfig[pubkey] = prysmSettings{FeeRecipient: cfg.FeeRecipient(pubkey), GasLimit: cfg.DefaultConfig.GasLimit}
+	// Every validator gets an entry: Prysm keeps the entry in its database of a validator the file leaves out.
+	for _, k := range keystores {
+		out.ProposerConfig[k.Pubkey] = prysmSettings{FeeRecipient: cfg.FeeRecipient(k.Pubkey), GasLimit: cfg.DefaultConfig.GasLimit}
 	}
 
 	b := cfg.DefaultConfig.Builder
