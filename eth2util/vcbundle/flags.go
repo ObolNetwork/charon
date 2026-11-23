@@ -4,7 +4,6 @@ package vcbundle
 
 import (
 	"context"
-	"slices"
 	"strings"
 
 	"github.com/obolnetwork/charon/app/log"
@@ -50,22 +49,17 @@ func builderFlags(client Client, builder *proposerconfig.Builder) []string {
 
 	switch client {
 	case Nimbus:
-		// Nimbus takes a single builder: the first, with its own values over the block's.
-		first := builder.Builders[0]
-
+		// Nimbus takes a single builder: the first.
 		return []string{
 			"--payload-builder=true",
-			"--payload-builder-url=" + first.URL,
-			"--builder-min-bid=" + orDefault(first.MinBid, builder.MinBid),
-			"--builder-boost-factor=" + orDefault(first.BuilderBoostFactor, builder.BuilderBoostFactor),
-			"--builder-max-execution-payment=" + orDefault(first.MaxExecutionPayment, builder.MaxExecutionPayment),
+			"--payload-builder-url=" + builder.Builders[0].URL,
+			"--builder-min-bid=" + builder.MinBid,
+			"--builder-boost-factor=" + builder.BuilderBoostFactor,
+			"--builder-max-execution-payment=" + builder.MaxExecutionPayment,
 		}
 	case Lodestar:
 		// Lodestar refuses any max execution payment above 0 (trusted payments) without an explicit opt-in.
-		trusted := builder.MaxExecutionPayment != "0" || slices.ContainsFunc(builder.Builders, func(b proposerconfig.BuilderEntry) bool {
-			return b.MaxExecutionPayment != "" && b.MaxExecutionPayment != "0"
-		})
-		if trusted {
+		if builder.MaxExecutionPayment != "0" {
 			return []string{"--allowDangerousTrustedPayments"}
 		}
 
@@ -129,13 +123,4 @@ func renderFlags(flags []string) []byte {
 	}
 
 	return []byte(b.String())
-}
-
-// orDefault returns value, or def if value is empty.
-func orDefault(value, def string) string {
-	if value == "" {
-		return def
-	}
-
-	return value
 }

@@ -239,11 +239,9 @@ func validateProposerConfig(cfg proposerconfig.Config) error {
 			return errors.New("builder without url", z.Int("index", i))
 		}
 
-		for name, value := range map[string]string{"min_bid": e.MinBid, "builder_boost_factor": e.BuilderBoostFactor, "max_execution_payment": e.MaxExecutionPayment} {
-			_, err := parseOptionalNumber(name, value)
-			if err != nil {
-				return err
-			}
+		// A signed proposer config holds no per-builder values.
+		if e.MinBid != "" || e.BuilderBoostFactor != "" || e.MaxExecutionPayment != "" {
+			return errors.New("builder entry sets more than url", z.Int("index", i))
 		}
 	}
 

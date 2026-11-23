@@ -149,7 +149,7 @@ func renderTeku(cfg proposerconfig.Config) ([]byte, error) {
 		out.DefaultConfig.Builder.BuilderBoostFactor = b.BuilderBoostFactor
 
 		for _, entry := range b.Builders {
-			entry.MaxExecutionPayment = orDefault(entry.MaxExecutionPayment, b.MaxExecutionPayment)
+			entry.MaxExecutionPayment = b.MaxExecutionPayment
 			out.DefaultConfig.Builder.Builders = append(out.DefaultConfig.Builder.Builders, entry)
 		}
 	}
@@ -274,11 +274,9 @@ func renderLighthouseDefinitions(cfg proposerconfig.Config, keystores []keystore
 }
 
 type lighthouseBuilderEntry struct {
-	Enabled             bool    `json:"enabled"`
-	URL                 string  `json:"url"`
-	MaxExecutionPayment uint64  `json:"max_execution_payment"`
-	MinBid              *uint64 `json:"min_bid,omitempty"`
-	BuilderBoostFactor  *uint64 `json:"builder_boost_factor,omitempty"`
+	Enabled             bool   `json:"enabled"`
+	URL                 string `json:"url"`
+	MaxExecutionPayment uint64 `json:"max_execution_payment"`
 }
 
 type lighthouseBuilders struct {
@@ -288,8 +286,7 @@ type lighthouseBuilders struct {
 }
 
 // renderLighthouseBuilders returns Lighthouse's builder_definitions.yml, as JSON which Lighthouse reads as YAML.
-// An entry's max execution payment falls back to the block's; its min bid and boost factor are only set when the
-// entry sets them. Without a builder block it lists no builders, so it replaces the file of an earlier bundle.
+// Every entry takes the block's max execution payment. Without a builder block it lists no builders, so it replaces the file of an earlier bundle.
 func renderLighthouseBuilders(builder *proposerconfig.Builder) ([]byte, error) {
 	if builder == nil {
 		return marshalJSON(lighthouseBuilders{BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor, Builders: []lighthouseBuilderEntry{}})
@@ -305,32 +302,15 @@ func renderLighthouseBuilders(builder *proposerconfig.Builder) ([]byte, error) {
 		return nil, err
 	}
 
+	maxPayment, err := parseNumber("max_execution_payment", builder.MaxExecutionPayment)
+	if err != nil {
+		return nil, err
+	}
+
 	out := lighthouseBuilders{MinBid: minBid, BuilderBoostFactor: boostFactor}
 
 	for _, b := range builder.Builders {
-		maxPayment := b.MaxExecutionPayment
-		if maxPayment == "" {
-			maxPayment = builder.MaxExecutionPayment
-		}
-
-		entry := lighthouseBuilderEntry{Enabled: true, URL: b.URL}
-
-		entry.MaxExecutionPayment, err = parseNumber("max_execution_payment", maxPayment)
-		if err != nil {
-			return nil, err
-		}
-
-		entry.MinBid, err = parseOptionalNumber("min_bid", b.MinBid)
-		if err != nil {
-			return nil, err
-		}
-
-		entry.BuilderBoostFactor, err = parseOptionalNumber("builder_boost_factor", b.BuilderBoostFactor)
-		if err != nil {
-			return nil, err
-		}
-
-		out.Builders = append(out.Builders, entry)
+		out.Builders = append(out.Builders, lighthouseBuilderEntry{Enabled: true, URL: b.URL, MaxExecutionPayment: maxPayment})
 	}
 
 	return marshalJSON(out)
@@ -344,20 +324,6 @@ func parseNumber(name, value string) (uint64, error) {
 	}
 
 	return n, nil
-}
-
-// parseOptionalNumber parses a decimal proposer config value, nil when empty.
-func parseOptionalNumber(name, value string) (*uint64, error) {
-	if value == "" {
-		return nil, nil //nolint:nilnil // absent value
-	}
-
-	n, err := parseNumber(name, value)
-	if err != nil {
-		return nil, err
-	}
-
-	return &n, nil
 }
 
 // marshalJSON returns v as indented JSON with a trailing newline.

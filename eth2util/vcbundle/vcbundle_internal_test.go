@@ -427,6 +427,7 @@ func TestWriteInvalidProposerConfig(t *testing.T) {
 		{name: "entry gas limit", old: `"fee_recipient": ` + entryRecipient, new: `"gas_limit": "1"`, wantErr: "proposer config entry sets more than fee recipient"},
 		{name: "no max execution payment", old: `"max_execution_payment": "5"`, new: `"max_execution_payment": ""`, wantErr: "parse max_execution_payment"},
 		{name: "min bid", old: `"min_bid": "1"`, new: `"min_bid": "x"`, wantErr: "parse min_bid"},
+		{name: "builder entry min bid", old: `"url": "https://builder-b.example.com"`, new: `"url": "https://builder-b.example.com", "min_bid": "2"`, wantErr: "builder entry sets more than url"},
 		{name: "builder without url", old: `"url": "https://builder-a.example.com"`, new: `"url": ""`, wantErr: "builder without url"},
 	}
 	for _, test := range tests {
