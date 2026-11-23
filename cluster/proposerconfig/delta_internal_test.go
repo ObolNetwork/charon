@@ -36,8 +36,7 @@ func TestApplyFeeRecipientAll(t *testing.T) {
 
 	require.Equal(t, []string{
 		"default.fee_recipient: " + addrA + " -> " + addrC,
-		"validator " + pubkeyHex(lock.Validators[0].PubKey) + ".fee_recipient: " + addrA + " -> " + addrC,
-		"validator " + pubkeyHex(lock.Validators[1].PubKey) + ".fee_recipient: " + addrA + " -> " + addrC,
+		"2 validators.fee_recipient: " + addrA + " -> " + addrC,
 		"validator " + pubkeyHex(lock.Validators[2].PubKey) + ".fee_recipient: " + addrB + " -> " + addrC,
 	}, Diff(lock, c, res))
 

@@ -5,6 +5,7 @@ package proposerconfig
 import (
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/obolnetwork/charon/cluster"
@@ -12,7 +13,7 @@ import (
 
 // Diff returns the fields that differ between a and b as "field: old -> new" lines, empty values as "none": the
 // default fee recipient, gas limit and builder fields first, then each lock validator whose effective fee
-// recipient differs, in lock order.
+// recipient differs, in lock order, validators making the same change sharing a line.
 func Diff(lock cluster.Lock, a, b Config) []string {
 	orNone := func(s string) string {
 		if s == "" {
@@ -49,8 +50,25 @@ func Diff(lock cluster.Lock, a, b Config) []string {
 	add("default.builder.max_execution_payment", oldB.maxExecutionPayment, newB.maxExecutionPayment)
 
 	oldFees, newFees := a.FeeRecipients(lock), b.FeeRecipients(lock)
+
+	// Validators making the same change share a line.
+	counts := make(map[string]int)
+	for i := range lock.Validators {
+		counts[oldFees[i]+">"+newFees[i]]++
+	}
+
 	for i, val := range lock.Validators {
-		add("validator "+pubkeyHex(val.PubKey)+".fee_recipient", oldFees[i], newFees[i])
+		field := "validator " + pubkeyHex(val.PubKey) + ".fee_recipient"
+
+		n := counts[oldFees[i]+">"+newFees[i]]
+		if n == 0 {
+			continue
+		} else if n > 1 {
+			field = strconv.Itoa(n) + " validators.fee_recipient"
+		}
+
+		add(field, oldFees[i], newFees[i])
+		delete(counts, oldFees[i]+">"+newFees[i])
 	}
 
 	return lines
