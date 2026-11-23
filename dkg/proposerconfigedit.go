@@ -203,7 +203,13 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 	if adopted {
 		log.Info(ctx, fmt.Sprintf("Adopted signed revision %d from operator %d, local file was at revision %d", adoptedDoc.Revision, from, base.Revision))
 
-		base = adoptedDoc
+		// Written now, so that the adopted revision is kept even if the rest of the edit fails.
+		written, err := writeEditResult(lock, nodeIdx, conf.ProposerConfigFile, adoptedDoc, adoptedDoc.Signatures, disk)
+		if err != nil {
+			return ProposerConfigEditResult{}, err
+		}
+
+		base, disk = written, &written
 
 		proposedDoc, err = editProposal(lock, base, conf.Delta)
 		if err != nil {
@@ -465,8 +471,9 @@ func participantNames(peerIDs []peer.ID) []string {
 
 // resolveEditBase applies the round 1 rules to the peers' current documents, keyed by operator index. Every
 // peer must run with the same participants. Peer documents failing verification are ignored. Two valid
-// signed documents at the same revision with different hashes are a fatal inconsistency. The highest valid
-// revision above this node's own is adopted as the base, from the lowest operator holding it.
+// signed documents at the same revision with different hashes abort the edit, listing every operator's hash
+// for the operators to align their files. The highest valid revision above this node's own is adopted as the
+// base, from the lowest operator holding it.
 func resolveEditBase(ctx context.Context, lock cluster.Lock, myOperator int, localDoc proposerconfig.Document, participants []string,
 	msgs map[int]*dkgpb.MsgProposerConfigEdit,
 ) (base proposerconfig.Document, adoptedFrom int, adopted bool, err error) {
@@ -517,9 +524,16 @@ func resolveEditBase(ctx context.Context, lock cluster.Lock, myOperator int, loc
 				continue
 			}
 
-			return proposerconfig.Document{}, 0, false, errors.New("operator " + strconv.Itoa(a.operator) + " and operator " + strconv.Itoa(b.operator) +
-				" have a different signed revision " + strconv.FormatUint(a.doc.Revision, 10) + ":\n" +
-				strings.Join(docDiffLines(lock, a.doc, b.doc), "\n"))
+			lines := []string{"operators hold different signed revisions " + strconv.FormatUint(a.doc.Revision, 10) +
+				", agree on one, replace the other operators' proposer config files with it and run the edit again:"}
+			for _, d := range docs {
+				lines = append(lines, "operator "+strconv.Itoa(d.operator)+": revision "+strconv.FormatUint(d.doc.Revision, 10)+", hash 0x"+hex.EncodeToString(d.hash[:]))
+			}
+
+			lines = append(lines, "from operator "+strconv.Itoa(a.operator)+" to operator "+strconv.Itoa(b.operator)+":")
+			lines = append(lines, docDiffLines(lock, a.doc, b.doc)...)
+
+			return proposerconfig.Document{}, 0, false, errors.New(strings.Join(lines, "\n"))
 		}
 	}
 

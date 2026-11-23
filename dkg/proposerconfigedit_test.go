@@ -4,6 +4,7 @@ package dkg_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path"
 	"slices"
@@ -103,6 +104,44 @@ func TestEditProposalMismatch(t *testing.T) {
 	requireFilesUnchanged(t, clusterDir, before)
 }
 
+// TestEditKeepsAdoptedRevision verifies a node behind keeps the signed revision it adopted in round 1 when
+// round 2 fails.
+func TestEditKeepsAdoptedRevision(t *testing.T) {
+	const (
+		n      = editNodes
+		behind = 3
+	)
+
+	clusterDir, lock, cfg := setupEditCluster(t)
+	relayAddr := relay.StartRelay(t.Context(), t)
+
+	rev1, err := proposerconfig.Apply(lock, cfg, proposerconfig.Delta{GasLimit: 60_000_000})
+	require.NoError(t, err)
+
+	writeProposerConfigs(t, lock, clusterDir, []int{0, 1, 2}, 1, rev1)
+
+	var confs []dkg.ProposerConfigEditConfig
+
+	for i := range n {
+		gasLimit := uint64(70_000_000)
+		if i == 1 || i == 2 {
+			gasLimit = 80_000_000
+		}
+
+		confs = append(confs, editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: gasLimit}))
+	}
+
+	_, errs := runEdits(confs)
+
+	for i := range n {
+		require.ErrorContains(t, errs[i], "proposed a different document", "node %d", i)
+	}
+
+	doc := loadVerifiedDoc(t, clusterDir, behind)
+	require.Equal(t, uint64(1), doc.Revision)
+	requireGasLimit(t, doc, 60_000_000)
+}
+
 func TestEditThreshold(t *testing.T) {
 	const (
 		n      = editNodes
@@ -156,11 +195,15 @@ func TestEditThreshold(t *testing.T) {
 		requireGasLimit(t, doc, 80_000_000)
 	}
 
-	// The absent operator archives the revision 0 file it had on disk.
+	// The absent operator archives the revision 0 file it had on disk, and the adopted revision 1 it wrote in round 1.
 	archive, err := os.ReadFile(proposerconfig.ArchivePath(proposerconfig.FilePath(nodeDir(clusterDir, absent)), 0))
 	require.NoError(t, err)
 	require.Equal(t, before[absent], archive)
-	require.NoFileExists(t, proposerconfig.ArchivePath(proposerconfig.FilePath(nodeDir(clusterDir, absent)), 1))
+
+	_, nodeIdx := loadLockAndNodeIdx(t, nodeDir(clusterDir, absent))
+	adopted, err := proposerconfig.Load(proposerconfig.ArchivePath(proposerconfig.FilePath(nodeDir(clusterDir, absent)), 1), lock, nodeIdx)
+	require.NoError(t, err)
+	require.Equal(t, []int{0, 1, 2}, adopted.SignerIndexes())
 }
 
 // TestEditExcludedOperator verifies an operator left out of the participating list cannot join the ceremony,
@@ -291,6 +334,12 @@ func TestEditSameRevisionDifferentHash(t *testing.T) {
 	writeProposerConfigs(t, lock, clusterDir, []int{2, 3}, 1, cfgB)
 
 	before := readProposerConfigFiles(t, clusterDir, n)
+
+	var docs []proposerconfig.Document
+	for i := range n {
+		docs = append(docs, loadVerifiedDoc(t, clusterDir, i))
+	}
+
 	relayAddr := relay.StartRelay(t.Context(), t)
 
 	var confs []dkg.ProposerConfigEditConfig
@@ -301,8 +350,15 @@ func TestEditSameRevisionDifferentHash(t *testing.T) {
 	_, errs := runEdits(confs)
 
 	for i := range n {
-		require.ErrorContains(t, errs[i], "different signed revision 1", "node %d", i)
+		require.ErrorContains(t, errs[i], "operators hold different signed revisions 1", "node %d", i)
 		require.ErrorContains(t, errs[i], "default.gas_limit: 60000000 -> 70000000", "node %d", i)
+
+		// Every operator's hash is listed, for the operators to see who differs.
+		for j := range n {
+			hash, err := docs[j].Hash()
+			require.NoError(t, err)
+			require.ErrorContains(t, errs[i], fmt.Sprintf("operator %d: revision 1, hash %#x", j, hash), "node %d", i)
+		}
 	}
 
 	requireFilesUnchanged(t, clusterDir, before)

@@ -84,7 +84,7 @@ func TestResolveEditBase(t *testing.T) {
 		_, _, _, err := resolveEditBase(t.Context(), lock, 3, rev1Other, participants, editTestMsgs(t, participants, map[int]proposerconfig.Document{
 			0: rev1, 1: rev1, 2: rev1Other,
 		}))
-		require.ErrorContains(t, err, "operator 0 and operator 2 have a different signed revision 1")
+		require.ErrorContains(t, err, "operators hold different signed revisions 1")
 		require.ErrorContains(t, err, "default.gas_limit: 60000000 -> 70000000")
 	})
 
