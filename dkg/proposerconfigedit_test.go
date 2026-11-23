@@ -250,6 +250,63 @@ func TestEditExcludedOperator(t *testing.T) {
 	require.Equal(t, uint64(0), doc.Revision)
 }
 
+// TestEditPeerDropsMidRound verifies no operator writes when a participant goes away during round 1.
+func TestEditPeerDropsMidRound(t *testing.T) {
+	const (
+		n       = editNodes
+		dropper = 3
+	)
+
+	clusterDir, _, _ := setupEditCluster(t)
+	before := readProposerConfigFiles(t, clusterDir, n)
+	relayAddr := relay.StartRelay(t.Context(), t)
+
+	// The dropper stops on the first round 1 request, which peers only send once every operator is in the round.
+	ctx, cancel := context.WithCancel(t.Context())
+	dropperConf := editTestConfig(t, relayAddr, clusterDir, dropper, proposerconfig.Delta{GasLimit: 60_000_000})
+	dropperConf.DKGConfig.TestConfig.P2PNodeCallback = func(h host.Host) {
+		go func() {
+			for !slices.Contains(h.Mux().Protocols(), editProtocolID) {
+				time.Sleep(time.Millisecond)
+			}
+
+			p2p.RegisterHandler("dropper", h, editProtocolID,
+				func() proto.Message { return new(dkgpb.MsgProposerConfigEdit) },
+				func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
+					cancel()
+
+					return nil, false, nil
+				})
+		}()
+	}
+
+	dropperErr := make(chan error, 1)
+
+	go func() {
+		_, err := dkg.RunProposerConfigEdit(ctx, dropperConf)
+		dropperErr <- err
+	}()
+
+	var confs []dkg.ProposerConfigEditConfig
+
+	for i := range n - 1 {
+		conf := editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 60_000_000})
+		conf.DKGConfig.Timeout = 5 * time.Second
+		confs = append(confs, conf)
+	}
+
+	_, errs := runEdits(confs)
+
+	require.ErrorIs(t, <-dropperErr, context.Canceled)
+
+	for i := range n - 1 {
+		// Either the dropper's message is not fetched or the round times out waiting for it.
+		require.Error(t, errs[i], "node %d", i)
+	}
+
+	requireFilesUnchanged(t, clusterDir, before)
+}
+
 func TestEditInvalidPeerCurrent(t *testing.T) {
 	const (
 		n       = editNodes
