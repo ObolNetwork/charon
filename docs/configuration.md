@@ -243,8 +243,8 @@ docker compose exec charon charon alpha proposer edit --p2p-relays=https://4.rel
 ```
 
 On success the ceremony writes revision N+1 and archives the previous file as `proposer-config-revision-<N>.json` next to it.
-To apply the new file, rerun `charon alpha vc-bundle`, move the files and restart the validator client: a restart alone keeps the
-old settings. On charon-distributed-validator-node the `vc-bundle` service does the rendering, and
+To apply the new file, rerun `charon alpha validator config`, move the files and restart the validator client: a restart alone
+keeps the old settings. On charon-distributed-validator-node a compose service does the rendering, and
 `docker compose restart <vc service>` does not run it: recreate the validator client's container instead. Before the gloas fork
 charon's own builder registrations are unaffected, and a fee recipient change also needs `charon feerecipient sign` and `fetch`.
 
