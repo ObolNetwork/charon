@@ -248,7 +248,7 @@ Two commands write what a validator client consumes from this node's cluster art
 
 | Client | `validator keys` | `validator config`: proposer settings | `validator config`: `vc-flags.txt` |
 |---|---|---|---|
-| Teku | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `teku-proposer-config.json`, builders included (read by Teku releases after 26.10.3) | `--Xobol-dvt-integration-enabled` |
+| Teku | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `teku-proposer-config.json`, builders included (read by Teku from 26.11.0) | `--Xobol-dvt-integration-enabled` |
 | Prysm | `prysm-wallet/direct/accounts/all-accounts.keystore.json`, `prysm-wallet/walletpassword.txt` | `prysm-proposer-settings.json`, with an entry for every validator | `--distributed`, `--enable-beacon-rest-api` |
 | Lodestar | `keystores/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `lodestar-proposer-settings.yml` | `--distributed`, `--payloadLocal=true`, `--builder.selection=maxprofit`, `--allowDangerousTrustedPayments` with a max execution payment above 0 |
 | Nimbus | `validators/<pubkey>/keystore.json`, `secrets/<pubkey>` | `validators/<pubkey>/suggested_fee_recipient.hex`, `suggested_gas_limit.json` | `--distributed`, `--doppelganger-detection=false`, `--payload-builder`, one `--payload-builder-url` per builder and `--builder-*` |
@@ -260,7 +260,7 @@ Nimbus and Lighthouse read their settings from the directory holding their keys,
 go into the same one. Lighthouse's definitions name the keystores by absolute path under `--lighthouse-dir`, its data directory as Lighthouse
 sees it (e.g. `/root/.lighthouse/hoodi` in its container), so move `validators/` and `secrets/` there. Prysm only reads keys from a wallet, so its key shares are decrypted into one, encrypted with a new random
 password that Prysm reads from the wallet directory: point `--wallet-dir` at it, no import needed. The commands log the
-client version the files are made for: Teku `develop`, Prysm `v7.3.1`, Lodestar `v1.50.1`, Nimbus `v26.10.2`, Lighthouse `v8.3.3`. Rerun `validator config` after the proposer config changes, then restart the validator client.
+client version the files are made for: Teku `26.11.0`, Prysm `v7.3.1`, Lodestar `v1.50.1`, Nimbus `v26.10.2`, Lighthouse `v8.3.3`. Rerun `validator config` after the proposer config changes, then restart the validator client.
 
 ## Flag Precedence
 

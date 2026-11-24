@@ -26,9 +26,9 @@ const (
 var clients = []Client{Teku, Prysm, Lodestar, Nimbus, Lighthouse}
 
 // clientVersions are the client versions the files are made for. Teku reads builders from its proposer config file
-// only after 26.10.3.
+// only from 26.11.0.
 var clientVersions = map[Client]string{
-	Teku:       "develop",
+	Teku:       "26.11.0",
 	Prysm:      "v7.3.1",
 	Lodestar:   "v1.50.1",
 	Nimbus:     "v26.10.2",

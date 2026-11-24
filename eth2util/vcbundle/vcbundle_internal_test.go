@@ -433,7 +433,7 @@ func TestWriteLogsKeystores(t *testing.T) {
 		client Client
 		want   []string
 	}{
-		{Teku, []string{"Validator client files made for client version", `"client": "teku"`, `"version": "develop"`, "Keystores copied, teku reads the keystore and password pairs", `"dir": "keystores"`, `"keystores": 2`}},
+		{Teku, []string{"Validator client files made for client version", `"client": "teku"`, `"version": "26.11.0"`, "Keystores copied, teku reads the keystore and password pairs", `"dir": "keystores"`, `"keystores": 2`}},
 		{Prysm, []string{"Keystores decrypted into a prysm wallet", `"wallet_dir": "prysm-wallet"`, `"keystores": 2`}},
 		{Lodestar, []string{"Keystores written in lodestar's layout", `"keystores_dir": "keystores"`, `"secrets_dir": "secrets"`}},
 		{Nimbus, []string{"Keystores written in nimbus's layout", `"keystores_dir": "validators"`, `"secrets_dir": "secrets"`}},
