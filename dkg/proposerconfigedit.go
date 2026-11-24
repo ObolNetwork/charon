@@ -257,7 +257,18 @@ func RunProposerConfigEdit(ctx context.Context, conf ProposerConfigEditConfig) (
 	}
 
 	if adopted {
-		log.Info(ctx, fmt.Sprintf("Adopted signed revision %d from operator %d, local file was at revision %d", adoptedDoc.Revision, from, base.Revision))
+		adoptedHash, err := adoptedDoc.Hash()
+		if err != nil {
+			return ProposerConfigEditResult{}, err
+		}
+
+		baseHash, err := base.Hash()
+		if err != nil {
+			return ProposerConfigEditResult{}, err
+		}
+
+		log.Info(ctx, fmt.Sprintf("Adopted signed revision %s from operator %d, local file was at revision %s",
+			proposerconfig.RevisionName(adoptedDoc.Revision, adoptedHash), from, proposerconfig.RevisionName(base.Revision, baseHash)))
 
 		// Written now, so that the adopted revision is kept even if the rest of the edit fails.
 		written, err := writeEditResult(lock, nodeIdx, conf.ProposerConfigFile, adoptedDoc, adoptedDoc.Signatures, disk)
@@ -562,7 +573,8 @@ func confirmEdit(ctx context.Context, conf ProposerConfigEditConfig, lock cluste
 		return conf.Confirm(ctx, change)
 	}
 
-	log.Info(ctx, fmt.Sprintf("Proposing proposer config revision %d, changes from revision %d:", change.Revision, change.BaseRevision))
+	log.Info(ctx, fmt.Sprintf("Proposing proposer config revision %s, changes from revision %d:",
+		proposerconfig.RevisionName(change.Revision, change.Hash), change.BaseRevision))
 
 	for _, line := range change.Diff {
 		log.Info(ctx, "  "+line)
@@ -722,7 +734,7 @@ func resolveEditBase(ctx context.Context, lock cluster.Lock, myOperator int, loc
 			lines := []string{"operators hold different signed revisions " + strconv.FormatUint(a.doc.Revision, 10) +
 				", agree on one, replace the other operators' proposer config files with it and run the edit again:"}
 			for _, d := range docs {
-				lines = append(lines, "operator "+strconv.Itoa(d.operator)+": revision "+strconv.FormatUint(d.doc.Revision, 10)+", hash 0x"+hex.EncodeToString(d.hash[:]))
+				lines = append(lines, "operator "+strconv.Itoa(d.operator)+": revision "+proposerconfig.RevisionName(d.doc.Revision, d.hash))
 			}
 
 			lines = append(lines, "from operator "+strconv.Itoa(a.operator)+" to operator "+strconv.Itoa(b.operator)+":")

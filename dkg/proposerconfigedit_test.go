@@ -517,7 +517,7 @@ func TestEditSameRevisionDifferentHash(t *testing.T) {
 		for j := range n {
 			hash, err := docs[j].Hash()
 			require.NoError(t, err)
-			require.ErrorContains(t, errs[i], fmt.Sprintf("operator %d: revision 1, hash %#x", j, hash), "node %d", i)
+			require.ErrorContains(t, errs[i], fmt.Sprintf("operator %d: revision %s", j, proposerconfig.RevisionName(1, hash)), "node %d", i)
 		}
 	}
 

@@ -5,7 +5,6 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -223,8 +222,8 @@ func confirmChange(in io.Reader, w io.Writer) func(context.Context, dkg.Proposer
 
 // printProposerConfigChange prints the proposed revision and its changes.
 func printProposerConfigChange(w io.Writer, change dkg.ProposerConfigChange) {
-	_, _ = fmt.Fprintf(w, "Proposer config revision %d (hash 0x%s…), changes from revision %d:\n",
-		change.Revision, hex.EncodeToString(change.Hash[:8]), change.BaseRevision)
+	_, _ = fmt.Fprintf(w, "Proposer config revision %s, changes from revision %d:\n",
+		proposerconfig.RevisionName(change.Revision, change.Hash), change.BaseRevision)
 
 	for _, line := range change.Diff {
 		_, _ = fmt.Fprintln(w, "  "+line)

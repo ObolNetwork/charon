@@ -82,8 +82,7 @@ func TestProposerCreate(t *testing.T) {
 		"--gas-limit=60000000",
 	)
 	require.NoError(t, err)
-	require.Contains(t, out, "Proposer config revision 2 (hash 0x")
-	require.Contains(t, out, "changes from revision 1:")
+	require.Regexp(t, `Proposer config revision 2:0x[0-9a-f]{4}…[0-9a-f]{4}, changes from revision 1:`, out)
 	require.Contains(t, out, "60000000")
 	require.Contains(t, out, "then all run charon alpha proposer edit "+output)
 
@@ -109,7 +108,7 @@ func TestProposerStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, out, `Cluster "TestProposerStatus", lock 0x`)
 		require.Contains(t, out, "4 operators, threshold 3")
-		require.Contains(t, out, "Proposer config revision 1, signed by 4 of 4 operators: 0, 1, 2, 3\n")
+		require.Regexp(t, `Proposer config revision 1:0x[0-9a-f]{4}…[0-9a-f]{4}, signed by 4 of 4 operators: 0, 1, 2, 3\n`, out)
 		require.Contains(t, out, strings.ToLower(proposerTestFeeRecipient)+" (default), 0 validator(s) with their own")
 		require.Contains(t, out, "builders       none")
 		require.Contains(t, out, "Change it: every operator runs charon alpha proposer edit <change flags> at the same time")
@@ -223,10 +222,11 @@ func TestProposerList(t *testing.T) {
 		dir := newProposerTestCluster(t)
 
 		out := run(t, dir)
-		require.Equal(t, "Proposer config revision 1, 2 validators\n"+
+		require.Regexp(t, `^Proposer config revision 1:0x[0-9a-f]{4}…[0-9a-f]{4}, 2 validators\n`, out)
+		require.Contains(t, out, ", 2 validators\n"+
 			"Default: fee recipient "+def+", gas limit 200000000\n"+
 			"All validators use the default fee recipient.\n"+
-			"Builders: none\n", out)
+			"Builders: none\n")
 	})
 
 	t.Run("own fee recipient", func(t *testing.T) {

@@ -363,7 +363,7 @@ func TestProposerEditConfirm(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, "Proposer config revision 2 (hash 0xab00000000000000…), changes from revision 1:\n"+
+			require.Equal(t, "Proposer config revision 2:0xab00…0000, changes from revision 1:\n"+
 				"  gas_limit: 36000000 -> 60000000\n"+
 				"Sign this change? [y/N] ", out.String())
 		})

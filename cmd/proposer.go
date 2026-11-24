@@ -109,11 +109,16 @@ func runProposerStatus(ctx context.Context, w io.Writer, config proposerViewConf
 		return errors.Wrap(err, "verify proposer config file")
 	}
 
+	hash, err := doc.Hash()
+	if err != nil {
+		return err
+	}
+
 	if doc.Revision == 0 {
 		_, _ = fmt.Fprintln(w, "Proposer config revision 0, unsigned: written from the cluster lock, not yet agreed by the operators")
 	} else {
-		_, _ = fmt.Fprintf(w, "Proposer config revision %d, signed by %d of %d operators: %s\n",
-			doc.Revision, len(doc.Signatures), len(lock.Operators), signerList(doc))
+		_, _ = fmt.Fprintf(w, "Proposer config revision %s, signed by %d of %d operators: %s\n",
+			proposerconfig.RevisionName(doc.Revision, hash), len(doc.Signatures), len(lock.Operators), signerList(doc))
 	}
 
 	def := doc.Config.DefaultConfig
@@ -165,9 +170,14 @@ func runProposerList(ctx context.Context, w io.Writer, config proposerViewConfig
 		return errors.Wrap(err, "verify proposer config file")
 	}
 
+	hash, err := doc.Hash()
+	if err != nil {
+		return err
+	}
+
 	def := doc.Config.DefaultConfig
 
-	_, _ = fmt.Fprintf(w, "Proposer config revision %d, %d validators\n", doc.Revision, len(lock.Validators))
+	_, _ = fmt.Fprintf(w, "Proposer config revision %s, %d validators\n", proposerconfig.RevisionName(doc.Revision, hash), len(lock.Validators))
 	_, _ = fmt.Fprintf(w, "Default: fee recipient %s, gas limit %s\n", def.FeeRecipient, def.GasLimit)
 
 	if len(doc.Config.ProposerConfig) == 0 {
