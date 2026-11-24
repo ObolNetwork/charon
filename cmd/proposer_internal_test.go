@@ -56,7 +56,7 @@ func runProposerCmd(t *testing.T, args ...string) (string, error) {
 
 	root := newRootCmd(newAlphaCmd(newProposerCmd(runProposerStatus,
 		newProposerListCmd(runProposerList),
-		newProposerCreateCmd(runProposerCreate),
+		newProposerPrepareCmd(runProposerPrepare),
 	)))
 
 	var out bytes.Buffer
@@ -70,12 +70,12 @@ func runProposerCmd(t *testing.T, args ...string) (string, error) {
 	return out.String(), err
 }
 
-func TestProposerCreate(t *testing.T) {
+func TestProposerPrepare(t *testing.T) {
 	dir := newProposerTestCluster(t)
 	output := path.Join(t.TempDir(), "proposal.json")
 
 	// Node 0's lock with node 2's proposer config file, and no node key.
-	out, err := runProposerCmd(t, "create",
+	out, err := runProposerCmd(t, "prepare",
 		"--lock-file="+path.Join(nodeDir(dir, 0), clusterLockFile),
 		"--proposer-config-file="+proposerconfig.FilePath(nodeDir(dir, 2)),
 		"--output-file="+output,
@@ -94,7 +94,7 @@ func TestProposerCreate(t *testing.T) {
 	require.Equal(t, uint64(2), doc.Revision)
 	require.Equal(t, "60000000", doc.Config.DefaultConfig.GasLimit)
 
-	_, err = runProposerCmd(t, "create", "--lock-file="+path.Join(nodeDir(dir, 0), clusterLockFile),
+	_, err = runProposerCmd(t, "prepare", "--lock-file="+path.Join(nodeDir(dir, 0), clusterLockFile),
 		"--proposer-config-file="+proposerconfig.FilePath(nodeDir(dir, 0)), "--output-file="+output, "--gas-limit=70000000")
 	require.ErrorIs(t, err, os.ErrExist)
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/obolnetwork/charon/dkg"
 )
 
-func newProposerCreateCmd(runFunc func(context.Context, io.Writer, dkg.ProposerConfigProposalConfig) error) *cobra.Command {
+func newProposerPrepareCmd(runFunc func(context.Context, io.Writer, dkg.ProposerConfigProposalConfig) error) *cobra.Command {
 	var (
 		config  dkg.ProposerConfigProposalConfig
 		logConf log.Config
@@ -21,10 +21,10 @@ func newProposerCreateCmd(runFunc func(context.Context, io.Writer, dkg.ProposerC
 	)
 
 	cmd := &cobra.Command{
-		Use:   "create",
-		Short: "Create the proposal file of a proposer config change, for the operators to run edit with",
-		Long: "Creates a proposal file: the cluster's next proposer config revision with the change flags applied. " +
-			"It is to charon alpha proposer edit what charon create dkg's cluster definition is to charon dkg: one person creates it and sends it to every operator, who all run the ceremony with it. " +
+		Use:   "prepare",
+		Short: "Prepare the proposal file of a proposer config change, for the operators to run edit with",
+		Long: "Prepares a proposal file: the cluster's next proposer config revision with the change flags applied. " +
+			"It is to charon alpha proposer edit what charon create dkg's cluster definition is to charon dkg: one person prepares it and sends it to every operator, who all run the ceremony with it. " +
 			"It needs the cluster lock and the proposer config file of any of its nodes, but no node key, so its author need not be an operator. It signs and changes nothing.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -58,7 +58,7 @@ func newProposerCreateCmd(runFunc func(context.Context, io.Writer, dkg.ProposerC
 	return cmd
 }
 
-func runProposerCreate(ctx context.Context, w io.Writer, conf dkg.ProposerConfigProposalConfig) error {
+func runProposerPrepare(ctx context.Context, w io.Writer, conf dkg.ProposerConfigProposalConfig) error {
 	change, err := dkg.WriteProposerConfigProposal(ctx, conf)
 	if err != nil {
 		return err

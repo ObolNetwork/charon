@@ -220,15 +220,15 @@ Each operator sees the differences against the current revision and its hash, an
 without asking, for scripts, and is required without a terminal.
 
 To spare every operator retyping the same flags, one person creates a proposal file with
-`charon alpha proposer create --output-file=proposal.json` and the same change flags, as `charon create dkg` creates the
+`charon alpha proposer prepare --output-file=proposal.json` and the same change flags, as `charon create dkg` creates the
 cluster definition every operator runs the DKG with. It needs the cluster lock and the proposer
 config file of any node, which must exist, but no node key, so the author need not be an operator, and it changes nothing. Every operator then
 runs `charon alpha proposer edit proposal.json` (a path or an HTTP URL) in place of the change flags; operators passing the file and
 operators passing the equal flags agree. An existing file is not overwritten. The proposal file has the seed file's shape and is
 complete on its own: it adds the `lock_hash`, the `revision` it proposes, the default `fee_recipient` and a `proposer_config`
 keyed by DV public key (not by a node's public shares, as `proposer-config.json` is) for the validators with another fee
-recipient. Write it with `create` rather than by hand: a fee recipient left out is refused, not defaulted. A file for another
-cluster, or for a revision other than the next one, is refused, so a stale file cannot revert a later change; the file `create`
+recipient. Write it with `prepare` rather than by hand: a fee recipient left out is refused, not defaulted. A file for another
+cluster, or for a revision other than the next one, is refused, so a stale file cannot revert a later change; the file `prepare`
 reads must hold the cluster's latest revision. Builder URLs are logged redacted, so check them in the file itself.
 
 `--participating-operator-enrs` lists the operators running the ceremony, this node included, as for `remove-operators`. It defaults

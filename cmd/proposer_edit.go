@@ -25,7 +25,7 @@ import (
 	"github.com/obolnetwork/charon/eth2util"
 )
 
-// proposerChangeFlags holds the change flags of the proposer create and edit commands.
+// proposerChangeFlags holds the change flags of the proposer prepare and edit commands.
 type proposerChangeFlags struct {
 	validatorPublicKeys   []string
 	feeRecipientAddresses []string
@@ -38,7 +38,7 @@ type proposerChangeFlags struct {
 	noBuilders            bool
 }
 
-// Names of the change flags of the proposer create and edit commands.
+// Names of the change flags of the proposer prepare and edit commands.
 const (
 	validatorPublicKeysFlag   = "validator-public-keys"
 	feeRecipientAddressesFlag = "fee-recipient-addresses"
@@ -96,7 +96,7 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 		Short: "Change the cluster's proposer config in a ceremony all operators run at the same time",
 		Long: "Changes the fee recipients, gas limit or builders in the cluster's proposer config file. " +
 			"It is a ceremony, like a DKG: one operator running it alone changes nothing. Agree on a time with the other operators, then all participating operators run this command " +
-			"at the same time and with the same change: a proposal file written with charon alpha proposer create (a path or an HTTP URL), or the equal change flags. " +
+			"at the same time and with the same change: a proposal file written with charon alpha proposer prepare (a path or an HTTP URL), or the equal change flags. " +
 			"The command waits for the others to join. Each operator confirms the change before signing it, then all agree on the new revision and each writes it with the collected signatures. " +
 			"Afterwards rerun charon alpha vc-bundle and restart the validator client to apply it: a restart alone keeps the old settings.",
 		Args: cobra.MaximumNArgs(1),
