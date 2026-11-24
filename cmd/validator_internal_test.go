@@ -16,17 +16,17 @@ import (
 
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/eth2util/keystore"
-	"github.com/obolnetwork/charon/eth2util/vcbundle"
+	"github.com/obolnetwork/charon/eth2util/vcfiles"
 	"github.com/obolnetwork/charon/tbls"
 )
 
 func TestValidatorCmd(t *testing.T) {
-	run := func(t *testing.T, args ...string) (vcbundle.Config, error) {
+	run := func(t *testing.T, args ...string) (vcfiles.Config, error) {
 		t.Helper()
 
-		var got vcbundle.Config
+		var got vcfiles.Config
 
-		runFunc := func(_ context.Context, _ io.Writer, conf vcbundle.Config) error {
+		runFunc := func(_ context.Context, _ io.Writer, conf vcfiles.Config) error {
 			got = conf
 			return nil
 		}
@@ -42,8 +42,8 @@ func TestValidatorCmd(t *testing.T) {
 	t.Run("config defaults", func(t *testing.T) {
 		got, err := run(t, "config", "nimbus")
 		require.NoError(t, err)
-		require.Equal(t, vcbundle.Config{
-			Client:             vcbundle.Nimbus,
+		require.Equal(t, vcfiles.Config{
+			Client:             vcfiles.Nimbus,
 			OutputDir:          ".charon/validator-config/nimbus",
 			ProposerConfigFile: ".charon/vc-config/proposer-config.json",
 			ValidatorKeysDir:   ".charon/validator_keys",
@@ -53,8 +53,8 @@ func TestValidatorCmd(t *testing.T) {
 	t.Run("keys defaults", func(t *testing.T) {
 		got, err := run(t, "keys", "nimbus")
 		require.NoError(t, err)
-		require.Equal(t, vcbundle.Config{
-			Client:           vcbundle.Nimbus,
+		require.Equal(t, vcfiles.Config{
+			Client:           vcfiles.Nimbus,
 			OutputDir:        ".charon/validator_keys/nimbus",
 			ValidatorKeysDir: ".charon/validator_keys",
 		}, got)
@@ -128,8 +128,8 @@ func TestRunValidator(t *testing.T) {
 	proposerConfigFile := filepath.Join(nodeDir, "proposer-config.json")
 	require.NoError(t, os.WriteFile(proposerConfigFile, b, 0o644))
 
-	conf := func(client vcbundle.Client) vcbundle.Config {
-		return vcbundle.Config{
+	conf := func(client vcfiles.Client) vcfiles.Config {
+		return vcfiles.Config{
 			Client:             client,
 			OutputDir:          filepath.Join(nodeDir, "output-"+string(client)),
 			ProposerConfigFile: proposerConfigFile,
@@ -140,7 +140,7 @@ func TestRunValidator(t *testing.T) {
 
 	t.Run("teku config", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, runValidatorConfig(t.Context(), &buf, conf(vcbundle.Teku)))
+		require.NoError(t, runValidatorConfig(t.Context(), &buf, conf(vcfiles.Teku)))
 
 		out := buf.String()
 		require.Contains(t, out, "Proposer settings and flags for teku written to")
@@ -152,14 +152,14 @@ func TestRunValidator(t *testing.T) {
 
 	t.Run("lighthouse config", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, runValidatorConfig(t.Context(), &buf, conf(vcbundle.Lighthouse)))
+		require.NoError(t, runValidatorConfig(t.Context(), &buf, conf(vcfiles.Lighthouse)))
 		require.Contains(t, buf.String(), "  validators/validator_definitions.yml\n")
 		require.Contains(t, buf.String(), "The definitions name the keystores under /root/.lighthouse/hoodi, move the validators and secrets directories there.\n")
 	})
 
 	t.Run("lighthouse keys", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, runValidatorKeys(t.Context(), &buf, conf(vcbundle.Lighthouse)))
+		require.NoError(t, runValidatorKeys(t.Context(), &buf, conf(vcfiles.Lighthouse)))
 		require.Contains(t, buf.String(), "Key shares for lighthouse written to")
 		require.Contains(t, buf.String(), "  validators/"+lighthousePubkey+"/voting-keystore.json\n")
 		require.Contains(t, buf.String(), "  secrets/"+lighthousePubkey+"\n")
@@ -167,7 +167,7 @@ func TestRunValidator(t *testing.T) {
 	})
 
 	t.Run("prysm keys", func(t *testing.T) {
-		c := conf(vcbundle.Prysm)
+		c := conf(vcfiles.Prysm)
 		c.ValidatorKeysDir = t.TempDir()
 
 		secret, err := tbls.GenerateSecretKey()

@@ -1,6 +1,6 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package vcbundle
+package vcfiles
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ type tekuConfig struct {
 
 // proposerConfigFiles returns the client's proposer settings files. Lighthouse's name the keystores under
 // lighthouseDir. Teku's, Prysm's and Lighthouse's hold whether builders are enabled.
-func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []keystoreFile, lighthouseDir string, builderEnabled bool) ([]bundleFile, error) {
+func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []keystoreFile, lighthouseDir string, builderEnabled bool) ([]outFile, error) {
 	switch client {
 	case Teku:
 		return tekuFiles(cfg, builderEnabled)
@@ -53,43 +53,43 @@ func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []k
 }
 
 // tekuFiles returns Teku's proposer config file.
-func tekuFiles(cfg proposerconfig.Config, builderEnabled bool) ([]bundleFile, error) {
+func tekuFiles(cfg proposerconfig.Config, builderEnabled bool) ([]outFile, error) {
 	b, err := renderTeku(cfg, builderEnabled)
 	if err != nil {
 		return nil, err
 	}
 
-	return []bundleFile{{Path: tekuSettingsPath, Data: b, Mode: publicMode}}, nil
+	return []outFile{{Path: tekuSettingsPath, Data: b, Mode: publicMode}}, nil
 }
 
 // prysmFiles returns Prysm's proposer settings file.
-func prysmFiles(cfg proposerconfig.Config, keystores []keystoreFile, builderEnabled bool) ([]bundleFile, error) {
+func prysmFiles(cfg proposerconfig.Config, keystores []keystoreFile, builderEnabled bool) ([]outFile, error) {
 	b, err := renderPrysm(cfg, keystores, builderEnabled)
 	if err != nil {
 		return nil, err
 	}
 
-	return []bundleFile{{Path: prysmSettingsPath, Data: b, Mode: publicMode}}, nil
+	return []outFile{{Path: prysmSettingsPath, Data: b, Mode: publicMode}}, nil
 }
 
 // lodestarFiles returns Lodestar's proposer settings file.
-func lodestarFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
+func lodestarFiles(cfg proposerconfig.Config) ([]outFile, error) {
 	b, err := renderLodestar(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	return []bundleFile{{Path: lodestarSettingsPath, Data: b, Mode: publicMode}}, nil
+	return []outFile{{Path: lodestarSettingsPath, Data: b, Mode: publicMode}}, nil
 }
 
 // nimbusFiles returns Nimbus's fee recipient and gas limit files of each validator, in its keystore's directory.
-func nimbusFiles(cfg proposerconfig.Config, keystores []keystoreFile) []bundleFile {
-	var files []bundleFile
+func nimbusFiles(cfg proposerconfig.Config, keystores []keystoreFile) []outFile {
+	var files []outFile
 
 	for _, k := range keystores {
 		files = append(files,
-			bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_fee_recipient.hex"), Data: []byte(cfg.FeeRecipient(k.Pubkey) + "\n"), Mode: publicMode},
-			bundleFile{Path: filepath.Join("validators", k.Pubkey, "suggested_gas_limit.json"), Data: []byte(cfg.DefaultConfig.GasLimit + "\n"), Mode: publicMode},
+			outFile{Path: filepath.Join("validators", k.Pubkey, "suggested_fee_recipient.hex"), Data: []byte(cfg.FeeRecipient(k.Pubkey) + "\n"), Mode: publicMode},
+			outFile{Path: filepath.Join("validators", k.Pubkey, "suggested_gas_limit.json"), Data: []byte(cfg.DefaultConfig.GasLimit + "\n"), Mode: publicMode},
 		)
 	}
 
@@ -99,7 +99,7 @@ func nimbusFiles(cfg proposerconfig.Config, keystores []keystoreFile) []bundleFi
 // lighthouseFiles returns Lighthouse's validator and builder definitions. The definitions name the client's keystores
 // by their absolute path under Lighthouse's data directory dir, as Lighthouse resolves relative paths against its
 // working directory.
-func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir string, builderEnabled bool) ([]bundleFile, error) {
+func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir string, builderEnabled bool) ([]outFile, error) {
 	located := make([]keystoreFile, 0, len(keystores))
 
 	for _, k := range keystores {
@@ -119,7 +119,7 @@ func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir st
 		return nil, err
 	}
 
-	return []bundleFile{
+	return []outFile{
 		{Path: filepath.Join("validators", "validator_definitions.yml"), Data: definitions, Mode: publicMode},
 		{Path: lighthouseBuildersPath, Data: builders, Mode: publicMode},
 	}, nil
@@ -289,7 +289,7 @@ type lighthouseBuilders struct {
 }
 
 // renderLighthouseBuilders returns Lighthouse's builder_definitions.yml, as JSON which Lighthouse reads as YAML.
-// Every entry takes the block's max execution payment. Without a builder block it lists no builders, so it replaces the file of an earlier bundle.
+// Every entry takes the block's max execution payment. Without a builder block it lists no builders, so it replaces an earlier file.
 func renderLighthouseBuilders(builder *proposerconfig.Builder) ([]byte, error) {
 	if builder == nil {
 		return marshalJSON(lighthouseBuilders{BuilderBoostFactor: proposerconfig.DefaultBuilderBoostFactor, Builders: []lighthouseBuilderEntry{}})

@@ -1,6 +1,6 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package vcbundle
+package vcfiles
 
 import (
 	"crypto/rand"
@@ -43,7 +43,7 @@ type prysmWallet struct {
 
 // prysmWalletFiles returns a Prysm wallet of the decrypted keystores, encrypted with a new random password written
 // in the wallet directory. Each keystore's secret key is checked against its public key.
-func prysmWalletFiles(keysDir string, keystores []keystoreFile) ([]bundleFile, error) {
+func prysmWalletFiles(keysDir string, keystores []keystoreFile) ([]outFile, error) {
 	keyFiles, err := keystore.LoadFilesUnordered(keysDir)
 	if err != nil {
 		return nil, errors.Wrap(err, "decrypt keystores")
@@ -106,7 +106,7 @@ func prysmWalletFiles(keysDir string, keystores []keystoreFile) ([]bundleFile, e
 		return nil, err
 	}
 
-	return []bundleFile{
+	return []outFile{
 		{Path: prysmWalletPath, Data: wallet, Mode: secretMode},
 		{Path: prysmWalletPasswordPath, Data: []byte(password), Mode: secretMode},
 	}, nil

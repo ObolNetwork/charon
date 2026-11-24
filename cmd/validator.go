@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/obolnetwork/charon/eth2util/vcbundle"
+	"github.com/obolnetwork/charon/eth2util/vcfiles"
 )
 
 const (
@@ -32,8 +32,8 @@ func newValidatorCmd(cmds ...*cobra.Command) *cobra.Command {
 	return root
 }
 
-func newValidatorConfigCmd(runFunc func(context.Context, io.Writer, vcbundle.Config) error) *cobra.Command {
-	var conf vcbundle.Config
+func newValidatorConfigCmd(runFunc func(context.Context, io.Writer, vcfiles.Config) error) *cobra.Command {
+	var conf vcfiles.Config
 
 	cmd := &cobra.Command{
 		Use:   "config " + validatorClients,
@@ -61,8 +61,8 @@ func newValidatorConfigCmd(runFunc func(context.Context, io.Writer, vcbundle.Con
 	return cmd
 }
 
-func newValidatorKeysCmd(runFunc func(context.Context, io.Writer, vcbundle.Config) error) *cobra.Command {
-	var conf vcbundle.Config
+func newValidatorKeysCmd(runFunc func(context.Context, io.Writer, vcfiles.Config) error) *cobra.Command {
+	var conf vcfiles.Config
 
 	cmd := &cobra.Command{
 		Use:   "keys " + validatorClients,
@@ -88,8 +88,8 @@ func newValidatorKeysCmd(runFunc func(context.Context, io.Writer, vcbundle.Confi
 }
 
 // setValidatorClient sets the config's client, and its output directory to the client's in defaultDir if unset.
-func setValidatorClient(conf *vcbundle.Config, name, defaultDir string) error {
-	client, err := vcbundle.ParseClient(name)
+func setValidatorClient(conf *vcfiles.Config, name, defaultDir string) error {
+	client, err := vcfiles.ParseClient(name)
 	if err != nil {
 		return err
 	}
@@ -102,8 +102,8 @@ func setValidatorClient(conf *vcbundle.Config, name, defaultDir string) error {
 	return nil
 }
 
-func runValidatorConfig(ctx context.Context, w io.Writer, conf vcbundle.Config) error {
-	files, err := vcbundle.WriteConfig(ctx, conf)
+func runValidatorConfig(ctx context.Context, w io.Writer, conf vcfiles.Config) error {
+	files, err := vcfiles.WriteConfig(ctx, conf)
 	if err != nil {
 		return err
 	}
@@ -113,17 +113,17 @@ func runValidatorConfig(ctx context.Context, w io.Writer, conf vcbundle.Config) 
 		_, _ = fmt.Fprintf(w, "  %s\n", file)
 	}
 
-	if conf.Client == vcbundle.Lighthouse {
+	if conf.Client == vcfiles.Lighthouse {
 		_, _ = fmt.Fprintf(w, "The definitions name the keystores under %s, move the validators and secrets directories there.\n", conf.LighthouseDir)
 	}
 
-	_, _ = fmt.Fprintf(w, "Append the lines of %s to the validator client's command.\n", vcbundle.FlagsFile)
+	_, _ = fmt.Fprintf(w, "Append the lines of %s to the validator client's command.\n", vcfiles.FlagsFile)
 
 	return nil
 }
 
-func runValidatorKeys(ctx context.Context, w io.Writer, conf vcbundle.Config) error {
-	files, err := vcbundle.WriteKeys(ctx, conf)
+func runValidatorKeys(ctx context.Context, w io.Writer, conf vcfiles.Config) error {
+	files, err := vcfiles.WriteKeys(ctx, conf)
 	if err != nil {
 		return err
 	}
@@ -133,8 +133,8 @@ func runValidatorKeys(ctx context.Context, w io.Writer, conf vcbundle.Config) er
 		_, _ = fmt.Fprintf(w, "  %s\n", file)
 	}
 
-	if conf.Client == vcbundle.Prysm {
-		_, _ = fmt.Fprintf(w, "Point prysm's --wallet-dir at the %s directory, no import needed.\n", vcbundle.PrysmWalletDir)
+	if conf.Client == vcfiles.Prysm {
+		_, _ = fmt.Fprintf(w, "Point prysm's --wallet-dir at the %s directory, no import needed.\n", vcfiles.PrysmWalletDir)
 	}
 
 	return nil

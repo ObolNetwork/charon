@@ -1,6 +1,6 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package vcbundle
+package vcfiles
 
 import (
 	"context"
@@ -39,8 +39,8 @@ type Config struct {
 	BuilderAPI bool
 }
 
-// bundleFile is a file to write, its path relative to the output directory.
-type bundleFile struct {
+// outFile is a file to write, its path relative to the output directory.
+type outFile struct {
 	Path string
 	Data []byte
 	Mode os.FileMode
@@ -103,7 +103,7 @@ func WriteConfig(ctx context.Context, conf Config) ([]string, error) {
 		return nil, err
 	}
 
-	files = append(files, bundleFile{Path: FlagsFile, Data: renderFlags(vcFlags(conf.Client, cfg, builderEnabled)), Mode: publicMode})
+	files = append(files, outFile{Path: FlagsFile, Data: renderFlags(vcFlags(conf.Client, cfg, builderEnabled)), Mode: publicMode})
 
 	return writeFiles(conf.OutputDir, files)
 }
@@ -120,7 +120,7 @@ func checkClient(ctx context.Context, client Client) error {
 }
 
 // writeFiles writes the files under outputDir and returns their paths, sorted.
-func writeFiles(outputDir string, files []bundleFile) ([]string, error) {
+func writeFiles(outputDir string, files []outFile) ([]string, error) {
 	var resp []string
 
 	for _, f := range files {

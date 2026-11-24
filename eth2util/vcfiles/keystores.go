@@ -1,6 +1,6 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package vcbundle
+package vcfiles
 
 import (
 	"cmp"
@@ -133,7 +133,7 @@ func readKeystoreFile(path string) (keystoreFile, error) {
 }
 
 // keystoreFiles returns the keystores and passwords in the client's layout, or Prysm's wallet.
-func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores []keystoreFile) ([]bundleFile, error) {
+func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores []keystoreFile) ([]outFile, error) {
 	// paths returns the keystore and password paths of a keystore in the output.
 	var paths func(k keystoreFile) (keystorePath, passwordPath string)
 
@@ -171,7 +171,7 @@ func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores
 		return nil, errors.New("unknown validator client", z.Str("client", string(client)))
 	}
 
-	var files []bundleFile
+	var files []outFile
 
 	for _, k := range keystores {
 		keystorePath, passwordPath := paths(k)
@@ -187,8 +187,8 @@ func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores
 		}
 
 		files = append(files,
-			bundleFile{Path: keystorePath, Data: keystore, Mode: secretMode},
-			bundleFile{Path: passwordPath, Data: password, Mode: secretMode},
+			outFile{Path: keystorePath, Data: keystore, Mode: secretMode},
+			outFile{Path: passwordPath, Data: password, Mode: secretMode},
 		)
 	}
 

@@ -1,8 +1,8 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-// Package vcbundle renders the files a validator client consumes from a node's keystores and proposer config:
+// Package vcfiles renders the files a validator client consumes from a node's keystores and proposer config:
 // its keys in its layout, and its proposer settings and flags.
-package vcbundle
+package vcfiles
 
 import (
 	"slices"

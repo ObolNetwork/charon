@@ -1,6 +1,6 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-package vcbundle
+package vcfiles
 
 import (
 	"bytes"
@@ -67,7 +67,7 @@ func TestWrite(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(string(test.client), func(t *testing.T) {
-			conf := testBundle(t, test.client)
+			conf := testNode(t, test.client)
 
 			got, err := writeAll(t.Context(), conf)
 			require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestWrite(t *testing.T) {
 
 func TestWriteContent(t *testing.T) {
 	t.Run("nimbus", func(t *testing.T) {
-		conf := testBundle(t, Nimbus)
+		conf := testNode(t, Nimbus)
 		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
 
@@ -94,7 +94,7 @@ func TestWriteContent(t *testing.T) {
 	})
 
 	t.Run("lodestar", func(t *testing.T) {
-		conf := testBundle(t, Lodestar)
+		conf := testNode(t, Lodestar)
 		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
 
@@ -116,7 +116,7 @@ func TestWriteContent(t *testing.T) {
 
 func TestWriteSeparately(t *testing.T) {
 	t.Run("config needs no keystores", func(t *testing.T) {
-		conf := testBundle(t, Teku)
+		conf := testNode(t, Teku)
 		conf.ValidatorKeysDir = filepath.Join(t.TempDir(), "missing")
 
 		got, err := WriteConfig(t.Context(), conf)
@@ -125,7 +125,7 @@ func TestWriteSeparately(t *testing.T) {
 	})
 
 	t.Run("keys need no proposer config", func(t *testing.T) {
-		conf := testBundle(t, Prysm)
+		conf := testNode(t, Prysm)
 		conf.ProposerConfigFile = filepath.Join(t.TempDir(), "missing.json")
 
 		got, err := WriteKeys(t.Context(), conf)
@@ -134,7 +134,7 @@ func TestWriteSeparately(t *testing.T) {
 	})
 
 	t.Run("lighthouse keys", func(t *testing.T) {
-		conf := testBundle(t, Lighthouse)
+		conf := testNode(t, Lighthouse)
 		conf.LighthouseDir = ""
 
 		got, err := WriteKeys(t.Context(), conf)
@@ -144,7 +144,7 @@ func TestWriteSeparately(t *testing.T) {
 	})
 
 	t.Run("missing proposer config", func(t *testing.T) {
-		conf := testBundle(t, Teku)
+		conf := testNode(t, Teku)
 		conf.ProposerConfigFile = filepath.Join(t.TempDir(), "missing.json")
 
 		_, err := WriteConfig(t.Context(), conf)
@@ -155,7 +155,7 @@ func TestWriteSeparately(t *testing.T) {
 
 func TestWriteLighthouse(t *testing.T) {
 	t.Run("keystores copied", func(t *testing.T) {
-		conf := testBundle(t, Lighthouse)
+		conf := testNode(t, Lighthouse)
 
 		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestWriteLighthouse(t *testing.T) {
 
 	for name, dir := range map[string]string{"no lighthouse dir": "", "relative lighthouse dir": "lighthouse"} {
 		t.Run(name, func(t *testing.T) {
-			conf := testBundle(t, Lighthouse)
+			conf := testNode(t, Lighthouse)
 			conf.LighthouseDir = dir
 
 			_, err := writeAll(t.Context(), conf)
@@ -184,7 +184,7 @@ func TestWriteLighthouse(t *testing.T) {
 	}
 
 	t.Run("builder removed", func(t *testing.T) {
-		conf := testBundle(t, Lighthouse)
+		conf := testNode(t, Lighthouse)
 		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
 		require.FileExists(t, filepath.Join(conf.OutputDir, "validators", "builder_definitions.yml"))
@@ -208,7 +208,7 @@ func TestWriteLighthouse(t *testing.T) {
 }
 
 func TestWriteRewrite(t *testing.T) {
-	conf := testBundle(t, Nimbus)
+	conf := testNode(t, Nimbus)
 	_, err := writeAll(t.Context(), conf)
 	require.NoError(t, err)
 
@@ -240,9 +240,9 @@ func writeAll(ctx context.Context, conf Config) ([]string, error) {
 	return config, nil
 }
 
-// testBundle returns the config for a node with two keystores and a proposer config with
+// testNode returns the config for a node with two keystores and a proposer config with
 // a builder block.
-func testBundle(t *testing.T, client Client) Config {
+func testNode(t *testing.T, client Client) Config {
 	t.Helper()
 
 	nodeDir := t.TempDir()
@@ -291,7 +291,7 @@ func requireFile(t *testing.T, dir, path, want string) {
 }
 
 func TestWriteMixedCaseProposerConfigKeys(t *testing.T) {
-	conf := testBundle(t, Nimbus)
+	conf := testNode(t, Nimbus)
 
 	cfg := testConfig(true)
 	cfg.ProposerConfig = map[string]proposerconfig.Settings{upperPubkeyA: cfg.ProposerConfig[testPubkeyA]}
@@ -321,7 +321,7 @@ func TestWriteMixedCaseProposerConfigKeys(t *testing.T) {
 }
 
 func TestWriteSecretDirectoryMode(t *testing.T) {
-	conf := testBundle(t, Nimbus)
+	conf := testNode(t, Nimbus)
 
 	// Settings first create the validator directories, a later run adds the keystores to them.
 	_, err := WriteConfig(t.Context(), conf)
@@ -353,7 +353,7 @@ func TestWriteLogsBuilders(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conf := testBundle(t, test.client)
+			conf := testNode(t, test.client)
 
 			cfg := testConfig(!test.noBuild)
 			if !test.noBuild {
@@ -382,7 +382,7 @@ func TestWriteLogsBuilders(t *testing.T) {
 
 		ctx := log.WithLogger(context.Background(), log.NewConsoleForT(t, zapcore.AddSync(&buf)))
 
-		_, err := WriteKeys(ctx, testBundle(t, Teku))
+		_, err := WriteKeys(ctx, testNode(t, Teku))
 		require.NoError(t, err)
 		require.NotContains(t, buf.String(), "uilder")
 	})
@@ -414,7 +414,7 @@ func TestWriteInvalidProposerConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conf := testBundle(t, Nimbus)
+			conf := testNode(t, Nimbus)
 
 			b, err := os.ReadFile(conf.ProposerConfigFile)
 			require.NoError(t, err)
@@ -441,7 +441,7 @@ func TestWriteLogsKeystores(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(string(test.client), func(t *testing.T) {
-			conf := testBundle(t, test.client)
+			conf := testNode(t, test.client)
 
 			var buf bytes.Buffer
 
