@@ -72,9 +72,9 @@ func builderFlags(client Client, builder *proposerconfig.Builder) []string {
 	}
 }
 
-// logBuilders logs where the client takes its builders from, when the part holding them is written: the flags
-// for Nimbus, the proposer settings for the others.
-func logBuilders(ctx context.Context, client Client, builder *proposerconfig.Builder, include func(Part) bool) {
+// logBuilders logs where the client takes its builders from: the flags for Nimbus, the proposer settings for the
+// others.
+func logBuilders(ctx context.Context, client Client, builder *proposerconfig.Builder) {
 	if builder == nil || len(builder.Builders) == 0 {
 		log.Info(ctx, "No builders in the proposer config, no builder settings written")
 		return
@@ -87,20 +87,6 @@ func logBuilders(ctx context.Context, client Client, builder *proposerconfig.Bui
 
 	redacted := log.RedactURLs(urls, true)
 
-	if client == Nimbus {
-		if !include(PartVCFlags) {
-			return
-		}
-
-		log.Info(ctx, "Builders passed as flags", z.Str("file", FlagsFile), z.Any("builders", redacted))
-
-		return
-	}
-
-	if !include(PartProposerSettings) {
-		return
-	}
-
 	switch client {
 	case Teku:
 		log.Info(ctx, "Builders taken from the proposer config file", z.Str("file", tekuSettingsPath), z.Any("builders", redacted))
@@ -110,6 +96,8 @@ func logBuilders(ctx context.Context, client Client, builder *proposerconfig.Bui
 		log.Info(ctx, "Builders taken from the proposer settings file", z.Str("file", lodestarSettingsPath), z.Any("builders", redacted))
 	case Lighthouse:
 		log.Info(ctx, "Builders taken from the builder definitions", z.Str("file", lighthouseBuildersPath), z.Any("builders", redacted))
+	case Nimbus:
+		log.Info(ctx, "Builders passed as flags", z.Str("file", FlagsFile), z.Any("builders", redacted))
 	default:
 	}
 }

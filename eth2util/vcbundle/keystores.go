@@ -99,7 +99,7 @@ func readKeystoreFile(path string) (keystoreFile, error) {
 		return keystoreFile{}, errors.New("keystore without public key", z.Str("path", path))
 	}
 
-	// The public key names directories of the bundle, so it must be a public key and nothing else.
+	// The public key names directories of the output, so it must be a public key and nothing else.
 	pubkey, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(store.Pubkey), "0x"))
 	if err != nil || len(pubkey) != len(tbls.PublicKey{}) {
 		return keystoreFile{}, errors.New("keystore public key is not 48 bytes of hex", z.Str("path", path))
@@ -134,7 +134,7 @@ func readKeystoreFile(path string) (keystoreFile, error) {
 
 // keystoreFiles returns the keystores and passwords in the client's layout, or Prysm's wallet.
 func keystoreFiles(ctx context.Context, client Client, keysDir string, keystores []keystoreFile) ([]bundleFile, error) {
-	// paths returns the keystore and password paths of a keystore in the bundle.
+	// paths returns the keystore and password paths of a keystore in the output.
 	var paths func(k keystoreFile) (keystorePath, passwordPath string)
 
 	flat := func(k keystoreFile) (string, string) {

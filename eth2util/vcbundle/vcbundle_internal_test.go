@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -44,18 +45,6 @@ func TestParseClient(t *testing.T) {
 	require.ErrorContains(t, err, "teku, prysm, lodestar, nimbus, lighthouse")
 }
 
-func TestParseParts(t *testing.T) {
-	parts, err := ParseParts([]string{"vc-flags", "keystores", "vc-flags"})
-	require.NoError(t, err)
-	require.Equal(t, []Part{PartKeystores, PartVCFlags}, parts)
-
-	_, err = ParseParts([]string{"readme"})
-	require.ErrorContains(t, err, "keystores, proposer-settings, vc-flags")
-
-	_, err = ParseParts(nil)
-	require.ErrorContains(t, err, "nothing to write")
-}
-
 func TestWrite(t *testing.T) {
 	tests := []struct {
 		client Client
@@ -80,7 +69,7 @@ func TestWrite(t *testing.T) {
 		t.Run(string(test.client), func(t *testing.T) {
 			conf := testBundle(t, test.client)
 
-			got, err := Write(t.Context(), conf)
+			got, err := writeAll(t.Context(), conf)
 			require.NoError(t, err)
 			require.Equal(t, test.want, got)
 
@@ -94,7 +83,7 @@ func TestWrite(t *testing.T) {
 func TestWriteContent(t *testing.T) {
 	t.Run("nimbus", func(t *testing.T) {
 		conf := testBundle(t, Nimbus)
-		_, err := Write(t.Context(), conf)
+		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
 
 		requireFile(t, conf.OutputDir, "validators/"+testPubkeyA+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
@@ -106,7 +95,7 @@ func TestWriteContent(t *testing.T) {
 
 	t.Run("lodestar", func(t *testing.T) {
 		conf := testBundle(t, Lodestar)
-		_, err := Write(t.Context(), conf)
+		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
 
 		requireFile(t, conf.OutputDir, "secrets/"+testPubkeyA, "password-0")
@@ -125,33 +114,30 @@ func TestWriteContent(t *testing.T) {
 	})
 }
 
-func TestWriteParts(t *testing.T) {
-	t.Run("flags only", func(t *testing.T) {
+func TestWriteSeparately(t *testing.T) {
+	t.Run("config needs no keystores", func(t *testing.T) {
 		conf := testBundle(t, Teku)
-		conf.Parts = []Part{PartVCFlags}
 		conf.ValidatorKeysDir = filepath.Join(t.TempDir(), "missing")
 
-		got, err := Write(t.Context(), conf)
+		got, err := WriteConfig(t.Context(), conf)
 		require.NoError(t, err)
-		require.Equal(t, []string{"vc-flags.txt"}, got)
+		require.Equal(t, []string{"teku-proposer-config.json", "vc-flags.txt"}, got)
 	})
 
-	t.Run("keystores only", func(t *testing.T) {
+	t.Run("keys need no proposer config", func(t *testing.T) {
 		conf := testBundle(t, Prysm)
-		conf.Parts = []Part{PartKeystores}
 		conf.ProposerConfigFile = filepath.Join(t.TempDir(), "missing.json")
 
-		got, err := Write(t.Context(), conf)
+		got, err := WriteKeys(t.Context(), conf)
 		require.NoError(t, err)
 		require.Len(t, got, 2)
 	})
 
-	t.Run("lighthouse keystores only", func(t *testing.T) {
+	t.Run("lighthouse keys", func(t *testing.T) {
 		conf := testBundle(t, Lighthouse)
-		conf.Parts = []Part{PartKeystores}
 		conf.LighthouseDir = ""
 
-		got, err := Write(t.Context(), conf)
+		got, err := WriteKeys(t.Context(), conf)
 		require.NoError(t, err)
 		require.Len(t, got, 4)
 		require.NoFileExists(t, filepath.Join(conf.OutputDir, "validators", "validator_definitions.yml"))
@@ -161,7 +147,7 @@ func TestWriteParts(t *testing.T) {
 		conf := testBundle(t, Teku)
 		conf.ProposerConfigFile = filepath.Join(t.TempDir(), "missing.json")
 
-		_, err := Write(t.Context(), conf)
+		_, err := WriteConfig(t.Context(), conf)
 		require.ErrorContains(t, err, "charon run writes it on start")
 		require.NoDirExists(t, conf.OutputDir)
 	})
@@ -171,7 +157,7 @@ func TestWriteLighthouse(t *testing.T) {
 	t.Run("keystores copied", func(t *testing.T) {
 		conf := testBundle(t, Lighthouse)
 
-		_, err := Write(t.Context(), conf)
+		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
 
 		keystore, err := os.ReadFile(filepath.Join(conf.ValidatorKeysDir, "keystore-0.json"))
@@ -191,7 +177,7 @@ func TestWriteLighthouse(t *testing.T) {
 			conf := testBundle(t, Lighthouse)
 			conf.LighthouseDir = dir
 
-			_, err := Write(t.Context(), conf)
+			_, err := writeAll(t.Context(), conf)
 			require.ErrorContains(t, err, "absolute data directory")
 			require.NoDirExists(t, conf.OutputDir)
 		})
@@ -199,14 +185,13 @@ func TestWriteLighthouse(t *testing.T) {
 
 	t.Run("builder removed", func(t *testing.T) {
 		conf := testBundle(t, Lighthouse)
-		_, err := Write(t.Context(), conf)
+		_, err := writeAll(t.Context(), conf)
 		require.NoError(t, err)
 		require.FileExists(t, filepath.Join(conf.OutputDir, "validators", "builder_definitions.yml"))
 
 		writeTestProposerConfig(t, conf.ProposerConfigFile, testConfig(false))
 
-		conf.Parts = []Part{PartProposerSettings, PartVCFlags}
-		got, err := Write(t.Context(), conf)
+		got, err := WriteConfig(t.Context(), conf)
 		require.NoError(t, err)
 		require.Equal(t, []string{"validators/builder_definitions.yml", "validators/validator_definitions.yml", "vc-flags.txt"}, got)
 
@@ -224,20 +209,38 @@ func TestWriteLighthouse(t *testing.T) {
 
 func TestWriteRewrite(t *testing.T) {
 	conf := testBundle(t, Nimbus)
-	_, err := Write(t.Context(), conf)
+	_, err := writeAll(t.Context(), conf)
 	require.NoError(t, err)
 
 	cfg := testConfig(true)
 	cfg.DefaultConfig.FeeRecipient = "0x000000000000000000000000000000000000f00d"
 	writeTestProposerConfig(t, conf.ProposerConfigFile, cfg)
 
-	_, err = Write(t.Context(), conf)
+	_, err = writeAll(t.Context(), conf)
 	require.NoError(t, err)
 	requireFile(t, conf.OutputDir, "validators/"+testPubkeyB+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000f00d\n")
 	requireFile(t, conf.OutputDir, "validators/"+testPubkeyA+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
 }
 
-// testBundle returns the config of a bundle of all parts for a node with two keystores and a proposer config with
+// writeAll writes the client's config and keys to the same directory and returns the paths of both, sorted.
+func writeAll(ctx context.Context, conf Config) ([]string, error) {
+	config, err := WriteConfig(ctx, conf)
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err := WriteKeys(ctx, conf)
+	if err != nil {
+		return nil, err
+	}
+
+	config = append(config, keys...)
+	slices.Sort(config)
+
+	return config, nil
+}
+
+// testBundle returns the config for a node with two keystores and a proposer config with
 // a builder block.
 func testBundle(t *testing.T, client Client) Config {
 	t.Helper()
@@ -259,8 +262,7 @@ func testBundle(t *testing.T, client Client) Config {
 
 	return Config{
 		Client:             client,
-		Parts:              AllParts(),
-		OutputDir:          filepath.Join(nodeDir, "vc-bundle"),
+		OutputDir:          filepath.Join(nodeDir, "output"),
 		ProposerConfigFile: proposerConfigFile,
 		ValidatorKeysDir:   keysDir,
 		LighthouseDir:      "/root/.lighthouse/hoodi",
@@ -295,12 +297,12 @@ func TestWriteMixedCaseProposerConfigKeys(t *testing.T) {
 	cfg.ProposerConfig = map[string]proposerconfig.Settings{upperPubkeyA: cfg.ProposerConfig[testPubkeyA]}
 	writeTestProposerConfig(t, conf.ProposerConfigFile, cfg)
 
-	_, err := Write(t.Context(), conf)
+	_, err := writeAll(t.Context(), conf)
 	require.NoError(t, err)
 	requireFile(t, conf.OutputDir, "validators/"+testPubkeyA+"/suggested_fee_recipient.hex", "0x000000000000000000000000000000000000beef\n")
 
 	conf.Client = Teku
-	_, err = Write(t.Context(), conf)
+	_, err = writeAll(t.Context(), conf)
 	require.NoError(t, err)
 
 	b, err := os.ReadFile(filepath.Join(conf.OutputDir, "teku-proposer-config.json"))
@@ -313,7 +315,7 @@ func TestWriteMixedCaseProposerConfigKeys(t *testing.T) {
 		cfg.ProposerConfig[testPubkeyA] = proposerconfig.Settings{FeeRecipient: "0x000000000000000000000000000000000000f00d"}
 		writeTestProposerConfig(t, conf.ProposerConfigFile, cfg)
 
-		_, err := Write(t.Context(), conf)
+		_, err := writeAll(t.Context(), conf)
 		require.ErrorContains(t, err, "duplicate proposer config key")
 	})
 }
@@ -322,12 +324,10 @@ func TestWriteSecretDirectoryMode(t *testing.T) {
 	conf := testBundle(t, Nimbus)
 
 	// Settings first create the validator directories, a later run adds the keystores to them.
-	conf.Parts = []Part{PartProposerSettings}
-	_, err := Write(t.Context(), conf)
+	_, err := WriteConfig(t.Context(), conf)
 	require.NoError(t, err)
 
-	conf.Parts = AllParts()
-	_, err = Write(t.Context(), conf)
+	_, err = WriteKeys(t.Context(), conf)
 	require.NoError(t, err)
 
 	for _, dir := range []string{"validators", "validators/" + testPubkeyA, "secrets"} {
@@ -366,7 +366,7 @@ func TestWriteLogsBuilders(t *testing.T) {
 
 			ctx := log.WithLogger(context.Background(), log.NewConsoleForT(t, zapcore.AddSync(&buf)))
 
-			_, err := Write(ctx, conf)
+			_, err := writeAll(ctx, conf)
 			require.NoError(t, err)
 
 			for _, want := range test.want {
@@ -377,33 +377,15 @@ func TestWriteLogsBuilders(t *testing.T) {
 		})
 	}
 
-	// The builders are logged with the part holding them: the settings file, or the flags for nimbus.
-	parts := []struct {
-		name   string
-		client Client
-		parts  []Part
-		logged bool
-	}{
-		{name: "teku settings only", client: Teku, parts: []Part{PartProposerSettings}, logged: true},
-		{name: "teku flags only", client: Teku, parts: []Part{PartVCFlags}},
-		{name: "nimbus settings only", client: Nimbus, parts: []Part{PartProposerSettings}},
-		{name: "nimbus flags only", client: Nimbus, parts: []Part{PartVCFlags}, logged: true},
-		{name: "keystores only", client: Teku, parts: []Part{PartKeystores}},
-	}
-	for _, test := range parts {
-		t.Run(test.name, func(t *testing.T) {
-			conf := testBundle(t, test.client)
-			conf.Parts = test.parts
+	t.Run("keys", func(t *testing.T) {
+		var buf bytes.Buffer
 
-			var buf bytes.Buffer
+		ctx := log.WithLogger(context.Background(), log.NewConsoleForT(t, zapcore.AddSync(&buf)))
 
-			ctx := log.WithLogger(context.Background(), log.NewConsoleForT(t, zapcore.AddSync(&buf)))
-
-			_, err := Write(ctx, conf)
-			require.NoError(t, err)
-			require.Equal(t, test.logged, strings.Contains(buf.String(), "uilder"), buf.String())
-		})
-	}
+		_, err := WriteKeys(ctx, testBundle(t, Teku))
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "uilder")
+	})
 }
 
 // TestWriteInvalidProposerConfig verifies a proposer config file edited by hand into an invalid one is rejected.
@@ -439,7 +421,7 @@ func TestWriteInvalidProposerConfig(t *testing.T) {
 			require.Contains(t, string(b), test.old)
 			require.NoError(t, os.WriteFile(conf.ProposerConfigFile, []byte(strings.Replace(string(b), test.old, test.new, 1)), 0o644))
 
-			_, err = Write(t.Context(), conf)
+			_, err = writeAll(t.Context(), conf)
 			require.ErrorContains(t, err, test.wantErr)
 			require.NoDirExists(t, conf.OutputDir)
 		})
@@ -451,7 +433,7 @@ func TestWriteLogsKeystores(t *testing.T) {
 		client Client
 		want   []string
 	}{
-		{Teku, []string{"Validator client bundle made for client version", `"client": "teku"`, `"version": "develop"`, "Keystores copied, teku reads the keystore and password pairs", `"dir": "keystores"`, `"keystores": 2`}},
+		{Teku, []string{"Validator client files made for client version", `"client": "teku"`, `"version": "develop"`, "Keystores copied, teku reads the keystore and password pairs", `"dir": "keystores"`, `"keystores": 2`}},
 		{Prysm, []string{"Keystores decrypted into a prysm wallet", `"wallet_dir": "prysm-wallet"`, `"keystores": 2`}},
 		{Lodestar, []string{"Keystores written in lodestar's layout", `"keystores_dir": "keystores"`, `"secrets_dir": "secrets"`}},
 		{Nimbus, []string{"Keystores written in nimbus's layout", `"keystores_dir": "validators"`, `"secrets_dir": "secrets"`}},
@@ -460,13 +442,12 @@ func TestWriteLogsKeystores(t *testing.T) {
 	for _, test := range tests {
 		t.Run(string(test.client), func(t *testing.T) {
 			conf := testBundle(t, test.client)
-			conf.Parts = []Part{PartKeystores}
 
 			var buf bytes.Buffer
 
 			ctx := log.WithLogger(context.Background(), log.NewConsoleForT(t, zapcore.AddSync(&buf)))
 
-			_, err := Write(ctx, conf)
+			_, err := WriteKeys(ctx, conf)
 			require.NoError(t, err)
 
 			for _, want := range test.want {

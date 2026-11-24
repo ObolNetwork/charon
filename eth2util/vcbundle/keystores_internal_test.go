@@ -60,7 +60,7 @@ func TestListKeystoresErrors(t *testing.T) {
 		require.ErrorContains(t, err, "keystore without public key")
 	})
 
-	// The public key names directories of the bundle.
+	// The public key names directories of the output.
 	for name, pubkey := range map[string]string{
 		"path public key":  "../../escape",
 		"short public key": "0xaa11",

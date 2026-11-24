@@ -1,6 +1,7 @@
 // Copyright © 2022-2026 Obol Labs Inc. Licensed under the terms of a Business Source License 1.1
 
-// Package vcbundle renders the files a validator client consumes from a node's keystores and proposer config.
+// Package vcbundle renders the files a validator client consumes from a node's keystores and proposer config:
+// its keys in its layout, and its proposer settings and flags.
 package vcbundle
 
 import (
@@ -24,7 +25,7 @@ const (
 
 var clients = []Client{Teku, Prysm, Lodestar, Nimbus, Lighthouse}
 
-// clientVersions are the client versions the bundle is made for. Teku reads builders from its proposer config file
+// clientVersions are the client versions the files are made for. Teku reads builders from its proposer config file
 // only after 26.10.3.
 var clientVersions = map[Client]string{
 	Teku:       "develop",
@@ -42,43 +43,6 @@ func ParseClient(s string) (Client, error) {
 	}
 
 	return c, nil
-}
-
-// Part is a part of the bundle that can be written on its own.
-type Part string
-
-const (
-	PartKeystores        Part = "keystores"
-	PartProposerSettings Part = "proposer-settings"
-	PartVCFlags          Part = "vc-flags"
-)
-
-// AllParts returns every part, in the order they are written.
-func AllParts() []Part {
-	return []Part{PartKeystores, PartProposerSettings, PartVCFlags}
-}
-
-// ParseParts returns the parts of the given names, deduplicated and in AllParts order.
-func ParseParts(values []string) ([]Part, error) {
-	if len(values) == 0 {
-		return nil, errors.New("nothing to write, include at least one of: " + join(AllParts()))
-	}
-
-	for _, v := range values {
-		if !slices.Contains(AllParts(), Part(v)) {
-			return nil, errors.New("unknown bundle part, use any of: "+join(AllParts()), z.Str("part", v))
-		}
-	}
-
-	var parts []Part
-
-	for _, p := range AllParts() {
-		if slices.Contains(values, string(p)) {
-			parts = append(parts, p)
-		}
-	}
-
-	return parts, nil
 }
 
 // join returns the values comma-separated.

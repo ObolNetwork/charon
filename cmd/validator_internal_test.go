@@ -20,16 +20,18 @@ import (
 	"github.com/obolnetwork/charon/tbls"
 )
 
-func TestVCBundleCmd(t *testing.T) {
+func TestValidatorCmd(t *testing.T) {
 	run := func(t *testing.T, args ...string) (vcbundle.Config, error) {
 		t.Helper()
 
 		var got vcbundle.Config
 
-		cmd := newVCBundleCmd(func(_ context.Context, _ io.Writer, conf vcbundle.Config) error {
+		runFunc := func(_ context.Context, _ io.Writer, conf vcbundle.Config) error {
 			got = conf
 			return nil
-		})
+		}
+
+		cmd := newValidatorCmd(newValidatorConfigCmd(runFunc), newValidatorKeysCmd(runFunc))
 		cmd.SetArgs(args)
 		cmd.SetOut(io.Discard)
 		cmd.SetErr(io.Discard)
@@ -37,35 +39,47 @@ func TestVCBundleCmd(t *testing.T) {
 		return got, cmd.Execute()
 	}
 
-	t.Run("lighthouse dir", func(t *testing.T) {
-		got, err := run(t, "lighthouse", "--lighthouse-dir=/root/.lighthouse/hoodi")
-		require.NoError(t, err)
-		require.Equal(t, "/root/.lighthouse/hoodi", got.LighthouseDir)
-	})
-
-	t.Run("defaults", func(t *testing.T) {
-		got, err := run(t, "nimbus")
+	t.Run("config defaults", func(t *testing.T) {
+		got, err := run(t, "config", "nimbus")
 		require.NoError(t, err)
 		require.Equal(t, vcbundle.Config{
 			Client:             vcbundle.Nimbus,
-			Parts:              vcbundle.AllParts(),
-			OutputDir:          ".charon/vc-bundle",
+			OutputDir:          ".charon/validator-config/nimbus",
 			ProposerConfigFile: ".charon/vc-config/proposer-config.json",
 			ValidatorKeysDir:   ".charon/validator_keys",
 		}, got)
 	})
 
-	t.Run("include", func(t *testing.T) {
-		got, err := run(t, "teku", "--include=vc-flags,proposer-settings")
+	t.Run("keys defaults", func(t *testing.T) {
+		got, err := run(t, "keys", "nimbus")
 		require.NoError(t, err)
-		require.Equal(t, []vcbundle.Part{vcbundle.PartProposerSettings, vcbundle.PartVCFlags}, got.Parts)
+		require.Equal(t, vcbundle.Config{
+			Client:           vcbundle.Nimbus,
+			OutputDir:        ".charon/validator_keys/nimbus",
+			ValidatorKeysDir: ".charon/validator_keys",
+		}, got)
+	})
+
+	t.Run("keys beside the key shares", func(t *testing.T) {
+		got, err := run(t, "keys", "teku", "--validator-keys-dir=/node/validator_keys")
+		require.NoError(t, err)
+		require.Equal(t, "/node/validator_keys/teku", got.OutputDir)
+	})
+
+	t.Run("output and lighthouse dir", func(t *testing.T) {
+		got, err := run(t, "config", "lighthouse", "--output-dir=/out", "--lighthouse-dir=/root/.lighthouse/hoodi")
+		require.NoError(t, err)
+		require.Equal(t, "/out", got.OutputDir)
+		require.Equal(t, "/root/.lighthouse/hoodi", got.LighthouseDir)
 	})
 
 	tests := map[string][]string{
-		"no client":      nil,
-		"unknown client": {"vero"},
-		"unknown part":   {"teku", "--include=readme"},
-		"two clients":    {"teku", "prysm"},
+		"config no client":      {"config"},
+		"config unknown client": {"config", "vero"},
+		"config two clients":    {"config", "teku", "prysm"},
+		"keys no client":        {"keys"},
+		"keys unknown client":   {"keys", "vero"},
+		"keys no proposer file": {"keys", "teku", "--proposer-config-file=x"},
 	}
 	for name, args := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -75,7 +89,7 @@ func TestVCBundleCmd(t *testing.T) {
 	}
 }
 
-func TestRunVCBundle(t *testing.T) {
+func TestRunValidator(t *testing.T) {
 	lighthousePubkey := "0xaa11" + strings.Repeat("0", 92)
 
 	nodeDir := t.TempDir()
@@ -111,33 +125,42 @@ func TestRunVCBundle(t *testing.T) {
 	conf := func(client vcbundle.Client) vcbundle.Config {
 		return vcbundle.Config{
 			Client:             client,
-			Parts:              vcbundle.AllParts(),
-			OutputDir:          filepath.Join(nodeDir, "vc-bundle-"+string(client)),
+			OutputDir:          filepath.Join(nodeDir, "output-"+string(client)),
 			ProposerConfigFile: proposerConfigFile,
 			ValidatorKeysDir:   keysDir,
 			LighthouseDir:      "/root/.lighthouse/hoodi",
 		}
 	}
 
-	t.Run("teku", func(t *testing.T) {
+	t.Run("teku config", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, runVCBundle(t.Context(), &buf, conf(vcbundle.Teku)))
+		require.NoError(t, runValidatorConfig(t.Context(), &buf, conf(vcbundle.Teku)))
 
 		out := buf.String()
-		require.Contains(t, out, "Validator client bundle for teku written to")
+		require.Contains(t, out, "Proposer settings and flags for teku written to")
 		require.Contains(t, out, "  teku-proposer-config.json\n")
 		require.Contains(t, out, "  vc-flags.txt\n")
+		require.NotContains(t, out, "keystore")
 		require.True(t, strings.HasSuffix(out, "Append the lines of vc-flags.txt to the validator client's command.\n"), out)
 	})
 
-	t.Run("lighthouse", func(t *testing.T) {
+	t.Run("lighthouse config", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, runVCBundle(t.Context(), &buf, conf(vcbundle.Lighthouse)))
-		require.Contains(t, buf.String(), "  validators/"+lighthousePubkey+"/voting-keystore.json\n")
+		require.NoError(t, runValidatorConfig(t.Context(), &buf, conf(vcbundle.Lighthouse)))
+		require.Contains(t, buf.String(), "  validators/validator_definitions.yml\n")
 		require.Contains(t, buf.String(), "The definitions name the keystores under /root/.lighthouse/hoodi, move the validators and secrets directories there.\n")
 	})
 
-	t.Run("prysm", func(t *testing.T) {
+	t.Run("lighthouse keys", func(t *testing.T) {
+		var buf bytes.Buffer
+		require.NoError(t, runValidatorKeys(t.Context(), &buf, conf(vcbundle.Lighthouse)))
+		require.Contains(t, buf.String(), "Key shares for lighthouse written to")
+		require.Contains(t, buf.String(), "  validators/"+lighthousePubkey+"/voting-keystore.json\n")
+		require.Contains(t, buf.String(), "  secrets/"+lighthousePubkey+"\n")
+		require.NotContains(t, buf.String(), "The definitions name the keystores")
+	})
+
+	t.Run("prysm keys", func(t *testing.T) {
 		c := conf(vcbundle.Prysm)
 		c.ValidatorKeysDir = t.TempDir()
 
@@ -146,19 +169,8 @@ func TestRunVCBundle(t *testing.T) {
 		require.NoError(t, keystore.StoreKeysInsecure([]tbls.PrivateKey{secret}, c.ValidatorKeysDir, keystore.ConfirmInsecureKeys))
 
 		var buf bytes.Buffer
-		require.NoError(t, runVCBundle(t.Context(), &buf, c))
+		require.NoError(t, runValidatorKeys(t.Context(), &buf, c))
 		require.Contains(t, buf.String(), "  prysm-wallet/direct/accounts/all-accounts.keystore.json\n")
 		require.Contains(t, buf.String(), "Point prysm's --wallet-dir at the prysm-wallet directory, no import needed.\n")
-	})
-
-	t.Run("lighthouse keystores only", func(t *testing.T) {
-		c := conf(vcbundle.Lighthouse)
-		c.Parts = []vcbundle.Part{vcbundle.PartKeystores}
-		c.OutputDir = t.TempDir()
-
-		var buf bytes.Buffer
-		require.NoError(t, runVCBundle(t.Context(), &buf, c))
-		require.Contains(t, buf.String(), "  secrets/"+lighthousePubkey+"\n")
-		require.NotContains(t, buf.String(), "The definitions name the keystores")
 	})
 }

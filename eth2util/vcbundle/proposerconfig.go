@@ -96,7 +96,7 @@ func nimbusFiles(cfg proposerconfig.Config, keystores []keystoreFile) []bundleFi
 	return files
 }
 
-// lighthouseFiles returns Lighthouse's validator and builder definitions. The definitions name the bundle's keystores
+// lighthouseFiles returns Lighthouse's validator and builder definitions. The definitions name the client's keystores
 // by their absolute path under Lighthouse's data directory dir, as Lighthouse resolves relative paths against its
 // working directory.
 func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir string) ([]bundleFile, error) {

@@ -25,37 +25,101 @@ const (
 	publicMode = 0o644
 )
 
-// Config configures a validator client bundle.
+// Config configures the files written for a validator client.
 type Config struct {
 	Client             Client
-	Parts              []Part
 	OutputDir          string
 	ProposerConfigFile string
 	ValidatorKeysDir   string
 	// LighthouseDir is Lighthouse's data directory as Lighthouse sees it, absolute. Its validator definitions name
-	// the bundle's keystores under it.
+	// the keystores under it.
 	LighthouseDir string
 }
 
-// bundleFile is a file of the bundle, its path relative to the output directory.
+// bundleFile is a file to write, its path relative to the output directory.
 type bundleFile struct {
 	Path string
 	Data []byte
 	Mode os.FileMode
 }
 
-// Write writes the bundle and returns the paths of the files written, relative to the output directory, sorted.
-// Everything is rendered before anything is written.
-func Write(ctx context.Context, conf Config) ([]string, error) {
-	files, err := render(ctx, conf)
+// WriteKeys writes the node's key shares in the client's layout and returns the paths of the files written,
+// relative to the output directory, sorted. Everything is rendered before anything is written.
+func WriteKeys(ctx context.Context, conf Config) ([]string, error) {
+	err := checkClient(ctx, conf.Client)
 	if err != nil {
 		return nil, err
 	}
 
+	keystores, err := listKeystores(conf.ValidatorKeysDir)
+	if err != nil {
+		return nil, err
+	}
+
+	files, err := keystoreFiles(ctx, conf.Client, conf.ValidatorKeysDir, keystores)
+	if err != nil {
+		return nil, err
+	}
+
+	return writeFiles(conf.OutputDir, files)
+}
+
+// WriteConfig writes the client's proposer settings and flags from the proposer config file and returns the paths
+// of the files written, relative to the output directory, sorted. Everything is rendered before anything is written.
+func WriteConfig(ctx context.Context, conf Config) ([]string, error) {
+	err := checkClient(ctx, conf.Client)
+	if err != nil {
+		return nil, err
+	}
+
+	if conf.Client == Lighthouse && !path.IsAbs(conf.LighthouseDir) {
+		return nil, errors.New("lighthouse's validator definitions need its absolute data directory, as lighthouse sees it",
+			z.Str("lighthouse_dir", conf.LighthouseDir))
+	}
+
+	// These clients take settings per validator, named by the key shares' public keys.
+	var keystores []keystoreFile
+	if conf.Client == Prysm || conf.Client == Nimbus || conf.Client == Lighthouse {
+		keystores, err = listKeystores(conf.ValidatorKeysDir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	cfg, err := loadProposerConfig(conf.ProposerConfigFile)
+	if err != nil {
+		return nil, err
+	}
+
+	logBuilders(ctx, conf.Client, cfg.DefaultConfig.Builder)
+
+	files, err := proposerConfigFiles(conf.Client, cfg, keystores, conf.LighthouseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	files = append(files, bundleFile{Path: FlagsFile, Data: renderFlags(vcFlags(conf.Client, cfg)), Mode: publicMode})
+
+	return writeFiles(conf.OutputDir, files)
+}
+
+// checkClient returns an error for an unknown client and logs the client version the files are made for.
+func checkClient(ctx context.Context, client Client) error {
+	if !slices.Contains(clients, client) {
+		return errors.New("unknown validator client, use one of: "+join(clients), z.Str("client", string(client)))
+	}
+
+	log.Info(ctx, "Validator client files made for client version", z.Str("client", string(client)), z.Str("version", clientVersions[client]))
+
+	return nil
+}
+
+// writeFiles writes the files under outputDir and returns their paths, sorted.
+func writeFiles(outputDir string, files []bundleFile) ([]string, error) {
 	var resp []string
 
 	for _, f := range files {
-		err := writeFile(conf.OutputDir, f.Path, f.Data, f.Mode)
+		err := writeFile(outputDir, f.Path, f.Data, f.Mode)
 		if err != nil {
 			return nil, err
 		}
@@ -75,75 +139,6 @@ const (
 	prysmSettingsPath    = "prysm-proposer-settings.json"
 	lodestarSettingsPath = "lodestar-proposer-settings.yml"
 )
-
-// render returns the files of the bundle, keystores first.
-func render(ctx context.Context, conf Config) ([]bundleFile, error) {
-	if !slices.Contains(clients, conf.Client) {
-		return nil, errors.New("unknown validator client, use one of: "+join(clients), z.Str("client", string(conf.Client)))
-	}
-
-	if len(conf.Parts) == 0 {
-		return nil, errors.New("nothing to write, include at least one of: " + join(AllParts()))
-	}
-
-	log.Info(ctx, "Validator client bundle made for client version", z.Str("client", string(conf.Client)), z.Str("version", clientVersions[conf.Client]))
-
-	include := func(p Part) bool { return slices.Contains(conf.Parts, p) }
-	perValidator := conf.Client == Prysm || conf.Client == Nimbus || conf.Client == Lighthouse
-
-	if conf.Client == Lighthouse && include(PartProposerSettings) && !path.IsAbs(conf.LighthouseDir) {
-		return nil, errors.New("lighthouse's validator definitions need its absolute data directory, as lighthouse sees it",
-			z.Str("lighthouse_dir", conf.LighthouseDir))
-	}
-
-	var (
-		keystores []keystoreFile
-		cfg       proposerconfig.Config
-		err       error
-	)
-
-	if include(PartKeystores) || (include(PartProposerSettings) && perValidator) {
-		keystores, err = listKeystores(conf.ValidatorKeysDir)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if include(PartProposerSettings) || include(PartVCFlags) {
-		cfg, err = loadProposerConfig(conf.ProposerConfigFile)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if include(PartProposerSettings) || include(PartVCFlags) {
-		logBuilders(ctx, conf.Client, cfg.DefaultConfig.Builder, include)
-	}
-
-	var files []bundleFile
-
-	if include(PartKeystores) {
-		files, err = keystoreFiles(ctx, conf.Client, conf.ValidatorKeysDir, keystores)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if include(PartProposerSettings) {
-		settings, err := proposerConfigFiles(conf.Client, cfg, keystores, conf.LighthouseDir)
-		if err != nil {
-			return nil, err
-		}
-
-		files = append(files, settings...)
-	}
-
-	if include(PartVCFlags) {
-		files = append(files, bundleFile{Path: FlagsFile, Data: renderFlags(vcFlags(conf.Client, cfg)), Mode: publicMode})
-	}
-
-	return files, nil
-}
 
 // loadProposerConfig returns the config of the proposer config file as charon run writes it, keyed by this node's
 // public shares, which are the keystores' public keys. The file is checked as far as it can be without the cluster
