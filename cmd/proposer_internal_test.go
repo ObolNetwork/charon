@@ -156,8 +156,7 @@ func TestProposerStatus(t *testing.T) {
 		require.NoError(t, proposerconfig.Write(file, doc, lock, cluster.NodeIdx{PeerIdx: 1, ShareIdx: 2}))
 
 		out, err := runProposerCmd(t, lockFile, "--proposer-config-file="+file)
-		require.NoError(t, err)
-		require.Contains(t, out, "Proposer config revision 1 does not verify against the cluster lock: not enough signatures")
+		require.ErrorContains(t, err, "verify proposer config file: not enough signatures")
 		require.NotContains(t, out, "gas limit")
 	})
 
@@ -186,15 +185,19 @@ func TestProposerStatus(t *testing.T) {
 			require.NoError(t, os.WriteFile(file, b, 0o600))
 
 			out, err := runProposerCmd(t, "--lock-file="+file, "--no-verify", "--proposer-config-file="+proposerconfig.FilePath(nodeDir(dir, 1)))
-			require.NoError(t, err)
+			if name == "short lock hash" {
+				require.ErrorContains(t, err, "malformed lock hash")
+			} else {
+				require.NoError(t, err)
+			}
+
 			require.Contains(t, out, `Cluster "TestProposerStatus", lock 0x`)
 		})
 	}
 
 	t.Run("no lock", func(t *testing.T) {
-		out, err := runProposerCmd(t, "--lock-file="+path.Join(t.TempDir(), "missing.json"))
-		require.NoError(t, err)
-		require.Contains(t, out, "Cannot show the proposer config: load cluster lock")
+		_, err := runProposerCmd(t, "--lock-file="+path.Join(t.TempDir(), "missing.json"))
+		require.ErrorContains(t, err, "load cluster lock")
 	})
 }
 

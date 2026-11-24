@@ -28,7 +28,7 @@ type proposerViewConfig struct {
 	JSON               bool
 }
 
-func newProposerCmd(runStatus func(context.Context, io.Writer, proposerViewConfig), cmds ...*cobra.Command) *cobra.Command {
+func newProposerCmd(runStatus func(context.Context, io.Writer, proposerViewConfig) error, cmds ...*cobra.Command) *cobra.Command {
 	var config proposerViewConfig
 
 	cmd := &cobra.Command{
@@ -37,8 +37,8 @@ func newProposerCmd(runStatus func(context.Context, io.Writer, proposerViewConfi
 		Long: "Shows the cluster's signed proposer config, the fee recipients, gas limit and builders its validator clients use, and how to change it. " +
 			"To change it, all operators run edit at the same time with the same change: either the same change flags, or a proposal file one person wrote with create, which spares everyone retyping the flags.",
 		Args: cobra.NoArgs,
-		Run: func(cmd *cobra.Command, _ []string) {
-			runStatus(cmd.Context(), cmd.OutOrStdout(), config)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runStatus(cmd.Context(), cmd.OutOrStdout(), config)
 		},
 	}
 
@@ -90,8 +90,8 @@ func loadProposerView(ctx context.Context, config proposerViewConfig) (cluster.L
 	return *lock, doc, nil
 }
 
-// runProposerStatus prints the cluster's proposer config and how to change it. It never fails: a problem is printed.
-func runProposerStatus(ctx context.Context, w io.Writer, config proposerViewConfig) {
+// runProposerStatus prints the cluster's proposer config and how to change it. A missing file is reported, not an error.
+func runProposerStatus(ctx context.Context, w io.Writer, config proposerViewConfig) error {
 	lock, doc, err := loadProposerView(ctx, config)
 	if len(lock.Operators) > 0 {
 		_, _ = fmt.Fprintf(w, "Cluster %q, lock 0x%s…, %d operators, threshold %d\n",
@@ -101,17 +101,15 @@ func runProposerStatus(ctx context.Context, w io.Writer, config proposerViewConf
 	switch {
 	case errors.Is(err, proposerconfig.ErrNotFound):
 		_, _ = fmt.Fprintf(w, "No proposer config file at %s: charon run writes it from the cluster lock when it starts.\n", config.ProposerConfigFile)
-		return
+		return nil
 	case err != nil:
-		_, _ = fmt.Fprintf(w, "Cannot show the proposer config: %v\n", err)
-		return
+		return err
 	}
 
 	// An unverified document is not shown, its content cannot be trusted.
 	err = proposerconfig.Verify(doc, lock)
 	if err != nil {
-		_, _ = fmt.Fprintf(w, "Proposer config revision %d does not verify against the cluster lock: %v\n", doc.Revision, err)
-		return
+		return errors.Wrap(err, "verify proposer config file")
 	}
 
 	if doc.Revision == 0 {
@@ -130,6 +128,8 @@ func runProposerStatus(ctx context.Context, w io.Writer, config proposerViewConf
 	_ = tw.Flush()
 
 	_, _ = fmt.Fprintln(w, "Change it: every operator runs charon alpha proposer edit <change flags> at the same time, or edit <proposal file> with a file from charon alpha proposer create")
+
+	return nil
 }
 
 // signerList returns the indexes of the operators that signed the document, as in the lock, comma-separated.
