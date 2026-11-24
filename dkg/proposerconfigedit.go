@@ -574,7 +574,7 @@ func confirmEdit(ctx context.Context, conf ProposerConfigEditConfig, lock cluste
 	}
 
 	log.Info(ctx, fmt.Sprintf("Proposing proposer config revision %s, changes from revision %d:",
-		proposerconfig.RevisionName(change.Revision, change.Hash), change.BaseRevision))
+		proposerconfig.RevisionName(change.Revision, change.Hash), change.BaseRevision), z.Hex("hash", change.Hash[:]))
 
 	for _, line := range change.Diff {
 		log.Info(ctx, "  "+line)

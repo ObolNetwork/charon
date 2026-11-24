@@ -164,6 +164,10 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 
 // loadProposal returns the unsigned revision of the proposal file at the path or URL.
 func loadProposal(ctx context.Context, source string) (proposerconfig.Document, error) {
+	if validURI(source) && !strings.HasPrefix(source, httpsScheme) {
+		log.Warn(ctx, "Proposal file URL does not use https protocol", nil, z.Str("addr", log.RedactURL(source, false)))
+	}
+
 	b, err := readFileOrURL(ctx, source)
 	if err != nil {
 		return proposerconfig.Document{}, errors.Wrap(err, "read proposal file")
@@ -228,6 +232,8 @@ func printProposerConfigChange(w io.Writer, change dkg.ProposerConfigChange) {
 	for _, line := range change.Diff {
 		_, _ = fmt.Fprintln(w, "  "+line)
 	}
+
+	_, _ = fmt.Fprintf(w, "Revision hash: %#x\n", change.Hash)
 }
 
 // delta validates the change flags and returns the delta they describe.

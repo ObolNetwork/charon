@@ -85,6 +85,7 @@ func TestProposerPrepare(t *testing.T) {
 	require.Regexp(t, `Proposer config revision 2:0x[0-9a-f]{4}…[0-9a-f]{4}, changes from revision 1:`, out)
 	require.Contains(t, out, "60000000")
 	require.Contains(t, out, "then all run charon alpha proposer edit "+output)
+	require.Regexp(t, `Revision hash: 0x[0-9a-f]{64}\n`, out)
 
 	b, err := os.ReadFile(output)
 	require.NoError(t, err)
