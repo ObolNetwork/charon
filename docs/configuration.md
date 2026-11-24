@@ -180,7 +180,7 @@ raises `app_proposer_config_invalid` to 1 and is still used (the validator clien
 at all, or holds values charon cannot parse (e.g. a non-numeric gas limit), is left untouched, logged as an error with `app_proposer_config_invalid` at 1,
 and charon uses the content derived from the lock and flags in memory meanwhile; delete it to have charon regenerate revision 0 on the next start.
 This includes a file with `"version": 1` written by a v2.0.0 release candidate. Charon reloads the file at runtime when it is replaced,
-for example by an edit ceremony; the validator client must be restarted to pick the new file up.
+for example by an edit ceremony; the validator client only picks the new file up once its settings are rendered again and it is restarted, see below.
 
 The first signed revision is created together with the cluster, by `charon dkg` and `charon create cluster`, and by the
 lock-changing `charon alpha edit` commands (add/remove/replace operators, add validators, recreate private keys), which carry the
@@ -242,7 +242,9 @@ docker compose exec charon charon alpha proposer edit --p2p-relays=https://4.rel
 ```
 
 On success the ceremony writes revision N+1 and archives the previous file as `proposer-config-revision-<N>.json` next to it.
-Restart the validator client afterwards to apply the new file, e.g. `docker compose restart <vc service>`. Before the gloas fork
+To apply the new file, rerun `charon alpha vc-bundle`, move the files and restart the validator client: a restart alone keeps the
+old settings. On charon-distributed-validator-node the `vc-bundle` service does the rendering, and
+`docker compose restart <vc service>` does not run it: recreate the validator client's container instead. Before the gloas fork
 charon's own builder registrations are unaffected, and a fee recipient change also needs `charon feerecipient sign` and `fetch`.
 
 ### Validator client files

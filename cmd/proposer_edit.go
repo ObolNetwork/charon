@@ -99,7 +99,7 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 			"It is a ceremony, like a DKG: one operator running it alone changes nothing. Agree on a time with the other operators, then all participating operators run this command " +
 			"at the same time and with the same change: a proposal file written with charon alpha proposer create (a path or an HTTP URL), or the equal change flags. " +
 			"The command waits for the others to join. Each operator confirms the change before signing it, then all agree on the new revision and each writes it with the collected signatures. " +
-			"Restart the validator client afterwards to apply it.",
+			"Afterwards rerun charon alpha vc-bundle and restart the validator client to apply it: a restart alone keeps the old settings.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := log.InitLogger(config.DKGConfig.Log); err != nil {
