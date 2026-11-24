@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"strconv"
@@ -25,7 +24,6 @@ type proposerViewConfig struct {
 	LockFile           string
 	ProposerConfigFile string
 	NoVerify           bool
-	JSON               bool
 }
 
 func newProposerCmd(runStatus func(context.Context, io.Writer, proposerViewConfig) error, cmds ...*cobra.Command) *cobra.Command {
@@ -63,7 +61,6 @@ func newProposerListCmd(runFunc func(context.Context, io.Writer, proposerViewCon
 	}
 
 	bindProposerViewFlags(cmd, &config)
-	cmd.Flags().BoolVar(&config.JSON, "json", false, "Print JSON instead of a table.")
 
 	return cmd
 }
@@ -157,26 +154,6 @@ func builderSummary(b *proposerconfig.Builder) string {
 		strings.Join(urls, ", "), b.MinBid, b.BuilderBoostFactor, b.MaxExecutionPayment)
 }
 
-// proposerListJSON is the JSON form of the proposer list.
-type proposerListJSON struct {
-	Revision   uint64                  `json:"revision"`
-	Validators int                     `json:"validators"`
-	Default    proposerDefaultJSON     `json:"default"`
-	Own        []proposerOwnJSON       `json:"own_fee_recipients"`
-	Builder    *proposerconfig.Builder `json:"builder"`
-}
-
-type proposerDefaultJSON struct {
-	FeeRecipient string `json:"fee_recipient"`
-	GasLimit     string `json:"gas_limit"`
-}
-
-// proposerOwnJSON is a validator whose fee recipient differs from the default.
-type proposerOwnJSON struct {
-	Pubkey       string `json:"pubkey"`
-	FeeRecipient string `json:"fee_recipient"`
-}
-
 func runProposerList(ctx context.Context, w io.Writer, config proposerViewConfig) error {
 	lock, doc, err := loadProposerView(ctx, config)
 	if err != nil {
@@ -189,71 +166,32 @@ func runProposerList(ctx context.Context, w io.Writer, config proposerViewConfig
 	}
 
 	def := doc.Config.DefaultConfig
-	list := proposerListJSON{
-		Revision:   doc.Revision,
-		Validators: len(lock.Validators),
-		Default:    proposerDefaultJSON{FeeRecipient: def.FeeRecipient, GasLimit: def.GasLimit},
-		Own:        []proposerOwnJSON{},
-		Builder:    redactedBuilder(def.Builder),
-	}
 
-	// In lock order, only the validators diverging from the default have an entry.
-	for _, val := range lock.Validators {
-		pubkey := fmt.Sprintf("%#x", val.PubKey)
+	_, _ = fmt.Fprintf(w, "Proposer config revision %d, %d validators\n", doc.Revision, len(lock.Validators))
+	_, _ = fmt.Fprintf(w, "Default: fee recipient %s, gas limit %s\n", def.FeeRecipient, def.GasLimit)
 
-		entry, ok := doc.Config.ProposerConfig[pubkey]
-		if ok {
-			list.Own = append(list.Own, proposerOwnJSON{Pubkey: pubkey, FeeRecipient: entry.FeeRecipient})
-		}
-	}
-
-	if config.JSON {
-		b, err := json.MarshalIndent(list, "", "  ")
-		if err != nil {
-			return errors.Wrap(err, "marshal proposer list")
-		}
-
-		_, _ = fmt.Fprintln(w, string(b))
-
-		return nil
-	}
-
-	_, _ = fmt.Fprintf(w, "Proposer config revision %d, %d validators\n", list.Revision, list.Validators)
-	_, _ = fmt.Fprintf(w, "Default: fee recipient %s, gas limit %s\n", list.Default.FeeRecipient, list.Default.GasLimit)
-
-	if len(list.Own) == 0 {
+	if len(doc.Config.ProposerConfig) == 0 {
 		_, _ = fmt.Fprintln(w, "All validators use the default fee recipient.")
 	} else {
-		_, _ = fmt.Fprintf(w, "%d validator(s) with their own fee recipient:\n", len(list.Own))
+		_, _ = fmt.Fprintf(w, "%d validator(s) with their own fee recipient:\n", len(doc.Config.ProposerConfig))
 
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "  PUBKEY\tFEE RECIPIENT")
 
-		for _, v := range list.Own {
-			_, _ = fmt.Fprintf(tw, "  %s\t%s\n", v.Pubkey, v.FeeRecipient)
+		// In lock order, only the validators diverging from the default have an entry.
+		for _, val := range lock.Validators {
+			pubkey := fmt.Sprintf("%#x", val.PubKey)
+
+			entry, ok := doc.Config.ProposerConfig[pubkey]
+			if ok {
+				_, _ = fmt.Fprintf(tw, "  %s\t%s\n", pubkey, entry.FeeRecipient)
+			}
 		}
 
 		_ = tw.Flush()
 	}
 
-	_, _ = fmt.Fprintf(w, "Builders: %s\n", builderSummary(list.Builder))
+	_, _ = fmt.Fprintf(w, "Builders: %s\n", builderSummary(def.Builder))
 
 	return nil
-}
-
-// redactedBuilder returns a copy of the builder block with URL credentials hidden.
-func redactedBuilder(b *proposerconfig.Builder) *proposerconfig.Builder {
-	if b == nil {
-		return nil
-	}
-
-	out := *b
-	out.Builders = make([]proposerconfig.BuilderEntry, 0, len(b.Builders))
-
-	for _, e := range b.Builders {
-		e.URL = proposerconfig.RedactURL(e.URL)
-		out.Builders = append(out.Builders, e)
-	}
-
-	return &out
 }

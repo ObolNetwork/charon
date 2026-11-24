@@ -193,7 +193,7 @@ file signed for the previous lock.
 `charon alpha proposer` shows the cluster's proposer config: its revision and the operators that signed it, the default fee
 recipient, the gas limit and the builders, as scheme and host only since builder URLs may carry credentials. A missing
 file is reported. A file that cannot be read or does not verify against the lock is an error, its content is not shown.
-`charon alpha proposer list [--json]` lists the default fee recipient and gas limit and only the validators whose fee recipient
+`charon alpha proposer list` lists the default fee recipient and gas limit and only the validators whose fee recipient
 differs from it. Both read
 the proposer config file of any of the cluster's nodes and need no node key.
 

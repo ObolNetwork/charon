@@ -227,15 +227,6 @@ func TestProposerList(t *testing.T) {
 			"Default: fee recipient "+def+", gas limit 200000000\n"+
 			"All validators use the default fee recipient.\n"+
 			"Builders: none\n", out)
-
-		var list proposerListJSON
-		require.NoError(t, json.Unmarshal([]byte(run(t, dir, "--json")), &list))
-		require.Equal(t, proposerListJSON{
-			Revision:   1,
-			Validators: 2,
-			Default:    proposerDefaultJSON{FeeRecipient: def, GasLimit: "200000000"},
-			Own:        []proposerOwnJSON{},
-		}, list)
 	})
 
 	t.Run("own fee recipient", func(t *testing.T) {
@@ -248,13 +239,6 @@ func TestProposerList(t *testing.T) {
 		require.Contains(t, out, "1 validator(s) with their own fee recipient:\n  PUBKEY")
 		require.Equal(t, 1, strings.Count(out, strings.ToLower(own)))
 		require.Equal(t, 1, strings.Count(out, def))
-
-		var list proposerListJSON
-		require.NoError(t, json.Unmarshal([]byte(run(t, dir, "--json")), &list))
-		require.Equal(t, 2, list.Validators)
-		require.Len(t, list.Own, 1)
-		require.Equal(t, strings.ToLower(own), list.Own[0].FeeRecipient)
-		require.Len(t, list.Own[0].Pubkey, 98)
 	})
 }
 
@@ -269,17 +253,4 @@ func TestBuilderSummary(t *testing.T) {
 	require.Equal(t, "none", builderSummary(nil))
 	require.Equal(t, "https://builder.example (redacted), https://b.example · min bid 1 gwei · boost factor 90% · max execution payment 2 gwei",
 		builderSummary(builder))
-
-	// The JSON list hides the credentials too, and leaves the config's builder as is.
-	require.Nil(t, redactedBuilder(nil))
-
-	b, err := json.Marshal(redactedBuilder(builder))
-	require.NoError(t, err)
-	require.Contains(t, string(b), `"url":"https://builder.example (redacted)"`)
-
-	for _, secret := range []string{"user", "secret", "key", "token", "0x1234", "frag"} {
-		require.NotContains(t, string(b), secret)
-	}
-
-	require.Equal(t, "https://user:secret@builder.example/key?token=0x1234#frag", builder.Builders[0].URL)
 }
