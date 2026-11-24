@@ -56,6 +56,7 @@ func newValidatorConfigCmd(runFunc func(context.Context, io.Writer, vcbundle.Con
 	f.StringVar(&conf.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the proposer config file.")
 	f.StringVar(&conf.ValidatorKeysDir, "validator-keys-dir", defaultValidatorKeysDir, "The path to the directory holding the validator key shares, whose public keys name the validators in prysm's, nimbus's and lighthouse's settings.")
 	f.StringVar(&conf.LighthouseDir, "lighthouse-dir", "", "Lighthouse's data directory as Lighthouse sees it, e.g. /root/.lighthouse/hoodi. Its validator definitions name the keystores under it. Required for lighthouse.")
+	f.BoolVar(&conf.BuilderAPI, "builder-api", false, "Enables builder proposals on the validator client without builders in the proposer config. Set it as for charon run, whose builder API serves them before the gloas fork.")
 
 	return cmd
 }

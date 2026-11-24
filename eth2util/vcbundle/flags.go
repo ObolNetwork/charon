@@ -14,8 +14,14 @@ import (
 // vcFlags returns the command-line flags a distributed validator needs on the client: the ones it always needs,
 // then the builder ones derived from the proposer config. Paths, the network, the beacon node and metrics are left
 // to the operator.
-func vcFlags(client Client, cfg proposerconfig.Config) []string {
-	return append(distributedFlags(client), builderFlags(client, cfg.DefaultConfig.Builder)...)
+func vcFlags(client Client, cfg proposerconfig.Config, builderEnabled bool) []string {
+	flags := distributedFlags(client)
+	// Nimbus takes whether builder proposals are enabled as a flag, the others in their proposer settings.
+	if client == Nimbus && builderEnabled {
+		flags = append(flags, "--payload-builder=true")
+	}
+
+	return append(flags, builderFlags(client, cfg.DefaultConfig.Builder)...)
 }
 
 // distributedFlags returns the flags the client always needs in a distributed validator.
@@ -50,7 +56,7 @@ func builderFlags(client Client, builder *proposerconfig.Builder) []string {
 	switch client {
 	case Nimbus:
 		// Nimbus takes the flag once per builder.
-		flags := []string{"--payload-builder=true"}
+		var flags []string
 		for _, b := range builder.Builders {
 			flags = append(flags, "--payload-builder-url="+b.URL)
 		}

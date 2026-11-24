@@ -240,7 +240,9 @@ Two commands write what a validator client consumes from this node's cluster art
 
 - `charon alpha validator config <client>` writes the client's proposer settings and flags from
   `vc-config/proposer-config.json` to `--output-dir` (default `.charon/validator-config/<client>`). It holds no keys.
-  It is meant for clusters past the gloas fork: builders are enabled exactly when the proposer config has a builder block.
+  From the gloas fork builders are enabled exactly when the proposer config has a builder block. Before it the proposer
+  config has none and charon's builder API serves them: pass `--builder-api` as for `charon run`, which enables builder
+  proposals on Teku, Prysm, Lighthouse and Nimbus without a builder block.
 - `charon alpha validator keys <client>` copies the key shares of `validator_keys/` into the client's layout, to
   `--output-dir` (default `.charon/validator_keys/<client>`, beside the originals, which stay unchanged).
 
@@ -253,7 +255,7 @@ Two commands write what a validator client consumes from this node's cluster art
 | Lighthouse | `validators/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `validators/validator_definitions.yml`, `validators/builder_definitions.yml` (no builders without a builder block) | `--distributed` |
 
 `vc-flags.txt` holds the flags a distributed validator needs, one per line, to append to the validator client's command;
-the builder flags are only written with a builder block. Paths, the network, the beacon node and metrics stay the operator's.
+the builder flags are only written with a builder block, Nimbus's `--payload-builder=true` also with `--builder-api`. Paths, the network, the beacon node and metrics stay the operator's.
 Nimbus and Lighthouse read their settings from the directory holding their keys, so both commands' `validators/` directories
 go into the same one. Lighthouse's definitions name the keystores by absolute path under `--lighthouse-dir`, its data directory as Lighthouse
 sees it (e.g. `/root/.lighthouse/hoodi` in its container), so move `validators/` and `secrets/` there. Prysm only reads keys from a wallet, so its key shares are decrypted into one, encrypted with a new random

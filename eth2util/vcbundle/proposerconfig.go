@@ -34,27 +34,27 @@ type tekuConfig struct {
 }
 
 // proposerConfigFiles returns the client's proposer settings files. Lighthouse's name the keystores under
-// lighthouseDir.
-func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []keystoreFile, lighthouseDir string) ([]bundleFile, error) {
+// lighthouseDir. Teku's, Prysm's and Lighthouse's hold whether builders are enabled.
+func proposerConfigFiles(client Client, cfg proposerconfig.Config, keystores []keystoreFile, lighthouseDir string, builderEnabled bool) ([]bundleFile, error) {
 	switch client {
 	case Teku:
-		return tekuFiles(cfg)
+		return tekuFiles(cfg, builderEnabled)
 	case Prysm:
-		return prysmFiles(cfg, keystores)
+		return prysmFiles(cfg, keystores, builderEnabled)
 	case Lodestar:
 		return lodestarFiles(cfg)
 	case Nimbus:
 		return nimbusFiles(cfg, keystores), nil
 	case Lighthouse:
-		return lighthouseFiles(cfg, keystores, lighthouseDir)
+		return lighthouseFiles(cfg, keystores, lighthouseDir, builderEnabled)
 	default:
 		return nil, errors.New("unknown validator client", z.Str("client", string(client)))
 	}
 }
 
 // tekuFiles returns Teku's proposer config file.
-func tekuFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
-	b, err := renderTeku(cfg)
+func tekuFiles(cfg proposerconfig.Config, builderEnabled bool) ([]bundleFile, error) {
+	b, err := renderTeku(cfg, builderEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +63,8 @@ func tekuFiles(cfg proposerconfig.Config) ([]bundleFile, error) {
 }
 
 // prysmFiles returns Prysm's proposer settings file.
-func prysmFiles(cfg proposerconfig.Config, keystores []keystoreFile) ([]bundleFile, error) {
-	b, err := renderPrysm(cfg, keystores)
+func prysmFiles(cfg proposerconfig.Config, keystores []keystoreFile, builderEnabled bool) ([]bundleFile, error) {
+	b, err := renderPrysm(cfg, keystores, builderEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func nimbusFiles(cfg proposerconfig.Config, keystores []keystoreFile) []bundleFi
 // lighthouseFiles returns Lighthouse's validator and builder definitions. The definitions name the client's keystores
 // by their absolute path under Lighthouse's data directory dir, as Lighthouse resolves relative paths against its
 // working directory.
-func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir string) ([]bundleFile, error) {
+func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir string, builderEnabled bool) ([]bundleFile, error) {
 	located := make([]keystoreFile, 0, len(keystores))
 
 	for _, k := range keystores {
@@ -109,7 +109,7 @@ func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir st
 		located = append(located, k)
 	}
 
-	definitions, err := renderLighthouseDefinitions(cfg, located)
+	definitions, err := renderLighthouseDefinitions(cfg, located, builderEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -126,8 +126,7 @@ func lighthouseFiles(cfg proposerconfig.Config, keystores []keystoreFile, dir st
 }
 
 // renderTeku returns Teku's proposer config file.
-func renderTeku(cfg proposerconfig.Config) ([]byte, error) {
-	enabled := cfg.DefaultConfig.Builder != nil
+func renderTeku(cfg proposerconfig.Config, enabled bool) ([]byte, error) {
 	settings := func(feeRecipient, gasLimit string) tekuSettings {
 		return tekuSettings{FeeRecipient: feeRecipient, Builder: tekuBuilder{Enabled: enabled, GasLimit: gasLimit}}
 	}
@@ -158,6 +157,7 @@ func renderTeku(cfg proposerconfig.Config) ([]byte, error) {
 }
 
 type prysmBuilder struct {
+	Enabled             bool                          `json:"enabled,omitempty"`
 	MinBid              string                        `json:"min_bid,omitempty"`
 	BuilderBoostFactor  string                        `json:"builder_boost_factor,omitempty"`
 	MaxExecutionPayment string                        `json:"max_execution_payment,omitempty"`
@@ -177,9 +177,9 @@ type prysmConfig struct {
 }
 
 // renderPrysm returns Prysm's version 2 proposer settings file: the gas limit is set at the top level and the default
-// builder block carries the builder settings. The legacy builder fields (enabled, gas limit) are left out, Prysm drops
-// them from the gloas fork.
-func renderPrysm(cfg proposerconfig.Config, keystores []keystoreFile) ([]byte, error) {
+// builder block carries the builder settings. The legacy enabled field, which Prysm drops from the gloas fork, is only
+// set for builders enabled without a builder block; Prysm takes a list of builders as enabled.
+func renderPrysm(cfg proposerconfig.Config, keystores []keystoreFile, builderEnabled bool) ([]byte, error) {
 	out := prysmConfig{
 		Version:        2,
 		ProposerConfig: make(map[string]prysmSettings),
@@ -199,6 +199,8 @@ func renderPrysm(cfg proposerconfig.Config, keystores []keystoreFile) ([]byte, e
 			MaxExecutionPayment: b.MaxExecutionPayment,
 			Builders:            b.Builders,
 		}
+	} else if builderEnabled {
+		out.DefaultConfig.Builder = &prysmBuilder{Enabled: true}
 	}
 
 	return marshalJSON(out)
@@ -252,7 +254,7 @@ func renderLodestar(cfg proposerconfig.Config) ([]byte, error) {
 
 // renderLighthouseDefinitions returns Lighthouse's validator_definitions.yml for the keystores, which it reads
 // at the paths given.
-func renderLighthouseDefinitions(cfg proposerconfig.Config, keystores []keystoreFile) ([]byte, error) {
+func renderLighthouseDefinitions(cfg proposerconfig.Config, keystores []keystoreFile, builderEnabled bool) ([]byte, error) {
 	var buf bytes.Buffer
 
 	gas, err := parseNumber("gas limit", cfg.DefaultConfig.GasLimit)
@@ -268,7 +270,7 @@ func renderLighthouseDefinitions(cfg proposerconfig.Config, keystores []keystore
 		_, _ = fmt.Fprintf(&buf, "  voting_keystore_password_path: %s\n", strconv.Quote(k.PasswordPath))
 		_, _ = fmt.Fprintf(&buf, "  suggested_fee_recipient: %q\n", cfg.FeeRecipient(k.Pubkey))
 		_, _ = fmt.Fprintf(&buf, "  gas_limit: %d\n", gas)
-		_, _ = fmt.Fprintf(&buf, "  builder_proposals: %t\n", cfg.DefaultConfig.Builder != nil)
+		_, _ = fmt.Fprintf(&buf, "  builder_proposals: %t\n", builderEnabled)
 	}
 
 	return buf.Bytes(), nil

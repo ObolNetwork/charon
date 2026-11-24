@@ -73,6 +73,12 @@ func TestValidatorCmd(t *testing.T) {
 		require.Equal(t, "/root/.lighthouse/hoodi", got.LighthouseDir)
 	})
 
+	t.Run("builder api", func(t *testing.T) {
+		got, err := run(t, "config", "teku", "--builder-api")
+		require.NoError(t, err)
+		require.True(t, got.BuilderAPI)
+	})
+
 	tests := map[string][]string{
 		"config no client":      {"config"},
 		"config unknown client": {"config", "vero"},

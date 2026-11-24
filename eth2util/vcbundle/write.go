@@ -34,6 +34,9 @@ type Config struct {
 	// LighthouseDir is Lighthouse's data directory as Lighthouse sees it, absolute. Its validator definitions name
 	// the keystores under it.
 	LighthouseDir string
+	// BuilderAPI is charon run's builder API flag: before the gloas fork the proposer config holds no builders and
+	// it alone enables builder proposals on the client.
+	BuilderAPI bool
 }
 
 // bundleFile is a file to write, its path relative to the output directory.
@@ -93,12 +96,14 @@ func WriteConfig(ctx context.Context, conf Config) ([]string, error) {
 
 	logBuilders(ctx, conf.Client, cfg.DefaultConfig.Builder)
 
-	files, err := proposerConfigFiles(conf.Client, cfg, keystores, conf.LighthouseDir)
+	builderEnabled := conf.BuilderAPI || cfg.DefaultConfig.Builder != nil
+
+	files, err := proposerConfigFiles(conf.Client, cfg, keystores, conf.LighthouseDir, builderEnabled)
 	if err != nil {
 		return nil, err
 	}
 
-	files = append(files, bundleFile{Path: FlagsFile, Data: renderFlags(vcFlags(conf.Client, cfg)), Mode: publicMode})
+	files = append(files, bundleFile{Path: FlagsFile, Data: renderFlags(vcFlags(conf.Client, cfg, builderEnabled)), Mode: publicMode})
 
 	return writeFiles(conf.OutputDir, files)
 }

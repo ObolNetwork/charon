@@ -42,8 +42,8 @@ func TestVCFlags(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(string(test.client), func(t *testing.T) {
-			require.Equal(t, test.want, vcFlags(test.client, testConfig(false)))
-			require.Equal(t, append(test.want, test.wantBuilder...), vcFlags(test.client, testConfig(true)))
+			require.Equal(t, test.want, vcFlags(test.client, testConfig(false), false))
+			require.Equal(t, append(test.want, test.wantBuilder...), vcFlags(test.client, testConfig(true), true))
 		})
 	}
 
@@ -51,8 +51,14 @@ func TestVCFlags(t *testing.T) {
 		cfg := testConfig(true)
 		cfg.DefaultConfig.Builder.MaxExecutionPayment = "0"
 
-		require.Equal(t, []string{"--distributed", "--payloadLocal=true", "--builder.selection=maxprofit"}, vcFlags(Lodestar, cfg))
+		require.Equal(t, []string{"--distributed", "--payloadLocal=true", "--builder.selection=maxprofit"}, vcFlags(Lodestar, cfg, true))
 	})
+}
+
+func TestVCFlagsBuilderAPI(t *testing.T) {
+	// Builders enabled without any in the proposer config, as before the gloas fork.
+	require.Equal(t, []string{"--distributed", "--doppelganger-detection=false", "--payload-builder=true"}, vcFlags(Nimbus, testConfig(false), true))
+	require.Equal(t, []string{"--distributed"}, vcFlags(Lighthouse, testConfig(false), true))
 }
 
 func TestRenderFlags(t *testing.T) {
