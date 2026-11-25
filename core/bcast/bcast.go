@@ -356,6 +356,12 @@ func (b Broadcaster) Broadcast(ctx context.Context, duty core.Duty, set core.Sig
 			KZGProofs: envelope.KZGProofs,
 			Blobs:     envelope.Blobs,
 		})
+		if err != nil && isEnvelopeBlockUnknown(err) {
+			// The envelope is aggregated milliseconds after the block it reveals, so it can reach
+			// the beacon node before the block is imported. Retry until it is.
+			return errors.Wrap(err, "envelope block not imported yet (retryable)")
+		}
+
 		if err == nil {
 			log.Info(ctx, "Successfully submitted execution payload envelope to beacon node",
 				z.Any("delay", b.delayFunc(duty.Slot, core.DutyExecutionPayloadEnvelope)),
@@ -793,4 +799,21 @@ func resolveActiveValidatorsIndices(ctx context.Context, eth2Cl eth2wrap.Client,
 	}
 
 	return indices, nil
+}
+
+// isEnvelopeBlockUnknown returns true if the beacon node rejected an execution payload envelope
+// because it has not imported the envelope's beacon block. eth2http doesn't return structured
+// errors, so this matches the rejection text of each beacon node.
+func isEnvelopeBlockUnknown(err error) bool {
+	for _, msg := range []string{
+		"BlockRootUnknown",                      // Lighthouse
+		"beacon block root is unknown",          // Prysm
+		"Block not found for beacon block root", // Lodestar
+	} {
+		if strings.Contains(err.Error(), msg) {
+			return true
+		}
+	}
+
+	return false
 }
