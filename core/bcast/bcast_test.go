@@ -5,6 +5,7 @@ package bcast_test
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	eth2api "github.com/attestantio/go-eth2-client/api"
@@ -477,6 +478,56 @@ func TestBroadcastBuilderPreferences(t *testing.T) {
 			}
 
 			require.Equal(t, expected, submitted)
+		})
+	}
+}
+
+func TestBroadcastEnvelopeUnknownBlock(t *testing.T) {
+	tests := []struct {
+		name      string
+		err       error
+		retryable bool
+	}{
+		{
+			name:      "lighthouse unknown block root",
+			err:       errors.New(`POST failed with status 400: {"code":400,"message":"BAD_REQUEST: BlockRootUnknown { block_root: 0x01 }"}`),
+			retryable: true,
+		},
+		{
+			name:      "prysm unknown block root",
+			err:       errors.New(`POST failed with status 400: {"message":"gossip validation failed: envelope beacon block root is unknown","code":400}`),
+			retryable: true,
+		},
+		{
+			name:      "lodestar unknown block root",
+			err:       errors.New(`POST failed with status 404: {"code":404,"message":"Block not found for beacon block root 0x01"}`),
+			retryable: true,
+		},
+		{
+			name: "other rejection",
+			err:  errors.New(`POST failed with status 400: {"code":400,"message":"BAD_REQUEST: BadSignature"}`),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
+
+			mock, err := beaconmock.New(ctx)
+			require.NoError(t, err)
+
+			mock.SubmitExecutionPayloadEnvelopeFunc = func(context.Context, *eth2api.SubmitExecutionPayloadEnvelopeOpts) error {
+				return test.err
+			}
+
+			bcaster, err := bcast.New(ctx, mock, func() eth2wrap.ForkForkSchedule { return nil })
+			require.NoError(t, err)
+
+			err = bcaster.Broadcast(ctx, core.Duty{Type: core.DutyExecutionPayloadEnvelope}, core.SignedDataSet{
+				testutil.RandomCorePubKey(t): core.NewSignedExecutionPayloadEnvelope(testutil.RandomExecutionPayloadEnvelope()),
+			})
+			require.ErrorIs(t, err, test.err)
+			require.Equal(t, test.retryable, strings.Contains(err.Error(), "retryable"))
 		})
 	}
 }
