@@ -50,6 +50,11 @@ func Verify(doc Document, lock cluster.Lock) error {
 		return err
 	}
 
+	err = checkCanonical(doc.Config)
+	if err != nil {
+		return err
+	}
+
 	hash, err := doc.Hash()
 	if err != nil {
 		return invalid("document does not hash", z.Err(err))
@@ -169,6 +174,26 @@ func checkEditableFields(c Config, lock cluster.Lock) error {
 	for _, e := range c.DefaultConfig.Builder.Builders {
 		if e.MinBid != "" || e.BuilderBoostFactor != "" || e.MaxExecutionPayment != "" {
 			return invalid("builder entry sets more than url", z.Str("url", RedactURL(e.URL)))
+		}
+	}
+
+	return nil
+}
+
+// checkCanonical rejects forms of a config the CLI never writes, which hash as the one it does: fee recipients
+// not in lowercase and entries repeating the default one.
+func checkCanonical(c Config) error {
+	if c.DefaultConfig.FeeRecipient != strings.ToLower(c.DefaultConfig.FeeRecipient) {
+		return invalid("default_config fee_recipient is not lowercase")
+	}
+
+	for pubkey, s := range c.ProposerConfig {
+		if s.FeeRecipient != strings.ToLower(s.FeeRecipient) {
+			return invalid("proposer_config entry fee_recipient is not lowercase", z.Str("pubkey", pubkey))
+		}
+
+		if s.FeeRecipient == c.DefaultConfig.FeeRecipient {
+			return invalid("proposer_config entry repeats the default fee_recipient", z.Str("pubkey", pubkey))
 		}
 	}
 

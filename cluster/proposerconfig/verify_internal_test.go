@@ -186,6 +186,39 @@ func TestVerify(t *testing.T) {
 			},
 		},
 		{
+			name: "entry fee recipient equal to default",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig[v0] = Settings{FeeRecipient: addrA}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "proposer_config entry repeats the default fee_recipient",
+		},
+		{
+			name: "mixed case entry fee recipient",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.ProposerConfig[v0] = Settings{FeeRecipient: "0x" + strings.ToUpper(addrB[2:])}
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "fee_recipient is not lowercase",
+		},
+		{
+			name: "mixed case default fee recipient",
+			doc: func() Document {
+				doc := newDoc(0)
+				doc.Config.DefaultConfig.FeeRecipient = "0x" + strings.ToUpper(addrA[2:])
+
+				return doc
+			},
+			errIs:  ErrInvalid,
+			errMsg: "fee_recipient is not lowercase",
+		},
+		{
 			name: "unknown key",
 			doc: func() Document {
 				doc := newDoc(0)
