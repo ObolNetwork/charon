@@ -41,24 +41,34 @@ func TestEditProposerConfigFlags(t *testing.T) {
 			errMsg: "no change requested",
 		},
 		{
-			name:   "validators without fee recipient",
-			args:   []string{"--fee-recipient-validators=0xabc", "--gas-limit=1"},
-			errMsg: "fee-recipient-validators requires fee-recipient",
+			name:   "validators without addresses",
+			args:   []string{"--validator-public-keys=0xabc", "--gas-limit=1"},
+			errMsg: "validator-public-keys and fee-recipient-addresses must be the same length",
 		},
 		{
-			name:   "validators with gas limit",
-			args:   []string{"--fee-recipient=" + editFeeRecipientLower, "--fee-recipient-validators=0xabc", "--gas-limit=1"},
-			errMsg: "fee-recipient-validators can only be combined with fee-recipient",
+			name:   "more validators than addresses",
+			args:   []string{"--validator-public-keys=0xabc,0xdef", "--fee-recipient-addresses=" + editFeeRecipientSum},
+			errMsg: "validator-public-keys and fee-recipient-addresses must be the same length",
 		},
 		{
-			name:   "validators with builder flag",
-			args:   []string{"--fee-recipient=" + editFeeRecipientLower, "--fee-recipient-validators=0xabc", "--builder-min-bid=1"},
-			errMsg: "fee-recipient-validators can only be combined with fee-recipient",
+			name:   "addresses without validators",
+			args:   []string{"--fee-recipient-addresses=" + editFeeRecipientSum},
+			errMsg: "no validators given, add all",
 		},
 		{
-			name:   "validators with no builders",
-			args:   []string{"--fee-recipient=" + editFeeRecipientLower, "--fee-recipient-validators=0xabc", "--no-builders"},
-			errMsg: "fee-recipient-validators can only be combined with fee-recipient",
+			name:   "all with validators",
+			args:   []string{"--all", "--validator-public-keys=0xabc", "--fee-recipient-addresses=" + editFeeRecipientSum},
+			errMsg: "all excludes validator-public-keys",
+		},
+		{
+			name:   "all without address",
+			args:   []string{"--all"},
+			errMsg: "all requires a single address",
+		},
+		{
+			name:   "all with two addresses",
+			args:   []string{"--all", "--fee-recipient-addresses=" + editFeeRecipientSum + "," + editFeeRecipientSum},
+			errMsg: "all requires a single address",
 		},
 		{
 			name:   "no builders with builder urls",
@@ -87,27 +97,28 @@ func TestEditProposerConfigFlags(t *testing.T) {
 		},
 		{
 			name:   "bad checksum",
-			args:   []string{"--fee-recipient=0x000000000000000000000000000000000000DEaD"},
-			errMsg: "invalid fee-recipient address",
+			args:   []string{"--all", "--fee-recipient-addresses=0x000000000000000000000000000000000000DEaD"},
+			errMsg: "invalid fee-recipient-addresses address",
 		},
 		{
 			name:   "zero address",
-			args:   []string{"--fee-recipient=" + zeroAddress},
-			errMsg: "zero fee-recipient address forbidden",
+			args:   []string{"--all", "--fee-recipient-addresses=" + zeroAddress},
+			errMsg: "zero fee-recipient-addresses address forbidden",
 		},
 		{
-			name: "fee recipient only",
-			args: []string{"--fee-recipient=" + editFeeRecipientLower},
+			name: "all validators",
+			args: []string{"--all", "--fee-recipient-addresses=" + editFeeRecipientLower},
 			delta: proposerconfig.Delta{
-				FeeRecipient: editFeeRecipientSum,
+				FeeRecipients: []string{editFeeRecipientSum},
+				AllValidators: true,
 			},
 		},
 		{
-			name: "validator scoped",
-			args: []string{"--fee-recipient=" + editFeeRecipientSum, "--fee-recipient-validators=0xabc,0xdef"},
+			name: "paired validators",
+			args: []string{"--validator-public-keys=0xabc,0xdef", "--fee-recipient-addresses=" + editFeeRecipientSum + "," + editFeeRecipientLower},
 			delta: proposerconfig.Delta{
-				FeeRecipient:           editFeeRecipientSum,
 				FeeRecipientValidators: []string{"0xabc", "0xdef"},
+				FeeRecipients:          []string{editFeeRecipientSum, editFeeRecipientSum},
 			},
 		},
 		{
@@ -120,11 +131,12 @@ func TestEditProposerConfigFlags(t *testing.T) {
 		{
 			name: "combined",
 			args: []string{
-				"--fee-recipient=" + editFeeRecipientSum, "--gas-limit=60000000",
+				"--validator-public-keys=0xabc", "--fee-recipient-addresses=" + editFeeRecipientSum, "--gas-limit=60000000",
 				"--builder-urls=https://a,https://b", "--builder-min-bid=5", "--builder-boost-factor=110", "--builder-max-execution-payment=0",
 			},
 			delta: proposerconfig.Delta{
-				FeeRecipient:               editFeeRecipientSum,
+				FeeRecipientValidators:     []string{"0xabc"},
+				FeeRecipients:              []string{editFeeRecipientSum},
 				GasLimit:                   60000000,
 				BuilderURLs:                []string{"https://a", "https://b"},
 				BuilderMinBid:              u64(5),

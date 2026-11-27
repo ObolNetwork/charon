@@ -15,12 +15,13 @@ import (
 // ErrNoChange is returned by Apply and ApplyProposal when the result equals the current config.
 var ErrNoChange = errors.New("proposer config is unchanged")
 
-// Delta is a set of changes to a Config. Zero values mean "not set": an empty FeeRecipient, a zero
-// GasLimit, nil BuilderURLs and builder pointers, and a false NoBuilders. FeeRecipientValidators holds DV
-// pubkeys; empty applies the fee recipient to all validators.
+// Delta is a set of changes to a Config. Zero values mean "not set": nil FeeRecipients, a zero GasLimit, nil
+// BuilderURLs and builder pointers, and a false NoBuilders. FeeRecipients holds one address per DV pubkey in
+// FeeRecipientValidators, in order, or with AllValidators a single address for every validator.
 type Delta struct {
-	FeeRecipient               string
 	FeeRecipientValidators     []string
+	FeeRecipients              []string
+	AllValidators              bool
 	GasLimit                   uint64
 	BuilderURLs                []string
 	BuilderMinBid              *uint64
@@ -31,15 +32,9 @@ type Delta struct {
 
 // Apply returns the config with the delta applied, or ErrNoChange if the result equals c.
 func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
-	fees := c.FeeRecipients(lock)
-
-	if d.FeeRecipient != "" {
-		var err error
-
-		fees, err = applyFeeRecipient(lock, fees, d)
-		if err != nil {
-			return Config{}, err
-		}
+	fees, defaultFee, err := applyFeeRecipients(lock, c, d)
+	if err != nil {
+		return Config{}, err
 	}
 
 	gasLimit, err := c.GasLimit()
@@ -74,7 +69,7 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 		}
 	}
 
-	res, err := NewConfig(lock, fees, gasLimit, builder)
+	res, err := NewConfigWithDefault(lock, defaultFee, fees, gasLimit, builder)
 	if err != nil {
 		return Config{}, err
 	}
@@ -91,24 +86,42 @@ func Apply(lock cluster.Lock, c Config, d Delta) (Config, error) {
 	return res, nil
 }
 
-// applyFeeRecipient returns a copy of fees with the delta's fee recipient set on the selected validators.
-func applyFeeRecipient(lock cluster.Lock, fees []string, d Delta) ([]string, error) {
-	fee, err := normaliseAddress(d.FeeRecipient)
-	if err != nil {
-		return nil, err
-	}
+// applyFeeRecipients returns the validators' fee recipients in lock order and the default fee recipient with
+// the delta applied. All validators moves the default too, listed validators leave it as is.
+func applyFeeRecipients(lock cluster.Lock, c Config, d Delta) ([]string, string, error) {
+	fees := c.FeeRecipients(lock)
+	defaultFee := c.DefaultConfig.FeeRecipient
 
-	res := slices.Clone(fees)
-
-	if len(d.FeeRecipientValidators) == 0 {
-		for i := range res {
-			res[i] = fee
+	if d.AllValidators {
+		if len(d.FeeRecipientValidators) != 0 || len(d.FeeRecipients) != 1 {
+			return nil, "", errors.New("all validators takes a single fee recipient and no validators")
 		}
 
-		return res, nil
+		fee, err := normaliseAddress(d.FeeRecipients[0])
+		if err != nil {
+			return nil, "", err
+		}
+
+		for i := range fees {
+			fees[i] = fee
+		}
+
+		return fees, fee, nil
 	}
 
-	for _, pubkey := range d.FeeRecipientValidators {
+	if len(d.FeeRecipientValidators) != len(d.FeeRecipients) {
+		return nil, "", errors.New("mismatching number of validators and fee recipients",
+			z.Int("validators", len(d.FeeRecipientValidators)), z.Int("fee_recipients", len(d.FeeRecipients)))
+	}
+
+	seen := make(map[int]bool)
+
+	for i, pubkey := range d.FeeRecipientValidators {
+		fee, err := normaliseAddress(d.FeeRecipients[i])
+		if err != nil {
+			return nil, "", err
+		}
+
 		pubkey = strings.ToLower(pubkey)
 		if !strings.HasPrefix(pubkey, "0x") {
 			pubkey = "0x" + pubkey
@@ -118,13 +131,18 @@ func applyFeeRecipient(lock cluster.Lock, fees []string, d Delta) ([]string, err
 			return pubkeyHex(v.PubKey) == pubkey
 		})
 		if idx < 0 {
-			return nil, errors.New("validator not in lock", z.Str("pubkey", pubkey))
+			return nil, "", errors.New("validator not in lock", z.Str("pubkey", pubkey))
 		}
 
-		res[idx] = fee
+		if seen[idx] {
+			return nil, "", errors.New("duplicate validator", z.Str("pubkey", pubkey))
+		}
+
+		seen[idx] = true
+		fees[idx] = fee
 	}
 
-	return res, nil
+	return fees, defaultFee, nil
 }
 
 // applyBuilder returns the builder with the delta applied without mutating b; a nil b starts from the defaults.

@@ -194,13 +194,15 @@ All participating operators run the same command and agree on the result in one 
 
 ```sh
 charon alpha edit proposer-config \
-  --fee-recipient=0x123... --gas-limit=60000000 \
+  --validator-public-keys=0xabc...,0xdef... --fee-recipient-addresses=0x123...,0x456... --gas-limit=60000000 \
   --builder-urls=https://a.example,https://b.example --builder-boost-factor=110
 ```
 
 At least one change flag is required, the flags combine into one revision:
 
-- `--fee-recipient`, optionally limited to `--fee-recipient-validators` (DV public keys). The validator-scoped form excludes every other change flag.
+- `--validator-public-keys` (DV public keys) with `--fee-recipient-addresses` changes the fee recipient of the listed validators, paired
+  in list order: the lists must be the same length. `--all` with a single address in `--fee-recipient-addresses` changes every validator,
+  those with their own fee recipient included.
 - `--gas-limit`, cluster-wide, greater than zero.
 - `--builder-urls` (replaces the list, order is the preference order, no duplicates), `--builder-min-bid`, `--builder-boost-factor`,
   `--builder-max-execution-payment`; the last three need an existing builder block or `--builder-urls`. `--no-builders` removes the builder block.

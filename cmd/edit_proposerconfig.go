@@ -23,34 +23,36 @@ import (
 
 // editProposerConfigFlags holds the change flags of the edit proposer-config command.
 type editProposerConfigFlags struct {
-	feeRecipient           string
-	feeRecipientValidators []string
-	gasLimit               uint64
-	builderURLs            []string
-	builderMinBid          uint64
-	builderBoostFactor     uint64
-	builderMaxPayment      uint64
-	noBuilders             bool
+	validatorPublicKeys   []string
+	feeRecipientAddresses []string
+	allValidators         bool
+	gasLimit              uint64
+	builderURLs           []string
+	builderMinBid         uint64
+	builderBoostFactor    uint64
+	builderMaxPayment     uint64
+	noBuilders            bool
 	// proposalFile is the path or URL of a proposal file, the alternative to the change flags.
 	proposalFile string
 }
 
 // Names of the change flags of the edit proposer-config command.
 const (
-	feeRecipientFlag           = "fee-recipient"
-	feeRecipientValidatorsFlag = "fee-recipient-validators"
-	gasLimitFlag               = "gas-limit"
-	builderURLsFlag            = "builder-urls"
-	builderMinBidFlag          = "builder-min-bid"
-	builderBoostFactorFlag     = "builder-boost-factor"
-	builderMaxPaymentFlag      = "builder-max-execution-payment"
-	noBuildersFlag             = "no-builders"
+	validatorPublicKeysFlag   = "validator-public-keys"
+	feeRecipientAddressesFlag = "fee-recipient-addresses"
+	allValidatorsFlag         = "all"
+	gasLimitFlag              = "gas-limit"
+	builderURLsFlag           = "builder-urls"
+	builderMinBidFlag         = "builder-min-bid"
+	builderBoostFactorFlag    = "builder-boost-factor"
+	builderMaxPaymentFlag     = "builder-max-execution-payment"
+	noBuildersFlag            = "no-builders"
 )
 
 // editChangeFlags are the change flags of the edit proposer-config command, excluded by a proposal file.
 var editChangeFlags = []string{
-	feeRecipientFlag, feeRecipientValidatorsFlag, gasLimitFlag, builderURLsFlag, builderMinBidFlag,
-	builderBoostFactorFlag, builderMaxPaymentFlag, noBuildersFlag,
+	validatorPublicKeysFlag, feeRecipientAddressesFlag, allValidatorsFlag, gasLimitFlag, builderURLsFlag,
+	builderMinBidFlag, builderBoostFactorFlag, builderMaxPaymentFlag, noBuildersFlag,
 }
 
 func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.ProposerConfigEditConfig) error) *cobra.Command {
@@ -99,8 +101,9 @@ func newEditProposerConfigCmd(runFunc func(context.Context, io.Writer, dkg.Propo
 	}
 
 	f := cmd.Flags()
-	f.StringVar(&flags.feeRecipient, feeRecipientFlag, "", "The new fee recipient address, applied to all validators or those in --fee-recipient-validators.")
-	f.StringSliceVar(&flags.feeRecipientValidators, feeRecipientValidatorsFlag, nil, "Comma-separated DV public keys the fee recipient applies to, default all. Requires --fee-recipient and excludes every other change flag.")
+	f.StringSliceVar(&flags.validatorPublicKeys, validatorPublicKeysFlag, nil, "Comma-separated DV public keys whose fee recipient changes. Requires --fee-recipient-addresses with one address per public key, in the same order.")
+	f.StringSliceVar(&flags.feeRecipientAddresses, feeRecipientAddressesFlag, nil, "Comma-separated new fee recipient addresses, one per public key in --validator-public-keys, or a single address with --all.")
+	f.BoolVar(&flags.allValidators, allValidatorsFlag, false, "Change the fee recipient of every validator to the single address in --fee-recipient-addresses. Excludes --validator-public-keys.")
 	f.Uint64Var(&flags.gasLimit, gasLimitFlag, 0, "The new cluster-wide preferred target gas limit, must be greater than 0.")
 	f.StringSliceVar(&flags.builderURLs, builderURLsFlag, nil, "Comma-separated builder API URLs replacing the current ones, in order of preference.")
 	f.Uint64Var(&flags.builderMinBid, builderMinBidFlag, 0, "The new minimum builder bid value in gwei. Requires an existing builder block or --builder-urls.")
@@ -165,15 +168,13 @@ func (f editProposerConfigFlags) delta(cmd *cobra.Command) (proposerconfig.Delta
 		anyBuilder = anyBuilder || changed(name)
 	}
 
+	anyFeeRecipient := changed(validatorPublicKeysFlag) || changed(feeRecipientAddressesFlag) || f.allValidators
+
 	switch {
-	case changed(feeRecipientValidatorsFlag) && !changed(feeRecipientFlag):
-		return d, errors.New("fee-recipient-validators requires fee-recipient")
-	case changed(feeRecipientValidatorsFlag) && (changed(gasLimitFlag) || anyBuilder || f.noBuilders):
-		return d, errors.New("fee-recipient-validators can only be combined with fee-recipient, gas limit and builders are cluster-wide")
 	case f.noBuilders && anyBuilder:
 		return d, errors.New("no-builders excludes the other builder-* flags")
-	case !changed(feeRecipientFlag) && !changed(gasLimitFlag) && !anyBuilder && !f.noBuilders:
-		return d, errors.New("no change requested, set at least one of fee-recipient, gas-limit, builder-* or no-builders")
+	case !anyFeeRecipient && !changed(gasLimitFlag) && !anyBuilder && !f.noBuilders:
+		return d, errors.New("no change requested, set at least one of fee-recipient-addresses, gas-limit, builder-* or no-builders")
 	case changed(gasLimitFlag) && f.gasLimit == 0:
 		return d, errors.New("gas-limit must be greater than 0")
 	case changed(builderBoostFactorFlag) && f.builderBoostFactor == 0:
@@ -182,18 +183,27 @@ func (f editProposerConfigFlags) delta(cmd *cobra.Command) (proposerconfig.Delta
 		return d, errors.New("builder-urls must not be empty, use no-builders to remove the builders")
 	}
 
-	if changed(feeRecipientFlag) {
-		addr, err := eth2util.ValidateChecksumAddress(f.feeRecipient)
+	if anyFeeRecipient {
+		err := f.validateFeeRecipients()
 		if err != nil {
-			return d, errors.Wrap(err, "invalid fee-recipient address", z.Str("addr", f.feeRecipient))
+			return d, err
 		}
 
-		if addr == zeroAddress {
-			return d, errors.New("zero fee-recipient address forbidden")
-		}
+		d.FeeRecipientValidators = f.validatorPublicKeys
+		d.AllValidators = f.allValidators
 
-		d.FeeRecipient = addr
-		d.FeeRecipientValidators = f.feeRecipientValidators
+		for _, addr := range f.feeRecipientAddresses {
+			checksummed, err := eth2util.ValidateChecksumAddress(addr)
+			if err != nil {
+				return d, errors.Wrap(err, "invalid fee-recipient-addresses address", z.Str("addr", addr))
+			}
+
+			if checksummed == zeroAddress {
+				return d, errors.New("zero fee-recipient-addresses address forbidden")
+			}
+
+			d.FeeRecipients = append(d.FeeRecipients, checksummed)
+		}
 	}
 
 	d.GasLimit = f.gasLimit
@@ -216,6 +226,28 @@ func (f editProposerConfigFlags) delta(cmd *cobra.Command) (proposerconfig.Delta
 	}
 
 	return d, nil
+}
+
+// validateFeeRecipients checks that the fee recipient flags are strictly paired: one address per validator
+// public key, or a single address for all validators.
+func (f editProposerConfigFlags) validateFeeRecipients() error {
+	keys, addrs := len(f.validatorPublicKeys), len(f.feeRecipientAddresses)
+
+	switch {
+	case f.allValidators && keys > 0:
+		return errors.New("all excludes validator-public-keys")
+	case f.allValidators && addrs != 1:
+		return errors.New("all requires a single address in fee-recipient-addresses", z.Int("fee_recipient_addresses", addrs))
+	case f.allValidators:
+		return nil
+	case keys == 0:
+		return errors.New("no validators given, add all to change every validator's fee recipient or list them with validator-public-keys")
+	case keys != addrs:
+		return errors.New("validator-public-keys and fee-recipient-addresses must be the same length, one address per validator, use all to give every validator the same address",
+			z.Int("validator_public_keys", keys), z.Int("fee_recipient_addresses", addrs))
+	}
+
+	return nil
 }
 
 func runEditProposerConfig(ctx context.Context, w io.Writer, conf dkg.ProposerConfigEditConfig) error {

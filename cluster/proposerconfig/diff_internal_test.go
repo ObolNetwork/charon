@@ -115,5 +115,6 @@ func TestDiffLargeLock(t *testing.T) {
 	diffs := Diff(lock, a, b)
 
 	require.Less(t, time.Since(start), time.Second)
-	require.Len(t, diffs, n)
+	// The default fee recipient and one line per distinct change.
+	require.Len(t, diffs, 3)
 }
