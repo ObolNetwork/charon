@@ -23,7 +23,7 @@ import (
 	"github.com/obolnetwork/charon/core"
 )
 
-const editCmd = "charon alpha edit proposer-config"
+const editCmd = "charon alpha proposer edit"
 
 // pcFixture is a 3 of 4 cluster with 3 validators, loaded as node 2.
 type pcFixture struct {

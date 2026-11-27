@@ -22,7 +22,7 @@ import (
 )
 
 // proposerConfigEditCmd is the command changing the proposer config cluster-wide.
-const proposerConfigEditCmd = "charon alpha edit proposer-config"
+const proposerConfigEditCmd = "charon alpha proposer edit"
 
 // newProposerConfigService returns the service of the validator client proposer config file, loading the file on
 // start: the initial one is written if it is absent, a present one is verified. Only a file of another

@@ -332,7 +332,7 @@ func TestDKGProposerConfigSeedFlags(t *testing.T) {
 		for _, flag := range []string{"proposer-config-gas-limit", "proposer-config-builder-urls", "proposer-config-builder-min-bid", "proposer-config-builder-boost-factor", "proposer-config-builder-max-execution-payment"} {
 			usage := cmd.Flags().Lookup(flag).Usage
 			require.Contains(t, usage, "Signed into the cluster's initial proposer config", flag)
-			require.Contains(t, usage, "charon alpha edit proposer-config", flag)
+			require.Contains(t, usage, "charon alpha proposer edit", flag)
 			require.NotContains(t, usage, "disregarded", flag)
 		}
 	})

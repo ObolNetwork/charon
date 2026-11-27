@@ -95,6 +95,16 @@ func (d Document) Hash() ([32]byte, error) {
 	return hashDocument(d)
 }
 
+// RevisionName returns the revision as shown to operators, N:hash with the hash shortened: the number orders
+// revisions, the hash tells two with the same number apart. The unsigned revision 0 is named by its number alone.
+func RevisionName(revision uint64, hash [32]byte) string {
+	if revision == 0 {
+		return "0"
+	}
+
+	return strconv.FormatUint(revision, 10) + ":0x" + hex.EncodeToString(hash[:2]) + "…" + hex.EncodeToString(hash[30:])
+}
+
 // NewConfig returns the config for the lock with one fee recipient per lock validator. The default
 // config holds the majority fee recipient (ties go to the first validator holding it) and the gas limit
 // and builder; entries only exist for validators diverging from the majority. An empty fee recipient,

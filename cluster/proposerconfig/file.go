@@ -21,6 +21,9 @@ import (
 // ErrNotFound is returned by Load if the proposer config file does not exist.
 var ErrNotFound = errors.Wrap(os.ErrNotExist, "proposer config file not found")
 
+// errUnknownKey is returned when a proposer_config key is not one of the expected keys.
+var errUnknownKey = errors.NewSentinel("unknown proposer_config key")
+
 // documentJSON is the JSON form of a Document, field order is the file's field order.
 type documentJSON struct {
 	Version        string              `json:"version"`
@@ -134,6 +137,10 @@ func pubshareMaps(lock cluster.Lock, nodeIdx cluster.NodeIdx) (toShare, toPubkey
 	toPubkey = make(map[string]string, len(lock.Validators))
 
 	for i, val := range lock.Validators {
+		if nodeIdx.PeerIdx < 0 || nodeIdx.PeerIdx >= len(val.PubShares) {
+			return nil, nil, invalid("lock validator has no pubshare for the node", z.Int("validator", i), z.Int("node", nodeIdx.PeerIdx))
+		}
+
 		share, err := val.PublicShare(nodeIdx.PeerIdx)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "pubshare", z.Int("validator", i))
@@ -157,7 +164,7 @@ func rekey(in map[string]Settings, keys map[string]string, keyName string) (map[
 	for k, v := range in {
 		renamed, ok := keys[strings.ToLower(k)]
 		if !ok {
-			return nil, errors.New("unknown "+keyName, z.Str(keyName, k))
+			return nil, errors.Wrap(errUnknownKey, "unknown "+keyName, z.Str(keyName, k))
 		}
 
 		out[renamed] = v
@@ -202,6 +209,28 @@ func Load(path string, lock cluster.Lock, nodeIdx cluster.NodeIdx) (Document, er
 	}
 
 	return doc, nil
+}
+
+// LoadAnyNode reads a proposer config file written for any node of the lock, found by its pubshare keys, and
+// returns it keyed by DV pubkeys. It suits commands that run without a node's key.
+func LoadAnyNode(path string, lock cluster.Lock) (Document, error) {
+	if len(lock.Operators) == 0 {
+		return Document{}, invalid("lock has no operators")
+	}
+
+	var err error
+
+	for i := range lock.Operators {
+		var doc Document
+
+		doc, err = Load(path, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		if !errors.Is(err, errUnknownKey) {
+			return doc, err
+		}
+	}
+
+	// The last node's error names a key that is not its pubshare.
+	return Document{}, errors.Wrap(err, "proposer_config keys are not the pubshares of any node", z.Str("path", path))
 }
 
 // render returns the file contents of the document, keyed by this node's pubshares instead of DV pubkeys.

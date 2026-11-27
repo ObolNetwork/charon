@@ -181,3 +181,11 @@ func TestHashNilEmptyBuilders(t *testing.T) {
 
 	require.Equal(t, hash(nil), hash([]BuilderEntry{}))
 }
+
+func TestRevisionName(t *testing.T) {
+	hash := [32]byte{0: 0x77, 1: 0xab, 30: 0x20, 31: 0xd4}
+
+	require.Equal(t, "5:0x77ab…20d4", RevisionName(5, hash))
+	// Revision 0 is unsigned and named by its number alone.
+	require.Equal(t, "0", RevisionName(0, hash))
+}

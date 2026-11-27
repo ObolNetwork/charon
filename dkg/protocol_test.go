@@ -476,7 +476,7 @@ func TestRunReshareProtocol_ProposerConfigMismatch(t *testing.T) {
 		require.ErrorContains(t, err, "proposer config mismatch between operators", "node %d", n)
 		require.ErrorContains(t, err, "peer 1 differs from peer 0", "node %d", n)
 		require.ErrorContains(t, err, "default.builder.urls", "node %d", n)
-		require.ErrorContains(t, err, "charon alpha edit proposer-config", "node %d", n)
+		require.ErrorContains(t, err, "charon alpha proposer edit", "node %d", n)
 		require.NoDirExists(t, nodeDir(dstClusterDir, n))
 	}
 }
