@@ -61,6 +61,9 @@ const (
 // steps are complete and artifacts are stored by then, so waiting longer serves no purpose.
 const shutdownSyncTimeout = 2 * time.Minute
 
+// syncWaitLogPeriod is the period of logging the peers that have not connected yet.
+const syncWaitLogPeriod = time.Minute
+
 type Config struct {
 	DefFile       string
 	NoVerify      bool
@@ -628,6 +631,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 	var (
 		clients         []*sync.Client
+		clientPeers     []peer.ID
 		shutdownStarted atomic.Bool
 		fatal           atomic.Pointer[error]
 	)
@@ -655,6 +659,7 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 
 		client := sync.NewClient(p2pNode, pID, hashSig, minorVersion, nickname, testConfig.SyncOpts...)
 		clients = append(clients, client)
+		clientPeers = append(clientPeers, pID)
 
 		go func() {
 			err := client.Run(ctx)
@@ -668,7 +673,9 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 		}()
 	}
 
-	// Check if all clients are connected.
+	// Check if all clients are connected, logging those missing every syncWaitLogPeriod.
+	lastWaitLog := time.Now()
+
 	for {
 		// Return if there is a context error.
 		if ctx.Err() != nil {
@@ -683,12 +690,20 @@ func startSyncProtocol(ctx context.Context, p2pNode host.Host, key *k1.PrivateKe
 			return nil, nil, nil, errors.Wrap(err, "sync server error")
 		}
 
-		var connectedCount int
+		var missing []string
 
-		for _, client := range clients {
-			if client.IsConnected() {
-				connectedCount++
+		for i, client := range clients {
+			if !client.IsConnected() {
+				missing = append(missing, p2p.PeerName(clientPeers[i]))
 			}
+		}
+
+		connectedCount := len(clients) - len(missing)
+
+		if len(missing) > 0 && time.Since(lastWaitLog) >= syncWaitLogPeriod {
+			log.Info(ctx, "Waiting for peers to connect", z.Any("missing", missing))
+
+			lastWaitLog = time.Now()
 		}
 
 		if testConfig.SyncCallback != nil {
