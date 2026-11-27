@@ -74,6 +74,7 @@ func TestSigsExchange(t *testing.T) {
 			clusterPeers,
 			cluster.NodeIdx{PeerIdx: i},
 			component,
+			nodeSigMsgID,
 		))
 	}
 
@@ -166,6 +167,7 @@ func TestSigsCallbacks(t *testing.T) {
 		clusterPeers,
 		cluster.NodeIdx{PeerIdx: 0},
 		component,
+		nodeSigMsgID,
 	)
 
 	t.Run("wrong peer index, equal to ours", func(t *testing.T) {

@@ -10,6 +10,9 @@ import (
 	"strconv"
 	"strings"
 
+	eth2api "github.com/attestantio/go-eth2-client/api"
+	eth2p0 "github.com/attestantio/go-eth2-client/spec/phase0"
+
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
@@ -186,6 +189,41 @@ func DiffSummaryFields(lines []string) []z.Field {
 		z.Int("differences", len(lines)),
 		z.Str("examples", strings.Join(lines[:min(len(lines), maxExamples)], "; ")),
 	}
+}
+
+// RegistrationFeeRecipientFunc returns the fee recipients the initial proposer config is derived from, as on charon run
+// start: the builder registration service over the lock's registrations and the overrides file, so a registration
+// override newer than the lock's wins. An invalid lock registration is an error, as on charon run.
+func RegistrationFeeRecipientFunc(ctx context.Context, lock cluster.Lock, overridesFile string) (func(core.PubKey) string, error) {
+	var (
+		regs = make([]*eth2api.VersionedSignedValidatorRegistration, 0, len(lock.Validators))
+		fees = make(map[core.PubKey]string, len(lock.Validators))
+	)
+
+	lockFees := lock.FeeRecipientAddresses()
+
+	for i, val := range lock.Validators {
+		pubkey, err := core.PubKeyFromBytes(val.PubKey)
+		if err != nil {
+			return nil, errors.Wrap(err, "core pubkey", z.Int("validator", i))
+		}
+
+		fees[pubkey] = lockFees[i]
+
+		reg, err := val.Eth2Registration()
+		if err != nil {
+			return nil, errors.Wrap(err, "convert builder registration", z.Int("validator", i))
+		}
+
+		regs = append(regs, reg)
+	}
+
+	svc, err := NewBuilderRegistrationService(ctx, overridesFile, eth2p0.Version(lock.ForkVersion), regs, fees, nil, lock.LockHash)
+	if err != nil {
+		return nil, err
+	}
+
+	return svc.FeeRecipient, nil
 }
 
 // InitialProposerConfig returns the unsigned revision 0 document: fee recipients from the effective builder

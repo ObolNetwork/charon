@@ -35,6 +35,7 @@ import (
 	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/core/consensus/protocols"
 	"github.com/obolnetwork/charon/eth2util"
@@ -91,6 +92,9 @@ type clusterConfig struct {
 	ExecutionEngineAddr string
 
 	Zipped bool
+
+	// ProposerConfigSeed seeds the gas limit and builder of the proposer config signed at revision 1.
+	ProposerConfigSeed proposerconfig.Seed
 }
 
 func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig) error) *cobra.Command {
@@ -109,6 +113,7 @@ func newCreateClusterCmd(runFunc func(context.Context, io.Writer, clusterConfig)
 	bindClusterFlags(cmd.Flags(), &conf)
 	bindInsecureFlags(cmd.Flags(), &conf.InsecureKeys)
 	bindNetworkFlags(cmd.Flags(), &conf.Network, &conf.testnetConfig)
+	bindProposerConfigSeedFlags(cmd, &conf.ProposerConfigSeed, proposerConfigSignedUsage)
 
 	wrapPreRunE(cmd, func(cmd *cobra.Command, _ []string) error {
 		thresholdPresent := cmd.Flags().Lookup("threshold").Changed
@@ -138,7 +143,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.StringSliceVar(&config.KeymanagerAuthTokens, "keymanager-auth-tokens", nil, "Authentication bearer tokens to interact with the keymanager URLs. Don't include the \"Bearer\" symbol, only include the api-token.")
 	flags.IntVar(&config.NumNodes, "nodes", 0, "The number of charon nodes in the cluster. Minimum is 3.")
 	flags.IntVar(&config.Threshold, "threshold", 0, "Optional override of threshold required for signature reconstruction. Defaults to ceil(n*2/3) if zero. Warning, non-default values decrease security.")
-	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator.")
+	flags.StringSliceVar(&config.FeeRecipientAddrs, "fee-recipient-addresses", nil, "Comma separated list of Ethereum addresses of the fee recipient for each validator. Either provide a single fee recipient address or fee recipient addresses for each validator. Used for the validators' builder registrations before the gloas fork, and as the proposer config's initial fee recipients, which apply from gloas.")
 	flags.StringSliceVar(&config.WithdrawalAddrs, "withdrawal-addresses", nil, "Comma separated list of Ethereum addresses to receive the returned stake and accrued rewards for each validator. Either provide a single withdrawal address or withdrawal addresses for each validator.")
 	flags.IntVar(&config.NumDVs, "num-validators", 0, "The number of distributed validators needed in the cluster.")
 	flags.BoolVar(&config.SplitKeys, "split-existing-keys", false, "Split an existing validator's private key into a set of distributed validator private key shares. Deposit data files are re-created using the provided withdrawal addresses; do not submit deposits for validators that are already active.")
@@ -147,7 +152,7 @@ func bindClusterFlags(flags *pflag.FlagSet, config *clusterConfig) {
 	flags.BoolVar(&config.Publish, "publish", false, "Publish lock file to obol-api.")
 	flags.IntSliceVar(&config.DepositAmounts, "deposit-amounts", nil, "List of partial deposit amounts (integers) in ETH. Values must sum up to at least 32ETH.")
 	flags.StringVar(&config.ConsensusProtocol, "consensus-protocol", "", "Preferred consensus protocol name for the cluster. Selected automatically when not specified.")
-	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 200000000, "Preferred target gas limit for transactions.")
+	flags.UintVar(&config.TargetGasLimit, "target-gas-limit", 200000000, "Target gas limit of the validators' builder registrations, used before the gloas fork only. From gloas, the proposer config sets the gas limit.")
 	flags.BoolVar(&config.Compounding, "compounding", false, "Enable compounding rewards for validators by using 0x02 withdrawal credentials.")
 	flags.StringVar(&config.ExecutionEngineAddr, "execution-client-rpc-endpoint", "", "The address of the execution engine JSON-RPC API.")
 	flags.BoolVar(&config.Zipped, "zipped", false, "Create a tar archive compressed with gzip of the cluster directory after creation.")
@@ -166,7 +171,13 @@ func bindInsecureFlags(flags *pflag.FlagSet, insecureKeys *bool) {
 }
 
 func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) error {
-	var err error
+	// Reject a bad seed before any work: it is signed by every operator.
+	seed := conf.ProposerConfigSeed
+
+	err := seed.Validate()
+	if err != nil {
+		return err
+	}
 
 	// Map prater to goerli to ensure backwards compatibility with older cluster definitions and cluster locks.
 	if conf.Network == eth2util.Prater {
@@ -355,6 +366,11 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 		return errors.Wrap(err, "invalid cluster lock contents")
 	}
 
+	proposerConfig, err := signProposerConfig(lock, def.FeeRecipientAddresses(), conf.ProposerConfigSeed, nodeKeys)
+	if err != nil {
+		return err
+	}
+
 	// dashboardURL is the Launchpad dashboard url for a given lock file.
 	// If empty, either conf.Publish wasn't specified or there was a processing error in publishing
 	// the generated lock file.
@@ -368,6 +384,10 @@ func runCreateCluster(ctx context.Context, w io.Writer, conf clusterConfig) erro
 	}
 
 	if err = writeLock(lock, conf.ClusterDir, numNodes); err != nil {
+		return err
+	}
+
+	if err = writeProposerConfig(proposerConfig, lock, conf.ClusterDir); err != nil {
 		return err
 	}
 
@@ -722,6 +742,51 @@ func writeLock(lock cluster.Lock, clusterDir string, numNodes int) error {
 	return nil
 }
 
+// signProposerConfig returns the lock's revision 1 proposer config signed by every operator key.
+func signProposerConfig(lock cluster.Lock, feeRecipients []string, seed proposerconfig.Seed, nodeKeys []*k1.PrivateKey) (proposerconfig.Document, error) {
+	cfg, err := proposerconfig.NewConfig(lock, feeRecipients, seed.GasLimit, seed.Builder())
+	if err != nil {
+		return proposerconfig.Document{}, errors.Wrap(err, "proposer config")
+	}
+
+	doc := proposerconfig.Document{
+		Version:  proposerconfig.Version,
+		LockHash: lock.LockHash,
+		Revision: 1,
+		Config:   cfg,
+	}
+
+	for i, key := range nodeKeys {
+		sig, err := proposerconfig.Sign(doc, key)
+		if err != nil {
+			return proposerconfig.Document{}, errors.Wrap(err, "sign proposer config", z.Int("operator", i))
+		}
+
+		doc.Signatures = append(doc.Signatures, proposerconfig.Signature{Operator: i, Signature: sig})
+	}
+
+	err = proposerconfig.Verify(doc, lock)
+	if err != nil {
+		return proposerconfig.Document{}, errors.Wrap(err, "verify signed proposer config")
+	}
+
+	return doc, nil
+}
+
+// writeProposerConfig writes the proposer config to every node's vc-config directory, keyed by its pubshares.
+func writeProposerConfig(doc proposerconfig.Document, lock cluster.Lock, clusterDir string) error {
+	for i := range lock.Operators {
+		path := filepath.Join(nodeDir(clusterDir, i), "vc-config", "proposer-config.json")
+
+		err := proposerconfig.Write(path, doc, lock, cluster.NodeIdx{PeerIdx: i, ShareIdx: i + 1})
+		if err != nil {
+			return errors.Wrap(err, "write proposer config", z.Int("node", i))
+		}
+	}
+
+	return nil
+}
+
 // getValidators returns distributed validators from the provided dv public keys and keyshares.
 // It creates new peers from the provided config and saves validator keys to disk for each peer.
 func getValidators(
@@ -1007,6 +1072,8 @@ func writeOutput(out io.Writer, splitKeys bool, clusterDir string, numNodes int,
 	_, _ = fmt.Fprintf(&sb, "├─ node[0-%d]/\t\t\tDirectory for each node\n", numNodes-1)
 	_, _ = sb.WriteString("│  ├─ charon-enr-private-key\tCharon networking private key for node authentication\n")
 	_, _ = sb.WriteString("│  ├─ cluster-lock.json\t\tCluster lock defines the cluster lock file which is signed by all nodes\n")
+
+	_, _ = sb.WriteString("│  ├─ vc-config/proposer-config.json\tProposer config signed by all nodes, read by charon run and the validator clients\n")
 
 	_, _ = sb.WriteString("│  ├─ deposit-data-*.json\tDeposit data files are used to activate a Distributed Validator on the DV Launchpad\n")
 	if keysToDisk {

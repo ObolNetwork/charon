@@ -40,6 +40,9 @@ type addValidatorsConfig struct {
 	DKG               dkg.Config
 	WithdrawalAddrs   []string
 	FeeRecipientAddrs []string
+
+	ProposerConfigFile string
+	OverridesFile      string
 }
 
 func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) error) *cobra.Command {
@@ -67,6 +70,8 @@ func newAddValidatorsCmd(runFunc func(context.Context, addValidatorsConfig) erro
 	cmd.Flags().StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
 	cmd.Flags().StringVar(&config.ValidatorKeysDir, "validator-keys-dir", ".charon/validator_keys", "Path to the directory containing the validator private key share files and passwords.")
 	cmd.Flags().StringVar(&config.OutputDir, "output-dir", "distributed_validator", "The destination folder for the new (combined) cluster data. Must be empty.")
+	cmd.Flags().StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the current proposer config file, its content is carried over into the new cluster's signed one.")
+	cmd.Flags().StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
 	cmd.Flags().BoolVar(&config.Unverified, "unverified", false,
 		"If charon has no access to the existing validator keys, this flag allows the addition to proceed, but skips hashing and signing the new cluster lock data. Requires the --keymanager-address flag to import the new validator key shares. charon run must be started with --no-verify flag.")
 
@@ -173,6 +178,8 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 		Unverified:         conf.Unverified,
 		ValidatorAddresses: valAddresses,
 		DepositData:        depositData,
+		ProposerConfigFile: conf.ProposerConfigFile,
+		OverridesFile:      conf.OverridesFile,
 	}
 
 	if err := dkg.Run(ctx, dkgConfig); err != nil {
@@ -183,6 +190,7 @@ func runAddValidators(ctx context.Context, conf addValidatorsConfig) error {
 
 	log.Info(ctx, "IMPORTANT:")
 	log.Info(ctx, "You need to shut down your node (charon and VC) and restart it with the new data directory: "+conf.OutputDir)
+	logProposerConfigOutput(ctx, conf.OutputDir)
 
 	if conf.Unverified {
 		log.Info(ctx, "Because you used --unverified flag, the new cluster cannot pass signatures verification.")
