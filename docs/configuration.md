@@ -261,7 +261,9 @@ Two commands write what a validator client consumes from this node's cluster art
   config has none and charon's builder API serves them: pass `--builder-api` as for `charon run`, which enables builder
   proposals on Teku, Prysm, Lighthouse and Nimbus without a builder block.
 - `charon alpha validator keys <client>` copies the key shares of `validator_keys/` into the client's layout, to
-  `--output-dir` (default `.charon/validator_keys/<client>`, beside the originals, which stay unchanged).
+  `--output-dir` (default `.charon/validator_keys/<client>`, beside the originals, which stay unchanged). An output
+  directory that is not empty is deleted first, after asking or with `--yes`: key shares left in it from before, as after
+  a reshare, would be loaded by the validator client too. Do not point it at a validator client's data directory.
 
 | Client | `validator keys` | `validator config`: proposer settings | `validator config`: `vc-flags.txt` |
 |---|---|---|---|

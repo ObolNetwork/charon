@@ -157,6 +157,12 @@ func TestRunValidator(t *testing.T) {
 		require.Contains(t, buf.String(), "The definitions name the keystores under /root/.lighthouse/hoodi, move the validators and secrets directories there.\n")
 	})
 
+	t.Run("nimbus config", func(t *testing.T) {
+		var buf bytes.Buffer
+		require.NoError(t, runValidatorConfig(t.Context(), &buf, conf(vcfiles.Nimbus)))
+		require.Contains(t, buf.String(), "Nimbus reads each validator's settings beside its keystore, merge the validators directory into the one charon alpha validator keys wrote.\n")
+	})
+
 	t.Run("lighthouse keys", func(t *testing.T) {
 		var buf bytes.Buffer
 		require.NoError(t, runValidatorKeys(t.Context(), &buf, conf(vcfiles.Lighthouse)))
@@ -178,5 +184,68 @@ func TestRunValidator(t *testing.T) {
 		require.NoError(t, runValidatorKeys(t.Context(), &buf, c))
 		require.Contains(t, buf.String(), "  prysm-wallet/direct/accounts/all-accounts.keystore.json\n")
 		require.Contains(t, buf.String(), "Point prysm's --wallet-dir at the prysm-wallet directory, no import needed.\n")
+	})
+}
+
+func TestReplaceKeysDir(t *testing.T) {
+	// newDir returns an output directory holding a stale keystore, beside the key shares directory.
+	newDir := func(t *testing.T) (string, string) {
+		t.Helper()
+
+		keysDir := t.TempDir()
+		dir := filepath.Join(keysDir, "teku")
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "keystores"), 0o700))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "keystores", "keystore-0.json"), []byte("{}"), 0o600))
+
+		return dir, keysDir
+	}
+
+	t.Run("missing", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "teku")
+		require.NoError(t, replaceKeysDir(strings.NewReader(""), io.Discard, dir, t.TempDir(), false, false))
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		require.NoError(t, replaceKeysDir(strings.NewReader(""), io.Discard, t.TempDir(), t.TempDir(), false, false))
+	})
+
+	t.Run("yes flag", func(t *testing.T) {
+		dir, keysDir := newDir(t)
+		require.NoError(t, replaceKeysDir(strings.NewReader(""), io.Discard, dir, keysDir, true, false))
+		require.NoDirExists(t, dir)
+		require.DirExists(t, keysDir)
+	})
+
+	t.Run("no terminal", func(t *testing.T) {
+		dir, keysDir := newDir(t)
+		err := replaceKeysDir(strings.NewReader("y\n"), io.Discard, dir, keysDir, false, false)
+		require.ErrorContains(t, err, "add --yes")
+		require.DirExists(t, dir)
+	})
+
+	t.Run("confirmed", func(t *testing.T) {
+		dir, keysDir := newDir(t)
+
+		var buf bytes.Buffer
+		require.NoError(t, replaceKeysDir(strings.NewReader("y\n"), &buf, dir, keysDir, false, true))
+		require.Equal(t, "Directory "+dir+" is not empty. Delete everything in it and write the key shares anew? [y/N] ", buf.String())
+		require.NoDirExists(t, dir)
+	})
+
+	t.Run("declined", func(t *testing.T) {
+		dir, keysDir := newDir(t)
+		err := replaceKeysDir(strings.NewReader("\n"), io.Discard, dir, keysDir, false, true)
+		require.ErrorContains(t, err, "not confirmed")
+		require.FileExists(t, filepath.Join(dir, "keystores", "keystore-0.json"))
+	})
+
+	t.Run("holds the key shares", func(t *testing.T) {
+		dir, keysDir := newDir(t)
+		err := replaceKeysDir(strings.NewReader("y\n"), io.Discard, keysDir, keysDir, true, true)
+		require.ErrorContains(t, err, "holds the validator key shares")
+		require.DirExists(t, dir)
+
+		err = replaceKeysDir(strings.NewReader("y\n"), io.Discard, filepath.Dir(keysDir), keysDir, true, true)
+		require.ErrorContains(t, err, "holds the validator key shares")
 	})
 }
