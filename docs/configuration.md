@@ -233,8 +233,10 @@ reads must hold the cluster's latest revision. Builder URLs are logged redacted,
 
 `--participating-operator-enrs` lists the operators running the ceremony, this node included, as for `remove-operators`. It defaults
 to all operators and must list at least the cluster threshold; every participant passes the same list. An operator that missed a ceremony shows up as `app_peerinfo_proposer_config_mismatch` on its peers and catches up by joining the next edit ceremony, where it adopts the newer signed revision from its peers.
-The hidden `--timeout` (default 24h) is how long to wait for the other operators to join, `--p2p-relays` defaults to
-`https://4.relay.obol.dev`. Use relays that do not serve your running charon node. The ceremony connects via relays only, it neither
+The wait for the other operators to join is unbounded. `--timeout` (default 5m) bounds the protocol once every operator
+joined, which includes confirming the change again on a node that adopts a newer revision from a peer. `--p2p-relays` defaults to
+`https://4.relay.obol.dev`. Every participant passes the same relays, and none of them may serve a participant's running charon
+node: the ceremony would reach that node in place of the operator's edit and wait indefinitely. The ceremony connects via relays only, it neither
 listens nor advertises addresses. Run inside charon's container, the command inherits charon run's environment, including the
 `CHARON_P2P_RELAYS` your node uses, so pass `--p2p-relays` explicitly:
 

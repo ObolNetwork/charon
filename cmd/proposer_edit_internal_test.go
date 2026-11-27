@@ -181,7 +181,7 @@ func TestProposerEditFlags(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, called)
 			require.Equal(t, test.delta, got.Delta)
-			require.Equal(t, time.Minute, got.DKGConfig.Timeout)
+			require.Equal(t, 5*time.Minute, got.DKGConfig.Timeout)
 			require.Equal(t, 5*time.Second, got.DKGConfig.ShutdownDelay)
 			require.Equal(t, []string{"https://4.relay.obol.dev"}, got.DKGConfig.P2P.Relays)
 			require.Equal(t, ".charon/vc-config/proposer-config.json", got.ProposerConfigFile)
@@ -383,11 +383,11 @@ func TestConfirmChangeCancelled(t *testing.T) {
 func TestProposerEditHiddenFlags(t *testing.T) {
 	cmd := newProposerEditCmd(nil)
 
-	for _, name := range []string{"overrides-file", "timeout", "shutdown-delay", "no-verify", "execution-client-rpc-endpoint"} {
+	for _, name := range []string{"overrides-file", "shutdown-delay", "no-verify", "execution-client-rpc-endpoint"} {
 		require.True(t, cmd.Flags().Lookup(name).Hidden, name)
 	}
 
-	for _, name := range []string{"yes", "lock-file", "private-key-file", "proposer-config-file", "participating-operator-enrs", "p2p-relays", gasLimitFlag} {
+	for _, name := range []string{"yes", "lock-file", "private-key-file", "proposer-config-file", "participating-operator-enrs", "p2p-relays", "timeout", gasLimitFlag} {
 		require.False(t, cmd.Flags().Lookup(name).Hidden, name)
 	}
 

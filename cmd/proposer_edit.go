@@ -147,7 +147,7 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 	f.StringVar(&config.LockFilePath, "lock-file", ".charon/cluster-lock.json", "The path to the cluster lock file defining the distributed validator cluster.")
 	f.StringVar(&config.ProposerConfigFile, "proposer-config-file", ".charon/vc-config/proposer-config.json", "The path to the proposer config file.")
 	f.StringVar(&config.OverridesFile, "overrides-file", ".charon/builder_registrations_overrides.json", "The path to the builder registration overrides file, used for the fee recipients if the proposer config file is absent.")
-	f.DurationVar(&config.DKGConfig.Timeout, "timeout", time.Minute, "Timeout for the protocol, should be increased if protocol times out.")
+	f.DurationVar(&config.DKGConfig.Timeout, "timeout", 5*time.Minute, "Timeout for the protocol once every operator joined, which includes confirming the change again after adopting a newer revision from a peer.")
 	bindShutdownDelayFlag(f, &config.DKGConfig.ShutdownDelay)
 
 	bindNoVerifyFlag(f, &config.DKGConfig.NoVerify)
@@ -157,7 +157,7 @@ func newProposerEditCmd(runFunc func(context.Context, io.Writer, dkg.ProposerCon
 	bindEth1Flag(f, &config.DKGConfig.ExecutionEngineAddr)
 
 	// p2p-relays stays visible: under docker compose exec it must be passed, see the relay probe.
-	markHidden(f, "overrides-file", "timeout", "shutdown-delay", "no-verify", "execution-client-rpc-endpoint")
+	markHidden(f, "overrides-file", "shutdown-delay", "no-verify", "execution-client-rpc-endpoint")
 
 	return cmd
 }
