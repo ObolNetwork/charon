@@ -103,7 +103,7 @@ func (p *replaceOperatorProtocol) GetPeers(lock *cluster.Lock) ([]p2p.Peer, erro
 }
 
 func (p *replaceOperatorProtocol) PostInit(ctx context.Context, pctx *ProtocolContext) error {
-	sigEx, err := newExchanger(pctx.ThisNode, pctx.ThisNodeIdx.PeerIdx, pctx.PeerIDs, pctx.PeerMap, []sigType{sigLock}, pctx.Config.Timeout)
+	sigEx, err := newExchanger(pctx.ThisNode, pctx.ThisNodeIdx.PeerIdx, pctx.PeerIDs, pctx.PeerMap, []sigType{sigLock}, pctx.Config.Timeout, len(pctx.Lock.Validators))
 	if err != nil {
 		return err
 	}

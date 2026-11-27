@@ -106,7 +106,7 @@ func TestExchanger(t *testing.T) {
 	}
 
 	for i := range nodes {
-		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), expectedSigTypes, 8*time.Second)
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), expectedSigTypes, 8*time.Second, dvs)
 		require.NoError(t, err)
 
 		exchangers = append(exchangers, ex)
@@ -232,7 +232,7 @@ func TestExchangerRetriesTransientSendFailures(t *testing.T) {
 	var exchangers []*exchanger
 
 	for i := range nodes {
-		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 8*time.Second)
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 8*time.Second, 1)
 		require.NoError(t, err)
 
 		exchangers = append(exchangers, ex)
@@ -265,7 +265,7 @@ func TestExchangerPushPsigsNeverBlocks(t *testing.T) {
 	h := testutil.CreateHost(t, testutil.AvailableAddr(t))
 	peers := []peer.ID{h.ID()}
 
-	ex, err := newExchanger(h, 0, peers, positionalPeerMap(peers), []sigType{sigLock}, time.Second)
+	ex, err := newExchanger(h, 0, peers, positionalPeerMap(peers), []sigType{sigLock}, time.Second, 1)
 	require.NoError(t, err)
 
 	duty := core.NewSignatureDuty(uint64(sigLock))
@@ -348,7 +348,7 @@ func TestExchangerRejectsMismatchedShareIndex(t *testing.T) {
 
 	exchangers := make([]*exchanger, nodes)
 	for i := range nodes {
-		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 8*time.Second)
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 8*time.Second, 1)
 		require.NoError(t, err)
 
 		exchangers[i] = ex
@@ -415,7 +415,7 @@ func TestNewExchangerRejectsIncompletePeerMap(t *testing.T) {
 		h.ID(): {PeerIdx: 0, ShareIdx: 1},
 	}
 
-	_, err := newExchanger(h, 0, peers, peerMap, []sigType{sigLock}, time.Second)
+	_, err := newExchanger(h, 0, peers, peerMap, []sigType{sigLock}, time.Second, 1)
 	require.ErrorContains(t, err, "missing valid share index")
 }
 
@@ -456,7 +456,7 @@ func TestExchangerTimeout(t *testing.T) {
 	var exchangers []*exchanger
 
 	for i := range nodes {
-		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 2*time.Second)
+		ex, err := newExchanger(hosts[i], i, peers, positionalPeerMap(peers), []sigType{sigLock}, 2*time.Second, 1)
 		require.NoError(t, err)
 
 		exchangers = append(exchangers, ex)

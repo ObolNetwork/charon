@@ -88,7 +88,7 @@ func TestParSigEx(t *testing.T) {
 	for i := range n {
 		wg.Add(n - 1)
 
-		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, verifyFunc, gaterFunc)
+		sigex := parsigex.NewParSigEx(hosts[i], p2p.Send, i, peers, verifyFunc, gaterFunc, 1)
 		sigex.Subscribe(func(_ context.Context, d core.Duty, set core.ParSignedDataSet) error {
 			defer wg.Done()
 
