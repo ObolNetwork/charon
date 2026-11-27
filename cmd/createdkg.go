@@ -330,11 +330,7 @@ func writeProposerConfigSeed(outputDir string, seed proposerconfig.Seed) error {
 		return err
 	}
 
-	// Best effort creation of output dir, but error when writing the file.
-	_ = os.MkdirAll(outputDir, 0o755)
-
-	//nolint:gosec // File needs to be read-only for everybody
-	err = os.WriteFile(path.Join(outputDir, proposerConfigSeedFileName), b, 0o444)
+	err = proposerconfig.WriteNewFile(path.Join(outputDir, proposerConfigSeedFileName), b)
 	if err != nil {
 		return errors.Wrap(err, "write proposer config seed file")
 	}

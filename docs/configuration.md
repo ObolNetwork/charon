@@ -205,6 +205,16 @@ At least one change flag is required, the flags combine into one revision:
 - `--builder-urls` (replaces the list, order is the preference order, no duplicates), `--builder-min-bid`, `--builder-boost-factor`,
   `--builder-max-execution-payment`; the last three need an existing builder block or `--builder-urls`. `--no-builders` removes the builder block.
 
+To spare every operator retyping the same flags, one operator adds `--write-proposal-file=proposal.json` to them. It writes the
+resulting revision as a proposal file and stops, changing nothing. The others, and the author, then run the command with
+`--proposal-file=proposal.json` (a path or an HTTP URL) in place of the change flags; operators passing the file and operators
+passing the equal flags agree. An existing file is not overwritten. The proposal file has the seed file's shape and is complete
+on its own: it adds the `lock_hash`, the `revision` it proposes, the default `fee_recipient` and a `proposer_config` keyed by DV
+public key (not by this node's public shares, as `proposer-config.json` is) for the validators with another fee recipient. Write
+it with `--write-proposal-file` rather than by hand: a fee recipient left out is refused, not defaulted. A file for another cluster,
+or for a revision other than the next one, is refused, so a stale file cannot revert a later change; the author's node must hold
+the cluster's latest revision. Builder URLs are logged redacted, so check them in the file itself.
+
 `--participating-operator-enrs` lists the operators running the ceremony, this node included, as for `remove-operators`. It defaults
 to all operators and must list at least the cluster threshold; every participant passes the same list. An operator that missed a ceremony shows up as `app_peerinfo_proposer_config_mismatch` on its peers and catches up by joining the next edit ceremony, where it adopts the newer signed revision from its peers.
 `--timeout` (default 24h) is how long to wait for the other operators to join, `--p2p-relays` defaults to `https://4.relay.obol.dev`.
