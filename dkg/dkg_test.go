@@ -1048,6 +1048,7 @@ func TestDKGSeedMismatch(t *testing.T) {
 	for i, err := range errs {
 		require.ErrorContains(t, err, "default.gas_limit: 200000000 -> 60000000", "node %d", i)
 		require.ErrorContains(t, err, "--proposer-config-*", "node %d", i)
+		require.ErrorContains(t, err, "--proposer-config-seed-file", "node %d", i)
 	}
 }
 
