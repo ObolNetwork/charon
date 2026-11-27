@@ -254,20 +254,27 @@ func newSimnetArgs(t *testing.T) simnetArgs {
 type simnetExpect struct {
 	mu      sync.Mutex
 	actuals map[core.DutyType][]bool
-	Errs    chan error
+	// minSlots are the first slots from which duties of a type count, if any.
+	minSlots map[core.DutyType]uint64
+	Errs     chan error
 }
 
 // Assert tests whether the duty is expected for this peer and also updates internal counters.
-func (e *simnetExpect) Assert(t *testing.T, typ core.DutyType, peerIdx int) {
+func (e *simnetExpect) Assert(t *testing.T, duty core.Duty, peerIdx int) {
 	t.Helper()
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	typ := duty.Type
 	if _, ok := e.actuals[typ]; !ok {
 		t.Logf("unexpected duty, type=%v", typ)
 
 		e.Errs <- errors.New("unexpected duty type", z.Any("type", typ))
+	}
+
+	if duty.Slot < e.minSlots[typ] {
+		return
 	}
 
 	e.actuals[typ][peerIdx] = true
@@ -314,8 +321,9 @@ func newSimnetExpect(peers int, duties ...core.DutyType) *simnetExpect {
 	}
 
 	return &simnetExpect{
-		actuals: actuals,
-		Errs:    make(chan error, 1),
+		actuals:  actuals,
+		minSlots: make(map[core.DutyType]uint64),
+		Errs:     make(chan error, 1),
 	}
 }
 
@@ -439,7 +447,7 @@ func testSimnet(t *testing.T, args simnetArgs, expect *simnetExpect) {
 			}
 
 			// Assert we get results for all types from all peers.
-			expect.Assert(t, res.Duty.Type, res.PeerIdx)
+			expect.Assert(t, res.Duty, res.PeerIdx)
 
 			if expect.Done(t) {
 				cancel()
