@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,9 +15,12 @@ import (
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/obolnetwork/charon/app/errors"
+	"github.com/obolnetwork/charon/app/log"
 	pbv1 "github.com/obolnetwork/charon/app/peerinfo/peerinfopb/v1"
 	"github.com/obolnetwork/charon/app/version"
 	"github.com/obolnetwork/charon/p2p"
@@ -91,7 +96,7 @@ func TestPeerBuilderAPIEnabledGauge(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_ = New(server, []peer.ID{server.ID(), client.ID()}, version.Version, lockHash, gitHash, nil, test.builderEnabled, peerNickname, nil)
+			_ = New(server, []peer.ID{server.ID(), client.ID()}, version.Version, lockHash, gitHash, nil, test.builderEnabled, peerNickname, func() []byte { return nil })
 
 			expectedMetric := fmt.Sprintf(`
 			# HELP app_peerinfo_builder_api_enabled Set to 1 if builder API is enabled on this peer, else 0 if disabled.
@@ -200,7 +205,7 @@ func TestDVClientVersionCheck(t *testing.T) {
 
 			pi := newInternal(client, peers, version.Supported()[0], lockHash, gitCommit,
 				p2p.SendReceive, p2p.RegisterHandler,
-				tickProvider, func() time.Time { return now }, metricSubmitter, false, "test", nil)
+				tickProvider, func() time.Time { return now }, metricSubmitter, false, "test", func() []byte { return nil })
 
 			// Run until the single tick is processed.
 			go pi.Run(ctx)
@@ -226,10 +231,10 @@ func TestDVClientVersionCheck(t *testing.T) {
 	}
 }
 
-func TestBuilderConfigHashCheck(t *testing.T) {
+func TestProposerConfigHashCheck(t *testing.T) {
 	now := time.Now()
 	lockHash := []byte("abcdef")
-	ownHash := []byte("own-builder-config-hash")
+	ownHash := []byte("own-proposer-config-hash")
 
 	const gitCommit = "1234567"
 
@@ -247,7 +252,7 @@ func TestBuilderConfigHashCheck(t *testing.T) {
 		},
 		{
 			name:         "mismatching hash",
-			peerHash:     []byte("other-builder-config-hash"),
+			peerHash:     []byte("other-proposer-config-hash"),
 			expectSeries: true,
 			expectValue:  1,
 		},
@@ -260,7 +265,7 @@ func TestBuilderConfigHashCheck(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			peerBuilderConfigMismatchGauge.Reset()
+			peerProposerConfigMismatchGauge.Reset()
 
 			server := testutil.CreateHost(t, testutil.AvailableAddr(t))
 			client := testutil.CreateHost(t, testutil.AvailableAddr(t))
@@ -274,13 +279,13 @@ func TestBuilderConfigHashCheck(t *testing.T) {
 				func() proto.Message { return new(pbv1.PeerInfo) },
 				func(context.Context, peer.ID, proto.Message) (proto.Message, bool, error) {
 					return &pbv1.PeerInfo{
-						CharonVersion:     version.Supported()[0].String(),
-						LockHash:          lockHash,
-						GitHash:           gitCommit,
-						SentAt:            timestamppb.New(now),
-						StartedAt:         timestamppb.New(now),
-						DvClient:          DVClientCharon,
-						BuilderConfigHash: test.peerHash,
+						CharonVersion:      version.Supported()[0].String(),
+						LockHash:           lockHash,
+						GitHash:            gitCommit,
+						SentAt:             timestamppb.New(now),
+						StartedAt:          timestamppb.New(now),
+						DvClient:           DVClientCharon,
+						ProposerConfigHash: test.peerHash,
 					}, true, nil
 				},
 				p2p.WithReadLimit(maxPeerInfoMsgSize),
@@ -299,7 +304,7 @@ func TestBuilderConfigHashCheck(t *testing.T) {
 
 			pi := newInternal(client, peers, version.Supported()[0], lockHash, gitCommit,
 				p2p.SendReceive, p2p.RegisterHandler,
-				tickProvider, func() time.Time { return now }, metricSubmitter, false, "test", ownHash)
+				tickProvider, func() time.Time { return now }, metricSubmitter, false, "test", func() []byte { return ownHash })
 
 			go pi.Run(ctx)
 
@@ -307,16 +312,16 @@ func TestBuilderConfigHashCheck(t *testing.T) {
 
 			if test.expectSeries {
 				require.Eventually(t, func() bool {
-					if promtestutil.CollectAndCount(peerBuilderConfigMismatchGauge) != 1 {
+					if promtestutil.CollectAndCount(peerProposerConfigMismatchGauge) != 1 {
 						return false
 					}
 
-					return promtestutil.ToFloat64(peerBuilderConfigMismatchGauge.WithLabelValues(serverName)) == test.expectValue
+					return promtestutil.ToFloat64(peerProposerConfigMismatchGauge.WithLabelValues(serverName)) == test.expectValue
 				}, 5*time.Second, 50*time.Millisecond)
 			} else {
 				// Give the goroutine time to process the tick, no series may appear.
 				time.Sleep(500 * time.Millisecond)
-				require.Zero(t, promtestutil.CollectAndCount(peerBuilderConfigMismatchGauge))
+				require.Zero(t, promtestutil.CollectAndCount(peerProposerConfigMismatchGauge))
 			}
 		})
 	}
@@ -331,4 +336,93 @@ func semvers(s ...string) []version.SemVer {
 	}
 
 	return resp
+}
+
+func TestPeerInfoProposerConfigMismatch(t *testing.T) {
+	now := time.Now()
+	lockHash := []byte("abcdef")
+
+	const gitCommit = "1234567"
+
+	peerProposerConfigMismatchGauge.Reset()
+
+	nodeA := testutil.CreateHost(t, testutil.AvailableAddr(t))
+	nodeB := testutil.CreateHost(t, testutil.AvailableAddr(t))
+
+	nodeA.Peerstore().AddAddrs(nodeB.ID(), nodeB.Addrs(), peerstore.PermanentAddrTTL)
+	nodeB.Peerstore().AddAddrs(nodeA.ID(), nodeA.Addrs(), peerstore.PermanentAddrTTL)
+
+	peers := []peer.ID{nodeA.ID(), nodeB.ID()}
+
+	var hashB atomic.Pointer[[]byte]
+
+	setB := func(h string) {
+		b := []byte(h)
+		hashB.Store(&b)
+	}
+	setB("rev-1")
+
+	noopTicks := func() (<-chan time.Time, func()) { return make(chan time.Time), func() {} }
+	noopSubmit := func(peer.ID, time.Duration, string, string, time.Time, bool, string) {}
+	nowFunc := func() time.Time { return now }
+
+	// Node B only serves responses.
+	_ = newInternal(nodeB, peers, version.Supported()[0], lockHash, gitCommit,
+		p2p.SendReceive, p2p.RegisterHandler, noopTicks, nowFunc, noopSubmit, false, "b",
+		func() []byte { return *hashB.Load() })
+
+	ticks := make(chan time.Time)
+	tickProvider := func() (<-chan time.Time, func()) { return ticks, func() {} }
+
+	piA := newInternal(nodeA, peers, version.Supported()[0], lockHash, gitCommit,
+		p2p.SendReceive, p2p.RegisterHandler, tickProvider, nowFunc, noopSubmit, false, "a",
+		func() []byte { return []byte("rev-1") })
+
+	var logs syncBuffer
+
+	log.InitConsoleForT(t, zapcore.AddSync(&logs))
+	go piA.Run(t.Context())
+
+	nameB := p2p.PeerName(nodeB.ID())
+	gauge := func() float64 { return promtestutil.ToFloat64(peerProposerConfigMismatchGauge.WithLabelValues(nameB)) }
+
+	ticks <- now
+
+	require.Eventually(t, func() bool {
+		return promtestutil.CollectAndCount(peerProposerConfigMismatchGauge) == 1 && gauge() == 0
+	}, 5*time.Second, 50*time.Millisecond)
+
+	// Node B moves to a new revision, the next tick flags the mismatch.
+	setB("rev-2")
+
+	ticks <- now
+
+	require.Eventually(t, func() bool { return gauge() == 1 }, 5*time.Second, 50*time.Millisecond)
+	require.Eventually(t, func() bool { return strings.Contains(logs.String(), "proposer config") }, 5*time.Second, 50*time.Millisecond)
+
+	// Both hashes are logged: ours and the peer's.
+	require.Contains(t, logs.String(), fmt.Sprintf("%#x", []byte("rev-1")))
+	require.Contains(t, logs.String(), fmt.Sprintf("%#x", []byte("rev-2")))
+}
+
+// syncBuffer is a goroutine-safe log sink.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf strings.Builder
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	n, err := b.buf.Write(p)
+
+	return n, errors.Wrap(err, "write")
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.String()
 }

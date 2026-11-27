@@ -1795,7 +1795,8 @@ func TestBuilderAuthReporter(t *testing.T) {
 
 	// This node has builders A, B and C configured.
 	peers := []p2p.Peer{{Index: 0, Name: "peer1"}, {Index: 1, Name: "peer2"}, {Index: 2, Name: "peer3"}}
-	reporter := newBuilderAuthReporter(peers, []string{builderA, builderB, builderC})
+	hosts := []string{builderA, builderB, builderC}
+	reporter := newBuilderAuthReporter(peers, func() []string { return hosts })
 
 	duty := core.NewBuilderPreferencesDuty(1)
 	pubkey := testutil.RandomCorePubKey(t)
@@ -1819,6 +1820,14 @@ func TestBuilderAuthReporter(t *testing.T) {
 			before[peer+builder] = count(peer, builder)
 		}
 	}
+
+	// A report initialises the counter of each peer and configured builder, so a peer that never signs for a
+	// builder shows 0 rather than no series.
+	series := func() int { return promtestutil.CollectAndCount(builderRequestAuths) }
+
+	reporter(duty, nil)
+	require.GreaterOrEqual(t, series(), len(peers)*len(hosts))
+	require.InDelta(t, before["peer3"+builderC], count("peer3", builderC), 0)
 
 	reporter(duty, []event{
 		// Peer 1's validator client signs for all three builders.
@@ -1852,4 +1861,11 @@ func TestBuilderAuthReporter(t *testing.T) {
 	// Other duties are ignored.
 	reporter(core.NewProposerDuty(1), []event{authEvent(parSigDBInternal, 1, builderA)})
 	require.InDelta(t, before["peer1"+builderA]+1, count("peer1", builderA), 0)
+
+	// The hosts are read at report time: after a reload dropping builder C, its auths are unknown.
+	hosts = []string{builderA, builderB}
+	unknownBefore := count("peer1", builderUnknown)
+
+	reporter(duty, []event{authEvent(parSigDBInternal, 1, builderC)})
+	require.InDelta(t, unknownBefore+1, count("peer1", builderUnknown), 0)
 }
