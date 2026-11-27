@@ -5,6 +5,7 @@ package dkg_test
 import (
 	"context"
 	"fmt"
+	"net/http/httptest"
 	"os"
 	"path"
 	"slices"
@@ -21,12 +22,14 @@ import (
 
 	"github.com/obolnetwork/charon/app/errors"
 	"github.com/obolnetwork/charon/app/k1util"
+	"github.com/obolnetwork/charon/app/obolapi"
 	"github.com/obolnetwork/charon/cluster"
 	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/dkg"
 	dkgpb "github.com/obolnetwork/charon/dkg/dkgpb/v1"
 	"github.com/obolnetwork/charon/p2p"
 	"github.com/obolnetwork/charon/testutil"
+	"github.com/obolnetwork/charon/testutil/obolapimock"
 	"github.com/obolnetwork/charon/testutil/relay"
 )
 
@@ -79,6 +82,57 @@ func TestEditAllAgree(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, before[i], archive)
 	}
+}
+
+func TestEditPublish(t *testing.T) {
+	const n = editNodes
+
+	clusterDir, lock, _ := setupEditCluster(t)
+	relayAddr := relay.StartRelay(t.Context(), t)
+
+	handler, addLockFiles := obolapimock.MockServer(false, nil)
+	api := httptest.NewServer(handler)
+	t.Cleanup(api.Close)
+
+	addLockFiles(lock)
+
+	// The last node publishes to an Obol API without the lock: a failed publish does not fail the edit.
+	noLock, _ := obolapimock.MockServer(false, nil)
+	noLockAPI := httptest.NewServer(noLock)
+	t.Cleanup(noLockAPI.Close)
+
+	var confs []dkg.ProposerConfigEditConfig
+
+	for i := range n {
+		conf := editTestConfig(t, relayAddr, clusterDir, i, proposerconfig.Delta{GasLimit: 60_000_000})
+		conf.DKGConfig.Publish = true
+		conf.DKGConfig.PublishAddr = api.URL
+		conf.DKGConfig.PublishTimeout = 10 * time.Second
+
+		if i == n-1 {
+			conf.DKGConfig.PublishAddr = noLockAPI.URL
+		}
+
+		confs = append(confs, conf)
+	}
+
+	_, errs := runEdits(confs)
+
+	for i := range n {
+		require.NoError(t, errs[i], "node %d", i)
+	}
+
+	cl, err := obolapi.New(api.URL)
+	require.NoError(t, err)
+
+	key, err := k1util.Load(p2p.KeyPath(nodeDir(clusterDir, 1)))
+	require.NoError(t, err)
+
+	got, err := cl.GetProposerConfig(t.Context(), lock.LockHash, 2, 0, key)
+	require.NoError(t, err)
+	require.NoError(t, proposerconfig.Verify(got, lock))
+	require.Equal(t, uint64(1), got.Revision)
+	requireGasLimit(t, got, 60_000_000)
 }
 
 func TestEditProposalMismatch(t *testing.T) {
