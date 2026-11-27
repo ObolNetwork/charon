@@ -113,6 +113,16 @@ func TestImportKeystores(t *testing.T) {
 		require.ErrorContains(t, err, "post keys to keymanager failed")
 	})
 
+	t.Run("empty keystore batch", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+
+		cl := keymanager.New(srv.URL, testAuthToken)
+		require.NoError(t, cl.ImportKeystores(ctx, nil, nil))
+	})
+
 	t.Run("mismatching lengths", func(t *testing.T) {
 		cl := keymanager.New("", testAuthToken)
 		err := cl.ImportKeystores(ctx, keystores, []string{})
