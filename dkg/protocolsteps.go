@@ -11,6 +11,7 @@ import (
 	"github.com/obolnetwork/charon/app/log"
 	"github.com/obolnetwork/charon/app/z"
 	"github.com/obolnetwork/charon/cluster"
+	"github.com/obolnetwork/charon/cluster/proposerconfig"
 	"github.com/obolnetwork/charon/core"
 	"github.com/obolnetwork/charon/dkg/pedersen"
 	"github.com/obolnetwork/charon/dkg/share"
@@ -64,8 +65,29 @@ func (*ignoreNodeSignaturesProtocolStep) Run(ctx context.Context, pctx *Protocol
 	// remaining nodes to participate.
 	// We cannot create two bcast components because they both use the same protocol ID.
 	_, err := pctx.NodeSigCaster.exchange(ctx, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	// Same for the proposer config signatures, which only the remaining nodes sign.
+	_, err = pctx.ProposerConfigSigCaster.exchange(ctx, nil, nil)
 
 	return err
+}
+
+// agreeProposerConfigProtocolStep agrees on the proposer config carried into the new lock.
+// The DV pubkeys are unchanged by these protocols, so the pubkey-keyed config carries over as-is.
+type agreeProposerConfigProtocolStep struct{}
+
+func (*agreeProposerConfigProtocolStep) Run(ctx context.Context, pctx *ProtocolContext) error {
+	cfg, err := pctx.ProposerConfig.agree(ctx, *pctx.Lock, pctx.proposerConfigLocal, proposerConfigCarriedHint)
+	if err != nil {
+		return err
+	}
+
+	pctx.proposerConfigAgreed = cfg
+
+	return nil
 }
 
 // updateLockProtocolStep updates the cluster lock with new operators, threshold and validators.
@@ -159,7 +181,8 @@ func (s *updateLockProtocolStep) Run(ctx context.Context, pctx *ProtocolContext)
 	return nil
 }
 
-// updateNodeSignaturesProtocolStep updates the cluster lock with node signatures over the lock hash.
+// updateNodeSignaturesProtocolStep updates the cluster lock with node signatures over the lock hash
+// and signs the agreed proposer config at revision 1 under the new lock.
 type updateNodeSignaturesProtocolStep struct{}
 
 func (*updateNodeSignaturesProtocolStep) Run(ctx context.Context, pctx *ProtocolContext) error {
@@ -170,11 +193,23 @@ func (*updateNodeSignaturesProtocolStep) Run(ctx context.Context, pctx *Protocol
 
 	pctx.Lock.NodeSignatures = nodeSigs
 
-	return pctx.Lock.VerifySignatures(pctx.ETH1Client)
+	err = pctx.Lock.VerifySignatures(pctx.ETH1Client)
+	if err != nil {
+		return err
+	}
+
+	doc, err := exchangeProposerConfig(ctx, pctx.ProposerConfigSigCaster, pctx.ENRPrivateKey, *pctx.Lock, pctx.proposerConfigAgreed)
+	if err != nil {
+		return err
+	}
+
+	pctx.proposerConfigDoc = doc
+
+	return nil
 }
 
 // writeArtifactsProtocolStep writes the DKG artifacts to the given output directory:
-// the enr private key, the cluster lock and the private key shares.
+// the enr private key, the cluster lock, the private key shares and the proposer config.
 type writeArtifactsProtocolStep struct {
 	outputDir string
 }
@@ -200,6 +235,17 @@ func (s *writeArtifactsProtocolStep) Run(ctx context.Context, pctx *ProtocolCont
 	}
 
 	if err := writeLock(s.outputDir, *pctx.Lock); err != nil {
+		return err
+	}
+
+	// The node index in the new lock, remaining nodes are renumbered when operators are removed.
+	nodeIdx, err := pctx.Lock.NodeIdx(pctx.ThisPeerID)
+	if err != nil {
+		return errors.Wrap(err, "node index in new lock")
+	}
+
+	err = proposerconfig.Write(proposerconfig.FilePath(s.outputDir), pctx.proposerConfigDoc, *pctx.Lock, nodeIdx)
+	if err != nil {
 		return err
 	}
 
