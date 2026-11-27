@@ -233,6 +233,35 @@ file as `proposer-config-revision-<N>.json` next to it. Restart the validator cl
 `docker compose restart <vc service>`. Before the gloas fork charon's own builder registrations are unaffected, and a fee recipient
 change also needs `charon feerecipient sign` and `fetch`.
 
+### Validator client files
+
+Two commands write what a validator client consumes from this node's cluster artifacts, each for one client:
+`<teku|prysm|lodestar|nimbus|lighthouse>`.
+
+- `charon alpha validator config <client>` writes the client's proposer settings and flags from
+  `vc-config/proposer-config.json` to `--output-dir` (default `.charon/validator-config/<client>`). It holds no keys.
+  From the gloas fork builders are enabled exactly when the proposer config has a builder block. Before it the proposer
+  config has none and charon's builder API serves them: pass `--builder-api` as for `charon run`, which enables builder
+  proposals on Teku, Prysm, Lighthouse and Nimbus without a builder block.
+- `charon alpha validator keys <client>` copies the key shares of `validator_keys/` into the client's layout, to
+  `--output-dir` (default `.charon/validator_keys/<client>`, beside the originals, which stay unchanged).
+
+| Client | `validator keys` | `validator config`: proposer settings | `validator config`: `vc-flags.txt` |
+|---|---|---|---|
+| Teku | `keystores/keystore-N.json`, `keystores/keystore-N.txt` | `teku-proposer-config.json`, builders included (read by Teku from 26.11.0) | `--Xobol-dvt-integration-enabled` |
+| Prysm | `prysm-wallet/direct/accounts/all-accounts.keystore.json`, `prysm-wallet/walletpassword.txt` | `prysm-proposer-settings.json`, with an entry for every validator | `--distributed`, `--enable-beacon-rest-api` |
+| Lodestar | `keystores/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `lodestar-proposer-settings.yml` | `--distributed`, `--payloadLocal=true`, `--builder.selection=maxprofit`, `--allowDangerousTrustedPayments` with a max execution payment above 0 |
+| Nimbus | `validators/<pubkey>/keystore.json`, `secrets/<pubkey>` | `validators/<pubkey>/suggested_fee_recipient.hex`, `suggested_gas_limit.json` | `--distributed`, `--doppelganger-detection=false`, `--payload-builder`, one `--payload-builder-url` per builder and `--builder-*` |
+| Lighthouse | `validators/<pubkey>/voting-keystore.json`, `secrets/<pubkey>` | `validators/validator_definitions.yml`, `validators/builder_definitions.yml` (no builders without a builder block) | `--distributed` |
+
+`vc-flags.txt` holds the flags a distributed validator needs, one per line, to append to the validator client's command;
+the builder flags are only written with a builder block, Nimbus's `--payload-builder=true` also with `--builder-api`. Paths, the network, the beacon node and metrics stay the operator's.
+Nimbus and Lighthouse read their settings from the directory holding their keys, so both commands' `validators/` directories
+go into the same one. Lighthouse's definitions name the keystores by absolute path under `--lighthouse-dir`, its data directory as Lighthouse
+sees it (e.g. `/root/.lighthouse/hoodi` in its container), so move `validators/` and `secrets/` there. Prysm only reads keys from a wallet, so its key shares are decrypted into one, encrypted with a new random
+password that Prysm reads from the wallet directory: point `--wallet-dir` at it, no import needed. The commands log the
+client version the files are made for: Teku `26.11.0`, Prysm `v7.3.1`, Lodestar `v1.50.1`, Nimbus `v26.10.2`, Lighthouse `v8.3.3`. Rerun `validator config` after the proposer config changes, then restart the validator client.
+
 ## Flag Precedence
 
 Charon uses [viper](https://github.com/spf13/viper) for configuration combined with [cobra](https://github.com/spf13/cobra)

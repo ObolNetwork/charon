@@ -57,6 +57,10 @@ func New() *cobra.Command {
 				newReplaceOperatorCmd(runReplaceOperator),
 				newEditProposerConfigCmd(runEditProposerConfig),
 			),
+			newValidatorCmd(
+				newValidatorConfigCmd(runValidatorConfig),
+				newValidatorKeysCmd(runValidatorKeys),
+			),
 			newTestCmd(
 				newTestAllCmd(runTestAll),
 				newTestPeersCmd(runTestPeers),

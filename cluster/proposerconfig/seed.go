@@ -59,7 +59,7 @@ func decodeConfigFile(b []byte) (configFile, error) {
 		return configFile{}, errors.New("file has trailing data")
 	}
 
-	if major(file.Version) != major(Version) {
+	if !SupportedVersion(file.Version) {
 		return configFile{}, errors.New("unsupported file version", z.Str("version", file.Version), z.Str("supported", Version))
 	}
 
