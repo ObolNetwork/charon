@@ -152,6 +152,20 @@ var (
 		Help:      "The configured maximum execution layer payment in gwei counted when valuing a builder bid. Absent when no builder URLs are configured.",
 	}, nil)
 
+	proposerConfigRevisionGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "proposer_config",
+		Name:      "revision",
+		Help:      "The revision of the loaded proposer config document, 0 for an unsigned document derived locally from the lock and flags.",
+	})
+
+	proposerConfigInvalidGauge = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "app",
+		Subsystem: "proposer_config",
+		Name:      "invalid",
+		Help:      "Set to 1 while the proposer config file fails validation or cannot be loaded, 0 otherwise.",
+	})
+
 	validatorStackParamsGauge = promauto.NewResetGaugeVec(prometheus.GaugeOpts{
 		Namespace: "app",
 		Subsystem: "validator_stack",
